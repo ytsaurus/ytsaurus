@@ -9,6 +9,8 @@
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -34,6 +36,7 @@ struct ITransactionManagerHost
     virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
+    virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() = 0;
     virtual NHydra::TCellId GetCellId() = 0;
 };
 
@@ -76,13 +79,15 @@ public:
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
+        NApi::TClusterTag prepareTimestampClusterTag,
         const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
     void PrepareTransactionAbort(
         TTransactionId transactionId,
         bool force) override;
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp) override;
+        TTimestamp commitTimestamp,
+        NApi::TClusterTag commitTimestampClusterTag) override;
     void AbortTransaction(
         TTransactionId transactionId,
         bool force) override;
@@ -94,6 +99,7 @@ public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         ITransactionManagerHostPtr host,
+        NApi::TClusterTag clockClusterTag,
         NHiveServer::ITransactionLeaseTrackerPtr transactionLeaseTracker);
     ~TTransactionManager();
 

@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/election/public.h>
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -174,13 +176,15 @@ private:
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
+        NApi::TClusterTag prepareTimestampClusterTag,
         const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
     void PrepareTransactionAbort(
         TTransactionId transactionId,
         bool force) override;
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp) override;
+        TTimestamp commitTimestamp,
+        NApi::TClusterTag commitTimestampClusterTag) override;
     void AbortTransaction(
         TTransactionId transactionId,
         bool force) override;

@@ -7,6 +7,7 @@ namespace NYT::NHiveServer {
 using namespace NHydra;
 using namespace NLogging;
 using namespace NProto;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +81,7 @@ void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTran
         FromProto<TGuid>(request->transaction_id()),
         request->persistent(),
         request->prepare_timestamp(),
+        InvalidCellTag,
         /*prerequisiteTransactionIds*/ {});
 }
 
@@ -87,7 +89,8 @@ void TSimpleTransactionSupervisor::HydraCommitTransaction(TReqCommitTransaction*
 {
     TransactionManager_->CommitTransaction(
         FromProto<TGuid>(request->transaction_id()),
-        request->commit_timestamp());
+        request->commit_timestamp(),
+        InvalidCellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

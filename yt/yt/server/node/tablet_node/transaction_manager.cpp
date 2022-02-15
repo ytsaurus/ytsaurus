@@ -26,6 +26,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/tablet_client/config.h>
+
 #include <yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -51,6 +53,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
@@ -58,8 +61,10 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NObjectClient;
 using namespace NHydra;
+using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NClusterNode;
+using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NRpc;
 
@@ -86,6 +91,7 @@ public:
     TImpl(
         TTransactionManagerConfigPtr config,
         ITransactionManagerHostPtr host,
+        TClusterTag clockClusterTag,
         ITransactionLeaseTrackerPtr transactionLeaseTracker)
         : TTabletAutomatonPart(
             host->GetCellId(),
@@ -96,6 +102,8 @@ public:
         , Config_(config)
         , LeaseTracker_(std::move(transactionLeaseTracker))
         , NativeCellTag_(host->GetNativeCellTag())
+        , NativeConnection_(host->GetNativeConnection())
+        , ClockClusterTag_(clockClusterTag)
         , TransactionSerializationLagTimer_(TabletNodeProfiler
             .WithTag("cell_id", ToString(host->GetCellId()))
             .Timer("/transaction_serialization_lag"))
@@ -104,6 +112,9 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(host->GetAutomatonInvoker(), AutomatonThread);
 
         Logger = TabletNodeLogger.WithTag("CellId: %v", host->GetCellId());
+
+        YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
+            ClockClusterTag_);
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -319,9 +330,12 @@ public:
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
+        TClusterTag prepareTimestampClusterTag,
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag);
 
         TTransaction* transaction;
         ETransactionState state;
@@ -401,9 +415,14 @@ public:
         }
     }
 
-    void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
+    void CommitTransaction(
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp,
+        TClusterTag commitTimestampClusterTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag);
 
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
@@ -496,7 +515,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return PreparedTransactions_.empty()
-            ? Host_->GetLatestTimestamp()
+            ? GetClockLatestTimestamp()
             : PreparedTransactions_.begin()->first;
     }
 
@@ -524,6 +543,8 @@ private:
     const TTransactionManagerConfigPtr Config_;
     const ITransactionLeaseTrackerPtr LeaseTracker_;
     const TCellTag NativeCellTag_;
+    const NNative::IConnectionPtr NativeConnection_;
+    const TClusterTag ClockClusterTag_;
 
     NProfiling::TEventTimer TransactionSerializationLagTimer_;
 
@@ -540,6 +561,7 @@ private:
 
     bool Decommissioned_ = false;
     ETabletReign SnapshotReign_ = TEnumTraits<ETabletReign>::GetMaxValue();
+
 
     IYPathServicePtr OrchidService_;
 
@@ -1073,6 +1095,43 @@ private:
         THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
     }
 
+    TTimestamp GetClockLatestTimestamp() const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (ClockClusterTag_ != InvalidCellTag) {
+            auto connection = FindRemoteConnection(NativeConnection_, ClockClusterTag_);
+            if (!connection) {
+                YT_LOG_ALERT("Clock cluster is not known (ClockClusterTag: %v)",
+                    ClockClusterTag_);
+                return MinTimestamp;
+            }
+
+            YT_LOG_DEBUG("Generating timestamp from specified clock (ClockClusterTag: %v)",
+                ClockClusterTag_);
+
+            return connection->GetTimestampProvider()->GetLatestTimestamp();
+        }
+
+        YT_LOG_DEBUG("Generating timestamp from local clock");
+
+        return Host_->GetLatestTimestamp();
+    }
+
+    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag)
+    {
+        if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
+            return;
+        }
+
+        if (ClockClusterTag_ != timestampClusterTag) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
+                transactionId,
+                timestampClusterTag,
+                ClockClusterTag_);
+        }
+    }
+
     static bool SerializingTransactionHeapComparer(
         const TTransaction* lhs,
         const TTransaction* rhs)
@@ -1088,10 +1147,12 @@ private:
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
     ITransactionManagerHostPtr host,
+    TClusterTag clockClusterTag,
     ITransactionLeaseTrackerPtr transactionLeaseTracker)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(host),
+        clockClusterTag,
         std::move(transactionLeaseTracker)))
 { }
 
@@ -1169,9 +1230,10 @@ void TTransactionManager::PrepareTransactionCommit(
     TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp,
+    TClusterTag prepareTimestampClusterTag,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prerequisiteTransactionIds);
+    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prepareTimestampClusterTag, prerequisiteTransactionIds);
 }
 
 void TTransactionManager::PrepareTransactionAbort(TTransactionId transactionId, bool force)
@@ -1179,9 +1241,12 @@ void TTransactionManager::PrepareTransactionAbort(TTransactionId transactionId, 
     Impl_->PrepareTransactionAbort(transactionId, force);
 }
 
-void TTransactionManager::CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp)
+void TTransactionManager::CommitTransaction(
+    TTransactionId transactionId,
+    TTimestamp commitTimestamp,
+    TClusterTag commitTimestampClusterTag)
 {
-    Impl_->CommitTransaction(transactionId, commitTimestamp);
+    Impl_->CommitTransaction(transactionId, commitTimestamp, commitTimestampClusterTag);
 }
 
 void TTransactionManager::AbortTransaction(TTransactionId transactionId, bool force)

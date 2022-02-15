@@ -40,15 +40,16 @@
 
 namespace NYT::NChaosNode {
 
+using namespace NApi;
+using namespace NChaosClient;
+using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NHiveServer;
+using namespace NHydra;
+using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
-using namespace NTransactionClient;
-using namespace NObjectClient;
-using namespace NHydra;
-using namespace NHiveServer;
-using namespace NClusterNode;
-using namespace NChaosClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +62,7 @@ public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         IChaosSlotPtr slot,
+        TClusterTag clockClusterTag,
         IBootstrap* bootstrap)
         : TChaosAutomatonPart(
             slot,
@@ -69,9 +71,15 @@ public:
         , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
+        , ClockClusterTag_(clockClusterTag)
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+
+        Logger = ChaosNodeLogger.WithTag("CellId: %v", slot->GetCellId());
+
+        YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
+            ClockClusterTag_);
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -123,9 +131,12 @@ public:
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
+        TClusterTag prepareTimestampClusterTag,
         const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         auto state = transaction->GetState();
@@ -148,10 +159,10 @@ public:
 
         RunPrepareTransactionActions(transaction, persistent);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, "
-            "PrepareTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, PrepareTimestamp: %llx@%v)",
             transactionId,
-            prepareTimestamp);
+            prepareTimestamp,
+            prepareTimestampClusterTag);
     }
 
     void PrepareTransactionAbort(TTransactionId transactionId, bool force) override
@@ -174,9 +185,14 @@ public:
         }
     }
 
-    void CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp) override
+    void CommitTransaction(
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp,
+        TClusterTag commitTimestampClusterTag) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
@@ -202,9 +218,10 @@ public:
 
         RunCommitTransactionActions(transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx@%v)",
             transactionId,
-            commitTimestamp);
+            commitTimestamp,
+            commitTimestampClusterTag);
     }
 
     void AbortTransaction(TTransactionId transactionId, bool force) override
@@ -249,6 +266,7 @@ public:
 private:
     const TTransactionManagerConfigPtr Config_;
     const ITransactionLeaseTrackerPtr LeaseTracker_;
+    const TClusterTag ClockClusterTag_;
 
     TEntityMap<TTransaction> TransactionMap_;
     TTransactionIdPool AbortTransactionIdPool_;
@@ -484,6 +502,20 @@ private:
 
         return transaction;
     }
+
+    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag)
+    {
+        if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
+            return;
+        }
+
+        if (ClockClusterTag_ != timestampClusterTag) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
+                transactionId,
+                timestampClusterTag,
+                ClockClusterTag_);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,11 +523,13 @@ private:
 ITransactionManagerPtr CreateTransactionManager(
     TTransactionManagerConfigPtr config,
     IChaosSlotPtr slot,
+    TClusterTag clockClusterTag,
     IBootstrap* bootstrap)
 {
     return New<TTransactionManager>(
         config,
         slot,
+        clockClusterTag,
         bootstrap);
 }
 
