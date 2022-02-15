@@ -804,6 +804,15 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto cellTags = CollectCellsToSyncForLocalExecution(syncPhase);
+
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& hydraManager = hydraFacade->GetHydraManager();
+        if (!cellTags.empty() && hydraManager->GetReadOnly()) {
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::ReadOnly,
+                "Read-only mode is active");
+        }
+
         if (additionalFuture) {
             return CellSyncSession_->Sync(cellTags, std::move(additionalFuture));
         } else {
