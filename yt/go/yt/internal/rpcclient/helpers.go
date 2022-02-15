@@ -118,9 +118,10 @@ func convertTransactionOptions(opts *yt.TransactionOptions) *rpc_proxy.TTransact
 	}
 
 	return &rpc_proxy.TTransactionalOptions{
-		TransactionId: convertTxID(opts.TransactionID),
-		Ping:          &opts.Ping,
-		PingAncestors: &opts.PingAncestors,
+		TransactionId:                      convertTxID(opts.TransactionID),
+		Ping:                               &opts.Ping,
+		PingAncestors:                      &opts.PingAncestors,
+		SuppressTransactionCoordinatorSync: &opts.SuppressTransactionCoordinatorSync,
 	}
 }
 
