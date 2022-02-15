@@ -137,7 +137,7 @@ class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 100,
-            "operation_alerts": {
+            "alert_manager": {
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
                 "low_cpu_usage_alert_cpu_usage_threshold": 0.6,
@@ -158,7 +158,7 @@ class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 100,
-            "operation_alerts": {
+            "alert_manager": {
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
                 "low_cpu_usage_alert_cpu_usage_threshold": 0.35,
@@ -204,8 +204,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "controller_agent": {
             "iops_threshold": 50,
             "operations_update_period": 100,
-            "operation_progress_analysis_period": 200,
-            "operation_alerts": {
+            "alert_manager": {
+                "period": 200,
                 "tmpfs_alert_min_unused_space_threshold": 200,
                 "tmpfs_alert_max_unused_space_ratio": 0.3,
                 "aborted_jobs_alert_max_aborted_time": 100,
@@ -258,7 +258,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "unused_tmpfs_space" not in op.get_alerts()
 
-        update_controller_agent_config("operation_alerts/tmpfs_alert_memory_usage_mute_ratio", 0.0)
+        update_controller_agent_config("alert_manager/tmpfs_alert_memory_usage_mute_ratio", 0.0)
 
         op = map(
             command="echo abcdef >local_file; sleep 1.5; cat",
@@ -277,7 +277,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @authors("ignat")
     def test_unused_memory_alert(self):
-        update_controller_agent_config("operation_alerts/memory_usage_alert_max_unused_size", 1024 * 1024)
+        update_controller_agent_config("alert_manager/memory_usage_alert_max_unused_size", 1024 * 1024)
 
         create_test_tables()
 
@@ -295,7 +295,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         wait(lambda: "unused_memory" in op.get_alerts())
 
-        update_controller_agent_config("operation_alerts/memory_usage_alert_max_unused_ratio", 1.0)
+        update_controller_agent_config("alert_manager/memory_usage_alert_max_unused_ratio", 1.0)
 
         op = map(
             command="echo abcdef >local_file; cat",
@@ -439,7 +439,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_short_jobs_alert(self):
         create_test_tables(row_count=4)
 
-        update_controller_agent_config("operation_alerts/short_jobs_alert_min_job_duration", 60000)
+        update_controller_agent_config("alert_manager/short_jobs_alert_min_job_duration", 60000)
         op = map(
             command="cat",
             in_="//tmp/t_in",
@@ -451,7 +451,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "short_jobs_duration" in op.get_alerts()
 
-        update_controller_agent_config("operation_alerts/short_jobs_alert_min_job_duration", 5000)
+        update_controller_agent_config("alert_manager/short_jobs_alert_min_job_duration", 5000)
         op = map(
             command="sleep 5; cat",
             in_="//tmp/t_in",
@@ -548,10 +548,12 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 100,
-            "operation_progress_analysis_period": 100,
             "heavy_job_spec_slice_count_threshold": 1,
             "job_spec_slice_throttler": {"limit": 1, "period": 1000},
-            "operation_alerts": {"job_spec_throttling_alert_activation_count_threshold": 1},
+            "alert_manager": {
+                "period": 200,
+                "job_spec_throttling_alert_activation_count_threshold": 1,
+            },
         }
     }
 

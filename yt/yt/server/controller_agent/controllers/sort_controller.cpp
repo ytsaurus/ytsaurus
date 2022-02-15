@@ -2840,7 +2840,7 @@ protected:
 
     // Partition sizes histogram.
 
-    std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const
+    std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const override
     {
         auto histogram = CreateHistogram();
         for (const auto& partition : GetFinalPartitions()) {
@@ -2869,28 +2869,6 @@ protected:
                 .Item("completed").Value(progress.Completed)
             .EndMap()
             .Item("partition_size_histogram").Value(*sizeHistogram);
-    }
-
-    void AnalyzePartitionHistogram() override
-    {
-        TError error;
-
-        auto sizeHistogram = ComputeFinalPartitionSizeHistogram();
-        auto view = sizeHistogram->GetHistogramView();
-
-        i64 minIqr = Config->OperationAlerts->IntermediateDataSkewAlertMinInterquartileRange;
-
-        if (view.Max > Config->OperationAlerts->IntermediateDataSkewAlertMinPartitionSize) {
-            auto quartiles = ComputeHistogramQuartiles(view);
-            i64 iqr = quartiles.Q75 - quartiles.Q25;
-            if (iqr > minIqr && quartiles.Q50 + 2 * iqr < view.Max) {
-                error = TError(
-                    "Intermediate data skew is too high (see partitions histogram); "
-                    "operation is likely to have stragglers");
-            }
-        }
-
-        SetOperationAlert(EOperationAlertType::IntermediateDataSkew, error);
     }
 
     void InitJobIOConfigs()

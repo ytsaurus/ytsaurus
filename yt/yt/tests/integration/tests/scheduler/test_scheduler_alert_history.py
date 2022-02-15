@@ -100,7 +100,9 @@ class TestSchedulerAlertHistoryBase(YTEnvSetup):
         "controller_agent": {
             "iops_threshold": 50,
             "operations_update_period": 100,
-            "operation_progress_analysis_period": 200,
+            "alert_manager": {
+                "period": 200,
+            },
             "map_reduce_operation_options": {"min_uncompressed_block_size": 1},
             "event_log": {"flush_period": 1000},
         }

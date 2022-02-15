@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "alert_manager.h"
 #include "auto_merge_director.h"
 #include "job_memory.h"
 #include "job_splitter.h"
@@ -109,6 +110,7 @@ class TOperationControllerBase
     : public IOperationController
     , public NScheduler::TEventLogHostBase
     , public ITaskHost
+    , public IAlertManagerHost
 {
     // In order to make scheduler more stable, we do not allow
     // pure YT_VERIFY to be executed from the controller code (directly
@@ -355,6 +357,7 @@ public:
 
     TOperationId GetOperationId() const override;
     EOperationType GetOperationType() const override;
+    TInstant GetStartTime() const override;
 
     const TString& GetAuthenticatedUser() const override;
 
@@ -430,6 +433,8 @@ public:
 
     NLogging::TLogger GetLogger() const override;
 
+    const std::vector<TTaskPtr>& GetTasks() const override;
+
     void SetOperationAlert(EOperationAlertType type, const TError& alert) override;
 
     void OnMemoryLimitExceeded(const TError& error) override;
@@ -440,8 +445,6 @@ public:
 
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const override;
-
-    const TProgressCounterPtr& GetTotalJobCounter() const;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -477,7 +480,7 @@ protected:
     NApi::NNative::IClientPtr SchedulerOutputClient;
 
     TCancelableContextPtr CancelableContext;
-    IDiagnosableInvokerPoolPtr DiagnosableInvokerPool;
+    IDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
     IInvokerPoolPtr InvokerPool;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool;
     IInvokerPoolPtr CancelableInvokerPool;
@@ -602,22 +605,6 @@ protected:
     void CheckTimeLimit();
 
     void CheckAvailableExecNodes();
-
-    virtual void AnalyzePartitionHistogram();
-    void AnalyzeMemoryAndTmpfsUsage();
-    void AnalyzeIntermediateJobsStatistics();
-    void AnalyzeInputStatistics();
-    void AnalyzeAbortedJobs();
-    void AnalyzeJobsIOUsage();
-    void AnalyzeJobsCpuUsage();
-    void AnalyzeJobsGpuUsage();
-    void AnalyzeJobsDuration();
-    void AnalyzeOperationDuration();
-    void AnalyzeScheduleJobStatistics();
-    void AnalyzeControllerQueues();
-    void AnalyzeInvalidatedJobs();
-
-    void AnalyzeOperationProgress();
 
     void FlushOperationNode(bool checkFlushResult);
 
@@ -751,11 +738,13 @@ protected:
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
 
-    //! Called in jobs duration analyzer to get proper data weight parameter name in spec.
-    virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const = 0;
+    const TProgressCounterPtr& GetTotalJobCounter() const override;
 
-    //! Called in jobs duration analyzer to get interesting for analysis jobs set.
-    virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const = 0;
+    const TScheduleJobStatisticsPtr& GetScheduleJobStatistics() const override;
+    const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const override;
+    const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const override;
+    
+    std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const override;
 
     //! Called before snapshot downloading to check if revival is allowed
     //! (by default checks that fail_on_job_restart is not set).
@@ -859,7 +848,7 @@ protected:
 
     virtual void OnOperationTimeLimitExceeded();
 
-    virtual bool IsCompleted() const;
+    bool IsCompleted() const override;
 
     //! Returns |true| when the controller is prepared.
     /*!
@@ -888,9 +877,9 @@ protected:
     //! Number of currently unavailable input chunks. In case of Sort or Sorted controller, shows
     //! number of unavailable chunks during materialization (fetching samples or chunk slices).
     //! Used for diagnostics only (exported into orchid).
-    virtual i64 GetUnavailableInputChunkCount() const;
+    i64 GetUnavailableInputChunkCount() const override;
 
-    int GetTotalJobCount() const;
+    int GetTotalJobCount() const override;
 
     i64 GetDataSliceCount() const;
 
@@ -1131,7 +1120,7 @@ private:
     NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
 
     //! Periodically checks operation progress and registers operation alerts if necessary.
-    NConcurrency::TPeriodicExecutorPtr AnalyzeOperationProgressExecutor;
+    IAlertManagerPtr AlertManager_;
 
     //! Periodically checks min needed resources of tasks for sanity.
     NConcurrency::TPeriodicExecutorPtr MinNeededResourcesSanityCheckExecutor;
@@ -1242,9 +1231,6 @@ private:
     //! These values are added to corresponding values in ScheduleJobStatistics_
     //! on each access in thread-safe manner.
     mutable TEnumIndexedVector<EScheduleJobFailReason, std::atomic<int>> ExternalScheduleJobFailureCounts_;
-
-    using TControllerQueueStatistics = TEnumIndexedVector<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
-    TControllerQueueStatistics LastControllerQueueStatistics_;
 
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;
@@ -1373,15 +1359,6 @@ private:
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
-
-    void AnalyzeProcessingUnitUsage(
-        const std::vector<TString>& usageStatistics,
-        const std::vector<EJobState>& jobStates,
-        const std::function<double(const NScheduler::TUserJobSpecPtr&)>& getLimit,
-        const std::function<bool(i64, i64, double)>& needSetAlert,
-        const TString& name,
-        EOperationAlertType alertType,
-        const TString& message);
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
 
