@@ -1303,7 +1303,9 @@ def add_list_operations_parser(add_parser):
     parser.add_argument("--type", help="filter operations by operation type")
     parser.add_argument("--filter", help="filter operation by some text factor. "
                                          "For example, part of the title can be passed to this option")
-    parser.add_argument("--pool", help="filter operations by pool")
+    parser.add_argument("--pool-tree", help="filter operations by pool tree")
+    parser.add_argument("--pool", help="filter operations by pool. "
+                                       "If --pool-tree is set, filters operations with this pool in specified pool tree")
 
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--with-failed-jobs", action="store_const", const=True,
