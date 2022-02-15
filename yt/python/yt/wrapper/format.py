@@ -17,6 +17,7 @@ except ImportError:
 from yt.common import to_native_str
 import yt.json_wrapper as json
 import yt.logger as logger
+from yt.yson import YsonString, YsonUnicode
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
                              indexbytes, int2byte, raise_from)
@@ -117,7 +118,7 @@ class RowsIterator(Iterator):
 
     def get_table_index(self):
         return self.table_index
-    
+
     def get_key_switch(self):
         return self.key_switch
 
@@ -1428,7 +1429,7 @@ class CppUninitializedFormat(Format):
     def load_row(self, stream, raw=None):
         """Not supported."""
         raise YtFormatError("load_row is not supported in CppUninitializedFormat")
-    
+
     def load_rows(self, stream, raw=None):
         """Not supported."""
         raise YtFormatError("load_row is not supported in CppUninitializedFormat")
@@ -1447,6 +1448,8 @@ def create_format(yson_name, attributes=None, **kwargs):
                        attributes is not None)
     attributes = get_value(attributes, {})
 
+    if isinstance(yson_name, YsonString) or isinstance(yson_name, YsonUnicode):
+        attributes.update(yson_name.attributes)
     yson_string = yson._loads_from_native_str(yson_name)
     attributes.update(yson_string.attributes)
     name = str(yson_string)
