@@ -122,7 +122,7 @@ def get_operation(operation_id, attributes=None, include_scheduler=None, format=
         timeout=timeout).run()
 
 
-def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
+def list_operations(user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
                     include_archive=None, include_counters=None, limit=None, enable_ui_mode=False,
                     attributes=None,
@@ -139,6 +139,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
     set_param(params, "state", state, lambda state: state.name if isinstance(state, OperationState) else state)
     set_param(params, "type", type)
     set_param(params, "filter", filter)
+    set_param(params, "pool_tree", pool_tree)
     set_param(params, "pool", pool)
     set_param(params, "with_failed_jobs", with_failed_jobs)
     set_param(params, "from_time", from_time, format_time)

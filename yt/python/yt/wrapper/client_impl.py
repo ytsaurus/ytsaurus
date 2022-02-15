@@ -686,12 +686,12 @@ class YtClient(ClientState):
         """
         return client_api.list_jobs(operation_id, client=self, job_type=job_type, job_state=job_state, address=address, job_competition_id=job_competition_id, with_competitors=with_competitors, sort_field=sort_field, sort_order=sort_order, limit=limit, offset=offset, with_stderr=with_stderr, with_spec=with_spec, with_fail_context=with_fail_context, include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive, data_source=data_source, format=format)
 
-    def list_operations(self, user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None, from_time=None, to_time=None, cursor_time=None, cursor_direction=None, include_archive=None, include_counters=None, limit=None, enable_ui_mode=False, attributes=None, format=None):
+    def list_operations(self, user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None, from_time=None, to_time=None, cursor_time=None, cursor_direction=None, include_archive=None, include_counters=None, limit=None, enable_ui_mode=False, attributes=None, format=None):
         """
         List operations that satisfy given options.
 
         """
-        return client_api.list_operations(client=self, user=user, state=state, type=type, filter=filter, pool=pool, with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_time=cursor_time, cursor_direction=cursor_direction, include_archive=include_archive, include_counters=include_counters, limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format)
+        return client_api.list_operations(client=self, user=user, state=state, type=type, filter=filter, pool_tree=pool_tree, pool=pool, with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_time=cursor_time, cursor_direction=cursor_direction, include_archive=include_archive, include_counters=include_counters, limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format)
 
     def lock(self, path, mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None):
         """
@@ -913,8 +913,7 @@ class YtClient(ClientState):
         TODO
 
         """
-        return client_api.reshard_table(path, client=self, pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index,
-                                        last_tablet_index=last_tablet_index, uniform=uniform, enable_slicing=enable_slicing, slicing_accuracy=slicing_accuracy, sync=sync)
+        return client_api.reshard_table(path, client=self, pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, uniform=uniform, enable_slicing=enable_slicing, slicing_accuracy=slicing_accuracy, sync=sync)
 
     def reshard_table_automatic(self, path, sync=False):
         """
