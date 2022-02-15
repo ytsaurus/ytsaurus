@@ -1670,7 +1670,7 @@ void TJob::Cleanup()
     }
 
     // NB: we should disable slot here to give scheduler information about job failure.
-    if (error.FindMatching(EErrorCode::GpuCheckCommandFailed)) {
+    if (error.FindMatching(EErrorCode::GpuCheckCommandFailed) && !error.FindMatching(EErrorCode::GpuCheckCommandIncorrect)) {
         Bootstrap_->GetSlotManager()->OnGpuCheckCommandFailed(error);
     }
 
