@@ -19,6 +19,7 @@ get_time = time.monotonic if hasattr(time, 'monotonic') else time.time
 
 def reproduce_transaction_loss(
     must_interrupt_sleep=False,
+    expects_exception=False,
     delay_time=1.5,
     wait_time=5.0,
     proxy_request_timeout=0.1,
@@ -48,10 +49,17 @@ def reproduce_transaction_loss(
 
                 remaining_wait_time = wait_end - get_time()
                 if remaining_wait_time <= 0:
+                    if expects_exception:
+                        if first_exception is None:
+                            try:
+                                time.sleep(10.0)
+                            except BaseException:
+                                pass
+                            assert False, "Exception has not raised in time"
                     break
                 time.sleep(remaining_wait_time)
             except BaseException as exception:
-                if not first_exception:
+                if first_exception is None:
                     first_exception = exception
                     first_sleep_duration = get_time() - wait_begin
 
@@ -101,7 +109,7 @@ class TestPingFailedModes(object):
     def test_interrupt_main(self):
         with set_config_option("ping_failed_mode", "interrupt_main"):
             with pytest.raises(KeyboardInterrupt):
-                reproduce_transaction_loss()
+                reproduce_transaction_loss(expects_exception=True)
 
 
     @authors("marat-khalili")
@@ -114,4 +122,4 @@ class TestPingFailedModes(object):
     def test_send_signal(self):
         with set_config_option("ping_failed_mode", "send_signal"):
             with pytest.raises(yt.YtTransactionPingError):
-                reproduce_transaction_loss(must_interrupt_sleep=True)
+                reproduce_transaction_loss(expects_exception=True, must_interrupt_sleep=True)
