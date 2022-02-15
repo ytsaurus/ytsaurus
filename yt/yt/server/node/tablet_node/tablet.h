@@ -419,6 +419,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, CriticalPartitionCount);
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
+    DEFINE_BYVAL_RW_PROPERTY(int, DynamicStoreCount);
 
     // NB: This field is transient.
     // Flush index of last rotated (last passive dynamic) store.
@@ -613,8 +614,6 @@ public:
 
     int GetEdenStoreCount() const;
 
-    int ComputeDynamicStoreCount() const;
-
     void PushDynamicStoreIdToPool(TDynamicStoreId storeId);
     TDynamicStoreId PopDynamicStoreIdFromPool();
     void ClearDynamicStoreIdPool();
@@ -689,6 +688,7 @@ private:
 
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
+    int ComputeDynamicStoreCount() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

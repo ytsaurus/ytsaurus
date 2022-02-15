@@ -169,7 +169,7 @@ private:
 
     void ScanTabletForRotationErrors(TTablet* tablet)
     {
-        if (tablet->ComputeDynamicStoreCount() >= DynamicStoreCountLimit) {
+        if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
             auto error = TError("Dynamic store count limit is exceeded")
                 << TErrorAttribute("tablet_id", tablet->GetId())
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Rotation)
@@ -399,7 +399,7 @@ private:
                 tabletSnapshot->PhysicalSchema->IsSorted();
 
             if (shouldRequestDynamicStoreId) {
-                int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->ComputeDynamicStoreCount();
+                int potentialDynamicStoreCount = tablet->DynamicStoreIdPool().size() + tablet->GetDynamicStoreCount();
 
                 // NB: Race is possible here. Consider a tablet with an active store, two passive
                 // dynamic stores and empty pool. If both passive stores are flushed concurrently
