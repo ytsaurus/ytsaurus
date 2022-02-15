@@ -691,14 +691,18 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
-        THashMap<TString, TRevision> objectRevisions;
+        using ObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
+
+        ObjectRevisionMap objectRevisions;
+        objectRevisions["queues"] = {};
+        objectRevisions["consumers"] = {};
         for (auto* node : GetQueues()) {
             if (IsObjectAlive(node)) {
                 EPathRootType pathRootType;
                 auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr, /*pathRootType*/ &pathRootType);
                 // We are intentionally skipping trunk nodes which are hanging in the air.
                 if (pathRootType != EPathRootType::Other) {
-                    objectRevisions[path] = node->GetRevision();
+                    objectRevisions["queues"][path] = node->GetRevision();
                 }
             }
         }
@@ -717,8 +721,10 @@ public:
             }
             return AllSucceeded(std::move(asyncResults)).Apply(BIND([objectRevisions] (const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable {
                 for (const auto& rsp : responses) {
-                    auto queues = ConvertTo<THashMap<TString, TRevision>>(TYsonString{rsp->value()});
-                    objectRevisions.insert(queues.begin(), queues.end());
+                    auto objects = ConvertTo<ObjectRevisionMap>(TYsonString{rsp->value()});
+                    for (const auto& [key, items] : objects) {
+                        objectRevisions[key].insert(items.begin(), items.end());
+                    }
                 }
                 return ConvertToYsonString(objectRevisions);
             }));
