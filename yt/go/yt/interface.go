@@ -49,9 +49,10 @@ import (
 //
 // Do not use this options directly. Use Transaction instead.
 type TransactionOptions struct {
-	TransactionID TxID `http:"transaction_id"`
-	Ping          bool `http:"ping"`
-	PingAncestors bool `http:"ping_ancestor_transactions"`
+	TransactionID                      TxID `http:"transaction_id"`
+	Ping                               bool `http:"ping"`
+	PingAncestors                      bool `http:"ping_ancestor_transactions"`
+	SuppressTransactionCoordinatorSync bool `http:"suppress_transaction_coordinator_sync"`
 }
 
 // AccessTrackingOptions suppresses update of "modification_time", "access_time" and
