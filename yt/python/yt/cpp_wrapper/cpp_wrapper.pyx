@@ -13,6 +13,12 @@ from yt.wrapper.ypath import TablePath
 from yt import yson
 
 
+cdef extern from "mapreduce/yt/interface/client_method_options.h" namespace "NYT":
+    cdef cppclass TCreateClientOptions:
+        TCreateClientOptions& Token(const TString&)
+        TCreateClientOptions& TokenPath(const TString&)
+
+
 cdef extern from "mapreduce/yt/interface/operation.h" namespace "NYT":
     cdef cppclass IStructuredJob:
         IStructuredJob() except +
@@ -30,6 +36,7 @@ cdef extern from "mapreduce/yt/client/py_helpers.h" namespace "NYT":
     TString GetJobStateString(const IStructuredJob&) except +
     TString GetIOInfo(
         const IStructuredJob&,
+        const TCreateClientOptions&,
         const TString&,
         const TString&,
         const TString&,
@@ -62,7 +69,15 @@ class CppJob:
         cdef IStructuredJobPtr job_ptr = ConstructJob(self._mapper_name, self._constructor_args_yson)
         cdef bytes state = <bytes> GetJobStateString(cython.operator.dereference(job_ptr.Get()))
 
-        cdef cluster = get_config(client)["proxy"]["url"]
+        cdef config = get_config(client)
+
+        cdef TCreateClientOptions create_options
+        if config.get("token") is not None:
+            create_options.Token(config["token"].encode("utf-8"))
+        if config.get("token_path") is not None:
+            create_options.TokenPath(config["token_path"].encode("utf-8"))
+
+        cdef cluster = config["proxy"]["url"]
         if not isinstance(cluster, bytes):
             cluster = cluster.encode("utf-8")
 
@@ -73,6 +88,7 @@ class CppJob:
         needed_columns = group_by if group_by is not None else []
         cdef bytes patch = <bytes> GetIOInfo(
             cython.operator.dereference(job_ptr.Get()),
+            create_options,
             cluster,
             tx_id,
             yson.dumps(input_tables),

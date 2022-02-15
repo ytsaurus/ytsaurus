@@ -1,3 +1,4 @@
+#include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/operation.h>
 
 namespace NYT {
@@ -12,6 +13,7 @@ TString GetJobStateString(const IStructuredJob& job);
 
 TString GetIOInfo(
     const IStructuredJob& job,
+    const TCreateClientOptions& options,
     const TString& cluster,
     const TString& transactionId,
     const TString& inputPaths,
