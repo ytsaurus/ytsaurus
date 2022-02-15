@@ -266,8 +266,10 @@ class TestGetOperation(YTEnvSetup):
         )
         wait_breakpoint()
 
+        wait(lambda: _get_operation_from_archive(op.id))
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
         assert list(get_operation(op.id, attributes=["progress"])) == ["progress"]
+
         with pytest.raises(YtError):
             get_operation(op.id, attributes=["PYSCH"])
 
@@ -278,6 +280,7 @@ class TestGetOperation(YTEnvSetup):
                 include_scheduler=True,
                 read_from=read_from,
             )
+            wait(lambda: "state" in get(op.get_path() + "/@", attributes=["state"]))
             res_cypress = get(op.get_path() + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
