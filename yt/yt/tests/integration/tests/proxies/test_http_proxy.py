@@ -74,6 +74,7 @@ class HttpProxyTestBase(YTEnvSetup):
             master = self._get_master_address()
         return get(
             "//sys/primary_masters/{}/orchid/monitoring/hydra".format(master),
+            suppress_transaction_coordinator_sync=True,
             default={},
         )
 

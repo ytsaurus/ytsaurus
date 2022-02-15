@@ -536,9 +536,9 @@ public:
 
     bool GetReadOnly() const override
     {
-        // VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        return ReadOnly_;
+        return ReadOnly_.load();
     }
 
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
@@ -595,13 +595,13 @@ private:
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
 
-    bool ReadOnly_ = false;
+    std::atomic<bool> ReadOnly_ = false;
 
     int SnapshotId_ = -1;
     TFuture<TRemoteSnapshotParams> SnapshotFuture_;
 
-    std::atomic<bool> LeaderRecovered_ = {false};
-    std::atomic<bool> FollowerRecovered_ = {false};
+    std::atomic<bool> LeaderRecovered_ = false;
+    std::atomic<bool> FollowerRecovered_ = false;
     std::atomic<EGraceDelayStatus> GraceDelayStatus_ = EGraceDelayStatus::None;
     std::atomic<EPeerState> ControlState_ = EPeerState::None;
 
@@ -2470,10 +2470,9 @@ private:
 
         YT_VERIFY(IsActiveLeader());
 
-        if (!ReadOnly_) {
-            ReadOnly_ = true;
+        bool expected = false;
+        if (ReadOnly_.compare_exchange_strong(expected, true)) {
             YT_LOG_INFO("Read-only mode activated");
-
             ControlEpochContext_->LeaderCommitter->SetReadOnly();
         }
     }
