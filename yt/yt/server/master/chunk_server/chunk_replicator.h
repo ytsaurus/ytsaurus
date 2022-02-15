@@ -331,6 +331,8 @@ private:
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
     bool IsConsistentChunkPlacementEnabled() const;
+
+    TEnumIndexedVector<EJobType, i64> MisscheduledJobs_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

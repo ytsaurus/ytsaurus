@@ -1640,6 +1640,10 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             }
         }
     }
+
+    MisscheduledJobs_[EJobType::ReplicateChunk] += misscheduledReplicationJobs;
+    MisscheduledJobs_[EJobType::RepairChunk] += misscheduledRepairJobs;
+    MisscheduledJobs_[EJobType::RemoveChunk] += misscheduledRemovalJobs;
 }
 
 void TChunkReplicator::RefreshChunk(TChunk* chunk)
@@ -2234,6 +2238,14 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
     buffer->AddGauge("/journal_refresh_queue_size", JournalRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/journal_requisition_update_queue_size", JournalRequisitionUpdateScanner_->GetQueueSize());
+
+    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+        if (jobType >= NJobTrackerClient::FirstMasterJobType
+            && jobType <= NJobTrackerClient::LastMasterJobType) {
+            TWithTagGuard tagGuard(buffer, "job_type", FormatEnum(jobType));
+            buffer->AddCounter("/misscheduled_jobs", MisscheduledJobs_[jobType]);
+        }
+    }
 
     auto now = NProfiling::GetInstant();
     if (now - LastDestroyedReplicasProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
