@@ -65,7 +65,7 @@ public:
         AutomatonInvoker_ = AutomatonQueue_->GetInvoker();
         Automaton_ = New<TTabletAutomaton>(/*asyncSnapshotInvoker*/ AutomatonInvoker_, CellId);
         HydraManager_ = New<TSimpleHydraManagerMock>(Automaton_, AutomatonInvoker_, NTabletNode::GetCurrentReign());
-        TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, CreateNullTransactionLeaseTracker());
+        TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletManager_ = New<TSimpleTabletManager>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletCellWriteManager_ = CreateTabletCellWriteManager(TabletManager_, HydraManager_, Automaton_, TMemoryUsageTrackerGuard(), AutomatonInvoker_);
@@ -135,6 +135,11 @@ public:
         return TCellTag();
     }
 
+    const NApi::NNative::IConnectionPtr& GetNativeConnection() override
+    {
+        return DummyNativeConnection_;
+    }
+
     NHydra::TCellId GetCellId() override
     {
         return CellId;
@@ -179,6 +184,7 @@ private:
     TSimpleTransactionSupervisorPtr TransactionSupervisor_;
     TSimpleTabletManagerPtr TabletManager_;
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
+    NApi::NNative::IConnectionPtr DummyNativeConnection_;
 
     TTimestamp LatestTimestamp_ = 4242;
 };

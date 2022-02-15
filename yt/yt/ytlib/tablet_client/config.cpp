@@ -2,6 +2,8 @@
 
 namespace NYT::NTabletClient {
 
+using namespace NObjectClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTabletCellOptions::TTabletCellOptions()
@@ -11,6 +13,8 @@ TTabletCellOptions::TTabletCellOptions()
         .InRange(1, MaxPeerCount);
     RegisterParameter("independent_peers", IndependentPeers)
         .Default(false);
+    RegisterParameter("clock_cluster_tag", ClockClusterTag)
+        .Default(InvalidCellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

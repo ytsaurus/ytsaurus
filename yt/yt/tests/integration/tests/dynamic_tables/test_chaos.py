@@ -871,7 +871,7 @@ class TestChaos(ChaosTestBase):
         _check(keys[1:], 1)
         _check(keys, 1)
 
-    @authors("savrus")
+    @authors("babenko")
     def test_replication_card_attributes(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
@@ -970,7 +970,7 @@ class TestChaos(ChaosTestBase):
 class TestChaosMetaCluster(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 3
 
-    @authors("savrus")
+    @authors("babenko")
     def test_meta_cluster(self):
         cluster_names = self.get_cluster_names()
 
@@ -991,3 +991,41 @@ class TestChaosMetaCluster(ChaosTestBase):
         assert card["type"] == "replication_card"
         assert card["id"] == card_id
         assert len(card["replicas"]) == 3
+
+
+##################################################################
+
+
+class TestChaosClock(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 1
+    USE_PRIMARY_CLOCKS = False
+
+    @authors("savrus")
+    def test_queue_with_different_clock(self):
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        drivers = self._get_drivers()
+        for driver in drivers[1:]:
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+
+        cluster_names = self.get_cluster_names()
+        peer_cluster_names = cluster_names[:1]
+        meta_cluster_names = cluster_names[1:]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        total_iterations = 10
+        for iteration in range(total_iterations):
+            rows = [{"key": 1, "value": str(iteration)}]
+            keys = [{"key": 1}]
+            insert_rows("//tmp/t", rows)
+            wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+
+            if iteration < total_iterations - 1:
+                mode = ["sync", "async"][iteration % 2]
+                self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=mode)

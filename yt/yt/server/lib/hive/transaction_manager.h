@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -25,6 +27,7 @@ struct ITransactionManager
         TTransactionId transactionId,
         bool persistent,
         TTimestamp prepareTimestamp,
+        NApi::TClusterTag prepareTimestampClusterTag,
         const std::vector<TTransactionId>& prerequisiteTransactionIds) = 0;
 
     virtual void PrepareTransactionAbort(
@@ -34,7 +37,8 @@ struct ITransactionManager
     //! Once #PrepareTransactionCommit succeeded, #CommitTransaction cannot throw.
     virtual void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp) = 0;
+        TTimestamp commitTimestamp,
+        NApi::TClusterTag commitTimestampClusterTag) = 0;
 
     virtual void AbortTransaction(
         TTransactionId transactionId,

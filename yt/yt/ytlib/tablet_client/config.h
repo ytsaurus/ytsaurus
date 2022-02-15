@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/tablet_client/config.h>
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
@@ -22,6 +24,7 @@ class TTabletCellOptions
 public:
     int PeerCount;
     bool IndependentPeers;
+    NApi::TClusterTag ClockClusterTag;
 
     TTabletCellOptions();
 };

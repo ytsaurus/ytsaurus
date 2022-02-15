@@ -23,6 +23,8 @@
 
 #include <yt/yt/ytlib/api/public.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -218,9 +220,14 @@ public:
             this,
             Bootstrap_);
 
+        auto clockClusterTag = Occupant_->GetOptions()->ClockClusterTag != InvalidCellTag
+            ? Occupant_->GetOptions()->ClockClusterTag
+            : Bootstrap_->GetMasterConnection()->GetClusterTag();
+
         TransactionManager_ = CreateTransactionManager(
             Config_->TransactionManager,
             this,
+            clockClusterTag,
             Bootstrap_);
     }
 

@@ -2394,6 +2394,7 @@ def sync_create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluste
 
 
 def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[]):
+    primary_cell_tag = get("//sys/@primary_cell_tag")
     params_pattern = {
         "type": "chaos_cell_bundle",
         "attributes": {
@@ -2406,6 +2407,7 @@ def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[]):
                 "snapshot_account": "sys",
                 "peer_count": len(peer_cluster_names),
                 "independent_peers": True,
+                "clock_cluster_tag": primary_cell_tag
             }
         }
     }

@@ -60,6 +60,7 @@
 
 namespace NYT::NTransactionServer {
 
+using namespace NApi;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
@@ -1939,6 +1940,7 @@ void TTransactionManager::PrepareTransactionCommit(
     TTransactionId transactionId,
     bool persistent,
     TTimestamp prepareTimestamp,
+    TClusterTag /*prepareTimestampClusterTag*/,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
     Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prerequisiteTransactionIds);
@@ -1953,7 +1955,8 @@ void TTransactionManager::PrepareTransactionAbort(
 
 void TTransactionManager::CommitTransaction(
     TTransactionId transactionId,
-    TTimestamp commitTimestamp)
+    TTimestamp commitTimestamp,
+    TClusterTag /*commitTimestampClusterTag*/)
 {
     Impl_->CommitTransaction(transactionId, commitTimestamp, NHydra::NullRevision);
 }

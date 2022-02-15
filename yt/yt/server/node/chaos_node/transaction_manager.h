@@ -40,6 +40,7 @@ DEFINE_REFCOUNTED_TYPE(ITransactionManager)
 ITransactionManagerPtr CreateTransactionManager(
     TTransactionManagerConfigPtr config,
     IChaosSlotPtr slot,
+    NApi::TClusterTag clockClusterTag,
     IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,7 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     required bool inherit_commit_timestamp = 5;
     optional int32 coordinator_commit_mode = 6; // ETransactionCoordinatorCommitMode
     required uint64 prepare_timestamp = 4;
+    optional uint32 prepare_timestamp_cluster_tag = 12 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
     required string user = 8;
     optional string user_tag = 10;
 }
@@ -60,6 +61,7 @@ message TReqParticipantPrepareTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 prepare_timestamp = 2;
+    optional uint32 prepare_timestamp_cluster_tag = 5 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
     required string user = 3;
     required string user_tag = 4;
 }
@@ -68,6 +70,7 @@ message TReqParticipantCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 commit_timestamp = 2;
+    optional uint32 commit_timestamp_cluster_tag = 5 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
     required string user = 3;
     optional string user_tag = 4;
 }

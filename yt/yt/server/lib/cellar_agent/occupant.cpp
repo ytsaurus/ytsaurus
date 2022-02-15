@@ -467,6 +467,11 @@ public:
                     CreateTransactionParticipantProvider(connection->GetClusterDirectory())
                 };
             }
+
+            auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
+                ? Options_->ClockClusterTag
+                : connection->GetClusterTag();
+
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
                 occupier->GetOccupierAutomatonInvoker(),
@@ -476,7 +481,7 @@ public:
                 ResponseKeeper_,
                 occupier->GetOccupierTransactionManager(),
                 GetCellId(),
-                connection->GetClusterTag(),
+                clockClusterTag,
                 connection->GetTimestampProvider(),
                 std::move(providers));
 

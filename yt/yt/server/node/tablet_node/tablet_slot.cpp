@@ -290,6 +290,14 @@ public:
         return Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     }
 
+    const NNative::IConnectionPtr& GetNativeConnection() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetMasterClient()->GetNativeConnection();
+    }
+        
+
     TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -342,6 +350,7 @@ public:
         TransactionManager_ = New<TTransactionManager>(
             Config_->TransactionManager,
             this,
+            GetOptions()->ClockClusterTag,
             CreateTransactionLeaseTracker(
                 Bootstrap_->GetTransactionTrackerInvoker(),
                 Logger));
@@ -508,7 +517,6 @@ private:
             Occupant_->GetCellId(),
             Occupant_->GetPeerId());
     }
-
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
