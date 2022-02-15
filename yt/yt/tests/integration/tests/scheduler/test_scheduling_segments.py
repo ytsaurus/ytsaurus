@@ -37,6 +37,8 @@ from copy import deepcopy
 
 from collections import defaultdict
 
+from flaky import flaky
+
 
 ##################################################################
 
@@ -640,6 +642,7 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
 
     @authors("eshcherbin")
+    @flaky(max_runs=3)
     @pytest.mark.parametrize("service_to_restart", [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE])
     def test_revive_operation_segments_from_snapshot(self, service_to_restart):
         update_controller_agent_config("snapshot_period", 300)
