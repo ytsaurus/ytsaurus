@@ -328,7 +328,8 @@ void AttachToChunkList(
 void DetachFromChunkList(
     TChunkList* chunkList,
     TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd)
+    TChunkTree* const* childrenEnd,
+    EChunkDetachPolicy policy)
 {
     // A shortcut.
     if (childrenBegin == childrenEnd) {
@@ -345,67 +346,66 @@ void DetachFromChunkList(
     }
 
     auto& children = chunkList->Children();
-    switch (chunkList->GetKind()) {
-        case EChunkListKind::OrderedDynamicTablet: {
-            // Ordered tablets support two kinds of removals:
-            //  - detach a suffix of dynamic stores. All dynamic stores should be detached.
-            //    Used for flushing a dynamic store.
-            //  - detach a prefix of non-trimmed children. Used in ordered tablet trim.
+    switch (policy) {
+        case EChunkDetachPolicy::OrderedTabletSuffix: {
+            YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
 
-            if (IsDynamicTabletStoreType((*childrenBegin)->GetType())) {
-                int childCount = childrenEnd - childrenBegin;
-                int firstDynamicStoreIndex = children.size() - childCount;
+            YT_VERIFY(chunkList->Children().back()->GetType() ==
+                EObjectType::OrderedDynamicTabletStore);
 
-                YT_VERIFY(firstDynamicStoreIndex >= chunkList->GetTrimmedChildCount());
-                for (int index = 0; index < childCount; ++index) {
-                    YT_VERIFY(childrenBegin[index]->GetType() == EObjectType::OrderedDynamicTabletStore);
-                    if (children[firstDynamicStoreIndex + index] != childrenBegin[index]) {
-                        YT_LOG_ALERT("Attempted to detach dynamic stores from ordered tablet out of order "
-                            "(ChunkListId: %v, RelativeStoreIndex: %v, DetachedStoreId: %v, ActualStoreId: %v)",
-                            chunkList->GetId(),
-                            index,
-                            childrenBegin[index]->GetId(),
-                            children[firstDynamicStoreIndex + index]->GetId());
-                    }
+            int childCount = childrenEnd - childrenBegin;
+            int firstChildIndex = children.size() - childCount;
+
+            YT_VERIFY(firstChildIndex >= chunkList->GetTrimmedChildCount());
+            for (int index = 0; index < childCount; ++index) {
+                if (children[firstChildIndex + index] != childrenBegin[index]) {
+                    YT_LOG_ALERT("Attempted to detach children from ordered tablet out of order "
+                        "(ChunkListId: %v, RelativeStoreIndex: %v, DetachedStoreId: %v, ActualStoreId: %v)",
+                        chunkList->GetId(),
+                        index,
+                        childrenBegin[index]->GetId(),
+                        children[firstChildIndex + index]->GetId());
                 }
-
-                children.erase(children.begin() + firstDynamicStoreIndex, children.end());
-
-                // NB: Statistics for all dynamic stores are the same.
-                chunkList->CumulativeStatistics().TrimBack(childCount);
-
-                YT_VERIFY(statisticsDelta.LogicalRowCount == 0);
-            } else {
-                int childIndex = chunkList->GetTrimmedChildCount();
-                for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
-                    auto* child = *childIt;
-                    YT_VERIFY(child == children[childIndex]);
-                    children[childIndex] = nullptr;
-                }
-                int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
-                if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
-                    newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
-                {
-                    children.erase(
-                        children.begin(),
-                        children.begin() + newTrimmedChildCount);
-
-                    chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
-
-                    chunkList->SetTrimmedChildCount(0);
-                } else {
-                    chunkList->SetTrimmedChildCount(newTrimmedChildCount);
-                }
-                // NB: Do not change logical row and chunk count.
-                statisticsDelta.LogicalRowCount = 0;
-                statisticsDelta.LogicalChunkCount = 0;
             }
+
+            children.erase(children.begin() + firstChildIndex, children.end());
+            chunkList->CumulativeStatistics().TrimBack(childCount);
             break;
         }
 
-        case EChunkListKind::SortedDynamicTablet:
-        case EChunkListKind::SortedDynamicSubtablet:
-        case EChunkListKind::HunkRoot: {
+        case EChunkDetachPolicy::OrderedTabletPrefix: {
+            YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
+
+            int childIndex = chunkList->GetTrimmedChildCount();
+            for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
+                auto* child = *childIt;
+                YT_VERIFY(child == children[childIndex]);
+                children[childIndex] = nullptr;
+            }
+            int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
+            if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
+                newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
+            {
+                children.erase(
+                    children.begin(),
+                    children.begin() + newTrimmedChildCount);
+
+                chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
+
+                chunkList->SetTrimmedChildCount(0);
+            } else {
+                chunkList->SetTrimmedChildCount(newTrimmedChildCount);
+            }
+            // NB: Do not change logical row and chunk count.
+            statisticsDelta.LogicalRowCount = 0;
+            statisticsDelta.LogicalChunkCount = 0;
+            break;
+        }
+
+        case EChunkDetachPolicy::SortedTablet: {
+            YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicTablet ||
+                chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
+                chunkList->GetKind() == EChunkListKind::HunkRoot);
             // Can handle arbitrary children.
             // Used in sorted tablet compaction.
             YT_VERIFY(chunkList->HasChildToIndexMapping());

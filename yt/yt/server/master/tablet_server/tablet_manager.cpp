@@ -2523,7 +2523,7 @@ public:
             }
         }
 
-        chunkManager->DetachFromChunkList(chunkList, storesToDetach);
+        chunkManager->DetachFromChunkList(chunkList, storesToDetach, EChunkDetachPolicy::SortedTablet);
         chunkManager->AttachToChunkList(chunkList, storesToAttach);
 
         auto newStatistics = GetTabletStatistics(tablet);
@@ -2584,7 +2584,10 @@ public:
             }
         }
 
-        chunkManager->DetachFromChunkList(chunkList, storesToDetach);
+        chunkManager->DetachFromChunkList(
+            chunkList,
+            storesToDetach,
+            EChunkDetachPolicy::SortedTablet);
         chunkManager->AttachToChunkList(chunkList, storesToAttach);
 
         auto newStatistics = GetTabletStatistics(tablet);
@@ -5456,7 +5459,12 @@ private:
         // NB: Dynamic stores can be detached unambiguously since they are direct children of a tablet.
         CopyChunkListIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex(), /*force*/ false);
 
-        DetachChunksFromTablet(tablet, dynamicStores);
+        DetachChunksFromTablet(
+            tablet,
+            dynamicStores,
+            tablet->GetTable()->IsPhysicallySorted()
+                ? EChunkDetachPolicy::SortedTablet
+                : EChunkDetachPolicy::OrderedTabletSuffix);
 
         auto* table = tablet->GetTable();
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
@@ -5467,7 +5475,7 @@ private:
             /*updateTabletStatistics*/ false);
 
         TTabletStatistics statisticsDelta;
-        statisticsDelta.ChunkCount = -static_cast<int>(dynamicStores.size());
+        statisticsDelta.ChunkCount = -ssize(dynamicStores);
         tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
         table->AccountTabletStatisticsDelta(statisticsDelta);
     }
@@ -5975,13 +5983,27 @@ private:
         while (chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet && chunkList->Children().empty()) {
             auto* parent = GetUniqueParent(chunkList);
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            chunkManager->DetachFromChunkList(parent, chunkList);
+            chunkManager->DetachFromChunkList(parent, chunkList, EChunkDetachPolicy::SortedTablet);
             chunkList = parent;
         }
     }
 
-    void DetachChunksFromTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
+    void DetachChunksFromTablet(
+        TTablet* tablet,
+        const std::vector<TChunkTree*>& chunkTrees,
+        EChunkDetachPolicy policy)
     {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        if (policy == EChunkDetachPolicy::OrderedTabletPrefix ||
+            policy == EChunkDetachPolicy::OrderedTabletSuffix)
+        {
+            chunkManager->DetachFromChunkList(tablet->GetChunkList(), chunkTrees, policy);
+            return;
+        }
+
+        YT_VERIFY(policy == EChunkDetachPolicy::SortedTablet);
+
         // Ensure deteministic ordering of keys.
         std::map<TChunkList*, std::vector<TChunkTree*>, TObjectIdComparer> childrenByParent;
         for (auto* child : chunkTrees) {
@@ -5990,9 +6012,8 @@ private:
             childrenByParent[parent].push_back(child);
         }
 
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& [parent, children] : childrenByParent) {
-            chunkManager->DetachFromChunkList(parent, children);
+            chunkManager->DetachFromChunkList(parent, children, EChunkDetachPolicy::SortedTablet);
             PruneEmptySubtabletChunkList(parent);
         }
     }
@@ -6203,7 +6224,10 @@ private:
                     NTabletNode::DynamicStoreCountLimit);
             }
 
-            chunkManager->DetachFromChunkList(tabletChunkList, allDynamicStores);
+            chunkManager->DetachFromChunkList(
+                tabletChunkList,
+                allDynamicStores,
+                EChunkDetachPolicy::OrderedTabletSuffix);
 
             if (flushedChunk) {
                 chunkManager->AttachToChunkList(tabletChunkList, flushedChunk);
@@ -6218,7 +6242,12 @@ private:
             }
         } else {
             AttachChunksToTablet(tablet, chunksToAttach);
-            DetachChunksFromTablet(tablet, chunksOrViewsToDetach);
+            DetachChunksFromTablet(
+                tablet,
+                chunksOrViewsToDetach,
+                updateReason == ETabletStoresUpdateReason::Trim
+                    ? EChunkDetachPolicy::OrderedTabletPrefix
+                    : EChunkDetachPolicy::SortedTablet);
         }
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();

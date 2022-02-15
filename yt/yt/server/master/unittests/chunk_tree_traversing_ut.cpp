@@ -1232,7 +1232,7 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     auto* chunk4 = CreateChunk(1, 1, 1, 1);
     AttachToChunkList(root, {chunk1, chunk2, chunk3, chunk4});
 
-    DetachFromChunkList(root, {chunk1});
+    DetachFromChunkList(root, {chunk1}, EChunkDetachPolicy::OrderedTabletPrefix);
     root->Children().erase(root->Children().begin());
     root->CumulativeStatistics().TrimFront(1);
     YT_VERIFY(root->Children().size() == 3);
