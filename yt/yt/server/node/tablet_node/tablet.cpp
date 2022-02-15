@@ -772,6 +772,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     UpdateOverlappingStoreCount();
+    DynamicStoreCount_ = ComputeDynamicStoreCount();
 }
 
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
@@ -1142,10 +1143,18 @@ void TTablet::AddStore(IStorePtr store)
         auto orderedStore = store->AsOrdered();
         YT_VERIFY(StoreRowIndexMap_.emplace(orderedStore->GetStartingRowIndex(), orderedStore).second);
     }
+
+    if (store->IsDynamic()) {
+        ++DynamicStoreCount_;
+    }
 }
 
 void TTablet::RemoveStore(IStorePtr store)
 {
+    if (store->IsDynamic()) {
+        --DynamicStoreCount_;
+    }
+
     YT_VERIFY(StoreIdMap_.erase(store->GetId()) == 1);
     if (IsPhysicallySorted()) {
         auto sortedStore = store->AsSorted();
@@ -1738,6 +1747,30 @@ int TTablet::ComputeEdenOverlappingStoreCount() const
     return maxOverlappingCount;
 }
 
+int TTablet::ComputeDynamicStoreCount() const
+{
+    int dynamicStoreCount = 0;
+
+    if (IsPhysicallySorted()) {
+        for (const auto& store : Eden_->Stores()) {
+            if (store->IsDynamic()) {
+                ++dynamicStoreCount;
+            }
+        }
+    } else {
+        for (auto it = StoreRowIndexMap_.crbegin(); it != StoreRowIndexMap_.crend(); ++it) {
+            if (it->second->IsDynamic()) {
+                ++dynamicStoreCount;
+            } else {
+                break;
+            }
+        }
+    }
+
+    return dynamicStoreCount;
+}
+
+
 void TTablet::UpdateOverlappingStoreCount()
 {
     int overlappingStoreCount = 0;
@@ -1813,29 +1846,6 @@ i64 TTablet::GetTabletLockCount() const
 int TTablet::GetEdenStoreCount() const
 {
     return Eden_->Stores().size();
-}
-
-int TTablet::ComputeDynamicStoreCount() const
-{
-    int dynamicStoreCount = 0;
-
-    if (IsPhysicallySorted()) {
-        for (const auto& store : Eden_->Stores()) {
-            if (store->IsDynamic()) {
-                ++dynamicStoreCount;
-            }
-        }
-    } else {
-        for (auto it = StoreRowIndexMap_.crbegin(); it != StoreRowIndexMap_.crend(); ++it) {
-            if (it->second->IsDynamic()) {
-                ++dynamicStoreCount;
-            } else {
-                break;
-            }
-        }
-    }
-
-    return dynamicStoreCount;
 }
 
 void TTablet::PushDynamicStoreIdToPool(TDynamicStoreId storeId)

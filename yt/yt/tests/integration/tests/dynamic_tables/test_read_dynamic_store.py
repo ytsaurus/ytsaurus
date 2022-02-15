@@ -568,7 +568,8 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
             chunk_writer={"upload_replication_factor": 10},
             tablet_count=tablet_count,
             max_dynamic_store_row_count=rows_per_batch,
-            dynamic_store_auto_flush_period=yson.YsonEntity())
+            dynamic_store_auto_flush_period=yson.YsonEntity(),
+            dynamic_store_overflow_threshold=1.0)
         sync_mount_table("//tmp/t")
 
         row_count = tablet_count * batches_per_tablet * rows_per_batch
@@ -835,6 +836,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
         set("//tmp/t/@max_dynamic_store_row_count", 5)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         set("//tmp/t/@dynamic_store_auto_flush_period", yson.YsonEntity())
+        set("//tmp/t/@dynamic_store_overflow_threshold", 1.0)
         sync_mount_table("//tmp/t")
         rows = []
         for i in range(40):

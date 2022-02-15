@@ -1394,6 +1394,17 @@ private:
                 << TErrorAttribute("eden_store_limit", edenStoreCountLimit);
         }
 
+        auto dynamicStoreCount = tablet->GetDynamicStoreCount();
+        if (dynamicStoreCount >= DynamicStoreCountLimit) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::AllWritesDisabled,
+                "Too many dynamic stores in tablet, all writes disabled")
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << TErrorAttribute("dynamic_store_count", dynamicStoreCount)
+                << TErrorAttribute("dynamic_store_count_limit", DynamicStoreCountLimit);
+        }
+
         auto overflow = tablet->GetStoreManager()->CheckOverflow();
         if (!overflow.IsOK()) {
             THROW_ERROR_EXCEPTION(

@@ -2690,6 +2690,7 @@ private:
                 .Item("state").Value(tablet->GetState())
                 .Item("hash_table_size").Value(tablet->GetHashTableSize())
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
+                .Item("dynamic_store_count").Value(tablet->GetDynamicStoreCount())
                 .Item("retained_timestamp").Value(tablet->GetRetainedTimestamp())
                 .Item("in_flight_user_mutation_count").Value(tablet->GetInFlightUserMutationCount())
                 .Item("in_flight_replicator_mutation_count").Value(tablet->GetInFlightReplicatorMutationCount())
