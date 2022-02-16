@@ -189,6 +189,15 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     return dataSourceDirectory;
 }
 
+TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const TString& intermediateAccount)
+{
+    auto dataSinkDirectory = New<TDataSinkDirectory>();
+    auto& dataSink = dataSinkDirectory->DataSinks().emplace_back();
+    dataSink.SetPath(GetIntermediatePath(0));
+    dataSink.SetAccount(intermediateAccount);
+    return dataSinkDirectory;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyLivePreview)
