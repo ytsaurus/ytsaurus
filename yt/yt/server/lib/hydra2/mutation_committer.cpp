@@ -759,8 +759,6 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
     MutationQueueSummarySize_.Record(MutationQueue_.size());
     MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
 
-    MaybeCheckpoint();
-
     Changelog_->Append(std::move(recordsData))
         .Subscribe(BIND(
             &TLeaderCommitter::OnMutationsLogged,
@@ -768,6 +766,8 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
             firstSequenceNumber,
             lastSequenceNumber)
             .Via(EpochContext_->EpochControlInvoker));
+
+    MaybeCheckpoint();
 }
 
 void TLeaderCommitter::OnMutationsLogged(
