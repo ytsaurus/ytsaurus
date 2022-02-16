@@ -57,7 +57,7 @@ class QueueAgentOrchid:
         return YtError.from_dict(get(self.queue_agent_orchid_path() + "/queue_agent/latest_poll_error"))
 
     def wait_fresh_poll_error(self):
-        poll_index = self.get_error_poll_index()
+        poll_index = self.get_poll_index()
         wait(lambda: self.get_error_poll_index() >= poll_index + 2)
 
     def get_fresh_poll_error(self):
@@ -138,7 +138,7 @@ class TestQueueAgent(YTEnvSetup):
 
         self._drop_tables()
 
-        assert_yt_error(orchid.get_fresh_poll_error(), "has no child with key")
+        assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.ResolveErrorCode)
 
         wrong_schema = copy.deepcopy(QUEUE_TABLE_SCHEMA)
         wrong_schema[-1]["type"] = "int64"

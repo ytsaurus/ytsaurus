@@ -20,6 +20,8 @@ def abort_transactions(list_action, abort_action):
             continue
         if "Chunk autotomizer" in title:
             continue
+        if "QueueAgent" in title:
+            continue
         try:
             abort_action(tx)
         except YtError:
