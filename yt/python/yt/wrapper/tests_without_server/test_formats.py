@@ -321,6 +321,32 @@ def test_create_format():
     with pytest.raises(yt.YtError):
         create_format("best_format")
 
+    table_skiff_schemas = [
+        {
+            "wire_type": "tuple",
+            "children": [
+                {
+                    "wire_type": "int64",
+                    "name": "x"
+                },
+                {
+                    "wire_type": "variant8",
+                    "children": [
+                        {
+                            "wire_type": "nothing"
+                        },
+                        {
+                            "wire_type": "int64"
+                        }
+                    ],
+                    "name": "y"
+                }
+            ]
+        }
+    ]
+    skiff_format = create_format(yson.to_yson_type("skiff", attributes={"table_skiff_schemas": table_skiff_schemas}))
+    assert skiff_format.name() == "skiff"
+
 @authors("ignat")
 def test_raw_dump_records():
     def check_format(format, value):
