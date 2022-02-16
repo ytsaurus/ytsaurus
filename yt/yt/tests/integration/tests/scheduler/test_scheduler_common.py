@@ -2766,13 +2766,20 @@ class TestResourceMetering(YTEnvSetup):
 
 class TestSchedulerObjectsDestruction(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 10
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
             "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                },
+            },
         },
     }
 
