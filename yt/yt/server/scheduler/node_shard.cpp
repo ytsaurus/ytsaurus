@@ -393,7 +393,7 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
     for (const auto& job : operationState.Jobs) {
         YT_VERIFY(job.second->GetUnregistered());
     }
-    
+
     for (const auto jobId : operationState.JobsToSubmitToStrategy) {
         JobsToSubmitToStrategy_.erase(jobId);
     }
@@ -1352,6 +1352,25 @@ TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     entry.OperationId = operationId;
     entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
     entry.StartTime = GetCpuInstant();
+
+    TDelayedExecutor::Submit(
+        BIND([this, this_ = MakeWeak(this), jobId, operationId] {
+            if (!this_.Lock()) {
+                return;
+            }
+            auto it = JobIdToScheduleEntry_.find(jobId);
+            if (it == std::cend(JobIdToScheduleEntry_)) {
+                return;
+            }
+
+            auto& entry = it->second;
+            YT_VERIFY(operationId == entry.OperationId);
+
+            OperationIdToJobIterators_.erase(entry.OperationIdToJobIdsIterator);
+            JobIdToScheduleEntry_.erase(it);
+        })
+        .Via(GetInvoker()),
+        Config_->ScheduleJobEntryRemovalTimeout);
 
     return entry.Promise.ToFuture();
 }
