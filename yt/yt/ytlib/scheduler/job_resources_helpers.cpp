@@ -8,6 +8,8 @@
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
 
+#include <functional>
+
 namespace NYT {
 
 using namespace NYson;
@@ -43,13 +45,15 @@ TNodeResources ToNodeResources(const TJobResources& jobResources)
 void SerializeDiskQuota(
     const TDiskQuota& quota,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
-    IYsonConsumer* consumer)
+    TFluentMap fluent)
 {
-    BuildYsonFluently(consumer)
-        .DoMapFor(quota.DiskSpacePerMedium, [&] (TFluentMap fluent, const std::pair<int, i64>& pair) {
-            auto [mediumIndex, diskSpace] = pair;
-            fluent.Item(mediumDirectory->FindByIndex(mediumIndex)->Name).Value(diskSpace);
-        });
+    fluent
+        .Item("disk_space_per_medium")
+            .DoMapFor(quota.DiskSpacePerMedium, [&] (TFluentMap fluent, const std::pair<int, i64>& pair) {
+                auto [mediumIndex, diskSpace] = pair;
+                fluent.Item(mediumDirectory->FindByIndex(mediumIndex)->Name).Value(diskSpace);
+            })
+        .Item("disk_space_without_medium").Value(quota.DiskSpaceWithoutMedium);
 }
 
 void SerializeJobResourcesWithQuota(
@@ -59,13 +63,10 @@ void SerializeJobResourcesWithQuota(
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-    #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-            .Item("disk_space")
-                .Do([&] (TFluentAny fluent) {
-                    SerializeDiskQuota(resources.GetDiskQuota(), mediumDirectory, fluent.GetConsumer());
-                })
+            #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+            .Do(std::bind(SerializeDiskQuota, resources.GetDiskQuota(), mediumDirectory, std::placeholders::_1))
         .EndMap();
 }
 
