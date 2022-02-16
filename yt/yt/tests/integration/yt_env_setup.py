@@ -148,6 +148,10 @@ def is_msan_build():
     return get_sanitizer_type() == "memory"
 
 
+def is_debug_build():
+    return "debug" in arcadia_interop.yatest_common.context.build_type
+
+
 def skip_if_rpc_driver_backend(func):
     def wrapper(func, self, *args, **kwargs):
         if self.DRIVER_BACKEND == "rpc":
