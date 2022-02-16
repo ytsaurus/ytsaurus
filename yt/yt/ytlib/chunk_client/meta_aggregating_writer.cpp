@@ -134,6 +134,11 @@ public:
         return ChunkMeta_;
     }
 
+    TFuture<void> Cancel() override
+    {
+        return UnderlyingWriter_->Cancel();
+    }
+
 private:
     const IChunkWriterPtr UnderlyingWriter_;
     const TDeferredChunkMetaPtr ChunkMeta_;

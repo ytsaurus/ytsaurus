@@ -323,6 +323,12 @@ public:
         return CloseDemanded_;
     }
 
+    TFuture<void> Cancel() override
+    {
+        State_.store(EReplicationWriterState::Closed);
+        return CancelWriter(/*wait*/ true);
+    }
+
 private:
     friend class TGroup;
 
@@ -889,16 +895,22 @@ private:
         }
     }
 
-    void CancelWriter()
+    TFuture<void> CancelWriter(bool wait = false)
     {
-        // No thread affinity; may be called from dtor.
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        for (const auto& channel : ExtractCandidateNodes()) {
+        std::vector<TFuture<void>> cancelFutures;
+        auto nodes = ExtractCandidateNodes();
+        cancelFutures.reserve(nodes.size());
+        for (const auto& channel : nodes) {
             TDataNodeServiceProxy proxy(channel);
             auto req = proxy.CancelChunk();
+            req->set_wait_for_cancelation(wait);
             ToProto(req->mutable_session_id(), SessionId_);
-            req->Invoke();
+            cancelFutures.push_back(req->Invoke().AsVoid());
         }
+
+        return AllSucceeded(std::move(cancelFutures));
     }
 
     void AddBlocks(const std::vector<TBlock>& blocks)

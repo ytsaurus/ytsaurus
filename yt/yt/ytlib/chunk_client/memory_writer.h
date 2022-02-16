@@ -33,6 +33,8 @@ public:
 
     bool IsCloseDemanded() const override;
 
+    TFuture<void> Cancel() override;
+
     //! Can only be called after the writer is closed.
     std::vector<TBlock>& GetBlocks();
     //! Can only be called after the writer is closed.

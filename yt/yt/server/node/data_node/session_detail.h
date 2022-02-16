@@ -57,6 +57,10 @@ public:
 
     TFuture<NIO::TIOCounters> FlushBlocks(int blockIndex) override;
 
+    void OnUnregistered() override;
+
+    TFuture<void> GetUnregisteredEvent() override;
+
     DEFINE_SIGNAL_OVERRIDE(void(const TError& error), Finished);
 
 protected:
@@ -71,6 +75,8 @@ protected:
     const IInvokerPtr SessionInvoker_;
 
     const NLogging::TLogger Logger;
+
+    TPromise<void> UnregisteredEvent_ = NewPromise<void>();
 
     // Affinity: session invoker.
     bool Active_ = false;

@@ -500,12 +500,11 @@ private:
             std::vector<TFuture<void>> closeReplicaWriterResults;
             for (int partIndex = 0; partIndex < std::ssize(copyFutures); ++partIndex) {
                 auto copyResult = copyResults[partIndex];
+                const auto& writer = writers[partIndex];
                 if (!copyResult.IsOK()) {
                     erasedPartIndicies.push_back(partIndex);
-                    // NB: We should destroy replication writer to cancel it.
-                    writers[partIndex].Reset();
+                    closeReplicaWriterResults.push_back(writer->Cancel());
                 } else {
-                    const auto& writer = writers[partIndex];
                     closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
                 }
             }

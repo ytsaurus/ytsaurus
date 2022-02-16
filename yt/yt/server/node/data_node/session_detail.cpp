@@ -162,6 +162,20 @@ void TSessionBase::Cancel(const TError& error)
         }));
 }
 
+void TSessionBase::OnUnregistered()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UnregisteredEvent_.Set();
+}
+
+TFuture<void> TSessionBase::GetUnregisteredEvent()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return UnregisteredEvent_.ToFuture();
+}
+
 TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
     std::optional<int> blockCount)

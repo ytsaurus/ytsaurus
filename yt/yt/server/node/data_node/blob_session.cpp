@@ -268,7 +268,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Abort().Apply(
+        return Writer_->Cancel().Apply(
             BIND([=, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 

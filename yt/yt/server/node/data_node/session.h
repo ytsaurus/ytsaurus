@@ -96,9 +96,12 @@ struct ISession
     //! Renews the lease.
     virtual void Ping() = 0;
 
+    //! Called by session manager. Indicates that the session was unregistered.
+    virtual void OnUnregistered() = 0;
+
+    virtual TFuture<void> GetUnregisteredEvent() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), Finished);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ISession)

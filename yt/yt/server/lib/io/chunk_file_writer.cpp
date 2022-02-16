@@ -282,7 +282,7 @@ const TString& TChunkFileWriter::GetFileName() const
     return FileName_;
 }
 
-TFuture<void> TChunkFileWriter::Abort()
+TFuture<void> TChunkFileWriter::Cancel()
 {
     auto state = State_.exchange(EState::Aborting);
     YT_VERIFY(

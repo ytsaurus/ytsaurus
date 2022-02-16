@@ -324,6 +324,16 @@ public:
         return SessionId_.ChunkId;
     }
 
+    TFuture<void> Cancel() override
+    {
+        std::vector<TFuture<void>> cancelFutures;
+        cancelFutures.reserve(Writers_.size());
+        for (const auto& writer : Writers_) {
+            cancelFutures.push_back(writer->Cancel());
+        }
+        return AllSucceeded(std::move(cancelFutures));
+    }
+
 private:
     const TErasureWriterConfigPtr Config_;
     const TSessionId SessionId_;

@@ -252,6 +252,7 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 
     YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);
+    session->OnUnregistered();
 }
 
 void TSessionManager::OnLocationDisabled(const TChunkLocationPtr& location)

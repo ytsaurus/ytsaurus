@@ -26,6 +26,11 @@ TFuture<void> TMemoryWriter::Open()
     return VoidFuture;
 }
 
+TFuture<void> TMemoryWriter::Cancel()
+{
+    return VoidFuture;
+}
+
 bool TMemoryWriter::WriteBlock(const TBlock& block)
 {
     YT_VERIFY(Open_);

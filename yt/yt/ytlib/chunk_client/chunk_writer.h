@@ -71,6 +71,10 @@ struct IChunkWriter
 
     //! Returns true if one of the replicas demanded transmission close.
     virtual bool IsCloseDemanded() const = 0;
+
+    //! Cancels chunk write. The returned future is set when cancellation completes. Do not call other
+    //! methods after this one.
+    virtual TFuture<void> Cancel() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkWriter)

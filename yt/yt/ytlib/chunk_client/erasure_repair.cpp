@@ -677,6 +677,11 @@ public:
         return VoidFuture;
     }
 
+    TFuture<void> Cancel() override
+    {
+        return VoidFuture;
+    }
+
     bool WriteBlock(const TBlock&) override
     {
         return true;
@@ -771,7 +776,7 @@ TFuture<void> AdaptiveRepairErasedParts(
 {
     auto invoker = TDispatcher::Get()->GetReaderInvoker();
     auto observer = New<TRepairingReadersObserver>(codec, config, invoker, allReaders);
-    
+
     auto target = TAdaptiveErasureRepairingSession::TTarget {
         .Erased = erasedIndices
     };
