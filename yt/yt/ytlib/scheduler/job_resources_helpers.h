@@ -25,10 +25,6 @@ NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SerializeDiskQuota(
-    const TDiskQuota& quota,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
-    NYson::IYsonConsumer* consumer);
 void SerializeJobResourcesWithQuota(
     const TJobResourcesWithQuota& resources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
