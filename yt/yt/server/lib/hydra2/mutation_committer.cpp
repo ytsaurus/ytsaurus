@@ -442,9 +442,10 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 
     auto committedSequenceNumber = loggedNumbers[CellManager_->GetQuorumPeerCount() - 1];
 
-    YT_LOG_DEBUG("Trying to promote committed sequence number (NewCommittedSequenceNumber: %v)",
-        committedSequenceNumber);
-    if (committedSequenceNumber == -1 || CommittedState_.SequenceNumber == committedSequenceNumber) {
+    YT_LOG_DEBUG("Trying to promote committed sequence number (NewCommittedSequenceNumber: %v, OldCommittedSequenceNumber: %v)",
+        committedSequenceNumber,
+        CommittedState_.SequenceNumber);
+    if (committedSequenceNumber == -1 || CommittedState_.SequenceNumber >= committedSequenceNumber) {
         return;
     }
 
