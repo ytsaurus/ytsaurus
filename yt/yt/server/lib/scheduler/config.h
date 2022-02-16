@@ -847,6 +847,8 @@ public:
 
     bool EnableHeavyRuntimeParameters;
 
+    TDuration ScheduleJobEntryRemovalTimeout;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
