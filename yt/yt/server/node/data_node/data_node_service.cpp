@@ -320,6 +320,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
+        bool waitForCancelation = request->wait_for_cancelation();
 
         context->SetRequestInfo("ChunkId: %v",
             sessionId);
@@ -328,7 +329,11 @@ private:
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         session->Cancel(TError("Canceled by client request"));
 
-        context->Reply();
+        if (waitForCancelation) {
+            context->ReplyFrom(session->GetUnregisteredEvent());
+        } else {
+            context->Reply();
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)

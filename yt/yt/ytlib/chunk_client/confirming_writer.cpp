@@ -176,6 +176,12 @@ public:
         }
     }
 
+    TFuture<void> Cancel() override
+    {
+        YT_VERIFY(UnderlyingWriter_);
+        return UnderlyingWriter_->Cancel();
+    }
+
 private:
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;

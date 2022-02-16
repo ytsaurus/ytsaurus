@@ -186,6 +186,11 @@ public:
         return Check(Underlying_->Open());
     }
 
+    TFuture<void> Cancel() override
+    {
+        return Underlying_->Cancel();
+    }
+
     bool WriteBlock(const TBlock& block) override
     {
         return Underlying_->WriteBlock(block);

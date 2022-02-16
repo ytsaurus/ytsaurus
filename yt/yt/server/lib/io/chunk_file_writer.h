@@ -75,7 +75,7 @@ public:
     i64 GetDataSize() const;
 
     //! Aborts the writer and removes temporary files.
-    TFuture<void> Abort();
+    TFuture<void> Cancel() override;
 
 private:
     const IIOEnginePtr IOEngine_;
