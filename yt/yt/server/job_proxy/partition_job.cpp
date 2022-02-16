@@ -120,6 +120,13 @@ public:
         options->ValidateSorted = false;
         auto writerConfig = GetWriterConfig(outputSpec);
 
+        std::optional<NChunkClient::TDataSink> dataSink;
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
+            dataSink = dataSinkDirectory->DataSinks()[0];
+        }
+
         WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
             return CreatePartitionMultiChunkWriter(
                 writerConfig,
@@ -132,7 +139,7 @@ public:
                 transactionId,
                 chunkListId,
                 CreatePartitioner(PartitionJobSpecExt_),
-                /*dataSink*/ std::nullopt,
+                dataSink,
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
         };

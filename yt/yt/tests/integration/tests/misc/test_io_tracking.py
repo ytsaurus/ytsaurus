@@ -4,7 +4,7 @@ import yt_commands
 
 from yt_commands import (
     alter_table, authors, create, get, read_journal, wait, read_table, write_file, write_journal, create_account,
-    write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned,
+    write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned, sort, get_operation,
     sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
     reduce, map_reduce, merge, erase, read_file, sorted_dicts, get_driver, remote_copy)
 
@@ -14,6 +14,7 @@ from yt_driver_bindings import Driver
 import yt.yson as yson
 
 from copy import deepcopy
+from collections import defaultdict
 
 import random
 import time
@@ -806,7 +807,7 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
 ##################################################################
 
 
-class TestJobsIOTracking(TestNodeIOTrackingBase):
+class TestJobsIOTrackingBase(TestNodeIOTrackingBase):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -831,6 +832,8 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         },
     }
 
+
+class TestJobsIOTracking(TestJobsIOTrackingBase):
     @authors("gepardo")
     @pytest.mark.parametrize("op_type", ["map", "ordered_map", "reduce"])
     def test_basic_operations(self, op_type):
@@ -1344,6 +1347,444 @@ class TestJobsIOTracking(TestNodeIOTrackingBase):
         assert sorted(write_paths) == ["//tmp/table_out"]
 
         assert read_table("//tmp/table_out") == table_data
+
+
+class TestSortJobsIOTracking(TestJobsIOTrackingBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "sort_operation_options": {
+                "min_uncompressed_block_size": 1,
+                "min_partition_size": 1,
+                "max_value_count_per_simple_sort_job": 100,
+                "max_data_slices_per_job": 100,
+                "spec_template": {
+                    "use_new_sorted_pool": False,
+                }
+            },
+        }
+    }
+
+    def _get_table_data(self):
+        return [
+            {"type": "quick", "complexity": "nlogn"},
+            {"type": "heap", "complexity": "nlogn"},
+            {"type": "merge", "complexity": "nlogn"},
+            {"type": "bogo", "complexity": "n!n"},
+            {"type": "selection", "complexity": "n^2"},
+            {"type": "bubble", "complexity": "n^2"},
+            {"type": "insertion", "complexity": "n^2"},
+            {"type": "tree", "complexity": "nlogn"},
+        ]
+
+    def _write_input_table(self, table_data=None, single_chunk=True):
+        if table_data is None:
+            table_data = self._get_table_data()
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        if single_chunk:
+            write_table("//tmp/table_in", table_data)
+            event_count = 1
+        else:
+            for row in table_data:
+                write_table("<append=%true>//tmp/table_in", [row])
+            event_count = len(table_data)
+        raw_events, _ = self.wait_for_events(raw_count=event_count, from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+    def _check_output_table(self, table_data=None, sorted_by="type"):
+        if table_data is None:
+            table_data = self._get_table_data()
+        table_data = sorted(table_data, key=lambda x: x[sorted_by])
+        assert read_table("//tmp/table_out") == table_data
+
+    def _check_tags(self, op, event):
+        assert event["pool_tree@"] == "default"
+        assert event["operation_id"] == op.id
+        assert event["operation_type@"] == "sort"
+        assert "job_id" in event
+        assert event["bytes"] > 0
+        assert event["io_requests"] > 0
+        assert event["user@"] in ["root", "job:root"]
+
+    def _get_job_counts_by_task_name(self, op):
+        progress = get_operation(op.id)["progress"]
+        result = {}
+        for task in progress["tasks"]:
+            result[task["task_name"]] = task["job_counter"]["total"]
+        return result
+
+    @authors("gepardo")
+    def test_simple_sort_1_phase(self):
+        self._write_input_table()
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            sort_by="type",
+        )
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+        raw_events.sort(key=lambda e: e["data_node_method@"])
+
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[1]["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]
+
+        for event in raw_events:
+            self._check_tags(op, event)
+            assert event["job_type@"] == "simple_sort"
+            assert event["task_name@"] == "simple_sort"
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+            if event["data_node_method@"] == "FinishChunk":
+                assert event["object_path"] == "//tmp/table_out"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                assert event["object_path"] == "//tmp/table_in"
+            else:
+                assert False
+
+        self._check_output_table()
+
+    @authors("gepardo")
+    def test_simple_sort_2_phase(self):
+        self._write_input_table()
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            sort_by="type",
+            spec={"data_weight_per_sort_job": 1},
+        )
+        job_counts = self._get_job_counts_by_task_name(op)
+        sort_jobs = job_counts["simple_sort"]
+        merge_jobs = job_counts["sorted_merge"]
+        event_count = 3 * sort_jobs + merge_jobs
+        raw_events, _ = self.wait_for_events(raw_count=event_count, from_barrier=from_barrier)
+
+        read_count_by_task = defaultdict(int)
+        write_count_by_task = defaultdict(int)
+        for event in raw_events:
+            self._check_tags(op, event)
+            task_name = event["task_name@"]
+            assert task_name in ["simple_sort", "sorted_merge"]
+            assert event["job_type@"] == task_name
+            if event["data_node_method@"] == "FinishChunk":
+                write_count_by_task[task_name] += 1
+                if task_name == "simple_sort":
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+                else:
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_out"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_count_by_task[task_name] += 1
+                if task_name == "simple_sort":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_in"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            else:
+                assert False
+
+        assert read_count_by_task["simple_sort"] == sort_jobs
+        assert write_count_by_task["simple_sort"] == sort_jobs
+        assert read_count_by_task["sorted_merge"] == sort_jobs
+        assert write_count_by_task["sorted_merge"] == merge_jobs
+
+        self._check_output_table()
+
+    @authors("gepardo")
+    def test_sort_2_phase(self):
+        self._write_input_table()
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            sort_by="type",
+            spec={
+                "partition_job_count": 2,
+                "partition_count": 2,
+            },
+        )
+        raw_events, _ = self.wait_for_events(raw_count=10, from_barrier=from_barrier)
+
+        read_count_by_task = defaultdict(int)
+        write_count_by_task = defaultdict(int)
+        for event in raw_events:
+            self._check_tags(op, event)
+            job_type = event["job_type@"]
+            task_name = event["task_name@"]
+            assert job_type in ["partition", "final_sort"]
+            assert task_name == ("partition(0)" if job_type == "partition" else "final_sort")
+            if event["data_node_method@"] == "FinishChunk":
+                write_count_by_task[task_name] += 1
+                if job_type == "partition":
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+                else:
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_out"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_count_by_task[task_name] += 1
+                if job_type == "partition":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_in"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            else:
+                assert False
+
+        assert read_count_by_task["partition(0)"] == 2
+        assert write_count_by_task["partition(0)"] == 2
+        assert read_count_by_task["final_sort"] == 4
+        assert write_count_by_task["final_sort"] == 2
+
+        self._check_output_table()
+
+    @authors("gepardo")
+    def test_sort_2_phase_depth_2(self):
+        self._write_input_table(single_chunk=False)
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            sort_by="type",
+            spec={
+                "partition_job_count": 2,
+                "partition_count": 4,
+                "max_partition_factor": 2,
+            },
+        )
+        raw_events, _ = self.wait_for_events(raw_count=24, from_barrier=from_barrier)
+
+        read_count_by_task = defaultdict(int)
+        write_count_by_task = defaultdict(int)
+        for event in raw_events:
+            self._check_tags(op, event)
+            task_name = event["task_name@"]
+            assert task_name in ["partition(0)", "partition(1)", "final_sort"]
+            assert event["job_type@"] == ("final_sort" if task_name == "final_sort" else "partition")
+            if event["data_node_method@"] == "FinishChunk":
+                write_count_by_task[task_name] += 1
+                if task_name == "final_sort":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_out"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_count_by_task[task_name] += 1
+                if task_name == "partition(0)":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_in"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            else:
+                assert False
+
+        assert read_count_by_task["partition(0)"] == 8
+        assert write_count_by_task["partition(0)"] == 2
+        assert read_count_by_task["partition(1)"] == 4
+        assert write_count_by_task["partition(1)"] == 2
+        assert read_count_by_task["final_sort"] == 4
+        assert write_count_by_task["final_sort"] == 4
+
+        self._check_output_table()
+
+    @authors("gepardo")
+    def test_sort_3_phase(self):
+        self._write_input_table(single_chunk=False)
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            sort_by="type",
+            spec={
+                "partition_job_count": 4,
+                "partition_count": 2,
+                "data_weight_per_sort_job": 1,
+                "partition_job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": 1,
+                        "block_size": 1,
+                    }
+                },
+            },
+        )
+        tasks = {task["task_name"] for task in get_operation(op.id)["progress"]["tasks"]}
+        assert tasks == {"partition(0)", "intermediate_sort", "sorted_merge"}
+        raw_events, _ = self.wait_for_events(raw_count=48, from_barrier=from_barrier)
+
+        read_count_by_task = defaultdict(int)
+        write_count_by_task = defaultdict(int)
+        for event in raw_events:
+            self._check_tags(op, event)
+            task_name = event["task_name@"]
+            assert task_name in ["partition(0)", "intermediate_sort", "sorted_merge"]
+            assert event["job_type@"] == ("partition" if task_name == "partition(0)" else task_name)
+            if event["data_node_method@"] == "FinishChunk":
+                write_count_by_task[task_name] += 1
+                if task_name == "sorted_merge":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_out"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_count_by_task[task_name] += 1
+                if task_name == "partition(0)":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_in"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            else:
+                assert False
+
+        assert read_count_by_task["partition(0)"] == 8
+        assert write_count_by_task["partition(0)"] == 8
+        assert read_count_by_task["intermediate_sort"] == 8
+        assert write_count_by_task["intermediate_sort"] == 8
+        assert read_count_by_task["sorted_merge"] == 8
+        assert write_count_by_task["sorted_merge"] == 8
+
+        self._check_output_table()
+
+    @authors("gepardo")
+    def test_maniac(self):
+        table_data = [{"key": 42, "value": i} for i in range(20)]
+        self._write_input_table(table_data, single_chunk=False)
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            sort_by=["key"],
+            spec={
+                "partition_job_count": 2,
+                "partition_count": 5,
+                "data_weight_per_sort_job": 1,
+            },
+        )
+        raw_events, _ = self.wait_for_events(raw_count=26, from_barrier=from_barrier)
+
+        read_count_by_task = defaultdict(int)
+        write_count_by_task = defaultdict(int)
+        for event in raw_events:
+            self._check_tags(op, event)
+            task_name = event["task_name@"]
+            assert task_name in ["partition(0)", "unordered_merge"]
+            assert event["job_type@"] == ("partition" if task_name == "partition(0)" else task_name)
+            if event["data_node_method@"] == "FinishChunk":
+                write_count_by_task[task_name] += 1
+                if task_name == "unordered_merge":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_out"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_count_by_task[task_name] += 1
+                if task_name == "partition(0)":
+                    assert "object_id" in event
+                    assert event["account@"] == "tmp"
+                    assert event["object_path"] == "//tmp/table_in"
+                else:
+                    assert "object_id" not in event
+                    assert event["account@"] == "intermediate"
+                    assert event["object_path"] == "<intermediate_0>"
+            else:
+                assert False
+
+        assert read_count_by_task["partition(0)"] == 20
+        assert write_count_by_task["partition(0)"] == 2
+        assert read_count_by_task["unordered_merge"] == 2
+        assert write_count_by_task["unordered_merge"] == 2
+
+        assert sorted(read_table("//tmp/table_out"), key=lambda e: e["value"]) == table_data
+
+    @authors("gepardo")
+    def test_sort_multitable(self):
+        table_data1 = [
+            {"id": 1, "name": "cat"},
+            {"id": 3, "name": "dog"},
+        ]
+        table_data2 = [
+            {"id": 2, "name": "python"},
+            {"id": 4, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in1")
+        create("table", "//tmp/table_in2")
+        write_table("//tmp/table_in1", table_data1)
+        write_table("//tmp/table_in2", table_data2)
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_out")
+        op = sort(
+            in_=["//tmp/table_in1", "//tmp/table_in2"],
+            out="//tmp/table_out",
+            sort_by=["id"],
+        )
+        raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
+        raw_events.sort(key=lambda e: e["data_node_method@"])
+
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+        assert raw_events[1]["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]
+        assert raw_events[2]["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]
+
+        read_paths = []
+        for event in raw_events:
+            self._check_tags(op, event)
+            assert event["job_type@"] == "simple_sort"
+            assert event["task_name@"] == "simple_sort"
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+            if event["data_node_method@"] == "FinishChunk":
+                assert event["object_path"] == "//tmp/table_out"
+            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
+                read_paths.append(event["object_path"])
+            else:
+                assert False
+        assert sorted(read_paths) == ["//tmp/table_in1", "//tmp/table_in2"]
+
+        assert sorted(table_data1 + table_data2, key=lambda e: e["id"]) == \
+            read_table("//tmp/table_out")
 
 ##################################################################
 

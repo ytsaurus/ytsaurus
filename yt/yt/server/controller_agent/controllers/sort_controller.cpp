@@ -3502,6 +3502,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildDataSourceDirectoryFromInputTables(InputTables_));
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
@@ -3517,6 +3520,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec->SortBy.size());
             ToProto(partitionJobSpecExt->mutable_sort_key_columns(), GetColumnNames(Spec->SortBy));
@@ -3548,6 +3554,9 @@ private:
             IntermediateSortJobSpecTemplate = sortJobSpecTemplate;
             IntermediateSortJobSpecTemplate.set_type(static_cast<int>(GetIntermediateSortJobType()));
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).ToString());
         }
 
@@ -3555,6 +3564,9 @@ private:
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
             FinalSortJobSpecTemplate.set_type(static_cast<int>(GetFinalSortJobType()));
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryFromOutputTables(OutputTables_));
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).ToString());
         }
 
@@ -3567,6 +3579,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 
@@ -3583,6 +3598,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).ToString());
 

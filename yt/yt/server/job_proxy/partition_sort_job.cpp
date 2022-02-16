@@ -110,6 +110,13 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
+        std::optional<NChunkClient::TDataSink> dataSink;
+        if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
+            auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
+            YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
+            dataSink = dataSinkDirectory->DataSinks()[0];
+        }
+
         WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
             return CreateSchemalessMultiChunkWriter(
                 writerConfig,
@@ -121,7 +128,7 @@ public:
                 Host_->GetLocalHostName(),
                 CellTagFromId(chunkListId),
                 transactionId,
-                /*dataSink*/ std::nullopt,
+                dataSink,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},
                 Host_->GetTrafficMeter(),

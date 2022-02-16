@@ -119,7 +119,7 @@ public:
         TTableSchemaPtr schema;
         DeserializeFromWireProto(&schema, outputSpec.table_schema());
 
-        std::optional<NChunkClient::TDataSink> dataSink = std::nullopt;
+        std::optional<NChunkClient::TDataSink> dataSink;
         if (auto dataSinkDirectoryExt = FindProtoExtension<TDataSinkDirectoryExt>(SchedulerJobSpecExt_.extensions())) {
             auto dataSinkDirectory = FromProto<TDataSinkDirectoryPtr>(*dataSinkDirectoryExt);
             YT_VERIFY(std::ssize(dataSinkDirectory->DataSinks()) == 1);
