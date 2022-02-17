@@ -179,6 +179,7 @@ void TSimpleVersionedBlockWriter::WriteValue(
 
         case EValueType::String:
         case EValueType::Any:
+        case EValueType::Composite:
             WritePod(stream, static_cast<ui32>(StringDataStream_.GetSize()));
             if (!ColumnHunkFlags_[value.Id] || Any(value.Flags & EValueFlags::Hunk)) {
                 WritePod(stream, value.Length);
@@ -196,7 +197,6 @@ void TSimpleVersionedBlockWriter::WriteValue(
             nullFlags.Append(true);
             break;
 
-        case EValueType::Composite:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:

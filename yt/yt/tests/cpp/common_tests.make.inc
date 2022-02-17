@@ -7,6 +7,7 @@
 SET(THIS_DIR "${ARCADIA_ROOT}/yt/yt/tests/cpp")
 
 SRCS(
+    ${THIS_DIR}/test_type_v3.cpp
     ${THIS_DIR}/test_api.cpp
     ${THIS_DIR}/modify_rows_test.cpp
 )

@@ -20,9 +20,6 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/logging/config.h>
-#include <yt/yt/core/logging/log_manager.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -743,84 +740,6 @@ TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
     expected = ToString(YsonToSchemalessRow(
         "<id=0> 0; <id=1> 3; <id=2> 23; <id=3> 24; <id=4> 25;"));
     EXPECT_EQ(expected, actual);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTypeV3Test : public TApiTestBase
-{ };
-
-TEST_F(TTypeV3Test, TestCreateTable)
-{
-    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
-        TColumnSchema("key", SimpleLogicalType(ESimpleLogicalValueType::String)),
-        TColumnSchema("value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-    });
-    TCreateNodeOptions options;
-    options.Attributes = NYTree::CreateEphemeralAttributes();
-    options.Attributes->Set("schema", schema);
-    WaitFor(Client_->CreateNode("//tmp/f", EObjectType::Table, options))
-        .ThrowOnError();
-
-    auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> writtenData;
-
-    {
-        auto tableWriter = WaitFor(Client_->CreateTableWriter(NYPath::TRichYPath("//tmp/f")))
-            .ValueOrThrow();
-
-        auto nameTable = tableWriter->GetNameTable();
-        auto writerSchema = tableWriter->GetSchema();
-        EXPECT_EQ(*writerSchema, *schema);
-        auto createRow = [&] (TStringBuf key, TStringBuf value) {
-            TUnversionedOwningRowBuilder builder;
-
-            builder.AddValue(MakeUnversionedStringValue(key, nameTable->GetIdOrRegisterName("key")));
-            builder.AddValue(MakeUnversionedCompositeValue(value, nameTable->GetIdOrRegisterName("value")));
-
-            return rowBuffer->CaptureRow(builder.FinishRow().Get());
-        };
-
-        writtenData = {
-            createRow("foo", "[3; 4; 5]"),
-            createRow("bar", "[6; 7]"),
-        };
-        auto written = tableWriter->Write(MakeRange<TUnversionedRow>(writtenData));
-        EXPECT_EQ(written, true);
-
-        WaitFor(tableWriter->Close())
-            .ThrowOnError();
-    }
-
-    {
-        auto tableReader = WaitFor(Client_->CreateTableReader(NYPath::TRichYPath("//tmp/f")))
-            .ValueOrThrow();
-
-        auto readerSchema = tableReader->GetTableSchema();
-        EXPECT_EQ(*readerSchema, *schema);
-
-        std::vector<TUnversionedRow> tableRows;
-        while (auto batch = tableReader->Read()) {
-            if (batch->IsEmpty()) {
-                WaitFor(tableReader->GetReadyEvent())
-                    .ThrowOnError();
-            }
-
-            for (const auto row : batch->MaterializeRows()) {
-                tableRows.emplace_back(rowBuffer->CaptureRow(row));
-            }
-        }
-
-        auto toStringVector = [] (const std::vector<TUnversionedRow>& rows) {
-            std::vector<TString> result;
-            for (const auto& r : rows) {
-                result.push_back(ToString(r));
-            }
-            return result;
-        };
-
-        EXPECT_EQ(toStringVector(tableRows), toStringVector(writtenData));
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

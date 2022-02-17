@@ -45,7 +45,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Composite:
-            return CreateUnversionedComplexColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedCompositeColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);
@@ -110,8 +110,13 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 columnSchema,
                 blockWriter);
 
-        case EValueType::Null:
         case EValueType::Composite:
+            return CreateVersionedCompositeColumnWriter(
+                columnId,
+                columnSchema,
+                blockWriter);
+
+        case EValueType::Null:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:

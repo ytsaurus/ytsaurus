@@ -546,6 +546,17 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedAnyColumnReader(
         columnSchema);
 }
 
+std::unique_ptr<IVersionedColumnReader> CreateVersionedCompositeColumnReader(
+    const TColumnMeta& columnMeta,
+    int columnId,
+    const TColumnSchema& columnSchema)
+{
+    return std::make_unique<TVersionedStringColumnReader<EValueType::Composite>>(
+        columnMeta,
+        columnId,
+        columnSchema);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <EValueType ValueType>
@@ -684,7 +695,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
         sortOrder);
 }
 
-std::unique_ptr<IUnversionedColumnReader> CreateUnversionedComplexColumnReader(
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader(
     const TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,

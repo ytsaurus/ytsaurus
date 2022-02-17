@@ -1552,12 +1552,6 @@ std::vector<TSharedRef> SerializeRowset(
         // we save physical type for backward compatibility
         // COMPAT(babenko)
         entry->set_type(ToProto<int>(column.GetWireType()));
-        // TODO (ermolovd) YT-7178, support complex schemas.
-        if (!column.IsOfV1Type()) {
-            THROW_ERROR_EXCEPTION("Serialization of complex types is not supported yet")
-                << TErrorAttribute("column_name", column.Name())
-                << TErrorAttribute("type", ToString(*column.LogicalType()));
-        }
         // COMPAT(babenko)
         entry->set_logical_type(ToProto<int>(column.CastToV1Type()));
     }
@@ -1592,7 +1586,6 @@ TTableSchemaPtr DeserializeRowsetSchema(
         if (entry.has_name()) {
             columns[i].SetName(entry.name());
         }
-        // TODO (ermolovd) YT-7178, support complex schemas.
         if (entry.has_logical_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(entry.logical_type());
             columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
