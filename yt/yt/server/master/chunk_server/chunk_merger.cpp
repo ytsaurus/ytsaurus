@@ -333,7 +333,7 @@ private:
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*lowerLimit*/,
         const NChunkClient::TReadLimit& /*upperLimit*/,
-        TTransactionId /*timestampTransactionId*/) override
+        const TChunkViewModifier* /*modifier*/) override
     {
         ++TraversalInfo_.ChunkCount;
 

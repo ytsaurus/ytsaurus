@@ -3,7 +3,7 @@ from yt_commands import (
     remove, sync_mount_table, sync_flush_table, sync_freeze_table, sync_unmount_table,
     create_table_backup, restore_table_backup, raises_yt_error, update_nodes_dynamic_config,
     wait, start_transaction, commit_transaction, print_debug, lookup_rows,
-    generate_timestamp, set, sync_compact_table)
+    generate_timestamp, set, sync_compact_table, read_table, merge, create)
 
 import yt_error_codes
 
@@ -20,6 +20,8 @@ import pytest
 
 @authors("ifsmirnov")
 class TestBackups(DynamicTablesBase):
+    NUM_SCHEDULERS = 1
+
     def test_basic_backup(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
@@ -235,6 +237,7 @@ class TestBackups(DynamicTablesBase):
         keys = [{"key": 1}, {"key": 2}, {"key": 3}]
 
         insert_rows("//tmp/t", [rows[0]])
+        ts_after_first_row = generate_timestamp()
         insert_rows("//tmp/t", [rows[1]])
 
         ts_before = generate_timestamp()
@@ -254,17 +257,33 @@ class TestBackups(DynamicTablesBase):
         checkpoint_ts = get("//tmp/bak/@backup_checkpoint_timestamp")
         assert ts_before < checkpoint_ts < ts_after
 
+        def _check_with_timestamp(ts, expected):
+            assert lookup_rows("//tmp/res", keys, timestamp=ts) == expected
+            assert_items_equal(list(select_rows("* from [//tmp/res]", timestamp=ts)), expected)
+            assert read_table("<timestamp={}>//tmp/res".format(ts)) == expected
+            merge(in_="<timestamp={}>//tmp/res".format(ts), out="//tmp/dump", mode="ordered")
+            assert read_table("//tmp/dump") == expected
+
         def _check():
             assert lookup_rows("//tmp/res", keys) == rows[:2]
             assert_items_equal(list(select_rows("* from [//tmp/res]")), rows[:2])
-            # TODO(ifsmirnov): YT-16228 - check read_table and map-reduce.
-            # TODO(ifsmirnov): check read with timestamp too.
+            assert read_table("//tmp/res") == rows[:2]
+            create("table", "//tmp/dump", force=True)
+            merge(in_="//tmp/res", out="//tmp/dump", mode="ordered")
+            assert read_table("//tmp/dump") == rows[:2]
+
+            _check_with_timestamp(ts_after_first_row, rows[:1])
+            _check_with_timestamp(generate_timestamp(), rows[:2])
 
         set("//tmp/res/@enable_data_node_lookup", True)
         sync_unmount_table("//tmp/res")
         sync_mount_table("//tmp/res")
         wait(lambda: get("//tmp/res/@preload_state") == "complete")
-        _check()
+
+        # No need to run all heavy checks.
+        assert lookup_rows("//tmp/res", keys) == rows[:2]
+        assert lookup_rows("//tmp/res", keys, timestamp=ts_after_first_row) == rows[:1]
+        assert lookup_rows("//tmp/res", keys, timestamp=generate_timestamp()) == rows[:2]
 
         set("//tmp/res/@enable_data_node_lookup", False)
         sync_unmount_table("//tmp/res")

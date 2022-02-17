@@ -90,6 +90,7 @@ class TChunkTree;
 class TChunkOwnerBase;
 
 struct TChunkViewMergeResult;
+class TChunkViewModifier;
 
 class TChunkReplication;
 class TChunkRequisition;

@@ -1,6 +1,7 @@
 #include "chunk.h"
 #include "dynamic_store.h"
 #include "chunk_list.h"
+#include "chunk_view.h"
 #include "chunk_manager.h"
 #include "chunk_owner_node_proxy.h"
 #include "chunk_visitor.h"
@@ -139,7 +140,7 @@ void BuildChunkSpec(
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
-    TTransactionId timestampTransactionId,
+    const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
     const THashSet<int>& extensionTags,
@@ -234,10 +235,16 @@ void BuildChunkSpec(
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
     }
 
-    if (timestampTransactionId) {
-        const auto& transactionManager = bootstrap->GetTransactionManager();
-        chunkSpec->set_override_timestamp(
-            transactionManager->GetTimestampHolderTimestamp(timestampTransactionId));
+    if (modifier) {
+        if (auto timestampTransactionId = modifier->GetTransactionId()) {
+            const auto& transactionManager = bootstrap->GetTransactionManager();
+            chunkSpec->set_override_timestamp(
+                transactionManager->GetTimestampHolderTimestamp(timestampTransactionId));
+        }
+
+        if (auto maxClipTimestamp = modifier->GetMaxClipTimestamp()) {
+            chunkSpec->set_max_clip_timestamp(maxClipTimestamp);
+        }
     }
 }
 
@@ -376,7 +383,7 @@ private:
         std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
-        TTransactionId timestampTransactionId) override
+        const TChunkViewModifier* modifier) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -402,7 +409,7 @@ private:
             tabletIndex,
             lowerLimit,
             upperLimit,
-            timestampTransactionId,
+            modifier,
             FetchContext_.FetchParityReplicas,
             RpcContext_->Request().fetch_all_meta_extensions(),
             ExtensionTags_,
@@ -469,7 +476,7 @@ private:
                     tabletIndex,
                     relativeLowerLimit,
                     relativeUpperLimit,
-                    /*timestampTransactionId*/ {});
+                    /*modifier*/ nullptr);
             }
         } else {
             auto* chunkSpec = RpcContext_->Response().add_chunks();

@@ -33,6 +33,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     , RangeIndex_(chunkSpec.range_index())
     , TabletIndex_(chunkSpec.tablet_index())
     , OverrideTimestamp_(chunkSpec.override_timestamp())
+    , MaxClipTimestamp_(chunkSpec.max_clip_timestamp())
 {
     SetReplicaList(FromProto<TChunkReplicaList>(chunkSpec.replicas()));
 
@@ -132,15 +133,16 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TabletIndex_) == 112, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TabletId_) == 120, "invalid offset");
     static_assert(offsetof(TInputChunkBase, OverrideTimestamp_) == 136, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 144, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 152, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 160, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 168, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 176, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 184, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 188, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 192, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 200, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, MaxClipTimestamp_) == 144, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 152, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 160, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 168, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 176, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 184, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 192, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 196, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 200, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 208, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,6 +340,10 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
 
     if (inputChunk->OverrideTimestamp_) {
         chunkSpec->set_override_timestamp(inputChunk->OverrideTimestamp_);
+    }
+
+    if (inputChunk->MaxClipTimestamp_) {
+        chunkSpec->set_max_clip_timestamp(inputChunk->MaxClipTimestamp_);
     }
 
     if (inputChunk->LowerLimit_) {

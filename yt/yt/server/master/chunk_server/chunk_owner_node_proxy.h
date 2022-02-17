@@ -20,7 +20,7 @@ void BuildChunkSpec(
     std::optional<int> tabletIndex,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
-    TTransactionId timestampTransactionId,
+    const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
     const THashSet<int>& extensionTags,

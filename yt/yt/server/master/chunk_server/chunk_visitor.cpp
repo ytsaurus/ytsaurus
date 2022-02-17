@@ -65,7 +65,7 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     std::optional<int> /*tabletIndex*/,
     const TReadLimit& /*startLimit*/,
     const TReadLimit& /*endLimit*/,
-    TTransactionId /*timestampTransactionId*/)
+    const TChunkViewModifier* /*modifier*/)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
@@ -122,7 +122,7 @@ private:
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
         const NChunkClient::TReadLimit& /*endLimit*/,
-        TTransactionId /*timestampTransactionId*/) override
+        const TChunkViewModifier* /*modifier*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

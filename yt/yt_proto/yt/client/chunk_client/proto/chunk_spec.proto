@@ -59,8 +59,14 @@ message TChunkSpec
     // (e.g. the chunk is shared between dynamic table tablets).
     optional int64 chunk_index = 17;
 
-    // Timestamp with which the chunk should be read. May be set by some chunk view.
+    // If set, all values should be treated as having this timestamp, regardless of
+    // what is written at chunk meta or versioned values.
+    // May be set by some chunk view.
     optional uint64 override_timestamp = 18;
+
+    // Denotes that all values with timestamps strictly greater than this timestamp
+    // should not be read. May be set by some chunk view.
+    optional uint64 max_clip_timestamp = 23;
 
     optional int32 tablet_index = 19;
 

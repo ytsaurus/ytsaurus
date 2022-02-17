@@ -478,7 +478,7 @@ protected:
                 {} /*tabletIndex*/,
                 subtreeStartLimit,
                 subtreeEndLimit,
-                {} /*timestampTransactionId*/))
+                nullptr /*modifier*/))
             {
                 Shutdown();
                 return {};
@@ -756,7 +756,7 @@ protected:
             case EObjectType::ErasureChunk:
             case EObjectType::ChunkView: {
                 TChunk* childChunk = nullptr;
-                TTransactionId timestampTransactionId;
+                const TChunkViewModifier* modifier = nullptr;
                 if (childType == EObjectType::ChunkView) {
                     auto* chunkView = child->AsChunkView();
 
@@ -807,7 +807,7 @@ protected:
                         }
                     }
 
-                    timestampTransactionId = chunkView->GetTransactionId();
+                    modifier = &chunkView->Modifier();
 
                     childChunk = chunkView->GetUnderlyingTree()->AsChunk();
                 } else {
@@ -829,7 +829,7 @@ protected:
                     tabletIndex,
                     subtreeStartLimit,
                     subtreeEndLimit,
-                    timestampTransactionId))
+                    modifier))
                 {
                     Shutdown();
                     return;
@@ -1597,7 +1597,7 @@ public:
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
         const NChunkClient::TReadLimit& /*endLimit*/,
-        TTransactionId /*timestampTransactionId*/) override
+        const TChunkViewModifier* /*modifier*/) override
     {
         Chunks_->push_back(chunk);
         return true;
@@ -1668,7 +1668,7 @@ void EnumerateStoresInChunkTree(
             std::optional<int> /*tabletIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,
             const NChunkClient::TReadLimit& /*endLimit*/,
-            TTransactionId /*timestampTransactionId*/) override
+            const TChunkViewModifier* /*modifier*/) override
         {
             Stores_->push_back(chunk);
             return true;

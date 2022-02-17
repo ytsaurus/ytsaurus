@@ -1209,6 +1209,12 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             versionedReadSchema);
         chunkState->DataSource = dataSource;
 
+        auto effectiveTimestamp = timestamp;
+        if (chunkSpec.has_max_clip_timestamp()) {
+            YT_ASSERT(chunkSpec.max_clip_timestamp() != NullTimestamp);
+            effectiveTimestamp = std::min(effectiveTimestamp, chunkSpec.max_clip_timestamp());
+        }
+
         return CreateVersionedChunkReader(
             config,
             std::move(remoteReader),
@@ -1218,7 +1224,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             lowerLimit.GetLegacyKey(),
             upperLimit.GetLegacyKey(),
             TColumnFilter(),
-            timestamp,
+            effectiveTimestamp,
             false,
             chunkReaderMemoryManager
                 ? chunkReaderMemoryManager

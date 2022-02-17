@@ -2327,7 +2327,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             std::optional<int> /*tabletIndex*/,
             const NChunkClient::TReadLimit& /*startLimit*/,
             const NChunkClient::TReadLimit& /*endLimit*/,
-            TTransactionId /*timestampTransactionId*/) override
+            const TChunkViewModifier* /*modifier*/) override
         {
             Owner_->ScheduleRequisitionUpdate(chunk);
             return true;
