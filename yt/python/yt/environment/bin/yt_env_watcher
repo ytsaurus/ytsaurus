@@ -36,6 +36,11 @@ def configure_logging(log_path):
     logger.addHandler(handler)
 
 
+def sigterm_handler(signum, frame):
+    logger.info("SIGTERM caught, exiting")
+    sys.exit(0)
+
+
 def main():
     parser = argparse.ArgumentParser(add_help=False, description="YT watcher")
     parser.add_argument("--disable-logrotate", action="store_true", default=False,
@@ -54,7 +59,7 @@ def main():
     configure_logging(options.log_path)
     logger.info("YT watcher started (logrotate_config_path: %s)", options.logrotate_config_path)
 
-    signal.signal(signal.SIGTERM, sys.exit)
+    signal.signal(signal.SIGTERM, sigterm_handler)
 
     if options.pdeathsig is not None:
         set_pdeathsig(options.pdeathsig)
