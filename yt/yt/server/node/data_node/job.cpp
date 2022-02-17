@@ -469,7 +469,7 @@ protected:
     const TInstant StartTime_;
     IBootstrap* const Bootstrap_;
 
-    const NLogging::TLogger Logger;
+    NLogging::TLogger Logger;
 
     TNodeResources ResourceLimits_;
 
@@ -593,23 +593,26 @@ public:
             config,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRemoveChunkJobSpecExt::remove_chunk_job_spec_ext))
-    { }
+        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
 
 private:
     const TRemoveChunkJobSpecExt JobSpecExt_;
+
+    const TChunkId ChunkId_;
 
     void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
         auto replicas = FromProto<TChunkReplicaList>(JobSpecExt_.replicas());
         auto replicasExpirationDeadline = FromProto<TInstant>(JobSpecExt_.replicas_expiration_deadline());
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
-        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@%v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v)",
-            chunkId,
+        YT_LOG_INFO("Chunk removal job started (MediumIndex: %v, Replicas: %v, ReplicasExpirationDeadline: %v, ChunkIsDead: %v)",
             mediumIndex,
             replicas,
             replicasExpirationDeadline,
@@ -618,8 +621,8 @@ private:
         // TODO(ifsmirnov, akozhikhov): Consider DRT here.
 
         auto chunk = chunkIsDead
-            ? FindLocalChunk(chunkId, mediumIndex)
-            : GetLocalChunkOrThrow(chunkId, mediumIndex);
+            ? FindLocalChunk(ChunkId_, mediumIndex)
+            : GetLocalChunkOrThrow(ChunkId_, mediumIndex);
         if (!chunk) {
             YT_VERIFY(chunkIsDead);
             YT_LOG_INFO("Dead chunk is missing, reporting success");
@@ -636,7 +639,7 @@ private:
         // to appear in TReplicateChunkJob as well.
         YT_LOG_INFO("Waiting for heartbeat barrier");
         const auto& masterConnector = Bootstrap_->GetMasterConnector();
-        WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId)))
+        WaitFor(masterConnector->GetHeartbeatBarrier(CellTagFromId(ChunkId_)))
             .ThrowOnError();
     }
 };
@@ -660,16 +663,20 @@ public:
             config,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext))
-    { }
+        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
 
 private:
     const TReplicateChunkJobSpecExt JobSpecExt_;
+
+    const TChunkId ChunkId_;
 
     void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
 
@@ -681,19 +688,19 @@ private:
             THROW_ERROR_EXCEPTION("No target replicas");
         }
         int targetMediumIndex = targetReplicas[0].GetMediumIndex();
-        auto sessionId = TSessionId(chunkId, targetMediumIndex);
+        auto sessionId = TSessionId(ChunkId_, targetMediumIndex);
 
-        YT_LOG_INFO("Chunk replication job started (ChunkId: %v@%v, TargetReplicas: %v)",
-            chunkId,
+        YT_LOG_INFO("Chunk replication job started (SourceMediumIndex: %v, TargetReplicas: %v)",
+            ChunkId_,
             sourceMediumIndex,
             MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemReplication;
         workloadDescriptor.Annotations.push_back(Format("Replication of chunk %v",
-            chunkId));
+            ChunkId_));
 
-        auto chunk = GetLocalChunkOrThrow(chunkId, sourceMediumIndex);
+        auto chunk = GetLocalChunkOrThrow(ChunkId_, sourceMediumIndex);
 
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
@@ -736,11 +743,11 @@ private:
         }
 
         int currentBlockIndex = 0;
-        int blockCount = GetBlockCount(chunkId, *meta);
+        int blockCount = GetBlockCount(ChunkId_, *meta);
         while (currentBlockIndex < blockCount) {
             const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
-                chunkId,
+                ChunkId_,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
                 chunkReadOptions);
@@ -767,7 +774,7 @@ private:
                         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "read"},
-                        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(chunkId).Id)},
+                        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
                     });
             }
 
@@ -853,7 +860,9 @@ public:
         , ChunkId_(FixChunkId(FromProto<TChunkId>(JobSpecExt_.chunk_id())))
         , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
-    { }
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
 
 private:
     const TRepairChunkJobSpecExt JobSpecExt_;
@@ -1007,9 +1016,8 @@ private:
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
-        YT_LOG_INFO("Chunk repair job started (ChunkId: %v, Codec: %v, "
+        YT_LOG_INFO("Chunk repair job started (Codec: %v, "
             "SourceReplicas: %v, TargetReplicas: %v, Decommission: %v, RowCount: %v)",
-            ChunkId_,
             codecId,
             MakeFormattableView(SourceReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             MakeFormattableView(TargetReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
@@ -1111,16 +1119,20 @@ public:
             config,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext))
-    { }
+        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
 
 private:
     const TSealChunkJobSpecExt JobSpecExt_;
+
+    const TChunkId ChunkId_;
 
     void DoRun() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
@@ -1129,17 +1141,16 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
 
-        YT_LOG_INFO("Chunk seal job started (ChunkId: %v@%v, Codec: %v, SourceReplicas: %v, RowCount: %v)",
-            chunkId,
+        YT_LOG_INFO("Chunk seal job started (MediumIndex: %v, Codec: %v, SourceReplicas: %v, RowCount: %v)",
             mediumIndex,
             codecId,
             MakeFormattableView(sourceReplicas, TChunkReplicaAddressFormatter(nodeDirectory)),
             sealRowCount);
 
-        auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
+        auto chunk = GetLocalChunkOrThrow(ChunkId_, mediumIndex);
         if (!chunk->IsJournalChunk()) {
             THROW_ERROR_EXCEPTION("Cannot seal a non-journal chunk %v",
-                chunkId);
+                ChunkId_);
         }
 
         auto journalChunk = chunk->AsJournalChunk();
@@ -1151,13 +1162,13 @@ private:
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
         workloadDescriptor.Annotations.push_back(Format("Seal of chunk %v",
-            chunkId));
+            ChunkId_));
 
         auto updateGuard = TChunkUpdateGuard::Acquire(chunk);
 
         const auto& journalDispatcher = Bootstrap_->GetJournalDispatcher();
         const auto& location = journalChunk->GetStoreLocation();
-        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, chunkId))
+        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_))
             .ValueOrThrow();
 
         i64 currentRowCount = changelog->GetRecordCount();
@@ -1170,7 +1181,7 @@ private:
                 Config_->SealReader,
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                chunkId,
+                ChunkId_,
                 codecId,
                 sourceReplicas,
                 Bootstrap_->GetBlockCache(),
@@ -1200,7 +1211,7 @@ private:
                     THROW_ERROR_EXCEPTION("Rows %v-%v are missing but needed to seal chunk %v",
                         currentRowCount,
                         sealRowCount - 1,
-                        chunkId);
+                        ChunkId_);
                 }
 
                 YT_LOG_DEBUG("Rows received (Rows: %v-%v)",
@@ -1229,7 +1240,7 @@ private:
                             {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
                             {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                            {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(chunkId).Id)},
+                            {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
                         });
                 }
 
@@ -1255,8 +1266,6 @@ private:
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
-
-        //auto* jobResultExt = Result_.MutableExtension()
     }
 };
 
