@@ -1664,6 +1664,11 @@ public:
     template <typename TRow>
     TJobOperationPreparer& OutputDescription(int tableIndex, bool inferSchema = true);
 
+    /// @brief Set type of output rows for table no. `tableIndex` to TNode
+    ///
+    /// @note Set schema via `OutputSchema` if needed
+    TJobOperationPreparer& NodeOutput(int tableIndex);
+
     /// @brief Specify input format hints.
     ///
     /// These hints have lower priority than ones specified in spec.

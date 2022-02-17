@@ -268,6 +268,13 @@ TJobOperationPreparer::TOutputGroup TJobOperationPreparer::BeginOutputGroup(int 
     return TOutputGroup(*this, std::move(indices));
 }
 
+TJobOperationPreparer& TJobOperationPreparer::NodeOutput(int tableIndex)
+{
+    ValidateMissingOutputDescription(tableIndex);
+    OutputTableDescriptions_[tableIndex] = StructuredTableDescription<TNode>();
+    return *this;
+}
+
 TJobOperationPreparer& TJobOperationPreparer::OutputSchema(int tableIndex, TTableSchema schema)
 {
     ValidateMissingOutputSchema(tableIndex);
