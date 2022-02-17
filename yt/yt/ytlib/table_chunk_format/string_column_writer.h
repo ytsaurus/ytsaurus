@@ -18,6 +18,11 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* dataBlockWriter);
 
+std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
+    int columnId,
+    const NTableClient::TColumnSchema& columnSchema,
+    TDataBlockWriter* dataBlockWriter);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
@@ -28,7 +33,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
     TDataBlockWriter* dataBlockWriter);
 
-std::unique_ptr<IValueColumnWriter> CreateUnversionedComplexColumnWriter(
+std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
     TDataBlockWriter* dataBlockWriter);
 

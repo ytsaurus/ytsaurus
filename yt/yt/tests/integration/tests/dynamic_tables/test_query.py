@@ -4,10 +4,11 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
-    insert_rows, select_rows, sorted_dicts,
+    insert_rows, raises_yt_error, select_rows, sorted_dicts,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, WaitFailed)
 
 from yt_type_helpers import (
+    decimal_type,
     make_column,
     make_sorted_column,
     optional_type,
@@ -1530,6 +1531,32 @@ class TestQuery(YTEnvSetup):
 
         actual = select_rows("* from [//tmp/t] join [//tmp/j] using key")
         assert_items_equal(actual, expected)
+
+    @authors("ermolovd")
+    def test_join_nonv1_types(self):
+        sync_create_cells(1)
+
+        tt = "//tmp/t"
+        tj = "//tmp/j"
+
+        create_dynamic_table(tt, schema=[
+            make_sorted_column("a", "string"),
+            make_column("b", decimal_type(3, 2))
+        ])
+
+        create_dynamic_table(tj, schema=[
+            make_sorted_column("b", "string"),
+            make_column("c", "string"),
+        ])
+
+        sync_mount_table(tt)
+        sync_mount_table(tj)
+
+        insert_rows(tt, [{"a": "a", "b": b"\x80\x00\x00\x00"}])
+        insert_rows(tj, [{"b": b"\x80\x00\x00\x00", "c": "c"}])
+
+        with raises_yt_error("nonsimple type"):
+            select_rows("* from [//tmp/t] join [//tmp/j] using b")
 
 
 class TestQueryRpcProxy(TestQuery):

@@ -18,6 +18,11 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedAnyColumnReader(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema);
 
+std::unique_ptr<IVersionedColumnReader> CreateVersionedCompositeColumnReader(
+    const NProto::TColumnMeta& columnMeta,
+    int columnId,
+    const NTableClient::TColumnSchema& columnSchema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
@@ -32,7 +37,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     int columnId,
     std::optional<NTableClient::ESortOrder> sortOrder);
 
-std::unique_ptr<IUnversionedColumnReader> CreateUnversionedComplexColumnReader(
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,

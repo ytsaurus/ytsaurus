@@ -435,11 +435,11 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 
         case EValueType::String:
         case EValueType::Any:
+        case EValueType::Composite:
             ReadStringLike(value, ptr);
             break;
 
         case EValueType::Null:
-        case EValueType::Composite:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:

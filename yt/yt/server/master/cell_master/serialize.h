@@ -101,6 +101,7 @@ DEFINE_ENUM(EMasterReign,
     ((DoNotMergeDynamicTables)                                      (1933))  // gritukan
     ((QueueList)                                                    (1934))  // achulkov2
     ((BackupErrors)                                                 (1935))  // ifsmirnov
+    ((EnableTypeV3Dyntable)                                         (1936))  // ermolovd
 );
 
 ////////////////////////////////////////////////////////////////////////////////

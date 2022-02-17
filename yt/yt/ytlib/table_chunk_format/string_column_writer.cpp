@@ -366,6 +366,17 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
         dataBlockWriter);
 }
 
+std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
+    int columnId,
+    const TColumnSchema& columnSchema,
+    TDataBlockWriter* dataBlockWriter)
+{
+    return std::make_unique<TVersionedStringColumnWriter<EValueType::Composite>>(
+        columnId,
+        columnSchema,
+        dataBlockWriter);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <EValueType ValueType>
@@ -670,7 +681,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, blockWriter);
 }
 
-std::unique_ptr<IValueColumnWriter> CreateUnversionedComplexColumnWriter(
+std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter)
 {

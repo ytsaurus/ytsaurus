@@ -46,7 +46,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
         case EValueType::Any:
             return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId, sortOrder);
         case EValueType::Composite:
-            return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId, sortOrder);
+            return CreateUnversionedCompositeColumnReader(meta, columnIndex, columnId, sortOrder);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnReader(meta, columnIndex, columnId, sortOrder);
@@ -105,6 +105,12 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
 
         case EValueType::Any:
             return CreateVersionedAnyColumnReader(
+                meta,
+                columnId,
+                columnSchema);
+
+        case EValueType::Composite:
+            return CreateVersionedCompositeColumnReader(
                 meta,
                 columnId,
                 columnSchema);
