@@ -375,7 +375,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_conditional_preemption", &TThis::EnableConditionalPreemption)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("use_resource_usage_with_precommit", &TThis::UseResourceUsageWithPrecommit)
         .Default(false);
