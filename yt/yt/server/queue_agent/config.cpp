@@ -12,6 +12,14 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCypressSynchronizerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("poll_period", &TThis::PollPeriod)
+        .Default(TDuration::Seconds(2));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("loop_period", &TThis::LoopPeriod)
@@ -37,6 +45,8 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
 
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
+        .DefaultNew();
+    registrar.Parameter("cypress_synchronizer", &TThis::CypressSynchronizer)
         .DefaultNew();
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);

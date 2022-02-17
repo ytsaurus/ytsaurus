@@ -57,6 +57,8 @@ private:
 
     TQueueAgentPtr QueueAgent_;
 
+    ICypressSynchronizerPtr CypressSynchronizer_;
+
     void DoRun();
 
     //! Creates instance node with proper annotations and an orchid node at the native cluster.

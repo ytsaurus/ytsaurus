@@ -16,6 +16,22 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressSynchronizerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Cypress poll period.
+    TDuration PollPeriod;
+
+    REGISTER_YSON_STRUCT(TCypressSynchronizerConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueControllerConfig
     : public NYTree::TYsonStruct
 {
@@ -60,6 +76,8 @@ class TQueueAgentServerConfig
 {
 public:
     TQueueAgentConfigPtr QueueAgent;
+
+    TCypressSynchronizerConfigPtr CypressSynchronizer;
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
