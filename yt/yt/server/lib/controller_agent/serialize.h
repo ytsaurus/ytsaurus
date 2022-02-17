@@ -19,6 +19,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((NeededResourcesByPoolTree)            (300803))
     ((DiskResourcesInSanityCheck)           (300804))
     ((AlertManager)                         (300805))
+    ((MaxClipTimestamp)                     (300806))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

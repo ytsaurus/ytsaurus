@@ -47,7 +47,7 @@ private:
         std::optional<int> /*tabletIndex*/,
         const NChunkClient::TReadLimit& /*startLimit*/,
         const NChunkClient::TReadLimit& /*endLimit*/,
-        TTransactionId /*timestampTransactionId*/) override
+        const TChunkViewModifier* /*modifier*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

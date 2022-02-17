@@ -27,7 +27,7 @@ struct IChunkVisitor
         std::optional<int> tabletIndex,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit,
-        TTransactionId timestampTransactionId) = 0;
+        const TChunkViewModifier* modifier) = 0;
 
     virtual void OnFinish(const TError& error) = 0;
 

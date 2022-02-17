@@ -139,7 +139,7 @@ public:
         std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
-        TTransactionId /*timestampTransactionId*/) override
+        const TChunkViewModifier* /*modifier*/) override
     {
         // COMPAT(max42).
         auto legacyLowerLimit = ReadLimitToLegacyReadLimit(lowerLimit);

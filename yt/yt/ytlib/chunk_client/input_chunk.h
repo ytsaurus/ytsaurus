@@ -48,6 +48,7 @@ public:
     // TODO(babenko): See YT-14339: Add CellId and pass it around.
     // NB: This will require controller agent snapshot version promotion!
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, OverrideTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, MaxClipTimestamp);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount, -1);
