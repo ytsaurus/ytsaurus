@@ -15,7 +15,7 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <contrib/libs/c-ares/ares.h>
+#include <contrib/libs/c-ares/include/ares.h>
 
 #ifdef _linux_
 #define YT_DNS_RESOLVER_USE_EPOLL
