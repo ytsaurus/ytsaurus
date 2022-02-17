@@ -1,4 +1,4 @@
-#pragma once
+ #pragma once
 
 #include <yt/yt/core/logging/log.h>
 
@@ -9,6 +9,7 @@ namespace NYT::NQueueAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
+inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
 inline const NProfiling::TProfiler QueueAgentProfiler("/queue_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,6 +18,10 @@ DECLARE_REFCOUNTED_CLASS(TQueueControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentServerConfig)
+
+DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
+DECLARE_REFCOUNTED_CLASS(TPollingCypressSynchronizer)
+DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

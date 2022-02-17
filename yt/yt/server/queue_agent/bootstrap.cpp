@@ -3,6 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "queue_agent.h"
+#include "cypress_synchronizer.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -135,6 +136,12 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         DynamicState_);
 
+    CypressSynchronizer_ = CreatePollingCypressSynchronizer(
+        Config_->CypressSynchronizer,
+        ControlInvoker_,
+        DynamicState_,
+        NativeConnection_->GetClusterDirectory());
+
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
@@ -156,6 +163,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/queue_agent",
         CreateVirtualNode(QueueAgent_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/cypress_synchronizer",
+        CreateVirtualNode(CypressSynchronizer_->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "queue_agent");
@@ -183,8 +194,12 @@ void TBootstrap::DoRun()
         options->TransactionAttributes = CreateEphemeralAttributes();
         options->TransactionAttributes->Set("host", AgentId_);
         ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
+
         ElectionManager_->SubscribeLeadingStarted(BIND(&TQueueAgent::Start, QueueAgent_));
+        ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
+
         ElectionManager_->SubscribeLeadingEnded(BIND(&TQueueAgent::Stop, QueueAgent_));
+        ElectionManager_->SubscribeLeadingEnded(BIND(&ICypressSynchronizer::Stop, CypressSynchronizer_));
     }
 
     ElectionManager_->Start();

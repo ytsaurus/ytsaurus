@@ -1,7 +1,7 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
-                         insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction)
+                         insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows)
 
 from yt.common import YtError
 
@@ -451,3 +451,142 @@ class TestMasterIntegration(YTEnvSetup):
             assert not result[name].attributes
             for attribute in attributes:
                 assert not exists("//tmp/" + name + "/@" + attribute)
+
+
+class CypressSynchronizerOrchid:
+    def __init__(self, agent_id=None):
+        if agent_id is None:
+            agent_ids = ls("//sys/queue_agents/instances", verbose=False)
+            assert len(agent_ids) == 1
+            agent_id = agent_ids[0]
+
+        self.agent_id = agent_id
+
+    def queue_agent_orchid_path(self):
+        return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
+
+    def get_poll_index(self):
+        return get(self.queue_agent_orchid_path() + "/cypress_synchronizer/poll_index")
+
+    def wait_fresh_poll(self):
+        poll_index = self.get_poll_index()
+        wait(lambda: self.get_poll_index() >= poll_index + 2)
+
+
+class TestCypressSynchronizer(YTEnvSetup):
+    NUM_QUEUE_AGENTS = 1
+
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": {
+            # Disable cache.
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0,
+            },
+        },
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "sync_period": 1000
+        }
+    }
+
+    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
+        sync_create_cells(1)
+        create("table",
+               "//sys/queue_agents/queues",
+               attributes={"dynamic": True, "schema": queue_table_schema},
+               force=True)
+        sync_mount_table("//sys/queue_agents/queues")
+        create("table",
+               "//sys/queue_agents/consumers",
+               attributes={"dynamic": True, "schema": consumer_table_schema},
+               force=True)
+        sync_mount_table("//sys/queue_agents/consumers")
+
+    def _drop_tables(self):
+        remove("//sys/queue_agents/queues", force=True)
+        remove("//sys/queue_agents/consumers", force=True)
+
+    def _get_queue_name(self, name):
+        return "//tmp/q-{}".format(name)
+
+    def _get_consumer_name(self, name):
+        return "//tmp/c-{}".format(name)
+
+    def _set_account_tablet_count_limit(self, account, value):
+        set("//sys/accounts/{0}/@resource_limits/tablet_count".format(account), value)
+
+    QUEUE_REGISTRY = []
+
+    def _create_and_register_queue(self, path):
+        create("table",
+               path,
+               attributes={"dynamic": True,
+                           "schema": [{"name": "useless", "type": "string"}]},
+               force=True)
+        self.QUEUE_REGISTRY.append(path)
+        insert_rows("//sys/queue_agents/queues",
+                    [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+
+    def _drop_queues(self):
+        for queue in self.QUEUE_REGISTRY:
+            remove(queue, force=True)
+        self.QUEUE_REGISTRY.clear()
+
+    CONSUMER_REGISTRY = []
+
+    def _create_and_register_consumer(self, path):
+        create("table",
+               path,
+               attributes={"dynamic": True,
+                           "schema": [{"name": "useless", "type": "string", "sort_order": "ascending"},
+                                      {"name": "also_useless", "type": "string"}]},
+               force=True)
+        self.CONSUMER_REGISTRY.append(path)
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+
+    def _drop_consumers(self):
+        for consumer in self.CONSUMER_REGISTRY:
+            remove(consumer, force=True)
+        self.CONSUMER_REGISTRY.clear()
+
+    @authors("achulkov2")
+    def test_basic(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        q2 = self._get_queue_name("b")
+        c1 = self._get_consumer_name("a")
+        c2 = self._get_consumer_name("b")
+
+        self._create_and_register_queue(q1)
+        self._create_and_register_queue(q2)
+        self._create_and_register_consumer(c1)
+        self._create_and_register_consumer(c2)
+
+        orchid.wait_fresh_poll()
+
+        queues = select_rows("* from [//sys/queue_agents/queues]")
+        consumers = select_rows("* from [//sys/queue_agents/consumers]")
+
+        assert len(queues) == 2
+        for queue in queues:
+            assert len(queue) == len(QUEUE_TABLE_SCHEMA)
+            assert queue["row_revision"] == 2
+        assert len(consumers) == 2
+        for consumer in consumers:
+            assert len(consumer) == len(CONSUMER_TABLE_SCHEMA)
+            assert consumer["row_revision"] == 2
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
