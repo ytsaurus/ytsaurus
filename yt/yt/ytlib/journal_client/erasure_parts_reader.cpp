@@ -303,8 +303,18 @@ private:
         }
 
         return AllSucceeded(futures)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<std::vector<TSharedRef>>& requestedRowLists) {
-                YT_LOG_DEBUG("All fast path data received");
+            .ApplyUnique(BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>>&& requestedRowLists) {
+                auto rowCount = Max<i64>();
+                for (const auto& rowList : requestedRowLists) {
+                    rowCount = std::min<i64>(rowCount, std::ssize(rowList));
+                }
+                for (auto& rowList : requestedRowLists) {
+                    rowList.resize(rowCount);
+                }
+
+                YT_LOG_DEBUG("All fast path data received (RowCount: %v)",
+                    rowCount);
+
                 return requestedRowLists;
             }));
     }
