@@ -4,6 +4,8 @@
 
 #include <util/generic/guid.h>
 
+#include <util/system/mutex.h>
+
 namespace NYT {
 
 using namespace NLogging;
@@ -20,14 +22,19 @@ public:
 
 public:
     void RegisterStaticAnchor(
-        TLoggingAnchor* position,
+        TLoggingAnchor* anchor,
         ::TSourceLocation sourceLocation,
         TStringBuf anchorMessage) override
     {
-        position->SourceLocation = sourceLocation;
-        position->AnchorMessage = anchorMessage;
-        position->Enabled.store(true);
-        position->Registered.store(true);
+        if (anchor->Registered.exchange(true)) {
+            return;
+        }
+
+        anchor->Enabled.store(true);
+
+        auto guard = Guard(Mutex_);
+        anchor->SourceLocation = sourceLocation;
+        anchor->AnchorMessage = anchorMessage;
     }
 
     void UpdateAnchor(TLoggingAnchor* /*position*/) override
@@ -89,6 +96,7 @@ private:
     }
 
 private:
+    ::TMutex Mutex_;
     std::atomic<int> ActualVersion_{1};
     const TLoggingCategory Category_{
         .Name{CategoryName},
