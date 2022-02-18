@@ -8,13 +8,11 @@ import yt.wrapper as yt
 import pytest
 import tempfile
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestIPython(object):
     @authors("ignat")
     def test_run_operation(self, yt_env):
-        if arcadia_interop.yatest_common is None:
-            pytest.skip()
-
         # yt-ipython binary does not support native driver.
         # It is made intentionally to reduce binary size.
         if yt.config["backend"] == "native":
@@ -43,5 +41,3 @@ class TestIPython(object):
             stderr="ipython.err")
 
         assert list(yt.read_table(output_table)) == [{"x": 1}]
-
-
