@@ -25,6 +25,22 @@ TShutdownCookie RegisterShutdownCallback(
     TClosure callback,
     int priority = 0);
 
+
+struct TShutdownOptions
+{
+    //! The amount of time to wait for all background threads to finish gracefully.
+    TDuration GraceTimeout = TDuration::Seconds(60);
+
+    //! Controls shutdown behavior when #GraceTimeout expires but some background
+    //! threads are still runnining.
+    //! If true then aborts the program (typically producing a core dump).
+    //! If false then |_exit|s the program with #HungExitCode.
+    bool AbortOnHang = true;
+
+    //! Exit code to use in case on nongraceful exit.
+    int HungExitCode = 0;
+};
+
 //! Starts the global shutdown.
 /*!
  *  Invokes all registered shutdown callbacks in the order of
@@ -38,7 +54,7 @@ TShutdownCookie RegisterShutdownCallback(
  *  destructors of global static objects already started running).
  *  Hence calling it manually at a proper place is always a viable option.
  */
-void Shutdown();
+void Shutdown(const TShutdownOptions& options = {});
 
 //! Returns true if the global shutdown has already been started
 //! (and is possibly already completed).

@@ -176,9 +176,17 @@ void TProgram::Exit(int code) noexcept
 
     // This explicit call may become obsolete some day;
     // cf. the comment section for NYT::Shutdown.
-    Shutdown();
+    Shutdown({
+        .AbortOnHang = ShouldAbortOnHungShutdown(),
+        .HungExitCode = code
+    });
 
     ::exit(code);
+}
+
+bool TProgram::ShouldAbortOnHungShutdown() noexcept
+{
+    return true;
 }
 
 void TProgram::OnError(const TString& message) noexcept

@@ -53,6 +53,8 @@ protected:
 
     virtual void OnError(const TString& message) noexcept;
 
+    virtual bool ShouldAbortOnHungShutdown() noexcept;
+
     void SetCrashOnError();
 
     //! Handler for --yt-version command argument.
@@ -70,10 +72,10 @@ protected:
     virtual void PrintVersionAndExit();
 
     [[noreturn]]
-    static void Exit(EProgramExitCode code) noexcept;
+    void Exit(EProgramExitCode code) noexcept;
 
     [[noreturn]]
-    static void Exit(int code) noexcept;
+    void Exit(int code) noexcept;
 
 private:
     bool CrashOnError_ = false;

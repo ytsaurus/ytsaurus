@@ -54,6 +54,11 @@ public:
     }
 
 protected:
+    bool ShouldAbortOnHungShutdown() noexcept override
+    {
+        return false;
+    }
+
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
         TThread::SetCurrentThreadName("JobProxyMain");

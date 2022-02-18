@@ -18,10 +18,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto ShutdownTimeout = TDuration::Seconds(60);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TShutdownManager
 {
 public:
@@ -60,7 +56,7 @@ public:
         return registeredCallback;
     }
 
-    void Shutdown()
+    void Shutdown(const TShutdownOptions& options)
     {
         std::vector<TRegisteredCallback> registeredCallbacks;
 
@@ -91,9 +87,14 @@ public:
         NThreading::TEvent shutdownCompleteEvent;
         std::thread watchdogThread([&] {
             ::TThread::SetCurrentThreadName("ShutdownWD");
-            if (!shutdownCompleteEvent.Wait(ShutdownTimeout)) {
-                ::fprintf(stderr, "*** Shutdown hung\n");
-                YT_ABORT();
+            if (!shutdownCompleteEvent.Wait(options.GraceTimeout)) {
+                if (options.AbortOnHang) {
+                    ::fprintf(stderr, "*** Shutdown hung, aborting\n");
+                    YT_ABORT();
+                } else {
+                    ::fprintf(stderr, "*** Shutdown hung, exiting\n");
+                    ::_exit(options.HungExitCode);
+                }
             }
         });
 
@@ -209,9 +210,9 @@ TShutdownCookie RegisterShutdownCallback(
         priority);
 }
 
-void Shutdown()
+void Shutdown(const TShutdownOptions& options)
 {
-    TShutdownManager::Get()->Shutdown();
+    TShutdownManager::Get()->Shutdown(options);
 }
 
 bool IsShutdownStarted()
