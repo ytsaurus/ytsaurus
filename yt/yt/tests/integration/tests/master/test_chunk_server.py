@@ -347,19 +347,19 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("babenko")
     def test_validate_chunk_host_cell_role(self):
-        set("//sys/@config/multicell_manager/cell_roles", {"1": ["cypress_node_host"]})
+        set("//sys/@config/multicell_manager/cell_roles", {"11": ["cypress_node_host"]})
         with pytest.raises(YtError):
             create(
                 "table",
                 "//tmp/t",
-                attributes={"external": True, "external_cell_tag": 1},
+                attributes={"external": True, "external_cell_tag": 11},
             )
 
     @authors("babenko")
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
 
         write_table("//tmp/t1", {"a": "b"})
 

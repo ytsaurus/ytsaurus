@@ -1905,7 +1905,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("#{0}/@tablet_cell_life_stage".format(cells[3])) != "running"
 
         if external:
-            self._create_sorted_table("//tmp/t", external_cell_tag=1)
+            self._create_sorted_table("//tmp/t", external_cell_tag=11)
         else:
             self._create_sorted_table("//tmp/t", external=False)
 
@@ -2722,7 +2722,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
     @authors("savrus")
     def test_external_dynamic(self):
         cells = sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=2)
+        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=12)
         assert get("//tmp/t/@external")
         cell_tag = get("//tmp/t/@external_cell_tag")
         table_id = get("//tmp/t/@id")
@@ -2859,7 +2859,7 @@ class TestDynamicTablesDecommissionStall(DynamicTablesBase):
         cells = sync_create_cells(1)
         set("//sys/@config/tablet_manager/multicell_gossip/tablet_cell_statistics_gossip_period", 30 * 1000)
 
-        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=2)
+        self._create_sorted_table("//tmp/t", external=True, external_cell_tag=12)
         sync_mount_table("//tmp/t")
 
         driver = get_driver(2)
@@ -2878,8 +2878,8 @@ class TestDynamicTablesPortal(TestDynamicTablesMulticell):
 class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "3": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "13": ["transaction_coordinator"],
     }
 
 

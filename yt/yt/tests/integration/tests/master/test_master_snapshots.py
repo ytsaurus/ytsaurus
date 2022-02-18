@@ -248,17 +248,17 @@ def check_transactions():
     tx1 = start_transaction(timeout=120000)
     tx2 = start_transaction(tx=tx1, timeout=120000)
 
-    create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
-    create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
-    create("table", "//tmp/p1/t", tx=tx1)  # replicate tx1 to cell 2
-    create("table", "//tmp/p2/t", tx=tx2)  # replicate tx2 to cell 3
-    assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [2, 3]
-    assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
+    create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 12})
+    create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
+    create("table", "//tmp/p1/t", tx=tx1)  # replicate tx1 to cell 12
+    create("table", "//tmp/p2/t", tx=tx2)  # replicate tx2 to cell 13
+    assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [12, 13]
+    assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [13]
 
     yield
 
-    assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [2, 3]
-    assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
+    assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [12, 13]
+    assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [13]
 
 
 def check_duplicate_attributes():
@@ -522,9 +522,9 @@ class TestAllMastersSnapshots(YTEnvSetup):
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["transaction_coordinator"],
-        "2": ["chunk_host"],
+        "10": ["cypress_node_host"],
+        "11": ["transaction_coordinator"],
+        "12": ["chunk_host"],
     }
 
     @authors("aleksandra-zh")
@@ -540,7 +540,7 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
             return False
 
-        tx = start_transaction(coordinator_master_cell_tag=1)
+        tx = start_transaction(coordinator_master_cell_tag=11)
         create("map_node", "//tmp/m", tx=tx)
 
         build_snapshot(cell_id=self.Env.configs["master"][0]["primary_master"]["cell_id"], set_read_only=True)

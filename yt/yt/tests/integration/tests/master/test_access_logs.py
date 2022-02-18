@@ -24,7 +24,7 @@ class TestAccessLog(YTEnvSetup):
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
 
-    CELL_TAG_TO_DIRECTORIES = {0: "//tmp/access_log"}
+    CELL_TAG_TO_DIRECTORIES = {10: "//tmp/access_log"}
 
     def _log_lines(self, path, directory):
         with open(path, "rb") as fd:
@@ -452,7 +452,7 @@ class TestAccessLogPortal(TestAccessLog):
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 
-    CELL_TAG_TO_DIRECTORIES = {1: "//tmp/access_log"}
+    CELL_TAG_TO_DIRECTORIES = {11: "//tmp/access_log"}
 
     @authors("shakurov", "s-v-m")
     def test_logs_portal(self):
@@ -461,7 +461,7 @@ class TestAccessLogPortal(TestAccessLog):
         create("map_node", "//tmp/access_log")
         doc_id = create("document", "//tmp/access_log/doc")
 
-        create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 12})
         moved_doc_id = move("//tmp/access_log/doc", "//portals/p1/doc")
         log_list.append(
             {
@@ -480,5 +480,5 @@ class TestAccessLogPortal(TestAccessLog):
         )
 
         self._validate_entries_against_log(log_list, cell_tag_to_directory={
-            1: "//tmp/access_log",
-            2: "//portals/p1"})
+            11: "//tmp/access_log",
+            12: "//portals/p1"})

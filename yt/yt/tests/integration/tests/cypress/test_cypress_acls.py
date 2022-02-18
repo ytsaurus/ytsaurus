@@ -1530,14 +1530,14 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         set(
             "//sys/@config/multicell_manager/cell_descriptors",
             {
-                "1": {"roles": ["cypress_node_host"]},
-                "2": {"roles": ["cypress_node_host"]},
-                "3": {"roles": ["chunk_host"]},
+                "11": {"roles": ["cypress_node_host"]},
+                "12": {"roles": ["cypress_node_host"]},
+                "13": {"roles": ["chunk_host"]},
             },
         )
 
         super(TestCypressAclsPortal, self).test_columnar_acl_copy_yt_12749()
 
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
         self._test_columnar_acl_copy_yt_12749("//tmp", "//portals/p")
         self._test_columnar_acl_copy_yt_12749("//portals/p", "//tmp")

@@ -138,7 +138,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         sync_create_cells(1)
 
         def _create_table(table_name):
-            self._create_sorted_table(table_name, account="test_account", external_cell_tag=1)
+            self._create_sorted_table(table_name, account="test_account", external_cell_tag=11)
 
             sync_mount_table(table_name)
             insert_rows(table_name, [{"key": 0, "value": "0"}])
@@ -209,7 +209,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         wait(
             lambda: get(
                 "//sys/accounts/test_account/@resource_usage/tablet_count",
-                driver=get_driver(get("//tmp/t/@native_cell_tag")),
+                driver=get_driver(get("//tmp/t/@native_cell_tag") - 10),
             )
             == 1
         )
@@ -574,8 +574,8 @@ class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulti
 class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "3": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "13": ["transaction_coordinator"],
     }
 
 
@@ -633,7 +633,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._multicell_set("//sys/tablet_cell_bundles/b/@resource_limits/tablet_count", 2)
 
         def _create_table(table_name):
-            self._create_sorted_table(table_name, tablet_cell_bundle="b", external_cell_tag=1)
+            self._create_sorted_table(table_name, tablet_cell_bundle="b", external_cell_tag=11)
 
             sync_mount_table(table_name)
             insert_rows(table_name, [{"key": 0, "value": "0"}])
@@ -704,7 +704,7 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         wait(
             lambda: get(
                 "//sys/tablet_cell_bundles/b/@resource_usage/tablet_count",
-                driver=get_driver(get("//tmp/t/@native_cell_tag")),
+                driver=get_driver(get("//tmp/t/@native_cell_tag") - 10),
             )
             == 1
         )
@@ -929,8 +929,8 @@ class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
 class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "3": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "13": ["transaction_coordinator"],
     }
 
 

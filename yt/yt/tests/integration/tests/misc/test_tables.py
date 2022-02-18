@@ -2728,11 +2728,11 @@ class TestTablesMulticell(TestTables):
 
     @authors("babenko")
     def test_concatenate_teleport(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", {"key": "x"})
         assert read_table("//tmp/t1") == [{"key": "x"}]
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
         write_table("//tmp/t2", {"key": "y"})
         assert read_table("//tmp/t2") == [{"key": "y"}]
 
@@ -2740,21 +2740,21 @@ class TestTablesMulticell(TestTables):
 
         concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
-        check_multicell_statistics("//tmp/union", {"1": 1, "2": 1})
+        check_multicell_statistics("//tmp/union", {"11": 1, "12": 1})
 
         concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
-        check_multicell_statistics("//tmp/union", {"1": 2, "2": 2})
+        check_multicell_statistics("//tmp/union", {"11": 2, "12": 2})
 
     @authors("babenko")
     def test_concatenate_sorted_teleport(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", {"key": "x"})
         sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
         assert read_table("//tmp/t1") == [{"key": "x"}]
         assert get("//tmp/t1/@sorted", "true")
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
         write_table("//tmp/t2", {"key": "y"})
         sort(in_="//tmp/t2", out="//tmp/t2", sort_by="key")
         assert read_table("//tmp/t2") == [{"key": "y"}]
@@ -2767,22 +2767,22 @@ class TestTablesMulticell(TestTables):
         concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
-        check_multicell_statistics("//tmp/union", {"1": 1, "2": 1})
+        check_multicell_statistics("//tmp/union", {"11": 1, "12": 1})
 
     @authors("babenko")
     def test_concatenate_foreign_teleport(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
-        create("table", "//tmp/t3", attributes={"external_cell_tag": 3})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 13})
 
         write_table("//tmp/t1", {"key": "x"})
         concatenate(["//tmp/t1", "//tmp/t1"], "//tmp/t2")
         assert read_table("//tmp/t2") == [{"key": "x"}] * 2
-        check_multicell_statistics("//tmp/t2", {"1": 2})
+        check_multicell_statistics("//tmp/t2", {"11": 2})
 
         concatenate(["//tmp/t2", "//tmp/t2"], "//tmp/t3")
         assert read_table("//tmp/t3") == [{"key": "x"}] * 4
-        check_multicell_statistics("//tmp/t3", {"1": 4})
+        check_multicell_statistics("//tmp/t3", {"11": 4})
 
     @authors("ermolovd")
     def test_nan_values_operations(self):
@@ -2933,9 +2933,9 @@ class TestTablesPortal(TestTablesMulticell):
 class TestTablesShardedTx(TestTablesPortal):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "3": ["transaction_coordinator", "chunk_host"],
-        "4": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "13": ["transaction_coordinator", "chunk_host"],
+        "14": ["transaction_coordinator"],
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {

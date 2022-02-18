@@ -34,7 +34,7 @@ class TestNodeTrackerLog(YTEnvSetup):
         }
 
     def _get_structured_log_path(self, peer_tag):
-        return self.path_to_run + "/logs/master-0-{}.node_tracker.json.log".format(peer_tag)
+        return self.path_to_run + "/logs/master-10-{}.node_tracker.json.log".format(peer_tag)
 
     def _get_logs(self, peer_tag, from_barrier=None):
         return list(read_structured_log(

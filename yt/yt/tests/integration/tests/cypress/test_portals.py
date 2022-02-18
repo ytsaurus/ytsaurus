@@ -56,19 +56,19 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_cannot_create_portal_to_primary1(self):
         with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 0})
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
     def test_cannot_create_portal_to_primary2(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 0})
+            create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
     def test_validate_cypress_node_host_cell_role(self):
-        set("//sys/@config/multicell_manager/cell_roles", {"1": ["chunk_host"]})
+        set("//sys/@config/multicell_manager/cell_roles", {"11": ["chunk_host"]})
         with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
@@ -77,7 +77,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_create_portal(self):
-        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         assert get("//tmp/p&/@type") == "portal_entrance"
         acl = get("//tmp/@effective_acl")
         assert get("//tmp/p&/@path") == "//tmp/p"
@@ -95,7 +95,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_cannot_enable_acl_inheritance(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         get("//tmp/p&/@exit_node_id")
         with pytest.raises(YtError):
             set("//tmp/p/@inherit_acl", True, driver=get_driver(1))
@@ -103,7 +103,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_portal_reads(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         exit_id = get("//tmp/p&/@exit_node_id")
 
         assert get("//tmp/p") == {}
@@ -117,7 +117,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_portal_writes(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/p/t")
 
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
@@ -126,7 +126,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_remove_portal(self, purge_resolve_cache):
-        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         exit_id = get("//tmp/p&/@exit_node_id")
         table_id = create("table", "//tmp/p/t")
         shard_id = get("//tmp/p/t/@shard_id")
@@ -147,14 +147,14 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_remove_all_portal_children(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p/*")
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_portal_set(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         set("//tmp/p/key", "value", force=True)
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
@@ -169,13 +169,13 @@ class TestPortals(YTEnvSetup):
         [
             (with_outer_tx, external_cell_tag, purge_resolve_cache)
             for with_outer_tx in [False, True]
-            for external_cell_tag in [1, 2]
+            for external_cell_tag in [11, 12]
             for purge_resolve_cache in [False, True]
         ],
     )
     @authors("babenko")
     def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p/m")
 
         PAYLOAD = [{"key": "value"}]
@@ -211,13 +211,13 @@ class TestPortals(YTEnvSetup):
         [
             (with_outer_tx, external_cell_tag, purge_resolve_cache)
             for with_outer_tx in [False, True]
-            for external_cell_tag in [1, 2]
+            for external_cell_tag in [11, 12]
             for purge_resolve_cache in [False, True]
         ],
     )
     @authors("babenko")
     def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p/m")
 
         PAYLOAD = b"a" * 100
@@ -251,17 +251,17 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_account_lifetime(self):
         create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
         create(
             "table",
             "//tmp/p1/t",
-            attributes={"account": "a", "external": True, "external_cell_tag": 1},
+            attributes={"account": "a", "external": True, "external_cell_tag": 11},
         )
         create(
             "table",
             "//tmp/p2/t",
-            attributes={"account": "a", "external": True, "external_cell_tag": 2},
+            attributes={"account": "a", "external": True, "external_cell_tag": 12},
         )
         remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "removal_pre_committed"
@@ -275,7 +275,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_expiration_time(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create(
             "table",
             "//tmp/p/t",
@@ -286,8 +286,8 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_remove_table_in_portal(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        table_id = create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": 2})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        table_id = create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": 12})
         wait(lambda: exists("#{}".format(table_id), driver=get_driver(2)))
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p/t")
@@ -333,7 +333,7 @@ class TestPortals(YTEnvSetup):
     def test_portal_shard_statistics(self):
         create_account("a")
         create_account("b")
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         shard_id = get("//tmp/p/@shard_id")
 
         create("table", "//tmp/p/a", attributes={"account": "a"})
@@ -357,7 +357,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_portal_shard(self):
         create_account("a")
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         assert get("//tmp/p&/@shard_id") == get("//@shard_id")
         shard_id = get("//tmp/p/@shard_id")
         assert shard_id != get("//@shard_id")
@@ -382,7 +382,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_special_exit_attrs(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         assert get("//tmp/p/@key") == "p"
         assert get("//tmp/p/@parent_id") == get("//tmp/@id")
 
@@ -390,7 +390,7 @@ class TestPortals(YTEnvSetup):
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     @pytest.mark.skipif("True", reason="YT-11197")
     def test_cross_shard_links_forbidden(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         with pytest.raises(YtError):
             link("//tmp", "//tmp/p/l")
@@ -398,7 +398,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_intra_shard_links(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/p/t")
 
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
@@ -414,7 +414,7 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_intra_shard_copy_move(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/p/t")
         assert exists("//tmp/p/t")
 
@@ -433,8 +433,8 @@ class TestPortals(YTEnvSetup):
     @pytest.mark.parametrize("in_tx", [False, True])
     def test_cross_cell_copy(self, in_tx):
         create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
 
         create("map_node", "//tmp/p1/m", attributes={"account": "a"})
         create("document", "//tmp/p1/m/d", attributes={"value": {"hello": "world"}})
@@ -448,7 +448,7 @@ class TestPortals(YTEnvSetup):
         create("string_node", "//tmp/p1/m/l/end")
         set("//tmp/p1/m/l/-1", "test")
 
-        create("file", "//tmp/p1/m/f", attributes={"external_cell_tag": 3})
+        create("file", "//tmp/p1/m/f", attributes={"external_cell_tag": 13})
         assert get("//tmp/p1/m/f/@account") == "a"
         FILE_PAYLOAD = b"PAYLOAD"
         write_file("//tmp/p1/m/f", FILE_PAYLOAD)
@@ -459,7 +459,7 @@ class TestPortals(YTEnvSetup):
             "table",
             "//tmp/p1/m/t",
             attributes={
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "optimize_for": "scan",
                 "account": "tmp",
             },
@@ -520,10 +520,10 @@ class TestPortals(YTEnvSetup):
     @pytest.mark.parametrize("in_tx", [False, True])
     def test_cross_cell_move(self, in_tx):
         create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
 
-        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
+        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 13, "account": "a"})
         FILE_PAYLOAD = b"PAYLOAD"
         write_file("//tmp/p1/f", FILE_PAYLOAD)
 
@@ -554,7 +554,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_portal_entrance_always_opaque(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
         assert not get("//tmp/p1/@opaque")
         assert get("//tmp/p1&/@opaque")
 
@@ -565,13 +565,13 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_cross_cell_move_opaque_with_user_attribute(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
 
         create(
             "table",
             "//tmp/d1/d2/d3/t",
             recursive=True,
-            attributes={"external_cell_tag": 3},
+            attributes={"external_cell_tag": 13},
         )
         set("//tmp/d1/d2/d3/t/@opaque", True)
         set("//tmp/d1/d2/d3/t/@some_user_attr", "some_value")
@@ -593,10 +593,10 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_cross_cell_copy_removed_account(self):
         create_account("a")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
 
-        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
+        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 13, "account": "a"})
 
         remove("//sys/accounts/a")
         wait(lambda: get("//sys/accounts/a/@life_stage") == "removal_pre_committed")
@@ -614,13 +614,13 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     def test_cross_cell_copy_removed_bundle(self):
         create_tablet_cell_bundle("b")
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
 
         create(
             "table",
             "//tmp/p1/t",
-            attributes={"external_cell_tag": 3, "tablet_cell_bundle": "b"},
+            attributes={"external_cell_tag": 13, "tablet_cell_bundle": "b"},
         )
 
         remove_tablet_cell_bundle("b")
@@ -640,7 +640,7 @@ class TestPortals(YTEnvSetup):
     def test_create_portal_in_tx_commit(self):
         tx = start_transaction()
 
-        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1})
+        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 11})
         exit_id = get("//tmp/p&/@exit_node_id", tx=tx)
 
         assert ls("//tmp/p", tx=tx) == []
@@ -665,7 +665,7 @@ class TestPortals(YTEnvSetup):
     def test_create_portal_in_tx_abort(self):
         tx = start_transaction()
 
-        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1})
+        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 11})
         exit_id = get("//tmp/p&/@exit_node_id", tx=tx)
 
         assert ls("//tmp/p", tx=tx) == []
@@ -687,7 +687,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_mutation_id1(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         mutation_id = generate_uuid()
 
@@ -697,7 +697,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_mutation_id2(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         mutation_id = generate_uuid()
 
@@ -723,7 +723,7 @@ class TestPortals(YTEnvSetup):
             "//tmp/m/t",
             attributes={
                 "external": True,
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "account": "a",
                 "attr": "t",
             },
@@ -736,7 +736,7 @@ class TestPortals(YTEnvSetup):
             "//tmp/m/f",
             attributes={
                 "external": True,
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "account": "b",
                 "attr": "f",
             },
@@ -757,7 +757,7 @@ class TestPortals(YTEnvSetup):
             "table",
             "//tmp/m/et",
             attributes={
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "expiration_time": "2100-01-01T00:00:00.000000Z",
             },
         )
@@ -780,7 +780,7 @@ class TestPortals(YTEnvSetup):
         ORCHID_MANIFEST = {"address": "someaddress"}
         create("orchid", "//tmp/m/orchid", attributes={"manifest": ORCHID_MANIFEST})
 
-        externalize("//tmp/m", 1)
+        externalize("//tmp/m", 11)
 
         assert not get("//tmp/m/@inherit_acl")
         assert get("//tmp/m/@acl") == root_acl
@@ -827,14 +827,14 @@ class TestPortals(YTEnvSetup):
         create("map_node", "//tmp/m1")
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 3})
+        create("table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 13})
         write_table("//tmp/m1/t", TABLE_PAYLOAD)
 
         FILE_PAYLOAD = b"PAYLOAD"
-        create("file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 3})
+        create("file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 13})
         write_file("//tmp/m1/f", FILE_PAYLOAD)
 
-        externalize("//tmp/m1", 1)
+        externalize("//tmp/m1", 11)
 
         shard_id1 = get("//tmp/m1/@shard_id")
         assert get("//tmp/m1/t/@shard_id") == shard_id1
@@ -849,7 +849,7 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/m1/@key") == "m1"
         assert get("//tmp/m2/@key") == "m2"
 
-        externalize("//tmp/m2", 2)
+        externalize("//tmp/m2", 12)
 
         shard_id2 = get("//tmp/m2/@shard_id")
         assert shard_id1 != shard_id2
@@ -865,7 +865,7 @@ class TestPortals(YTEnvSetup):
         create_account("b")
         create_user("u")
 
-        create("portal_entrance", "//tmp/m", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/m", attributes={"exit_cell_tag": 11})
         set("//tmp/m/@attr", "value")
         set("//tmp/m/@acl", [make_ace("allow", "u", "write")])
         shard_id = get("//tmp/m/@shard_id")
@@ -876,7 +876,7 @@ class TestPortals(YTEnvSetup):
             "//tmp/m/t",
             attributes={
                 "external": True,
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "account": "a",
                 "attr": "t",
             },
@@ -889,7 +889,7 @@ class TestPortals(YTEnvSetup):
             "//tmp/m/f",
             attributes={
                 "external": True,
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "account": "b",
                 "attr": "f",
             },
@@ -910,7 +910,7 @@ class TestPortals(YTEnvSetup):
             "table",
             "//tmp/m/et",
             attributes={
-                "external_cell_tag": 3,
+                "external_cell_tag": 13,
                 "expiration_time": "2100-01-01T00:00:00.000000Z",
             },
         )
@@ -973,7 +973,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_bulk_insert_yt_11194(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         sync_create_cells(1)
         create(
@@ -993,7 +993,7 @@ class TestPortals(YTEnvSetup):
         create(
             "table",
             "//tmp/p/source",
-            attributes={"external": True, "external_cell_tag": 2},
+            attributes={"external": True, "external_cell_tag": 12},
         )
 
         PAYLOAD = [{"key": 1, "value": "blablabla"}]
@@ -1013,27 +1013,27 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_portal_shard_name(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         shard_id = get("//tmp/p/@shard_id")
         assert get("#{}/@name".format(shard_id)) == "portal://tmp/p"
 
     @authors("babenko")
     def test_externalize_shard_name(self):
         create("map_node", "//tmp/m")
-        externalize("//tmp/m", 1)
+        externalize("//tmp/m", 11)
         shard_id = get("//tmp/m/@shard_id")
         assert get("#{}/@name".format(shard_id)) == "portal://tmp/m"
 
     @authors("babenko")
     def test_portal_get_set_shard_name(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         shard_id = get("//tmp/p/@shard_id")
         set("#{}/@name".format(shard_id), "shard_name")
         assert get("#{}/@name".format(shard_id)) == "shard_name"
 
     @authors("babenko")
     def test_concat_in_tx(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         tx = start_transaction()
         create("table", "//tmp/p/t1")
         write_table("//tmp/p/t1", [{"key": "value1"}], tx=tx)
@@ -1059,11 +1059,11 @@ class TestPortals(YTEnvSetup):
             create(
                 "table",
                 table_path,
-                attributes={"external": True, "external_cell_tag": 1},
+                attributes={"external": True, "external_cell_tag": 11},
             )
             write_table(table_path, [{"key": table_directory}])
 
-        externalize("//tmp/m1", 2)
+        externalize("//tmp/m1", 12)
 
         for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
             table_path = "//tmp/m1" + table_directory + "/table"
@@ -1074,7 +1074,7 @@ class TestPortals(YTEnvSetup):
         create(
             "portal_entrance",
             "//tmp/p1",
-            attributes={"exit_cell_tag": 1, "opaque": True},
+            attributes={"exit_cell_tag": 11, "opaque": True},
         )
         create("map_node", "//tmp/p1/m21", attributes={"opaque": True})
         create("map_node", "//tmp/p1/m22", attributes={"opaque": True})
@@ -1088,7 +1088,7 @@ class TestPortals(YTEnvSetup):
             create(
                 "table",
                 table_path,
-                attributes={"external": True, "external_cell_tag": 2},
+                attributes={"external": True, "external_cell_tag": 12},
             )
             write_table(table_path, [{"key": table_directory}])
 
@@ -1103,12 +1103,12 @@ class TestPortals(YTEnvSetup):
         create(
             "portal_entrance",
             "//tmp/p1",
-            attributes={"exit_cell_tag": 1, "opaque": True},
+            attributes={"exit_cell_tag": 11, "opaque": True},
         )
         create(
             "portal_entrance",
             "//tmp/p2",
-            attributes={"exit_cell_tag": 2, "opaque": True},
+            attributes={"exit_cell_tag": 12, "opaque": True},
         )
 
         create("map_node", "//tmp/p1/m1", attributes={"opaque": True})
@@ -1134,11 +1134,11 @@ class TestPortals(YTEnvSetup):
         create("map_node", "//tmp/m")
         link("//tmp/m", "//tmp/l")
         with pytest.raises(YtError):
-            externalize("//tmp/l", 1)
+            externalize("//tmp/l", 11)
 
     @authors("shakurov")
     def test_link_not_internalizable(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         link("//tmp/p", "//tmp/l")
         with pytest.raises(YtError):
             internalize("//tmp/l")
@@ -1146,8 +1146,8 @@ class TestPortals(YTEnvSetup):
     @authors("shakurov")
     @pytest.mark.parametrize("remove_source", [False, True])
     def test_cross_shard_copy_link1(self, remove_source):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/p/t", attributes={"external_cell_tag": 2})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/p/t", attributes={"external_cell_tag": 12})
         link("//tmp/p/t", "//tmp/l1")
         link("//tmp/p/t", "//tmp/p/l2")
 
@@ -1166,8 +1166,8 @@ class TestPortals(YTEnvSetup):
     @authors("shakurov")
     @pytest.mark.parametrize("remove_source", [False, True])
     def test_cross_shard_copy_link2(self, remove_source):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
         link("//tmp/t", "//tmp/l1")
         link("//tmp/t", "//tmp/p/l2")
 
@@ -1189,14 +1189,14 @@ class TestPortals(YTEnvSetup):
         create("map_node", "//tmp/m")
         link("//tmp/m", "//tmp/l")
 
-        externalize("//tmp/m", 1)
+        externalize("//tmp/m", 11)
 
         assert not get("//tmp/l&/@broken")
 
     @authors("shakurov")
     def test_remove_portal_not_permitted_by_acl(self):
         create_user("u")
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         assert not get("//tmp/p/@inherit_acl")
         # NB: denying removal for portal exit only!
@@ -1209,9 +1209,9 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_cross_shard_copy_src_tx_yt_13015(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
 
-        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
         write_table("//tmp/t", {"a": "b"})
 
         tx = start_transaction()
@@ -1237,12 +1237,12 @@ class TestPortals(YTEnvSetup):
             "compression_codec": "lzma_1",
             "erasure_codec": "reed_solomon_3_3",
             "hunk_erasure_codec": "reed_solomon_6_3",
-            "external_cell_tag": 2  # To be removed below.
+            "external_cell_tag": 12  # To be removed below.
         }
         create("table", "//tmp/t", attributes=attributes)
         del attributes["external_cell_tag"]
 
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
 
         # Must not crash.
         copy("//tmp/t", "//tmp/p1/t")
@@ -1254,13 +1254,13 @@ class TestPortals(YTEnvSetup):
     @authors("shakurov")
     def test_recursive_resource_usage_portal(self):
         create("map_node", "//tmp/d")
-        create("portal_entrance", "//tmp/d/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/d/p1", attributes={"exit_cell_tag": 11})
 
-        create("table", "//tmp/d/t", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/d/t", attributes={"external_cell_tag": 12})
         write_table("//tmp/d/t", {"a": "b"})
         table_usage = get("//tmp/d/t/@resource_usage")
 
-        create("table", "//tmp/d/p1/t", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/d/p1/t", attributes={"external_cell_tag": 12})
         write_table("//tmp/d/p1/t", {"a": "b"})
 
         expected_usage = {
@@ -1274,7 +1274,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_id_path_resolve(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p/a")
         create("map_node", "//tmp/p/b")
         create("document", "//tmp/p/b/x", attributes={"value": {"hello": "worldx"}})
@@ -1284,7 +1284,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("s-v-m")
     def test_create_map_node_with_ignore_existing(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p", ignore_existing=True)
         create("table", "//tmp/t")
         with pytest.raises(YtError):
@@ -1302,7 +1302,7 @@ class TestResolveCache(YTEnvSetup):
     @authors("babenko")
     def test_cache_populated_on_resolve(self):
         create("map_node", "//tmp/dir1/dir2", recursive=True)
-        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 11})
         assert not get("//tmp/dir1/@resolve_cached")
         assert not get("//tmp/dir1/dir2/@resolve_cached")
         assert not get("//tmp/dir1/dir2/p&/@resolve_cached")
@@ -1317,7 +1317,7 @@ class TestResolveCache(YTEnvSetup):
     @authors("babenko")
     def test_cache_populated_on_resolve_with_link(self):
         create("map_node", "//tmp/dir1/dir2", recursive=True)
-        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 11})
         assert not get("//tmp/dir1/@resolve_cached")
         assert not get("//tmp/dir1/dir2/@resolve_cached")
         assert not get("//tmp/dir1/dir2/p&/@resolve_cached")
@@ -1333,7 +1333,7 @@ class TestResolveCache(YTEnvSetup):
     @authors("babenko")
     def test_cache_purged_on_lock(self):
         create("map_node", "//tmp/dir1/dir2", recursive=True)
-        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/dir1/dir2/p/t")
         assert get("//tmp/dir1/dir2/p&/@resolve_cached")
         tx = start_transaction()
@@ -1345,7 +1345,7 @@ class TestResolveCache(YTEnvSetup):
     @authors("babenko")
     def test_cache_purged_on_remove(self):
         create("map_node", "//tmp/dir1/dir2", recursive=True)
-        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/dir1/dir2/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/dir1/dir2/p/t")
         assert get("//tmp/dir1/dir2/p&/@resolve_cached")
         remove("//tmp/dir1/dir2/p")
@@ -1355,8 +1355,8 @@ class TestResolveCache(YTEnvSetup):
     def test_cache_trimmed(self):
         create("map_node", "//tmp/dir1/dir2a", recursive=True)
         create("map_node", "//tmp/dir1/dir2b", recursive=True)
-        create("portal_entrance", "//tmp/dir1/dir2a/p", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//tmp/dir1/dir2b/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/dir1/dir2a/p", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/dir1/dir2b/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/dir1/dir2a/p/t")
         create("table", "//tmp/dir1/dir2b/p/t")
         assert get("//tmp/dir1/dir2a/p&/@resolve_cached")
@@ -1373,7 +1373,7 @@ class TestResolveCache(YTEnvSetup):
 
     @authors("s-v-m")
     def test_link_through_portal(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/p/t")
         set("//tmp/p/t-non-existing", 1)
         link("//tmp/p/t-non-existing", "//tmp/l-bad")
@@ -1384,7 +1384,7 @@ class TestResolveCache(YTEnvSetup):
 
     @authors("shakurov")
     def test_link_resolution_by_resolve_cache_yt_13909(self):
-        create("portal_entrance", "//tmp/d/p", recursive=True, attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/d/p", recursive=True, attributes={"exit_cell_tag": 11})
         link("//tmp/d", "//tmp/d1")
 
         # Make sure paths are cached.
@@ -1401,6 +1401,6 @@ class TestResolveCache(YTEnvSetup):
 
     @authors("gritukan")
     def test_nested_portals_are_forbidden(self):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 2})
+            create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 12})
