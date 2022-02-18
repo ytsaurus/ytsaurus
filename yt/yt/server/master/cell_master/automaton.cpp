@@ -23,6 +23,13 @@ void TMasterAutomaton::ApplyMutation(NHydra::TMutationContext* context)
     NObjectServer::EndMutation();
 }
 
+void TMasterAutomaton::PrepareState()
+{
+    NObjectServer::BeginMutation();
+    TCompositeAutomaton::PrepareState();
+    NObjectServer::EndMutation();
+}
+
 void TMasterAutomaton::Clear()
 {
     NObjectServer::BeginTeardown();

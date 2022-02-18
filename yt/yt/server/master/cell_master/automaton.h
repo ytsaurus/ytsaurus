@@ -32,6 +32,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     void ApplyMutation(NHydra::TMutationContext* context) override;
+    void PrepareState() override;
     void Clear() override;
     void SetZeroState() override;
 
