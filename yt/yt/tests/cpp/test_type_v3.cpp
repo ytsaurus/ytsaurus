@@ -239,7 +239,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
         {"value", EValueType::Composite, "[1;2;3]"},
     });
 
-    auto rowRange = TSharedRange(TRange<TUnversionedRow>({row}), nameTable);
+    auto rowRange = MakeSharedRange(std::vector<TUnversionedRow>{row}, nameTable);
     transaction->WriteRows(path, nameTable, rowRange);
 
     WaitFor(transaction->Commit())
@@ -250,7 +250,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
             Client_->LookupRows(
                 path,
                 nameTable,
-                TSharedRange(
+                MakeSharedRange(
                     std::vector<TLegacyKey>({
                         NNamedValue::MakeRow(nameTable, {{"key", 1}})
                     }),
@@ -315,7 +315,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
         {"value", EValueType::Composite, "[1;2;3]"},
     });
 
-    auto rowRange = TSharedRange(TRange<TUnversionedRow>({row}), nameTable);
+    auto rowRange = MakeSharedRange(std::vector<TUnversionedRow>{row}, nameTable);
     transaction->WriteRows(path, nameTable, rowRange);
 
     WaitFor(transaction->Commit())
