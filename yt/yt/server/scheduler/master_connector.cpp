@@ -1537,19 +1537,28 @@ private:
             }
         }
 
+        std::vector<TOperationPtr> operationsToFetchCommittedFlag;
+        for (const auto& operation : operations) {
+            auto eventIt = operation->Events().rbegin();
+            while (eventIt != operation->Events().rend() && eventIt->State == EOperationState::Orphaned) {
+                ++eventIt;
+            }
+            if (eventIt != operation->Events().rend() && eventIt->State == EOperationState::Completing) {
+                operationsToFetchCommittedFlag.push_back(operation);
+            }
+        }
+        
         YT_LOG_INFO("Fetching committed flags (OperationCount: %v)",
-            operations.size());
+            operationsToFetchCommittedFlag.size());
 
         {
-            std::vector<TOperationPtr> operationsToRevive;
-
             auto getBatchKey = [] (const TOperationPtr& operation) {
                 return "get_op_committed_attr_" + ToString(operation->GetId());
             };
 
             auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
 
-            for (const auto& operation : operations) {
+            for (const auto& operation : operationsToFetchCommittedFlag) {
                 const auto& transactions = *operation->Transactions();
                 std::vector<TTransactionId> possibleTransactions;
                 if (transactions.OutputTransaction) {
@@ -1559,8 +1568,6 @@ private:
                     possibleTransactions.push_back(operation->GetUserTransactionId());
                 }
                 possibleTransactions.push_back(NullTransactionId);
-
-                operationsToRevive.push_back(operation);
 
                 for (auto transactionId : possibleTransactions)
                 {
@@ -1574,7 +1581,7 @@ private:
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            for (const auto& operation : operationsToRevive) {
+            for (const auto& operation : operationsToFetchCommittedFlag) {
                 auto& revivalDescriptor = *operation->RevivalDescriptor();
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
 
