@@ -1025,11 +1025,6 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     }
 
     ++SequenceNumber_;
-    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-        "Applying mutation (SequenceNumber: %v, RandomSeed: %llx, Version: %v)",
-        SequenceNumber_.load(),
-        mutationContext->GetRandomSeed(),
-        mutationVersion);
 
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
@@ -1041,9 +1036,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
         RandomSeed_ != mutationContext->GetPrevRandomSeed() && mutationContext->GetPrevRandomSeed() != 0,
-        "Mutation random seeds differ (AutomatonRandomSeed: %llx, MutationRandomSeed: %llx)",
+        "Mutation random seeds differ (AutomatonRandomSeed: %llx, MutationPrevRandomSeed: %llx, MutationRandomSeed: %llx, MutationSequenceNumber: %v)",
         RandomSeed_.load(),
-        mutationContext->GetPrevRandomSeed());
+        mutationContext->GetPrevRandomSeed(),
+        mutationContext->GetRandomSeed(),
+        mutationContext->GetSequenceNumber());
     RandomSeed_ = mutationContext->GetRandomSeed();
 
     if (mutationVersion.SegmentId == automatonVersion.SegmentId) {

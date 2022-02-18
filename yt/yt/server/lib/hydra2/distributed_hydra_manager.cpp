@@ -461,17 +461,24 @@ public:
             request.EpochId = GetCurrentEpochId();
         }
 
-        YT_LOG_DEBUG("Enqueue mutation");
+        auto randomSeed = RandomNumber<ui64>();
+        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %llx, MutationType: %v, MutationId: %v)",
+            randomSeed,
+            request.Type,
+            request.MutationId);
+
         PreliminaryMutationQueue_.Enqueue({
             .Request = request,
-            .Promise = std::move(promise)
+            .Promise = std::move(promise),
+            .RandomSeed = randomSeed
         });
+
         return future;
     }
 
     TFuture<TMutationResponse> Forward(TMutationRequest&& request)
     {
-        // TODO: Change affinity to any.
+        // TODO(aleksandra-zh): Change affinity to any.
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
