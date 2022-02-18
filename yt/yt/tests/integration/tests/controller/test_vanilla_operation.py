@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    create, ls,
+    create, ls, sorted_dicts,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context)
 
@@ -152,9 +152,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_files(self):
         create("file", "//tmp/a")
-        write_file("//tmp/a", "data_a")
+        write_file("//tmp/a", b"data_a")
         create("file", "//tmp/b")
-        write_file("//tmp/b", "data_b")
+        write_file("//tmp/b", b"data_b")
 
         vanilla(
             spec={
@@ -201,7 +201,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         cypress_stderrs_per_task = Counter(op.read_stderr(job_id) for job_id in job_ids)
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
-        assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
+        assert dict(cypress_stderrs_per_task) == {b"task_a\n": 3, b"task_b\n": 2}
 
     @authors("max42")
     def test_fail_on_failed_job(self):
@@ -408,7 +408,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             }
         )
-        assert sorted(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
+        assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
     @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
@@ -629,7 +629,7 @@ wait $child_pid
         wait(lambda: op.get_job_count("lost") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
-        assert "XXX" in op.read_stderr(interrupted_job_id)
+        assert b"XXX" in op.read_stderr(interrupted_job_id)
 
     @authors("max42")
     def test_non_interruptible(self):

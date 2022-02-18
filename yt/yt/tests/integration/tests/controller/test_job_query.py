@@ -156,7 +156,7 @@ class TestJobQuery(YTEnvSetup):
     def test_query_filtering(self, mode):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
         map(
             in_="//tmp/t1",
@@ -253,7 +253,7 @@ class TestJobQuery(YTEnvSetup):
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(-1, 1)])
+        write_table("//tmp/t1", [{"a": i} for i in range(-1, 1)])
 
         map(
             in_="//tmp/t1",
@@ -297,7 +297,7 @@ class TestJobQuery(YTEnvSetup):
         )
         create("table", "//tmp/t_out")
         for i in range(3):
-            write_table("<append=%true>//tmp/t", [{"a": i * 10 + j} for j in xrange(3)])
+            write_table("<append=%true>//tmp/t", [{"a": i * 10 + j} for j in range(3)])
         assert get("//tmp/t/@chunk_count") == 3
 
         def _test(selector, query, rows, chunk_count):
@@ -314,18 +314,18 @@ class TestJobQuery(YTEnvSetup):
                 key="data.input.chunk_count",
                 assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count)
 
-        _test("", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
-        _test("[#0:]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("", "a where a between 5 and 15", [{"a": i} for i in range(10, 13)], 1)
+        _test("[#0:]", "a where a between 5 and 15", [{"a": i} for i in range(10, 13)], 1)
         _test(
             "[11:12]",
             "a where a between 5 and 15",
-            [{"a": i} for i in xrange(11, 12)],
+            [{"a": i} for i in range(11, 12)],
             1,
         )
         _test(
             "[9:20]",
             "a where a between 5 and 15",
-            [{"a": i} for i in xrange(10, 13)],
+            [{"a": i} for i in range(10, 13)],
             1,
         )
         _test("[#2:#4]", "a where a <= 10", [{"a": 2}, {"a": 10}], 2)
@@ -351,7 +351,7 @@ class TestJobQuery(YTEnvSetup):
         )
         create("table", "//tmp/t_out")
         for i in range(3):
-            write_table("<append=%true>//tmp/t", [{"k": i, "a": i * 10 + j} for j in xrange(3)])
+            write_table("<append=%true>//tmp/t", [{"k": i, "a": i * 10 + j} for j in range(3)])
         assert get("//tmp/t/@chunk_count") == 3
 
         def _test(query, rows, chunk_count):
@@ -368,15 +368,15 @@ class TestJobQuery(YTEnvSetup):
                 key="data.input.chunk_count",
                 assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count)
 
-        _test("a where k = 1", [{"a": i} for i in xrange(10, 13)], 1)
+        _test("a where k = 1", [{"a": i} for i in range(10, 13)], 1)
         _test(
             "a where k = 1 and a between 5 and 15",
-            [{"a": i} for i in xrange(10, 13)],
+            [{"a": i} for i in range(10, 13)],
             1,
         )
         _test(
             "a where k in (1, 2) and a between 5 and 15",
-            [{"a": i} for i in xrange(10, 13)],
+            [{"a": i} for i in range(10, 13)],
             1,
         )
 

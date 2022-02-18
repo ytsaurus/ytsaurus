@@ -3,7 +3,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, exists,
-    create_account, read_table, write_file,
+    create_account, read_table, write_file, sorted_dicts,
     write_table, map, reduce, merge, sync_create_cells, sync_mount_table,
     get_operation, assert_statistics, extract_statistic_v2)
 
@@ -287,7 +287,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "use_intermediate_data_account": True,
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
                 "intermediate_data_account": "acc",
@@ -327,7 +327,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "use_intermediate_data_account": True,
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
                 "intermediate_data_account": "acc",
@@ -400,7 +400,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         assert get("//tmp/t_out/@row_count") == 11
         assert get("//tmp/t_out/@chunk_count") == 6
         content = read_table("//tmp/t_out")
-        assert sorted(content[1:]) == sorted(data)
+        assert sorted_dicts(content[1:]) == sorted_dicts(data)
         assert content[:1] == init_content
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema_out
 
@@ -428,7 +428,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         self._verify_auto_merge_job_types(op)
@@ -478,7 +478,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         # Shallow merge for erasure chunks is not supported now (see YT-15431).
@@ -512,7 +512,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         self._verify_auto_merge_job_types(op)
@@ -542,7 +542,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         assert get("//tmp/t_out/@chunk_count") >= 5
@@ -582,7 +582,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         assert get("//tmp/t_out/@chunk_count") >= 5
@@ -600,7 +600,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
@@ -629,7 +629,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "chunk_count_per_merge_job": 15,
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
             },
         )
@@ -800,7 +800,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         self._verify_auto_merge_job_types(op)
@@ -846,7 +846,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
-                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
         self._verify_auto_merge_job_types(op)
@@ -900,7 +900,7 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
         assert get("//tmp/t_out/@row_count") == 10
         assert get("//tmp/t_out/@chunk_count") == 5
         content = read_table("//tmp/t_out")
-        assert sorted(content) == sorted(data)
+        assert sorted_dicts(content) == sorted_dicts(data)
 
     @authors("gepardo")
     def test_incompatible_metas_switch(self):
@@ -910,7 +910,7 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
         data = [{"a": i} for i in range(10)]
         write_table("//tmp/t_in", data)
 
-        mapper = """
+        mapper = b"""
 import json
 import sys
 
@@ -948,7 +948,7 @@ else:
         assert get("//tmp/t_out/@row_count") == 10
         assert get("//tmp/t_out/@chunk_count") == 5
         output_data = read_table("//tmp/t_out")
-        assert sorted(expected_data) == sorted(output_data)
+        assert sorted_dicts(expected_data) == sorted_dicts(output_data)
 
     @authors("gepardo")
     def test_too_many_blocks_for_shallow_merge(self):
@@ -982,4 +982,4 @@ else:
 
         assert get("//tmp/t_out/@row_count") == 500
         content = read_table("//tmp/t_out")
-        assert sorted(content) == sorted(data)
+        assert sorted_dicts(content) == sorted_dicts(data)

@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, set, exists, insert_rows, alter_table, write_file, read_table, write_table, reduce,
     erase, interrupt_job, sync_create_cells, sync_mount_table, sync_unmount_table,
-    sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics,
+    sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics, sorted_dicts,
     create_dynamic_table)
 
 from yt_helpers import skip_if_no_descending
@@ -18,6 +18,7 @@ import pytest
 
 import itertools
 import time
+import binascii
 
 
 ##################################################################
@@ -115,7 +116,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             command="uniq",
             reduce_by=[{"name": "key", "sort_order": sort_order}],
             spec={
-                "reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv>dsv")},
                 "data_size_per_job": 1,
             },
         )
@@ -416,7 +417,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             reduce_by="key",
             command="cat > /dev/stderr",
             spec={
-                "reducer": {"format": yson.loads("<format=text>yson")},
+                "reducer": {"format": yson.loads(b"<format=text>yson")},
                 "job_io": {
                     "control_attributes": {
                         "enable_table_index": "true",
@@ -427,7 +428,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             },
         )
 
-        expected_stderr = """<"table_index"=1;>#;
+        expected_stderr = b"""<"table_index"=1;>#;
 <"row_index"=0;>#;
 {"key"=1;"value"=6;};
 <"table_index"=0;>#;
@@ -443,13 +444,13 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             command="cat > /dev/stderr",
             reduce_by="key",
             spec={
-                "reducer": {"format": yson.loads("<format=text>yson")},
+                "reducer": {"format": yson.loads(b"<format=text>yson")},
                 "job_io": {"control_attributes": {"enable_row_index": "true"}},
                 "job_count": 1,
             },
         )
 
-        expected_stderr = """<"row_index"=0;>#;
+        expected_stderr = b"""<"row_index"=0;>#;
 {"key"=4;"value"=3;};
 """
         check_all_stderrs(op, expected_stderr, 1)
@@ -640,7 +641,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create("table", "//tmp/t1")
         write_table("<sorted_by=[key]>//tmp/t1", [{"key": "value"}])
         op = reduce(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2", reduce_by=["key"])
-        check_all_stderrs(op, "stderr\n", 1)
+        check_all_stderrs(op, b"stderr\n", 1)
 
     @authors("psushin", "klyachin")
     def test_duplicate_key_columns(self):
@@ -728,7 +729,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command="cat",
                 reduce_by=["key", "subkey"],
                 spec={
-                    "reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
+                    "reducer": {"format": yson.loads(b"<line_prefix=tskv>dsv")},
                     "data_size_per_job": 1,
                 },
             )
@@ -748,7 +749,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                     {"name": "subkey", "sort_order": sort_order},
                 ],
                 spec={
-                    "reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
+                    "reducer": {"format": yson.loads(b"<line_prefix=tskv>dsv")},
                     "data_size_per_job": 1,
                 },
             )
@@ -771,7 +772,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 10}], sorted_by="k")
 
-        reducer = """
+        reducer = b"""
 cat  > /dev/null
 echo {v = 0} >&1
 echo {v = 1} >&4
@@ -803,7 +804,7 @@ echo {v = 2} >&7
         # Its default rate 0.0001, so we should have enough rows in input table
         write_table(
             "//tmp/in",
-            [{"key": "%.010d" % num} for num in xrange(count)],
+            [{"key": "%.010d" % num} for num in range(count)],
             sorted_by=["key"],
             table_writer={"block_size": 1024},
         )
@@ -841,7 +842,7 @@ echo {v = 2} >&7
             reduce_by=["key"],
             spec={
                 "job_io": {"control_attributes": {"enable_key_switch": "true"}},
-                "reducer": {"format": yson.loads("<lenval=true>yamr")},
+                "reducer": {"format": yson.loads(b"<lenval=true>yamr")},
                 "job_count": 1,
             },
         )
@@ -850,7 +851,7 @@ echo {v = 2} >&7
         assert len(job_ids) == 1
         stderr_bytes = op.read_stderr(job_ids[0])
 
-        assert stderr_bytes.encode("hex") == "010000006100000000" "feffffff" "010000006200000000" "010000006200000000"
+        assert binascii.hexlify(stderr_bytes) == b"010000006100000000feffffff010000006200000000010000006200000000"
 
         assert not get("//tmp/out/@sorted")
 
@@ -876,7 +877,7 @@ echo {v = 2} >&7
             reduce_by=["key"],
             spec={
                 "job_io": {"control_attributes": {"enable_key_switch": "true"}},
-                "reducer": {"format": yson.loads("<format=text>yson")},
+                "reducer": {"format": yson.loads(b"<format=text>yson")},
                 "job_count": 1,
             },
         )
@@ -889,7 +890,7 @@ echo {v = 2} >&7
 
         assert (
             stderr_bytes
-            == """{"key"="a";"value"="";};
+            == b"""{"key"="a";"value"="";};
 <"key_switch"=%true;>#;
 {"key"="b";"value"="";};
 {"key"="b";"value"="";};
@@ -905,13 +906,13 @@ echo {v = 2} >&7
 
         write_table(
             "//tmp/in",
-            [{"key": "%05d" % num} for num in xrange(count)],
+            [{"key": "%05d" % num} for num in range(count)],
             sorted_by=["key"],
             table_writer={"block_size": 1024},
         )
         write_table(
             "<append=true>//tmp/in",
-            [{"key": "%05d" % num} for num in xrange(count, 2 * count)],
+            [{"key": "%05d" % num} for num in range(count, 2 * count)],
             sorted_by=["key"],
             table_writer={"block_size": 1024},
         )
@@ -1020,7 +1021,7 @@ echo {v = 2} >&7
                 {"name": "host", "sort_order": sort_order},
             ],
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 1,
             },
         )
@@ -1100,7 +1101,7 @@ echo {v = 2} >&7
             reduce_by=["host", "url"],
             join_by="host",
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 1,
             },
         )
@@ -1180,7 +1181,7 @@ echo {v = 2} >&7
             reduce_by=["host", "url"],
             join_by="host",
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 1,
             },
         )
@@ -1216,7 +1217,7 @@ echo {v = 2} >&7
             reduce_by=["host", "url"],
             join_by="host",
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "data_size_per_job": 1,
             },
         )
@@ -1249,7 +1250,7 @@ echo {v = 2} >&7
             reduce_by=["key", "value"],
             join_by=["key"],
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 5,
             },
         )
@@ -1274,7 +1275,7 @@ echo {v = 2} >&7
             reduce_by="host",
             join_by="host",
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 1,
             },
         )
@@ -1293,7 +1294,7 @@ echo {v = 2} >&7
                 reduce_by=["host"],
                 join_by=["host", "url"],
                 spec={
-                    "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                    "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                     "job_count": 1,
                 },
             )
@@ -1339,7 +1340,7 @@ echo {v = 2} >&7
             spec={
                 "job_io": {"control_attributes": {"enable_key_switch": "true"}},
                 "reducer": {
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                     "enable_input_table_index": True,
                 },
                 "job_count": 1,
@@ -1352,7 +1353,7 @@ echo {v = 2} >&7
 
         assert (
             stderr_bytes
-            == """<"table_index"=0;>#;
+            == b"""<"table_index"=0;>#;
 {"key"="1";"value"="21";};
 <"table_index"=1;>#;
 {"key"="1";"subkey"="1/1";"value"="11";};
@@ -1381,7 +1382,7 @@ echo {v = 2} >&7
     @authors("klyachin")
     def test_reduce_row_count_limit(self):
         create("table", "//tmp/input")
-        for i in xrange(5):
+        for i in range(5):
             write_table(
                 "<append=true>//tmp/input",
                 [{"key": "%05d" % i, "value": "foo"}],
@@ -1455,8 +1456,8 @@ echo {v = 2} >&7
             reduce_by=["key"],
         )
 
-        assert sorted(read_table("//tmp/out1")) == [{"key": 5}, {"key": 7}]
-        assert sorted(read_table("//tmp/out2")) == [
+        assert sorted_dicts(read_table("//tmp/out1")) == [{"key": 5}, {"key": 7}]
+        assert sorted_dicts(read_table("//tmp/out2")) == [
             {"key": 1},
             {"key": 3},
             {"key": 6},
@@ -1481,7 +1482,7 @@ echo {v = 2} >&7
             },
         )
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
             print_debug(get("//tmp/input/@schema"))
 
@@ -1489,7 +1490,7 @@ echo {v = 2} >&7
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in range(10)])
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
@@ -1500,18 +1501,18 @@ echo {v = 2} >&7
     @authors("babenko", "klyachin")
     def test_reduce_input_paths_attr(self):
         create("table", "//tmp/in1")
-        for i in xrange(0, 5, 2):
+        for i in range(0, 5, 2):
             write_table(
                 "<append=true>//tmp/in1",
-                [{"key": "%05d" % (i + j), "value": "foo"} for j in xrange(2)],
+                [{"key": "%05d" % (i + j), "value": "foo"} for j in range(2)],
                 sorted_by=["key"],
             )
 
         create("table", "//tmp/in2")
-        for i in xrange(3, 16, 2):
+        for i in range(3, 16, 2):
             write_table(
                 "<append=true>//tmp/in2",
-                [{"key": "%05d" % ((i + j) / 4), "value": "foo"} for j in xrange(2)],
+                [{"key": "%05d" % ((i + j) / 4), "value": "foo"} for j in range(2)],
                 sorted_by=["key", "value"],
             )
 
@@ -1546,12 +1547,12 @@ echo {v = 2} >&7
             },
         )
 
-        write_table("<sorted_by=[k2]>//tmp/t1", [{"k2": i} for i in xrange(2)])
+        write_table("<sorted_by=[k2]>//tmp/t1", [{"k2": i} for i in range(2)])
 
         reduce(in_="//tmp/t1", out="//tmp/t2", reduce_by="k2", command="cat")
 
         assert get("//tmp/t2/@schema_mode") == "strong"
-        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
     @authors("savrus")
     @parametrize_external
@@ -1671,7 +1672,7 @@ echo {v = 2} >&7
             reduce_by="key",
             join_by="key",
             command="cat",
-            spec={"reducer": {"format": yson.loads("<enable_table_index=true>dsv")}},
+            spec={"reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")}},
         )
 
         expected = [{"key": str(i), "@table_index": "0"} for i in (8, 9)] + [
@@ -1707,7 +1708,7 @@ echo {v = 2} >&7
             spec={
                 "reducer": {
                     "enable_input_table_index": True,
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 }
             },
         )
@@ -1717,7 +1718,7 @@ echo {v = 2} >&7
         output = op.read_stderr(job_ids[0])
         assert (
             output
-            == """<"table_index"=0;>#;
+            == b"""<"table_index"=0;>#;
 {"key"=0;"value"="0";};
 <"table_index"=1;>#;
 {"key"=1;"value"="1";};
@@ -1863,7 +1864,7 @@ echo {v = 2} >&7
     def test_query_filtering(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
         with pytest.raises(YtError):
             reduce(
@@ -2199,7 +2200,7 @@ done
             command="uniq",
             reduce_by=[{"name": "key", "sort_order": sort_order}],
             spec={
-                "reducer": {"format": yson.loads("dsv")},
+                "reducer": {"format": yson.loads(b"dsv")},
                 "job_count": 2,
                 "enable_key_guarantee": False,
             },
@@ -2210,7 +2211,7 @@ done
             expected = [{"key": "a"}, {"key": "a"}, {"key": "b"}]
         else:
             expected = [{"key": "b"}, {"key": "b"}, {"key": "a"}]
-        assert sorted(list(read_table("//tmp/out"))) == sorted(expected)
+        assert sorted_dicts(list(read_table("//tmp/out"))) == sorted_dicts(expected)
 
     @authors("renadeen")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -2239,8 +2240,8 @@ done
             reduce_by=[{"name": "key", "sort_order": sort_order}],
             spec={
                 "reducer": {
-                    "input_format": yson.loads("<columns=[key]>schemaful_dsv"),
-                    "output_format": yson.loads("<columns=[key;count]>schemaful_dsv"),
+                    "input_format": yson.loads(b"<columns=[key]>schemaful_dsv"),
+                    "output_format": yson.loads(b"<columns=[key;count]>schemaful_dsv"),
                 },
                 "job_count": 4,
                 "enable_key_guarantee": False,
@@ -2679,7 +2680,7 @@ done
 
         create("table", "//tmp/out")
 
-        script = """
+        script = b"""
 import json
 import sys
 
@@ -2830,7 +2831,7 @@ for line in sys.stdin:
             reduce_by=["key", "subkey"],
             join_by="key",
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "pivot_keys": [["2", "1"], ["2", "2"], ["5", "3"], ["5", "4"]],
             },
         )
@@ -2850,7 +2851,7 @@ for line in sys.stdin:
             {"key": "5", "value": "25", "@table_index": "1"},
         ]
 
-        assert sorted(list(read_table("//tmp/output"))) == sorted(expected)
+        assert sorted_dicts(list(read_table("//tmp/output"))) == sorted_dicts(expected)
 
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -2965,7 +2966,7 @@ for line in sys.stdin:
         )
 
         expected = [{"a": str(x), "c": "A" * 500} for x in range(100)]
-        assert sorted(read_table("//tmp/out")) == sorted(expected)
+        assert sorted_dicts(read_table("//tmp/out")) == sorted_dicts(expected)
 
     @authors("max42")
     def test_proper_slice_ordering_shorter_key(self):
@@ -2986,7 +2987,7 @@ for line in sys.stdin:
             reduce_by=["a"],
         )
 
-        assert read_table("//tmp/out") == [{"a": 0, "b": i} for i in xrange(20)]
+        assert read_table("//tmp/out") == [{"a": 0, "b": i} for i in range(20)]
 
     @authors("max42")
     def test_proper_slice_ordering_no_key_guarantee(self):

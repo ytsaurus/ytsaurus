@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, insert_rows, write_file, read_table, write_table, reduce, join_reduce, interrupt_job, sync_create_cells, sync_mount_table,
-    sync_unmount_table, raises_yt_error, assert_statistics)
+    sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
 from yt_helpers import skip_if_no_descending
 
@@ -11,6 +11,8 @@ import yt_error_codes
 
 import yt.yson as yson
 from yt.common import YtError
+
+import binascii
 
 import pytest
 
@@ -89,7 +91,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             command="cat",
             join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
-                "reducer": {"format": yson.loads("<line_prefix=tskv;enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv;enable_table_index=true>dsv")},
                 "data_size_per_job": 1,
             },
         )
@@ -293,7 +295,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             join_by="key",
             command="cat 1>&2",
             spec={
-                "reducer": {"format": yson.loads("<format=text>yson")},
+                "reducer": {"format": yson.loads(b"<format=text>yson")},
                 "job_io": {
                     "control_attributes": {
                         "enable_table_index": "true",
@@ -309,7 +311,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert (
             op.read_stderr(job_ids[0])
-            == """<"table_index"=0;>#;
+            == b"""<"table_index"=0;>#;
 <"row_index"=0;>#;
 {"key"=2;"value"=7;};
 <"table_index"=1;>#;
@@ -410,7 +412,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             ],
             command="cat | tee /dev/fd/4 | grep @table_index=0",
             join_by=[{"name": "key", "sort_order": sort_order}],
-            spec={"reducer": {"format": yson.loads("<enable_table_index=true>dsv")}},
+            spec={"reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")}},
         )
 
         if sort_order == "ascending":
@@ -619,7 +621,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {"name": "subkey", "sort_order": sort_order},
             ],
             spec={
-                "reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv>dsv")},
                 "data_size_per_job": 1,
             },
         )
@@ -645,7 +647,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"k": 10}], sorted_by="k")
 
-        reducer = """
+        reducer = b"""
 cat  > /dev/null
 echo {v = 0} >&1
 echo {v = 1} >&4
@@ -685,7 +687,7 @@ echo {v = 2} >&7
 
         # Job count works only if we have enough splits in input chunks.
         # Its default rate 0.0001, so we should have enough rows in input table
-        rows = [{"key": "%.010d" % num} for num in xrange(count)]
+        rows = [{"key": "%.010d" % num} for num in range(count)]
         if sort_order == "descending":
             rows = rows[::-1]
         write_table(
@@ -695,7 +697,7 @@ echo {v = 2} >&7
             table_writer={"block_size": 1024},
         )
         # write secondary table as one row per chunk
-        rows = [{"key": "%.010d" % num} for num in xrange(0, count, 20)]
+        rows = [{"key": "%.010d" % num} for num in range(0, count, 20)]
         if sort_order == "descending":
             rows = rows[::-1]
         write_table(
@@ -714,7 +716,7 @@ echo {v = 2} >&7
             command='echo "key=`wc -l`"',
             join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "data_size_per_job": 250,
             },
         )
@@ -747,7 +749,7 @@ echo {v = 2} >&7
             spec={
                 "job_io": {"control_attributes": {"enable_key_switch": "true"}},
                 "reducer": {
-                    "format": yson.loads("<lenval=true>yamr"),
+                    "format": yson.loads(b"<lenval=true>yamr"),
                     "enable_input_table_index": False,
                 },
                 "job_count": 1,
@@ -759,13 +761,13 @@ echo {v = 2} >&7
         stderr_bytes = op.read_stderr(job_ids[0])
 
         assert (
-            stderr_bytes.encode("hex") == "010000006100000000"
-            "010000006100000000"
-            "feffffff"
-            "010000006200000000"
-            "010000006200000000"
-            "010000006200000000"
-            "010000006200000000"
+            binascii.hexlify(stderr_bytes) == b"010000006100000000"
+            b"010000006100000000"
+            b"feffffff"
+            b"010000006200000000"
+            b"010000006200000000"
+            b"010000006200000000"
+            b"010000006200000000"
         )
 
     @authors("klyachin")
@@ -796,14 +798,14 @@ echo {v = 2} >&7
 
         write(
             "<append=true>//tmp/in1",
-            [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count)],
-            [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count, 2 * count)],
+            [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in range(count)],
+            [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in range(count, 2 * count)],
         )
 
         write(
             "<append=true>//tmp/in2",
-            [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count)],
-            [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count, 2 * count)],
+            [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in range(count)],
+            [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in range(count, 2 * count)],
         )
 
         if sort_order == "ascending":
@@ -825,7 +827,7 @@ echo {v = 2} >&7
             command="""awk '{print $0"\tji="ENVIRON["YT_JOB_INDEX"]"\tsi="ENVIRON["YT_START_ROW_INDEX"]}' """,
             join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true;table_index_column=ti>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true;table_index_column=ti>dsv")},
                 "data_size_per_job": 500,
             },
         )
@@ -867,7 +869,7 @@ echo {v = 2} >&7
             command="uniq",
             join_by=[{"name": "key", "sort_order": sort_order}],
             spec={
-                "reducer": {"format": yson.loads("<enable_table_index=true>dsv")},
+                "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 2,
             },
         )
@@ -875,7 +877,7 @@ echo {v = 2} >&7
         assert get("//tmp/out/@chunk_count") == 2
 
         if sort_order == "ascending":
-            assert sorted(read_table("//tmp/out")) == sorted(
+            assert sorted_dicts(read_table("//tmp/out")) == sorted_dicts(
                 [
                     {"key": "a", "@table_index": "0"},
                     {"key": "a", "@table_index": "1"},
@@ -887,7 +889,7 @@ echo {v = 2} >&7
                 ]
             )
         else:
-            assert sorted(read_table("//tmp/out")) == sorted(
+            assert sorted_dicts(read_table("//tmp/out")) == sorted_dicts(
                 [
                     {"key": "b", "@table_index": "0"},
                     {"key": "b", "@table_index": "1"},
@@ -993,7 +995,7 @@ echo {v = 2} >&7
         count = 300
 
         create("table", "//tmp/in1")
-        rows = [{"key": "%05d" % num, "subkey": "", "value": num} for num in xrange(count)]
+        rows = [{"key": "%05d" % num, "subkey": "", "value": num} for num in range(count)]
         if sort_order == "descending":
             rows = rows[::-1]
         write_table(
@@ -1047,7 +1049,7 @@ echo {v = 2} >&7
         for i in range(20):
             write_table(
                 "<append=true>//tmp/in",
-                [{"fake_key": ""} for num in xrange(i * 100, (i + 1) * 100)],
+                [{"fake_key": ""} for num in range(i * 100, (i + 1) * 100)],
                 sorted_by=["fake_key"],
                 table_writer={"block_size": 1024},
             )
@@ -1072,18 +1074,18 @@ echo {v = 2} >&7
     @authors("klyachin")
     def test_join_reduce_input_paths_attr(self):
         create("table", "//tmp/in1")
-        for i in xrange(0, 5, 2):
+        for i in range(0, 5, 2):
             write_table(
                 "<append=true>//tmp/in1",
-                [{"key": "%05d" % (i + j), "value": "foo"} for j in xrange(2)],
+                [{"key": "%05d" % (i + j), "value": "foo"} for j in range(2)],
                 sorted_by=["key"],
             )
 
         create("table", "//tmp/in2")
-        for i in xrange(3, 16, 2):
+        for i in range(3, 16, 2):
             write_table(
                 "<append=true>//tmp/in2",
-                [{"key": "%05d" % ((i + j) / 4), "value": "foo"} for j in xrange(2)],
+                [{"key": "%05d" % ((i + j) / 4), "value": "foo"} for j in range(2)],
                 sorted_by=["key"],
             )
 
