@@ -49,7 +49,7 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
                               masterWrapperEndpoint: HostAndPort,
                               clusterConf: SparkConfYsonable): Unit = {
     val clearDir = discoverAddress() match {
-      case Some(address) if operation.exists(_ != operationId) && operationInfo.forall(!_.state.isFinished) =>
+      case Some(_) if operation.exists(_ != operationId) && operationInfo.exists(!_.state.isFinished) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
       case Some(_) =>
         log.info(s"Spark instance with path $discoveryPath registered, but is not alive, rewriting id")

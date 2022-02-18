@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Try}
+import scala.util.{Failure, Success, Try}
 
 class SubmissionClient(proxy: String,
                        discoveryPath: String,
@@ -68,6 +68,10 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.yt.jars", s"yt:/${spytJarPath(spytVersion)}")
     launcher.setConf("spark.yt.pyFiles", s"yt:/${spytPythonPath(spytVersion)}")
     launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
+
+    if (useDedicatedDriverOp) {
+      launcher.setConf("spark.driver.resource.driverop.amount", "1")
+    }
 
     submitInner(launcher, retryConfig)
   }
@@ -128,6 +132,15 @@ class SubmissionClient(proxy: String,
     }
     response.getOrElse(Nil)
   }
+
+  def useDedicatedDriverOp: Boolean =
+    MasterClient.activeWorkers(cluster.get().master) match {
+      case Failure(err) =>
+        log.warn(s"Failed to query list of active workers", err)
+        false
+      case Success(workers) =>
+        workers.exists(_.isDriverOp)
+    }
 
   def kill(id: String): Boolean = {
     val response = RestSubmissionClientWrapper.killSubmission(cluster.get().client, id)

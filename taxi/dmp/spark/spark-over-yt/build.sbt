@@ -26,6 +26,9 @@ lazy val `spark-fork` = (project in file("spark-fork"))
     sparkAdditionalJars := Seq(
       (`file-system` / assembly).value
     ),
+    sparkAdditionalBin := Seq(
+      baseDirectory.value / "driver-op-discovery.sh",
+    ),
     sparkAdditionalPython := Nil
   )
   .settings(

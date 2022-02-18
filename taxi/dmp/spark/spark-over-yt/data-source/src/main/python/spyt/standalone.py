@@ -1,3 +1,4 @@
+from collections import namedtuple
 import copy
 import logging
 import os
@@ -17,7 +18,7 @@ from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spy
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
-    worker_num_limit, validate_worker_num
+    worker_num_limit, validate_worker_num, read_cluster_conf
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
 from .version import __version__
@@ -44,7 +45,7 @@ class SparkDefaultArguments(object):
             "operation_spec": {
                 "annotations": {
                     "is_spark": True,
-                    "solomon_resolver_tag" : "spark",
+                    "solomon_resolver_tag": "spark",
                     "solomon_resolver_ports": [27100],
                 },
                 "max_failed_job_count": 10000,
@@ -54,6 +55,10 @@ class SparkDefaultArguments(object):
                 }
             }
         }
+
+
+Worker = namedtuple(
+    'Worker', ['cores', 'memory', 'num', 'cores_overhead', 'timeout'])
 
 
 def _add_conf(spark_conf, spark_args):
@@ -187,15 +192,25 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python
             'No permission for reading cluster, actual permission status is ' + str(permission_status))
     discovery = SparkDiscovery(
         discovery_path=discovery_path, spark_id=spark_id)
+    dedicated_driver_op = read_cluster_conf(
+        str(discovery.conf()), client)['spark_conf'].get('spark.dedicated_operation_mode') == 'True'
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
     _add_python_version(python_version, spark_base_args, client)
+    _add_dedicated_driver_op_conf(spark_base_args, dedicated_driver_op)
     spark_env = _create_spark_env(client, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
     return subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
+
+
+def _add_dedicated_driver_op_conf(spark_args, dedicated_driver_op):
+    if dedicated_driver_op:
+        _add_conf({
+            "spark.driver.resource.driverop.amount": 1
+        }, spark_args)
 
 
 def _add_python_version(python_version, spark_args, client):
@@ -254,7 +269,7 @@ def get_spark_conf(config, enablers):
 
 
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
-                               worker_cores, worker_memory, worker_num, worker_cores_overhead, worker_timeout,
+                               worker,
                                tmpfs_limit, ssd_limit,
                                master_memory_limit, shs_location,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
@@ -262,7 +277,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
                                worker_log_update_interval, worker_log_table_ttl,
                                pool, enablers, client,
-                               preemption_mode, job_types):
+                               preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None):
     if job_types == [] or job_types == None:
         job_types = ['master', 'history', 'worker']
 
@@ -287,11 +302,17 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     worker_log_location = "yt:/{}".format(spark_discovery.worker_log())
     if "spark.workerLog.tablePath" not in config["spark_conf"]:
         config["spark_conf"]["spark.workerLog.tablePath"] = worker_log_location
+    if driver_op_discovery_script:
+        config["spark_conf"]["spark.worker.resource.driverop.amount"] = str(
+            driver_op_resources)
+        config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = driver_op_discovery_script
+        config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = driver_op_discovery_script
+
     worker_command = _launcher_command("Worker", "2g") + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \
         "--wlog-enable-json {4} --wlog-update-interval {5} --wlog-table-path {6} " \
         "--wlog-table-ttl {7}".format(
-            worker_cores, worker_memory, worker_timeout, worker_log_transfer, worker_log_json_mode,
+            worker.cores, worker.memory, worker.timeout, worker_log_transfer, worker_log_json_mode,
             worker_log_update_interval, worker_log_location, worker_log_table_ttl)
 
     if advanced_event_log:
@@ -312,6 +333,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     if "master" in job_types:
         operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
+    elif "driver" in job_types:
+        operation_spec["stderr_table_path"] = str(
+            spark_discovery.stderr() + "_driver")
     else:
         operation_spec["stderr_table_path"] = str(
             spark_discovery.stderr()) + "_worker"
@@ -359,9 +383,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     worker_environment = update(environment, worker_environment)
 
     if enablers.enable_byop:
-        worker_cores_overhead = worker_cores_overhead or SparkDefaultArguments.SPARK_WORKER_CORES_BYOP_OVERHEAD
+        worker_cores_overhead = worker.cores_overhead or SparkDefaultArguments.SPARK_WORKER_CORES_BYOP_OVERHEAD
     else:
-        worker_cores_overhead = worker_cores_overhead or SparkDefaultArguments.SPARK_WORKER_CORES_OVERHEAD
+        worker_cores_overhead = worker.cores_overhead or SparkDefaultArguments.SPARK_WORKER_CORES_OVERHEAD
 
     common_task_spec = {
         "restart_completed_jobs": True,
@@ -399,6 +423,11 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         }
         worker_environment["SPARK_LOCAL_DIRS"] = "."
 
+    driver_task_spec = copy.deepcopy(worker_task_spec)
+    driver_environment = driver_task_spec["environment"]
+    if driver_op_resources:
+        driver_environment["SPARK_DRIVER_RESOURCE"] = str(driver_op_resources)
+
     builder = VanillaSpecBuilder()
     if "master" in job_types:
         builder.begin_task("master") \
@@ -419,11 +448,20 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             .end_task()
     if "worker" in job_types:
         builder.begin_task("workers") \
-            .job_count(worker_num) \
+            .job_count(worker.num) \
             .command(worker_command) \
-            .memory_limit(_parse_memory(worker_memory) + _parse_memory(tmpfs_limit)) \
-            .cpu_limit(worker_cores + worker_cores_overhead) \
+            .memory_limit(_parse_memory(worker.memory) + _parse_memory(tmpfs_limit)) \
+            .cpu_limit(worker.cores + worker_cores_overhead) \
             .spec(worker_task_spec) \
+            .file_paths(worker_file_paths) \
+            .end_task()
+    if "driver" in job_types:
+        builder.begin_task("drivers") \
+            .job_count(worker.num) \
+            .command(worker_command) \
+            .memory_limit(_parse_memory(worker.memory) + _parse_memory(tmpfs_limit)) \
+            .cpu_limit(worker.cores + worker_cores_overhead) \
+            .spec(driver_task_spec) \
             .file_paths(worker_file_paths) \
             .end_task()
 
@@ -467,7 +505,10 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         worker_log_update_interval=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL,
                         worker_log_table_ttl=SparkDefaultArguments.SPARK_WORKER_LOG_TABLE_TTL,
                         params=None, shs_location=None, spark_cluster_version=None, enablers=None, client=None,
-                        preemption_mode="normal", enable_multi_operation_mode=False):
+                        preemption_mode="normal", enable_multi_operation_mode=False,
+                        dedicated_operation_mode=False,
+                        driver_cores=None, driver_memory=None, driver_num=None,
+                        driver_cores_overhead=None, driver_timeout=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -501,14 +542,26 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param client: YtClient
     :param preemption_mode: 'normal' or 'graceful' for graceful preemption
     :param enable_multi_operation_mode: use several vanilla operations for one cluster
+    :param dedicated_operation_mode: use dedicated operation for drivers
+    :param driver_cores: number of cores that will be available on driver worker
+    :param driver_memory: amount of memory that will be available on driver worker
+    :param driver_num: number of driver workers
+    :param driver_cores_overhead: additional driver worker cores
+    :param driver_timeout: timeout to fail master waiting
     :return:
     """
+    worker = Worker(worker_cores, worker_memory, worker_num,
+                    worker_cores_overhead, worker_timeout)
+    driver = Worker(driver_cores or worker_cores, driver_memory or worker_memory,
+                    driver_num or worker_num, driver_cores_overhead or worker_cores_overhead,
+                    driver_timeout or worker_timeout)
+    dedicated_operation_mode = dedicated_operation_mode and driver.num > 0
+
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
 
     current_operation_id = SparkDiscovery.getOption(
         spark_discovery.operation(), client=client)
-    if current_operation_id is not None and get_operation_state(
-            current_operation_id, client=client).is_running():
+    if current_operation_id is not None:
         if abort_existing:
             abort_spark_operations(spark_discovery, client)
         else:
@@ -524,7 +577,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     validate_cluster_version(spark_cluster_version, client=client)
     validate_custom_params(params)
     validate_mtn_config(enablers, network_project, tvm_id, tvm_secret)
-    validate_worker_num(worker_num, worker_num_limit(global_conf))
+    validate_worker_num(worker.num, worker_num_limit(global_conf))
 
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(
@@ -532,6 +585,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     update_config_inplace(dynamic_config, params)
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
+    dynamic_config['spark_conf']['spark.dedicated_operation_mode'] = dedicated_operation_mode
 
     enablers = enablers or SpytEnablers()
     enablers.apply_config(dynamic_config)
@@ -542,11 +596,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'operation_alias': operation_alias,
         'spark_discovery': spark_discovery,
         'config': dynamic_config,
-        'worker_cores': worker_cores,
-        'worker_memory': worker_memory,
-        'worker_num': worker_num,
-        'worker_cores_overhead': worker_cores_overhead,
-        'worker_timeout': worker_timeout,
+        'worker': worker,
         'tmpfs_limit': tmpfs_limit,
         'ssd_limit': ssd_limit,
         'master_memory_limit': master_memory_limit,
@@ -569,25 +619,32 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'job_types': ['master', 'history', 'worker']
     }
 
-    op = None
+    master_args = args.copy()
     if enable_multi_operation_mode:
-        master_args = args.copy()
         master_args['job_types'] = ['master', 'history']
+    master_builder = build_spark_operation_spec(**master_args)
+    op = run_operation(master_builder, sync=False, client=client)
+    _wait_master_start(op, spark_discovery, client)
+    logger.info("Master operation %s", op.id)
+
+    if enable_multi_operation_mode:
         child_args = args.copy()
         child_args['job_types'] = ['worker']
-        master_builder = build_spark_operation_spec(**master_args)
         child_builder = build_spark_operation_spec(**child_args)
-        op = run_operation(master_builder, sync=False, client=client)
-        _wait_master_start(op, spark_discovery, client)
         op_child = run_operation(child_builder, sync=False, client=client)
         _wait_child_start(op_child, spark_discovery, client)
-        logger.info("Master operation %s, child operation %s",
-                    op.id, op_child.id)
-    else:
-        builder = build_spark_operation_spec(**args)
-        op = run_operation(builder, sync=False, client=client)
-        _wait_master_start(op, spark_discovery, client)
-        logger.info("Operation %s", op.id)
+        logger.info("Child operation %s", op_child.id)
+
+    if dedicated_operation_mode:
+        driver_args = args.copy()
+        driver_args['job_types'] = ['driver']
+        driver_args['worker'] = driver
+        driver_args['driver_op_resources'] = 100
+        driver_args['driver_op_discovery_script'] = '/slot/sandbox/tmpfs/spark/bin/driver-op-discovery.sh'
+        driver_builder = build_spark_operation_spec(**driver_args)
+        op_driver = run_operation(driver_builder, sync=False, client=client)
+        _wait_child_start(op_driver, spark_discovery, client)
+        logger.info("Driver operation %s", op_driver.id)
 
     master_address = SparkDiscovery.get(
         spark_discovery.master_webui(), client=client)

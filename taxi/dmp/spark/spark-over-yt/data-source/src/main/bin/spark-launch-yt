@@ -7,7 +7,7 @@ import subprocess
 from yt.wrapper import YtClient
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.http_helpers import get_user_name
-from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
+from spyt.standalone import Worker, start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
 from spyt import utils as spark_utils
 
 
@@ -90,6 +90,24 @@ def main():
                        dest='worker_log_json_mode', action='store_false')
     parser.set_defaults(worker_log_json_mode=False)
 
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--disable-dedicated-driver-operation-mode',
+                       dest='dedicated_operation_mode', action='store_false')
+    subgroup = parser.add_argument_group(
+        '(experimental) run driver in dedicated operation')
+    subgroup.add_argument('--enable-dedicated-driver-operation-mode',
+                          dest='dedicated_operation_mode', action='store_true', default=True)
+    subgroup.add_argument("--driver-cores", required=False,
+                          type=int, help="same as worker-cores by default")
+    subgroup.add_argument("--driver-memory", required=False,
+                          type=int, help="same as worker-memory by default")
+    subgroup.add_argument("--driver-num", required=True,
+                          type=int, help="Number of driver workers")
+    subgroup.add_argument("--driver-cores-overhead", required=False,
+                          type=int, help="same as worker-cores-overhead by default")
+    subgroup.add_argument("--driver-timeout", required=False,
+                          help="same as worker-timeout by default")
+
     args, unknown_args = spark_utils.parse_args(parser)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
@@ -127,7 +145,13 @@ def main():
                         ),
                         client=yt_client,
                         preemption_mode=args.preemption_mode,
-                        enable_multi_operation_mode=args.enable_multi_operation_mode)
+                        enable_multi_operation_mode=args.enable_multi_operation_mode,
+                        dedicated_operation_mode=args.dedicated_operation_mode,
+                        driver_cores=args.driver_cores,
+                        driver_memory=args.driver_memory,
+                        driver_num=args.driver_num,
+                        driver_cores_overhead=args.driver_cores_overhead,
+                        driver_timeout=args.driver_timeout)
 
 
 if __name__ == '__main__':
