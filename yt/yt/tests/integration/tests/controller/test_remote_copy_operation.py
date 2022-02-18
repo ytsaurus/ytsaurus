@@ -11,7 +11,7 @@ from yt_commands import (
     make_ace, insert_rows, select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table, merge,
     remote_copy, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table,
-    multicell_sleep, set_banned_flag,
+    multicell_sleep, set_banned_flag, sorted_dicts,
     raises_yt_error, get_driver,
     create_pool, update_pool_tree_config_option,
     update_controller_agent_config)
@@ -27,7 +27,7 @@ import yt.yson as yson
 import pytest
 
 import time
-import __builtin__
+import builtins
 
 
 ##################################################################
@@ -235,13 +235,13 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
         )
 
-        assert sorted(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
+        assert sorted_dicts(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
     @authors("ignat")
     def test_multi_chunk_sorted_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        for value in xrange(10):
+        for value in range(10):
             write_table(
                 "<append=true;sorted_by=[a]>//tmp/t1",
                 {"a": value},
@@ -256,7 +256,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "job_count": 10},
         )
 
-        assert read_table("//tmp/t2") == [{"a": value} for value in xrange(10)]
+        assert read_table("//tmp/t2") == [{"a": value} for value in range(10)]
         assert get("//tmp/t2/@chunk_count") == 10
 
     @authors("ignat")
@@ -273,7 +273,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "job_count": 2},
         )
 
-        assert sorted(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
+        assert sorted_dicts(read_table("//tmp/t2")) == [{"a": "b"}, {"c": "d"}]
         assert get("//tmp/t2/@chunk_count") == 2
 
     @authors("ignat")
@@ -412,7 +412,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table(
             "//tmp/t1",
-            [{"a": i} for i in xrange(50)],
+            [{"a": i} for i in range(50)],
             max_row_buffer_size=1,
             table_writer={"desired_chunk_size": 1},
             driver=self.remote_driver,
@@ -449,7 +449,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             # TODO(babenko): wait for cluster sync
             time.sleep(2)
 
-        assert read_table("//tmp/t2") == [{"a": i} for i in xrange(50)]
+        assert read_table("//tmp/t2") == [{"a": i} for i in range(50)]
 
     @authors("ignat")
     def test_failed_cases(self):
@@ -1231,8 +1231,8 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
         )
 
         assert not\
-            __builtin__.set(get("//tmp/t1/@chunk_ids")) &\
-            __builtin__.set(get("//tmp/t2/@chunk_ids"))
+            builtins.set(get("//tmp/t1/@chunk_ids")) &\
+            builtins.set(get("//tmp/t2/@chunk_ids"))
         remove("//tmp/t1")
         assert get("//tmp/t2/@external")
         assert read_table("//tmp/t2") == [{"key": 1, "value": "foo"}]

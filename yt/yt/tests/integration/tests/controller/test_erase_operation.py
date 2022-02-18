@@ -182,13 +182,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/table", [{"key": i, "value": "foo"} for i in xrange(10)])
+        write_table("//tmp/table", [{"key": i, "value": "foo"} for i in range(10)])
 
         erase("//tmp/table[5:]")
 
         assert get("//tmp/table/@schema/@strict")
         assert get("//tmp/table/@schema_mode") == "strong"
-        assert read_table("//tmp/table") == [{"key": i, "value": "foo"} for i in xrange(5)]
+        assert read_table("//tmp/table") == [{"key": i, "value": "foo"} for i in range(5)]
 
 ##################################################################
 

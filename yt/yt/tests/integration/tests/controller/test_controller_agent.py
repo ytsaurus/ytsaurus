@@ -22,7 +22,7 @@ from flaky import flaky
 import time
 from collections import defaultdict
 
-import __builtin__
+import builtins
 
 ##################################################################
 
@@ -168,18 +168,18 @@ class TestControllerMemoryUsage(YTEnvSetup):
         wait(lambda: exists(large_usage_path))
         wait(lambda: get(large_usage_path) > 100 * 1024 * 1024)
 
-        # No nonlocal keyword in 2.x :(
-        nonlocal = {"peak_memory_usage": None}
+        peak_memory_usage = None
 
         def check_operation_attributes(usage_lower_bound):
+            nonlocal peak_memory_usage
             info = get_operation(op_large.id, attributes=["memory_usage", "progress"], include_runtime=True)
             current_peak_memory_usage = info["progress"].get("peak_memory_usage")
             if current_peak_memory_usage is None:
                 return False
 
             # Check that the attribute is monotonic.
-            assert nonlocal["peak_memory_usage"] is None or current_peak_memory_usage >= nonlocal["peak_memory_usage"]
-            nonlocal["peak_memory_usage"] = current_peak_memory_usage
+            assert peak_memory_usage is None or current_peak_memory_usage >= peak_memory_usage
+            peak_memory_usage = current_peak_memory_usage
 
             return info["memory_usage"] > usage_lower_bound and current_peak_memory_usage > usage_lower_bound
 
@@ -238,7 +238,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         write_table("<append=%true>//tmp/t_in", [{"a": 0}])
 
         ops = []
-        for i in xrange(45):
+        for i in range(45):
             out = "//tmp/t_out" + str(i)
             create("table", out, attributes={"replication_factor": 1})
             op = map(
@@ -259,7 +259,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         for op in ops:
             address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
 
-        operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
+        operation_balance = sorted(builtins.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
         print_debug("BALANCE_RATIO", balance_ratio)
         if not (0.5 <= balance_ratio <= 0.8):
@@ -332,7 +332,7 @@ class TestCustomControllerQueues(YTEnvSetup):
 
     @authors("ignat")
     def test_run_map(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -346,7 +346,7 @@ class TestCustomControllerQueues(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_run_map_reduce(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -361,7 +361,7 @@ class TestCustomControllerQueues(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_run_merge_erase(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
@@ -371,7 +371,7 @@ class TestCustomControllerQueues(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_run_reduce(self):
-        data = [{"foo": i} for i in xrange(3)]
+        data = [{"foo": i} for i in range(3)]
         create("table", "//tmp/in")
         create("table", "//tmp/out")
         write_table("//tmp/in", data, sorted_by=["foo"])
@@ -392,7 +392,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
+        write_table("<append=%true>//tmp/t_input", [{"key": i} for i in range(2)])
 
         op = map(
             command="sleep 100",

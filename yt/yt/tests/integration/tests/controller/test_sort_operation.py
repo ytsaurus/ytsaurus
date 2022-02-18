@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, copy, remove, exists,
-    create_account, create_user, assert_statistics, raises_yt_error,
+    create_account, create_user, assert_statistics, raises_yt_error, sorted_dicts,
     make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
@@ -15,7 +15,8 @@ from yt.common import YtError
 import pytest
 
 import random
-import __builtin__
+import builtins
+import yt.yson as yson
 from copy import deepcopy
 
 ##################################################################
@@ -36,13 +37,13 @@ def check_operation_tasks(op, expected):
             tasks.append(direction["source_name"])
         if direction["target_name"] != "output":
             tasks.append(direction["target_name"])
-    return __builtin__.set(tasks) == __builtin__.set(expected)
+    return builtins.set(tasks) == builtins.set(expected)
 
 
 def simple_sort_1_phase(in_, out, sort_by):
     op = sort(in_=in_, out=out, sort_by=sort_by)
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {"simple_sort"}
+    assert builtins.set(get_operation_job_types(op.id)) == {"simple_sort"}
     assert check_operation_tasks(op, ["simple_sort"])
     return op
 
@@ -50,7 +51,7 @@ def simple_sort_1_phase(in_, out, sort_by):
 def simple_sort_2_phase(in_, out, sort_by):
     op = sort(in_=in_, out=out, sort_by=sort_by, spec={"data_weight_per_sort_job": 1})
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {
+    assert builtins.set(get_operation_job_types(op.id)) == {
         "simple_sort",
         "sorted_merge",
     }
@@ -69,7 +70,7 @@ def sort_2_phase(in_, out, sort_by):
         },
     )
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {
+    assert builtins.set(get_operation_job_types(op.id)) == {
         "partition",
         "final_sort",
     }
@@ -89,7 +90,7 @@ def sort_2_phase_depth_2(in_, out, sort_by):
         },
     )
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {
+    assert builtins.set(get_operation_job_types(op.id)) == {
         "partition",
         "final_sort",
     }
@@ -115,7 +116,7 @@ def sort_3_phase(in_, out, sort_by):
         },
     )
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {
+    assert builtins.set(get_operation_job_types(op.id)) == {
         "intermediate_sort",
         "partition",
         "sorted_merge",
@@ -144,7 +145,7 @@ def sort_3_phase_depth_2(in_, out, sort_by):
         },
     )
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {
+    assert builtins.set(get_operation_job_types(op.id)) == {
         "intermediate_sort",
         "partition",
         "sorted_merge",
@@ -179,7 +180,7 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
             prev = k
         return count
 
-    key_count = len(__builtin__.set(get_key(r) for r in read_table(in_)))
+    key_count = len(builtins.set(get_key(r) for r in read_table(in_)))
 
     tmp = in_ + ".tmp"
     copy(in_, tmp)
@@ -201,7 +202,7 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
 
     if validate_types:
         job_types = {"unordered_merge", "partition"}
-        assert __builtin__.set(get_operation_job_types(op.id)) == job_types
+        assert builtins.set(get_operation_job_types(op.id)) == job_types
         task_names = ["partition(0)", "unordered_merge"]
         assert check_operation_tasks(op, task_names)
     return op
@@ -412,11 +413,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
     def test_max_value_count_per_simple_sort_job(self):
         schema = make_schema(
             [{"name": "key", "type": "string"}] +
-            [{"name": "value{}".format(i), "type": "string"} for i in xrange(200)]
+            [{"name": "value{}".format(i), "type": "string"} for i in range(200)]
         )
 
         create("table", "//tmp/t_in", attributes={"schema": schema})
-        data = [{"key" : str(i)} for i in xrange(10)]
+        data = [{"key" : str(i)} for i in range(10)]
         shuffled_data = data[:]
         random.shuffle(shuffled_data)
         write_table("//tmp/t_in", shuffled_data)
@@ -705,7 +706,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {"key": "zzz"}
 
         create("table", "//tmp/t_in")
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4])  # some random order
 
         create("table", "//tmp/t_out")
@@ -737,7 +738,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {"key": "zzz"}
 
         create("table", "//tmp/t_in")
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             row = [v1, v2, v3, v4, v5]
             random.shuffle(row)
             write_table("<append=true>//tmp/t_in", row)  # some random order
@@ -766,7 +767,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             self.skip_if_legacy_sorted_pool()
 
         create("table", "//tmp/t_in")
-        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in range(500)]
         if sort_order == "descending":
             rows = rows[::-1]
         shuffled_rows = rows[::]
@@ -793,7 +794,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
     @authors("dakovalkov")
     def test_sort_with_row_count_limit(self):
         create("table", "//tmp/t_in")
-        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in xrange(500)]
+        rows = [{"key": "k%03d" % (i), "value": "v%03d" % (i)} for i in range(500)]
         shuffled_rows = rows[::]
         random.shuffle(shuffled_rows)
 
@@ -814,7 +815,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
         output_rows = read_table("//tmp/t_out")
-        assert sorted(output_rows) == output_rows
+        assert sorted_dicts(output_rows) == output_rows
         assert len(output_rows) < 500
         assert len(output_rows) >= 10
 
@@ -832,7 +833,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
             return row
 
-        rows = [generate_row(i) for i in xrange(500)]
+        rows = [generate_row(i) for i in range(500)]
         shuffled_rows = rows[::]
         random.shuffle(shuffled_rows)
 
@@ -861,7 +862,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {"key": "zzz"}
 
         create("table", "//tmp/t_in")
-        for i in xrange(0, 10):
+        for i in range(0, 10):
             write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4])  # some random order
 
         create("table", "//tmp/t_out")
@@ -991,7 +992,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         output = "//tmp/out"
         create("table", input, attributes={"optimize_for": optimize_for})
         create("table", output)
-        for i in xrange(20, 0, -1):
+        for i in range(20, 0, -1):
             write_table("<append=true>" + input, [{"key": i, "value": [1, 2]}])
 
         args = {
@@ -1003,7 +1004,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(**args)
         assert get("//tmp/out/@sorted")
-        expected = [{"key": i} for i in xrange(1, 21)]
+        expected = [{"key": i} for i in range(1, 21)]
         if sort_order == "descending":
             expected = expected[::-1]
         assert read_table(output + "{key}") == expected
@@ -1238,7 +1239,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
 
-        for i in xrange(10, 0, -2):
+        for i in range(10, 0, -2):
             write_table(
                 "<append=true>//tmp/input",
                 [{"key": i, "value": "foo"}, {"key": i - 1, "value": "foo"}],
@@ -1253,7 +1254,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1, 11)]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in range(1, 11)]
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
@@ -1342,7 +1343,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
 
-        for i in xrange(10, 0, -2):
+        for i in range(10, 0, -2):
             write_table(
                 "<append=true>//tmp/input",
                 [{"key": i, "value": "foo"}, {"key": i - 1, "value": "foo"}],
@@ -1357,7 +1358,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema/@strict")
         assert get("//tmp/output/@schema/@unique_keys")
-        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1, 11)]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in range(1, 11)]
 
         write_table(
             "<sorted_by=[key]>//tmp/input",
@@ -1374,7 +1375,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         erase("//tmp/input")
 
-        for i in xrange(2):
+        for i in range(2):
             write_table("<append=%true; sorted_by=[key]>//tmp/input", {"key": 1, "value": "foo"})
 
         with pytest.raises(YtError):
@@ -1437,18 +1438,19 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/t", out="//tmp/t_out", sort_by=sort_by)
             actual = read_table("//tmp/t_out")
 
-            # Oh Yson
-            for row in actual:
-                for k in row.iterkeys():
-                    if row[k] == None:  # noqa
-                        row[k] = None
+            # Equivalent for null which is comparable with YsonInt64 and int.
+            comparable_null = yson.YsonInt64(-2**63)
 
-            key = lambda r: [r[k] for k in sort_by]  # noqa
-            for i in xrange(1, len(actual)):
+            # Oh Yson
+            def fix_null(x):
+                return comparable_null if x == yson.YsonEntity() else x
+
+            key = lambda r: [fix_null(r[k]) for k in sort_by]  # noqa
+            for i in range(1, len(actual)):
                 assert key(actual[i - 1]) <= key(actual[i])
 
             wide_by = sort_by + [c["name"] for c in schema if c["name"] not in sort_by]
-            key = lambda r: [r[k] for k in wide_by]  # noqa
+            key = lambda r: [fix_null(r[k]) for k in wide_by]  # noqa
             assert sorted(actual, key=key) == sorted(rows, key=key)
 
         verify_sort(["key1"])
@@ -1474,8 +1476,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/t", [{"k2": i} for i in xrange(2)])
-        assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        write_table("//tmp/t", [{"k2": i} for i in range(2)])
+        assert read_table("//tmp/t") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
         sort_by = [{"name": "k1", "sort_order": sort_order}]
         sort(in_="//tmp/t", out="//tmp/t", sort_by=sort_by)
@@ -1495,13 +1497,13 @@ class TestSchedulerSortCommands(YTEnvSetup):
             strict=True,
         )
 
-        expected = [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        expected = [{"k1": i * 2, "k2": i} for i in range(2)]
         if sort_order == "descending":
             expected = expected[::-1]
         assert read_table("//tmp/t") == expected
 
         create("table", "//tmp/t2")
-        for i in xrange(5):
+        for i in range(5):
             write_table("//tmp/t2", {"k2": i})
 
         for schema_inference_mode in ("auto", "from_output"):
@@ -1561,7 +1563,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/t_in", [{"value": "A" * 1024} for i in xrange(10)])
+        write_table("//tmp/t_in", [{"value": "A" * 1024} for i in range(10)])
 
         sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="value", spec={"job_count": 1})
 
@@ -1591,7 +1593,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
         create("table", "//tmp/t_out")
-        rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in xrange(2)]
+        rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in range(2)]
         if sort_order == "descending":
             rows = rows[::-1]
         write_table("//tmp/t", rows)
@@ -1679,7 +1681,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             "//tmp/t_out",
             attributes={"schema": [{"name": "key", "type": "int64", "sort_order": sort_order}]},
         )
-        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
         if sort_order == "descending":
             rows = rows[::-1]
         write_table("//tmp/t", rows)
@@ -1696,7 +1698,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
     def test_query_filtering(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
         with pytest.raises(YtError):
             sort(in_="//tmp/t1", out="//tmp/t2", spec={"input_query": "a where a > 0"})
@@ -1716,7 +1718,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort_by="key",
             spec={"pivot_keys": [["01"], ["43"]]},
         )
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
@@ -1755,7 +1757,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
         op.track()
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 23, 24, 25, 27]
         assert check_operation_tasks(op, {"partition(0)", "partition(1)", "partition(2)", "final_sort"})
@@ -1777,7 +1779,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort_by=[{"name": "key", "sort_order": "descending"}],
             spec={"pivot_keys": [["43"], ["01"]]},
         )
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows)[::-1])
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows)[::-1])
         chunk_ids = get("//tmp/t2/@chunk_ids")
         # Partitions are (+oo, 43), [43, 01), [01, -oo).
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
@@ -1837,7 +1839,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             out="//tmp/out2",
             sort_by=[{"name": "foo", "sort_order": sort_order}],
         )
-        assert sorted(read_table("//tmp/out1")) == [
+        assert sorted_dicts(read_table("//tmp/out1")) == [
             {"key": 1, "value": "b"},
             {"key": 2, "value": "a"},
         ]
@@ -1964,7 +1966,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 ]
             },
         )
-        data = [{"key": i % 10, "value": [1] * i} for i in xrange(100, 1, -1)]
+        data = [{"key": i % 10, "value": [1] * i} for i in range(100, 1, -1)]
         for d in data:
             write_table("<append=%true>//tmp/in", [d])
         create("table", "//tmp/out")
@@ -2034,7 +2036,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
 
-        data = [{"key": [i % 10]} for i in xrange(100, 1, -1)]
+        data = [{"key": [i % 10]} for i in range(100, 1, -1)]
         for d in data:
             write_table("<append=%true>//tmp/in", [d])
 
@@ -2064,7 +2066,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             },
         )
         op.track()
-        assert __builtin__.set(get_operation_job_types(op.id)) == {
+        assert builtins.set(get_operation_job_types(op.id)) == {
             "simple_sort",
             "sorted_merge",
         }

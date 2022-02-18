@@ -34,7 +34,7 @@ class TestNodeHeartbeats(YTEnvSetup):
 
         create("table", "//tmp/in")
         create("table", "//tmp/out")
-        for _ in xrange(5):
+        for _ in range(5):
             write_table("<append=true>//tmp/in", {"foo": "bar"})
 
         command = "cat;"

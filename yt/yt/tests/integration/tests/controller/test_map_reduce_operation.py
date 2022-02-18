@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create,
-    ls, get,
+    ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort,
     abort_job, get_operation,
@@ -87,13 +87,13 @@ for l in sys.stdin:
     TWO_INPUT_SCHEMAFUL_REDUCER = TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE.format(
         second_struct="struct1",
         second_struct_a="a1",
-    )
+    ).encode()
     TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS = TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE.format(
         second_struct="struct",
         second_struct_a="a",
-    )
+    ).encode()
 
-    DROP_TABLE_INDEX_REDUCER = """
+    DROP_TABLE_INDEX_REDUCER = b"""
 import sys, json
 for l in sys.stdin:
     row = json.loads(l)
@@ -145,14 +145,14 @@ Wish you were here.
         for s in stop_symbols:
             text = text.replace(s, " ")
 
-        mapper = """
+        mapper = b"""
 import sys
 
 for line in sys.stdin:
     for word in line.lstrip("line=").split():
         print "word=%s\\tcount=1" % word
 """
-        reducer = """
+        reducer = b"""
 import sys
 
 from itertools import groupby
@@ -379,7 +379,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             [{"x": 2, "y": 3}, {"x": 2, "y": 2}, {"x": 2, "y": 4}],
         )
 
-        reducer = """
+        reducer = b"""
 import sys
 for l in sys.stdin:
   l = l.strip('\\n')
@@ -561,7 +561,7 @@ print "x={0}\ty={1}".format(x, y)
             assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
             intermediate_acl = get(operation_path + "/intermediate/@acl", tx=scheduler_transaction_id)
-            assert sorted(intermediate_acl) == sorted(
+            assert sorted_dicts(intermediate_acl) == sorted_dicts(
                 [
                     # "authenticated_user" of operation.
                     make_ace("allow", "root", "read"),
@@ -830,7 +830,7 @@ print "x={0}\ty={1}".format(x, y)
 
         op.track()
 
-        assert get(op.get_path() + "/@progress/partition_reduce_jobs/aborted") > 0
+        assert get(op.get_path() + "/@progress/partition_reduce_jobs/aborted/total") > 0
         assert get(op.get_path() + "/@progress/partition_jobs/lost") == 0
 
     @authors("max42")
@@ -902,7 +902,7 @@ print "x={0}\ty={1}".format(x, y)
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
         map_reduce(
             in_="//tmp/t1",
@@ -981,7 +981,7 @@ print "x={0}\ty={1}".format(x, y)
             },
         )
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
 
         map_reduce(
@@ -994,7 +994,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in range(10)])
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
 
@@ -1021,7 +1021,7 @@ print "x={0}\ty={1}".format(x, y)
             },
         )
 
-        write_table("//tmp/t1", [{"k2": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"k2": i} for i in range(2)])
 
         map_reduce(
             in_="//tmp/t1",
@@ -1032,14 +1032,14 @@ print "x={0}\ty={1}".format(x, y)
         )
 
         assert get("//tmp/t2/@schema_mode") == "strong"
-        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
     @authors("klyachin")
     @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_reduce_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
-        original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in xrange(31)]
+        original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(31)]
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row, verbose=False)
 
@@ -1058,7 +1058,7 @@ print "x={0}\ty={1}".format(x, y)
             },
         )
 
-        expected = [{"lines": str(2 ** i)} for i in xrange(5)]
+        expected = [{"lines": str(2 ** i)} for i in range(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
@@ -1289,7 +1289,7 @@ print "x={0}\ty={1}".format(x, y)
             spec={"pivot_keys": [["01"], ["43"]]},
         )
 
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
@@ -1301,7 +1301,7 @@ print "x={0}\ty={1}".format(x, y)
             spec={"pivot_keys": [["01"], ["43"]]},
         )
 
-        assert_items_equal(read_table("//tmp/t3"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t3"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t3/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
@@ -1324,7 +1324,7 @@ print "x={0}\ty={1}".format(x, y)
             spec={"pivot_keys": [[]]},
         )
 
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [50]
 
@@ -1336,7 +1336,7 @@ print "x={0}\ty={1}".format(x, y)
             spec={"pivot_keys": [[], ["25"]]},
         )
 
-        assert_items_equal(read_table("//tmp/t3"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t3"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t3/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [25, 25]
 
@@ -1386,7 +1386,7 @@ print "x={0}\ty={1}".format(x, y)
             sort_by=["key"],
             spec={"pivot_keys": [["01"], ["22"], ["43"]], "max_partition_factor": 2},
         )
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 21, 21]
 
@@ -1412,7 +1412,7 @@ print "x={0}\ty={1}".format(x, y)
             spec={"pivot_keys": [["43"], ["01"]]},
         )
 
-        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t2"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
         # Partitions are (+oo, 43), [43, 01), [01, -oo).
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
@@ -1425,7 +1425,7 @@ print "x={0}\ty={1}".format(x, y)
             spec={"pivot_keys": [["43"], ["01"]]},
         )
 
-        assert_items_equal(read_table("//tmp/t3"), sorted(rows))
+        assert_items_equal(read_table("//tmp/t3"), sorted_dicts(rows))
         chunk_ids = get("//tmp/t3/@chunk_ids")
         # Partitions are (+oo, 43), [43, 01), [01, -oo).
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 6, 42]
@@ -1470,7 +1470,7 @@ print "x={0}\ty={1}".format(x, y)
         rows = [{"a": i, "b": str(i) * 3} for i in range(50)]
         write_table("//tmp/t1", rows)
 
-        mapper = """
+        mapper = b"""
 import sys, json
 for l in sys.stdin:
     row = json.loads(l)
@@ -1506,7 +1506,7 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/t2")
         expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     def test_single_intermediate_schema_trivial_mapper(self):
@@ -1553,7 +1553,7 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/out")
         expected_rows = rows
-        assert sorted(result_rows) == sorted(expected_rows)
+        assert sorted_dicts(result_rows) == sorted_dicts(expected_rows)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -1629,10 +1629,10 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/out")
         expected_rows = []
-        for a in xrange(row_count):
+        for a in range(row_count):
             row = {"a": a, "struct2": {"a2": a ** 2 + a ** 3, "b2": 3 * str(a)}}
             expected_rows.append(row)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -1791,7 +1791,7 @@ for l in sys.stdin:
         rows = [{"a": i, "b": str(i) * 3} for i in range(row_count)]
         write_table("//tmp/t1", rows)
 
-        mapper = """
+        mapper = b"""
 import os, sys, json
 for l in sys.stdin:
     row = json.loads(l)
@@ -1832,10 +1832,10 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/t2")
         expected_rows = []
-        for a in xrange(row_count // 2):
+        for a in range(row_count // 2):
             row = {"a": a, "struct2": {"a2": 4 * a, "b2": 3 * str(2 * a)}}
             expected_rows.append(row)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("cat_combiner", [False, True])
@@ -1884,7 +1884,7 @@ for l in sys.stdin:
         rows = [{"a": i, "b": str(i) * 3} for i in range(row_count)]
         write_table("//tmp/t1", rows)
 
-        mapper = """
+        mapper = b"""
 import os, sys, json
 for l in sys.stdin:
     row = json.loads(l)
@@ -1899,7 +1899,7 @@ for l in sys.stdin:
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
 
-        reduce_combiner = """
+        reduce_combiner = b"""
 import os, sys, json
 table_index = 0
 for l in sys.stdin:
@@ -1948,7 +1948,7 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/t2")
         expected_rows = []
-        for a in xrange(row_count // 2):
+        for a in range(row_count // 2):
             if cat_combiner:
                 row = {"a": a, "struct2": {"a2": 4 * a, "b2": 3 * str(2 * a)}}
             else:
@@ -1960,7 +1960,7 @@ for l in sys.stdin:
                     },
                 }
             expected_rows.append(row)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -2001,7 +2001,7 @@ for l in sys.stdin:
         rows = [{"a": i, "b": str(i) * 3} for i in range(row_count)]
         write_table("//tmp/t1", rows)
 
-        mapper = """
+        mapper = b"""
 import os, sys, json
 for l in sys.stdin:
     row = json.loads(l)
@@ -2040,10 +2040,10 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/t2")
         expected_rows = []
-        for a in xrange(row_count):
+        for a in range(row_count):
             row = {"a": a, "struct2": {"a2": a ** 2 + a ** 3, "b2": 3 * str(a)}}
             expected_rows.append(row)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -2108,10 +2108,10 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/out")
         expected_rows = []
-        for a in xrange(row_count):
+        for a in range(row_count):
             row = {"a": a, "struct2": {"a2": a ** 2 + a ** 3, "b2": 3 * str(a)}}
             expected_rows.append(row)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     def test_several_intermediate_schemas_composite_in_key(self):
@@ -2195,9 +2195,9 @@ for l in sys.stdin:
     os.write(4, json.dumps(out_row_2) + "\\n")
 """
         create("file", "//tmp/mapper.py")
-        write_file("//tmp/mapper.py", mapper.format(row_count=row_count))
+        write_file("//tmp/mapper.py", mapper.format(row_count=row_count).encode())
 
-        reducer = """
+        reducer = b"""
 import os, sys, json
 table_index = 0
 rows_got = 0
@@ -2217,20 +2217,20 @@ for l in sys.stdin:
         list2 = row["struct1"]["list1"]
     rows_got += 1
     if rows_got == 2:
-        out_row = {{
+        out_row = {
             "key1": row["key1"],
-            "struct2": {{
+            "struct2": {
                 "a2": key2_sum,
                 "b2": b,
                 "list2": list2,
-            }},
-        }}
+            },
+        }
         sys.stdout.write(json.dumps(out_row) + "\\n")
         rows_got = 0
 """
 
         create("file", "//tmp/reducer.py")
-        write_file("//tmp/reducer.py", reducer.format())
+        write_file("//tmp/reducer.py", reducer)
 
         map_reduce(
             in_="//tmp/t1",
@@ -2255,7 +2255,7 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/t2")
         expected_rows = []
-        for a in xrange(row_count):
+        for a in range(row_count):
             row = {
                 "key1": [(row_count - a - 1) // 10, str(a)],
                 "struct2": {
@@ -2265,7 +2265,7 @@ for l in sys.stdin:
                 },
             }
             expected_rows.append(row)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     def test_distinct_intermediate_schemas_trivial_mapper_json(self):
@@ -2323,7 +2323,7 @@ for l in sys.stdin:
                     "b": str(a) * 3,
                 },
             }
-            for a in xrange(row_count)
+            for a in range(row_count)
         ]
         shuffle(first_rows)
         write_table("//tmp/in1", first_rows)
@@ -2336,12 +2336,12 @@ for l in sys.stdin:
                     "list1": [a] * (a // 10),
                 },
             }
-            for a in xrange(row_count)
+            for a in range(row_count)
         ]
         shuffle(second_rows)
         write_table("//tmp/in2", second_rows)
 
-        reducer = """
+        reducer = b"""
 import os, sys, json
 key2_sum = 0
 list2 = []
@@ -2358,30 +2358,30 @@ for l in sys.stdin:
         key2_sum += sum(row["key2"])
     else:
         if not first_batch_sent:
-            out_row = {{
+            out_row = {
                 "key1": [-111, "-111"],
-                "struct2": {{
+                "struct2": {
                     "a2": key2_sum,
                     "b2": "nothing",
                     "list2": list2,
-                }},
-            }}
+                },
+            }
             sys.stdout.write(json.dumps(out_row) + "\\n")
             first_batch_sent = True
         b = row["struct"]["b"]
         assert table_index == 0
-        out_row = {{
+        out_row = {
             "key1": row.get("key1"),
-            "struct2": {{
+            "struct2": {
                 "a2": 0,
                 "b2": b,
                 "list2": [],
-            }},
-        }}
+            },
+        }
         sys.stdout.write(json.dumps(out_row) + "\\n")
 """
         create("file", "//tmp/reducer.py")
-        write_file("//tmp/reducer.py", reducer.format())
+        write_file("//tmp/reducer.py", reducer)
 
         map_reduce(
             in_=["//tmp/in1", "//tmp/in2"],
@@ -2397,7 +2397,7 @@ for l in sys.stdin:
 
         result_rows = read_table("//tmp/out")
         expected_rows = []
-        for a in xrange(row_count):
+        for a in range(row_count):
             row_1 = {
                 "key1": [(row_count - a - 1) // 10, str(a)],
                 "struct2": {
@@ -2410,13 +2410,13 @@ for l in sys.stdin:
         row_2 = {
             "key1": [-111, "-111"],
             "struct2": {
-                "a2": sum(a * (a // 10) for a in xrange(row_count)),
+                "a2": sum(a * (a // 10) for a in range(row_count)),
                 "b2": "nothing",
-                "list2": sum(([a] * (a // 10) for a in xrange(row_count)), []),
+                "list2": sum(([a] * (a // 10) for a in range(row_count)), []),
             },
         }
         expected_rows.append(row_2)
-        assert sorted(expected_rows) == sorted(result_rows)
+        assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
     @authors("levysotsky")
     def test_wrong_intermediate_schemas(self):
@@ -2500,7 +2500,7 @@ for l in sys.stdin:
         write_file("//tmp/reducer.py", self.DROP_TABLE_INDEX_REDUCER)
 
         def run(sort_by, schemas, rows):
-            inputs = ["//tmp/in{}".format(i) for i in xrange(len(schemas))]
+            inputs = ["//tmp/in{}".format(i) for i in range(len(schemas))]
             for path, schema, table_rows in zip(inputs, schemas, rows):
                 remove(path, force=True)
                 create("table", path, attributes={"schema": schema})
@@ -2679,7 +2679,7 @@ done
         path = op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split"
         assert get(path) == 1
 
-        assert sorted(read_table("//tmp/t_out{a}", verbose=False)) == sorted(expected)
+        assert sorted_dicts(read_table("//tmp/t_out{a}", verbose=False)) == sorted_dicts(expected)
 
     @authors("gritukan")
     def test_job_speculation(self):

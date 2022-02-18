@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
-    remove, exists,
+    remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
     get_singular_chunk_id, get_chunk_replication_factor,
@@ -82,13 +82,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def _prepare_tables(self):
         t1 = "//tmp/t1"
         create("table", t1)
-        v1 = [{"key" + str(i): "value" + str(i)} for i in xrange(3)]
+        v1 = [{"key" + str(i): "value" + str(i)} for i in range(3)]
         for v in v1:
             write_table("<append=true>" + t1, v)
 
         t2 = "//tmp/t2"
         create("table", t2)
-        v2 = [{"another_key" + str(i): "another_value" + str(i)} for i in xrange(4)]
+        v2 = [{"another_key" + str(i): "another_value" + str(i)} for i in range(4)]
         for v in v2:
             write_table("<append=true>" + t2, v)
 
@@ -156,7 +156,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/t_out/@row_count") == 7
         assert get("//tmp/t_out/@chunk_count") == 2
-        assert sorted(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
+        assert sorted_dicts(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
@@ -196,7 +196,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             out="//tmp/t_out",
         )
 
-        assert sorted(read_table("//tmp/t_out")) == [
+        assert sorted_dicts(read_table("//tmp/t_out")) == [
             {"a": 1},
             {"a": 2},
             {"a": 3},
@@ -1010,7 +1010,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
         create("table", "//tmp/t_out")
-        rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in xrange(2)]
+        rows = [{"k1": i, "k2": i + 1, "v1": i + 2, "v2": i + 3} for i in range(2)]
         if sort_order == "descending":
             rows = rows[::-1]
         write_table("//tmp/t", rows)
@@ -1098,7 +1098,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             "//tmp/t_out",
             attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
-        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
         write_table("//tmp/t", rows)
 
         merge(mode=mode, in_="//tmp/t{key}", out="//tmp/t_out")
@@ -1110,7 +1110,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_query_filtering(self, mode):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
         merge(
             mode=mode,
@@ -1140,7 +1140,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_sorted_merge_query_filtering(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"a": i} for i in range(2)])
 
         with pytest.raises(YtError):
             merge(
@@ -1169,7 +1169,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             "//tmp/t_out",
             attributes={"schema": [{"name": "k", "type": "int64", "sort_order": sort_order}]},
         )
-        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
         write_table("//tmp/t", rows)
 
         merge(
@@ -1199,7 +1199,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_chunk_indices(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<sorted_by=[a];append=%true>//tmp/t1", [{"a": i}])
 
         merge(
@@ -1218,7 +1218,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             out="//tmp/t2",
         )
 
-        assert read_table("//tmp/t2") == [{"a": i} for i in xrange(1, 3)]
+        assert read_table("//tmp/t2") == [{"a": i} for i in range(1, 3)]
 
     @authors("psushin")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -1332,7 +1332,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
 
         merge(
@@ -1343,7 +1343,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in range(10)])
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
@@ -1372,7 +1372,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
 
         merge(
@@ -1384,7 +1384,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in range(10)]
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
@@ -1414,7 +1414,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
 
         assert get("//tmp/input/@sorted_by") == ["key"]
@@ -1428,7 +1428,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in range(10)]
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
@@ -1549,12 +1549,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        write_table("<sorted_by=[k2]>//tmp/t1", [{"k2": i} for i in xrange(2)])
+        write_table("<sorted_by=[k2]>//tmp/t1", [{"k2": i} for i in range(2)])
 
         merge(mode=mode, in_="//tmp/t1", out="//tmp/t2")
 
         assert get("//tmp/t2/@schema_mode") == "strong"
-        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
@@ -1577,7 +1577,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true;>//tmp/input", {"key": i % 3, "value": "foo"})
 
         with pytest.raises(YtError):
@@ -1608,7 +1608,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        write_table("//tmp/t_in", [{"value": "A" * 1024} for i in xrange(10)])
+        write_table("//tmp/t_in", [{"value": "A" * 1024} for i in range(10)])
 
         merge(
             in_="//tmp/t_in",
@@ -1968,8 +1968,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         create("table", schemaless_table)
 
-        write_table(schemaful_table, [{"x": i} for i in xrange(100)])
-        write_table(schemaless_table, [{"x": str(i)} for i in xrange(100, 200)])
+        write_table(schemaful_table, [{"x": i} for i in range(100)])
+        write_table(schemaless_table, [{"x": str(i)} for i in range(100, 200)])
 
         # merging non-strict table with strict table
         with pytest.raises(YtError):
@@ -2012,8 +2012,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        write_table(table1, [{"x": i, "y": i} for i in xrange(100)])
-        write_table(table2, [{"y": i} for i in xrange(100, 200)])
+        write_table(table1, [{"x": i, "y": i} for i in range(100)])
+        write_table(table2, [{"y": i} for i in range(100, 200)])
 
         with pytest.raises(YtError):
             merge(
@@ -2461,7 +2461,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         sync_mount_table("//tmp/in")
 
         n = 20
-        for i in xrange(n):
+        for i in range(n):
             insert_rows("//tmp/in", [{"value": i}])
             sync_freeze_table("//tmp/in")
             sync_unfreeze_table("//tmp/in")
@@ -2477,7 +2477,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         merge(mode="ordered", in_=["//tmp/in"], out="//tmp/out")
 
-        assert read_table("//tmp/out") == [{"value": i} for i in xrange(m, n)]
+        assert read_table("//tmp/out") == [{"value": i} for i in range(m, n)]
 
 
 class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):

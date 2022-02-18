@@ -6,7 +6,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, raises_yt_error, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    ls, get,
+    ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
@@ -88,14 +88,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"key": "value"}])
         op = map(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2")
-        check_all_stderrs(op, "stderr\n", 1)
+        check_all_stderrs(op, b"stderr\n", 1)
 
     @authors("acid", "ignat")
     def test_empty_range(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
-        original_data = [{"index": i} for i in xrange(10)]
+        original_data = [{"index": i} for i in range(10)]
         write_table("//tmp/t1", original_data)
 
         command = "cat"
@@ -141,14 +141,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
 
         count = 1000 * 1000
-        original_data = [{"index": i} for i in xrange(count)]
+        original_data = [{"index": i} for i in range(count)]
         write_table("//tmp/t1", original_data)
 
         command = "cat"
         map(in_="//tmp/t1", out="//tmp/t2", command=command)
 
         new_data = read_table("//tmp/t2", verbose=False)
-        assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
+        assert sorted_dicts(new_data) == sorted_dicts([{"index": i} for i in range(count)])
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -157,12 +157,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t_output2")
 
         count = 1000
-        original_data = [{"index": i} for i in xrange(count)]
+        original_data = [{"index": i} for i in range(count)]
         write_table("//tmp/t_input", original_data)
 
         file = "//tmp/some_file.txt"
         create("file", file)
-        write_file(file, "{value=42};\n")
+        write_file(file, b"{value=42};\n")
 
         command = 'bash -c "cat <&0 & sleep 0.1; cat some_file.txt >&4; wait;"'
         map(
@@ -174,7 +174,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_output2") == [{"value": 42}]
-        assert sorted([row.items() for row in read_table("//tmp/t_output1")]) == [[("index", i)] for i in xrange(count)]
+        assert sorted_dicts(read_table("//tmp/t_output1")) == [{"index": i} for i in range(count)]
 
     @authors("ignat")
     def test_write_two_outputs_consistently(self):
@@ -183,12 +183,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t_output2")
 
         count = 10000
-        original_data = [{"index": i} for i in xrange(count)]
+        original_data = [{"index": i} for i in range(count)]
         write_table("//tmp/t_input", original_data)
 
         file1 = "//tmp/some_file.txt"
         create("file", file1)
-        write_file(file1, "}}}}};\n")
+        write_file(file1, b"}}}}};\n")
 
         with pytest.raises(YtError):
             map(
@@ -212,7 +212,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     def test_input_row_count(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"key": i} for i in xrange(5)])
+        write_table("//tmp/t1", [{"key": i} for i in range(5)])
 
         sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
         op = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
@@ -226,7 +226,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
-        write_table("//tmp/t1", [{"key": i} for i in xrange(5)])
+        write_table("//tmp/t1", [{"key": i} for i in range(5)])
 
         op = map(
             command="cat; echo {hello=world} >&4",
@@ -244,10 +244,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2", attributes={"compression_codec": "lzma_1"})
 
         def random_string(n):
-            return "".join(random.choice(string.printable) for _ in xrange(n))
+            return "".join(random.choice(string.printable) for _ in range(n))
 
         write_table(
-            "//tmp/t1", [{str(i): random_string(1000)} for i in xrange(100)]
+            "//tmp/t1", [{str(i): random_string(1000)} for i in range(100)]
         )  # so much to see non-zero decode CPU usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
@@ -261,7 +261,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t1")
-        for i in xrange(2):
+        for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
         echoed_rows = ["{key=$k1; value=one}", "{key=$k2; value=two}"]
@@ -314,7 +314,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t1")
-        for i in xrange(2):
+        for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
         echoed_rows = ["{key=1; value=one}", "{key=2; value=two}"]
@@ -347,7 +347,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             skip_if_no_descending(self.Env)
 
         create("table", "//tmp/t1")
-        for i in xrange(2):
+        for i in range(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
         echoed_rows = ["{key=2; value=one}", "{key=1; value=two}"]
@@ -376,7 +376,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
     @authors("psushin")
     def test_job_count(self):
         create("table", "//tmp/t1")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/t1", {"foo": "bar"})
 
         command = "cat > /dev/null; echo {hello=world}"
@@ -409,7 +409,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command="cat > /dev/null; echo {hello=world}",
             spec={"job_count": 6},
         )
-        assert read_table("//tmp/t2") == [{"hello": "world"} for _ in xrange(6)]
+        assert read_table("//tmp/t2") == [{"hello": "world"} for _ in range(6)]
 
     # We skip this one in Porto because it requires a lot of interaction with Porto
     # (since there are a lot of operations with large number of jobs).
@@ -420,12 +420,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/input")
 
         job_count = 976
-        original_data = [{"index": str(i)} for i in xrange(job_count)]
+        original_data = [{"index": str(i)} for i in range(job_count)]
         write_table("//tmp/input", original_data)
 
         create("table", "//tmp/output", ignore_existing=True)
 
-        for job_count in xrange(976, 950, -1):
+        for job_count in range(976, 950, -1):
             op = map(
                 track=False,
                 in_="//tmp/input",
@@ -449,9 +449,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t_in", {"a": "b"})
 
         if yamr_mode:
-            mapper = "cat  > /dev/null; echo {v = 0} >&3; echo {v = 1} >&4; echo {v = 2} >&5"
+            mapper = b"cat  > /dev/null; echo {v = 0} >&3; echo {v = 1} >&4; echo {v = 2} >&5"
         else:
-            mapper = "cat  > /dev/null; echo {v = 0} >&1; echo {v = 1} >&4; echo {v = 2} >&7"
+            mapper = b"cat  > /dev/null; echo {v = 0} >&1; echo {v = 1} >&4; echo {v = 2} >&7"
 
         create("file", "//tmp/mapper.sh")
         write_file("//tmp/mapper.sh", mapper)
@@ -485,7 +485,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             create("table", table_path)
 
         write_table("//tmp/t_in", {"a": "b"})
-        mapper = 'cat  > /dev/null; echo "<table_index=2>#;{v = 0};{v = 1};<table_index=0>#;{v = 2}"'
+        mapper = b'cat  > /dev/null; echo "<table_index=2>#;{v = 0};{v = 1};<table_index=0>#;{v = 2}"'
 
         create("file", "//tmp/mapper.sh")
         write_file("//tmp/mapper.sh", mapper)
@@ -506,7 +506,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        mapper = """
+        mapper = b"""
 #!/bin/bash
 cat > /dev/null; echo {hello=world}
 """
@@ -535,7 +535,7 @@ cat > /dev/null; echo {hello=world}
         write_table("//tmp/t1", {"key": "a", "value": "value"})
         write_table("//tmp/t2", {"key": "b", "value": "value"})
 
-        mapper = """
+        mapper = b"""
 import sys
 table_index = sys.stdin.readline().strip()
 row = sys.stdin.readline().strip()
@@ -554,7 +554,7 @@ print row + table_index
             out="//tmp/out",
             command="python mapper.py",
             file="//tmp/mapper.py",
-            spec={"mapper": {"format": yson.loads("<enable_table_index=true>yamr")}},
+            spec={"mapper": {"format": yson.loads(b"<enable_table_index=true>yamr")}},
         )
 
         expected = [{"key": "a", "value": "value0"}, {"key": "b", "value": "value1"}]
@@ -608,15 +608,15 @@ print row + table_index
                     }
                 },
                 "mapper": {
-                    "input_format": yson.loads("<format=text>yson"),
+                    "input_format": yson.loads(b"<format=text>yson"),
                     "output_format": "dsv",
                 },
             },
         )
 
         op.track()
-        check_all_stderrs(op, '"range_index"=0;', 1, substring=True)
-        check_all_stderrs(op, '"range_index"=1;', 1, substring=True)
+        check_all_stderrs(op, b'"range_index"=0;', 1, substring=True)
+        check_all_stderrs(op, b'"range_index"=1;', 1, substring=True)
 
     @authors("ogorod")
     def test_insane_demand(self):
@@ -639,7 +639,7 @@ print row + table_index
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write_table("//tmp/t_in", [{"foo": "bar"} for _ in xrange(10000)])
+        write_table("//tmp/t_in", [{"foo": "bar"} for _ in range(10000)])
 
         op = map(
             in_="//tmp/t_in",
@@ -734,7 +734,7 @@ print row + table_index
 
         release_breakpoint()
         op.track()
-        assert sorted(read_table("//tmp/t2")) == sorted(data)
+        assert sorted_dicts(read_table("//tmp/t2")) == sorted_dicts(data)
 
     @authors("max42")
     def test_new_live_preview_multiple_output_tables(self):
@@ -785,7 +785,7 @@ print row + table_index
         create("table", "//tmp/t3")
 
         count = 1000
-        original_data = [{"index": i} for i in xrange(count)]
+        original_data = [{"index": i} for i in range(count)]
         write_table("//tmp/t1", original_data)
 
         command = "cat"
@@ -798,7 +798,7 @@ print row + table_index
         new_data_t2 = read_table("//tmp/t2", verbose=False)
         new_data_t3 = read_table("//tmp/t3", verbose=False)
 
-        assert sorted(row.items() for row in new_data_t2) == sorted(row.items() for row in new_data_t3)
+        assert sorted_dicts(new_data_t2) == sorted_dicts(new_data_t3)
 
         actual_rate = len(new_data_t2) * 1.0 / len(original_data)
         variation = sampling_rate * (1 - sampling_rate)
@@ -808,7 +808,7 @@ print row + table_index
     @pytest.mark.parametrize("ordered", [False, True])
     def test_map_row_count_limit(self, ordered):
         create("table", "//tmp/input")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
         create("table", "//tmp/output")
@@ -832,7 +832,7 @@ print row + table_index
     @authors("psushin")
     def test_job_controller_orchid(self):
         create("table", "//tmp/input")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
         create("table", "//tmp/output")
@@ -863,7 +863,7 @@ print row + table_index
     @authors("psushin")
     def test_map_row_count_limit_second_output(self):
         create("table", "//tmp/input")
-        for i in xrange(5):
+        for i in range(5):
             write_table("<append=true>//tmp/input", {"key": "%05d" % i, "value": "foo"})
 
         create("table", "//tmp/out_1")
@@ -931,7 +931,7 @@ print row + table_index
         )
         create("table", "//tmp/output2")
 
-        for i in xrange(10):
+        for i in range(10):
             write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
 
         map(in_="//tmp/input", out="//tmp/output", command="cat")
@@ -939,11 +939,11 @@ print row + table_index
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert normalize_schema(get("//tmp/output/@schema")) == schema
-        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in range(10)])
 
         map(
             in_="//tmp/input",
-            out="<schema=%s>//tmp/output2" % yson.dumps(schema),
+            out="<schema=%s>//tmp/output2" % yson.dumps(schema).decode(),
             command="cat",
         )
 
@@ -952,7 +952,7 @@ print row + table_index
         assert normalize_schema(get("//tmp/output2/@schema")) == schema
         assert_items_equal(
             read_table("//tmp/output2"),
-            [{"key": i, "value": "foo"} for i in xrange(10)],
+            [{"key": i, "value": "foo"} for i in range(10)],
         )
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
@@ -1180,12 +1180,12 @@ print row + table_index
             },
         )
 
-        write_table("//tmp/t1", [{"k2": i} for i in xrange(2)])
+        write_table("//tmp/t1", [{"k2": i} for i in range(2)])
 
         map(mode=mode, in_="//tmp/t1", out="//tmp/t2", command="cat")
 
         assert get("//tmp/t2/@schema_mode") == "strong"
-        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
+        assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
     @authors("psushin", "ignat")
     def test_map_max_data_size_per_job(self):
@@ -1269,7 +1269,7 @@ print row + table_index
             print_debug("key:", row["key"], "value:", row["value"])
         assert len(result) == 5
         if not ordered:
-            result.sort()
+            result = sorted_dicts(result)
         row_index = 0
         job_indexes = []
         for row in result:
@@ -1354,7 +1354,7 @@ print row + table_index
     def test_ordered_map_many_jobs(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        original_data = [{"index": i} for i in xrange(10)]
+        original_data = [{"index": i} for i in range(10)]
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row)
 
@@ -1378,8 +1378,8 @@ print row + table_index
             attributes={"schema": [{"name": "key", "sort_order": "ascending", "type": "int64"}]},
         )
         create("table", "//tmp/t_output")
-        original_data = [{"key": i} for i in xrange(1000)]
-        for i in xrange(10):
+        original_data = [{"key": i} for i in range(1000)]
+        for i in range(10):
             write_table("<append=true>//tmp/t_input", original_data[100 * i:100 * (i + 1)])
 
         map(
@@ -1400,7 +1400,7 @@ print row + table_index
     def test_ordered_map_job_count_consider_only_primary_size(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
-        for i in xrange(20):
+        for i in range(20):
             write_table("<append=true>//tmp/t_input", [{"a": "x" * 1024 * 1024}])
 
         op = map(
@@ -1468,7 +1468,7 @@ done
         got = read_table(output, verbose=False)
         for row in got:
             del row["data"]
-        assert sorted(got) == sorted(expected)
+        assert sorted_dicts(got) == sorted_dicts(expected)
 
     @authors("babenko")
     def test_job_splitter_max_input_table_count(self):
@@ -1610,7 +1610,7 @@ done
             command="cat 1>&2",
             spec={
                 "job_io": {"control_attributes": {"enable_end_of_stream": True}},
-                "mapper": {"format": yson.loads("<format=text>yson")},
+                "mapper": {"format": yson.loads(b"<format=text>yson")},
                 "job_count": 1,
             },
         )
@@ -1621,7 +1621,7 @@ done
 
         assert (
             stderr_bytes
-            == """<"table_index"=0;>#;
+            == b"""<"table_index"=0;>#;
 {"x"=1;};
 <"table_index"=1;>#;
 {"x"=2;};
@@ -1755,7 +1755,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
     @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
-        original_data = [{"index": "%05d" % i} for i in xrange(31)]
+        original_data = [{"index": "%05d" % i} for i in range(31)]
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row, verbose=False)
 
@@ -1768,7 +1768,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
             spec={"mapper": {"format": "dsv"}, "resource_limits": {"user_slots": 1}},
         )
 
-        expected = [{"lines": str(2 ** i)} for i in xrange(5)]
+        expected = [{"lines": str(2 ** i)} for i in range(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
         estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
@@ -1781,7 +1781,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
     @authors("max42")
     def test_map_job_size_adjuster_max_limit(self):
         create("table", "//tmp/t_input")
-        original_data = [{"index": "%05d" % i} for i in xrange(31)]
+        original_data = [{"index": "%05d" % i} for i in range(31)]
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row, verbose=False)
         chunk_id = get_first_chunk_id("//tmp/t_input")
@@ -1805,7 +1805,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
     @authors("ignat")
     def test_map_unavailable_chunk(self):
         create("table", "//tmp/t_input", attributes={"replication_factor": 1})
-        original_data = [{"index": "%05d" % i} for i in xrange(20)]
+        original_data = [{"index": "%05d" % i} for i in range(20)]
         write_table("<append=true>//tmp/t_input", original_data[0], verbose=False)
         chunk_id = get_singular_chunk_id("//tmp/t_input")
 
@@ -1898,7 +1898,7 @@ class TestInputOutputFormats(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        mapper = """
+        mapper = b"""
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['tskv', 'foo=bar']
@@ -1914,7 +1914,7 @@ print '{hello=world}'
             out="//tmp/t_out",
             command="python mapper.py",
             file="//tmp/mapper.py",
-            spec={"mapper": {"input_format": yson.loads("<line_prefix=tskv>dsv")}},
+            spec={"mapper": {"input_format": yson.loads(b"<line_prefix=tskv>dsv")}},
         )
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
@@ -1924,7 +1924,7 @@ print '{hello=world}'
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        mapper = """
+        mapper = b"""
 import sys
 input = sys.stdin.readline().strip('\\n')
 assert input == '<"table_index"=0;>#;'
@@ -1944,8 +1944,8 @@ print "tskv" + "\\t" + "hello=world"
             spec={
                 "mapper": {
                     "enable_input_table_index": True,
-                    "input_format": yson.loads("<format=text>yson"),
-                    "output_format": yson.loads("<line_prefix=tskv>dsv"),
+                    "input_format": yson.loads(b"<format=text>yson"),
+                    "output_format": yson.loads(b"<line_prefix=tskv>dsv"),
                 }
             },
         )
@@ -1957,7 +1957,7 @@ print "tskv" + "\\t" + "hello=world"
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        mapper = """
+        mapper = b"""
 import sys
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
@@ -1975,8 +1975,8 @@ print "key\\tsubkey\\tvalue"
             file="//tmp/mapper.py",
             spec={
                 "mapper": {
-                    "input_format": yson.loads("<format=text>yson"),
-                    "output_format": yson.loads("<has_subkey=true>yamr"),
+                    "input_format": yson.loads(b"<format=text>yson"),
+                    "output_format": yson.loads(b"<has_subkey=true>yamr"),
                 }
             },
         )
@@ -1991,7 +1991,7 @@ print "key\\tsubkey\\tvalue"
             {"value": "value", "subkey": "subkey", "key": "key", "a": "another"},
         )
 
-        mapper = """
+        mapper = b"""
 import sys
 input = sys.stdin.readline().strip('\\n').split('\\t')
 assert input == ['key', 'subkey', 'value']
@@ -2007,7 +2007,7 @@ print '{hello=world}'
             out="//tmp/t_out",
             command="python mapper.py",
             file="//tmp/mapper.py",
-            spec={"mapper": {"input_format": yson.loads("<has_subkey=true>yamr")}},
+            spec={"mapper": {"input_format": yson.loads(b"<has_subkey=true>yamr")}},
         )
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
@@ -2044,7 +2044,7 @@ print '{hello=world}'
                 spec={"max_failed_job_count": 1},
             )
 
-        yson_with_type_conversion = yson.loads("<enable_type_conversion=%true>yson")
+        yson_with_type_conversion = yson.loads(b"<enable_type_conversion=%true>yson")
         map(
             in_="//tmp/s",
             out="//tmp/t",
@@ -2089,12 +2089,12 @@ print '{hello=world}'
         create("table", "//tmp/t_out")
         write_table("//tmp/t_in", [{"key": 0}, {"key": 1}, {"key": 2}])
 
-        script = "\n".join(
+        script = b"\n".join(
             [
-                "#!/usr/bin/python",
-                "import sys",
-                "import base64",
-                "print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
+                b"#!/usr/bin/python",
+                b"import sys",
+                b"import base64",
+                b"print '{out=\"' + base64.standard_b64encode(sys.stdin.read()) + '\"}'",
             ]
         )
 
@@ -2118,7 +2118,7 @@ print '{hello=world}'
                 "job_count": 1,
                 "mapper": {
                     "file_paths": ["//tmp/script.py"],
-                    "format": yson.loads("<format=text>yson"),
+                    "format": yson.loads(b"<format=text>yson"),
                 },
                 "max_failed_job_count": 1,
                 "job_io": {
@@ -2139,11 +2139,11 @@ print '{hello=world}'
         current_attrs = {}
         for row in rows:
             if type(row) == yson.yson_types.YsonEntity:
-                for key, value in row.attributes.iteritems():
+                for key, value in row.attributes.items():
                     current_attrs[key] = value
             else:
                 new_row = dict(row)
-                for key, value in current_attrs.iteritems():
+                for key, value in current_attrs.items():
                     new_row[key] = value
                 actual_content.append(new_row)
 
