@@ -1,7 +1,3 @@
-from __future__ import print_function
-
-from yt.packages.six import PY3
-
 import os
 import argparse
 import inspect
@@ -64,16 +60,10 @@ class YtClient(ClientState):
                 func = func.__dict__["__init__"]
                 is_class = True
 
-            if PY3:
-                arg_spec = inspect.getfullargspec(func)
-                var_args = arg_spec.varargs
-                var_kwargs = arg_spec.varkw
-                defaults = arg_spec.defaults
-            else:
-                arg_spec = inspect.getargspec(func)
-                var_args = arg_spec.varargs
-                var_kwargs = arg_spec.keywords
-                defaults = arg_spec.defaults
+            arg_spec = inspect.getfullargspec(func)
+            var_args = arg_spec.varargs
+            var_kwargs = arg_spec.varkw
+            defaults = arg_spec.defaults
 
             if defaults:
                 defaults = list(defaults)
