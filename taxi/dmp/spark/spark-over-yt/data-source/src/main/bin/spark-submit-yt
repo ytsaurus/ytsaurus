@@ -15,7 +15,9 @@ def main():
     parser.add_argument("--python-version", required=False)
 
     args, unknown_args = spark_utils.parse_args(parser)
+
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
+
     return_code = raw_submit(discovery_path=args.discovery_path,
                              spark_home=spark_utils.spark_home(),
                              spark_args=unknown_args,
