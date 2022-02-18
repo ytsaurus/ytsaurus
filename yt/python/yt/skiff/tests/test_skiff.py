@@ -1,16 +1,14 @@
-from yt.yson import dumps
-
 from yt_yson_bindings import SkiffSchema, load_skiff, dump_skiff, SkiffTableSwitch
-
-from yt.packages.six.moves import xrange
 
 import copy
 import pytest
 import random
 from io import BytesIO
 
+
 def create_skiff_schema(schemas):
     return SkiffSchema(schemas, {}, "#range_index", "#row_index")
+
 
 class TestSkiff(object):
     def test_schema_class(self):
@@ -179,7 +177,9 @@ class TestSkiff(object):
 
         first_stream = BytesIO()
         second_stream = BytesIO()
-        dump_skiff([first_record, SkiffTableSwitch(1), second_record], [first_stream, second_stream], [first_schema, second_schema])
+        dump_skiff([first_record, SkiffTableSwitch(1), second_record],
+                   [first_stream, second_stream],
+                   [first_schema, second_schema])
 
         first_stream.seek(0)
         result = list(load_skiff(first_stream, [first_schema], "#range_index", "#row_index"))
@@ -323,7 +323,7 @@ class TestSkiff(object):
         schema = create_skiff_schema([skiff_schema])
 
         records = []
-        for i in xrange(10):
+        for i in range(10):
             record = schema.create_record()
             record["x"] = i
             record["y"] = "a" * random.randint(0, 10)
