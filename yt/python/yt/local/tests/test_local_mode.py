@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from yt.local import start, stop, delete
 import yt.local as yt_local
 from yt.common import remove_file, is_process_alive, which
@@ -8,9 +6,6 @@ from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead
 from yt.test_helpers import get_tests_sandbox, wait
 import yt.subprocess_wrapper as subprocess
-
-from yt.packages.six.moves import map as imap, xrange
-from yt.packages.six import iteritems
 
 import yt.yson as yson
 import yt.json_wrapper as json
@@ -37,36 +32,44 @@ yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
+
 def _get_tests_location():
     return yatest.common.source_path("yt/python/yt/local/tests")
+
 
 def _get_tests_sandbox():
     return get_tests_sandbox(TESTS_SANDBOX)
 
+
 def _get_local_mode_tests_sandbox():
     return os.path.join(_get_tests_sandbox(), "TestLocalMode")
+
 
 def _get_yt_local_binary():
     return yatest.common.binary_path("yt/python/yt/local/bin/yt_local_make/yt_local")
 
+
 def _get_instance_path(instance_id):
     return os.path.join(_get_local_mode_tests_sandbox(), instance_id)
+
 
 def _read_pids_file(instance_id):
     pids_filename = os.path.join(_get_instance_path(instance_id), "pids.txt")
     if not os.path.exists(pids_filename):
         return []
     with open(pids_filename) as f:
-        return list(imap(int, f))
+        return list(map(int, f))
+
 
 def _is_exists(environment):
     return os.path.exists(_get_instance_path(environment.id))
+
 
 def _wait_instance_to_become_ready(process, instance_id):
     special_file = os.path.join(_get_instance_path(instance_id), "started")
 
     attempt_count = 10
-    for _ in xrange(attempt_count):
+    for _ in range(attempt_count):
         print("Waiting instance", instance_id, "to become ready...")
         if os.path.exists(special_file):
             return
@@ -80,6 +83,7 @@ def _wait_instance_to_become_ready(process, instance_id):
 
     raise yt.YtError("Local YT is not started")
 
+
 @pytest.fixture(scope="session", autouse=True)
 def prepare_path():
     try:
@@ -90,6 +94,7 @@ def prepare_path():
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
     except ImportError:
         pass
+
 
 @contextlib.contextmanager
 def local_yt(*args, **kwargs):
@@ -104,6 +109,7 @@ def local_yt(*args, **kwargs):
         if environment is not None:
             stop(environment.id)
 
+
 class YtLocalBinary(object):
     def __init__(self, root_path):
         self.root_path = root_path
@@ -112,7 +118,7 @@ class YtLocalBinary(object):
         command = [_get_yt_local_binary()]
         command += list(args)
 
-        for key, value in iteritems(kwargs):
+        for key, value in kwargs.items():
             key = key.replace("_", "-")
             if value is True:
                 command.extend(["--" + key])
@@ -136,9 +142,11 @@ class YtLocalBinary(object):
         command, env = self._prepare_binary_command_and_env(*args, **kwargs)
         return subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+
 def _get_id(test_name):
     collection = string.ascii_lowercase + string.ascii_uppercase + string.digits
-    return test_name + "_" + "".join(random.choice(collection) for _ in xrange(5))
+    return test_name + "_" + "".join(random.choice(collection) for _ in range(5))
+
 
 class TestLocalMode(object):
     @classmethod
@@ -168,15 +176,15 @@ class TestLocalMode(object):
             path = lyt.path
             logs_path = lyt.logs_path
 
-        for index in xrange(master_count):
+        for index in range(master_count):
             name = "master-0-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
-        for index in xrange(node_count):
+        for index in range(node_count):
             name = "node-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
-        for index in xrange(scheduler_count):
+        for index in range(scheduler_count):
             name = "scheduler-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
@@ -206,8 +214,8 @@ class TestLocalMode(object):
             "rpc-proxy": rpc_proxy_count,
         }
 
-        for component, count in iteritems(multiple_component_to_count):
-            for index in xrange(count):
+        for component, count in multiple_component_to_count.items():
+            for index in range(count):
                 name = "{}-{}.yson".format(component, index)
                 assert os.path.exists(os.path.join(configs_path, name))
 
@@ -221,7 +229,7 @@ class TestLocalMode(object):
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
-            for _ in xrange(300):
+            for _ in range(300):
                 client.mkdir("//test")
                 client.set("//test/node", "abc")
                 client.get("//test/node")
@@ -232,7 +240,7 @@ class TestLocalMode(object):
 
         # Some log file may be missing if we exited during log rotation.
         presented = 0
-        for file_index in xrange(1, 5):
+        for file_index in range(1, 5):
             presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.{0}.gz".format(file_index)))
         assert presented in (3, 4)
 
@@ -349,7 +357,7 @@ class TestLocalMode(object):
             assert schema[0]["sort_order"] == "ascending"
             assert schema[0]["type"] == "int32"
             assert schema[0]["name"] == "x"
-            assert schema[0]["required"] == False
+            assert not schema[0]["required"]
 
             assert client.read_file("//file").read() == b"Test file.\n"
             assert client.get_attribute("//file", "myattr") == 4

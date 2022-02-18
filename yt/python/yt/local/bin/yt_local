@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-from __future__ import print_function
+#!/usr/bin/env python3
 
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
@@ -9,8 +7,6 @@ from yt.local.commands import get_main_process_pid_file_path
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 import yt.yson as yson
-
-from yt.packages.six import iteritems
 
 import argparse
 import logging
@@ -52,9 +48,10 @@ def start_func(**kwargs):
         "rpc_proxy": "rpc_proxy_count"
     }
 
-    for old_param, new_param in iteritems(DEPRECATION_MAPPING):
+    for old_param, new_param in DEPRECATION_MAPPING.items():
         if kwargs[old_param]:
-            deprecation_warning = "Command-line option --{} is deprecated and will be eventually removed; ".format(old_param.replace("_", "-"))
+            deprecation_warning = "Command-line option --{} is deprecated and will be eventually removed; "\
+                                  .format(old_param.replace("_", "-"))
             if new_param is not None:
                 deprecation_warning += "use --{} instead".format(new_param.replace("_", "-"))
             else:
@@ -77,7 +74,8 @@ def start_func(**kwargs):
     if kwargs["rpc_proxy"] and kwargs["rpc_proxy_count"] is None:
         kwargs["rpc_proxy_count"] = 1
 
-    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy"):
+    for opt in ("masters_count", "nodes_count", "schedulers_count",
+                "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy"):
         del kwargs[opt]
     # Tests options
     sync_mode_sleep_timeout = kwargs.pop("sync_mode_sleep_timeout")
@@ -138,6 +136,7 @@ def start_func(**kwargs):
                 time.sleep(sync_mode_sleep_timeout)
     else:
         print(environment.id)
+
 
 def add_start_subparser(subparsers):
     parser = subparsers.add_parser("start", help="Start local YT environment with specified options")
@@ -226,6 +225,7 @@ def add_start_subparser(subparsers):
     # Options for tests
     parser.add_argument("--sync-mode-sleep-timeout", type=int, default=2, help=argparse.SUPPRESS)
 
+
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id")
     parser.set_defaults(func=stop)
@@ -233,18 +233,22 @@ def add_stop_subparser(subparsers):
     parser.add_argument("--delete", help="remove working directory after stopping", action="store_true",
                         dest="remove_working_dir")
 
+
 def add_delete_subparser(subparsers):
     parser = subparsers.add_parser("delete", help="Delete stopped local YT working directory.")
     parser.set_defaults(func=delete)
     parser.add_argument("id", help="local YT id")
 
+
 def get_proxy_func(**kwargs):
     print(get_proxy(**kwargs))
+
 
 def add_get_proxy_subparser(subparsers):
     parser = subparsers.add_parser("get_proxy", help="Get proxy address for local YT with given id")
     parser.set_defaults(func=get_proxy_func)
     parser.add_argument("id", help="local YT id")
+
 
 def print_instances(**kwargs):
     for instance_id, status, proxy_address in list_instances(**kwargs):
@@ -256,9 +260,11 @@ def print_instances(**kwargs):
         else:
             print("{0}\tstatus: {1}".format(instance_id, status))
 
+
 def add_list_subparser(subparsers):
     parser = subparsers.add_parser("list", help="List local YT instances")
     parser.set_defaults(func=print_instances)
+
 
 def main():
     options_parser = argparse.ArgumentParser(add_help=False)
@@ -286,6 +292,6 @@ def main():
     func_args.pop("func")
     args.func(**func_args)
 
+
 if __name__ == "__main__":
     run_main(main)
-
