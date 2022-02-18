@@ -419,7 +419,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
 class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
-    NUM_NODES = 10
+    NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
     CONCURRENT_HEARTBEAT_LIMIT = 2
@@ -444,19 +444,27 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     def test_strategy_with_slow_controller(self):
         slow_spec = {"testing": {"scheduling_delay": 1000, "scheduling_delay_type": "async"}}
 
+        create_pool("pool")
+        create_pool(
+            "pool_with_guarantees",
+            attributes={"strong_guarantee_resources": {"cpu": 5}})
+
         # Occupy the cluster
-        op0 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=10)
-        wait_breakpoint(job_count=10)
+        op0 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=5, pool="pool_with_guarantees")
+        wait_breakpoint(job_count=5)
 
         # Run operations
-        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20)
-        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=slow_spec)
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=10, pool="pool")
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=10, pool="pool", spec=slow_spec)
 
         wait(lambda: op1.get_state() == "running")
         wait(lambda: op2.get_state() == "running")
 
         enable_op_detailed_logs(op1)
         enable_op_detailed_logs(op2)
+
+        # Give some time to check that op0 is not preemptable.
+        time.sleep(2)
 
         assert op1.get_job_count("running") == 0
         assert op2.get_job_count("running") == 0
@@ -466,7 +474,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
             release_breakpoint(job_id=j)
 
         # Check the resulting allocation
-        wait(lambda: op1.get_job_count("running") + op2.get_job_count("running") == 10)
+        wait(lambda: op1.get_job_count("running") + op2.get_job_count("running") == 5)
         assert abs(op1.get_job_count("running") - op2.get_job_count("running")) <= self.CONCURRENT_HEARTBEAT_LIMIT
 
 

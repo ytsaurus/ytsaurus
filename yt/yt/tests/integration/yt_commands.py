@@ -1733,9 +1733,11 @@ def create_test_tables(row_count=1, **kwargs):
     create("table", "//tmp/t_out", **kwargs)
 
 
-def run_test_vanilla(command, spec=None, job_count=1, track=False, task_patch=None, **kwargs):
+def run_test_vanilla(command, spec=None, job_count=1, pool=None, track=False, task_patch=None, **kwargs):
     spec = spec or {}
     spec["tasks"] = {"task": update({"job_count": job_count, "command": command}, task_patch)}
+    if pool is not None:
+        spec["pool"] = pool
     return vanilla(spec=spec, track=track, **kwargs)
 
 

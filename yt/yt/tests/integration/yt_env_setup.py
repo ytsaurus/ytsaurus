@@ -1023,6 +1023,17 @@ class YTEnvSetup(object):
             dynamic_master_config["enable_descending_sort_order"] = True
             dynamic_master_config["enable_descending_sort_order_dynamic"] = True
 
+        default_pool_tree_config = {
+            "nodes_filter": "",
+            "main_resource": "cpu",
+            "min_child_heap_size": 3,
+            # Make default settings suitable for starvation and preemption.
+            "preemptive_scheduling_backoff": 500,
+            "max_unpreemptable_running_job_count": 0,
+            "fair_share_starvation_timeout": 1000,
+            "enable_conditional_preemption": True,
+        }
+
         for response in yt_commands.execute_batch(
             [
                 yt_commands.make_batch_request(
@@ -1054,12 +1065,7 @@ class YTEnvSetup(object):
                     type="scheduler_pool_tree",
                     attributes={
                         "name": "default",
-                        "config": {
-                            "main_resource": "cpu",
-                            # Make default settings suitable for starvation and preemption.
-                            "max_unpreemptable_running_job_count": 0,
-                            "fair_share_starvation_timeout": 1000,
-                        }
+                        "config": default_pool_tree_config,
                     },
                 )
             )
@@ -1075,13 +1081,7 @@ class YTEnvSetup(object):
         yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
 
         if should_set_default_config:
-            yt_commands.set(
-                scheduler_pool_trees_root + "/default/@config",
-                {
-                    "nodes_filter": "",
-                    "main_resource": "cpu",
-                    "min_child_heap_size": 3,
-                })
+            yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config)
 
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
