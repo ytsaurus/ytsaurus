@@ -39,6 +39,15 @@ public:
         return Type_;
     }
 
+    void CheckInvariants(NCellMaster::TBootstrap* bootstrap) override
+    {
+        // We want to make sure that invariants are checked only once for each chunk,
+        // and due to the fact that there are several Chunk Type Handlers, we pick one to initiate checks for all chunks.
+        if (Type_ == EObjectType::Chunk) {
+            TObjectTypeHandlerWithMapBase::CheckInvariants(bootstrap);
+        }
+    }
+
 private:
     const EObjectType Type_;
 
