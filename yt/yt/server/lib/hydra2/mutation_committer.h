@@ -34,6 +34,7 @@ struct TMutationDraft
 {
     NHydra::TMutationRequest Request;
     TPromise<NHydra::TMutationResponse> Promise;
+    ui64 RandomSeed;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

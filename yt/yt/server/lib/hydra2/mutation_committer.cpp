@@ -707,7 +707,7 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
     for (int index = 0; index < std::ssize(mutationDrafts); ++index) {
         auto& mutationDraft = mutationDrafts[index];
 
-        auto randomSeed = RandomNumber<ui64>();
+        auto randomSeed = mutationDraft.RandomSeed;
 
         MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
         MutationHeader_.set_reign(mutationDraft.Request.Reign);
@@ -742,11 +742,12 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
         NextLoggedVersion_ = NextLoggedVersion_.Advance();
         ++NextLoggedSequenceNumber_;
 
-        // TODO(babenko): maybe log more details? mutation type? mutation id?
-        YT_LOG_DEBUG("Logging mutation at leader (SequenceNumber: %v, Version: %v, RandSeed: %llx)",
+        YT_LOG_DEBUG("Logging mutation at leader (SequenceNumber: %v, Version: %v, RandomSeed: %llx, MutationType: %v, MutationId: %v)",
             mutation->SequenceNumber,
             mutation->Version,
-            mutation->RandomSeed);
+            mutation->RandomSeed,
+            mutation->Request.Type,
+            mutation->Request.MutationId);
 
         if (!MutationQueue_.empty()) {
             YT_VERIFY(MutationQueue_.back()->SequenceNumber + 1 == mutation->SequenceNumber);
