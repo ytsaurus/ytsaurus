@@ -94,7 +94,7 @@ class TestOrchidMulticell(TestOrchid):
     @authors("babenko")
     def test_at_secondary_masters(self):
         for tag in range(1, self.NUM_SECONDARY_MASTER_CELLS + 1):
-            self._check_orchid("//sys/secondary_masters/" + str(tag), self.NUM_MASTERS, "master")
+            self._check_orchid("//sys/secondary_masters/" + str(tag + 10), self.NUM_MASTERS, "master")
 
     @authors("rebenkoy")
     def test_at_cluster_masters(self):

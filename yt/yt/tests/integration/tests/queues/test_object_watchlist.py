@@ -124,8 +124,8 @@ class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
 
     @authors("achulkov2")
     def test_objects_from_different_cells(self):
-        create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 1})
-        create("portal_entrance", "//portals/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//portals/p2", attributes={"exit_cell_tag": 12})
 
         create("table", "//portals/p1/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         create("table", "//portals/p2/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})

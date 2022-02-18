@@ -148,7 +148,7 @@ class TestMasterCellAddition(YTEnvSetup):
         create(
             "table",
             "//tmp/t",
-            attributes={"account": "acc_async_remove", "external_cell_tag": 1},
+            attributes={"account": "acc_async_remove", "external_cell_tag": 11},
         )
 
         create_account("acc_sync_remove")
@@ -220,23 +220,23 @@ class TestMasterCellAddition(YTEnvSetup):
 
             return True
 
-        assert check(["1", "2"])
+        assert check(["11", "12"])
 
         yield
 
-        wait(lambda: check(["1", "2", "3"]))
+        wait(lambda: check(["11", "12", "13"]))
 
     def check_transactions(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 12})
         tx = start_transaction(timeout=120000)
-        create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 2
-        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2]
+        create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 12
+        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12]
 
         yield
 
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
-        create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 3
-        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2, 3]
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
+        create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
+        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
 
     def check_areas(self):
         default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")

@@ -1519,9 +1519,9 @@ class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLo
 class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "3": ["transaction_coordinator"],
-        "4": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "13": ["transaction_coordinator"],
+        "14": ["transaction_coordinator"],
     }
 
 

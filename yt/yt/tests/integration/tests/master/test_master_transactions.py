@@ -249,15 +249,15 @@ class TestMasterTransactions(YTEnvSetup):
         sharded_tx = self.NUM_SECONDARY_MASTER_CELLS > 2
 
         if sharded_tx:
-            create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 3})
+            create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 13})
 
             # Populate resolve cache so that passing through the portal doesn't affect tx replication.
             set("//portals/p/@some_attr", "some_value")
 
             portal_exit_id = get("//portals/p/@id")
             table_id = create("table", "//portals/p/t", tx=tx)  # replicate tx to cell 3
-            if "3" not in cell_tags:
-                cell_tags.append("3")
+            if "13" not in cell_tags:
+                cell_tags.append("13")
 
         def check(r):
             assert_items_equal(list(r.keys()), cell_tags)
@@ -273,20 +273,20 @@ class TestMasterTransactions(YTEnvSetup):
         if sharded_tx:
             branched_node_ids = get("#" + tx + "/@branched_node_ids")
             assert len(branched_node_ids) == 2
-            assert_items_equal(branched_node_ids["3"], [table_id, portal_exit_id])
+            assert_items_equal(branched_node_ids["13"], [table_id, portal_exit_id])
             assert branched_node_ids[tx_cell_tag] == []
 
             locked_node_ids = get("#" + tx + "/@locked_node_ids")
             assert len(locked_node_ids) == 2
-            assert_items_equal(locked_node_ids["3"], [table_id, portal_exit_id])
+            assert_items_equal(locked_node_ids["13"], [table_id, portal_exit_id])
             assert locked_node_ids[tx_cell_tag] == []
 
             staged_node_ids = get("#" + tx + "/@staged_node_ids")
             assert len(staged_node_ids) == 2
-            assert_items_equal(staged_node_ids["3"], [table_id])
+            assert_items_equal(staged_node_ids["13"], [table_id])
             assert staged_node_ids[tx_cell_tag] == []
 
-            assert len(get("#" + tx + "/@lock_ids/3")) == 2
+            assert len(get("#" + tx + "/@lock_ids/13")) == 2
 
         if not self.ENABLE_TMP_PORTAL:
             remove("//portals", recursive=True)
@@ -524,7 +524,7 @@ class TestMasterTransactions(YTEnvSetup):
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 3
-    MASTER_CELL_ROLES = {"2": ["chunk_host"]}
+    MASTER_CELL_ROLES = {"12": ["chunk_host"]}
 
     def _assert_native_content_revision_matches(self, path, tx="0-0-0-0"):
         content_revision = get(path + "/@content_revision", tx=tx)
@@ -534,7 +534,7 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
     @authors("shakurov")
     @pytest.mark.parametrize("commit_order", [[1, 3, 2], [3, 1, 2], [3, 2, 1]])
     def test_native_content_revision(self, commit_order):
-        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
         self._assert_native_content_revision_matches("//tmp/t")
 
         write_table("//tmp/t", {"a": "b"})
@@ -579,9 +579,9 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
         if not self.ENABLE_TMP_PORTAL:
             create("map_node", "//portals")
 
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 3})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 13})
 
-        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
         self._assert_native_content_revision_matches("//tmp/t")
 
         copy("//tmp/t", "//tmp/t_copy")
@@ -611,12 +611,12 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     NUM_TEST_PARTITIONS = 4
     ENABLE_TMP_PORTAL = True
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["cypress_node_host"],
-        "2": ["chunk_host"],
-        "3": ["cypress_node_host"],
-        "4": ["transaction_coordinator"],
-        "5": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "11": ["cypress_node_host"],
+        "12": ["chunk_host"],
+        "13": ["cypress_node_host"],
+        "14": ["transaction_coordinator"],
+        "15": ["transaction_coordinator"],
     }
 
     @authors("shakurov")
@@ -656,8 +656,8 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         tx = start_transaction()
         assert get("#" + tx + "/@replicated_to_cell_tags") == []
 
-        self._replicate_tx_to_cell(tx, 3, replication_mode)
-        assert get("#" + tx + "/@replicated_to_cell_tags") == [3]
+        self._replicate_tx_to_cell(tx, 13, replication_mode)
+        assert get("#" + tx + "/@replicated_to_cell_tags") == [13]
 
     @authors("shakurov")
     def test_eager_tx_replication(self):
@@ -668,7 +668,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         multicell_sleep()
 
         tx = start_transaction()
-        assert 3 in get("#" + tx + "/@replicated_to_cell_tags")
+        assert 13 in get("#" + tx + "/@replicated_to_cell_tags")
 
     @authors("shakurov")
     def test_parent_tx_replication(self):
@@ -677,9 +677,9 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         assert get("#" + tx1 + "/@replicated_to_cell_tags") == []
 
-        self._replicate_tx_to_cell(tx2, 3, "r")
+        self._replicate_tx_to_cell(tx2, 13, "r")
 
-        assert get("#" + tx1 + "/@replicated_to_cell_tags") == [3]
+        assert get("#" + tx1 + "/@replicated_to_cell_tags") == [13]
 
     @authors("shakurov")
     @pytest.mark.parametrize("replication_mode", ["r", "w"])
@@ -692,7 +692,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         assert get("#" + tx2 + "/@replicated_to_cell_tags") == []
         assert get("#" + tx3 + "/@replicated_to_cell_tags") == []
 
-        portal_path = self._create_portal_to_cell(3)
+        portal_path = self._create_portal_to_cell(13)
         if replication_mode == "r":
             get(portal_path + "/@id", tx=tx1, prerequisite_transaction_ids=[tx2, tx3])
         else:
@@ -741,7 +741,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         for cell_tag in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
             assert "g" in get("//sys/users/root/@member_of", driver=get_driver(cell_tag))
 
-        assert get("#" + tx + "/@replicated_to_cell_tags") == [0]
+        assert get("#" + tx + "/@replicated_to_cell_tags") == [10]
 
         remove_member("root", "g", prerequisite_transaction_ids=[tx])
 
@@ -749,11 +749,11 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         for cell_tag in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
             assert "g" not in get("//sys/users/root/@member_of", driver=get_driver(cell_tag))
 
-        assert get("#" + tx + "/@replicated_to_cell_tags") == [0]
+        assert get("#" + tx + "/@replicated_to_cell_tags") == [10]
 
     @authors("shakurov")
     def test_boomerang_mutation_portal_forwarding(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 3})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 13})
 
         assert not get("//portals/p/@resolve_cached")
 

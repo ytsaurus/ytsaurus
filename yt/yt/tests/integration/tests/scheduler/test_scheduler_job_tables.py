@@ -471,12 +471,12 @@ class TestStderrTableShardedTx(TestStderrTable):
     NUM_SECONDARY_MASTER_CELLS = 5
     ENABLE_TMP_PORTAL = True
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["cypress_node_host"],
-        "2": ["chunk_host"],
-        "3": ["cypress_node_host"],
-        "4": ["transaction_coordinator"],
-        "5": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "11": ["cypress_node_host"],
+        "12": ["chunk_host"],
+        "13": ["cypress_node_host"],
+        "14": ["transaction_coordinator"],
+        "15": ["transaction_coordinator"],
     }
 
 

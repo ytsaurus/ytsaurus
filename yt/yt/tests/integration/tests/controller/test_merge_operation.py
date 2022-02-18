@@ -2189,11 +2189,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
     @authors("babenko")
     def test_multicell_merge_teleport(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id1 = get_singular_chunk_id("//tmp/t1")
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
         write_table("//tmp/t2", [{"a": 2}])
         chunk_id2 = get_singular_chunk_id("//tmp/t2")
 
@@ -2211,7 +2211,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(
             lambda: get("#" + chunk_id1 + "/@exports")
             == {
-                "0": {
+                "10": {
                     "ref_counter": 1,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
@@ -2221,7 +2221,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(
             lambda: get("#" + chunk_id2 + "/@exports")
             == {
-                "0": {
+                "10": {
                     "ref_counter": 1,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
@@ -2244,7 +2244,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
     @authors("babenko")
     def test_multicell_merge_multi_teleport(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get_singular_chunk_id("//tmp/t1")
 
@@ -2253,7 +2253,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert not get("#" + chunk_id + "/@foreign")
         assert not exists("#" + chunk_id, driver=get_driver(2))
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
         merge(mode="ordered", in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t2")
 
         assert get("//tmp/t2/@chunk_ids") == [chunk_id, chunk_id]
@@ -2261,7 +2261,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(
             lambda: get("#" + chunk_id + "/@exports")
             == {
-                "2": {
+                "12": {
                     "ref_counter": 2,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
@@ -2273,7 +2273,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         assert read_table("//tmp/t2") == [{"a": 1}, {"a": 1}]
 
-        create("table", "//tmp/t3", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 12})
         merge(mode="ordered", in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t3")
 
         assert get("//tmp/t3/@chunk_ids") == [chunk_id, chunk_id]
@@ -2281,7 +2281,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(
             lambda: get("#" + chunk_id + "/@exports")
             == {
-                "2": {
+                "12": {
                     "ref_counter": 4,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
@@ -2299,7 +2299,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
             lambda: get("#" + chunk_id + "/@ref_counter") == 5
             and get("#" + chunk_id + "/@exports")
             == {
-                "2": {
+                "12": {
                     "ref_counter": 4,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
@@ -2328,7 +2328,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
             attributes={
                 "replication_factor": 1,
                 "vital": False,
-                "external_cell_tag": 1,
+                "external_cell_tag": 11,
             },
         )
         write_table("//tmp/t1", [{"a": 1}])
@@ -2343,7 +2343,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
             attributes={
                 "replication_factor": 3,
                 "vital": False,
-                "external_cell_tag": 2,
+                "external_cell_tag": 12,
             },
         )
         merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2")
@@ -2377,8 +2377,8 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     @authors("babenko")
     def test_yt_4259(self):
         create("table", "//tmp/t", attributes={"external": False})
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
 
         write_table("//tmp/t", [{"a": 1}])
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -2389,12 +2389,12 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(
             lambda: get("#" + chunk_id + "/@exports")
             == {
-                "1": {
+                "11": {
                     "ref_counter": 1,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 },
-                "2": {
+                "12": {
                     "ref_counter": 1,
                     "vital": True,
                     "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
@@ -2404,11 +2404,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
     @authors("shakurov")
     def test_teleporting_chunks_dont_disappear(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get_singular_chunk_id("//tmp/t1")
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
 
         tx = start_transaction()
         merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2", tx=tx)
@@ -2416,7 +2416,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("//tmp/t2/@chunk_count", tx=tx) == 1
         assert get_singular_chunk_id("//tmp/t2", tx=tx) == chunk_id
 
-        assert get("#{0}/@exports/2/ref_counter".format(chunk_id)) == 1
+        assert get("#{0}/@exports/12/ref_counter".format(chunk_id)) == 1
 
         # The point of this test is to make sure snatching chunks from
         # under an uncommitted transaction interoperates with
@@ -2425,7 +2425,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         # used to produce (it's no longer supported) a horrific situation
         # when a chunk is destroyed in its cell yet is still
         # referenced from another cell.
-        create("table", "//tmp/t2_copy", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2_copy", attributes={"external_cell_tag": 12})
         merge(
             mode="ordered",
             in_=['<transaction_id="{0}">//tmp/t2'.format(tx)],

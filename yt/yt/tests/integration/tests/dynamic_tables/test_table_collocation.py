@@ -39,7 +39,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
     @authors("akozhikhov")
     def test_table_collocation_creation_errors(self):
         sync_create_cells(1)
-        id0 = self._create_replicated_table("//tmp/t0", external_cell_tag=1)
+        id0 = self._create_replicated_table("//tmp/t0", external_cell_tag=11)
 
         with raises_yt_error("non-empty"):
             create_table_collocation(table_ids=[])
@@ -65,7 +65,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         with raises_yt_error("Unexpected type of table"):
             create_table_collocation(table_ids=[id0, table_id])
 
-        id1 = self._create_replicated_table("//tmp/t1", external_cell_tag=1)
+        id1 = self._create_replicated_table("//tmp/t1", external_cell_tag=11)
 
         create_table_collocation(table_ids=[id0])
         with raises_yt_error("already belongs to replication collocation"):
@@ -83,13 +83,13 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
         collocated_tables = {
-            table0: self._create_replicated_table(table0, external_cell_tag=1),
+            table0: self._create_replicated_table(table0, external_cell_tag=11),
         }
 
         assert not exists("{}/@replication_collocation_table_paths".format(table0))
 
         collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
-        collocated_tables[table1] = self._create_replicated_table(table1, external_cell_tag=1)
+        collocated_tables[table1] = self._create_replicated_table(table1, external_cell_tag=11)
         set("{}/@replication_collocation_id".format(table1), collocation_id)
 
         assert get("#{}/@type".format(collocation_id)) == "table_collocation"
@@ -118,8 +118,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         table1 = "//tmp/t1"
         table2 = "//tmp/t2"
         collocated_tables = {
-            table0: self._create_replicated_table(table0, external_cell_tag=1),
-            table1: self._create_replicated_table(table1, external_cell_tag=1),
+            table0: self._create_replicated_table(table0, external_cell_tag=11),
+            table1: self._create_replicated_table(table1, external_cell_tag=11),
         }
 
         collocation_id = create_table_collocation(table_paths=list(collocated_tables.keys()))
@@ -133,7 +133,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
             assert get("#{}/@replication_collocation_id".format(collocated_tables[table1]), driver=get_driver(1)) == \
                 collocation_id
 
-        collocated_tables[table2] = self._create_replicated_table(table2, external_cell_tag=1)
+        collocated_tables[table2] = self._create_replicated_table(table2, external_cell_tag=11)
         set("{}/@replication_collocation_id".format(table2), collocation_id)
         if self.NUM_SECONDARY_MASTER_CELLS:
             assert get("#{}/@replication_collocation_id".format(collocated_tables[table2]), driver=get_driver(1)) == \
@@ -153,8 +153,8 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
         collocated_tables = {
-            table0: self._create_replicated_table(table0, external_cell_tag=1),
-            table1: self._create_replicated_table(table1, external_cell_tag=1),
+            table0: self._create_replicated_table(table0, external_cell_tag=11),
+            table1: self._create_replicated_table(table1, external_cell_tag=11),
         }
 
         collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
@@ -171,7 +171,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
         sync_create_cells(1)
         table0 = "//tmp/t0"
         collocated_tables = {
-            table0: self._create_replicated_table(table0, external_cell_tag=1),
+            table0: self._create_replicated_table(table0, external_cell_tag=11),
         }
 
         collocation_id = create_table_collocation(table_ids=list(collocated_tables.values()))
@@ -195,8 +195,8 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
         table0 = "//tmp/t0"
         table1 = "//tmp/t1"
         collocated_tables = {
-            table0: self._create_replicated_table(table0, external_cell_tag=1),
-            table1: self._create_replicated_table(table1, external_cell_tag=2),
+            table0: self._create_replicated_table(table0, external_cell_tag=11),
+            table1: self._create_replicated_table(table1, external_cell_tag=12),
         }
 
         with raises_yt_error("same external cell tag"):
@@ -220,11 +220,11 @@ class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase)
     ENABLE_TMP_PORTAL = True
 
     @authors("akozhikhov")
-    @pytest.mark.parametrize("external_cell_tag", [0, 1, 2])
+    @pytest.mark.parametrize("external_cell_tag", [10, 11, 12])
     def test_portal_error(self, external_cell_tag):
         sync_create_cells(1)
 
-        if external_cell_tag == 0:
+        if external_cell_tag == 10:
             id0 = self._create_replicated_table("//sys/t", external=False)
             id1 = self._create_replicated_table("//tmp/t", external=False)
         else:
@@ -241,7 +241,7 @@ class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase)
             create_table_collocation(table_ids=[id1])
 
         collocation_id = create_table_collocation(table_paths=["//sys/t"])
-        if external_cell_tag == 1:
+        if external_cell_tag == 11:
             with raises_yt_error("Unexpected native cell tag"):
                 set("//tmp/t/@replication_collocation_id", collocation_id)
         else:

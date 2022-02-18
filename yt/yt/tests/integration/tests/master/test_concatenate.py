@@ -754,10 +754,10 @@ class TestConcatenateMulticell(TestConcatenate):
 
     @authors("gritukan")
     def test_concatenate_imported_chunks(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", [{"a": "b"}])
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
         op = merge(mode="unordered", in_=["//tmp/t1"], out="//tmp/t2")
         op.track()
         chunk_id = get_singular_chunk_id("//tmp/t2")
@@ -767,7 +767,7 @@ class TestConcatenateMulticell(TestConcatenate):
         lock("//tmp/t2", mode="exclusive", tx=tx1)
         remove("//tmp/t2", tx=tx1)
 
-        create("table", "//tmp/t3", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 11})
 
         tx2 = start_transaction()
         concatenate(['<transaction_id="{}">//tmp/t2'.format(tx2)], "//tmp/t3")
@@ -786,11 +786,11 @@ class TestConcatenatePortal(TestConcatenateMulticell):
     def test_concatenate_between_primary_and_secondary_shards(self):
         create("table", "//tmp/src1", attributes={"external": False})
         write_table("//tmp/src1", [{"a": "b"}])
-        create("table", "//tmp/src2", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/src2", attributes={"external_cell_tag": 11})
         write_table("//tmp/src2", [{"c": "d"}])
 
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
-        create("table", "//portals/p/dst", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+        create("table", "//portals/p/dst", attributes={"exit_cell_tag": 11})
 
         tx = start_transaction()
         concatenate(["//tmp/src1", "//tmp/src2"], "//portals/p/dst", tx=tx)
@@ -800,13 +800,13 @@ class TestConcatenatePortal(TestConcatenateMulticell):
 
     @authors("shakurov")
     def test_concatenate_between_secondary_shards(self):
-        create("table", "//tmp/src1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/src1", attributes={"external_cell_tag": 11})
         write_table("//tmp/src1", [{"a": "b"}])
-        create("table", "//tmp/src2", attributes={"external_cell_tag": 3})
+        create("table", "//tmp/src2", attributes={"external_cell_tag": 13})
         write_table("//tmp/src2", [{"c": "d"}])
 
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
-        create("table", "//portals/p/dst", attributes={"external_cell_tag": 1})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+        create("table", "//portals/p/dst", attributes={"external_cell_tag": 11})
 
         tx = start_transaction()
         concatenate(["//tmp/src1", "//tmp/src2"], "//portals/p/dst", tx=tx)
@@ -818,12 +818,12 @@ class TestConcatenatePortal(TestConcatenateMulticell):
 class TestConcatenateShardedTx(TestConcatenatePortal):
     NUM_SECONDARY_MASTER_CELLS = 5
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["cypress_node_host", "chunk_host"],
-        "2": ["cypress_node_host", "chunk_host"],
-        "3": ["chunk_host"],
-        "4": ["transaction_coordinator"],
-        "5": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "11": ["cypress_node_host", "chunk_host"],
+        "12": ["cypress_node_host", "chunk_host"],
+        "13": ["chunk_host"],
+        "14": ["transaction_coordinator"],
+        "15": ["transaction_coordinator"],
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {

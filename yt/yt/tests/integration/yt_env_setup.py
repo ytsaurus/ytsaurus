@@ -369,7 +369,7 @@ class YTEnvSetup(object):
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
-            primary_cell_tag=index * 10,
+            primary_cell_tag=(index + 1) * 10,
             enable_structured_logging=True,
             enable_log_compression=True,
             log_compression_method="zstd",
@@ -538,7 +538,7 @@ class YTEnvSetup(object):
 
         if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
             yt_commands.remove("//sys/operations")
-            yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
+            yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 11})
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -772,7 +772,7 @@ class YTEnvSetup(object):
                     "//tmp",
                     attributes={
                         "account": "tmp",
-                        "exit_cell_tag": 1,
+                        "exit_cell_tag": 11,
                         "acl": [
                             {
                                 "action": "allow",

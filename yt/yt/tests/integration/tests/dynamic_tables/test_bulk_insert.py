@@ -208,8 +208,8 @@ class TestBulkInsert(DynamicTablesBase):
         cells = sync_create_cells(2)
         create("table", "//tmp/t_input")
         if external:
-            self._create_simple_dynamic_table("//tmp/t1", external_cell_tag=1)
-            self._create_simple_dynamic_table("//tmp/t2", external_cell_tag=2)
+            self._create_simple_dynamic_table("//tmp/t1", external_cell_tag=11)
+            self._create_simple_dynamic_table("//tmp/t2", external_cell_tag=12)
         else:
             self._create_simple_dynamic_table("//tmp/t1", external=False)
             self._create_simple_dynamic_table("//tmp/t2", external=False)
@@ -556,7 +556,7 @@ class TestBulkInsert(DynamicTablesBase):
     def test_chunk_teleportation(self, external):
         sync_create_cells(1)
         if external:
-            self._create_simple_dynamic_table("//tmp/t_output", external_cell_tag=1)
+            self._create_simple_dynamic_table("//tmp/t_output", external_cell_tag=11)
         else:
             self._create_simple_dynamic_table("//tmp/t_output", external=False)
         set("//tmp/t_output/@enable_compaction_and_partitioning", False)
@@ -567,7 +567,7 @@ class TestBulkInsert(DynamicTablesBase):
                 "table",
                 "//tmp/t_input",
                 attributes={"schema": get("//tmp/t_output/@schema")},
-                external_cell_tag=2,
+                external_cell_tag=12,
             )
         else:
             create(
@@ -1979,10 +1979,10 @@ class TestBulkInsertPortal(TestBulkInsertMulticell):
 class TestBulkInsertShardedTx(TestBulkInsertPortal):
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["cypress_node_host"],
-        "2": ["chunk_host"],
-        "3": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "11": ["cypress_node_host"],
+        "12": ["chunk_host"],
+        "13": ["transaction_coordinator"],
     }
 
 
@@ -1995,8 +1995,8 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["cypress_node_host"],
-        "2": ["chunk_host"],
-        "3": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "11": ["cypress_node_host"],
+        "12": ["chunk_host"],
+        "13": ["transaction_coordinator"],
     }

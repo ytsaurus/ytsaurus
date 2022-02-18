@@ -56,7 +56,7 @@ def check_queue_list():
     create("table", "//tmp/qq", attributes={"dynamic": False, "schema": [{"name": "data", "type": "string"}]})
     create("table", "//tmp/qqq", attributes={"dynamic": True,
                                              "schema": [{"name": "data", "type": "string", "sort_order": "ascending"},
-                                                        {"name": "kek", "type": "string"}]})
+                                                        {"name": "payload", "type": "string"}]})
     create("map_node", "//tmp/mn")
     tx = start_transaction(timeout=30000)
     create("table", "//tmp/qqqq", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]}, tx=tx)

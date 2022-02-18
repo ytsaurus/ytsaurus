@@ -635,7 +635,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         def create_sorted_table(name):
             if external:
-                self._create_sorted_table(name, external_cell_tag=1)
+                self._create_sorted_table(name, external_cell_tag=11)
             else:
                 self._create_sorted_table(name, external=False)
 
@@ -1172,8 +1172,8 @@ class TestTabletBalancer(TabletActionsBase):
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(4)
         if self.is_multicell():
-            self._create_sorted_table("//tmp/t1", external_cell_tag=1, in_memory_mode="uncompressed")
-            self._create_sorted_table("//tmp/t2", external_cell_tag=2, in_memory_mode="uncompressed")
+            self._create_sorted_table("//tmp/t1", external_cell_tag=11, in_memory_mode="uncompressed")
+            self._create_sorted_table("//tmp/t2", external_cell_tag=12, in_memory_mode="uncompressed")
         else:
             self._create_sorted_table("//tmp/t1", in_memory_mode="uncompressed")
             self._create_sorted_table("//tmp/t2", in_memory_mode="uncompressed")

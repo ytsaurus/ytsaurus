@@ -1481,11 +1481,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
         create("table", "//tmp/empty_schema_holder")
         empty_schema_0_id = get("//tmp/empty_schema_holder/@schema_id")
 
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/p1/empty_schema_holder")
         empty_schema_1_id = get("//tmp/p1/empty_schema_holder/@schema_id")
 
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
         create("table", "//tmp/p2/empty_schema_holder")
         empty_schema_2_id = get("//tmp/p2/empty_schema_holder/@schema_id")
 
@@ -1567,7 +1567,7 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
     @authors("shakurov")
     def test_create_with_schema(self):
-        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 1})
+        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 11})
         table_id = get("//tmp/table1/@id")
         schema_id = get("//tmp/table1/@schema_id")
         external_schema_id = get("#" + table_id + "/@schema_id", driver=get_driver(1))
@@ -1582,7 +1582,7 @@ class TestSchemaObjects(TestSchemaDeduplication):
         create("table", "//tmp/schema_holder", attributes={"schema": self._get_schema(True)})
         schema_id = get("//tmp/schema_holder/@schema_id")
 
-        create("table", "//tmp/table1", attributes={"schema_id": schema_id, "external_cell_tag": 1})
+        create("table", "//tmp/table1", attributes={"schema_id": schema_id, "external_cell_tag": 11})
         table_id = get("//tmp/table1/@id")
         assert get("//tmp/table1/@schema_id") == schema_id
         external_schema_id = get("#" + table_id + "/@schema_id", driver=get_driver(1))
@@ -1594,9 +1594,9 @@ class TestSchemaObjects(TestSchemaDeduplication):
     @authors("shakurov")
     @pytest.mark.parametrize("cross_shard", [False, True])
     def test_copy_with_schema(self, cross_shard):
-        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 1})
+        create("table", "//tmp/table1", attributes={"schema": self._get_schema(True), "external_cell_tag": 11})
         if cross_shard:
-            create("portal_entrance", "//tmp/d", attributes={"exit_cell_tag": 2})
+            create("portal_entrance", "//tmp/d", attributes={"exit_cell_tag": 12})
         else:
             create("map_node", "//tmp/d")
 

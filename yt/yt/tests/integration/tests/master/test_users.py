@@ -102,8 +102,8 @@ class TestUsers(YTEnvSetup):
         set("//sys/users/u/@request_limits/read_request_rate/default", 1337)
         assert get("//sys/users/u/@request_limits/read_request_rate/default") == 1337
 
-        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"0": 1338})
-        assert get("//sys/users/u/@request_limits/read_request_rate/per_cell/0") == 1338
+        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"10": 1338})
+        assert get("//sys/users/u/@request_limits/read_request_rate/per_cell/10") == 1338
 
     @authors("babenko")
     def test_builtin_init(self):
@@ -551,9 +551,9 @@ class TestUsersMulticell(TestUsers):
     @authors("aleksandra-zh")
     def test_request_limit_cell_names(self):
         create_user("u")
-        set("//sys/@config/multicell_manager/cell_descriptors/0", {"name": "Julia"})
-        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"Julia": 100, "1": 200})
-        assert get("//sys/users/u/@request_limits/read_request_rate/per_cell") == {"Julia": 100, "1": 200}
+        set("//sys/@config/multicell_manager/cell_descriptors/10", {"name": "Julia"})
+        set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"Julia": 100, "11": 200})
+        assert get("//sys/users/u/@request_limits/read_request_rate/per_cell") == {"Julia": 100, "11": 200}
 
-        set("//sys/@config/multicell_manager/cell_descriptors/1", {"name": "George"})
+        set("//sys/@config/multicell_manager/cell_descriptors/11", {"name": "George"})
         assert get("//sys/users/u/@request_limits/read_request_rate/per_cell") == {"Julia": 100, "George": 200}

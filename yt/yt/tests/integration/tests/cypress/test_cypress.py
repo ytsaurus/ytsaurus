@@ -3449,7 +3449,7 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("shakurov")
     def test_cross_shard_copy_inhertible_attributes(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         create_tablet_cell_bundle("b")
         create("map_node", "//tmp/d", attributes={
@@ -3474,7 +3474,7 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("aleksandra-zh")
     def test_cross_shard_copy_builtin_attributes(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         create(
             "table",
@@ -3484,7 +3484,7 @@ class TestCypressPortal(TestCypressMulticell):
                 "compression_codec": "zlib_6",
                 "erasure_codec": "reed_solomon_6_3",
                 "enable_skynet_sharing": True,
-                "external_cell_tag": 3
+                "external_cell_tag": 13
             },
         )
 
@@ -3504,14 +3504,14 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("shakurov")
     def test_cross_shard_copy_w_tx(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         tx = start_transaction()
-        create("table", "//portals/p/t1", tx=tx, attributes={"external_cell_tag": 3})
+        create("table", "//portals/p/t1", tx=tx, attributes={"external_cell_tag": 13})
         # Must not crash.
         move("//portals/p/t1", "//tmp/t1_copy", tx=tx)
 
-        create("table", "//tmp/t2", tx=tx, attributes={"external_cell_tag": 3})
+        create("table", "//tmp/t2", tx=tx, attributes={"external_cell_tag": 13})
         # Must not crash.
         move("//tmp/t2", "//portals/p/t2_copy", tx=tx)
 
@@ -3519,7 +3519,7 @@ class TestCypressPortal(TestCypressMulticell):
     def test_annotation_portal(self):
         set("//portals/@annotation", "test")
 
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
         create("map_node", "//portals/p/test")
 
         assert get("//portals/p/test/@annotation") == "test"
@@ -3542,7 +3542,7 @@ class TestCypressPortal(TestCypressMulticell):
     def test_preserve_owner(self):
         create_user("u1")
         create("document", "//tmp/doc", authenticated_user="u1")
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         # test cross-cell copy
         copy("//tmp/doc", "//portals/p/doc", preserve_owner=True)
@@ -3551,7 +3551,7 @@ class TestCypressPortal(TestCypressMulticell):
     @authors("avmatrosov")
     def test_preserve_acl(self):
         create("document", "//tmp/t1")
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         set("//tmp/t1/@inherit_acl", False)
         acl = [make_ace("deny", "guest", "write")]
@@ -3563,7 +3563,7 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("kvk1920")
     def test_cross_shard_copy_acn(self):
-        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 2})
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
         create("access_control_node", "//tmp/acn", attributes={"namespace": "kvk1920"})
         copy("//tmp/acn", "//portals/p/acn")
         assert "kvk1920" == get("//portals/p/acn/@namespace")
@@ -3575,9 +3575,9 @@ class TestCypressPortal(TestCypressMulticell):
 class TestCypressShardedTx(TestCypressPortal):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "3": ["transaction_coordinator", "chunk_host"],
-        "4": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "13": ["transaction_coordinator", "chunk_host"],
+        "14": ["transaction_coordinator"],
     }
 
 

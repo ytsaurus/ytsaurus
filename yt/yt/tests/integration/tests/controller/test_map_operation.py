@@ -1701,9 +1701,9 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 
     @authors("babenko")
     def test_multicell_input_fetch(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
         write_table("//tmp/t1", [{"a": 1}])
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
         write_table("//tmp/t2", [{"a": 2}])
 
         create("table", "//tmp/t_in", attributes={"external": False})
@@ -1725,12 +1725,12 @@ class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
 class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     NUM_SECONDARY_MASTER_CELLS = 5
     MASTER_CELL_ROLES = {
-        "0": ["cypress_node_host"],
-        "1": ["cypress_node_host"],
-        "2": ["chunk_host"],
-        "3": ["cypress_node_host"],
-        "4": ["transaction_coordinator"],
-        "5": ["transaction_coordinator"],
+        "10": ["cypress_node_host"],
+        "11": ["cypress_node_host"],
+        "12": ["chunk_host"],
+        "13": ["cypress_node_host"],
+        "14": ["transaction_coordinator"],
+        "15": ["transaction_coordinator"],
     }
 
 

@@ -2593,12 +2593,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/t1",
             schema=self.SIMPLE_SCHEMA_SORTED,
             replicated_table_options={"enable_replicated_table_tracker": True},
-            external_cell_tag=1)
+            external_cell_tag=11)
         self._create_replicated_table(
             "//tmp/t2",
             schema=self.SIMPLE_SCHEMA_SORTED,
             replicated_table_options={"enable_replicated_table_tracker": True},
-            external_cell_tag=1)
+            external_cell_tag=11)
         create_table_collocation(table_paths=["//tmp/t1", "//tmp/t2"])
 
         def _create_replica(replicated_table, replica_table, cluster, mode):
@@ -2657,7 +2657,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/t",
             schema=self.SIMPLE_SCHEMA_SORTED,
             replicated_table_options={"enable_replicated_table_tracker": True},
-            external_cell_tag=1)
+            external_cell_tag=11)
 
         replica1 = create_table_replica("//tmp/t", "primary", "//tmp/r1", attributes={"mode": "sync"})
         self._create_replica_table("//tmp/r1", replica1, schema=self.SIMPLE_SCHEMA_SORTED, replica_driver=self.primary_driver)

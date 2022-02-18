@@ -931,20 +931,20 @@ class TestChunkMergerMulticell(TestChunkMerger):
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_teleportation(self, merge_mode):
-        create("table", "//tmp/t1", attributes={"external_cell_tag" : 2})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 12})
         write_table("<append=true>//tmp/t1", {"a": "b"})
         write_table("<append=true>//tmp/t1", {"a": "c"})
 
-        create("table", "//tmp/t2", attributes={"external_cell_tag" : 3})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 13})
         write_table("<append=true>//tmp/t2", {"a": "d"})
         write_table("<append=true>//tmp/t2", {"a": "e"})
 
-        create("table", "//tmp/t", attributes={"external_cell_tag" : 3})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/t")
 
-        assert get("//tmp/t1/@external_cell_tag") == 2
-        assert get("//tmp/t2/@external_cell_tag") == 3
-        assert get("//tmp/t/@external_cell_tag") == 3
+        assert get("//tmp/t1/@external_cell_tag") == 12
+        assert get("//tmp/t2/@external_cell_tag") == 13
+        assert get("//tmp/t/@external_cell_tag") == 13
 
         chunk_ids = get("//tmp/t/@chunk_ids")
         remove("//tmp/t1")
