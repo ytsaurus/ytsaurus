@@ -1,6 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from __future__ import print_function
 import sys
 
 from yt.wrapper.admin_commands import add_switch_leader_parser
@@ -11,27 +10,36 @@ import yt.wrapper as yt
 
 from argparse import ArgumentParser
 
+
 def build_snapshot(*args, **kwargs):
     print(get_driver_instance(None).build_snapshot(*args, **kwargs))
+
 
 def build_master_snapshots(*args, **kwargs):
     print(get_driver_instance(None).build_master_snapshots(*args, **kwargs))
 
+
 def gc_collect(*args, **kwargs):
     get_driver_instance(None).gc_collect(*args, **kwargs)
 
+
 def kill_process(*args, **kwargs):
-    print('NB: If process has actually been killed, there should be a "Socket was closed" below.\n', file=sys.stderr)
+    print('NB: If process has actually been killed, there should be a "Socket was closed" below.\n',
+          file=sys.stderr)
     get_driver_instance(None).kill_process(*args, **kwargs)
+
 
 def write_core_dump(*args, **kwargs):
     print(get_driver_instance(None).write_core_dump(*args, **kwargs))
 
+
 def write_operation_controller_core_dump(*args, **kwargs):
     print(get_driver_instance(None).write_operation_controller_core_dump(*args, **kwargs))
 
+
 def clear_metadata_caches(*args, **kwargs):
     get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
+
 
 def main():
     config_parser = ArgumentParser(add_help=False)
@@ -46,7 +54,9 @@ def main():
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
 
-    build_snapshot_parser = subparsers.add_parser("build-snapshot", help="Build snapshot for a given cell (either master or tablet)")
+    build_snapshot_parser = subparsers.add_parser(
+        "build-snapshot",
+        help="Build snapshot for a given cell (either master or tablet)")
     build_snapshot_parser.set_defaults(func=build_snapshot)
     build_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
     build_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
@@ -64,10 +74,10 @@ def main():
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection at master")
     gc_collect_parser.set_defaults(func=gc_collect)
 
-    kill_process_parser = subparsers.add_parser("kill-process",
-                                                help="Force any remote YT service process listening at a given address to exit immediately. "
-                                                     "Use with care. "
-                                                     "This command always finishes with an error")
+    kill_process_parser = subparsers.add_parser(
+        "kill-process",
+        help="Force any remote YT service process listening at a given address to exit immediately. "
+             "Use with care. This command always finishes with an error")
     kill_process_parser.add_argument("address")
     kill_process_parser.set_defaults(func=kill_process)
 
@@ -102,6 +112,7 @@ def main():
     func_args.pop("config")
     func_args.pop("proxy")
     args.func(**func_args)
+
 
 if __name__ == "__main__":
     main()
