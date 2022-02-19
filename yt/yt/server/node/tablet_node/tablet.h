@@ -497,7 +497,8 @@ public:
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
         NTabletClient::TTableReplicaId upstreamReplicaId,
-        TTimestamp retainedTimestamp);
+        TTimestamp retainedTimestamp,
+        i64 cumulativeDataWeight);
 
     ETabletState GetPersistentState() const;
 
@@ -571,6 +572,10 @@ public:
     // Only applicable to ordered tablets.
     i64 GetTrimmedRowCount() const;
     void SetTrimmedRowCount(i64 value);
+
+    // Only applicable to ordered tablets.
+    i64 GetCumulativeDataWeight() const;
+    void IncreaseCumulativeDataWeight(i64 delta);
 
     TTimestamp GetLastCommitTimestamp() const;
     void UpdateLastCommitTimestamp(TTimestamp value);
@@ -681,6 +686,8 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
     TTabletCounters TabletCounters_;
+
+    i64 CumulativeDataWeight_ = 0;
 
     void Initialize();
 

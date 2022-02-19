@@ -30,6 +30,10 @@ struct TChunkTreeStatistics
     //! Sum of data weights of chunks in the tree. Equals -1 if chunk tree contains old chunks.
     i64 DataWeight = 0;
 
+    //! Sum of data weights of all historical chunks in the tree.
+    //! Can be larger than #DataWeight if some initial prefix of the rowset was trimmed.
+    i64 LogicalDataWeight = 0;
+
     //! Disk space occupied on data nodes by regular chunks (without replication).
     i64 RegularDiskSpace = 0;
 

@@ -1012,6 +1012,121 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert timestamp1 < timestamp2
         assert timestamp2 < timestamp3
 
+    @staticmethod
+    def _expect_cumulative_data_weights(table, weights):
+        rows = select_rows("[$cumulative_data_weight] from [{}]".format(table))
+        assert len(rows) == len(weights)
+        cumulative_data_weights = []
+        for row in rows:
+            cumulative_data_weights.append(row["$cumulative_data_weight"])
+        assert cumulative_data_weights == weights
+
+    @staticmethod
+    def _get_table_row_count_from_chunk_list(path, tablet):
+        root_chunk_list_id = get("{}/@chunk_list_id".format(path))
+        tablet_chunk_list_id = get("#{}/@child_ids/{}".format(root_chunk_list_id, tablet))
+        return get("#{}/@statistics".format(tablet_chunk_list_id))["row_count"]
+
+    @authors("achulkov2")
+    def test_cumulative_data_weight_column(self):
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "test", "type": "string"},
+                {"name": "$cumulative_data_weight", "type": "int64"},
+            ],
+        )
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "aaa"}])
+        insert_rows("//tmp/t", [{"test": "bb"}])
+
+        self._expect_cumulative_data_weights("//tmp/t", [12, 23])
+
+        sync_flush_table("//tmp/t")
+
+        for size in range(1, 6):
+            insert_rows("//tmp/t", [{"test": "c" * size}])
+            sync_flush_table("//tmp/t")
+
+        self._expect_cumulative_data_weights("//tmp/t", [12, 23, 33, 44, 56, 69, 83])
+
+        trim_rows("//tmp/t", 0, 4)
+        self._expect_cumulative_data_weights("//tmp/t", [56, 69, 83])
+
+        wait(lambda: self._get_table_row_count_from_chunk_list("//tmp/t", 0) == 3)
+
+        insert_rows("//tmp/t", [{"test": "eeee"}])
+        insert_rows("//tmp/t", [{"test": "f"}])
+
+        self._expect_cumulative_data_weights("//tmp/t", [56, 69, 83, 96, 106])
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "ggg"}])
+        insert_rows("//tmp/t", [{"test": "hhhh"}])
+
+        self._expect_cumulative_data_weights("//tmp/t", [56, 69, 83, 96, 106, 118, 131])
+
+    @authors("achulkov2")
+    def test_cumulative_data_weight_includes_timestamp(self):
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "test", "type": "string"},
+                {"name": "$cumulative_data_weight", "type": "int64"},
+                {"name": "$timestamp", "type": "uint64"},
+            ],
+        )
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "hey you"}])
+        insert_rows("//tmp/t", [{"test": "hello world!"}])
+
+        self._expect_cumulative_data_weights("//tmp/t", [24, 24 + 29])
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "a"}])
+        insert_rows("//tmp/t", [{"test": "bb"}])
+
+        self._expect_cumulative_data_weights("//tmp/t", [24, 24 + 29, 24 + 29 + 18, 24 + 29 + 18 + 19])
+
+    @authors("achulkov2")
+    def test_data_weight_attributes(self):
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "test", "type": "string"},
+            ],
+        )
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "hey you"}])
+        insert_rows("//tmp/t", [{"test": "hello world!"}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "abacaba"}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"test": "test"}])
+        sync_flush_table("//tmp/t")
+
+        trim_rows("//tmp/t", 0, 3)
+        wait(lambda: self._get_table_row_count_from_chunk_list("//tmp/t", 0) == 1)
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
+        stats = get("#{0}/@statistics".format(tablet_chunk_list_id))
+        assert stats["data_weight"] == 5
+        assert stats["logical_data_weight"] == 8 + 13 + 8 + 5
+        assert stats["trimmed_data_weight"] == 8 + 13 + 8
+
     @authors("savrus", "levysotsky")
     def test_data_ttl(self):
         sync_create_cells(1)

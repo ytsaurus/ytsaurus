@@ -74,6 +74,7 @@ private:
     class TReader;
 
     const std::optional<int> TimestampColumnId_;
+    const std::optional<int> CumulativeDataWeightColumnId_;
 
     std::atomic<i64> StoreRowCount_ = {0};
 

@@ -859,6 +859,7 @@ private:
             ? FromProto<TTimestamp>(request->retained_timestamp())
             : MinTimestamp;
         const auto& mountHint = request->mount_hint();
+        auto cumulativeDataWeight = request->cumulative_data_weight();
 
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
@@ -874,7 +875,8 @@ private:
             atomicity,
             commitOrdering,
             upstreamReplicaId,
-            retainedTimestamp);
+            retainedTimestamp,
+            cumulativeDataWeight);
 
         tabletHolder->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
         tabletHolder->FillProfilerTags();

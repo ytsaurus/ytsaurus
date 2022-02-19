@@ -823,7 +823,7 @@ TTableSchemaPtr TTableSchema::ToWrite() const
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
         for (const auto& column : Columns_) {
-            if (column.Name() != TimestampColumnName) {
+            if (column.Name() != TimestampColumnName && column.Name() != CumulativeDataWeightColumnName) {
                 columns.push_back(column);
             }
         }
@@ -1385,7 +1385,8 @@ void ValidateSystemColumnSchema(
     };
 
     static const auto allowedOrderedTablesSystemColumns = THashMap<TString, ESimpleLogicalValueType>{
-        {TimestampColumnName, ESimpleLogicalValueType::Uint64}
+        {TimestampColumnName, ESimpleLogicalValueType::Uint64},
+        {CumulativeDataWeightColumnName, ESimpleLogicalValueType::Int64}
     };
 
     auto validateType = [&] (ESimpleLogicalValueType expected) {
@@ -1627,7 +1628,7 @@ void ValidateKeyColumnsFormPrefix(const TTableSchema& schema)
 /*!
  *  Validate that:
  *  - |$timestamp| column cannot be a part of key.
- *  - |$timestamp| column can only be present in unsorted tables.
+ *  - |$timestamp| column can only be present in ordered tables.
  *  - |$timestamp| column has type |uint64|.
  */
 void ValidateTimestampColumn(const TTableSchema& schema)
@@ -1651,6 +1652,40 @@ void ValidateTimestampColumn(const TTableSchema& schema)
     if (schema.IsSorted()) {
         THROW_ERROR_EXCEPTION("Column %Qv cannot appear in a sorted table",
             TimestampColumnName);
+    }
+}
+
+//! Validates |$cumulative_data_weight| column, if any.
+/*!
+ *  Validate that:
+ *  - |$cumulative_data_weight| column cannot be a part of key.
+ *  - |$cumulative_data_weight| column can only be present in ordered tables.
+ *  - |$cumulative_data_weight| column has type |int64|.
+ */
+void ValidateCumulativeDataWeightColumn(const TTableSchema& schema)
+{
+    auto* column = schema.FindColumn(CumulativeDataWeightColumnName);
+    if (!column) {
+        return;
+    }
+
+    if (column->SortOrder()) {
+        THROW_ERROR_EXCEPTION(
+            "Column %Qv cannot be a part of key",
+            CumulativeDataWeightColumnName);
+    }
+
+    if (!column->IsOfV1Type(ESimpleLogicalValueType::Int64)) {
+        THROW_ERROR_EXCEPTION(
+            "Column %Qv must have %Qlv type",
+            CumulativeDataWeightColumnName,
+            EValueType::Int64);
+    }
+
+    if (schema.IsSorted()) {
+        THROW_ERROR_EXCEPTION(
+            "Column %Qv cannot appear in a sorted table",
+            CumulativeDataWeightColumnName);
     }
 }
 
@@ -1680,6 +1715,7 @@ void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic, bool a
     ValidateLocks(schema);
     ValidateKeyColumnsFormPrefix(schema);
     ValidateTimestampColumn(schema);
+    ValidateCumulativeDataWeightColumn(schema);
     ValidateSchemaAttributes(schema);
     if (isTableDynamic) {
         ValidateDynamicTableConstraints(schema);

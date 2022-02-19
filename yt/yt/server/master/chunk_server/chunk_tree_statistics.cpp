@@ -10,6 +10,7 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
 using namespace NChunkClient::NProto;
 using namespace NYTree;
 using namespace NYson;
@@ -34,6 +35,11 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     } else {
         DataWeight += other.DataWeight;
     }
+    if (LogicalDataWeight == -1 || other.LogicalDataWeight == -1) {
+        LogicalDataWeight = -1;
+    } else {
+        LogicalDataWeight += other.LogicalDataWeight;
+    }
 }
 
 void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
@@ -53,6 +59,11 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
         DataWeight = -1;
     } else {
         DataWeight -= other.DataWeight;
+    }
+    if (LogicalDataWeight == -1 || other.LogicalDataWeight == -1) {
+        LogicalDataWeight = -1;
+    } else {
+        LogicalDataWeight -= other.LogicalDataWeight;
     }
 }
 
@@ -77,6 +88,13 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
     Persist(context, DataWeight);
+    // COMPAT(achulkov2)
+    if (context.IsLoad() && context.GetVersion() < EMasterReign::LogicalDataWeight) {
+        // This way trimmed_row_count for old chunk trees won't be negative.
+        LogicalDataWeight = DataWeight;
+    } else {
+        Persist(context, LogicalDataWeight);
+    }
     Persist(context, RegularDiskSpace);
     Persist(context, ErasureDiskSpace);
     Persist(context, ChunkCount);
@@ -98,7 +116,8 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         LogicalChunkCount == other.LogicalChunkCount &&
         ChunkListCount == other.ChunkListCount &&
         Rank == other.Rank &&
-        (DataWeight == -1 || other.DataWeight == -1 || DataWeight == other.DataWeight);
+        (DataWeight == -1 || other.DataWeight == -1 || DataWeight == other.DataWeight) &&
+        (LogicalDataWeight == -1 || other.LogicalDataWeight == -1 || LogicalDataWeight == other.LogicalDataWeight);
 }
 
 bool TChunkTreeStatistics::operator != (const TChunkTreeStatistics& other) const
@@ -122,6 +141,8 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
             .Item("compressed_data_size").Value(statistics.CompressedDataSize)
             .Item("data_weight").Value(statistics.DataWeight)
+            .Item("logical_data_weight").Value(statistics.LogicalDataWeight)
+            .Item("trimmed_data_weight").Value(statistics.LogicalDataWeight - statistics.DataWeight)
             .Item("regular_disk_space").Value(statistics.RegularDiskSpace)
             .Item("erasure_disk_space").Value(statistics.ErasureDiskSpace)
             .Item("chunk_count").Value(statistics.ChunkCount)
