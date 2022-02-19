@@ -1023,15 +1023,13 @@ private:
             THROW_ERROR_EXCEPTION("Changelog store is not yet initialized");
         }
 
-        auto changelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
-            .ValueOrThrow();
+        auto changelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
         if (changelogId == InvalidSegmentId) {
             return {InvalidSegmentId, InvalidTerm};
         }
-        auto changelog = OpenChangelogOrThrow(changelogId);
-        auto meta = changelog->GetMeta();
 
-        return {changelogId, ChangelogStore_->GetTerm().value_or(0)};
+        auto term = ChangelogStore_->GetTermOrThrow();
+        return {changelogId, term};
     }
 
     std::vector<TSharedRef> ReadChangeLog(int changelogId, i64 startRecordId, i64 recordCount)
@@ -1246,9 +1244,7 @@ private:
                 priority);
         }
 
-        auto currentChangelogId = WaitFor(changelogStore->GetLatestChangelogId())
-            .ValueOrThrow();
-
+        int currentChangelogId = changelogStore->GetLatestChangelogIdOrThrow();
         if (currentChangelogId >= changelogId) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
@@ -1649,8 +1645,7 @@ private:
 
         // verify state
 
-        auto selfChangelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
-            .ValueOrThrow();
+        int selfChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
 
         YT_VERIFY(ElectionPriority_);
 
@@ -1658,7 +1653,7 @@ private:
             Config_,
             ControlEpochContext_->CellManager,
             selfChangelogId,
-            ChangelogStore_->GetTerm().value_or(0));
+            ChangelogStore_->GetTermOrThrow());
         auto [changelogId, term] = WaitFor(asyncResult)
             .ValueOrThrow();
 
@@ -2150,7 +2145,7 @@ private:
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableState = ElectionPriority_->ReachableState;
-        epochContext->Term = ChangelogStore_->GetTerm().value_or(0);
+        epochContext->Term = ChangelogStore_->GetTermOrThrow();
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;

@@ -108,7 +108,7 @@ struct IChangelogStore
     /*!
      *  This is initially loaded from a persistent storage and is updated via #SetTerm.
      */
-    virtual std::optional<int> GetTerm() const = 0;
+    virtual std::optional<int> TryGetTerm() const = 0;
 
     //! Asynchronously updates the term in persitent storage.
     /*!
@@ -116,9 +116,12 @@ struct IChangelogStore
      */
     virtual TFuture<void> SetTerm(int term) = 0;
 
-    //! Computes the maximum existing changelog id.
-    // XXX(babenko): make synchronous? return "const"?
-    virtual TFuture<int> GetLatestChangelogId() = 0;
+    //! Returns the maximum existing changelog id or |InvalidSegmentId| if no changelogs are known.
+    //! If the store is read-only then |std::nullopt| is returned.
+    /*!
+     *  This is initially computed from a persistent storage and is updated via #CreateChangelog.
+     */
+    virtual std::optional<int> TryGetLatestChangelogId() const = 0;
 
     //! Returns the initial reachable state, i.e this is
     //! |(t, n, m)| where |t| is changelog term,
@@ -153,6 +156,12 @@ struct IChangelogStore
     virtual TFuture<void> RemoveChangelog(int id) = 0;
 
     // Extension methods.
+
+    //! Delegates to #TryGetTerm, throws on null.
+    int GetTermOrThrow() const;
+
+    //! Delegates to #TryGetLatestChangelogId, throws on null.
+    int GetLatestChangelogIdOrThrow() const;
 
     //! Opens an existing changelog.
     //! If the requested changelog is not found then returns |nullptr|.

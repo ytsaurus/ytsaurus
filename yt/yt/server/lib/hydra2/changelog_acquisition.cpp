@@ -116,9 +116,7 @@ private:
     TFuture<void> AcquireLocalChangelog(int changelogId)
     {
         const auto& changelogStore = EpochContext_->ChangelogStore;
-        auto currentChangelogId = WaitFor(changelogStore->GetLatestChangelogId())
-            .ValueOrThrow();
-
+        int currentChangelogId = changelogStore->GetLatestChangelogIdOrThrow();
         if (currentChangelogId >= changelogId) {
             return MakeFuture(TError(
                 "Cannot acquire local changelog %v because changelog %v exists",

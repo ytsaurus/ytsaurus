@@ -1,12 +1,12 @@
 #include "remote_changelog_store.h"
 
 #include "private.h"
+#include "changelog_store_helpers.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
-#include <yt/yt/server/lib/hydra_common/serialize.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
@@ -141,6 +141,7 @@ public:
         std::optional<TVersion> reachableVersion,
         std::optional<TElectionPriority> electionPriority,
         std::optional<int> term,
+        std::optional<int> latestChangelogId,
         const TJournalWriterPerformanceCounters& counters)
         : TRemoteChangelogStoreAccessor(
             std::move(path),
@@ -153,6 +154,7 @@ public:
         , ElectionPriority_(electionPriority)
         , Counters_(counters)
         , Term_(term)
+        , LatestChangelogId_(latestChangelogId)
     { }
 
     bool IsReadOnly() const override
@@ -160,7 +162,7 @@ public:
         return !PrerequisiteTransaction_;
     }
 
-    std::optional<int> GetTerm() const override
+    std::optional<int> TryGetTerm() const override
     {
         return Term_.load();
     }
@@ -182,11 +184,9 @@ public:
         return ElectionPriority_;
     }
 
-    TFuture<int> GetLatestChangelogId() override
+    std::optional<int> TryGetLatestChangelogId() const override
     {
-        return BIND(&TRemoteChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
-            .Run();
+        return LatestChangelogId_.load();
     }
 
     TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) override
@@ -227,6 +227,7 @@ private:
     const TJournalWriterPerformanceCounters Counters_;
 
     std::atomic<std::optional<int>> Term_;
+    std::atomic<std::optional<int>> LatestChangelogId_;
 
 
     void DoSetTerm(int term)
@@ -253,25 +254,16 @@ private:
         }
     }
 
-    int DoGetLatestChangelogId()
+    void UpdateLatestChangelogId(int id)
     {
-        try {
-            YT_LOG_DEBUG("Finding latest changelog");
-
-            int latestId = InvalidSegmentId;
-            ListChangelogs({}, [&] (const INodePtr& /*item*/, int id) {
-                latestId = std::max(latestId, id);
-            });
-
-            YT_LOG_DEBUG("Latest changelog found (ChangelogId: %v)",
-                latestId);
-
-            return latestId;
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error getting latest changelog id")
-                << TErrorAttribute("store_path", Path_)
-                << ex;
-        }
+        auto expected = LatestChangelogId_.load();
+        do {
+            if (expected >= id) {
+                return;
+            }
+        } while (!LatestChangelogId_.compare_exchange_weak(expected, id));
+        YT_LOG_DEBUG("Latest changelog id updated (NewChangelogId: %v)",
+            id);
     }
 
     IChangelogPtr DoCreateChangelog(int id, const NProto::TChangelogMeta& meta)
@@ -311,6 +303,8 @@ private:
 
             YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
                 id);
+
+            UpdateLatestChangelogId(id);
 
             return MakeRemoteChangelog(
                 id,
@@ -393,7 +387,6 @@ private:
                 << ex;
         }
     }
-
 
     IChangelogPtr MakeRemoteChangelog(
         int id,
@@ -690,12 +683,22 @@ private:
             std::optional<TVersion> reachableVersion;
             std::optional<TElectionPriority> electionPriority;
             std::optional<int> term;
+            std::optional<int> latestChangelogId;
             if (PrerequisiteTransactionId_) {
                 prerequisiteTransaction = CreatePrerequisiteTransaction();
+
                 TakeLock(prerequisiteTransaction);
-                reachableVersion = ComputeReachableVersion();
-                electionPriority = ComputeElectionPriority();
+
+                auto scanResult = Scan();
+                reachableVersion = TVersion(
+                    scanResult.LatestChangelogId,
+                    scanResult.LatestChangelogRecordCount);
+                electionPriority = TElectionPriority(
+                    scanResult.LastMutationTerm,
+                    scanResult.LatestNonemptyChangelogId,
+                    scanResult.LastMutationSequenceNumber);
                 term = GetTerm();
+                latestChangelogId = scanResult.LatestChangelogId;
             }
 
             return New<TRemoteChangelogStore>(
@@ -708,6 +711,7 @@ private:
                 reachableVersion,
                 electionPriority,
                 term,
+                latestChangelogId,
                 Counters_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
@@ -749,61 +753,32 @@ private:
         YT_LOG_DEBUG("No unsealed changelogs in remote store");
     }
 
-    TVersion ComputeReachableVersion()
+    TChangelogStoreScanResult Scan()
     {
         ValidateChangelogsSealed();
 
-        int latestId = -1;
-        int latestRowCount = -1;
+        std::vector<TChangelogStoreScanDescriptor> descriptors;
         ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id) {
-            if (id > latestId) {
-                latestId = id;
-                latestRowCount = item->Attributes().Get<i64>("quorum_row_count");
-            }
+            descriptors.push_back({
+                .Id = id,
+                .RecordCount = item->Attributes().Get<i64>("quorum_row_count")
+            });
         });
 
-        if (latestId < 0) {
-            return {};
-        }
+        auto recordReader = [&] (int changelogId, i64 recordId) {
+            auto path = GetChangelogPath(Path_, changelogId);
+            auto recordsData = ReadRecords(path, Config_->Reader, Client_, recordId, 1);
 
-        return {latestId, latestRowCount};
-    }
-
-    TElectionPriority ComputeElectionPriority()
-    {
-        ValidateChangelogsSealed();
-
-        int latestId = -1;
-        int latestChangelogRecordCount = 0;
-        ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id) {
-            if (id >= latestId) {
-                auto recordCount = item->Attributes().Get<i64>("quorum_row_count");
-                if (recordCount > 0) {
-                    latestId = id;
-                    latestChangelogRecordCount = recordCount;
-                }
+            if (recordsData.empty()) {
+                THROW_ERROR_EXCEPTION("Unable to read record %v in changelog %v",
+                    recordId,
+                    changelogId);
             }
-        });
 
-        if (latestId == -1) {
-            return {};
-        }
+            return recordsData[0];
+        };
 
-        auto path = GetChangelogPath(Path_, latestId);
-        auto records = ReadRecords(path, Config_->Reader, Client_, 0, 1);
-
-        if (records.empty()) {
-            THROW_ERROR_EXCEPTION("Read zero records from nonempty changelog %v",
-                latestId);
-        }
-
-        TMutationHeader header;
-        TSharedRef requestData;
-        DeserializeMutationRecord(records[0], &header, &requestData);
-
-        // All mutations have the same term in one changelog.
-        // (Of course I am not actually sure in anything at this point, but this actually shoulbe true).
-        return {header.term(), latestId, header.sequence_number() + latestChangelogRecordCount - 1};
+        return ScanChangelogStore(descriptors, recordReader);
     }
 
     int GetTerm()
