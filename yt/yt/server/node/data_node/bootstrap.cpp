@@ -7,6 +7,7 @@
 #include "chunk_registry.h"
 #include "chunk_store.h"
 #include "data_node_service.h"
+#include "io_throughput_meter.h"
 #include "medium_directory_manager.h"
 #include "job.h"
 #include "job_heartbeat_processor.h"
@@ -268,6 +269,11 @@ public:
         GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
 
         GetJobController()->AddHeartbeatProcessor<TMasterJobHeartbeatProcessor>(EObjectType::MasterJob, this);
+
+        IOThroughputMeter_ = CreateIOThroughputMeter(
+            GetDynamicConfigManager(),
+            ChunkStore_,
+            DataNodeLogger.WithTag("IOMeter"));
     }
 
     void Run() override
@@ -447,6 +453,8 @@ private:
     NHttp::IServerPtr SkynetHttpServer_;
 
     NIO::IIOTrackerPtr IOTracker_;
+
+    TRefCountedPtr IOThroughputMeter_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,

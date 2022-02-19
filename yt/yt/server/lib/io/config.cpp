@@ -24,4 +24,87 @@ TIOTrackerConfig::TIOTrackerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCongestionDetectorConfig::TCongestionDetectorConfig()
+{
+    RegisterParameter("probes_per_round", ProbesPerRound)
+        .GreaterThan(0)
+        .Default(10);
+
+    RegisterParameter("probes_interval", ProbesInterval)
+        .Default(TDuration::MilliSeconds(200));
+
+    RegisterParameter("packet_size", PacketSize)
+        .GreaterThanOrEqual(512)
+        .Default(16_KB);
+
+    RegisterParameter("max_inflight_probes_count", MaxInflightProbesCount)
+        .Default(1000);
+
+    RegisterParameter("probe_deadline", ProbeDeadline)
+        .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("overload_threshold", OverloadThreshold)
+        .InRange(0, 100)
+        .Default(25);
+    
+    RegisterParameter("heavy_overload_threshold", HeavyOverloadThreshold)
+        .InRange(0, 100)
+        .Default(50);
+
+    RegisterParameter("user_request_overload_threshold", UserRequestOverloadThreshold)
+        .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("user_request_heavy_overload_threshold", UserRequestHeavyOverloadThreshold)
+        .Default(TDuration::MilliSeconds(200));
+
+    RegisterParameter("user_reques_failed_probes_threshold", UserRequestFailedProbesThreshold)
+        .GreaterThan(0)
+        .Default(3);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGentleLoaderConfig::TGentleLoaderConfig()
+{
+    RegisterParameter("congestion_detector", CongestionDetector)
+        .DefaultNew();
+    
+    RegisterParameter("read_to_write_ratio", ReadToWriteRatio)
+        .InRange(0, 100)
+        .Default(75);
+    
+    RegisterParameter("segment_size", SegmentSize)
+        .GreaterThan(0)
+        .Default(10);
+
+    RegisterParameter("max_window_size", MaxWindowSize)
+        .GreaterThan(0)
+        .Default(10'000);
+
+    RegisterParameter("packet_size", PacketSize)
+        .GreaterThan(0)
+        .Default(128_KB);
+
+    RegisterParameter("max_in_flight_count", MaxInFlightCount)
+        .GreaterThan(0)
+        .Default(5000);
+
+    RegisterParameter("writers_count", WritersCount)
+        .GreaterThan(0)
+        .Default(100);
+
+    RegisterParameter("max_write_file_size", MaxWriteFileSize)
+        .GreaterThan(4_KB)
+        .Default(512_MB);
+
+    RegisterParameter("writers_folder", WritersFolder)
+        .NonEmpty()
+        .Default("writes_bench");
+
+    RegisterParameter("wait_after_congested", WaitAfterCongested)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NIO

@@ -133,6 +133,9 @@ public:
     //! Returns the IO Engine.
     const NIO::IIOEnginePtr& GetIOEngine() const;
 
+    //! Returns the IO Engine with stats observer.
+    const NIO::IIOEngineWorkloadModelPtr& GetIOEngineModel() const;
+
     //! Returns direct IO policy for read requests.
     NIO::EDirectIOPolicy UseDirectIOForReads() const;
 
@@ -315,6 +318,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
     NIO::IIOEnginePtr IOEngine_;
+    NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
