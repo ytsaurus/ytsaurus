@@ -263,9 +263,7 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
         adjustedRemoteRecordCount);
 
     if (localRecordCount > adjustedRemoteRecordCount) {
-        auto latestChangelogId = WaitFor(ChangelogStore_->GetLatestChangelogId())
-            .ValueOrThrow();
-
+        int latestChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
         for (int changelogToTruncateId = latestChangelogId; changelogToTruncateId > changelog->GetId(); --changelogToTruncateId) {
             auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogToTruncateId));
             if (!errorOrChangelogToTruncate.IsOK()) {
