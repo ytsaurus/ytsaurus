@@ -177,7 +177,7 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     }
 
     // COMPAT(gritukan)
-    bool isMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 2000;
+    bool isMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 3000;
     bool isOldMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 1808;
     bool isControllerAgentSnapshotVersion = context.GetVersion() >= 300000 && context.GetVersion() <= 302000;
     bool isOldControllerAgentSnapshotVersion = context.GetVersion() >= 300000 && context.GetVersion() < 300701;

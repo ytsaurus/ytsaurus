@@ -102,6 +102,8 @@ DEFINE_ENUM(EMasterReign,
     ((QueueList)                                                    (1934))  // achulkov2
     ((BackupErrors)                                                 (1935))  // ifsmirnov
     ((EnableTypeV3Dyntable)                                         (1936))  // ermolovd
+    // 22.2 starts here.
+    ((LogicalDataWeight)                                            (2000))  // achulkov2
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3739,6 +3739,8 @@ private:
                 auto* mountHint = req.mutable_mount_hint();
                 ToProto(mountHint->mutable_eden_store_ids(), tablet->EdenStoreIds());
 
+                req.set_cumulative_data_weight(tablet->GetChunkList()->Statistics().LogicalDataWeight);
+
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),

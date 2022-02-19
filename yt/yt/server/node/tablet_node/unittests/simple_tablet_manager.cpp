@@ -78,7 +78,8 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         options.Atomicity,
         options.CommitOrdering,
         TTableReplicaId(),
-        0);
+        /*retainedTimestamp*/ NullTimestamp,
+        /*cumulativeDataWeight*/ 0);
 
     tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet.get()));
     WaitFor(BIND([&, tablet = std::move(tablet)] () mutable {

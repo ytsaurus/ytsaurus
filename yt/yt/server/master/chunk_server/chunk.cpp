@@ -64,6 +64,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
         result.UncompressedDataSize = GetUncompressedDataSize();
         result.CompressedDataSize = GetCompressedDataSize();
         result.DataWeight = GetDataWeight();
+        result.LogicalDataWeight = GetDataWeight();
         if (IsErasure()) {
             result.ErasureDiskSpace = GetDiskSpace();
         } else {

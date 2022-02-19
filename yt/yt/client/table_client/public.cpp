@@ -12,6 +12,7 @@ const TString RowIndexColumnName = SystemColumnNamePrefix + "row_index";
 const TString RangeIndexColumnName = SystemColumnNamePrefix + "range_index";
 const TString TabletIndexColumnName = SystemColumnNamePrefix + "tablet_index";
 const TString TimestampColumnName = SystemColumnNamePrefix + "timestamp";
+const TString CumulativeDataWeightColumnName = SystemColumnNamePrefix + "cumulative_data_weight";
 
 ////////////////////////////////////////////////////////////////////////////////
 

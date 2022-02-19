@@ -195,6 +195,15 @@ std::optional<int> GetTimestampColumnId(const TTableSchema& schema)
     return schema.GetColumnIndex(*column);
 }
 
+std::optional<int> GetCumulativeDataWeightColumnId(const TTableSchema& schema)
+{
+    const auto* column = schema.FindColumn(CumulativeDataWeightColumnName);
+    if (!column) {
+        return std::nullopt;
+    }
+    return schema.GetColumnIndex(*column);
+}
+
 } // namespace
 
 TOrderedDynamicStore::TOrderedDynamicStore(
@@ -203,6 +212,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
     TTablet* tablet)
     : TDynamicStoreBase(config, id, tablet)
     , TimestampColumnId_(GetTimestampColumnId(*Schema_))
+    , CumulativeDataWeightColumnId_(GetCumulativeDataWeightColumnId(*Schema_))
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
@@ -260,11 +270,32 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
         dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
     }
 
+    i64 dataWeight = 0;
+
+    // COMPAT(achulkov2)
+    auto* mutationContext = NHydra::TryGetCurrentMutationContext();
+    if (mutationContext && mutationContext->Request().Reign >= ToUnderlying(ETabletReign::CumulativeDataWeight)) {
+        // NB: Includes the weight of the $timestamp column if it exists.
+        // NB: Be sure to place writes of all additional columns before this line.
+        dataWeight = static_cast<i64>(GetDataWeight(dynamicRow));
+
+        if (CumulativeDataWeightColumnId_) {
+            // Account for the $cumulative_data_weight column we are adding.
+            dataWeight += static_cast<i64>(GetDataWeight(EValueType::Uint64)) - static_cast<i64>(GetDataWeight(EValueType::Null));
+
+            GetTablet()->IncreaseCumulativeDataWeight(dataWeight);
+            dynamicRow[*CumulativeDataWeightColumnId_] = MakeUnversionedInt64Value(
+                GetTablet()->GetCumulativeDataWeight(),
+                *CumulativeDataWeightColumnId_);
+        }
+    } else {
+        dataWeight = static_cast<i64>(GetDataWeight(row));
+    }
+
     CommitRow(dynamicRow);
     UpdateTimestampRange(context->CommitTimestamp);
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = GetDataWeight(row);
     ++PerformanceCounters_->DynamicRowWriteCount;
     PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
     ++context->RowCount;

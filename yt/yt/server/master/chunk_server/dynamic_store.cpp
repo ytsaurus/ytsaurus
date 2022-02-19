@@ -87,6 +87,7 @@ TChunkTreeStatistics TDynamicStore::GetStatistics() const
     statistics.CompressedDataSize = 0;
     statistics.UncompressedDataSize = 0;
     statistics.DataWeight = 0;
+    statistics.LogicalDataWeight = 0;
     return statistics;
 }
 

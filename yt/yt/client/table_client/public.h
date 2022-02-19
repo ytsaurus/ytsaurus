@@ -107,6 +107,7 @@ extern const TString RowIndexColumnName;
 extern const TString RangeIndexColumnName;
 extern const TString TabletIndexColumnName;
 extern const TString TimestampColumnName;
+extern const TString CumulativeDataWeightColumnName;
 extern const TString PrimaryLockName;
 
 constexpr int TypicalHunkColumnCount = 8;

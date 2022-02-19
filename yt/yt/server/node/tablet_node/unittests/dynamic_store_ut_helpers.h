@@ -192,7 +192,8 @@ public:
             GetAtomicity(),
             GetCommitOrdering(),
             TTableReplicaId(),
-            0);
+            /*retainedTimestamp*/ NullTimestamp,
+            /*cumulativeDataWeight*/ 0);
         Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
         auto storeManager = CreateStoreManager(Tablet_.get());

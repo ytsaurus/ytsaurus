@@ -498,7 +498,8 @@ TTablet::TTablet(
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
     TTableReplicaId upstreamReplicaId,
-    TTimestamp retainedTimestamp)
+    TTimestamp retainedTimestamp,
+    i64 cumulativeDataWeight)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -523,6 +524,7 @@ TTablet::TTablet(
         EdenIndex,
         PivotKey_,
         NextPivotKey_))
+    , CumulativeDataWeight_(cumulativeDataWeight)
 {
     Initialize();
 }
@@ -597,6 +599,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, RuntimeData_->LastWriteTimestamp);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
+    Save(context, CumulativeDataWeight_);
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
@@ -661,6 +664,10 @@ void TTablet::Load(TLoadContext& context)
         replicaInfo.SetTablet(this);
     }
     Load(context, RetainedTimestamp_);
+    // COMPAT(achulkov2)
+    if (context.GetVersion() >= ETabletReign::CumulativeDataWeight) {
+        Load(context, CumulativeDataWeight_);
+    }
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
     // during construction. Initialize() will take care of this.
@@ -1324,6 +1331,17 @@ i64 TTablet::GetTrimmedRowCount() const
 void TTablet::SetTrimmedRowCount(i64 value)
 {
     RuntimeData_->TrimmedRowCount = value;
+}
+
+i64 TTablet::GetCumulativeDataWeight() const
+{
+    return CumulativeDataWeight_;
+}
+
+void TTablet::IncreaseCumulativeDataWeight(i64 delta)
+{
+    YT_ASSERT(delta >= 0);
+    CumulativeDataWeight_ += delta;
 }
 
 TTimestamp TTablet::GetLastCommitTimestamp() const

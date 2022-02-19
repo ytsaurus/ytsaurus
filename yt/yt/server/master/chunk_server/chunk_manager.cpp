@@ -1181,6 +1181,7 @@ public:
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
             newChunkList->Statistics().LogicalChunkCount = chunkList->Statistics().LogicalChunkCount;
+            newChunkList->Statistics().LogicalDataWeight = chunkList->Statistics().LogicalDataWeight;
             newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
             newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
         } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
