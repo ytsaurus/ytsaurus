@@ -472,6 +472,46 @@ DEFINE_REFCOUNTED_TYPE(TDataNodeTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMediumThroughputMeterConfig
+    : public NIO::TGentleLoaderConfig
+{
+public:
+    TString MediumName;
+    bool Enabled;
+
+    TMediumThroughputMeterConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumThroughputMeterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIOThroughputMeterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+
+    std::vector<TMediumThroughputMeterConfigPtr> Medium;
+
+    // Remeasure throughtput after this timeout.
+    TDuration TimeBetweenTests;
+
+    // Desired testing session duration.
+    TDuration TestingTimeSoftLimit;
+
+    // Max allowed testing duration.
+    TDuration TestingTimeHardLimit;
+
+    int MaxCongestionsPerTest;
+
+    TIOThroughputMeterConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -735,6 +775,8 @@ public:
     TDuration IOStatisticsUpdateTimeout;
 
     NChunkClient::TErasureReaderConfigPtr AdaptiveChunkRepairJob;
+
+    TIOThroughputMeterConfigPtr IOThroughputMeter;
 
     TDataNodeDynamicConfig();
 };

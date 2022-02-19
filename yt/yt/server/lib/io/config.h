@@ -44,4 +44,84 @@ DEFINE_REFCOUNTED_TYPE(TIOTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCongestionDetectorConfig
+    : public NYTree::TYsonSerializable
+{
+    // How many probes to make before making decision.
+    i32 ProbesPerRound;
+
+    // Time between probes;
+    TDuration ProbesInterval;
+
+    // Probe read size.
+    i32 PacketSize;
+
+    // Probe read request timeout.
+    TDuration ProbeDeadline;
+
+    // Limiting inflight probes count to arbitrary large value.
+    i32 MaxInflightProbesCount;
+
+    // Failed probes percentages.
+    i32 OverloadThreshold;
+
+    // Failed probes percentages.
+    i32 HeavyOverloadThreshold;
+
+    // User interactive overload 99p latency.
+    TDuration UserRequestOverloadThreshold;
+
+    // User interactive overload 99p latency.
+    TDuration UserRequestHeavyOverloadThreshold;
+
+    // Consecutive user failed probes count.
+    i32 UserRequestFailedProbesThreshold;
+
+    TCongestionDetectorConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TCongestionDetectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGentleLoaderConfig
+    : public NYTree::TYsonSerializable
+{
+    TCongestionDetectorConfigPtr CongestionDetector;
+
+    // Read/Write requests sizes.
+    i32 PacketSize;
+
+    // IO request count currently in flight.
+    i32 MaxInFlightCount;
+
+    // 100 means only reads, 0 - only writes.
+    // TODO(capone212): make optional and take current IOEngine values?
+    ui8 ReadToWriteRatio;
+
+    // Window increments/decrements are done in terms of segments.
+    // Measured in packets.
+    i32 SegmentSize;
+
+    // Sane maximum window value.
+    i32 MaxWindowSize;
+
+    // Each writer corresponds to one file.
+    i32 WritersCount;
+
+    i32 MaxWriteFileSize;
+
+    // Subfolder to create temporary files.
+    TString WritersFolder;
+
+    // Don't send load request for this period after congested.
+    TDuration WaitAfterCongested;
+
+    TGentleLoaderConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TGentleLoaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NIO

@@ -23,6 +23,7 @@
 #include <yt/yt/server/lib/misc/private.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
+#include <yt/yt/server/lib/io/io_workload_model.h>
 
 #include <yt/yt/ytlib/chunk_client/format.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
@@ -171,12 +172,15 @@ TChunkLocation::TChunkLocation(
 
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
-    IOEngine_ = CreateIOEngine(
+    auto engine = CreateIOEngine(
         Config_->IOEngineType,
         Config_->IOConfig,
         id,
         Profiler_,
         DataNodeLogger.WithTag("LocationId: %v", id));
+
+    IOEngineModel_ = CreateIOModelInterceptor(id, engine, DataNodeLogger.WithTag("IOModel: %v", id));
+    IOEngine_ = IOEngineModel_;
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, Profiler_);
@@ -206,6 +210,13 @@ const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return IOEngine_;
+}
+
+const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return IOEngineModel_;
 }
 
 ELocationType TChunkLocation::GetType() const

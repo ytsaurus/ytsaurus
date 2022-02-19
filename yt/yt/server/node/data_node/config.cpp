@@ -378,6 +378,39 @@ TDataNodeTestingOptions::TDataNodeTestingOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMediumThroughputMeterConfig::TMediumThroughputMeterConfig()
+{
+    RegisterParameter("medium_name", MediumName)
+        .NonEmpty();
+
+    RegisterParameter("enabled", Enabled)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIOThroughputMeterConfig::TIOThroughputMeterConfig()
+{
+    RegisterParameter("enabled", Enabled)
+        .Default(false);
+
+    RegisterParameter("medium", Medium);
+
+    RegisterParameter("time_between_tests", TimeBetweenTests)
+        .Default(TDuration::Hours(12));
+
+    RegisterParameter("testing_time_soft_limit", TestingTimeSoftLimit)
+        .Default(TDuration::Minutes(20));
+
+    RegisterParameter("testing_time_hard_limit", TestingTimeHardLimit)
+        .Default(TDuration::Minutes(60));
+
+    RegisterParameter("max_congestions_per_test", MaxCongestionsPerTest)
+        .Default(20);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDataNodeConfig::TDataNodeConfig()
 {
     RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -738,6 +771,9 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
             AdaptiveChunkRepairJob->EnableAutoRepair = false;
         }
     });
+
+    RegisterParameter("io_throughput_meter", IOThroughputMeter)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
