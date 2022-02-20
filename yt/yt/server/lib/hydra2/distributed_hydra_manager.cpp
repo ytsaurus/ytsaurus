@@ -1216,13 +1216,26 @@ private:
 
         auto controlState = GetControlState();
 
-        // TODO(aleksandra-zh): can we actually be following?
         if (controlState != EPeerState::FollowerRecovery && controlState != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Cannot acquire changelog %v in %Qlv state",
                 changelogId,
                 controlState);
+        }
+
+        if (controlState == EPeerState::Following && elections) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot acquire changelog %v because peer is already following",
+                changelogId);
+        }
+
+        if (epochContext->Recovery && elections) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot acquire changelog %v after recovery started",
+                changelogId);
         }
 
         if (epochContext->Term > term || (elections && epochContext->Term == term)) {
