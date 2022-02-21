@@ -806,7 +806,7 @@ void TDecoratedAutomaton::LoadSnapshot(
 
     Automaton_->Clear();
     try {
-        AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
+        AutomatonVersion_ = CommittedVersion_ = TVersion();
         RandomSeed_ = 0;
         SequenceNumber_ = 0;
         StateHash_ = 0;
