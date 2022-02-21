@@ -62,6 +62,45 @@ static const TJobWithPreemptionInfoSet EmptyJobWithPreemptionInfoSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDynamicAttributesList::TDynamicAttributesList(int size)
+    : Value_(static_cast<size_t>(size))
+{ }
+
+TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TSchedulerElement* element)
+{
+    int index = element->GetTreeIndex();
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Value_));
+    return Value_[index];
+}
+
+const TDynamicAttributes& TDynamicAttributesList::AttributesOf(const TSchedulerElement* element) const
+{
+    int index = element->GetTreeIndex();
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Value_));
+    return Value_[index];
+}
+
+void TDynamicAttributesList::InitializeResourceUsage(
+    TSchedulerRootElement* rootElement,
+    const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
+    NProfiling::TCpuInstant now)
+{
+    Value_.resize(rootElement->GetSchedulableElementCount());
+    rootElement->FillResourceUsageInDynamicAttributes(this, resourceUsageSnapshot);
+    for (auto& attributes : Value_) {
+        attributes.ResourceUsageUpdateTime = now;
+    }
+}
+
+void TDynamicAttributesList::DeactivateAll()
+{
+    for (auto& attributes : Value_) {
+        attributes.Active = false;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     const NProfiling::TProfiler& profiler)
     : PrescheduleJobCount(profiler.Counter("/preschedule_job_count"))
@@ -231,6 +270,20 @@ void TScheduleJobsContext::PrescheduleJob(const TSchedulerRootElementPtr& rootEl
 
     StageState_->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
     StageState_->PrescheduleExecuted = true;
+}
+
+TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element)
+{
+    YT_ASSERT(Initialized_);
+
+    return DynamicAttributesList_.AttributesOf(element);
+}
+
+const TDynamicAttributes& TScheduleJobsContext::DynamicAttributesFor(const TSchedulerElement* element) const
+{
+    YT_ASSERT(Initialized_);
+
+    return DynamicAttributesList_.AttributesOf(element);
 }
 
 void TScheduleJobsContext::PrepareConditionalUsageDiscounts(const TSchedulerRootElementPtr& rootElement, EOperationPreemptionPriority targetOperationPreemptionPriority)
@@ -662,6 +715,31 @@ void TSchedulerElement::SetStarvationStatus(EStarvationStatus starvationStatus)
     PersistentAttributes_.StarvationStatus = starvationStatus;
 }
 
+int TSchedulerElement::GetSchedulingIndex() const
+{
+    return SchedulingIndex_;
+}
+
+void TSchedulerElement::SetSchedulingIndex(int index)
+{
+    SchedulingIndex_ = index;
+}
+
+int TSchedulerElement::GetTreeIndex() const
+{
+    return TreeIndex_;
+}
+
+void TSchedulerElement::SetTreeIndex(int treeIndex)
+{
+    TreeIndex_ = treeIndex;
+}
+
+bool TSchedulerElement::IsActive(const TDynamicAttributesList& dynamicAttributesList) const
+{
+    return dynamicAttributesList.AttributesOf(this).Active;
+}
+
 bool TSchedulerElement::AreResourceLimitsViolated() const
 {
     return ResourceTreeElement_->AreResourceLimitsViolated();
@@ -683,6 +761,11 @@ TJobResources TSchedulerElement::GetInstantResourceUsage() const
 double TSchedulerElement::GetMaxShareRatio() const
 {
     return MaxComponent(GetMaxShare());
+}
+
+TResourceVector TSchedulerElement::GetFairShare() const
+{
+    return ResourceTreeElement_->GetFairShare();
 }
 
 TResourceVector TSchedulerElement::GetResourceUsageShare() const
@@ -956,6 +1039,21 @@ void TSchedulerElement::InitAccumulatedResourceVolume(TResourceVolume resourceVo
 {
     YT_VERIFY(PersistentAttributes_.IntegralResourcesState.AccumulatedVolume == TResourceVolume());
     PersistentAttributes_.IntegralResourcesState.AccumulatedVolume = resourceVolume;
+}
+
+bool TSchedulerElement::IsAlive() const
+{
+    return ResourceTreeElement_->GetAlive();
+}
+
+void TSchedulerElement::SetNonAlive()
+{
+    ResourceTreeElement_->SetNonAlive();
+}
+
+const NLogging::TLogger& TSchedulerElement::GetLogger() const
+{
+    return Logger;
 }
 
 bool TSchedulerElement::AreDetailedLogsEnabled() const
@@ -3077,6 +3175,11 @@ TString TSchedulerOperationElement::GetLoggingString() const
         GetPreemptionStatusStatistics(),
         GetDeactivationReasons(),
         GetMinNeededResourcesUnsatisfiedCount());
+}
+
+bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
+{
+    return RuntimeParameters_->EnableDetailedLogs;
 }
 
 void TSchedulerOperationElement::UpdateAncestorsDynamicAttributes(
