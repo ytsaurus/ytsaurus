@@ -21,7 +21,7 @@ namespace NYT {
  *  that has just enqueued some items into the queue.
  */
 template <class T>
-class TMpscQueue
+class TMpscQueue final
 {
 public:
     TMpscQueue(const TMpscQueue&) = delete;

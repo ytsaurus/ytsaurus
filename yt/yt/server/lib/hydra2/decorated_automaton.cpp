@@ -683,6 +683,11 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
 void TDecoratedAutomaton::Initialize()
 {
+    ClearState();
+}
+
+void TDecoratedAutomaton::ClearState()
+{
     AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
         Automaton_->Clear();
         Automaton_->SetZeroState();

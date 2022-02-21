@@ -186,6 +186,7 @@ public:
         const NProfiling::TProfiler& profiler);
 
     void Initialize();
+    void ClearState();
     void OnStartLeading(TEpochContextPtr epochContext);
     void OnLeaderRecoveryComplete();
     void OnStopLeading();
