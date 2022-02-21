@@ -29,7 +29,7 @@ object SparkCluster {
       val rest = s"spark://${address.restHostAndPort}"
       val client = RestSubmissionClientWrapper.create(rest)
 
-      SparkCluster(master, rest, clusterVersion, client, address.hostAndPort)
+      SparkCluster(master, rest, clusterVersion, client, address.restHostAndPort)
     } finally {
       ytClient.close()
     }
