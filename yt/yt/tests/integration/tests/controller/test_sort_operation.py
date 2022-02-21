@@ -724,6 +724,37 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
+    @authors("max42")
+    def test_incomplete_sample_fetching(self):
+        max_sample_size = 64 * 1024
+        v1 = {"key": "a" * max_sample_size + "a"}
+        v2 = {"key": "a" * max_sample_size + "b"}
+        v3 = {"key": "a" * max_sample_size + "c"}
+        v4 = {"key": "a" * max_sample_size + "d"}
+        v5 = {"key": "a" * max_sample_size + "e"}
+
+        create("table", "//tmp/t_in")
+        for i in range(0, 10):
+            write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4], verbose=False)  # some random order
+
+        create("table", "//tmp/t_out")
+
+        sort(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            sort_by=["key"],
+            spec={
+                "partition_count": 5,
+                "partition_job_count": 2,
+                "data_weight_per_sort_job": 1,
+                "merge_job_io": {"table_writer": {"max_key_weight": 2 * max_sample_size}},
+                "sort_job_io": {"table_writer": {"max_key_weight": 2 * max_sample_size}},
+            },
+        )
+
+        assert len(read_table("//tmp/t_out", verbose=False)) == 50
+        assert sorted_dicts(read_table("//tmp/t_out", verbose=False)) == [v1] * 10 + [v2] * 10 + [v3] * 10 + [v4] * 10 + [v5] * 10
+
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_many_merge(self, sort_order):
