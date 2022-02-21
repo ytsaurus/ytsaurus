@@ -65,8 +65,7 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
     return BIND(&TDecoratedAutomaton::ApplyMutations, DecoratedAutomaton_)
         .AsyncViaGuarded(
             EpochContext_->EpochUserAutomatonInvoker,
-            // XXX(babenko)
-            TError("meh"))
+            TError("Error applying mutations"))
         .Run(std::move(mutations));
 }
 
@@ -97,7 +96,7 @@ TLeaderCommitter::TLeaderCommitter(
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderLeasePtr leaderLease,
-    TMpscQueue<TMutationDraft>* mutationDraftQueue,
+    TMutationDraftQueuePtr mutationDraftQueue,
     IChangelogPtr changelog,
     TReachableState reachableState,
     TEpochContext* epochContext,
@@ -110,7 +109,7 @@ TLeaderCommitter::TLeaderCommitter(
         epochContext,
         std::move(logger),
         profiler)
-    , MutationDraftQueue_(mutationDraftQueue)
+    , MutationDraftQueue_(std::move(mutationDraftQueue))
     , LeaderLease_(std::move(leaderLease))
     , FlushMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
@@ -378,8 +377,7 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
         YT_LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
             followerId);
 
-        // XXX(babenko)
-        // TODO: This might be an old reply.
+        // TODO(aleksandra-zh): This might be an old reply.
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
             OnSnapshotReply(followerId);
         }
@@ -647,9 +645,9 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
             LastSnapshotInfo_->Promise.TrySet(error);
             LastSnapshotInfo_ = std::nullopt;
         }
-        // XXX
-        // restart or retry
         YT_LOG_ERROR(error);
+        LoggingFailed_.Fire(TError("Error acquiring changelog")
+            << error);
         return;
     }
 
@@ -809,13 +807,19 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 
     auto queueStartSequenceNumber = MutationQueue_.front()->SequenceNumber;
     std::vector<TPendingMutationPtr> mutations;
-    for (auto i = LastOffloadedSequenceNumber_ + 1; i <= CommittedState_.SequenceNumber; ++i) {
-        auto queueIndex = i - queueStartSequenceNumber;
-        // XXX(babenko)
-        // restart instead of crash
-        YT_VERIFY(queueIndex >= 0 && queueIndex < std::ssize(MutationQueue_));
+    for (auto sequenceNumber = LastOffloadedSequenceNumber_ + 1; sequenceNumber <= CommittedState_.SequenceNumber; ++sequenceNumber) {
+        auto queueIndex = sequenceNumber - queueStartSequenceNumber;
+        if (queueIndex < 0 || queueIndex >= std::ssize(MutationQueue_)) {
+            YT_LOG_ALERT("Mutation is lost (SequenceNumber: %v, QueueIndex: %v, MutationQueueSize: %v)",
+                sequenceNumber,
+                queueIndex,
+                std::ssize(MutationQueue_));
+            LoggingFailed_.Fire(TError("Mutation is lost")
+                << TErrorAttribute("sequence_number", sequenceNumber));
+            return;
+        }
         YT_VERIFY(MutationQueue_[queueIndex]->LocalCommitPromise);
-        YT_VERIFY(MutationQueue_[queueIndex]->SequenceNumber == i);
+        YT_VERIFY(MutationQueue_[queueIndex]->SequenceNumber == sequenceNumber);
         mutations.push_back(MutationQueue_[queueIndex]);
     }
 
@@ -939,7 +943,6 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 {
     auto changelogId = version.SegmentId;
 
-    // TODO(aleksandra-zh): WriteChangelogsAtFollowers.
     while (!NextChangelogs_.empty() && NextChangelogs_.begin()->first < changelogId) {
         NextChangelogs_.erase(NextChangelogs_.begin());
     }
@@ -995,6 +998,10 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
 {
     YT_LOG_INFO("Preparing changelog (Version: %v)", version);
 
+    if (!Options_.WriteChangelogsAtFollowers) {
+        return;
+    }
+
     auto changelogId = version.SegmentId;
     if (Changelog_) {
         YT_VERIFY(Changelog_->GetId() < changelogId);
@@ -1018,13 +1025,12 @@ TFuture<void> TFollowerCommitter::GetLastLoggedMutationFuture()
 
 void TFollowerCommitter::LogMutations()
 {
-    // XXX(babenko)
     // Logging more than one batch at a time makes it difficult to promote LoggedSequenceNumber_ correctly.
     // (And creates other weird problems.)
+    // We should at least have a barrier around PrepareNextChangelog.
     if (LoggingMutations_) {
         return;
     }
-
     LoggingMutations_ = true;
 
     i64 firstSequenceNumber = -1;
@@ -1062,9 +1068,8 @@ void TFollowerCommitter::LogMutations()
         return;
     }
 
-    // XXX(babenko)
-    // TODO(aleksandra-zh): This is probably because of WriteChangelogsAtFollowers.
     if (!Changelog_) {
+        YT_VERIFY(!Options_.WriteChangelogsAtFollowers);
         LoggedSequenceNumber_ = lastSequenceNumber;
         LoggingMutations_ = false;
         return;
@@ -1091,12 +1096,13 @@ void TFollowerCommitter::OnMutationsLogged(
         return;
     }
 
-    YT_LOG_DEBUG("Mutations logged at follower (SequenceNumbers: %v-%v)",
-        firstSequenceNumber,
-        lastSequenceNumber);
+    LoggedSequenceNumber_ = std::max(LoggedSequenceNumber_, lastSequenceNumber);
 
-    YT_VERIFY(LoggedSequenceNumber_ == firstSequenceNumber - 1);
-    LoggedSequenceNumber_ = lastSequenceNumber;
+    YT_LOG_DEBUG("Mutations logged at follower (SequenceNumbers: %v-%v, LoggedSequnceNumber: %v)",
+        firstSequenceNumber,
+        lastSequenceNumber,
+        LoggedSequenceNumber_);
+
     LoggingMutations_ = false;
 }
 

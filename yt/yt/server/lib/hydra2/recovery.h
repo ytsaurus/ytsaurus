@@ -37,8 +37,7 @@ public:
         bool isLeader,
         NLogging::TLogger logger);
 
-    // XXX(babenko): get term from epoch context?
-    TFuture<void> Run(int term);
+    TFuture<void> Run();
 
 private:
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
@@ -58,7 +57,7 @@ private:
 
     //! Recovers to the desired state by first loading an appropriate snapshot
     //! and then applying changelogs, if necessary.
-    void DoRun(int term);
+    void DoRun();
 
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.

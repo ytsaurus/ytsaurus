@@ -467,7 +467,7 @@ public:
             request.Type,
             request.MutationId);
 
-        PreliminaryMutationQueue_.Enqueue({
+        MutationDraftQueue_->Enqueue({
             .Request = request,
             .Promise = std::move(promise),
             .RandomSeed = randomSeed
@@ -601,6 +601,7 @@ private:
     NProfiling::TEventTimer LeaderSyncTimer_;
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
+    const TMutationDraftQueuePtr MutationDraftQueue_ = New<TMutationDraftQueue>();
 
     std::atomic<bool> ReadOnly_ = false;
 
@@ -625,8 +626,6 @@ private:
     TEpochContextPtr AutomatonEpochContext_;
 
     TAtomicObject<TPeerIdSet> AlivePeerIds_;
-
-    TMpscQueue<TMutationDraft> PreliminaryMutationQueue_;
 
     class TOwnedHydraServiceBase
         : public THydraServiceBase
@@ -1673,7 +1672,8 @@ private:
         auto newChangelogId = changelogId + 1;
         auto newTerm = term + 1;
 
-        ChangelogStore_->SetTerm(newTerm);
+        WaitFor(ChangelogStore_->SetTerm(newTerm))
+            .ThrowOnError();
         ControlEpochContext_->Term = newTerm;
 
         // TODO(aleksandra-zh): What kind of barrier should I have here (if any)?
@@ -1754,7 +1754,7 @@ private:
                 Options_,
                 DecoratedAutomaton_,
                 LeaderLease_,
-                &PreliminaryMutationQueue_,
+                MutationDraftQueue_,
                 changelog,
                 epochContext->ReachableState,
                 epochContext.Get(),
@@ -1775,7 +1775,7 @@ private:
                 epochContext->ReachableState,
                 true,
                 Logger);
-            WaitFor(epochContext->Recovery->Run(epochContext->Term))
+            WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
 
             if (Config_->DisableLeaderLeaseGraceDelay) {
@@ -1995,7 +1995,7 @@ private:
         auto epochContext = ControlEpochContext_;
 
         try {
-            WaitFor(epochContext->Recovery->Run(epochContext->Term))
+            WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
@@ -2114,12 +2114,6 @@ private:
             committedState,
             term);
 
-        // If we join an active quorum, we wont get an AcquireChangelog request from leader,
-        // so we wont be able to promote our term there, so we have to do it here.
-        // Looks safe.
-        ChangelogStore_->SetTerm(term);
-        epochContext->Term = term;
-
         epochContext->Recovery = New<TRecovery>(
             Config_,
             Options_,
@@ -2133,6 +2127,13 @@ private:
             false,
             Logger);
         epochContext->FollowerCommitter->SetSequenceNumber(committedState.SequenceNumber);
+
+        // If we join an active quorum, we wont get an AcquireChangelog request from leader,
+        // so we wont be able to promote our term there, so we have to do it here.
+        // Looks safe.
+        WaitFor(ChangelogStore_->SetTerm(term))
+            .ThrowOnError();
+        epochContext->Term = term;
 
         // Make sure we dont try to build the same snapshot twice.
         // (It does not always help, LoadSnapshot in decorated automaton explains why).

@@ -65,22 +65,14 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
-void TRecovery::DoRun(int term)
+void TRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto epochContext = EpochContext_;
-    // XXX(babenko)
-    // >?
-    if (epochContext->Term != term) {
-        THROW_ERROR_EXCEPTION("Cannot recover to term %v in term %v",
-            epochContext->Term,
-            term);
-    }
 
     auto currentState = DecoratedAutomaton_->GetReachableState();
     if (currentState > TargetState_) {
-        // XXX(babenko)
         // NB: YT-14934, rollback is possible at followers but not at leaders.
         if (IsLeader_) {
             YT_LOG_FATAL("Current automaton state is greater than target state during leader recovery "
@@ -88,6 +80,7 @@ void TRecovery::DoRun(int term)
                 currentState,
                 TargetState_);
         } else {
+            DecoratedAutomaton_->ClearState();
             THROW_ERROR_EXCEPTION("Error recovering to state %v: current automaton state %v is greater",
                 TargetState_,
                 currentState);
@@ -264,6 +257,19 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
 
     if (localRecordCount > adjustedRemoteRecordCount) {
         int latestChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
+
+        if (firstRemoteSequenceNumber) {
+            auto lastRemoteSequenceNumber = *firstRemoteSequenceNumber + adjustedRemoteRecordCount;
+            auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+            if (lastRemoteSequenceNumber < automatonSequenceNumber) {
+                YT_LOG_ALERT("Truncating a mutation that was already applied (LastRemoteSequenceNumber: %v, AutomatonSequenceNumber: %v)",
+                    lastRemoteSequenceNumber,
+                    automatonSequenceNumber);
+                DecoratedAutomaton_->ClearState();
+                THROW_ERROR_EXCEPTION("Truncating a mutation that was already applied");
+            }
+        }
+
         for (int changelogToTruncateId = latestChangelogId; changelogToTruncateId > changelog->GetId(); --changelogToTruncateId) {
             auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogToTruncateId));
             if (!errorOrChangelogToTruncate.IsOK()) {
@@ -358,13 +364,13 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
     return true;
 }
 
-TFuture<void> TRecovery::Run(int term)
+TFuture<void> TRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return BIND(&TRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochContext_->EpochControlInvoker)
-        .Run(term);
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

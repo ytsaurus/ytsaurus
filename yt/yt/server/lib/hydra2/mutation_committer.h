@@ -37,6 +37,9 @@ struct TMutationDraft
     ui64 RandomSeed;
 };
 
+using TMutationDraftQueue = TMpscQueue<TMutationDraft>;
+using TMutationDraftQueuePtr = TIntrusivePtr<TMutationDraftQueue>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCommitterBase
@@ -91,7 +94,7 @@ public:
         const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
-        TMpscQueue<TMutationDraft>* mutationDraftQueue,
+        TMutationDraftQueuePtr mutationDraftQueue,
         NHydra::IChangelogPtr changelog,
         TReachableState reachableState,
         TEpochContext* epochContext,
@@ -118,9 +121,7 @@ public:
     DEFINE_SIGNAL(void(const TError& error), CommitFailed);
 
 private:
-    // XXX(babenko): check for safety
-    TMpscQueue<TMutationDraft>* const MutationDraftQueue_;
-
+    const TMutationDraftQueuePtr MutationDraftQueue_;
     const TLeaderLeasePtr LeaderLease_;
 
     const NConcurrency::TPeriodicExecutorPtr FlushMutationsExecutor_;
