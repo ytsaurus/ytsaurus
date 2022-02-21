@@ -315,6 +315,10 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
                 // Suppose we sort table by [a, b] and sampler returned trimmed keys [1], [1], [1] and [2].
                 // Partitions [1, 1] and (1, 2] will be created, however first partition is not maniac since
                 // might contain keys [1, "a"] and [1, "b"].
+
+                if (sampleIndex >= std::ssize(selectedSamples)) {
+                    break;
+                }
                 partitionKeys.emplace_back(cloneKeyBound(selectedSamples[sampleIndex]->KeyBound));
                 ++sampleIndex;
             } else {
