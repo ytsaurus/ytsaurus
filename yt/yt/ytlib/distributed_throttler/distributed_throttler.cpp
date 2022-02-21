@@ -582,7 +582,7 @@ private:
                     for (const auto& [throttlerId, totalLimit] : throttlerIdToTotalLimit) {
                         auto throttlerIt = throttlers.find(throttlerId);
                         if (throttlerIt == throttlers.end()) {
-                            YT_LOG_INFO("Member doesn't know about throttler (MemberId: %v, ThrottlerId: %v)",
+                            YT_LOG_DEBUG("Member does not know about throttler (MemberId: %v, ThrottlerId: %v)",
                                 memberId,
                                 throttlerId);
                             continue;
@@ -810,6 +810,7 @@ public:
         {
             auto queueGuard = Guard(UpdateQueueLock_);
             UpdateQueue_.emplace(throttlerId, MakeWeak(wrappedThrottler));
+            UnreportedThrottlers_.insert(throttlerId);
         }
 
         return wrappedThrottler;
@@ -898,6 +899,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, UpdateQueueLock_);
     TRingQueue<std::pair<TString, TWeakPtr<TWrappedThrottler>>> UpdateQueue_;
+    THashSet<TString> UnreportedThrottlers_;
 
     void UpdateLimits()
     {
@@ -939,7 +941,8 @@ private:
                 UpdateQueue_.pop();
                 
                 if (auto throttler = weakThrottler.Lock()) {
-                    if (throttler->GetUsageRate() > 0) {
+                    if (throttler->GetUsageRate() > 0 || UnreportedThrottlers_.contains(throttlerId)) {
+                        UnreportedThrottlers_.erase(throttlerId);
                         throttlers.emplace(std::move(throttlerId), std::move(throttler));
                     } else {
                         skippedThrottlers.emplace_back(std::move(throttlerId), std::move(throttler));
