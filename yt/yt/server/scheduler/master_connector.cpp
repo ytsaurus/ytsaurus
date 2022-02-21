@@ -796,7 +796,6 @@ private:
 
         std::vector<TOperationId> OperationIds_;
         std::vector<TOperationId> OperationIdsToArchive_;
-        std::vector<TOperationId> OperationIdsToRemove_;
 
         TMasterHandshakeResult Result_;
 
@@ -965,7 +964,6 @@ private:
             }
 
             OperationIdsToArchive_ = std::move(listOperationsResult.OperationsToArchive);
-            OperationIdsToRemove_ = std::move(listOperationsResult.OperationsToRemove);
 
             YT_LOG_INFO("Finished listing existing operations");
         }
@@ -1312,15 +1310,10 @@ private:
 
         void SubmitOperationsToCleaner()
         {
-            YT_LOG_INFO("Submitting operations to cleaner (ArchiveCount: %v, RemoveCount: %v)",
-                OperationIdsToArchive_.size(),
-                OperationIdsToRemove_.size());
+            YT_LOG_INFO("Submitting operations to cleaner (ArchiveCount: %v)",
+                OperationIdsToArchive_.size());
 
             const auto& operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
-
-            for (auto operationId : OperationIdsToRemove_) {
-                operationsCleaner->SubmitForRemoval({operationId});
-            }
 
             auto createBatchRequest = BIND(
                 &TImpl::StartObjectBatchRequest,
