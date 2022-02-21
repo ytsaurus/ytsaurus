@@ -658,18 +658,6 @@ public:
             deadline);
     }
 
-    void SubmitForRemoval(TRemoveOperationRequest request)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!IsEnabled()) {
-            return;
-        }
-
-        EnqueueForRemoval(request.Id);
-        YT_LOG_DEBUG("Operation submitted for removal (OperationId: %v)", request.Id);
-    }
-
     void SetArchiveVersion(int version)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1459,11 +1447,6 @@ private:
 
         auto listOperationsResult = ListOperations(createBatchRequest);
 
-        // Remove some operations.
-        for (const auto& operation : listOperationsResult.OperationsToRemove) {
-            SubmitForRemoval({operation});
-        }
-
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
             createBatchRequest,
@@ -1583,11 +1566,6 @@ void TOperationsCleaner::Stop()
 void TOperationsCleaner::SubmitForArchivation(TArchiveOperationRequest request)
 {
     Impl_->SubmitForArchivation(std::move(request));
-}
-
-void TOperationsCleaner::SubmitForRemoval(TRemoveOperationRequest request)
-{
-    Impl_->SubmitForRemoval(std::move(request));
 }
 
 void TOperationsCleaner::UpdateConfig(const TOperationsCleanerConfigPtr& config)

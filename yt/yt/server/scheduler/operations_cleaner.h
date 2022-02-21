@@ -47,13 +47,6 @@ struct TArchiveOperationRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRemoveOperationRequest
-{
-    TOperationId Id;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IOperationsCleanerHost
 {
     virtual ~IOperationsCleanerHost() = default;
@@ -82,7 +75,6 @@ public:
     void Stop();
 
     void SubmitForArchivation(TArchiveOperationRequest request);
-    void SubmitForRemoval(TRemoveOperationRequest request);
 
     void UpdateConfig(const TOperationsCleanerConfigPtr& config);
 
