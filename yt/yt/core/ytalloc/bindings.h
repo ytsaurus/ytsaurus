@@ -10,7 +10,7 @@ namespace NYT::NYTAlloc {
 void EnableYTLogging();
 
 // Enables peroidic push of YTAlloc statistics to YT profiling infrastructure.
-void EnableYTProfiling();
+void EnableYTProfiling(const TYTProfilingConfigPtr& config = nullptr);
 
 // Installs backtrace provider that invokes libunwind.
 void InitializeLibunwindInterop();

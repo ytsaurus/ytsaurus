@@ -32,6 +32,18 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TYTAllocConfig)
 
+class TYTProfilingConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<bool> EnableDetailedAllocationStatistics;
+
+    TYTProfilingConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TYTProfilingConfig)
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTAlloc

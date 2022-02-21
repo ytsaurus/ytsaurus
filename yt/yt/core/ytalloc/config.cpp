@@ -40,6 +40,13 @@ TYTAllocConfig::TYTAllocConfig()
         .Default();
 }
 
+
+TYTProfilingConfig::TYTProfilingConfig()
+{
+    RegisterParameter("enable_detailed_allocation_statistics", EnableDetailedAllocationStatistics)
+        .Default(true);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTAlloc
