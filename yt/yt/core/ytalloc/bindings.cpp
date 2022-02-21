@@ -68,7 +68,8 @@ class TProfilingStatisticsProducer
     : public NProfiling::ISensorProducer
 {
 public:
-    TProfilingStatisticsProducer()
+    TProfilingStatisticsProducer(const TYTProfilingConfigPtr& config)
+        : Config(config ? config : NYT::New<TYTProfilingConfig>())
     {
         NProfiling::TProfiler profiler{""};
         profiler.AddProducer("/yt_alloc", MakeStrong(this));
@@ -78,10 +79,14 @@ public:
     {
         PushSystemAllocationStatistics(writer);
         PushTotalAllocationStatistics(writer);
-        PushSmallAllocationStatistics(writer);
-        PushLargeAllocationStatistics(writer);
-        PushHugeAllocationStatistics(writer);
-        PushUndumpableAllocationStatistics(writer);
+
+        if (Config->EnableDetailedAllocationStatistics.value_or(true)) {
+            PushSmallAllocationStatistics(writer);
+            PushLargeAllocationStatistics(writer);
+            PushHugeAllocationStatistics(writer);
+            PushUndumpableAllocationStatistics(writer);
+        }
+
         PushTimingStatistics(writer);
     }
 
@@ -187,11 +192,14 @@ private:
             writer->AddGauge("/timing_events/size", counters.Size);
         }
     }
+
+private:
+    const TYTProfilingConfigPtr Config;
 };
 
-void EnableYTProfiling()
+void EnableYTProfiling(const TYTProfilingConfigPtr& config)
 {
-    LeakyRefCountedSingleton<TProfilingStatisticsProducer>();
+    LeakyRefCountedSingleton<TProfilingStatisticsProducer>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
