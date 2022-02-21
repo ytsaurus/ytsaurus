@@ -1545,9 +1545,3 @@ private:
             YT_LOG_TRACE(__VA_ARGS__); \
         } \
     } while(false)
-
-////////////////////////////////////////////////////////////////////////////////
-
-#define FAIR_SHARE_TREE_ELEMENT_INL_H_
-#include "fair_share_tree_element-inl.h"
-#undef FAIR_SHARE_TREE_ELEMENT_INL_H_
