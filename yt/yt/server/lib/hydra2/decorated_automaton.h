@@ -284,7 +284,7 @@ private:
     TInstant Timestamp_;
 
     int NextSnapshotId_ = -1;
-    // AutomatonSequenceNumber <= SnapshotSequenceNumber
+    // SequenceNumber <= SnapshotSequenceNumber
     i64 SnapshotSequenceNumber_ = -1;
     TPromise<NHydra::TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
