@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "consumer.h"
+#include "token_writer.h"
 
 namespace NYT::NYson {
 
@@ -96,7 +97,7 @@ public:
      *  \param enableRaw Enables inserting raw portions of YSON as-is, without reparse.
      */
     TBufferedBinaryYsonWriter(
-        IOutputStream* stream,
+        IZeroCopyOutput* stream,
         EYsonType type = EYsonType::Node,
         bool enableRaw = true,
         std::optional<int> nestingLevelLimit = std::nullopt);
@@ -128,25 +129,16 @@ public:
     int GetDepth() const;
 
 protected:
-    IOutputStream* const Stream_;
     const EYsonType Type_;
     const bool EnableRaw_;
 
-    static constexpr size_t BufferSize = 1024;
-    static constexpr size_t MaxSmallStringLength = 256;
-
-    char Buffer_[BufferSize];
-    char* const BufferStart_;
-    char* const BufferEnd_;
-    char* BufferCursor_;
+    std::optional<TUncheckedYsonTokenWriter> TokenWriter_;
 
     int NestingLevelLimit_;
     int Depth_ = 0;
 
-    void EnsureSpace(size_t space);
     void WriteStringScalar(TStringBuf value);
-    void BeginCollection(char ch);
-    void EndCollection(char ch);
+    void BeginCollection();
     void EndNode();
 
 };
@@ -155,7 +147,7 @@ protected:
 
 //! Creates either TYsonWriter or TBufferedBinaryYsonWriter, depending on #format.
 std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
-    IOutputStream* output,
+    IZeroCopyOutput* output,
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
