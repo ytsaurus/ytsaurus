@@ -126,7 +126,7 @@ class SubmissionClient(proxy: String,
   }
 
   def getActiveDrivers: Seq[String] = {
-    val response = MasterClient.activeDrivers(cluster.get().master)
+    val response = MasterClient.activeDrivers(cluster.get().masterHostAndPort)
     if (response.isFailure) {
       log.warn(s"Failed to get list of active drivers")
     }
@@ -134,7 +134,7 @@ class SubmissionClient(proxy: String,
   }
 
   def useDedicatedDriverOp: Boolean =
-    MasterClient.activeWorkers(cluster.get().master) match {
+    MasterClient.activeWorkers(cluster.get().masterHostAndPort) match {
       case Failure(err) =>
         log.warn(s"Failed to query list of active workers", err)
         false

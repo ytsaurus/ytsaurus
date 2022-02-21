@@ -1,5 +1,6 @@
 package org.apache.spark.deploy.rest
 
+import com.google.common.net.HostAndPort
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.parser.parse
 import io.circe.{Decoder, Error, Json}
@@ -16,7 +17,7 @@ case class WorkerInfo(id: String, host: String, port: Int, cores: Int, memory: I
 case class ResourceInfo(name: String, addresses: Seq[String])
 
 object MasterClient {
-  def activeDrivers(master: String): Try[Seq[String]] = {
+  def activeDrivers(master: HostAndPort): Try[Seq[String]] = {
     implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
     basicRequest
       .get(uri"http://$master/v1/submissions/master")
@@ -43,7 +44,7 @@ object MasterClient {
     } yield drivers
   }
 
-  def activeWorkers(master: String): Try[Seq[WorkerInfo]] = {
+  def activeWorkers(master: HostAndPort): Try[Seq[WorkerInfo]] = {
     implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
     basicRequest
       .get(uri"http://$master/v1/submissions/master")

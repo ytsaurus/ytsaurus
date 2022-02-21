@@ -101,7 +101,7 @@ def main():
                           type=int, help="same as worker-cores by default")
     subgroup.add_argument("--driver-memory", required=False,
                           type=int, help="same as worker-memory by default")
-    subgroup.add_argument("--driver-num", required=True,
+    subgroup.add_argument("--driver-num", required=False,
                           type=int, help="Number of driver workers")
     subgroup.add_argument("--driver-cores-overhead", required=False,
                           type=int, help="same as worker-cores-overhead by default")
