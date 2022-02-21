@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.submit
 
+import com.google.common.net.HostAndPort
 import org.apache.spark.deploy.rest.RestSubmissionClientWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
@@ -8,7 +9,8 @@ import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService
 case class SparkCluster(master: String,
                         masterRest: String,
                         version: String,
-                        client: RestSubmissionClientWrapper.Client)
+                        client: RestSubmissionClientWrapper.Client,
+                        masterHostAndPort: HostAndPort)
 
 object SparkCluster {
   def get(proxy: String, discoveryPath: String, user: String, token: String): SparkCluster = {
@@ -27,7 +29,7 @@ object SparkCluster {
       val rest = s"spark://${address.restHostAndPort}"
       val client = RestSubmissionClientWrapper.create(rest)
 
-      SparkCluster(master, rest, clusterVersion, client)
+      SparkCluster(master, rest, clusterVersion, client, address.hostAndPort)
     } finally {
       ytClient.close()
     }
