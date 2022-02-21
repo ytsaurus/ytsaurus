@@ -84,7 +84,7 @@ ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
 std::unique_ptr<NYson::IFlushableYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
-    IOutputStream* output);
+    IZeroCopyOutput* output);
 
 NYson::TYsonProducer CreateProducerForFormat(
     const TFormat& format,

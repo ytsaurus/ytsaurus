@@ -176,11 +176,10 @@ void DoExportSnapshot(
             continue;
         }
 
-        auto writer = CreateYsonWriter(
+        auto writer = std::make_unique<TYsonWriter>(
             &Cout,
             EYsonFormat::Text,
-            EYsonType::Node,
-            /* enableRaw */ false);
+            EYsonType::Node);
 
         auto transaction = node->GetTransaction();
         BuildYsonFluently(writer.get())

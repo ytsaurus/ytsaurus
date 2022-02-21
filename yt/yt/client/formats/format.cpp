@@ -128,7 +128,7 @@ EYsonType DataTypeToYsonType(EDataType dataType)
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
-    IOutputStream* output)
+    IZeroCopyOutput* output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
     return CreateYsonWriter(
@@ -211,7 +211,7 @@ private:
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
-    IOutputStream* output)
+    IZeroCopyOutput* output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
@@ -235,7 +235,7 @@ TIntrusivePtr<TWriter> CreateAdaptedWriterForYson(
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-    return New<TConsumerAdapter>(std::move(output), std::move(schema), [=] (IOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), std::move(schema), [=] (IZeroCopyOutput* buffer) {
         if (config->Format == EYsonFormat::Binary) {
             return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
                 buffer,

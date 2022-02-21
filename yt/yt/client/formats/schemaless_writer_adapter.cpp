@@ -354,6 +354,7 @@ void TSchemalessWriterAdapter::DoWrite(TRange<TUnversionedRow> rows)
         }
 
         ConsumeRow(rows[index]);
+        FlushWriter();
         TryFlushBuffer(false);
     }
 

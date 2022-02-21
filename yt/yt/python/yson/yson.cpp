@@ -568,14 +568,14 @@ private:
         }
     }
 
-    void DumpImpl(Py::Tuple& args, Py::Dict& kwargs, IOutputStream* outputStream)
+    void DumpImpl(Py::Tuple& args, Py::Dict& kwargs, IZeroCopyOutput* outputStream)
     {
         auto obj = ExtractArgument(args, kwargs, "object");
 
-        std::unique_ptr<IOutputStream> outputStreamHolder;
+        std::unique_ptr<IZeroCopyOutput> outputStreamHolder;
         if (!outputStream) {
             auto streamArg = ExtractArgument(args, kwargs, "stream");
-            outputStreamHolder = CreateOutputStreamWrapper(streamArg, /* addBuffering */ true);
+            outputStreamHolder = CreateZeroCopyOutputStreamWrapper(streamArg);
             outputStream = outputStreamHolder.get();
         }
 

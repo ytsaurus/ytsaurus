@@ -90,7 +90,7 @@ DEFINE_REFCOUNTED_TYPE(IFlushableAsyncOutputStream)
 /*!
  *  Not thread safe.
  */
-std::unique_ptr<IOutputStream> CreateBufferedSyncAdapter(
+std::unique_ptr<IZeroCopyOutput> CreateBufferedSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor,
     size_t bufferSize = 8_KB);

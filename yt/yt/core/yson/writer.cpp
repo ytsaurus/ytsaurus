@@ -352,71 +352,42 @@ int TYsonWriter::GetDepth() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
-    IOutputStream* stream,
+    IZeroCopyOutput* stream,
     EYsonType type,
     bool enableRaw,
     std::optional<int> nestingLevelLimit)
-    : Stream_(stream)
-    , Type_(type)
+    : Type_(type)
     , EnableRaw_(enableRaw)
-    , BufferStart_(Buffer_)
-    , BufferEnd_(Buffer_ + BufferSize)
-    , BufferCursor_(BufferStart_)
+    , TokenWriter_(std::make_optional<TUncheckedYsonTokenWriter>(stream, type))
     , NestingLevelLimit_(nestingLevelLimit.value_or(std::numeric_limits<int>::max()))
 {
-    YT_ASSERT(Stream_);
+    YT_ASSERT(stream);
 }
 
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::WriteStringScalar(TStringBuf value)
 {
-    size_t length = value.length();
-    if (length <= MaxSmallStringLength) {
-        // NB: +3 is since we're obliged to leave at least two spare buffer positions.
-        EnsureSpace(length + MaxVarInt32Size + 2);
-        *BufferCursor_++ = NDetail::StringMarker;
-        BufferCursor_ += WriteVarInt32(BufferCursor_, static_cast<i32>(length));
-        ::memcpy(BufferCursor_, value.data(), length);
-        BufferCursor_ += length;
-    } else {
-        EnsureSpace(MaxVarInt32Size + 1);
-        *BufferCursor_++ = NDetail::StringMarker;
-        BufferCursor_ += WriteVarInt32(BufferCursor_, static_cast<i32>(length));
-        Flush();
-        Stream_->Write(value.begin(), length);
-    }
+    TokenWriter_->WriteBinaryString(value);
 }
 
-Y_FORCE_INLINE void TBufferedBinaryYsonWriter::BeginCollection(char ch)
+Y_FORCE_INLINE void TBufferedBinaryYsonWriter::BeginCollection()
 {
     ++Depth_;
     if (Depth_ > NestingLevelLimit_) {
         THROW_ERROR_EXCEPTION("Depth limit exceeded while writing YSON")
             << TErrorAttribute("limit", NestingLevelLimit_);
     }
-    *BufferCursor_++ = ch;
-}
-
-Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EndCollection(char ch)
-{
-    --Depth_;
-    *BufferCursor_++ = ch;
 }
 
 Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EndNode()
 {
     if (Y_LIKELY(Type_ != EYsonType::Node || Depth_ > 0)) {
-        *BufferCursor_++ = NDetail::ItemSeparatorSymbol;
+        TokenWriter_->WriteItemSeparator();
     }
 }
 
 void TBufferedBinaryYsonWriter::Flush()
 {
-    size_t length = BufferCursor_ - BufferStart_;
-    if (length > 0) {
-        YT_VERIFY(length <= BufferSize);
-        Stream_->Write(BufferStart_, length);
-        BufferCursor_ = BufferStart_;
-    }
+    TokenWriter_->Flush();
 }
 
 int TBufferedBinaryYsonWriter::GetDepth() const
@@ -424,66 +395,46 @@ int TBufferedBinaryYsonWriter::GetDepth() const
     return Depth_;
 }
 
-Y_FORCE_INLINE void TBufferedBinaryYsonWriter::EnsureSpace(size_t space)
-{
-    if (Y_LIKELY(BufferCursor_ + space <= BufferEnd_)) {
-        return;
-    }
-
-    YT_VERIFY(space <= BufferSize);
-    Flush();
-}
-
 void TBufferedBinaryYsonWriter::OnStringScalar(TStringBuf value)
 {
-    // NB: This call always leaves at least one spare position in buffer.
     WriteStringScalar(value);
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnInt64Scalar(i64 value)
 {
-    EnsureSpace(MaxVarInt64Size + 2);
-    *BufferCursor_++ = NDetail::Int64Marker;
-    BufferCursor_ += WriteVarInt64(BufferCursor_, value);
+    TokenWriter_->WriteBinaryInt64(value);
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnUint64Scalar(ui64 value)
 {
-    EnsureSpace(MaxVarUint64Size + 2);
-    *BufferCursor_++ = NDetail::Uint64Marker;
-    BufferCursor_ += WriteVarUint64(BufferCursor_, value);
+    TokenWriter_->WriteBinaryUint64(value);
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnDoubleScalar(double value)
 {
-    EnsureSpace(sizeof(double) + 2);
-    *BufferCursor_++ = NDetail::DoubleMarker;
-    WriteUnaligned<double>(BufferCursor_, value);
-    BufferCursor_ += sizeof(double);
+    TokenWriter_->WriteBinaryDouble(value);
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnBooleanScalar(bool value)
 {
-    EnsureSpace(2);
-    *BufferCursor_++ = (value ? NDetail::TrueMarker : NDetail::FalseMarker);
+    TokenWriter_->WriteBinaryBoolean(value);
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnEntity()
 {
-    EnsureSpace(2);
-    *BufferCursor_++ = NDetail::EntitySymbol;
+    TokenWriter_->WriteEntity();
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnBeginList()
 {
-    EnsureSpace(1);
-    BeginCollection(NDetail::BeginListSymbol);
+    BeginCollection();
+    TokenWriter_->WriteBeginList();
 }
 
 void TBufferedBinaryYsonWriter::OnListItem()
@@ -491,56 +442,46 @@ void TBufferedBinaryYsonWriter::OnListItem()
 
 void TBufferedBinaryYsonWriter::OnEndList()
 {
-    EnsureSpace(2);
-    EndCollection(NDetail::EndListSymbol);
+    --Depth_;
+    TokenWriter_->WriteEndList();
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnBeginMap()
 {
-    EnsureSpace(1);
-    BeginCollection(NDetail::BeginMapSymbol);
+    BeginCollection();
+    TokenWriter_->WriteBeginMap();
 }
 
 void TBufferedBinaryYsonWriter::OnKeyedItem(TStringBuf key)
 {
-    // NB: This call always leaves at least one spare position in buffer.
     WriteStringScalar(key);
-    *BufferCursor_++ = NDetail::KeyValueSeparatorSymbol;
+    TokenWriter_->WriteKeyValueSeparator();
 }
 
 void TBufferedBinaryYsonWriter::OnEndMap()
 {
-    EnsureSpace(2);
-    EndCollection(NDetail::EndMapSymbol);
+    --Depth_;
+    TokenWriter_->WriteEndMap();
     EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnBeginAttributes()
 {
-    EnsureSpace(1);
-    BeginCollection(NDetail::BeginAttributesSymbol);
+    BeginCollection();
+    TokenWriter_->WriteBeginAttributes();
 }
 
 void TBufferedBinaryYsonWriter::OnEndAttributes()
 {
-    EnsureSpace(1);
-    EndCollection(NDetail::EndAttributesSymbol);
+    --Depth_;
+    TokenWriter_->WriteEndAttributes();
 }
 
 void TBufferedBinaryYsonWriter::OnRaw(TStringBuf yson, EYsonType type)
 {
     if (EnableRaw_) {
-        size_t length = yson.length();
-        if (length <= MaxSmallStringLength) {
-            EnsureSpace(length + 1);
-            ::memcpy(BufferCursor_, yson.begin(), length);
-            BufferCursor_ += length;
-        } else {
-            Flush();
-            Stream_->Write(yson.begin(), length);
-        }
-
+        TokenWriter_->WriteRawNodeUnchecked(yson);
         if (type == EYsonType::Node) {
             EndNode();
         }
@@ -552,24 +493,24 @@ void TBufferedBinaryYsonWriter::OnRaw(TStringBuf yson, EYsonType type)
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
-    IOutputStream* output,
+    IZeroCopyOutput* output,
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
     int indent)
 {
     if (format == EYsonFormat::Binary) {
-        return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
+        return std::make_unique<TBufferedBinaryYsonWriter>(
             output,
             type,
-            enableRaw));
+            enableRaw);
     } else {
-        return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
+        return std::make_unique<TYsonWriter>(
             output,
             format,
             type,
             enableRaw,
-            indent));
+            indent);
     }
 }
 

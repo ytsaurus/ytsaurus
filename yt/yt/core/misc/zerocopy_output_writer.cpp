@@ -8,6 +8,10 @@ TZeroCopyOutputStreamWriter::TZeroCopyOutputStreamWriter(IZeroCopyOutput* output
     : Output_(output)
 {
     ObtainNextBlock();
+    // Need to have a "not dirty" stream after creating TZeroCopyOutputStreamWriter.
+    // This is for when we want to reuse a writer and clear the stream at the beginning of each iteration.
+    // But we want to have a valid (not null) Current_ pointer as not to break the current behaivior.
+    UndoRemaining();
 }
 
 TZeroCopyOutputStreamWriter::~TZeroCopyOutputStreamWriter()

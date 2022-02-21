@@ -273,7 +273,7 @@ NYson::EYsonType GetYsonType(const T&)
 
 template <class T>
 void WriteYson(
-    IOutputStream* output,
+    IZeroCopyOutput* output,
     const T& value,
     NYson::EYsonType type,
     NYson::EYsonFormat format,
@@ -285,7 +285,7 @@ void WriteYson(
 
 template <class T>
 void WriteYson(
-    IOutputStream* output,
+    IZeroCopyOutput* output,
     const T& value,
     NYson::EYsonFormat format)
 {

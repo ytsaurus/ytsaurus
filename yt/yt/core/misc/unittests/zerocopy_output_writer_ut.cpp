@@ -21,13 +21,11 @@ TEST(TZeroCopyOutputStreamWriter, TestBasic)
     {
         TZeroCopyOutputStreamWriter writer(&stream);
 
-        EXPECT_EQ(static_cast<ssize_t>(writer.RemainingBytes()), GrowthSize);
+        EXPECT_EQ(static_cast<ssize_t>(writer.RemainingBytes()), 0);
         EXPECT_EQ(writer.GetTotalWrittenSize(), 0u);
 
-        ASSERT_LE(std::ssize(buffer1), GrowthSize);
-        memcpy(writer.Current(), buffer1.data(), buffer1.length());
-        writer.Advance(buffer1.length());
-        EXPECT_EQ(writer.RemainingBytes(), GrowthSize - buffer1.length());
+        writer.Write(buffer1.data(), buffer1.size());
+        EXPECT_EQ(writer.RemainingBytes(), 7u);
         EXPECT_EQ(writer.GetTotalWrittenSize(), buffer1.length());
 
         writer.UndoRemaining();
@@ -87,9 +85,9 @@ TEST(TZeroCopyOutputStreamWriter, TestVarInt)
     TZeroCopyOutputStreamWriter writer(&stream);
 
     EXPECT_EQ(1, WriteVarInt(&writer, static_cast<i32>(-17)));
-    EXPECT_EQ(3u, writer.RemainingBytes());
+    EXPECT_EQ(4u, writer.RemainingBytes());
     EXPECT_EQ(1, WriteVarInt32(&writer, static_cast<i32>(-18)));
-    EXPECT_EQ(2u, writer.RemainingBytes());
+    EXPECT_EQ(3u, writer.RemainingBytes());
     EXPECT_EQ(5, WriteVarInt(&writer, std::numeric_limits<i32>::min()));
     EXPECT_EQ(4u, writer.RemainingBytes());
     EXPECT_EQ(5, WriteVarInt32(&writer, std::numeric_limits<i32>::min()));

@@ -110,7 +110,7 @@ IAsyncInputStreamPtr CreateAsyncAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncBufferedOutputStreamAdapter
-    : public IOutputStream
+    : public IZeroCopyOutput
 {
 public:
     TSyncBufferedOutputStreamAdapter(
@@ -175,6 +175,25 @@ private:
     }
 
 protected:
+    size_t DoNext(void** ptr) override
+    {
+        if (SpaceLeft() == 0) {
+            DoFlush();
+        }
+
+        auto size = SpaceLeft();
+        *ptr = Buffer_.Begin() + CurrentBufferSize_;
+        CurrentBufferSize_ += size;
+
+        return size;
+    }
+
+    void DoUndo(size_t size) override
+    {
+        YT_VERIFY(CurrentBufferSize_ >= size);
+        CurrentBufferSize_ -= size;
+    }
+
     void DoWrite(const void* buffer, size_t length) override
     {
         if (length > SpaceLeft()) {
@@ -201,7 +220,7 @@ protected:
 
 };
 
-std::unique_ptr<IOutputStream> CreateBufferedSyncAdapter(
+std::unique_ptr<IZeroCopyOutput> CreateBufferedSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
     ESyncStreamAdapterStrategy strategy,
     size_t bufferSize)
