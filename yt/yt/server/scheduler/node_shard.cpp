@@ -2581,9 +2581,11 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         return;
     }
 
-    auto profiler = SchedulerProfiler.WithTags(TTagSet(TTagList{
-        {"job_type", FormatEnum(job->GetType())},
-        {ProfilingPoolTreeKey, job->GetTreeId()}}));
+    auto getProfiler = [&] {
+        return SchedulerProfiler.WithTags(TTagSet(TTagList{
+            {"job_type", FormatEnum(job->GetType())},
+            {ProfilingPoolTreeKey, job->GetTreeId()}}));
+    };
 
     if (jobState == EJobState::Aborted) {
         auto key = std::make_tuple(job->GetType(), job->GetAbortReason(), job->GetTreeId());
@@ -2591,7 +2593,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         if (it == AbortedJobCounter_.end()) {
             it = AbortedJobCounter_.emplace(
                 std::move(key),
-                profiler
+                getProfiler()
                     .WithTag("abort_reason", FormatEnum(job->GetAbortReason()))
                     .Counter("/jobs/aborted_job_count")).first;
         }
@@ -2602,7 +2604,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         if (it == CompletedJobCounter_.end()) {
             it = CompletedJobCounter_.emplace(
                 std::move(key),
-                profiler
+                getProfiler()
                     .WithTag("interrupt_reason", FormatEnum(job->GetInterruptReason()))
                     .Counter("/jobs/completed_job_count")).first;
         }
@@ -2613,7 +2615,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         if (it == FailedJobCounter_.end()) {
             it = FailedJobCounter_.emplace(
                 std::move(key),
-                profiler
+                getProfiler()
                     .Counter("/jobs/failed_job_count")).first;
         }
         it->second.Increment(value);
@@ -2624,7 +2626,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
         if (it == StartedJobCounter_.end()) {
             it = StartedJobCounter_.emplace(
                 std::move(key),
-                profiler
+                getProfiler()
                     .Counter("/jobs/started_job_count")).first;
         }
         it->second.Increment(value);
@@ -2636,7 +2638,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
                 key,
                 std::make_pair(
                     0,
-                    profiler
+                    getProfiler()
                         .WithTag("state", FormatEnum(jobState))
                         .Gauge("/jobs/running_job_count"))).first;
         }
