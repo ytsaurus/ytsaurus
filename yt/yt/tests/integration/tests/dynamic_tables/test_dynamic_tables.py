@@ -251,7 +251,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         for i, sensor in enumerate(sensors):
             assert sensor.get_delta() == counts[i]
 
-    @authors("ifsmirnov")
+    @authors("gritukan")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_follower_catchup(self, decommission_through_extra_peers):
         set(
@@ -278,7 +278,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    @authors("ifsmirnov")
+    @authors("gritukan")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_leader(self, decommission_through_extra_peers):
         set(
@@ -312,7 +312,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
-    @authors("ifsmirnov")
+    @authors("gritukan")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_all_peers(self, decommission_through_extra_peers):
         set(
