@@ -124,7 +124,8 @@ def assert_yt_error(error, *args, **kwargs):
 
 def print_debug(*args):
     if args:
-        root_logger.debug(" ".join(builtins.map(str, args)))
+        root_logger.debug(" ".join(
+            arg.decode("unicode_escape") if type(arg) is bytes else str(arg) for arg in args))
 
 
 def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
