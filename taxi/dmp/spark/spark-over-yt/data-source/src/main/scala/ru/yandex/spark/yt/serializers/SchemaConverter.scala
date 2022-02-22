@@ -3,7 +3,6 @@ package ru.yandex.spark.yt.serializers
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBooleanNodeImpl
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
@@ -12,13 +11,27 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
-import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, TableSchema}
+import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
 
 object SchemaConverter {
   object MetadataFields {
     val ORIGINAL_NAME = "original_name"
     val KEY_ID = "key_id"
     val TAG = "tag"
+  }
+
+  sealed trait SortOption {
+    def keys: Seq[String]
+
+    def uniqueKeys: Boolean
+  }
+  case class Sorted(keys: Seq[String], uniqueKeys: Boolean) extends SortOption {
+    if (keys.isEmpty) throw new IllegalArgumentException("Sort columns can't be empty in sorted table")
+  }
+  case object Unordered extends SortOption {
+    override def keys: Seq[String] = Nil
+
+    override def uniqueKeys: Boolean = false
   }
 
   private def getAvailableType(fieldMap: java.util.Map[String, YTreeNode], parsingTypeV3: Boolean): YtLogicalType = {
@@ -164,8 +177,11 @@ object SchemaConverter {
     case UInt64Type => YtLogicalType.Uint64
   }
 
-  private def ytLogicalSchemaImpl(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType],
-                                  typeV3Format: Boolean = false, isTableSchema: Boolean = false): YTreeNode = {
+  private def ytLogicalSchemaImpl(sparkSchema: StructType,
+                                  sortOption: SortOption,
+                                  hint: Map[String, YtLogicalType],
+                                  typeV3Format: Boolean = false,
+                                  isTableSchema: Boolean = false): YTreeNode = {
     import scala.collection.JavaConverters._
 
     def serializeColumn(field: StructField, sort: Boolean): YTreeNode = {
@@ -185,31 +201,33 @@ object SchemaConverter {
       builder.buildMap
     }
 
+    val sortColumnsSet = sortOption.keys.toSet
     val sortedFields =
-      sortColumns
+      sortOption.keys
         .map(sparkSchema.apply)
         .map(f => serializeColumn(f, sort = true)
         ) ++ sparkSchema
-        .filter(f => !sortColumns.contains(f.name))
+        .filter(f => !sortColumnsSet.contains(f.name))
         .map(f => serializeColumn(f, sort = false))
 
     YTree.builder
       .beginAttributes
       .key("strict").value(true)
-      .key("unique_keys").value(false)
+      .key("unique_keys").value(sortOption.uniqueKeys)
       .endAttributes
       .value(sortedFields.asJava)
       .build
   }
 
-  def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String],
+  def ytLogicalSchema(sparkSchema: StructType, sortOption: SortOption,
                       hint: Map[String, YtLogicalType], typeV3Format: Boolean = false): YTreeNode = {
-    ytLogicalSchemaImpl(sparkSchema, sortColumns, hint, typeV3Format)
+    ytLogicalSchemaImpl(sparkSchema, sortOption, hint, typeV3Format)
   }
 
-  def tableSchema(sparkSchema: StructType, sortColumns: Seq[String],
+  def tableSchema(sparkSchema: StructType, sortOption: SortOption,
                   hint: Map[String, YtLogicalType], typeV3Format: Boolean = false): TableSchema = {
-    TableSchema.fromYTree(ytLogicalSchemaImpl(sparkSchema, sortColumns, hint, typeV3Format, isTableSchema = true))
+    TableSchema.fromYTree(ytLogicalSchemaImpl(sparkSchema, sortOption,
+      hint, typeV3Format, isTableSchema = true))
   }
 
   def sparkTypeV1(sType: String): YtLogicalType = {

@@ -12,6 +12,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer, YsonTags}
 import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeNode}
+import ru.yandex.spark.yt.serializers.SchemaConverter.Unordered
 import ru.yandex.spark.yt.serializers.YsonRowConverter.{isNull, serializeValue}
 import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.TableWriter
@@ -175,7 +176,7 @@ class YsonRowConverter(schema: StructType, ytSchema: YtTypeHolder,
     }
   }
 
-  private val tableSchema = SchemaConverter.tableSchema(schema, Nil, Map.empty)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Unordered, Map.empty)
 
   @tailrec
   final def writeRows(writer: TableWriter[Row], rows: Seq[Row]): Unit = {

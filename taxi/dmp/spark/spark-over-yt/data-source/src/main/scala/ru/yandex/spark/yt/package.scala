@@ -91,6 +91,14 @@ package object yt {
       writer.option(SortColumns, cols)
     }
 
+    def sortedByUniqueKeys(cols: String*): DataFrameWriter[T] = {
+      writer.sortedBy(cols:_*).uniqueKeys
+    }
+
+    def uniqueKeys: DataFrameWriter[T] = {
+      writer.option(UniqueKeys, true)
+    }
+
     def schemaHint(schemaHint: Map[String, YtLogicalType]): DataFrameWriter[T] = {
       writer.option(WriteSchemaHint, schemaHint)
     }

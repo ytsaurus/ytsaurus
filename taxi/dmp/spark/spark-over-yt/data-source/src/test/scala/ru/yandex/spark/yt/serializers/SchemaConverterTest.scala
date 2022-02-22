@@ -9,7 +9,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
-import ru.yandex.spark.yt.serializers.SchemaConverter.ytLogicalSchema
+import ru.yandex.spark.yt.serializers.SchemaConverter.{Unordered, ytLogicalSchema}
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.{SchemaTestUtils, YtReader}
 import ru.yandex.type_info.StructType.Member
@@ -190,7 +190,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
   }
 
   it should "convert spark schema to yt one with parsing type v3" in {
-    val res = TableSchema.fromYTree(ytLogicalSchema(sparkSchema, Seq.empty, Map.empty, typeV3Format = true))
+    val res = TableSchema.fromYTree(ytLogicalSchema(sparkSchema, Unordered, Map.empty, typeV3Format = true))
     res shouldBe new TableSchema.Builder().setUniqueKeys(false)
       .addValue("Null", TiType.nullType())
       .addValue("Long", TiType.int64())
@@ -221,7 +221,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
       YTree.builder.beginMap.key("name").value(name).key("type").value(t)
         .key("required").value(false).buildMap
     }
-    val res = ytLogicalSchema(sparkSchema, Seq.empty, Map.empty, typeV3Format = false)
+    val res = ytLogicalSchema(sparkSchema, Unordered, Map.empty, typeV3Format = false)
     res shouldBe YTree.builder
       .beginAttributes
       .key("strict").value(true)

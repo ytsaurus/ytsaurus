@@ -4,6 +4,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.fs.conf._
+import ru.yandex.spark.yt.serializers.SchemaConverter.{SortOption, Sorted, Unordered}
 import ru.yandex.spark.yt.serializers.{SchemaConverter, YtLogicalType}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 
@@ -11,7 +12,14 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
 
   import YtTableSparkSettings._
 
-  private def sortColumns: Seq[String] = configuration.ytConf(SortColumns)
+  private def sortOption: SortOption = {
+    val keys = configuration.ytConf(SortColumns)
+    val uniqueKeys = configuration.ytConf(UniqueKeys)
+    if (keys.isEmpty && uniqueKeys) {
+      throw new IllegalArgumentException("Unique keys attribute can't be true for unordered table")
+    }
+    if (keys.nonEmpty) Sorted(keys, uniqueKeys) else Unordered
+  }
 
   private def writeSchemaHints: Map[String, YtLogicalType] = configuration.ytConf(WriteSchemaHint)
 
@@ -20,7 +28,7 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
   private def schema: StructType = configuration.ytConf(Schema)
 
   override def ytSchema: YTreeNode = SchemaConverter.ytLogicalSchema(
-    schema, sortColumns, writeSchemaHints, typeV3Format)
+    schema, sortOption, writeSchemaHints, typeV3Format)
 
   override def optionsAny: Map[String, Any] = {
     val optionsKeys = configuration.ytConf(Options)
@@ -46,6 +54,8 @@ object YtTableSparkSettings {
   case object IsTable extends BooleanConfigEntry("is_table", Some(false))
 
   case object SortColumns extends StringListConfigEntry("sort_columns", Some(Nil))
+
+  case object UniqueKeys extends BooleanConfigEntry("unique_keys", Some(false))
 
   case object WriteSchemaHint extends YtLogicalTypeMapConfigEntry("write_schema_hint", Some(Map.empty))
 
