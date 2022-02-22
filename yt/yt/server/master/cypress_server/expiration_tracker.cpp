@@ -299,7 +299,11 @@ void TExpirationTracker::OnCheck()
                 break;
             }
 
-            ToProto(request.add_node_ids(), trunkNode->GetId());
+            // See comment for TShard::ExpirationMap.
+            if (shard.ExpiredNodes.insert(trunkNode).second) {
+                ToProto(request.add_node_ids(), trunkNode->GetId());
+            }
+
             if (trunkNode->GetExpirationTimeIterator() && *trunkNode->GetExpirationTimeIterator() == it) {
                 UnregisterNodeExpirationTime(trunkNode);
             } else if (trunkNode->GetExpirationTimeoutIterator() && *trunkNode->GetExpirationTimeoutIterator() == it) {
@@ -307,7 +311,6 @@ void TExpirationTracker::OnCheck()
             } else {
                 YT_ABORT();
             }
-            YT_VERIFY(shard.ExpiredNodes.insert(trunkNode).second);
         }
 
         if (!canRemoveMoreExpiredNodes()) {

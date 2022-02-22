@@ -41,7 +41,7 @@ private:
 
     struct TShard
     {
-        // NB: nodes that have both expiration time and expiration timeout may appear twice here.
+        // NB: Nodes that have both expiration time and expiration timeout may appear twice here.
         TCypressNodeExpirationMap ExpirationMap;
         THashSet<TCypressNode*> ExpiredNodes;
 
