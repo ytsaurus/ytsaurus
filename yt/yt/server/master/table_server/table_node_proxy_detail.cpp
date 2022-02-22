@@ -574,6 +574,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .DoListFor(trunkTable->Tablets(), [&] (TFluentList fluent, TTablet* tablet) {
                     auto* cell = tablet->GetCell();
+                    auto* node = tabletManager->FindTabletLeaderNode(tablet);
                     fluent
                         .Item().BeginMap()
                             .Item("index").Value(tablet->GetIndex())
@@ -596,6 +597,9 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             .Item("tablet_id").Value(tablet->GetId())
                             .DoIf(cell, [&] (TFluentMap fluent) {
                                 fluent.Item("cell_id").Value(cell->GetId());
+                            })
+                            .DoIf(node, [&] (TFluentMap fluent) {
+                                fluent.Item("cell_leader_address").Value(node->GetDefaultAddress());
                             })
                             .Item("error_count").Value(tablet->GetTabletErrorCount())
                             .Item("replication_error_count").Value(tablet->GetReplicationErrorCount())
