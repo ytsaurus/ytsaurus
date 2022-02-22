@@ -623,6 +623,8 @@ public:
 
     int MessageOffloadThreadCount;
 
+    bool EnableResponseKeeper;
+
     REGISTER_YSON_STRUCT(TControllerAgentTrackerConfig);
 
     static void Register(TRegistrar registrar);

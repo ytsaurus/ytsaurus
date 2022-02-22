@@ -385,7 +385,7 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
+        if (Config_->EnableResponseKeeper && Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
             return;
         }
 
@@ -497,7 +497,7 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
+        if (Config_->EnableResponseKeeper && Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
             return;
         }
 
@@ -874,7 +874,7 @@ public:
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        if (Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
+        if (Config_->EnableResponseKeeper && Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
             return;
         }
 

@@ -694,6 +694,9 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
         .Default(4)
         .GreaterThan(0);
 
+    registrar.Parameter("enable_response_keeper", &TThis::EnableResponseKeeper)
+        .Default(false);
+
     registrar.Postprocessor([&] (TControllerAgentTrackerConfig* config) {
         if (!config->TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
             config->TagToAliveControllerAgentThresholds[DefaultOperationTag] = {static_cast<i64>(config->MinAgentCount), 0.0};
