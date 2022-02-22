@@ -452,6 +452,96 @@ TEST_F(TUnorderedChunkPoolTest, UnorderedMergeSimple)
     CheckEverything(stripeLists);
 }
 
+TEST_F(TUnorderedChunkPoolTest, OneStripe1)
+{
+    InitTables(
+        /*isTeleprotable*/ {false},
+        /*isVersion*/ {false}
+    );
+
+    DataSizePerJob_ = 2047;
+    InputSliceDataSize_ = 1500;
+    JobCount_ = 1;
+
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(0, DataSizePerJob_);
+
+    CreateChunkPool();
+    PersistAndRestore();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(1u, stripeLists.size());
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolTest, OneStripe2)
+{
+    InitTables(
+        /*isTeleprotable*/ {false},
+        /*isVersion*/ {false}
+    );
+
+    DataSizePerJob_ = 2047;
+    InputSliceDataSize_ = 800;
+    JobCount_ = 1;
+
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(0, DataSizePerJob_);
+
+    CreateChunkPool();
+    PersistAndRestore();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(1u, stripeLists.size());
+
+    CheckEverything(stripeLists);
+}
+
+TEST_F(TUnorderedChunkPoolTest, OneStripe3)
+{
+    InitTables(
+        /*isTeleprotable*/ {false},
+        /*isVersion*/ {false}
+    );
+
+    DataSizePerJob_ = 2048;
+    InputSliceDataSize_ = 800;
+    JobCount_ = 1;
+
+    InitJobConstraints();
+
+    auto chunk = CreateChunk(0, DataSizePerJob_);
+
+    CreateChunkPool();
+    PersistAndRestore();
+
+    AddChunk(chunk);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_EQ(1u, stripeLists.size());
+
+    CheckEverything(stripeLists);
+}
+
 TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
 {
     InitTables(

@@ -538,20 +538,28 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
     }
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
+    if (rowCount == 0) {
+        return {};
+    }
+
     i64 count = std::max(DivCeil(GetDataWeight(), sliceDataWeight), DivCeil(rowCount, sliceRowCount));
+    // NB(gepardo): We need to consider cases with count == 0 or rowCount == 0 carefully. The
+    // latter case is considered above. In the former case, we have non-empty data and need one
+    // slice, so forcefully set count to 1.
     count = std::max(std::min(count, rowCount), static_cast<i64>(1));
 
     std::vector<TInputChunkSlicePtr> result;
     for (i64 i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = lowerRowIndex + rowCount * i / count;
         i64 sliceUpperRowIndex = lowerRowIndex + rowCount * (i + 1) / count;
-        if (sliceLowerRowIndex < sliceUpperRowIndex) {
-            result.push_back(New<TInputChunkSlice>(
-                *this,
-                sliceLowerRowIndex,
-                sliceUpperRowIndex,
-                DivCeil(GetDataWeight(), count)));
-        }
+        i64 sliceLowerDataWeight = GetDataWeight() * i / count;
+        i64 sliceUpperDataWeight = GetDataWeight() * (i + 1) / count;
+        YT_VERIFY(sliceLowerRowIndex < sliceUpperRowIndex);
+        result.push_back(New<TInputChunkSlice>(
+            *this,
+            sliceLowerRowIndex,
+            sliceUpperRowIndex,
+            sliceUpperDataWeight - sliceLowerDataWeight));
     }
     if (rowBuffer) {
         result.front()
