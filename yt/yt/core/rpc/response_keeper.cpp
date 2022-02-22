@@ -216,12 +216,15 @@ public:
 
         context->GetAsyncResponseMessage()
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
-                const auto& error = context->GetError();
-                EndRequest(
-                    mutationId,
-                    context->GetResponseMessage(),
-                    error.GetCode() != NRpc::EErrorCode::Unavailable);
-            }).Via(Invoker_));
+                auto responseMessage = context->GetResponseMessage();
+                bool remember = context->GetError().GetCode() != NRpc::EErrorCode::Unavailable;
+                Invoker_->Invoke(BIND([this, this_ = std::move(this_), mutationId, remember, responseMessage = std::move(responseMessage)] {
+                    EndRequest(
+                        mutationId,
+                        std::move(responseMessage),
+                        remember);
+                }));
+            }));
         return false;
     }
 
