@@ -21,6 +21,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <util/random/random.h>
+
 #include <numeric>
 
 namespace NYT::NChunkClient {
@@ -237,7 +239,7 @@ private:
         encoder->Run();
 
         // Fetch chunk meta.
-        auto reader = Readers_.front(); // an arbitrary one will do
+        const auto& reader = Readers_[RandomNumber(Readers_.size())];
         auto meta = WaitFor(reader->GetMeta(ChunkReadOptions_))
             .ValueOrThrow();
         auto deferredMeta = New<TDeferredChunkMeta>();
