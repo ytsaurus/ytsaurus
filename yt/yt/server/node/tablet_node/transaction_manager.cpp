@@ -83,6 +83,7 @@ public:
     DEFINE_SIGNAL(void(TTransaction*, bool), TransactionPrepared);
     DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
     DEFINE_SIGNAL(void(TTransaction*), TransactionSerialized);
+    DEFINE_SIGNAL(void(TTransaction*), BeforeTransactionSerialized);
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
     DEFINE_SIGNAL(void(TTimestamp), TransactionBarrierHandled);
     DEFINE_SIGNAL(void(TTransaction*), TransactionTransientReset);
@@ -916,6 +917,7 @@ private:
                     commitTimestamp);
 
                 transaction->SetState(ETransactionState::Serialized);
+                BeforeTransactionSerialized_.Fire(transaction);
                 TransactionSerialized_.Fire(transaction);
 
                 PersistentTransactionMap_.Remove(transactionId);
@@ -1283,6 +1285,7 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *I
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*, bool), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionSerialized, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), BeforeTransactionSerialized, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTimestamp), TransactionBarrierHandled, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionTransientReset, *Impl_)

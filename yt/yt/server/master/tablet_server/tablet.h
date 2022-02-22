@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
@@ -240,15 +242,23 @@ public:
 public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTabletErrors = TEnumIndexedVector<
-    NTabletClient::ETabletBackgroundActivity,
-    TError
->;
+struct TRowIndexCutoffDescriptor
+{
+    i64 CutoffRowIndex = 0;
+    TStoreId NextDynamicStoreId;
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+};
+
+TString ToString(const TRowIndexCutoffDescriptor& descriptor);
+
+void FromProto(
+    TRowIndexCutoffDescriptor* descriptor,
+    const NProto::TRowIndexCutoffDescriptor& protoDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -289,6 +299,7 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(ETabletBackupState, BackupState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
+    DEFINE_BYVAL_RW_PROPERTY(TRowIndexCutoffDescriptor, BackupCutoffDescriptor);
 
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
 

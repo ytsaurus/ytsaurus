@@ -6,6 +6,8 @@
 #include "tablet_manager.h"
 #include "bootstrap.h"
 #include "transaction_manager.h"
+#include "transaction.h"
+#include "store_manager.h"
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -20,17 +22,18 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/core/concurrency/periodic_executor.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NClusterNode;
 using namespace NYTree;
+using namespace NTransactionClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+using NLsm::EStoreRotationReason;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +78,8 @@ public:
         const auto& transactionManager = Slot_->GetTransactionManager();
         transactionManager->SubscribeTransactionBarrierHandled(
             BIND(&TBackupManager::OnTransactionBarrierHandled, MakeStrong(this)));
+        transactionManager->SubscribeBeforeTransactionSerialized(
+            BIND(&TBackupManager::OnBeforeTransactionSerialized, MakeStrong(this)));
     }
 
 private:
@@ -116,8 +121,12 @@ private:
     // Transient.
     std::vector<TTabletWithCheckpoint> TabletsAwaitingFeasibilityCheck_;
 
-    // Tablets with confirmed checkpoint timestamp. They are waiting for
-    // the barrier timestamp.
+    // Tablets with confirmed checkpoint timestamp.
+    // They are waiting for one of the events:
+    //  - a transaction with commit timestamp greater than their chekpoint
+    //    timestamp is serialized (commit_ordering=strong only).
+    //  - barrier timestamp overruns ther checkpoint timestamp and no transaction
+    //    affecting that tablet is pending serialization.
     // Persistent.
     std::set<TTabletWithCheckpoint> TabletsAwaitingCheckpointPassing_;
 
@@ -195,7 +204,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %llx)",
             tabletId,
             timestamp);
 
@@ -216,7 +226,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Backup checkpoint released (TabletId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Backup checkpoint released (TabletId: %v)",
             tabletId);
         YT_VERIFY(tablet->GetBackupCheckpointTimestamp());
 
@@ -247,7 +258,14 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Persistently confirmed backup checkpoint feasibility "
+            // Checkpoint may have been already rejected elsewhere, e.g.
+            // by a serialized transaction with later timestamp.
+            if (tablet->GetBackupStage() != EBackupStage::TimestampReceived) {
+                continue;
+            }
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Persistently confirmed backup checkpoint feasibility "
                 "(TabletId: %v, CheckpointTimestamp: %llx)",
                 tablet->GetId(),
                 timestamp);
@@ -266,7 +284,14 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Persistently rejected backup checkpoint feasibility "
+            // Checkpoint may have been already rejected elsewhere, e.g.
+            // by a serialized transaction with later timestamp.
+            if (tablet->GetBackupStage() != EBackupStage::TimestampReceived) {
+                continue;
+            }
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Persistently rejected backup checkpoint feasibility "
                 "(TabletId: %v, CheckpointTimestamp: %llx)",
                 tablet->GetId(),
                 tablet->GetBackupCheckpointTimestamp());
@@ -380,6 +405,81 @@ private:
         }
     }
 
+    void ReportCheckpointPassage(TTablet* tablet)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
+        ToProto(req.mutable_tablet_id(), tablet->GetId());
+        req.set_mount_revision(tablet->GetMountRevision());
+
+        auto respond = [&] {
+            Slot_->PostMasterMessage(tablet->GetId(), req);
+            tablet->CheckedSetBackupStage(EBackupStage::FeasibilityConfirmed, EBackupStage::RespondedToMaster);
+        };
+
+        if (tablet->IsPhysicallyOrdered() && tablet->GetCommitOrdering() == ECommitOrdering::Strong) {
+            auto* cutoffDescriptor = req.mutable_row_index_cutoff_descriptor();
+            cutoffDescriptor->set_cutoff_row_index(tablet->GetTotalRowCount());
+
+            // Active store is non-empty, should rotate.
+            if (const auto& activeStore = tablet->GetActiveStore();
+                activeStore && activeStore->GetRowCount() > 0)
+            {
+                if (tablet->GetState() != ETabletState::Mounted) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                        "Tablet with nonempty active store is not mounted "
+                        "during backup checkpoint passing (%v, TabletState: %v)",
+                        tablet->GetLoggingTag(),
+                        tablet->GetState());
+                    auto error = TError("Tablet %v has nonempty dynamic store and is not mounted "
+                        "during backup checkpoint passing",
+                        tablet->GetId())
+                        << TErrorAttribute("tablet_state", tablet->GetState())
+                        << TErrorAttribute("cell_id", Slot_->GetCellId());
+                    ToProto(req.mutable_error(), error.Sanitize());
+
+                    respond();
+                    return;
+                }
+
+                if (tablet->DynamicStoreIdPool().empty()) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Cannot perform backup cutoff due to empty "
+                        "dynamic store id pool (%v)",
+                        tablet->GetLoggingTag());
+                    auto error = TError("Tablet %v cannot perform backup cutoff due to empty "
+                        "dynamic store id pool",
+                        tablet->GetId())
+                        << TErrorAttribute("cell_id", Slot_->GetCellId());
+                    ToProto(req.mutable_error(), error.Sanitize());
+
+                    respond();
+                    return;
+                }
+
+                tablet->GetStoreManager()->Rotate(/*createNewStore*/ true, EStoreRotationReason::None);
+
+                const auto& tabletManager = Slot_->GetTabletManager();
+                tabletManager->UpdateTabletSnapshot(tablet);
+
+                if (tabletManager->AllocateDynamicStoreIfNeeded(tablet)) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Dynamic store id for ordered tablet allocated "
+                        "after backup cutoff (%v)",
+                        tablet->GetLoggingTag());
+                }
+            }
+
+            if (const auto& activeStore = tablet->GetActiveStore()) {
+                ToProto(cutoffDescriptor->mutable_next_dynamic_store_id(), activeStore->GetId());
+            }
+        }
+
+        req.set_confirmed(true);
+        respond();
+    }
+
     void OnTransactionBarrierHandled(TTimestamp barrierTimestamp)
     {
         YT_VERIFY(HasMutationContext());
@@ -404,19 +504,77 @@ private:
                 break;
             }
 
-            YT_LOG_DEBUG("Reported backup checkpoint passage "
+            ReportCheckpointPassage(tablet);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Reported backup checkpoint passage by barrier timestamp "
                 "(TabletId: %v, CheckpointTimestamp: %llx, BarrierTimestamp: %llx)",
                 tablet->GetId(),
                 tablet->GetBackupCheckpointTimestamp(),
                 barrierTimestamp);
+        }
+    }
 
-            NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
-            ToProto(req.mutable_tablet_id(), tablet->GetId());
-            req.set_mount_revision(tablet->GetMountRevision());
-            req.set_confirmed(true);
-            Slot_->PostMasterMessage(tablet->GetId(), req);
+    void OnBeforeTransactionSerialized(TTransaction* transaction)
+    {
+        YT_VERIFY(HasMutationContext());
 
-            tablet->CheckedSetBackupStage(EBackupStage::FeasibilityConfirmed, EBackupStage::RespondedToMaster);
+        for (auto* tablet : transaction->LockedTablets()) {
+            if (tablet->GetCommitOrdering() != ECommitOrdering::Strong) {
+                continue;
+            }
+
+            auto checkpointTimestamp = tablet->GetBackupCheckpointTimestamp();
+            if (!checkpointTimestamp) {
+                continue;
+            }
+
+            auto commitTimestamp = transaction->GetCommitTimestamp();
+            if (commitTimestamp <= checkpointTimestamp) {
+                continue;
+            }
+
+            if (tablet->GetBackupStage() == EBackupStage::FeasibilityConfirmed) {
+                auto holder = TTabletWithCheckpoint(tablet);
+                EraseOrCrash(TabletsAwaitingCheckpointPassing_, holder);
+
+                ReportCheckpointPassage(tablet);
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Reported backup checkpoint passage due to a transaction "
+                    "with later timestamp (%v, CheckpointTimestamp: %llx, "
+                    "NextTransactionCommitTimestamp: %llx)",
+                    tablet->GetLoggingTag(),
+                    checkpointTimestamp,
+                    commitTimestamp);
+
+            } else if (tablet->GetBackupStage() == EBackupStage::TimestampReceived) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Rejected backup checkpoint timestamp due to a transaction "
+                    "with later timestamp (%v, CheckpointTimestamp: %llx, "
+                    "CommitTimestamp: %llx)",
+                    tablet->GetLoggingTag(),
+                    checkpointTimestamp,
+                    commitTimestamp);
+
+                tablet->CheckedSetBackupStage(
+                    EBackupStage::TimestampReceived,
+                    EBackupStage::RespondedToMaster);
+
+                auto error = TError("Failed to confirm checkpoint timestamp in time "
+                    "due to a transaction with later timestamp")
+                    << TErrorAttribute("checkpoint_timestamp", checkpointTimestamp)
+                    << TErrorAttribute("commit_timestamp", commitTimestamp)
+                    << TErrorAttribute("tablet_id", tablet->GetId())
+                    << TErrorAttribute("cell_id", Slot_->GetCellId());
+
+                NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
+                ToProto(req.mutable_tablet_id(), tablet->GetId());
+                req.set_mount_revision(tablet->GetMountRevision());
+                req.set_confirmed(false);
+                ToProto(req.mutable_error(), error.Sanitize());
+                Slot_->PostMasterMessage(tablet->GetId(), req);
+            }
         }
     }
 };

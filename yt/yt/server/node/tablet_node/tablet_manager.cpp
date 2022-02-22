@@ -241,6 +241,26 @@ public:
         DistributedThrottlerManager_->Finalize();
     }
 
+    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
+    {
+        if (!IsRecovery()) {
+            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+            snapshotStore->RegisterTabletSnapshot(Slot_, tablet, epoch);
+        }
+    }
+
+    bool AllocateDynamicStoreIfNeeded(TTablet* tablet)
+    {
+        if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
+            tablet->DynamicStoreIdPool().empty() &&
+            !tablet->GetDynamicStoreIdRequested())
+        {
+            AllocateDynamicStore(tablet);
+            return true;
+        }
+
+        return false;
+    }
 
     TTablet* GetTabletOrThrow(TTabletId id) override
     {
@@ -1377,6 +1397,18 @@ private:
         auto reason = static_cast<EStoreRotationReason>(request->reason());
         storeManager->Rotate(true, reason);
         UpdateTabletSnapshot(tablet);
+
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::BackupsOrdered)) {
+            if (tablet->IsPhysicallyOrdered()) {
+                if (AllocateDynamicStoreIfNeeded(tablet)) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                        "Dynamic store id for ordered tablet allocated after rotation (%v)",
+                        tablet->GetLoggingTag());
+
+                }
+            }
+        }
     }
 
     void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
@@ -2375,22 +2407,39 @@ private:
             return;
         }
 
-        auto state = tablet->GetState();
-        if (state != ETabletState::Mounted &&
-            state != ETabletState::UnmountFlushPending &&
-            state != ETabletState::UnmountFlushing &&
-            state != ETabletState::FreezeFlushPending &&
-            state != ETabletState::FreezeFlushing)
-        {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
-                tablet->GetLoggingTag(),
-                state);
-            return;
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::BackupsOrdered)) {
+            auto state = tablet->GetState();
+            if (state != ETabletState::Mounted &&
+                state != ETabletState::UnmountFlushPending &&
+                state != ETabletState::UnmountFlushing &&
+                state != ETabletState::FreezeFlushPending &&
+                state != ETabletState::FreezeFlushing)
+            {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
+                    tablet->GetLoggingTag(),
+                    state);
+                return;
+            }
+        } else {
+            tablet->SetDynamicStoreIdRequested(false);
+
+            auto state = tablet->GetState();
+            if (state == ETabletState::Frozen ||
+                state == ETabletState::Unmounted ||
+                state == ETabletState::Orphaned)
+            {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
+                    tablet->GetLoggingTag(),
+                    state);
+                return;
+            }
         }
 
         auto dynamicStoreId = FromProto<TDynamicStoreId>(request->dynamic_store_id());
         tablet->PushDynamicStoreIdToPool(dynamicStoreId);
         tablet->SetDynamicStoreIdRequested(false);
+        UpdateTabletSnapshot(tablet);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store allocated for a tablet (%v, DynamicStoreId: %v)",
             tablet->GetLoggingTag(),
@@ -2874,14 +2923,6 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Node is out of tablet memory, all writes disabled");
-        }
-    }
-
-    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
-    {
-        if (!IsRecovery()) {
-            const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
-            snapshotStore->RegisterTabletSnapshot(Slot_, tablet, epoch);
         }
     }
 
@@ -3491,6 +3532,16 @@ ITabletCellWriteManagerHostPtr TTabletManager::GetTabletCellWriteManagerHost()
 std::vector<TTabletMemoryStatistics> TTabletManager::GetMemoryStatistics() const
 {
     return Impl_->GetMemoryStatistics();
+}
+
+void TTabletManager::UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch)
+{
+    Impl_->UpdateTabletSnapshot(tablet, epoch);
+}
+
+bool TTabletManager::AllocateDynamicStoreIfNeeded(TTablet* tablet)
+{
+    return Impl_->AllocateDynamicStoreIfNeeded(tablet);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

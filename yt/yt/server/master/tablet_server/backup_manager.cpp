@@ -32,6 +32,7 @@ using namespace NTableServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTabletNode::NProto;
+using namespace NChunkClient;
 
 using NTransactionServer::TTransaction;
 
@@ -86,11 +87,6 @@ public:
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
         }
 
-        if (!table->GetMountedWithEnabledDynamicStoreRead()) {
-            THROW_ERROR_EXCEPTION("Dynamic store read must be enabled in order to backup the table")
-                << TErrorAttribute("table_id", table->GetId());
-        }
-
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
             if (tablet->GetBackupState() != ETabletBackupState::None) {
                 THROW_ERROR_EXCEPTION("Cannot set backup checkpoint since tablet %v "
@@ -102,8 +98,14 @@ public:
 
             switch (tablet->GetState()) {
                 case ETabletState::Unmounted:
+                    break;
+
                 case ETabletState::Mounted:
                 case ETabletState::Frozen:
+                    if (!table->GetMountedWithEnabledDynamicStoreRead()) {
+                        THROW_ERROR_EXCEPTION("Dynamic store read must be enabled in order to backup a mounted table")
+                            << TErrorAttribute("table_id", table->GetId());
+                    }
                     break;
 
                 default:
@@ -181,6 +183,7 @@ public:
             }
 
             tablet->SetBackupState(ETabletBackupState::None);
+            tablet->SetBackupCutoffDescriptor({});
         }
 
         if (!transaction->TablesWithBackupCheckpoints().contains(table)) {
@@ -406,7 +409,19 @@ private:
                 continue;
             }
 
-            tabletManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
+            if (table->IsPhysicallySorted()) {
+                tabletManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
+            } else {
+                auto error = tabletManager->ApplyCutoffRowIndex(tablet);
+
+                if (!error.IsOK()) {
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                        "Failed to apply cutoff row index to tablet (TabletId: %v)",
+                        tablet->GetId());
+                    RegisterBackupError(table, error.Sanitize());
+                    tablet->SetBackupState(ETabletBackupState::BackupFailed);
+                }
+            }
 
             tablet->CheckedSetBackupState(
                 ETabletBackupState::BackupStarted,
@@ -503,8 +518,21 @@ private:
             return;
         }
 
-        if (!response->confirmed()) {
-            // TODO(ifsmirnov): store error somewhere.
+        if (response->confirmed()) {
+            if (response->has_row_index_cutoff_descriptor()) {
+                tablet->SetBackupCutoffDescriptor(FromProto<TRowIndexCutoffDescriptor>(
+                    response->row_index_cutoff_descriptor()));
+            }
+
+            YT_LOG_DEBUG("Backup checkpoint confirmed by the tablet cell "
+                "(TableId: %v, TabletId: %v, RowIndexCutoffDescriptor: %v)",
+                tablet->GetTable()->GetId(),
+                tablet->GetId(),
+                tablet->GetBackupCutoffDescriptor());
+            tablet->CheckedSetBackupState(
+                ETabletBackupState::CheckpointRequested,
+                ETabletBackupState::CheckpointConfirmed);
+        } else {
             auto error = FromProto<TError>(response->error());
             YT_LOG_DEBUG(error, "Backup checkpoint rejected by the tablet cell "
                 "(TableId: %v, TabletId: %v)",
@@ -514,14 +542,6 @@ private:
             tablet->CheckedSetBackupState(
                 ETabletBackupState::CheckpointRequested,
                 ETabletBackupState::CheckpointRejected);
-        } else {
-            YT_LOG_DEBUG("Backup checkpoint confirmed by the tablet cell "
-                "(TableId: %v, TabletId: %v)",
-                tablet->GetTable()->GetId(),
-                tablet->GetId());
-            tablet->CheckedSetBackupState(
-                ETabletBackupState::CheckpointRequested,
-                ETabletBackupState::CheckpointConfirmed);
         }
 
         UpdateAggregatedBackupState(tablet->GetTable());

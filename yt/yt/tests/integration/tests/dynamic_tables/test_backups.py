@@ -10,10 +10,17 @@ import yt_error_codes
 from test_dynamic_tables import DynamicTablesBase
 
 from yt.environment.helpers import assert_items_equal
+from yt.common import YtResponseError
 import yt.yson as yson
-from time import time
+from time import time, sleep
 
 import pytest
+
+##################################################################
+
+
+class EmptyDynamicStoreIdPoolException(Exception):
+    pass
 
 ##################################################################
 
@@ -133,12 +140,10 @@ class TestBackups(DynamicTablesBase):
         for i in range(10):
             self._insert_into_multiple_tables(source_tables, [{"key": i, "value": str(i)}])
 
-        responses = []
-        for table, backup in zip(source_tables, backup_tables):
-            responses.append(create_table_backup(
-                [table, backup],
-                checkpoint_timestamp_delay=5000,
-                return_response=True))
+        response = create_table_backup(
+            *zip(source_tables, backup_tables),
+            checkpoint_timestamp_delay=5000,
+            return_response=True)
 
         i = 10
         start_time = time()
@@ -146,19 +151,17 @@ class TestBackups(DynamicTablesBase):
             self._insert_into_multiple_tables(source_tables, [{"key": i, "value": str(i)}])
             i += 1
 
-        for response in responses:
-            response.wait()
-            assert response.is_ok()
+        response.wait()
+        assert response.is_ok()
 
-        for table, backup, restored in zip(source_tables, backup_tables, restored_tables):
+        for table in source_tables:
             sync_freeze_table(table)
-            get(table + "/@chunk_ids")
-            restore_table_backup([backup, restored])
-            assert get(restored + "/@backup_state") == "restored_with_restrictions"
-            sync_mount_table(restored)
+        restore_table_backup(*zip(backup_tables, restored_tables))
 
         rowsets = []
         for table in restored_tables:
+            assert get(table + "/@backup_state") == "restored_with_restrictions"
+            sync_mount_table(table)
             rowsets.append(list(select_rows("* from [{}] order by key limit 1000000".format(table))))
 
         assert rowsets[0] == rowsets[1]
@@ -293,8 +296,105 @@ class TestBackups(DynamicTablesBase):
         sync_compact_table("//tmp/res")
         _check()
 
+    @pytest.mark.flaky(
+        max_runs=5,
+        rerun_filter=lambda err, *args: issubclass(err[0], EmptyDynamicStoreIdPoolException))
+    def test_backup_multiple_tables_ordered(self):
+        table_count = 3
+        source_tables = ["//tmp/t_" + str(i) for i in range(table_count)]
+        backup_tables = ["//tmp/bak_" + str(i) for i in range(table_count)]
+        restored_tables = ["//tmp/res_" + str(i) for i in range(table_count)]
+
+        sync_create_cells(table_count)
+
+        for table in source_tables:
+            self._create_ordered_table(
+                table,
+                dynamic_store_auto_flush_period=2000,
+                dynamic_store_flush_period_splay=0,
+                commit_ordering="strong")
+            sync_mount_table(table)
+
+        for i in range(10):
+            tx = start_transaction(type="tablet")
+            for table in source_tables:
+                insert_rows(table, [{"key": i, "value": str(i)}], transaction_id=tx)
+            commit_transaction(tx)
+
+        response = create_table_backup(
+            *zip(source_tables, backup_tables),
+            checkpoint_timestamp_delay=5000,
+            return_response=True)
+
+        cur_time = time()
+        for i in range(10, 1000000):
+            if time() - cur_time > 10:
+                break
+            print_debug("Inserting {}".format(i))
+            tx = start_transaction(type="tablet")
+            for table in source_tables:
+                insert_rows(table, [{"key": i, "value": str(i)}], transaction_id=tx)
+            commit_transaction(tx)
+
+        response.wait()
+
+        # This kind of race is infrequent but possible.
+        if not response.is_ok():
+            error = YtResponseError(response.error())
+            if error.contains_text("cannot perform backup cutoff due to empty dynamic store id pool"):
+                raise EmptyDynamicStoreIdPoolException()
+            raise error
+
+        for table in source_tables:
+            sync_freeze_table(table)
+        restore_table_backup(*zip(backup_tables, restored_tables))
+
+        rowsets = []
+        for table in restored_tables:
+            assert get(table + "/@backup_state") == "restored_with_restrictions"
+            sync_mount_table(table)
+            rowsets.append(list(select_rows("* from [{}] order by key limit 1000000".format(table))))
+
+        assert rowsets[0] == rowsets[1]
+        assert rowsets[0] == rowsets[2]
+
+        for table in source_tables:
+            assert len(list(select_rows("* from [{}]".format(table)))) > len(rowsets[0])
+
+    def test_checkpoint_rejected_by_transaction(self):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t", commit_ordering="strong")
+        sync_mount_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "backup_manager": {
+                    "checkpoint_feasibility_check_batch_period": 10000,
+                }
+            }
+        })
+
+        response = create_table_backup(
+            ["//tmp/t", "//tmp/bak"],
+            checkpoint_timestamp_delay=0,
+            return_response=True)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        wait(lambda: get("//sys/tablets/{}/orchid/backup_stage".format(tablet_id))
+                == "timestamp_received")
+
+        # Wait for current timestamp to exceed checkpoint timestamp.
+        sleep(2)
+        insert_rows("//tmp/t", [{"key": 1, "value": "foo"}])
+
+        wait(lambda: response.is_set())
+        assert not response.is_ok()
+        error = YtResponseError(response.error())
+        assert error.contains_text(
+            "Failed to confirm checkpoint timestamp in time due to a transaction with later timestamp")
 
 ##################################################################
+
 
 @authors("ifsmirnov")
 class TestBackupsMulticell(TestBackups):

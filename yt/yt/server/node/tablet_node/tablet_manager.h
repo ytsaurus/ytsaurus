@@ -65,6 +65,10 @@ public:
 
     std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const;
 
+    void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt);
+
+    bool AllocateDynamicStoreIfNeeded(TTablet* tablet);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
