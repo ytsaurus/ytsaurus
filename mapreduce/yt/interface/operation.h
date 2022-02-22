@@ -1036,6 +1036,10 @@ struct TMapReduceOperationSpecBase
     FLUENT_FIELD_OPTION(ui64, PartitionDataSize);
 
     ///
+    /// @brief Account to use for intermediate data.
+    FLUENT_FIELD_OPTION(TString, IntermediateDataAccount);
+
+    ///
     /// @brief Replication factor for intermediate data (1 by default).
     FLUENT_FIELD_OPTION(ui64,  IntermediateDataReplicationFactor);
 
@@ -1152,6 +1156,10 @@ struct TSortOperationSpec
     ///
     /// @see https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
+
+    ///
+    /// @brief Account to use for intermediate data.
+    FLUENT_FIELD_OPTION(TString, IntermediateDataAccount);
 
     ///
     /// @brief Replication factor for intermediate data (1 by default).
