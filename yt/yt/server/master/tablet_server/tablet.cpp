@@ -509,6 +509,32 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRowIndexCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, CutoffRowIndex);
+    Persist(context, NextDynamicStoreId);
+};
+
+TString ToString(const TRowIndexCutoffDescriptor& descriptor)
+{
+    return Format(
+        "{%v/%v}",
+        descriptor.CutoffRowIndex,
+        descriptor.NextDynamicStoreId);
+}
+
+void FromProto(
+    TRowIndexCutoffDescriptor* descriptor,
+    const NProto::TRowIndexCutoffDescriptor& protoDescriptor)
+{
+    descriptor->CutoffRowIndex = protoDescriptor.cutoff_row_index();
+    FromProto(&descriptor->NextDynamicStoreId, protoDescriptor.next_dynamic_store_id());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(TTabletId id)
     : TObject(id)
     , Index_(-1)
@@ -551,6 +577,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, UnconfirmedDynamicTableLocks_);
     Save(context, EdenStoreIds_);
     Save(context, BackupState_);
+    Save(context, BackupCutoffDescriptor_);
     Save(context, DynamicStores_);
     Save(context, ReplicationProgress_);
 }
@@ -587,6 +614,10 @@ void TTablet::Load(TLoadContext& context)
         Load(context, BackupState_);
     }
     // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupOrdered) {
+        Load(context, BackupCutoffDescriptor_);
+    }
+    // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::RefFromTabletToDynamicStore) {
         Load(context, DynamicStores_);
     }
@@ -606,6 +637,7 @@ void TTablet::CopyFrom(const TTablet& other)
     InMemoryMode_ = other.InMemoryMode_;
     TrimmedRowCount_ = other.TrimmedRowCount_;
     EdenStoreIds_ = other.EdenStoreIds_;
+    BackupCutoffDescriptor_ = other.BackupCutoffDescriptor_;
 }
 
 void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)

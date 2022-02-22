@@ -54,7 +54,13 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
         tableInfo.SourcePath,
         &tableInfo.SourceTableId,
         &tableInfo.ExternalCellTag,
-        {"sorted", "upstream_replica_id", "replicas", "dynamic"});
+        {"sorted", "upstream_replica_id", "replicas", "dynamic", "commit_ordering"});
+
+    auto sorted = tableInfo.Attributes->Get<bool>("sorted");
+    auto dynamic = tableInfo.Attributes->Get<bool>("dynamic");
+    auto commitOrdering = tableInfo.Attributes->Get<ECommitOrdering>("commit_ordering");
+    auto upstreamReplicaId = tableInfo.Attributes->Get<TTableReplicaId>("upstream_replica_id");
+    auto type = TypeFromId(tableInfo.SourceTableId);
 
     try {
         if (!SourceTableIds_.insert(tableInfo.SourceTableId).second) {
@@ -62,9 +68,11 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
                 tableInfo.SourcePath);
         }
 
-        auto type = TypeFromId(tableInfo.SourceTableId);
+        if (!dynamic) {
+            THROW_ERROR_EXCEPTION("Table %Qv is not dynamic",
+                tableInfo.SourcePath);
+        }
 
-        // TODO(ifsmirnov): most of checks below are subject to future work.
         if (type == EObjectType::ReplicatedTable) {
             THROW_ERROR_EXCEPTION("Table %Qv is replicated",
                 tableInfo.SourcePath);
@@ -75,14 +83,23 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
                 tableInfo.SourcePath);
         }
 
-        if (!tableInfo.Attributes->Get<bool>("sorted")) {
-            THROW_ERROR_EXCEPTION("Table %Qv is not sorted",
+        if (upstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Table %Qv is a replica table",
                 tableInfo.SourcePath);
         }
 
-        if (!tableInfo.Attributes->Get<bool>("dynamic")) {
-            THROW_ERROR_EXCEPTION("Table %Qv is not dynamic",
-                tableInfo.SourcePath);
+        if (sorted) {
+            if (commitOrdering != ECommitOrdering::Weak) {
+                THROW_ERROR_EXCEPTION("Sorted table %Qv has unsupported commit ordering %Qlv",
+                    tableInfo.SourcePath,
+                    commitOrdering);
+            }
+        } else {
+            if (commitOrdering != ECommitOrdering::Strong) {
+                THROW_ERROR_EXCEPTION("Ordered table %Qv has unsupported commit ordering %Qlv",
+                    tableInfo.SourcePath,
+                    commitOrdering);
+            }
         }
 
         if (CellTagFromId(tableInfo.SourceTableId) !=

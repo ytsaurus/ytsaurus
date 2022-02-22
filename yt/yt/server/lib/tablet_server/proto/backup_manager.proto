@@ -17,12 +17,30 @@ message TReqFinishRestore
     required NYT.NProto.TGuid transaction_id = 2;
 }
 
+//! Denotes a position in an ordered tablet between two dynamic stores.
+//! The position is uniquely identified by each of |cutoff_row_index|
+//! (the first row index after the cutoff) and |next_dynamic_store_id|
+//! (the id of the next dynamic store after the cutoff, if present).
+//! 
+//! Both identifiers are needed since the descriptor may be applied by master
+//! when the next dynamic store is either flushed or not. Row index resolves the
+//! ambiguity in the former case, next dynamic store id in the latter.
+message TRowIndexCutoffDescriptor
+{
+    required int64 cutoff_row_index = 1;
+    optional NYT.NProto.TGuid next_dynamic_store_id = 2;
+}
+
 message TReqReportBackupCheckpointPassed
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 2;
     required bool confirmed = 3;
     optional NYT.NProto.TError error = 4;
+
+    //! For ordered tables denotes the position that separates
+    //! rows committed before and after the checkpoint timestamp.
+    optional TRowIndexCutoffDescriptor row_index_cutoff_descriptor = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

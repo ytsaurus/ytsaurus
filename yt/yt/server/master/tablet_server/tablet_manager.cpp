@@ -2540,8 +2540,13 @@ public:
 
         auto* chunkList = tablet->GetChunkList();
         for (const auto* child : chunkList->Children()) {
+            YT_VERIFY(child);
+
             auto type = child->GetType();
-            YT_VERIFY(IsBlobChunkType(type) || type == EObjectType::ChunkView);
+            YT_VERIFY(
+                IsBlobChunkType(type) ||
+                type == EObjectType::ChunkView ||
+                type == EObjectType::OrderedDynamicTabletStore);
         }
 
         auto* table = tablet->GetTable();
@@ -2557,37 +2562,45 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (auto* store : chunkList->Children()) {
-            if (store->GetType() != EObjectType::ChunkView) {
-                continue;
-            }
+            if (store->GetType() == EObjectType::ChunkView) {
+                auto* chunkView = store->AsChunkView();
 
-            auto* chunkView = store->AsChunkView();
+                auto* underlyingTree = chunkView->GetUnderlyingTree();
+                if (!IsDynamicTabletStoreType(underlyingTree->GetType())) {
+                    continue;
+                }
 
-            auto* underlyingTree = chunkView->GetUnderlyingTree();
-            if (!IsDynamicTabletStoreType(underlyingTree->GetType())) {
-                continue;
-            }
+                storesToDetach.push_back(chunkView);
 
-            storesToDetach.push_back(chunkView);
+                auto* dynamicStore = underlyingTree->AsDynamicStore();
+                YT_VERIFY(dynamicStore->IsFlushed());
+                auto* chunk = dynamicStore->GetFlushedChunk();
 
-            auto* dynamicStore = underlyingTree->AsDynamicStore();
-            YT_VERIFY(dynamicStore->IsFlushed());
-            auto* chunk = dynamicStore->GetFlushedChunk();
-
-            if (chunk) {
-                // FIXME(ifsmirnov): chunk view is not always needed, check
-                // chunk min/max timestaps.
-                auto* wrappedStore = chunkManager->CreateChunkView(
-                    chunk,
-                    chunkView->Modifier());
-                storesToAttach.push_back(wrappedStore);
+                if (chunk) {
+                    // FIXME(ifsmirnov): chunk view is not always needed, check
+                    // chunk min/max timestaps.
+                    auto* wrappedStore = chunkManager->CreateChunkView(
+                        chunk,
+                        chunkView->Modifier());
+                    storesToAttach.push_back(wrappedStore);
+                }
+            } else if (store->GetType() == EObjectType::OrderedDynamicTabletStore) {
+                auto* dynamicStore = store->AsDynamicStore();
+                YT_VERIFY(dynamicStore->IsFlushed());
+                auto* chunk = dynamicStore->GetFlushedChunk();
+                if (chunk) {
+                    storesToAttach.push_back(chunk);
+                }
+                storesToDetach.push_back(dynamicStore);
             }
         }
 
         chunkManager->DetachFromChunkList(
             chunkList,
             storesToDetach,
-            EChunkDetachPolicy::SortedTablet);
+            table->IsPhysicallySorted()
+                ? EChunkDetachPolicy::SortedTablet
+                : EChunkDetachPolicy::OrderedTabletSuffix);
         chunkManager->AttachToChunkList(chunkList, storesToAttach);
 
         auto newStatistics = GetTabletStatistics(tablet);
@@ -2606,6 +2619,109 @@ public:
                     *it);
             }
         }
+    }
+
+    TError ApplyCutoffRowIndex(TTablet* tablet)
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto* chunkList = tablet->GetChunkList();
+        YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
+
+        auto descriptor = tablet->GetBackupCutoffDescriptor();
+
+        if (tablet->GetTrimmedRowCount() > descriptor.CutoffRowIndex) {
+            return TError("Cannot backup ordered tablet %v since it is trimmed "
+                "beyond cutoff row index",
+                tablet->GetId())
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
+                << TErrorAttribute("trimmed_row_count", tablet->GetTrimmedRowCount())
+                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex);
+        }
+
+        // CopyChunkListIfShared must be done before cutoff chunk index is calculated
+        // because it omits trimmed chunks and thus may shift chunk indexes.
+        CopyChunkListIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
+        chunkList = tablet->GetChunkList();
+
+        int cutoffChildIndex = 0;
+        const auto& children = chunkList->Children();
+        const auto& statistics = chunkList->CumulativeStatistics();
+
+        auto wrapInternalErrorAndLog = [&] (TError innerError) {
+            innerError = innerError
+                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex)
+                << TErrorAttribute("next_dynamic_store_id", descriptor.NextDynamicStoreId)
+                << TErrorAttribute("cutoff_child_index", cutoffChildIndex);
+            auto error = TError("Cannot backup ordered tablet due to an internal error")
+                << innerError;
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error, "Failed to perform backup cutoff");
+            return error;
+        };
+
+        bool hitDynamicStore = false;
+
+        while (cutoffChildIndex < ssize(children)) {
+            i64 cumulativeRowCount = statistics.GetPreviousSum(cutoffChildIndex).RowCount;
+            const auto* child = children[cutoffChildIndex];
+
+            if (child && child->GetId() == descriptor.NextDynamicStoreId) {
+                if (cumulativeRowCount > descriptor.CutoffRowIndex) {
+                    auto error = TError("Cumulative row count at the cutoff dynamic store "
+                        "is less than expected")
+                        << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
+                    return wrapInternalErrorAndLog(error);
+                }
+
+                hitDynamicStore = true;
+                break;
+            }
+
+            if (cumulativeRowCount > descriptor.CutoffRowIndex) {
+                auto error = TError("Cumulative row count exceeded cutoff row index")
+                    << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
+                return wrapInternalErrorAndLog(error);
+
+            }
+
+            if (cumulativeRowCount == descriptor.CutoffRowIndex) {
+                break;
+            }
+
+            ++cutoffChildIndex;
+        }
+
+        if (statistics.GetPreviousSum(cutoffChildIndex).RowCount != descriptor.CutoffRowIndex &&
+            !hitDynamicStore)
+        {
+            auto error = TError("Row count at final cutoff child index does not match cutoff row index")
+                << TErrorAttribute("cumulative_row_count", statistics.GetPreviousSum(cutoffChildIndex).RowCount);
+            return wrapInternalErrorAndLog(error);
+        }
+
+        tablet->SetBackupCutoffDescriptor({});
+
+        if (cutoffChildIndex == ssize(chunkList->Children())) {
+            return {};
+        }
+
+        auto oldStatistics = GetTabletStatistics(tablet);
+        auto* table = tablet->GetTable();
+        table->DiscountTabletStatistics(oldStatistics);
+
+        chunkManager->DetachFromChunkList(
+            chunkList,
+            chunkList->Children().data() + cutoffChildIndex,
+            chunkList->Children().data() + ssize(children),
+            EChunkDetachPolicy::OrderedTabletSuffix);
+
+        auto newStatistics = GetTabletStatistics(tablet);
+        table->AccountTabletStatistics(newStatistics);
+
+        return {};
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
@@ -3932,22 +4048,41 @@ private:
     {
         // TODO(ifsmirnov): use tablet->DynamicStores_ when it is merged.
 
-        for (const auto* child : tablet->GetChunkList()->Children()) {
-            YT_VERIFY(child->GetType() != EObjectType::ChunkList);
+        auto makeError = [&] (const TDynamicStore* dynamicStore) {
+            const auto* originalTablet = dynamicStore->GetTablet();
+            const TString& originalTablePath = IsObjectAlive(originalTablet) && IsObjectAlive(originalTablet->GetTable())
+                ? originalTablet->GetTable()->GetMountPath()
+                : "";
+            return TError("Cannot restore table from backup since "
+                "dynamic store %v in tablet %v is not flushed",
+                dynamicStore->GetId(),
+                tablet->GetId())
+                << TErrorAttribute("original_table_path", originalTablePath);
+        };
 
-            if (child->GetType() != EObjectType::ChunkView) {
+
+        for (const auto* child : tablet->GetChunkList()->Children()) {
+            // Trimmed ordered tablet child.
+            if (!child) {
                 continue;
             }
 
-            const auto* underlyingTree = child->AsChunkView()->GetUnderlyingTree();
-            if (IsDynamicTabletStoreType(underlyingTree->GetType()) &&
-                !underlyingTree->AsDynamicStore()->IsFlushed())
-            {
-                return TError("Cannot restore table from backup since "
-                    "dynamic store is not flushed (TableId: %v, TabletId: %v, StoreId: %v)",
-                    tablet->GetTable()->GetId(),
-                    tablet->GetId(),
-                    underlyingTree->GetId());
+            YT_VERIFY(child->GetType() != EObjectType::ChunkList);
+
+            if (child->GetType() == EObjectType::ChunkView) {
+                const auto* underlyingTree = child->AsChunkView()->GetUnderlyingTree();
+                if (IsDynamicTabletStoreType(underlyingTree->GetType()) &&
+                    !underlyingTree->AsDynamicStore()->IsFlushed())
+                {
+                    return makeError(underlyingTree->AsDynamicStore())
+                        << TErrorAttribute("table_id", tablet->GetTable()->GetId());
+                }
+            } else if (child->GetType() == EObjectType::OrderedDynamicTabletStore) {
+                const auto* dynamicStore = child->AsDynamicStore();
+                if (!dynamicStore->IsFlushed()) {
+                    return makeError(dynamicStore)
+                        << TErrorAttribute("table_id", tablet->GetTable()->GetId());
+                }
             }
         }
 
@@ -7625,6 +7760,11 @@ void TTabletManager::WrapWithBackupChunkViews(TTablet* tablet, TTimestamp timest
 TError TTabletManager::PromoteFlushedDynamicStores(TTablet* tablet)
 {
     return Impl_->PromoteFlushedDynamicStores(tablet);
+}
+
+TError TTabletManager::ApplyCutoffRowIndex(TTablet* tablet)
+{
+    return Impl_->ApplyCutoffRowIndex(tablet);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

@@ -39,6 +39,7 @@ DEFINE_ENUM(ETabletReign,
     ((BackupsSorted)                      (100402)) // ifsmirnov
     ((MaxClipTimestamp)                   (100403)) // ifsmirnov
     ((SerializeForeign)                   (100404)) // savrus
+    ((BackupsOrdered)                     (100405)) // ifsmirnov
     // 22.2 starts here.
     ((CumulativeDataWeight)               (100500)) // achulkov2
 );

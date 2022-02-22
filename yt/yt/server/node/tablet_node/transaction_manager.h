@@ -60,6 +60,9 @@ public:
     //! Raised when a transaction is serialized by a barrier.
     DECLARE_SIGNAL(void(TTransaction*), TransactionSerialized);
 
+    //! Raised just before TransactionSerialized.
+    DECLARE_SIGNAL(void(TTransaction*), BeforeTransactionSerialized);
+
     //! Raised when a transaction is aborted.
     DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
 
