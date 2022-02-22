@@ -114,7 +114,7 @@ public class TemporaryClusterErrorsTest {
         options.setProxyUpdateTimeout(Duration.ofMillis(100));
         YtClient client = new YtClient(
                 connector,
-                List.of(new YtCluster("localhost", LocalYt.getHost(), LocalYt.getPort())),
+                List.of(new YtCluster(LocalYt.getAddress())),
                 "localhost",
                 credentials,
                 options);
