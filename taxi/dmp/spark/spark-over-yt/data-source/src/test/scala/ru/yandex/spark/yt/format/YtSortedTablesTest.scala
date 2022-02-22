@@ -18,6 +18,7 @@ class YtSortedTablesTest extends FlatSpec with Matchers with LocalSpark with Tmp
     df.write.sortedBy("value").yt(tmpPath)
 
     sortColumns(tmpPath) should contain theSameElementsAs Seq("value")
+    uniqueKeys(tmpPath) shouldEqual false
     ytSchema(tmpPath) should contain theSameElementsAs Seq(
       Map("name" -> Some("value"), "type" -> Some("int32"), "sort_order" -> Some("ascending"))
     )
@@ -30,6 +31,7 @@ class YtSortedTablesTest extends FlatSpec with Matchers with LocalSpark with Tmp
     df.sort("b").coalesce(3).write.sortedBy("b").yt(tmpPath)
 
     sortColumns(tmpPath) should contain theSameElementsAs Seq("b")
+    uniqueKeys(tmpPath) shouldEqual false
     ytSchema(tmpPath) should contain theSameElementsAs Seq(
       Map("name" -> Some("b"), "type" -> Some("int32"), "sort_order" -> Some("ascending")),
       Map("name" -> Some("a"), "type" -> Some("int32"), "sort_order" -> None)
@@ -46,8 +48,48 @@ class YtSortedTablesTest extends FlatSpec with Matchers with LocalSpark with Tmp
     }
   }
 
+  it should "write table with 'unique_keys' attribute" in {
+    val df = Seq(1, 2, 3).toDF()
+
+    df.write.sortedByUniqueKeys("value").yt(tmpPath)
+
+    sortColumns(tmpPath) should contain theSameElementsAs Seq("value")
+    uniqueKeys(tmpPath) shouldEqual true
+    ytSchema(tmpPath) should contain theSameElementsAs Seq(
+      Map("name" -> Some("value"), "type" -> Some("int32"), "sort_order" -> Some("ascending"))
+    )
+  }
+
+  it should "fail if 'unique_keys' attribute is set true, but keys are not unique" in {
+    val df = Seq(1, 1, 1).toDF()
+
+    an [Exception] shouldBe thrownBy {
+      df.write.sortedByUniqueKeys("value").yt(tmpPath)
+    }
+  }
+
+  it should "fail if 'unique_keys' attribute is set true, but table is not sorted" in {
+    val df = Seq(1, 2, 3).toDF()
+
+    an [Exception] shouldBe thrownBy {
+      df.write.uniqueKeys.yt(tmpPath)
+    }
+  }
+
+  it should "fail if 'sorted_by' option is set, but table is not sorted" in {
+    val df = Seq(2, 3, 1).toDF().coalesce(1)
+
+    an [Exception] shouldBe thrownBy {
+      df.write.sortedBy("value").yt(tmpPath)
+    }
+  }
+
   def sortColumns(path: String): Seq[String] = {
     YtWrapper.attribute(path, "sorted_by").asList().asScala.map(_.stringValue())
+  }
+
+  def uniqueKeys(path: String): Boolean = {
+    YtWrapper.attribute(path, "schema").getAttribute("unique_keys").get().boolValue()
   }
 
   def ytSchema(path: String): Seq[Map[String, Option[String]]] = {

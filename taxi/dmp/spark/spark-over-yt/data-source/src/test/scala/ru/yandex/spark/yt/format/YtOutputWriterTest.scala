@@ -1,8 +1,5 @@
 package ru.yandex.spark.yt.format
 
-import java.util
-import java.util.concurrent.CompletableFuture
-
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.util.{ArrayData, MapData}
@@ -11,7 +8,8 @@ import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
-import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.SortColumns
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.{SortColumns, UniqueKeys}
+import ru.yandex.spark.yt.serializers.SchemaConverter.{SortOption, Sorted, Unordered}
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
@@ -20,6 +18,8 @@ import ru.yandex.yt.ytclient.`object`.WireRowSerializer
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, TableWriter}
 import ru.yandex.yt.ytclient.tables.TableSchema
 
+import java.util
+import java.util.concurrent.CompletableFuture
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -36,13 +36,13 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
 
   it should "exception while writing several batches with relative in path" in {
     an[IllegalArgumentException] shouldBe thrownBy {
-      prepareWrite("subfolder", Nil) { transaction => }
+      prepareWrite("subfolder", Unordered) { transaction => }
     }
   }
 
   it should "not write several batches if table is sorted" in {
-    prepareWrite(tmpPath, Seq("a")) { transaction =>
-      val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Seq("a"))
+    prepareWrite(tmpPath, Sorted(Seq("a"), uniqueKeys = false)) { transaction =>
+      val writer = new MockYtOutputWriter(tmpPath.drop(1), transaction, 2, Sorted(Seq("a"), uniqueKeys = false))
       val rows = Seq(Row(1), Row(2), Row(3), Row(4))
 
       writeRows(rows, writer, transaction)
@@ -53,8 +53,8 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
   }
 
   def runTestWithSpecificPath(path: String): Unit = {
-    prepareWrite(path, Nil) { transaction =>
-      val writer = new MockYtOutputWriter(path.drop(1), transaction, 2, Nil)
+    prepareWrite(path, Unordered) { transaction =>
+      val writer = new MockYtOutputWriter(path.drop(1), transaction, 2, Unordered)
       val rows = Seq(Row(1), Row(2), Row(3), Row(4))
 
       writeRows(rows, writer, transaction)
@@ -64,12 +64,12 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
     }
   }
 
-  def prepareWrite(path: String, sortColumns: Seq[String])
+  def prepareWrite(path: String, sortOption: SortOption)
                   (f: ApiServiceTransaction => Unit): Unit = {
     val transaction = YtWrapper.createTransaction(parent = None, timeout = 1 minute)
     val transactionId = transaction.getId.toString
 
-    YtWrapper.createTable(path, TestTableSettings(schema, sortColumns = sortColumns),
+    YtWrapper.createTable(path, TestTableSettings(schema, sortOption = sortOption),
       transaction = Some(transactionId))
 
     try {
@@ -94,14 +94,14 @@ class YtOutputWriterTest extends FlatSpec with TmpDir with LocalSpark with Match
   }
 
   class MockYtOutputWriter(path: String, transaction: ApiServiceTransaction, batchSize: Int,
-                           sortColumns: Seq[String])
+                           sortOption: SortOption)
     extends YtOutputWriter(
       path,
       schema,
       YtClientConfiguration.default("local"),
       SparkYtWriteConfiguration(1, batchSize, 5 minutes, typeV3Format = false),
       transaction.getId.toString,
-      Map("sort_columns" -> SortColumns.set(sortColumns))
+      Map("sort_columns" -> SortColumns.set(sortOption.keys), "unique_keys" -> UniqueKeys.set(sortOption.uniqueKeys))
     ) {
     override protected def initializeWriter(): TableWriter[InternalRow] = {
       val writer = super.initializeWriter()

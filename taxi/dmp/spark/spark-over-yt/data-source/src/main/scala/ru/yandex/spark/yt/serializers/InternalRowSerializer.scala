@@ -9,7 +9,7 @@ import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
-import ru.yandex.spark.yt.serializers.SchemaConverter.applyYtLimitToSparkDecimal
+import ru.yandex.spark.yt.serializers.SchemaConverter.{Unordered, applyYtLimitToSparkDecimal}
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
@@ -27,7 +27,7 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
 
   private val log = LoggerFactory.getLogger(getClass)
 
-  private val tableSchema = SchemaConverter.tableSchema(schema, Nil, schemaHint, typeV3Format)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Unordered, schemaHint, typeV3Format)
 
   override def getSchema: TableSchema = tableSchema
 
