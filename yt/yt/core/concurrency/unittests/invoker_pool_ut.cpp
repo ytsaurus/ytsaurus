@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/count_down_latch.h>
 
 #include <yt/yt/core/actions/invoker.h>
 #include <yt/yt/core/actions/invoker_detail.h>
@@ -253,6 +254,27 @@ TEST(TInvokerPoolTest, IndexByEnum)
     EXPECT_EQ(invokerPool->GetInvoker(0).Get(), invokerPool->GetInvoker(EInvokerIndex::ZeroInvoker).Get());
     EXPECT_EQ(invokerPool->GetInvoker(1).Get(), invokerPool->GetInvoker(EInvokerIndex::FirstInvoker).Get());
     EXPECT_EQ(invokerPool->GetInvoker(2).Get(), invokerPool->GetInvoker(EInvokerIndex::SecondInvoker).Get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TPrioritizedInvokerTest, SamePriorityOrder)
+{
+    auto actionQueue = New<TActionQueue>();
+    auto prioritizedInvoker = CreatePrioritizedInvoker(actionQueue->GetInvoker());
+
+    int actualOrder = 0;
+    TCountDownLatch latch(100);
+
+    for (int index = 0; index < 100; ++index) {
+        prioritizedInvoker->Invoke(BIND([&, expected = index] {
+            EXPECT_EQ(expected, actualOrder++);
+            Sleep(TDuration::MilliSeconds(1));
+            latch.CountDown();
+        }), 0);
+    }
+
+    latch.Wait();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

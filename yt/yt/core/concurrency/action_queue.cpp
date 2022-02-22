@@ -236,10 +236,7 @@ public:
     {
         {
             auto guard = Guard(SpinLock_);
-            TEntry entry;
-            entry.Callback = std::move(callback);
-            entry.Priority = priority;
-            Heap_.push_back(std::move(entry));
+            Heap_.push_back({std::move(callback), priority, Counter_--});
             std::push_heap(Heap_.begin(), Heap_.end());
         }
         UnderlyingInvoker_->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
@@ -250,15 +247,17 @@ private:
     {
         TClosure Callback;
         i64 Priority;
+        i64 Index;
 
         bool operator < (const TEntry& other) const
         {
-            return Priority < other.Priority;
+            return std::tie(Priority, Index) < std::tie(other.Priority, other.Index);
         }
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TEntry> Heap_;
+    i64 Counter_ = 0;
 
     void DoExecute()
     {
