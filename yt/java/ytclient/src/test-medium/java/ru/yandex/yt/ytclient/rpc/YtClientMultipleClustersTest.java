@@ -25,7 +25,7 @@ public class YtClientMultipleClustersTest {
     public void setup() {
         connector = new DefaultBusConnector(new NioEventLoopGroup(0));
 
-        this.goodCluster = new YtCluster("local", LocalYt.getHost(), LocalYt.getPort());
+        this.goodCluster = new YtCluster(LocalYt.getAddress());
         this.badCluster = new YtCluster("bad", "bad.host", 13);
     }
 
