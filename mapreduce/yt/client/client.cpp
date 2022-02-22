@@ -9,7 +9,6 @@
 #include "lock.h"
 #include "operation.h"
 #include "retryful_writer.h"
-#include "skiff.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/client/retry_transaction.h>
@@ -38,7 +37,6 @@
 #include <mapreduce/yt/io/ydl_table_reader.h>
 #include <mapreduce/yt/io/ydl_table_writer.h>
 #include <mapreduce/yt/io/proto_helpers.h>
-#include <mapreduce/yt/io/skiff_table_reader.h>
 
 #include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 
