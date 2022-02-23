@@ -44,9 +44,11 @@ class TFailingChunkFileReaderAdapter
 public:
     TFailingChunkFileReaderAdapter(
         TChunkFileReaderPtr underlying,
-        int period = 5)
+        int period = 5,
+        bool failMetaRequests = false)
         : Underlying_(std::move(underlying))
         , Period_(period)
+        , FailMetaRequests_(failMetaRequests)
     { }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
@@ -54,6 +56,9 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
+        if (FailMetaRequests_ && TryFail()) {
+            return MakeFuture(MakeMetaError());
+        }
         return Underlying_->GetMeta(options, partitionTag);
     }
 
@@ -99,6 +104,7 @@ private:
 
     int Counter_ = 0;
     std::atomic<TInstant> LastFailureTime_ = {};
+    const bool FailMetaRequests_;
 
     bool TryFail()
     {
@@ -112,6 +118,11 @@ private:
     static TErrorOr<std::vector<TBlock>> MakeError()
     {
         return TError("Shit happens");
+    }
+
+    static TErrorOr<TRefCountedChunkMetaPtr> MakeMetaError()
+    {
+        return TError("Meta shit happens");
     }
 };
 
@@ -332,7 +343,8 @@ public:
         ICodec* codec,
         const std::vector<ETestPartInfo>& parts,
         std::vector<IChunkReaderAllowingRepairPtr>* allReaders,
-        TPartWriterFactory* writerFactory)
+        TPartWriterFactory* writerFactory,
+        bool failMetaRequests)
     {
         YT_VERIFY(codec->GetTotalPartCount() == std::ssize(parts));
 
@@ -347,7 +359,7 @@ public:
                     NullChunkId,
                     filename,
                     EDirectIOPolicy::Never);
-                allReaders->push_back(New<TFailingChunkFileReaderAdapter>(reader, /*period*/ 1));
+                allReaders->push_back(New<TFailingChunkFileReaderAdapter>(reader, /*period*/ 1,failMetaRequests));
             } else {
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
@@ -516,7 +528,8 @@ public:
         NErasure::ICodec* codec,
         const std::vector<TSharedRef>& dataRefs,
         const TPartIndexList& erasedIndices,
-        const TPartIndexList& failingIndices);
+        const TPartIndexList& failingIndices,
+        bool failMetaRequests = false);
 
     static std::mt19937 Gen_;
 };
@@ -1134,7 +1147,8 @@ void TErasuseMixtureTest::ExecAdaptiveRepairTest(
     NErasure::ICodec* codec,
     const std::vector<TSharedRef>& dataRefs,
     const TPartIndexList& erasedIndices,
-    const TPartIndexList& failingIndices)
+    const TPartIndexList& failingIndices,
+    bool failMetaRequests)
 {
     WriteErasureChunk(codec->GetId(), codec, dataRefs);
     RemoveErasedParts(erasedIndices);
@@ -1149,7 +1163,12 @@ void TErasuseMixtureTest::ExecAdaptiveRepairTest(
 
     std::vector<IChunkReaderAllowingRepairPtr> allReaders;
     TPartWriterFactory writerFactory;
-    PrepareAdaptiveReadersAndWriters(codec, parts, &allReaders, &writerFactory);
+    PrepareAdaptiveReadersAndWriters(
+        codec,
+        parts,
+        &allReaders,
+        &writerFactory,
+        failMetaRequests);
 
     auto repairFuture = AdaptiveRepairErasedParts(
         NullChunkId,
@@ -1242,6 +1261,50 @@ TEST_P(TErasuseMixtureTest, TestAdaptiveRepair6)
     TPartIndexList failingIndices = {8, 13, 15};
 
     ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices);
+}
+
+TEST_P(TErasuseMixtureTest, TestAdaptiveRepairFailingMeta)
+{
+    auto codec = GetCodec(GetParam());
+
+    auto data = GetRandomTextBlocks(2000, 100, 100);
+
+    static const bool FailMeta = true;
+
+    {
+        TPartIndexList erasedIndices = {1, 13};
+        TPartIndexList failingIndices = {0, 14};
+
+        ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
+    }
+
+    {
+        TPartIndexList erasedIndices = {};
+        TPartIndexList failingIndices = {8, 13, 15};
+
+        ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
+    }
+
+    {
+        TPartIndexList erasedIndices = {2};
+        TPartIndexList failingIndices = {1, 4};
+
+        ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
+    }
+
+    {
+        TPartIndexList erasedIndices = {1, 8, 13};
+        TPartIndexList failingIndices = {15};
+
+        ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
+    }
+
+    {
+        TPartIndexList erasedIndices = {1};
+        TPartIndexList failingIndices = {8, 13, 15};
+
+        ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
