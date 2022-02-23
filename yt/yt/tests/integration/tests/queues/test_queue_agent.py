@@ -1,7 +1,8 @@
 from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
-                         insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows)
+                         insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
+                         sync_unmount_table)
 
 from yt.common import YtError
 
@@ -472,6 +473,20 @@ class CypressSynchronizerOrchid:
         poll_index = self.get_poll_index()
         wait(lambda: self.get_poll_index() >= poll_index + 2)
 
+    def get_error_poll_index(self):
+        return get(self.queue_agent_orchid_path() + "/cypress_synchronizer/latest_poll_error/attributes/poll_index")
+
+    def get_latest_poll_error(self):
+        return YtError.from_dict(get(self.queue_agent_orchid_path() + "/cypress_synchronizer/latest_poll_error"))
+
+    def wait_fresh_poll_error(self):
+        poll_index = self.get_poll_index()
+        wait(lambda: self.get_error_poll_index() >= poll_index + 2)
+
+    def get_fresh_poll_error(self):
+        self.wait_fresh_poll_error()
+        return self.get_latest_poll_error()
+
 
 class TestCypressSynchronizer(YTEnvSetup):
     NUM_QUEUE_AGENTS = 1
@@ -557,6 +572,32 @@ class TestCypressSynchronizer(YTEnvSetup):
             remove(consumer, force=True)
         self.CONSUMER_REGISTRY.clear()
 
+    def _check_queue_count_and_column_counts(self, queues, size):
+        assert len(queues) == size
+        column_counts = [len(row) for row in queues]
+        assert column_counts == [len(QUEUE_TABLE_SCHEMA)] * size
+
+    def _check_consumer_count_and_column_counts(self, consumers, size):
+        assert len(consumers) == size
+        column_counts = [len(row) for row in consumers]
+        assert column_counts == [len(CONSUMER_TABLE_SCHEMA)] * size
+
+    def _get_queues_and_check_invariants(self, expected_count=None):
+        queues = select_rows("* from [//sys/queue_agents/queues]")
+        if expected_count is not None:
+            self._check_queue_count_and_column_counts(queues, expected_count)
+        for queue in queues:
+            assert queue["revision"] == get(queue["path"] + "/@revision")
+        return queues
+
+    def _get_consumers_and_check_invariants(self, expected_count=None):
+        consumers = select_rows("* from [//sys/queue_agents/consumers]")
+        if expected_count is not None:
+            self._check_consumer_count_and_column_counts(consumers, expected_count)
+        for consumer in consumers:
+            assert consumer["revision"] == get(consumer["path"] + "/@revision")
+        return consumers
+
     @authors("achulkov2")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
@@ -569,23 +610,60 @@ class TestCypressSynchronizer(YTEnvSetup):
         c2 = self._get_consumer_name("b")
 
         self._create_and_register_queue(q1)
-        self._create_and_register_queue(q2)
         self._create_and_register_consumer(c1)
-        self._create_and_register_consumer(c2)
-
         orchid.wait_fresh_poll()
 
-        queues = select_rows("* from [//sys/queue_agents/queues]")
-        consumers = select_rows("* from [//sys/queue_agents/consumers]")
-
-        assert len(queues) == 2
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
         for queue in queues:
-            assert len(queue) == len(QUEUE_TABLE_SCHEMA)
             assert queue["row_revision"] == 2
-        assert len(consumers) == 2
         for consumer in consumers:
-            assert len(consumer) == len(CONSUMER_TABLE_SCHEMA)
             assert consumer["row_revision"] == 2
+
+        self._create_and_register_queue(q2)
+        self._create_and_register_consumer(c2)
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        for queue in queues:
+            assert queue["row_revision"] == 2
+        for consumer in consumers:
+            assert consumer["row_revision"] == 2
+
+        set(c2 + "/@target", "a_cluster:a_path")
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        for queue in queues:
+            assert queue["row_revision"] == 2
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                assert consumer["row_revision"] == 2
+            elif consumer["path"] == c2:
+                assert consumer["row_revision"] == 3
+                assert consumer["target_cluster"] == "a_cluster"
+                assert consumer["target_path"] == "a_path"
+
+        sync_unmount_table("//sys/queue_agents/queues")
+        assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.TabletNotMounted)
+
+        sync_mount_table("//sys/queue_agents/queues")
+        set(c2 + "/@target", "another_cluster:another_path")
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        for queue in queues:
+            assert queue["row_revision"] == 2
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                assert consumer["row_revision"] == 2
+            elif consumer["path"] == c2:
+                assert consumer["row_revision"] == 4
+                assert consumer["target_cluster"] == "another_cluster"
+                assert consumer["target_path"] == "another_path"
 
         self._drop_queues()
         self._drop_consumers()
