@@ -399,6 +399,28 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
                 ))
         );
     }
+
+    Y_UNIT_TEST(Embedded)
+    {
+        const auto schema = CreateTableSchema<NUnitTesting::TEmbeddingMessage>();
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .Strict(false)
+            .AddColumn(TColumnSchema().Name("embedded2_num").Type(NTi::Optional(NTi::Uint64())))
+            .AddColumn(TColumnSchema().Name("embedded2_struct").Type(NTi::Optional(NTi::Struct({
+                {"float1", NTi::Optional(NTi::Double())},
+                {"string1", NTi::Optional(NTi::String())},
+            }))))
+            .AddColumn(TColumnSchema().Name("embedded2_repeated").Type(NTi::List(NTi::String())))
+            .AddColumn(TColumnSchema().Name("embedded_num").Type(NTi::Optional(NTi::Uint64())))
+            .AddColumn(TColumnSchema().Name("embedded_extra_field").Type(NTi::Optional(NTi::String())))
+            .AddColumn(TColumnSchema().Name("variant").Type(NTi::Optional(NTi::Variant(NTi::Struct({
+                {"str_variant", NTi::String()},
+                {"uint_variant", NTi::Uint64()},
+            })))))
+            .AddColumn(TColumnSchema().Name("num").Type(NTi::Optional(NTi::Uint64())))
+            .AddColumn(TColumnSchema().Name("extra_field").Type(NTi::Optional(NTi::String())))
+        );
+    }
 }
 
 Y_UNIT_TEST_SUITE(ProtoSchemaTest_Proto3)

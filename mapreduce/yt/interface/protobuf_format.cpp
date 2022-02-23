@@ -90,8 +90,7 @@ TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
         case EFlag::MAP_AS_OPTIONAL_DICT:
             return EProtobufMapMode::OptionalDict;
         case EFlag::EMBEDDED:
-            break; //FAIL for now. TODO: tests for client json config generation
-            //return EProtobufSerializationMode::Embedded;
+            return EProtobufSerializationMode::Embedded;
     }
     Y_FAIL();
 }
@@ -642,6 +641,10 @@ TNode MakeProtoFormatFieldConfig(
 
     auto fieldOptions = GetFieldOptions(fieldDescriptor, defaultOptions);
 
+    Y_ENSURE(fieldOptions.SerializationMode != EProtobufSerializationMode::Embedded,
+        "EMBEDDED flag is currently supported only with "
+        "ProtobufFormatWithDescriptors config option set to true");
+
     if (fieldDescriptor->is_repeated()) {
         Y_ENSURE_EX(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
             TApiUsageError() << "Repeated field \"" << fieldDescriptor->full_name() << "\" " <<
@@ -1130,6 +1133,14 @@ private:
         const TProtobufFieldOptions& fieldOptions);
 
 private:
+    void GetMessageMembersImpl(
+        TStringBuf containingFieldName,
+        const Descriptor& fieldDescriptor,
+        TProtobufFieldOptions defaultFieldOptions,
+        std::optional<EProtobufFieldSortOrder> overrideFieldSortOrder,
+        TVector<TMember>* members);
+
+private:
     const bool KeepFieldsWithoutExtension_;
     TCycleChecker CycleChecker_;
 };
@@ -1193,6 +1204,24 @@ TVector<TMember> TTableSchemaInferrer::GetMessageMembers(
     TProtobufFieldOptions defaultFieldOptions,
     std::optional<EProtobufFieldSortOrder> overrideFieldSortOrder)
 {
+    TVector<TMember> members;
+    GetMessageMembersImpl(
+        containingFieldName,
+        messageDescriptor,
+        defaultFieldOptions,
+        overrideFieldSortOrder,
+        &members
+    );
+    return members;
+}
+
+void TTableSchemaInferrer::GetMessageMembersImpl(
+    TStringBuf containingFieldName,
+    const Descriptor& messageDescriptor,
+    TProtobufFieldOptions defaultFieldOptions,
+    std::optional<EProtobufFieldSortOrder> overrideFieldSortOrder,
+    TVector<TMember>* members)
+{
     auto guard = CycleChecker_.Enter(&messageDescriptor);
     defaultFieldOptions = GetDefaultFieldOptions(&messageDescriptor, defaultFieldOptions);
     auto messageOptions = GetMessageOptions(&messageDescriptor);
@@ -1210,31 +1239,45 @@ TVector<TMember> TTableSchemaInferrer::GetMessageMembers(
     auto fieldSortOrder = overrideFieldSortOrder.value_or(messageOptions.FieldSortOrder);
     SortFields(fieldDescriptors, fieldSortOrder);
 
-    TVector<TMember> members;
     THashSet<const OneofDescriptor*> visitedOneofs;
     for (const auto innerFieldDescriptor : fieldDescriptors) {
         auto oneofDescriptor = innerFieldDescriptor->containing_oneof();
-        if (!oneofDescriptor) {
-            auto typeOrOtherColumns = GetFieldType(
-                *innerFieldDescriptor,
-                defaultFieldOptions);
-            members.push_back(TMember{
-                GetColumnName(*innerFieldDescriptor),
-                std::move(typeOrOtherColumns),
-            });
-        } else if (!visitedOneofs.contains(oneofDescriptor)) {
+        if (oneofDescriptor) {
+            if (visitedOneofs.contains(oneofDescriptor)) {
+                continue;
+            }
             ProcessOneofField(
                 containingFieldName,
                 *oneofDescriptor,
                 defaultFieldOptions,
                 defaultOneofOptions,
                 messageOptions.FieldSortOrder,
-                &members);
+                members);
             visitedOneofs.insert(oneofDescriptor);
+            continue;
+        }
+        auto fieldOptions = GetFieldOptions(innerFieldDescriptor, defaultFieldOptions);
+        if (fieldOptions.SerializationMode == EProtobufSerializationMode::Embedded) {
+            Y_ENSURE(innerFieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE,
+                "EMBEDDED column must have message type");
+            Y_ENSURE(innerFieldDescriptor->label() == FieldDescriptor::LABEL_REQUIRED,
+                "EMBEDDED column must be marked required");
+            GetMessageMembersImpl(
+                innerFieldDescriptor->full_name(),
+                *innerFieldDescriptor->message_type(),
+                defaultFieldOptions,
+                /*overrideFieldSortOrder*/ std::nullopt,
+                members);
+        } else {
+            auto typeOrOtherColumns = GetFieldType(
+                *innerFieldDescriptor,
+                defaultFieldOptions);
+            members->push_back(TMember{
+                GetColumnName(*innerFieldDescriptor),
+                std::move(typeOrOtherColumns),
+            });
         }
     }
-
-    return members;
 }
 
 NTi::TTypePtr TTableSchemaInferrer::GetMessageType(
@@ -1305,41 +1348,67 @@ TTypePtrOrOtherColumns TTableSchemaInferrer::GetFieldType(
         ValidateProtobufType(fieldDescriptor, *fieldOptions.Type);
     }
 
-    NTi::TTypePtr type;
-    if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE &&
-        fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)
-    {
-        if (fieldDescriptor.is_map()) {
-            return GetMapType(fieldDescriptor, fieldOptions);
-        } else {
-            type = GetMessageType(fieldDescriptor, TProtobufFieldOptions{});
-        }
-    } else {
-        auto scalarType = GetScalarFieldType(fieldDescriptor, fieldOptions);
-        if (std::holds_alternative<TOtherColumns>(scalarType)) {
-            return TOtherColumns{};
-        } else if (std::holds_alternative<EValueType>(scalarType)) {
-            type = ToTypeV3(std::get<EValueType>(scalarType), true);
-        } else {
-            Y_FAIL();
-        }
-    }
-
-    switch (fieldDescriptor.label()) {
-        case FieldDescriptor::Label::LABEL_REPEATED:
-            Y_ENSURE(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
-                "Repeated fields are supported only for YT serialization mode");
-            switch (fieldOptions.ListMode) {
-                case EProtobufListMode::Required:
-                    return NTi::TTypePtr(NTi::List(std::move(type)));
-                case EProtobufListMode::Optional:
-                    return NTi::TTypePtr(NTi::Optional(NTi::List(std::move(type))));
+    auto getScalarType = [&] {
+        auto valueTypeOrOtherColumns = GetScalarFieldType(fieldDescriptor, fieldOptions);
+        return std::visit(TOverloaded{
+            [] (TOtherColumns) -> TTypePtrOrOtherColumns {
+                return TOtherColumns{};
+            },
+            [] (EValueType valueType) -> TTypePtrOrOtherColumns {
+                return ToTypeV3(valueType, true);
             }
-            Y_FAIL();
-        case FieldDescriptor::Label::LABEL_OPTIONAL:
-            return NTi::TTypePtr(NTi::Optional(std::move(type)));
-        case FieldDescriptor::LABEL_REQUIRED:
-            return type;
+        }, valueTypeOrOtherColumns);
+    };
+
+    auto withFieldLabel = [&] (const TTypePtrOrOtherColumns& typeOrOtherColumns) -> TTypePtrOrOtherColumns {
+        switch (fieldDescriptor.label()) {
+            case FieldDescriptor::Label::LABEL_REPEATED: {
+                Y_ENSURE(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
+                    "Repeated fields are supported only for YT serialization mode");
+                auto* type = std::get_if<NTi::TTypePtr>(&typeOrOtherColumns);
+                Y_ENSURE(type, "OTHER_COLUMNS field can not be repeated");
+                switch (fieldOptions.ListMode) {
+                    case EProtobufListMode::Required:
+                        return NTi::TTypePtr(NTi::List(*type));
+                    case EProtobufListMode::Optional:
+                        return NTi::TTypePtr(NTi::Optional(NTi::List(*type)));
+                }
+                Y_FAIL();
+            }
+            case FieldDescriptor::Label::LABEL_OPTIONAL:
+                return std::visit(TOverloaded{
+                    [] (TOtherColumns) -> TTypePtrOrOtherColumns {
+                        return TOtherColumns{};
+                    },
+                    [] (NTi::TTypePtr type) -> TTypePtrOrOtherColumns {
+                        return NTi::TTypePtr(NTi::Optional(std::move(type)));
+                    }
+                }, typeOrOtherColumns);
+            case FieldDescriptor::LABEL_REQUIRED: {
+                auto* type = std::get_if<NTi::TTypePtr>(&typeOrOtherColumns);
+                Y_ENSURE(type, "OTHER_COLUMNS field can not be required");
+                return *type;
+            }
+        }
+        Y_FAIL();
+    };
+
+    switch (fieldOptions.SerializationMode) {
+        case EProtobufSerializationMode::Protobuf:
+            return withFieldLabel(getScalarType());
+        case EProtobufSerializationMode::Yt:
+            if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE) {
+                if (fieldDescriptor.is_map()) {
+                    return GetMapType(fieldDescriptor, fieldOptions);
+                } else {
+                    return withFieldLabel(GetMessageType(fieldDescriptor, TProtobufFieldOptions{}));
+                }
+            } else {
+                return withFieldLabel(getScalarType());
+            }
+        case EProtobufSerializationMode::Embedded:
+            ythrow yexception() << "EMBEDDED field is not allowed for field "
+                << fieldDescriptor.full_name();
     }
     Y_FAIL();
 }
