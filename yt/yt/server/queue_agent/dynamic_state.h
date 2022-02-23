@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/client/table_client/schema.h>
+
 #include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/client/api/client.h>
@@ -106,6 +108,8 @@ struct TConsumerTableRow
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> TreatAsConsumer;
+    std::optional<NTableClient::TTableSchema> Schema;
+    std::optional<bool> Vital;
 
     static std::vector<TConsumerTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,

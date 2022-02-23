@@ -205,12 +205,12 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
     const IAttributeDictionaryPtr& cypressAttributes)
 {
     return {
-        queue,
-        rowRevision,
-        cypressAttributes->Find<NHydra::TRevision>("revision"),
-        cypressAttributes->Find<EObjectType>("type"),
-        cypressAttributes->Find<bool>("dynamic"),
-        cypressAttributes->Find<bool>("sorted")
+        .Queue = queue,
+        .RowRevision = rowRevision,
+        .Revision = cypressAttributes->Find<NHydra::TRevision>("revision"),
+        .ObjectType = cypressAttributes->Find<EObjectType>("type"),
+        .Dynamic = cypressAttributes->Find<bool>("dynamic"),
+        .Sorted = cypressAttributes->Find<bool>("sorted"),
     };
 }
 
@@ -252,6 +252,8 @@ TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector
     TColumnSchema("target_path", EValueType::String),
     TColumnSchema("object_type", EValueType::String),
     TColumnSchema("treat_as_consumer", EValueType::Boolean),
+    TColumnSchema("schema", EValueType::Any),
+    TColumnSchema("vital", EValueType::Boolean),
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,12 +277,12 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
 
     auto rowRevisionId = nameTable->FindId("row_revision");
     auto revisionId = nameTable->FindId("revision");
-
     auto targetClusterId = nameTable->FindId("target_cluster");
     auto targetPathId = nameTable->FindId("target_path");
-
     auto objectTypeId = nameTable->FindId("object_type");
     auto treatAsConsumerId = nameTable->FindId("treat_as_consumer");
+    auto schemaId = nameTable->FindId("schema");
+    auto vitalId = nameTable->FindId("vital");
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
@@ -310,6 +312,14 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
         }
         if (auto treatAsConsumer = findValue(treatAsConsumerId)) {
             typedRow.TreatAsConsumer = treatAsConsumer->Data.Boolean;
+        }
+        if (auto schema = findValue(schemaId)) {
+            auto workaroundVector = ConvertTo<std::vector<TTableSchema>>(TYsonStringBuf(schema->AsStringBuf()));
+            YT_VERIFY(workaroundVector.size() == 1);
+            typedRow.Schema = workaroundVector.back();
+        }
+        if (auto vital = findValue(vitalId)) {
+            typedRow.Vital = vital->Data.Boolean;
         }
     }
 
@@ -341,6 +351,16 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         if (row.TreatAsConsumer) {
             rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.TreatAsConsumer, nameTable->GetIdOrThrow("treat_as_consumer")));
         }
+        TYsonString schemaYson;
+        if (row.Schema) {
+            // Enclosing into a list is a workaround for storing YSON with top-level attributes.
+            schemaYson = ConvertToYsonString(std::vector<TTableSchema>{*row.Schema});
+            rowBuilder.AddValue(MakeUnversionedAnyValue(schemaYson.AsStringBuf(), nameTable->GetIdOrThrow("schema")));
+        }
+        if (row.Vital) {
+            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Vital, nameTable->GetIdOrThrow("vital")));
+        }
+
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
 
@@ -349,7 +369,7 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"target", "revision", "type", "treat_as_consumer"};
+    return {"target", "revision", "type", "treat_as_consumer", "schema", "vital"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -360,12 +380,14 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
     auto optionalTarget = cypressAttributes->Find<TString>("target");
     auto target = (optionalTarget ? std::make_optional(TCrossClusterReference::FromString(*optionalTarget)) : std::nullopt);
     return {
-        consumer,
-        rowRevision,
-        target,
-        cypressAttributes->Find<NHydra::TRevision>("revision"),
-        cypressAttributes->Find<EObjectType>("type"),
-        cypressAttributes->Find<bool>("treat_as_consumer")
+        .Consumer = consumer,
+        .RowRevision = rowRevision,
+        .Target = target,
+        .Revision = cypressAttributes->Get<NHydra::TRevision>("revision"),
+        .ObjectType = cypressAttributes->Get<EObjectType>("type"),
+        .TreatAsConsumer = cypressAttributes->Get<bool>("treat_as_consumer", false),
+        .Schema = cypressAttributes->Find<TTableSchema>("schema"),
+        .Vital = cypressAttributes->Get<bool>("vital", false),
     };
 }
 
@@ -378,7 +400,9 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
             .Item("revision").Value(row.Revision)
             .Item("target").Value(row.Target)
             .Item("object_type").Value(row.ObjectType)
-            .Item("dynamic").Value(row.TreatAsConsumer)
+            .Item("treat_as_consumer").Value(row.TreatAsConsumer)
+            .Item("schema").Value(row.Schema)
+            .Item("vital").Value(row.Vital)
         .EndMap();
 }
 
