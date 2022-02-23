@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/api/rowset.h>
 
+#include <yt/yt/client/table_client/comparator.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NQueueAgent {
@@ -11,6 +13,7 @@ namespace {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +58,8 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
             .Dynamic = true,
-            .Sorted = false});
+            .Sorted = false,
+        });
 }
 
 TEST(TTableRowTest, ConsumerBoilerplateSanity)
@@ -63,14 +67,37 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
     CheckConversions<TConsumerTableRow>(
         {.Cluster ="mamma", .Path ="mia"},
         15,
-        ConvertToAttributes(TYsonStringBuf("{revision=43u; type=table; target=\"cluster:path\"; treat_as_consumer=%true}")),
+        ConvertToAttributes(TYsonStringBuf(
+            "{revision=43u; type=table; target=\"cluster:path\"; treat_as_consumer=%true; "
+            "schema=[{name=a; type=int64; sort_order=ascending}]; vital=%true}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
             .Target = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
-            .TreatAsConsumer = true});
+            .TreatAsConsumer = true,
+            .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
+            .Vital = true,
+        });
+
+    // Check with optional fields absent.
+    CheckConversions<TConsumerTableRow>(
+        {.Cluster ="mamma", .Path ="mia"},
+        15,
+        ConvertToAttributes(TYsonStringBuf(
+            "{revision=43u; type=table; target=\"cluster:path\"; "
+            "schema=[{name=a; type=int64; sort_order=ascending}]; }")),
+        {
+            .Consumer = {.Cluster = "mamma", .Path = "mia"},
+            .RowRevision = 15,
+            .Target = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
+            .Revision = 43,
+            .ObjectType = NObjectClient::EObjectType::Table,
+            .TreatAsConsumer = false,
+            .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
+            .Vital = false,
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

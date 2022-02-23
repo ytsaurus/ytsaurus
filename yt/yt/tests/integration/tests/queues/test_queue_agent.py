@@ -33,6 +33,8 @@ CONSUMER_TABLE_SCHEMA = [
     {"name": "target_path", "type": "string"},
     {"name": "object_type", "type": "string"},
     {"name": "treat_as_consumer", "type": "boolean"},
+    {"name": "schema", "type": "any"},
+    {"name": "vital", "type": "boolean"},
 ]
 
 
@@ -596,6 +598,9 @@ class TestCypressSynchronizer(YTEnvSetup):
             self._check_consumer_count_and_column_counts(consumers, expected_count)
         for consumer in consumers:
             assert consumer["revision"] == get(consumer["path"] + "/@revision")
+            # Enclosing into a list is a workaround for storing YSON with top-level attributes.
+            assert consumer["schema"] == [get(consumer["path"] + "/@schema")]
+            assert consumer["vital"] == get(consumer["path"] + "/@", attributes=["vital"]).get("vital", False)
         return consumers
 
     @authors("achulkov2")
@@ -632,6 +637,7 @@ class TestCypressSynchronizer(YTEnvSetup):
             assert consumer["row_revision"] == 2
 
         set(c2 + "/@target", "a_cluster:a_path")
+        set(c2 + "/@vital", False)
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -645,12 +651,14 @@ class TestCypressSynchronizer(YTEnvSetup):
                 assert consumer["row_revision"] == 3
                 assert consumer["target_cluster"] == "a_cluster"
                 assert consumer["target_path"] == "a_path"
+                assert not consumer["vital"]
 
         sync_unmount_table("//sys/queue_agents/queues")
         assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
         set(c2 + "/@target", "another_cluster:another_path")
+        set(c2 + "/@vital", True)
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -664,6 +672,7 @@ class TestCypressSynchronizer(YTEnvSetup):
                 assert consumer["row_revision"] == 4
                 assert consumer["target_cluster"] == "another_cluster"
                 assert consumer["target_path"] == "another_path"
+                assert consumer["vital"]
 
         self._drop_queues()
         self._drop_consumers()
