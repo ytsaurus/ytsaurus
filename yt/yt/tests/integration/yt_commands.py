@@ -17,7 +17,7 @@ from yt.common import (
 )
 from yt.ypath import parse_ypath
 
-from yt.packages.six import itervalues, iteritems, iterkeys
+from yt.packages.six import PY3, itervalues, iteritems, iterkeys
 from yt.packages.six.moves import xrange, builtins
 
 from yt.test_helpers import wait, WaitFailed
@@ -123,9 +123,16 @@ def assert_yt_error(error, *args, **kwargs):
 
 
 def print_debug(*args):
+    def decode(arg):
+        if PY3:
+            return arg.decode("utf-8", "backslashreplace")
+        else:
+            # COMPAT(gepardo): Remove this when the tests will be Python3-only.
+            return str(arg)
+
     if args:
         root_logger.debug(" ".join(
-            arg.decode("unicode_escape") if type(arg) is bytes else str(arg) for arg in args))
+            decode(arg) if type(arg) is bytes else str(arg) for arg in args))
 
 
 def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
