@@ -22,7 +22,9 @@ void static BuildIOStatisticsYson(
         .Item("filesystem_read_rate").Value(io.filesystem_read_rate())
         .Item("filesystem_write_rate").Value(io.filesystem_write_rate())
         .Item("disk_read_rate").Value(io.disk_read_rate())
-        .Item("disk_write_rate").Value(io.disk_write_rate());
+        .Item("disk_write_rate").Value(io.disk_write_rate())
+        .Item("disk_read_capacity").Value(io.disk_read_capacity())
+        .Item("disk_write_capacity").Value(io.disk_write_capacity());
 }
 
 void Serialize(

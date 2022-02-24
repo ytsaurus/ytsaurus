@@ -56,6 +56,8 @@ struct IBootstrap
 
     // IO tracker.
     virtual const NIO::IIOTrackerPtr& GetIOTracker() const = 0;
+
+    virtual const IIOThroughputMeterPtr& GetIOThroughputMeter() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

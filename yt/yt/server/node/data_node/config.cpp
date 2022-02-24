@@ -394,7 +394,7 @@ TIOThroughputMeterConfig::TIOThroughputMeterConfig()
     RegisterParameter("enabled", Enabled)
         .Default(false);
 
-    RegisterParameter("medium", Medium);
+    RegisterParameter("mediums", Mediums);
 
     RegisterParameter("time_between_tests", TimeBetweenTests)
         .Default(TDuration::Hours(12));

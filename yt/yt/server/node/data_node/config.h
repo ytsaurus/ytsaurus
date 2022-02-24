@@ -492,7 +492,7 @@ class TIOThroughputMeterConfig
 public:
     bool Enabled;
 
-    std::vector<TMediumThroughputMeterConfigPtr> Medium;
+    std::vector<TMediumThroughputMeterConfigPtr> Mediums;
 
     // Remeasure throughtput after this timeout.
     TDuration TimeBetweenTests;

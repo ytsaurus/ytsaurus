@@ -13,7 +13,23 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedPtr CreateIOThroughputMeter(
+struct IIOThroughputMeter
+    : public TRefCounted
+{
+    struct TIOCapacity
+    {
+        i64 DiskReadCapacity = 0;
+        i64 DiskWriteCapacity = 0;
+    };
+
+    virtual TIOCapacity GetLocationIOCapacity(TChunkLocationUuid id) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IIOThroughputMeter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IIOThroughputMeterPtr CreateIOThroughputMeter(
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
     NLogging::TLogger logger);

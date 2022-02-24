@@ -25,7 +25,11 @@ static const int PageSize = 4_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TDuration> DoRandomRead(IIOEnginePtr engine, IRandomFileProviderPtr fileProvider, i64 readSize)
+TFuture<TDuration> DoRandomRead(
+    IIOEnginePtr engine,
+    IRandomFileProviderPtr fileProvider,
+    i64 readSize,
+    bool directIO)
 {
     auto file = fileProvider->GetRandomExistingFile();
     if (!file) {
@@ -50,7 +54,12 @@ TFuture<TDuration> DoRandomRead(IIOEnginePtr engine, IRandomFileProviderPtr file
     struct TChunkFileReaderBufferTag
     { };
 
-    return engine->Open({file->Path, OpenExisting | RdOnly | CloseOnExec | DirectAligned})
+    auto mode = OpenExisting | RdOnly | CloseOnExec;
+    if (directIO) {
+        mode |= DirectAligned;
+    }
+
+    return engine->Open({file->Path, mode})
         .ToUncancelable()
         .Apply(BIND([engine, offset, readSize] (const TIOEngineHandlePtr& dataFile) {
             NProfiling::TWallTimer requestTimer;
@@ -97,7 +106,12 @@ struct TRandomWriter
         for (int i = 0; i < Config_->WritersCount; ++i) {
             auto& info = FilesToWrite_.emplace_back();
             info.FilePath = NFS::JoinPaths(tempFilesDir, Format("%v%v", i, NFS::TempFileSuffix));
-            EOpenMode mode = CreateAlways | WrOnly | CloseOnExec | DirectAligned;
+
+            EOpenMode mode = CreateAlways | WrOnly | CloseOnExec;
+            if (Config_->UseDirectIO) {
+                mode |= DirectAligned;
+            }
+
             info.Handle = WaitFor(IOEngine_->Open({info.FilePath, mode}))
                 .ValueOrThrow();
             info.Invoker = NConcurrency::CreateSerializedInvoker(invoker);
@@ -267,12 +281,14 @@ public:
         IIOEngineWorkloadModelPtr engine,
         IInvokerPtr invoker,
         IRandomFileProviderPtr fileProvider,
+        bool useDirectIO,
         NLogging::TLogger logger)
         : Config_(std::move(config))
         , Logger(std::move(logger))
         , IOEngine_(std::move(engine))
         , Invoker_(std::move(invoker))
         , RandomFileProvider_(std::move(fileProvider))
+        , UseDirectIO(useDirectIO)
         , ProbesExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TProbesCongestionDetector::DoProbe, MakeWeak(this)),
@@ -328,6 +344,7 @@ private:
     const IIOEngineWorkloadModelPtr IOEngine_;
     const IInvokerPtr Invoker_;
     const IRandomFileProviderPtr RandomFileProvider_;
+    const bool UseDirectIO;
     const TPeriodicExecutorPtr ProbesExecutor_;
 
     std::deque<TFuture<TDuration>> Probes_;
@@ -343,7 +360,11 @@ private:
             }
 
             if (std::ssize(Probes_) < Config_->MaxInflightProbesCount) {
-                Probes_.push_back(DoRandomRead(IOEngine_, RandomFileProvider_, Config_->PacketSize));
+                Probes_.push_back(DoRandomRead(
+                    IOEngine_,
+                    RandomFileProvider_,
+                    Config_->PacketSize,
+                    UseDirectIO));
             } else {
                 YT_LOG_ERROR("Something went wrong: max probes request count reached");
             }
@@ -364,6 +385,7 @@ public:
         IIOEngineWorkloadModelPtr engine,
         IInvokerPtr invoker,
         IRandomFileProviderPtr fileProvider,
+        bool useDirectIO,
         NLogging::TLogger logger)
         : Invoker_(std::move(invoker))
         , ProbesExecutor_(New<TPeriodicExecutor>(
@@ -377,6 +399,7 @@ public:
             engine,
             Invoker_,
             fileProvider,
+            useDirectIO,
             logger);
 
         ProbesExecutor_->Start();
@@ -493,6 +516,7 @@ private:
             IOEngine_,
             Invoker_,
             RandomFileProvider_,
+            Config_->UseDirectIO,
             Logger);
 
         auto randomWriter = New<TRandomWriter>(
@@ -602,13 +626,27 @@ private:
 
         static const ui8 IOScale = 100;
 
+        TFuture<TDuration> future;
         if (Config_->ReadToWriteRatio > RandomNumber(IOScale)) {
-            auto future = DoRandomRead(IOEngine_, RandomFileProvider_, Config_->PacketSize);
-            Results_.push_back(std::move(future));
+            future = DoRandomRead(
+                IOEngine_,
+                RandomFileProvider_,
+                Config_->PacketSize,
+                Config_->UseDirectIO);
         } else {
-            Results_.push_back(std::move(writer.Write()));
+            future = writer.Write();
         }
 
+        // Slowing down IOEngine executor for testing purposes.
+        if (Config_->SimulatedRequestLatency) {
+            auto simulatedLatency = Config_->SimulatedRequestLatency;
+            future = future.Apply(BIND([simulatedLatency] (TDuration duration) {
+                Sleep(simulatedLatency);
+                return duration + simulatedLatency;
+            }));
+        }
+
+        Results_.push_back(std::move(future));
         TDuration yieldTimeout = TDuration::Seconds(1) / congestionWindow;
         TDelayedExecutor::WaitForDuration(yieldTimeout);
     }
