@@ -185,8 +185,6 @@ public:
             CancelableNodeShardInvokers_.push_back(GetNullInvoker());
         }
 
-        HandleNodeIdChangesStrictly_ = Config_->HandleNodeIdChangesStrictly;
-
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
         OperationsCleaner_->SubscribeOperationsArchived(BIND(&TImpl::OnOperationsArchived, MakeWeak(this)));
@@ -1163,7 +1161,8 @@ public:
         }
 
         auto unregisterFuture = VoidFuture;
-        if (HandleNodeIdChangesStrictly_) {
+
+        {
             auto guard = Guard(NodeAddressToNodeShardIdLock_);
 
             auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
@@ -2036,7 +2035,6 @@ private:
     THashSet<TNodeId> NodeIdsWithoutTree_;
 
     // Special map to support node consistency between node shards YT-11381.
-    std::atomic<bool> HandleNodeIdChangesStrictly_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeShardIdLock_);
     THashMap<TString, int> NodeAddressToNodeShardId_;
 
@@ -2722,8 +2720,6 @@ private:
 
             Config_ = newConfig;
             ValidateConfig();
-
-            HandleNodeIdChangesStrictly_ = Config_->HandleNodeIdChangesStrictly;
 
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
