@@ -32,6 +32,16 @@ DECLARE_REFCOUNTED_STRUCT(TPendingMutation)
 
 extern NConcurrency::TFls<NElection::TEpochId> CurrentEpochId;
 
+class TCurrentEpochIdGuard
+{
+public:
+    TCurrentEpochIdGuard(const TCurrentEpochIdGuard&) = delete;
+    TCurrentEpochIdGuard(TCurrentEpochIdGuard&&) = delete;
+
+    explicit TCurrentEpochIdGuard(NElection::TEpochId epochId);
+    ~TCurrentEpochIdGuard();
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NElection::TCellId;

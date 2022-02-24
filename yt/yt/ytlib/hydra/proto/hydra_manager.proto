@@ -6,7 +6,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TSnapshotMeta
 {
-    reserved 1;
+    reserved 1, 9;
     optional int64 sequence_number = 2;
     optional uint64 random_seed = 3;
     optional uint64 state_hash = 4;
@@ -14,7 +14,6 @@ message TSnapshotMeta
     optional int32 last_segment_id = 6;
     optional int32 last_record_id = 7;
     optional int32 last_mutation_term = 8;
-    optional int32 term = 9;
 }
 
 message TChangelogMeta

@@ -221,9 +221,12 @@ public:
         auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
+            {
                 return;
+            }
 
-            TCurrentInvokerGuard guard(this_);
+            TCurrentEpochIdGuard guard1(Owner_->GetEpochId());
+            TCurrentInvokerGuard guard2(this_);
             callback.Run();
         };
 
@@ -248,7 +251,7 @@ public:
         , RandomSeed_(Owner_->RandomSeed_)
         , StateHash_(Owner_->StateHash_)
         , Timestamp_(Owner_->Timestamp_)
-        , EpochContext_(Owner_->EpochContext_)
+        , SelfPeerId_(owner->GetEpochContext()->CellManager->GetSelfPeerId())
     {
         Logger = Owner_->Logger.WithTag("SnapshotId: %v", SnapshotId_);
     }
@@ -273,9 +276,7 @@ public:
             auto automatonVersion = Owner_->AutomatonVersion_.load();
             meta.set_last_segment_id(automatonVersion.SegmentId);
             meta.set_last_record_id(automatonVersion.RecordId);
-            YT_VERIFY(Owner_->EpochContext_->Term >= Owner_->LastMutationTerm_);
             meta.set_last_mutation_term(Owner_->LastMutationTerm_);
-            meta.set_term(Owner_->EpochContext_->Term);
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -300,7 +301,7 @@ protected:
     const ui64 RandomSeed_;
     const ui64 StateHash_;
     const TInstant Timestamp_;
-    const TEpochContextPtr EpochContext_;
+    const int SelfPeerId_;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
@@ -348,7 +349,7 @@ private:
         const auto& params = SnapshotWriter_->GetParams();
 
         TRemoteSnapshotParams remoteParams;
-        remoteParams.PeerId = EpochContext_->CellManager->GetSelfPeerId();
+        remoteParams.PeerId = SelfPeerId_;
         remoteParams.SnapshotId = SnapshotId_;
         static_cast<TSnapshotParams&>(remoteParams) = params;
         return remoteParams;
@@ -1070,12 +1071,19 @@ EPeerState TDecoratedAutomaton::GetState() const
     return State_;
 }
 
-TEpochContextPtr TDecoratedAutomaton::GetEpochContext()
+TEpochContextPtr TDecoratedAutomaton::GetEpochContext() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(EpochContextLock_);
-    return EpochContext_;
+    return EpochContext_.Load();
+}
+
+TEpochId TDecoratedAutomaton::GetEpochId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // TODO(babenko): optimize
+    return EpochContext_.Load()->EpochId;
 }
 
 ui64 TDecoratedAutomaton::GetStateHash() const
@@ -1172,9 +1180,7 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
-    auto guard = WriterGuard(EpochContextLock_);
-    YT_VERIFY(!EpochContext_);
-    std::swap(epochContext, EpochContext_);
+    YT_VERIFY(!EpochContext_.Exchange(std::move(epochContext)));
 }
 
 void TDecoratedAutomaton::CancelSnapshot(const TError& error)
@@ -1187,7 +1193,7 @@ void TDecoratedAutomaton::CancelSnapshot(const TError& error)
 
 void TDecoratedAutomaton::StopEpoch()
 {
-    EpochContext_.Reset();
+    EpochContext_.Store(nullptr);
 }
 
 void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
