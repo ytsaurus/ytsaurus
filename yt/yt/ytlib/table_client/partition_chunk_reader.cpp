@@ -214,7 +214,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         client,
                         nodeDirectory,
                         /* localDescriptor */ {},
-                        /* partitionTag */ std::nullopt,
                         blockCache,
                         chunkMetaCache,
                         trafficMeter,

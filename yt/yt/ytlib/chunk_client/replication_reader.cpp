@@ -168,7 +168,6 @@ public:
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
-        const std::optional<TNodeId>& /* localNodeId */,
         TChunkId chunkId,
         const TChunkReplicaList& seedReplicas,
         IBlockCachePtr blockCache,
@@ -296,7 +295,6 @@ private:
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNodeDescriptor LocalDescriptor_;
-    const std::optional<TNodeId> LocalNodeId_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
@@ -1855,12 +1853,6 @@ private:
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
 
-        if (ReaderOptions_->EnableP2P && reader->LocalNodeId_) {
-            req->set_peer_node_id(*reader->LocalNodeId_);
-            auto expirationDeadline = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
-            req->set_peer_expiration_deadline(ToProto<ui64>(expirationDeadline));
-        }
-
         FillP2PBarriers(req->mutable_wait_barriers(), peers, blockIndexes);
 
         NProfiling::TWallTimer dataWaitTimer;
@@ -3291,7 +3283,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
-    std::optional<TNodeId> localNodeId,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,
@@ -3312,7 +3303,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         std::move(client),
         std::move(nodeDirectory),
         localDescriptor,
-        localNodeId,
         chunkId,
         seedReplicas,
         std::move(blockCache),

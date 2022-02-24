@@ -26,7 +26,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
     IBlockCachePtr blockCache,

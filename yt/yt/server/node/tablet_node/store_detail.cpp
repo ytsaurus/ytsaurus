@@ -730,7 +730,6 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 Client_,
                 Client_->GetNativeConnection()->GetNodeDirectory(),
                 LocalDescriptor_,
-                /*localNodeId*/ std::nullopt,
                 DoGetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 /*trafficMeter*/ nullptr,

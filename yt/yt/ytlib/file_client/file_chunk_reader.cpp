@@ -44,8 +44,40 @@ using namespace NTableClient;
 using namespace NTracing;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TChunkReaderStatistics;
-using NYT::TRange;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileReaderAdapter
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TFileReaderAdapter(IFileReaderPtr underlying)
+        : Underlying_(underlying)
+    { }
+
+    virtual TFuture<TSharedRef> Read()
+    {
+        TBlock block;
+        if (!Underlying_->ReadBlock(&block)) {
+            return MakeFuture(TSharedRef{});
+        }
+
+        if (!block.Data.Empty()) {
+            return MakeFuture(block.Data);
+        }
+
+        return Underlying_->GetReadyEvent()
+            .Apply(BIND(&TFileReaderAdapter::Read, MakeStrong(this)));
+    }
+
+private:
+    IFileReaderPtr Underlying_;
+};
+
+IAsyncZeroCopyInputStreamPtr CreateFileReaderAdapter(IFileReaderPtr underlying)
+{
+    return New<TFileReaderAdapter>(underlying);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,7 +444,6 @@ IFileReaderPtr CreateFileMultiChunkReader(
     TMultiChunkReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor,
-    std::optional<TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TNodeDirectoryPtr nodeDirectory,
@@ -445,7 +476,6 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 client,
                 nodeDirectory,
                 localDescriptor,
-                localNodeId,
                 blockCache,
                 chunkMetaCache,
                 trafficMeter,

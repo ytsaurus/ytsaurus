@@ -258,7 +258,6 @@ private:
             /*client*/ Host_->GetClient(),
             /*nodeDirectory*/ Host_->GetInputNodeDirectory(),
             /*localDescriptor*/ Host_->LocalDescriptor(),
-            /*localNodeId*/ std::nullopt,
             /*blockCache*/ Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*trafficMeter*/ Host_->GetTrafficMeter(),

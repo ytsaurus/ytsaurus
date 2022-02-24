@@ -557,7 +557,6 @@ public:
             New<NChunkClient::TMultiChunkReaderOptions>(),
             client,
             /*localDescriptor*/ {},
-            /*partitionTag*/ std::nullopt,
             client->GetNativeConnection()->GetBlockCache(),
             client->GetNativeConnection()->GetChunkMetaCache(),
             std::move(nodeDirectory),
