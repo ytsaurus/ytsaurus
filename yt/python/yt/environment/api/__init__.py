@@ -78,6 +78,7 @@ class LocalYtConfig(object):
     master_cache_count = attr.ib(0)
     remote_cluster_count = attr.ib(0)
     cell_balancer_count = attr.ib(0)
+    tablet_balancer_count = attr.ib(0)
 
     """Start options"""
     defer_node_start = attr.ib(False)

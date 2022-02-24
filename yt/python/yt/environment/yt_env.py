@@ -86,7 +86,8 @@ def _get_yt_versions(custom_paths):
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler", "ytserver-controller-agent",
                 "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy",
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
-                "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache"]
+                "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
+                "ytserver-tablet-balancer"]
     for binary in binaries:
         binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
         if binary_path is not None:
@@ -169,7 +170,8 @@ class YTInstance(object):
                 makedirp(self.bin_path)
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
-                            "controller-agent", "timestamp-provider", "master-cache"]
+                            "controller-agent", "timestamp-provider", "master-cache",
+                            "tablet-balancer"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -264,7 +266,8 @@ class YTInstance(object):
                 "chaos_node": self._make_service_dirs("chaos_node", self.yt_config.chaos_node_count),
                 "master_cache": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
-                "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count)}
+                "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count),
+                "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count)}
 
     def _prepare_environment(self, ports_generator, modify_configs_func):
         service_infos = [
@@ -279,6 +282,7 @@ class YTInstance(object):
             ("ytserver-cell-balancer", "cell balancers", self.yt_config.cell_balancer_count),
             (None, "secondary cells", self.yt_config.secondary_cell_count),
             ("queue-agent", "queue agents", self.yt_config.queue_agent_count),
+            ("ytserver-tablet-balancer", "tablet balancers", self.yt_config.tablet_balancer_count),
             ("ytserver-http-proxy", "HTTP proxies", self.yt_config.http_proxy_count),
             ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count)
         ]
@@ -341,6 +345,8 @@ class YTInstance(object):
             self._prepare_cell_balancers(cluster_configuration["cell_balancer"])
         if self.yt_config.queue_agent_count > 0:
             self._prepare_queue_agents(cluster_configuration["queue_agent"])
+        if self.yt_config.tablet_balancer_count > 0:
+            self._prepare_tablet_balancers(cluster_configuration["tablet_balancer"])
 
         self._prepare_drivers(
             cluster_configuration["driver"],
@@ -412,6 +418,9 @@ class YTInstance(object):
 
             if self.yt_config.queue_agent_count > 0:
                 self.start_queue_agents(sync=False)
+
+            if self.yt_config.tablet_balancer_count > 0:
+                self.start_tablet_balancers(sync=False)
 
             self.synchronize()
 
@@ -486,7 +495,8 @@ class YTInstance(object):
             killed_services.add("watcher")
 
         for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
-                     "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer"]:
+                     "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
+                     "tablet_balancer"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -639,6 +649,9 @@ class YTInstance(object):
 
     def kill_queue_agents(self, indexes=None):
         self.kill_service("queue_agent", indexes=indexes)
+
+    def kill_tablet_balancers(self, indexes=None):
+        self.kill_service("tablet_balancer", indexes=None)
 
     def kill_service(self, name, indexes=None):
         with self._lock:
@@ -1687,6 +1700,34 @@ class YTInstance(object):
             return proxies_discovery_ready and proxies_ports_ready
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
+
+    def _prepare_tablet_balancers(self, tablet_balancer_configs):
+        for tablet_balancer_index in xrange(self.yt_config.tablet_balancer_count):
+            tablet_balancer_config_name = "tablet_balancer-{0}.yson".format(tablet_balancer_index)
+            config_path = os.path.join(self.configs_path, tablet_balancer_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Tablet balancer config {0} not found. It is possible that you requested "
+                                  "more tablet balancers than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = tablet_balancer_configs[tablet_balancer_index]
+                write_config(config, config_path)
+
+            self.configs["tablet_balancer"].append(config)
+            self.config_paths["tablet_balancer"].append(config_path)
+            self._service_processes["tablet_balancer"].append(None)
+
+    def start_tablet_balancers(self, sync=True):
+        self._run_yt_component("tablet-balancer", name="tablet_balancer")
+
+        def tablet_balancer_ready():
+            self._validate_processes_are_running("tablet_balancer")
+            return True
+
+        self._wait_or_skip(
+            lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer", max_wait_time=20),
+            sync)
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:

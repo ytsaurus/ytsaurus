@@ -14,6 +14,7 @@
 #include <yt/yt/server/master_cache/program.h>
 #include <yt/yt/server/cell_balancer/program.h>
 #include <yt/yt/server/queue_agent/program.h>
+#include <yt/yt/server/tablet_balancer/program.h>
 
 #include <yt/yt/ytlib/program/program.h>
 
@@ -61,6 +62,7 @@ int main(int argc, const char** argv)
     TryProgram<NMasterCache::TMasterCacheProgram>(argc, argv, "master-cache");
     TryProgram<NCellBalancer::TCellBalancerProgram>(argc, argv, "cell-balancer");
     TryProgram<NQueueAgent::TQueueAgentProgram>(argc, argv, "queue-agent");
+    TryProgram<NTabletBalancer::TTabletBalancerProgram>(argc, argv, "tablet-balancer");
     // Handles auxiliary flags like --version and --build.
     TAllProgram().Run(argc, argv);
 }

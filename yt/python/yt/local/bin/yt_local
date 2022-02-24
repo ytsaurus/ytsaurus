@@ -148,6 +148,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--rpc-proxy-count", type=int, default=0, help="number of rpc proxies")
     parser.add_argument("--secondary-master-cell-count", type=int, default=0,
                         help="number of secondary cells. Do not use it if you are not sure what you are doing.")
+    parser.add_argument("--tablet-balancer-count", type=int, default=0, help="number of tablet balancers")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)

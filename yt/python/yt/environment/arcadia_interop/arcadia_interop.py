@@ -86,6 +86,7 @@ PROGRAMS = [("master", "master/bin"),
             ("scheduler", "scheduler/bin"),
             ("controller-agent", "controller_agent/bin"),
             ("cell-balancer", "cell_balancer/bin"),
+            ("tablet-balancer", "tablet_balancer/bin"),
             ("master-cache", "master_cache/bin"),
             ("queue-agent", "queue_agent/bin")]
 

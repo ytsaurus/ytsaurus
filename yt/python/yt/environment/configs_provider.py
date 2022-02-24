@@ -181,6 +181,16 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         yt_config=yt_config,
     )
 
+    tablet_balancer_configs, tablet_balancer_addresses = _build_tablet_balancer_configs(
+        yt_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        ports_generator,
+        logs_dir,
+    )
+
     cluster_configuration = {
         "master": master_configs,
         "clock": clock_configs,
@@ -198,6 +208,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         "http_proxy": http_proxy_configs,
         "rpc_proxy": rpc_proxy_configs,
         "rpc_client": rpc_client_config,
+        "tablet_balancer": tablet_balancer_configs,
     }
 
     return cluster_configuration
@@ -1105,6 +1116,42 @@ def _build_cluster_connection_config(yt_config,
         cluster_connection = update(cluster_connection, yt_config.delta_global_cluster_connection_config)
 
     return cluster_connection
+
+
+def _build_tablet_balancer_configs(yt_config,
+                                   master_connection_configs,
+                                   clock_connection_config,
+                                   timestamp_provider_addresses,
+                                   master_cache_addresses,
+                                   ports_generator,
+                                   logs_dir):
+    configs = []
+    addresses = []
+
+    for index in xrange(yt_config.tablet_balancer_count):
+        config = default_config.get_tablet_balancer_config()
+
+        init_singletons(config, yt_config.fqdn, "tablet_balancer", index, {"tablet_balancer_index": str(index)})
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                timestamp_provider_addresses,
+                master_cache_addresses)
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+        config["logging"] = _init_logging(logs_dir,
+                                          "tablet-balancer-" + str(index),
+                                          yt_config,
+                                          has_structured_logs=True)
+
+        configs.append(config)
+        addresses.append("localhost:{}".format(config["rpc_port"]))
+
+    return configs, addresses
 
 
 def _init_logging(path, name, yt_config, log_errors_to_stderr=False, has_structured_logs=False):
