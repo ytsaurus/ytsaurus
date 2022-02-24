@@ -216,14 +216,14 @@ ui32 TScanKeyIndexExtractor::UpperRowBound(ui32 position) const
     return RowIndex_[position + 1];
 }
 
-ui32 TScanVersionExtractorBase::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
+ui32 TScanVersionExtractorBase::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     return LinearSearch(valueIdx, valueIdxEnd, [&] (auto position) {
         return WriteTimestampIds_[position] < timestampId;
     });
 }
 
-ui32 TScanVersionExtractorBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
+ui32 TScanVersionExtractorBase::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     YT_ASSERT(valueIdx != valueIdxEnd);
     while (WriteTimestampIds_[valueIdx] < timestampId && ++valueIdx != valueIdxEnd)
@@ -766,7 +766,7 @@ void TLookupVersionExtractor<Aggregate>::ExtractVersion(
 }
 
 template <bool Aggregate>
-ui32 TLookupVersionExtractor<Aggregate>::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
+ui32 TLookupVersionExtractor<Aggregate>::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     TCompressedVectorView writeTimestampIdsView(Ptr_);
 
@@ -776,7 +776,7 @@ ui32 TLookupVersionExtractor<Aggregate>::AdjustIndex(ui32 valueIdx, ui32 valueId
 }
 
 template <bool Aggregate>
-ui32 TLookupVersionExtractor<Aggregate>::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const
+ui32 TLookupVersionExtractor<Aggregate>::AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
 {
     return AdjustIndex(valueIdx, valueIdxEnd, timestampId);
 }
