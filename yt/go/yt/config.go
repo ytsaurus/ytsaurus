@@ -62,6 +62,15 @@ type Config struct {
 	// When this variable is set, client tries reading token from ~/.yt/token file.
 	ReadTokenFromFile bool
 
+	// TVMFn is used to issue service tickets for YT API requests.
+	//
+	// TVM is a preferred way of service authentication.
+	//
+	// If TVMFn is not set, OAuth token is used.
+	//
+	// Assign yttvm.TVMFn(tvm.Client) to this field, if you wish to enable tvm authentication.
+	TVMFn TVMFn
+
 	// Logger overrides default logger, used by the client.
 	//
 	// When Logger is not set, logging behaviour is configured by YT_LOG_LEVEL environment variable.
@@ -285,5 +294,7 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 		return "", false
 	}
 }
+
+type TVMFn func(ctx context.Context) (string, error)
 
 type TraceFn func(ctx context.Context) (traceID guid.GUID, spanID uint64, flags byte, ok bool)
