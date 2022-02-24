@@ -152,10 +152,11 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto counters = tabletSnapshot->TableProfiler->GetTablePullerCounters();
-            auto countError = Finally([&] {
+            const auto& tableProfiler = tabletSnapshot->TableProfiler;
+            auto* counters = tableProfiler->GetTablePullerCounters();
+            auto countError = Finally([counters, tableProfiler] {
                 if (std::uncaught_exception()) {
-                    counters.ErrorCount.Increment();
+                    counters->ErrorCount.Increment();
                 }
             });
 
@@ -184,7 +185,7 @@ private:
             auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound;
             TPullRowsResult result;
             {
-                TEventTimerGuard timerGuard(counters.PullRowsTime);
+                TEventTimerGuard timerGuard(counters->PullRowsTime);
 
                 auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(clusterName);
                 if (!alienConnection) {
@@ -231,7 +232,7 @@ private:
             }
 
             {
-                TEventTimerGuard timerGuard(counters.WriteTime);
+                TEventTimerGuard timerGuard(counters->WriteTime);
 
                 auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
                 auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
@@ -278,8 +279,8 @@ private:
                     localTransaction->GetId());
             }
 
-            counters.RowCount.Increment(rowCount);
-            counters.DataWeight.Increment(dataWeight);
+            counters->RowCount.Increment(rowCount);
+            counters->DataWeight.Increment(dataWeight);
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", TabletId_)

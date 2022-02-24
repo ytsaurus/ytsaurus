@@ -661,6 +661,7 @@ TTableProfiler::TTableProfiler(
     }
 
     LsmCounters_ = TLsmCounters(Profiler_);
+    TablePullerCounters_ = TTablePullerCounters(Profiler_);
 }
 
 TTableProfilerPtr TTableProfiler::GetDisabled()
@@ -717,15 +718,6 @@ TPullRowsCounters* TTableProfiler::GetPullRowsCounters(const std::optional<TStri
     return PullRowsCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
-TTablePullerCounters TTableProfiler::GetTablePullerCounters()
-{
-    if (Disabled_) {
-        return {};
-    }
-
-    return TTablePullerCounters{Profiler_};
-}
-
 TReplicaCounters TTableProfiler::GetReplicaCounters(const TString& cluster)
 {
     if (Disabled_) {
@@ -733,6 +725,11 @@ TReplicaCounters TTableProfiler::GetReplicaCounters(const TString& cluster)
     }
 
     return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster)};
+}
+
+TTablePullerCounters* TTableProfiler::GetTablePullerCounters()
+{
+    return &TablePullerCounters_;
 }
 
 TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod method, bool failed)

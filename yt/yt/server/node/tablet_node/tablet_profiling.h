@@ -396,9 +396,9 @@ public:
     TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
     TPullRowsCounters* GetPullRowsCounters(const std::optional<TString>& userTag);
 
-    TTablePullerCounters GetTablePullerCounters();
     TReplicaCounters GetReplicaCounters(const TString& cluster);
 
+    TTablePullerCounters* GetTablePullerCounters();
     TChunkWriteCounters* GetWriteCounters(EChunkWriteProfilingMethod method, bool failed);
     TChunkReadCounters* GetReadCounters(EChunkReadProfilingMethod method, bool failed);
     NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
@@ -437,6 +437,7 @@ private:
     TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
     TUserTaggedCounter<TPullRowsCounters> PullRowsCounters_;
 
+    TTablePullerCounters TablePullerCounters_;
     TChunkWriteCountersVector ChunkWriteCounters_;
     TChunkReadCountersVector ChunkReadCounters_;
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
