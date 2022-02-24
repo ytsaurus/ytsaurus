@@ -10,6 +10,7 @@
 #include "location.h"
 #include "network_statistics.h"
 #include "session_manager.h"
+#include "io_throughput_meter.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -65,7 +66,8 @@ static const auto& Logger = DataNodeLogger;
 
 void ToProto(
     TIOStatistics* protoStatistics,
-    const TStoreLocation::TIOStatistics& statistics);
+    const TStoreLocation::TIOStatistics& statistics,
+    const IIOThroughputMeter::TIOCapacity& capacity);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -838,6 +840,7 @@ private:
         THashMap<int, int> mediumIndexToIOWeight;
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
+        const auto& ioThroughputMeter = Bootstrap_->GetIOThroughputMeter();
 
         // NB. We do not indicate that the node is full when it doesn't have storage locations. See YT-15393 for details.
         bool full = !chunkStore->Locations().empty();
@@ -871,7 +874,9 @@ private:
             locationStatistics->set_sick(location->IsSick());
             ToProto(locationStatistics->mutable_location_uuid(), location->GetUuid());
             locationStatistics->set_disk_family(location->GetDiskFamily());
-            ToProto(locationStatistics->mutable_io_statistics(), location->GetIOStatistics());
+            ToProto(locationStatistics->mutable_io_statistics(),
+                location->GetIOStatistics(),
+                ioThroughputMeter->GetLocationIOCapacity(location->GetUuid()));
 
             if (IsLocationWriteable(location)) {
                 ++mediumIndexToIOWeight[mediumIndex];
@@ -1064,12 +1069,16 @@ IMasterConnectorPtr CreateMasterConnector(IBootstrap* bootstrap)
 
 void ToProto(
     TIOStatistics* protoStatistics,
-    const TStoreLocation::TIOStatistics& statistics)
+    const TStoreLocation::TIOStatistics& statistics,
+    const IIOThroughputMeter::TIOCapacity& capacity)
 {
     protoStatistics->set_filesystem_read_rate(statistics.FilesystemReadRate);
     protoStatistics->set_filesystem_write_rate(statistics.FilesystemWriteRate);
     protoStatistics->set_disk_read_rate(statistics.DiskReadRate);
     protoStatistics->set_disk_write_rate(statistics.DiskWriteRate);
+
+    protoStatistics->set_disk_read_capacity(capacity.DiskReadCapacity);
+    protoStatistics->set_disk_write_capacity(capacity.DiskWriteCapacity);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

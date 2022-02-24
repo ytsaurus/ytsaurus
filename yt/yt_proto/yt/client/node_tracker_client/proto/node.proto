@@ -19,6 +19,9 @@ message TIOStatistics
 
     optional int64 disk_read_rate = 3;
     optional int64 disk_write_rate = 4;
+
+    optional int64 disk_read_capacity = 5;
+    optional int64 disk_write_capacity = 6;
 }
 
 // Describes the current state of a chunk location.

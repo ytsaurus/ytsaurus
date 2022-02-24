@@ -419,6 +419,11 @@ public:
         return IOTracker_;
     }
 
+    const IIOThroughputMeterPtr& GetIOThroughputMeter() const override
+    {
+        return IOThroughputMeter_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -454,7 +459,7 @@ private:
 
     NIO::IIOTrackerPtr IOTracker_;
 
-    TRefCountedPtr IOThroughputMeter_;
+    IIOThroughputMeterPtr IOThroughputMeter_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,

@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import (
     authors, wait, execute_command, get_driver, build_snapshot,
     exists, ls, get, set, create, remove,
-    write_table,
+    write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
     set_node_banned)
 
@@ -207,10 +207,39 @@ class TestNodeTracker(YTEnvSetup):
             row_count = 1024
             write_table("<append=%true>//tmp/t", [{"a": i} for i in range(row_count)])
 
+        update_nodes_dynamic_config({
+            "data_node": {
+                "io_throughput_meter": {
+                    "enabled": True,
+                    "time_between_tests" : 1000,
+                    "testing_time_soft_limit" : 10000,
+                    "mediums" : [
+                        {
+                            "medium_name" : "default",
+                            "enabled" : True,
+                            "packet_size" : 4096,
+                            "read_to_write_ratio" : 75,
+                            "writers_count" : 2,
+                            "max_write_file_size" : 1024 * 1024,
+                            "wait_after_congested" : 100,
+                            "segment_size" : 5,
+                            "simulated_request_latency" : 200,
+                            "use_direct_io" : False,
+                            "congestion_detector" : {
+                                "probes_interval" : 50,
+                            }
+                        }
+                    ]
+                },
+            }
+        })
+
         wait(lambda: get("//sys/cluster_nodes/@io_statistics")["filesystem_write_rate"] > 0)
         per_medium_io = get("//sys/cluster_nodes/@io_statistics_per_medium")
         assert "default" in per_medium_io
         assert per_medium_io["default"]["filesystem_write_rate"] > 0
+
+        wait(lambda: get("//sys/cluster_nodes/@io_statistics")["disk_read_capacity"] > 0, timeout=60)
 
 
 ##################################################################

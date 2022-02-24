@@ -103,6 +103,12 @@ TGentleLoaderConfig::TGentleLoaderConfig()
 
     RegisterParameter("wait_after_congested", WaitAfterCongested)
         .Default(TDuration::Seconds(10));
+
+    RegisterParameter("simulated_request_latency", SimulatedRequestLatency)
+        .Default();
+
+    RegisterParameter("use_direct_io", UseDirectIO)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

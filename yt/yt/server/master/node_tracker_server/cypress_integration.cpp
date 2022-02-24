@@ -389,7 +389,9 @@ private:
             .Item("filesystem_read_rate").Value(io.FilesystemReadRate)
             .Item("filesystem_write_rate").Value(io.FilesystemWriteRate)
             .Item("disk_read_rate").Value(io.DiskReadRate)
-            .Item("disk_write_rate").Value(io.DiskWriteRate);
+            .Item("disk_write_rate").Value(io.DiskWriteRate)
+            .Item("disk_read_capacity").Value(io.DiskReadCapacity)
+            .Item("disk_write_capacity").Value(io.DiskWriteCapacity);
     }
 };
 

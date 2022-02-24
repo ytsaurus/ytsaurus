@@ -104,6 +104,7 @@ DECLARE_REFCOUNTED_CLASS(TP2PConfig)
 DECLARE_REFCOUNTED_STRUCT(TP2PChunkPeer)
 DECLARE_REFCOUNTED_STRUCT(TP2PBlock)
 DECLARE_REFCOUNTED_STRUCT(TP2PChunk)
+DECLARE_REFCOUNTED_STRUCT(IIOThroughputMeter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

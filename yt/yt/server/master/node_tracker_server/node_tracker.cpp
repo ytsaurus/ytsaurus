@@ -2421,6 +2421,8 @@ private:
             statistics->FilesystemWriteRate += source.filesystem_write_rate();
             statistics->DiskReadRate += source.disk_read_rate();
             statistics->DiskWriteRate += source.disk_write_rate();
+            statistics->DiskReadCapacity += source.disk_read_capacity();
+            statistics->DiskWriteCapacity += source.disk_write_capacity();
         };
 
         for (auto [nodeId, node] : NodeMap_) {

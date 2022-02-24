@@ -47,7 +47,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Loaded chunks (Location: %v, Count:%v, ElapsedTime :%v)",
+        YT_LOG_DEBUG("Loaded chunks (Location: %v, Count: %v, ElapsedTime: %v)",
             Chunks_.size(),
             locationId,
             timer.GetElapsedTime());
@@ -169,20 +169,26 @@ public:
 
     TDuration GetRunningTime()
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         if (Session_) {
             return TInstant::Now() - Session_->Timestamp;
         }
         return {};
     }
 
-    TStoreLocation::TIOStatistics GetThroughtput()
+    TStoreLocation::TIOStatistics GetMeasured()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto guard = Guard(SpinLock_);
         return LastMeasuredThroughtput_;
     }
 
     TString GetRootPath() const
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         return Location_->GetPath();
     }
 
@@ -237,6 +243,14 @@ private:
         auto now = TInstant::Now();
         auto roundDuration = now - Session_->LastCongested;
         auto roundResult = Location_->GetIOStatistics();
+
+        // Use filesystem level statistics if disk stats are not available.
+        // This is mostly for test environment.
+        if (roundResult.DiskReadRate == 0 && roundResult.DiskWriteRate == 0) {
+            roundResult.DiskReadRate = roundResult.FilesystemReadRate;
+            roundResult.DiskWriteRate = roundResult.FilesystemWriteRate;
+        }
+
         if (roundDuration > Session_->BestRoundDuration) {
             Session_->BestRoundDuration = roundDuration;
             Session_->BestRoundResult = roundResult;
@@ -280,7 +294,7 @@ using TLocationLoadTesterPtr = TIntrusivePtr<TLocationLoadTester>;
 static const auto SuncStateInterval = TDuration::Seconds(5);
 
 class TIOThroughputMeter
-    : public TRefCounted
+    : public IIOThroughputMeter
 {
 public:
     explicit TIOThroughputMeter(
@@ -308,6 +322,22 @@ public:
         ProbesExecutor_->Start();
     }
 
+    TIOCapacity GetLocationIOCapacity(TChunkLocationUuid id) const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto it = Locations_.find(id);
+        if (it == Locations_.end()) {
+            YT_LOG_WARNING("IO capacity requested for unknown location (LocationUUID: %v)", id);
+            return {};
+        }
+        auto capacity = it->second->GetMeasured();
+        return TIOCapacity{
+            .DiskReadCapacity = capacity.DiskReadRate,
+            .DiskWriteCapacity = capacity.DiskWriteRate,
+        };
+    }
+
 private:
     const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TChunkStorePtr ChunkStore_;
@@ -329,6 +359,11 @@ private:
 
         for (auto& [_, location] : Locations_) {
             auto mediumConfig = GetMediumConfig(config, location->GetMediumName());
+
+            YT_LOG_WARNING("Sync state (Enabled: %v, Medium: %v, MediumsSize: %v)",
+                config->Enabled,
+                location->GetMediumName(),
+                config->Mediums.size());
 
             if (!config->Enabled || !mediumConfig || !mediumConfig->Enabled) {
                 Stop(location);
@@ -352,9 +387,11 @@ private:
         }
     }
 
-    TMediumThroughputMeterConfigPtr GetMediumConfig(TIOThroughputMeterConfigPtr config, const TString& medium)
+    TMediumThroughputMeterConfigPtr GetMediumConfig(
+        TIOThroughputMeterConfigPtr config,
+        const TString& medium)
     {
-        for (const auto& mediumConfig : config->Medium) {
+        for (const auto& mediumConfig : config->Mediums) {
             if (mediumConfig->MediumName == medium) {
                 return mediumConfig;
             }
@@ -387,7 +424,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedPtr CreateIOThroughputMeter(
+IIOThroughputMeterPtr CreateIOThroughputMeter(
     TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
     TChunkStorePtr chunkStore,
     NLogging::TLogger logger)

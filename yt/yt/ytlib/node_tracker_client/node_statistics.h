@@ -25,6 +25,9 @@ struct TIOStatistics
 
     i64 DiskReadRate = 0;
     i64 DiskWriteRate = 0;
+
+    i64 DiskReadCapacity = 0;
+    i64 DiskWriteCapacity = 0;
 };
 
 struct TAggregatedNodeStatistics

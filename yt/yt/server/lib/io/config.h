@@ -117,6 +117,12 @@ struct TGentleLoaderConfig
     // Don't send load request for this period after congested.
     TDuration WaitAfterCongested;
 
+    // Slowdown IO requests for testing purposes.
+    // NB. use only in integration tests.
+    TDuration SimulatedRequestLatency;
+
+    bool UseDirectIO;
+
     TGentleLoaderConfig();
 };
 
