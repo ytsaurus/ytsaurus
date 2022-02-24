@@ -9,12 +9,12 @@ namespace NYT::NCellServer {
 
 TString TArea::GetLowercaseObjectName() const
 {
-    return Format("area %Qv", GetName());
+    return Format("area %Qv of bundle %Qv", GetName(), CellBundle_->GetName());
 }
 
 TString TArea::GetCapitalizedObjectName() const
 {
-    return Format("Area %Qv", GetName());
+    return Format("Area %Qv of Bundle %Qv", GetName(), CellBundle_->GetName());
 }
 
 void TArea::Save(NCellMaster::TSaveContext& context) const
