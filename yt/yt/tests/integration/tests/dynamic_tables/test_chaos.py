@@ -1039,6 +1039,17 @@ class TestChaos(ChaosTestBase):
         _check("1", 1)
         _check("2", 2)
 
+    @authors("savrus")
+    def test_initially_disabled_replica(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": False, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        wait(lambda: all(replica["state"] == "disabled" for replica in get("#{0}/@".format(card_id))["replicas"].values()))
+
 
 ##################################################################
 
