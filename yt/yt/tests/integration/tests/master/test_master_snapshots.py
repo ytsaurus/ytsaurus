@@ -564,3 +564,32 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+    @authors("aleksandra-zh")
+    def test_all_peers_in_readonly(self):
+        def all_peers_in_readonly(monitoring_prefix, master_list):
+            for master in master_list:
+                monitoring = get(
+                    "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
+                    default=None,
+                    suppress_transaction_coordinator_sync=True)
+                if monitoring is None or not monitoring["read_only"]:
+                    return False
+
+            return True
+
+        build_master_snapshots(set_read_only=True)
+
+        primary = ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)
+        wait(lambda: all_peers_in_readonly("//sys/primary_masters", primary))
+
+        secondary_masters = get("//sys/secondary_masters", suppress_transaction_coordinator_sync=True)
+        for cell_tag in secondary_masters:
+            addresses = list(secondary_masters[cell_tag].keys())
+            wait(lambda: all_peers_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))
+
+        # Must not hang on this.
+        build_master_snapshots(set_read_only=True)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass

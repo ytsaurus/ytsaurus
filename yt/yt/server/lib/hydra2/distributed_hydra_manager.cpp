@@ -352,18 +352,24 @@ public:
         }
         const auto& leaderCommitter = epochContext->LeaderCommitter;
 
-        auto loggedVersion = leaderCommitter->GetLoggedVersion();
-        // TODO: make sure this still makes sense.
-        if (GetReadOnly() && loggedVersion.RecordId == 0) {
+        if (GetReadOnly()) {
+            if (setReadOnly) {
+                auto result = leaderCommitter->GetLastSnapshotFuture(waitForSnapshotCompletion, setReadOnly);
+                if (result) {
+                    return *result;
+                }
+            }
+
+            auto loggedVersion = leaderCommitter->GetLoggedVersion();
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
-            if (loggedVersion.SegmentId == lastSnapshotId) {
+            if (loggedVersion.RecordId == 0 && loggedVersion.SegmentId == lastSnapshotId) {
                 return MakeFuture<int>(TError(
-                    NHydra2::EErrorCode::ReadOnlySnapshotBuilt,
-                    "The requested read-only snapshot is already built")
+                    NHydra::EErrorCode::ReadOnlySnapshotBuilt,
+                    "The requested read-only snapshot was already built and its result was already lost")
                     << TErrorAttribute("snapshot_id", lastSnapshotId));
             }
             return MakeFuture<int>(TError(
-                NHydra2::EErrorCode::ReadOnlySnapshotBuildFailed,
+                NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
                 "Cannot build a snapshot in read-only mode"));
         }
 
@@ -375,7 +381,7 @@ public:
 
         SetReadOnly(setReadOnly);
 
-        return leaderCommitter->BuildSnapshot(waitForSnapshotCompletion);
+        return leaderCommitter->BuildSnapshot(waitForSnapshotCompletion, setReadOnly);
     }
 
     void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
@@ -1134,18 +1140,28 @@ private:
                 YT_LOG_DEBUG("Received a redunant snasphot request, ignoring (SnapshotId: %v)",
                     SnapshotId_);
             } else {
+                auto readOnly = snapshotRequest.read_only();
+                auto snapshotSequenceNumber = snapshotRequest.sequence_number();
+                SetReadOnly(readOnly);
+
                 SnapshotId_ = snapshotRequest.snapshot_id();
-                YT_LOG_INFO("Received a new snasphot request (SnapshotId: %v)",
-                    SnapshotId_);
-                SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
-                    .AsyncVia(epochContext->EpochUserAutomatonInvoker)
-                    .Run(snapshotRequest.snapshot_id(), snapshotRequest.sequence_number());
+                YT_LOG_INFO("Received a new snasphot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
+                    SnapshotId_,
+                    snapshotSequenceNumber,
+                    readOnly);
+                if (Options_.WriteSnapshotsAtFollowers) {
+                    SnapshotFuture_ = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
+                        .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+                        .Run(SnapshotId_, snapshotSequenceNumber);
+                } else {
+                    SnapshotFuture_ = MakeFuture<TRemoteSnapshotParams>(TError("Followers cannot build snapshot"));
+                }
             }
 
             if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
                 auto* snapshotResponse = response->mutable_snapshot_response();
                 const auto& valueOrError = SnapshotFuture_.Get();
-                // TODO (aleksandra-zh): error is actually useful.
+                // TODO(aleksandra-zh): error is actually useful.
                 snapshotResponse->set_ok(valueOrError.IsOK());
                 if (valueOrError.IsOK()) {
                     auto value = valueOrError.Value();
@@ -1165,7 +1181,7 @@ private:
             CommitMutationsAtFollower(committedSequenceNumber);
         }
 
-        // we must make sure LoggedSequenceNumber in committer is initialized
+        // LoggedSequenceNumber in committer should already be initialized.
         auto loggedSequenceNumber = epochContext->FollowerCommitter->GetLoggedSequenceNumber();
         auto expectedSequenceNumber = epochContext->FollowerCommitter->GetExpectedSequenceNumber();
         response->set_logged_sequence_number(loggedSequenceNumber);
@@ -1177,7 +1193,7 @@ private:
         context->Reply();
     }
 
-    // epochId seems redundant
+    // TODO(aleksandra-zh): epochId seems redundant.
     EPeerState PingFollower(TEpochId epochId, std::optional<int> term, TPeerIdSet alivePeerIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2484,12 +2500,14 @@ private:
             return;
         }
 
-        YT_VERIFY(IsActiveLeader());
+        auto controlState = GetControlState();
+        YT_VERIFY(controlState == EPeerState::Leading || controlState == EPeerState::Following);
 
-        bool expected = false;
-        if (ReadOnly_.compare_exchange_strong(expected, true)) {
+        if (!ReadOnly_.exchange(true)) {
             YT_LOG_INFO("Read-only mode activated");
-            ControlEpochContext_->LeaderCommitter->SetReadOnly();
+            if (controlState == EPeerState::Leading) {
+                ControlEpochContext_->LeaderCommitter->SetReadOnly();
+            }
         }
     }
 };
