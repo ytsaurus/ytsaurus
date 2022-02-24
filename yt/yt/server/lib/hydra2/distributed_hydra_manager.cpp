@@ -74,7 +74,7 @@ public:
     void Invoke(TClosure callback) override
     {
         UnderlyingInvoker_->Invoke(BIND([callback = std::move(callback), epochId = EpochId_] {
-            *CurrentEpochId = epochId;
+            TCurrentEpochIdGuard guard(epochId);
             callback();
         }));
     }
@@ -468,10 +468,11 @@ public:
         }
 
         auto randomSeed = RandomNumber<ui64>();
-        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %llx, MutationType: %v, MutationId: %v)",
+        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %llx, MutationType: %v, MutationId: %v, EpochId: %v)",
             randomSeed,
             request.Type,
-            request.MutationId);
+            request.MutationId,
+            request.EpochId);
 
         MutationDraftQueue_->Enqueue({
             .Request = request,
@@ -1533,7 +1534,7 @@ private:
             .ThrowOnError();
 
         auto meta = reader->GetParams().Meta;
-        if (!meta.has_term()) {
+        if (!meta.has_last_mutation_term()) {
             // COMPAT(aleksandra-zh): Looks safe.
             YT_LOG_INFO("No term in snapshot meta (SnapshotId: %v, SequenceNumber: %v)",
                 maxSnapshotId,

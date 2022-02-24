@@ -33,8 +33,6 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <library/cpp/yt/threading/rw_spin_lock.h>
-
 #include <atomic>
 
 namespace NYT::NHydra2 {
@@ -200,7 +198,8 @@ public:
 
     EPeerState GetState() const;
 
-    TEpochContextPtr GetEpochContext();
+    TEpochContextPtr GetEpochContext() const;
+    TEpochId GetEpochId() const;
 
     ui64 GetStateHash() const;
     i64 GetSequenceNumber() const;
@@ -264,15 +263,14 @@ private:
     const NHydra::ISnapshotStorePtr SnapshotStore_;
     const NHydra::TStateHashCheckerPtr StateHashChecker_;
 
-    std::atomic<int> UserLock_ = {0};
-    std::atomic<int> SystemLock_ = {0};
+    std::atomic<int> UserLock_ = 0;
+    std::atomic<int> SystemLock_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, EpochContextLock_);
-    TEpochContextPtr EpochContext_;
+    TAtomicObject<TEpochContextPtr> EpochContext_;
 
     NHydra::IChangelogPtr Changelog_;
 
-    std::atomic<EPeerState> State_ = {EPeerState::Stopped};
+    std::atomic<EPeerState> State_ = EPeerState::Stopped;
 
     // Last applied mutation.
     std::atomic<TVersion> AutomatonVersion_;
