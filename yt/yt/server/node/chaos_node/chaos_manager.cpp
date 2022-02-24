@@ -441,7 +441,8 @@ private:
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
 
-        GetReplicationCardOrThrow(replicationCardId);
+        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
+        RevokeShortcuts(replicationCard);
 
         ReplicationCardMap_.Remove(replicationCardId);
 
@@ -629,7 +630,7 @@ private:
 
             auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
             if (!replicationCard) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Got grant shortcut response for an unknown replication card (ReplicationCardId: %v)",
+                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got grant shortcut response for an unknown replication card (ReplicationCardId: %v)",
                     replicationCardId);
                 continue;
             }
@@ -669,7 +670,7 @@ private:
 
             auto* replicationCard = ReplicationCardMap_.Find(replicationCardId);
             if (!replicationCard) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Got revoke shortcut response for an unknown replication card (ReplicationCardId: %v)",
+                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got revoke shortcut response for an unknown replication card (ReplicationCardId: %v)",
                     replicationCardId);
                 continue;
             }
