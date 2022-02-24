@@ -245,7 +245,6 @@ private:
             New<TMultiChunkReaderOptions>(),
             Client_,
             /*localDescriptor*/ {},
-            /*partitionTag*/ std::nullopt,
             Client_->GetNativeConnection()->GetBlockCache(),
             Client_->GetNativeConnection()->GetChunkMetaCache(),
             nodeDirectory,

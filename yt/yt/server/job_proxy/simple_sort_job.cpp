@@ -67,7 +67,6 @@ public:
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
-                std::nullopt,
                 Host_->GetReaderBlockCache(),
                 /*chunkMetaCache*/ nullptr,
                 Host_->GetInputNodeDirectory(),

@@ -204,14 +204,14 @@ message TReqGetBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
-    optional uint64 peer_expiration_deadline = 4;
+    reserved 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
     // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_cache = 7 [default = true];
     // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_disk = 8 [default = true];
-    optional int32 peer_node_id = 9;
+    reserved 9;
 
     repeated TP2PBarrier wait_barriers = 11;
     optional NYT.NProto.TGuid read_session_id = 12;

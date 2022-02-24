@@ -33,6 +33,10 @@ DEFINE_REFCOUNTED_TYPE(IFileReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NConcurrency::IAsyncZeroCopyInputStreamPtr CreateFileReaderAdapter(IFileReaderPtr underlying);
+
+////////////////////////////////////////////////////////////////////////////////
+
 IFileReaderPtr CreateFileChunkReader(
     NChunkClient::TBlockFetcherConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
@@ -51,7 +55,6 @@ IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

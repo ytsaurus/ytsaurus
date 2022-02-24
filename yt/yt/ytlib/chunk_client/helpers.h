@@ -149,7 +149,6 @@ IChunkReaderPtr CreateRemoteReader(
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
-    std::optional<NNodeTrackerClient::TNodeId> localNodeId,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter = nullptr,

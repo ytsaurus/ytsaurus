@@ -710,7 +710,6 @@ private:
             RemoteClient_,
             Host_->GetInputNodeDirectory(),
             Host_->LocalDescriptor(),
-            std::nullopt,
             inputChunkId,
             inputReplicas,
             Host_->GetReaderBlockCache(),
