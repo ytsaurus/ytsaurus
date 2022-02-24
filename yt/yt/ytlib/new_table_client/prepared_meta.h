@@ -102,7 +102,6 @@ struct TValueMeta
     : public TMeta<Type>
     , public TDenseMeta
 {
-
     void Init(const NProto::TSegmentMeta& meta);
 };
 

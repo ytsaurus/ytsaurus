@@ -14,7 +14,7 @@
 
 namespace NYT::NNewTableClient {
 
-using TIdRange = std::pair<ui16, ui16>;
+using TIdRange = std::pair<ui32, ui32>;
 
 struct TDataBufferTag { };
 

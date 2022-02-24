@@ -284,14 +284,14 @@ protected:
 class TScanVersionExtractorBase
 {
 public:
-    Y_FORCE_INLINE ui32 AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 id) const;
+    Y_FORCE_INLINE ui32 AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 id) const;
 
     // Micro-optimized version of AdjustIndex.
     // No check valueIdx != valueIdxEnd for initial value of index.
-    Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 id) const;
+    Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 id) const;
 
 protected:
-    TMemoryHolder<ui16> WriteTimestampIds_;
+    TMemoryHolder<ui32> WriteTimestampIds_;
 };
 
 template <bool Aggregate>
@@ -547,11 +547,11 @@ public:
 
     Y_FORCE_INLINE void ExtractVersion(TVersionedValue* value, const TTimestamp* timestamps, ui32 position) const;
 
-    Y_FORCE_INLINE ui32 AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const;
+    Y_FORCE_INLINE ui32 AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const;
 
     // Micro-optimized version of AdjustIndex.
     // No check valueIdx != valueIdxEnd for initial value of index.
-    Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui16 timestampId) const;
+    Y_FORCE_INLINE ui32 AdjustLowerIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const;
 
 protected:
     const ui64* Ptr_ = nullptr;
