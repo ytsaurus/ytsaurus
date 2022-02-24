@@ -346,10 +346,10 @@ public:
                 "Not an active leader"));
         }
 
-        auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
-        if (GetReadOnly() && loggedVersion.RecordId == 0) {
+        if (GetReadOnly()) {
+            auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
-            if (loggedVersion.SegmentId == lastSnapshotId) {
+            if (loggedVersion.SegmentId == lastSnapshotId && loggedVersion.RecordId == 0) {
                 return MakeFuture<int>(TError(
                     NHydra::EErrorCode::ReadOnlySnapshotBuilt,
                     "The requested read-only snapshot is already built")

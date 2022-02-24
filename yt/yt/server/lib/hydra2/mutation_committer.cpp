@@ -327,6 +327,7 @@ void TLeaderCommitter::FlushMutations()
             auto* snapshotRequest = request->mutable_snapshot_request();
             snapshotRequest->set_snapshot_id(LastSnapshotInfo_->SnapshotId);
             snapshotRequest->set_sequence_number(LastSnapshotInfo_->SequenceNumber);
+            snapshotRequest->set_read_only(LastSnapshotInfo_->ReadOnly);
         }
 
         YT_LOG_DEBUG("Sending mutations to follower (PeerId: %v, NextExpectedSequenceNumber: %v, MutationCount: %v, CommittedState: %v)",
@@ -593,11 +594,12 @@ bool TLeaderCommitter::CanBuildSnapshot() const
     return !LastSnapshotInfo_;
 }
 
-TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion)
+TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOnly)
 {
     YT_VERIFY(!LastSnapshotInfo_);
     LastSnapshotInfo_ = TShapshotInfo{
-        .SnapshotId = NextLoggedVersion_.SegmentId + 1
+        .SnapshotId = NextLoggedVersion_.SegmentId + 1,
+        .ReadOnly = readOnly
     };
 
     auto result = waitForCompletion
@@ -607,6 +609,21 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion)
         Checkpoint();
     }
     return result;
+}
+
+std::optional<TFuture<int>> TLeaderCommitter::GetLastSnapshotFuture(bool waitForCompletion, bool readOnly)
+{
+    if (!LastSnapshotInfo_) {
+        return std::nullopt;
+    }
+
+    if (LastSnapshotInfo_->ReadOnly != readOnly) {
+        return std::nullopt;
+    }
+
+    return waitForCompletion
+        ? LastSnapshotInfo_->Promise.ToFuture()
+        : MakeFuture(LastSnapshotInfo_->SnapshotId);
 }
 
 void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemoteSnapshotParams>& rspOrError)
@@ -660,7 +677,8 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 
     if (!LastSnapshotInfo_) {
         LastSnapshotInfo_ = TShapshotInfo{
-            .SnapshotId = changelogId
+            .SnapshotId = changelogId,
+            .ReadOnly = false
         };
     } else {
         YT_VERIFY(LastSnapshotInfo_->SequenceNumber == -1);

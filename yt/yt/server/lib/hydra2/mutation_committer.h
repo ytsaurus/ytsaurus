@@ -105,7 +105,8 @@ public:
     TVersion GetLoggedVersion() const;
 
     bool CanBuildSnapshot() const;
-    TFuture<int> BuildSnapshot(bool waitForCompletion);
+    TFuture<int> BuildSnapshot(bool waitForCompletion, bool readOnly);
+    std::optional<TFuture<int>> GetLastSnapshotFuture(bool waitForCompletion, bool readOnly);
 
     void SetReadOnly();
 
@@ -152,6 +153,7 @@ private:
         i64 SequenceNumber = -1;
         std::vector<bool> HasReply;
         std::vector<std::optional<TChecksum>> Checksums;
+        bool ReadOnly = false;
 
         TPromise<int> Promise = NewPromise<int>();
 
