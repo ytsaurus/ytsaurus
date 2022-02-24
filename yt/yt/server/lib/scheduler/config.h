@@ -802,11 +802,6 @@ public:
     //! The number of threads for background activity.
     int BackgroundThreadCount;
 
-    //! This option enables special logic to handle the situation when node has changed the id.
-    //! To prevent node duplication in orchid we must detect such situations and immediately remove node from old node shard.
-    //! This option can cause performance issues.
-    bool HandleNodeIdChangesStrictly;
-
     //! Allowed resources overcommit duration before scheduler initiate job abortions.
     TDuration AllowedNodeResourcesOvercommitDuration;
 

@@ -883,9 +883,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(4)
         .GreaterThan(0);
 
-    registrar.Parameter("handle_node_id_changes_strictly", &TThis::HandleNodeIdChangesStrictly)
-        .Default(true);
-
     registrar.Parameter("allowed_node_resources_overcommit_duration", &TThis::AllowedNodeResourcesOvercommitDuration)
         .Default(TDuration::Seconds(15));
 
