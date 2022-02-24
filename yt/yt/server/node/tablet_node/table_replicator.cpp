@@ -315,10 +315,17 @@ private:
 
                 if (!readReplicationBatch()) {
                     checkPrevReplicationRowIndex = false;
-                    startRowIndex = ReplicationLogParser_->ComputeStartRowIndex(
+
+                    auto startRowIndexOrNullopt = ReplicationLogParser_->ComputeStartRowIndex(
                         tabletSnapshot,
                         replicaSnapshot->StartReplicationTimestamp,
                         chunkReadOptions);
+                    if (!startRowIndexOrNullopt) {
+                        THROW_ERROR_EXCEPTION("No replication log rows are available")
+                            << HardErrorAttribute;
+                    }
+
+                    startRowIndex = *startRowIndexOrNullopt;
                     YT_VERIFY(readReplicationBatch());
                 }
             }

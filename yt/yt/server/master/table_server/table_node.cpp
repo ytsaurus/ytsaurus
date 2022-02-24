@@ -327,7 +327,7 @@ bool TTableNode::IsPhysicallyLog() const
 
 bool TTableNode::IsPhysicallySorted() const
 {
-    return IsSorted() && !IsReplicated();
+    return IsSorted() && !IsPhysicallyLog();
 }
 
 TReplicationCardId TTableNode::GetReplicationCardId() const

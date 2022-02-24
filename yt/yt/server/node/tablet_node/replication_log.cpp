@@ -250,7 +250,7 @@ public:
         }
     }
 
-    i64 ComputeStartRowIndex(
+    std::optional<i64> ComputeStartRowIndex(
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const TClientChunkReadOptions& chunkReadOptions) override
@@ -261,8 +261,7 @@ public:
         auto rowIndexLo = trimmedRowCount;
         auto rowIndexHi = totalRowCount;
         if (rowIndexLo == rowIndexHi) {
-            THROW_ERROR_EXCEPTION("No replication log rows are available")
-                << HardErrorAttribute;
+            return {};
         }
 
         YT_LOG_DEBUG("Started computing replication start row index (StartReplicationTimestamp: %llx, RowIndexLo: %v, RowIndexHi: %v)",

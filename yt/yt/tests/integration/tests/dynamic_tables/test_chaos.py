@@ -3,7 +3,8 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver,
     get, set, ls, create, exists, remove, start_transaction, commit_transaction,
-    sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
+    reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
@@ -1014,6 +1015,30 @@ class TestChaos(ChaosTestBase):
                 return False
         wait(_insistent_insert_rows)
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+
+    @authors("savrus")
+    def test_queue_trimming(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        def _check(value, row_count):
+            rows = [{"key": 1, "value": value}]
+            keys = [{"key": 1}]
+            insert_rows("//tmp/t", rows)
+            wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+            wait(lambda: get("//tmp/q/@tablets/0/trimmed_row_count", driver=remote_driver0) == row_count)
+            sync_flush_table("//tmp/q", driver=remote_driver0)
+            wait(lambda: get("//tmp/q/@chunk_count", driver=remote_driver0) == 0)
+
+        _check("1", 1)
+        _check("2", 2)
+
 
 ##################################################################
 

@@ -851,11 +851,15 @@ private:
                     trimmedRowCount,
                     totalRowCount);
 
-                if (totalRowCount > trimmedRowCount) {
-                    auto currentRowIndex = startReplicationRowIndex.value_or(logParser->ComputeStartRowIndex(
+                auto startRowIndex = startReplicationRowIndex
+                    ? startReplicationRowIndex
+                    : logParser->ComputeStartRowIndex(
                         tabletSnapshot,
                         GetReplicationProgressMinTimestamp(progress),
-                        chunkReadOptions));
+                        chunkReadOptions);
+
+                if (startRowIndex) {
+                    auto currentRowIndex = *startRowIndex;
 
                     ReadReplicationBatch(
                         tabletSnapshot,

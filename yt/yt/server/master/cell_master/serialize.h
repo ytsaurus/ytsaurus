@@ -103,6 +103,7 @@ DEFINE_ENUM(EMasterReign,
     ((BackupErrors)                                                 (1935))  // ifsmirnov
     ((EnableTypeV3Dyntable)                                         (1936))  // ermolovd
     ((TabletBalancerUser)                                           (1937))  // alexelexa
+    ((ReplicationLogTablesTrimming)                                 (1938))  // savrus
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.
