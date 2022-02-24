@@ -29,16 +29,40 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicationCardObserverConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration ObservationPeriod;
+    i64 ReplicationCardCountPerRound;
+
+    TReplicationCardObserverConfig()
+    {
+        RegisterParameter("observation_period", ObservationPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("replication_card_count_per_round", ReplicationCardCountPerRound)
+            .GreaterThan(0)
+            .Default(1000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicationCardObserverConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChaosManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
     TChaosCellSynchronizerConfigPtr ChaosCellSynchronizer;
+    TReplicationCardObserverConfigPtr ReplicationCardObserver;
     TDuration EraCommencingPeriod;
 
     TChaosManagerConfig()
     {
         RegisterParameter("chaos_cell_synchronizer", ChaosCellSynchronizer)
+            .DefaultNew();
+        RegisterParameter("replication_card_observer", ReplicationCardObserver)
             .DefaultNew();
         RegisterParameter("era_commencing_period", EraCommencingPeriod)
             .Default(TDuration::Seconds(15));

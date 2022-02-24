@@ -13,8 +13,6 @@
 #include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 
-#include <yt/yt/server/lib/chaos_node/proto/chaos_manager.pb.h>
-
 #include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>

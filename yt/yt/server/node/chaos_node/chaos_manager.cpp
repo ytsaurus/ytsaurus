@@ -6,6 +6,7 @@
 #include "chaos_slot.h"
 #include "private.h"
 #include "replication_card.h"
+#include "replication_card_observer.h"
 #include "slot_manager.h"
 
 #include <yt/yt/server/node/chaos_node/transaction_manager.h>
@@ -73,6 +74,7 @@ public:
             slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::EraCommencer),
             BIND(&TChaosManager::InvestigateStalledReplicationCards, MakeWeak(this)),
             Config_->EraCommencingPeriod))
+        , ReplicationCardObserver_(CreateReplicationCardObserver(Config_->ReplicationCardObserver, slot))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -105,6 +107,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraRspRevokeShortcuts, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraSuspendCoordinator, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraResumeCoordinator, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraRemoveExpiredReplicaHistory, Unretained(this)));
     }
 
     void Initialize() override
@@ -275,6 +278,7 @@ private:
     const IYPathServicePtr OrchidService_;
     const IChaosCellSynchronizerPtr ChaosCellSynchronizer_;
     const TPeriodicExecutorPtr CommencerExecutor_;
+    const IReplicationCardObserverPtr ReplicationCardObserver_;
 
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     std::vector<TCellId> CoordinatorCellIds_;
@@ -340,6 +344,7 @@ private:
 
         ChaosCellSynchronizer_->Start();
         CommencerExecutor_->Start();
+        ReplicationCardObserver_->Start();
     }
 
     void OnStopLeading() override
@@ -350,6 +355,7 @@ private:
 
         ChaosCellSynchronizer_->Stop();
         CommencerExecutor_->Stop();
+        ReplicationCardObserver_->Stop();
     }
 
 
@@ -961,6 +967,36 @@ private:
             replicaInfo->ReplicationProgress);
     }
 
+    void HydraRemoveExpiredReplicaHistory(NProto::TReqRemoveExpiredReplicaHistory *request)
+    {
+        auto expires = FromProto<std::vector<TExpiredReplicaHistory>>(request->expired_replica_histories());
+
+        for (const auto [replicaId, retainTimestamp] : expires) {
+            auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
+            auto* replicationCard = FindReplicationCard(replicationCardId);
+            if (!replicationCard) {
+                continue;
+            }
+
+            auto* replica = replicationCard->FindReplica(replicaId);
+            if (!replica) {
+                continue;
+            }
+
+            auto historyIndex = replica->FindHistoryItemIndex(retainTimestamp);
+            if (historyIndex > 0) {
+                replica->History.erase(
+                    replica->History.begin(),
+                    replica->History.begin() + historyIndex);
+
+                YT_LOG_DEBUG("Forsaken old replica history items (RepliationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
+                    replicationCardId,
+                    replicaId,
+                    retainTimestamp,
+                    historyIndex);
+            }
+        }
+    }
 
     void InvestigateStalledReplicationCards()
     {
