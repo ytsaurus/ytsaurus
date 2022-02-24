@@ -226,6 +226,7 @@ class YTEnvSetup(object):
     FORCE_CREATE_ENVIRONMENT = False
     NUM_CELL_BALANCERS = 0
     NUM_QUEUE_AGENTS = 0
+    NUM_TABLET_BALANCERS = 0
 
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
@@ -244,6 +245,7 @@ class YTEnvSetup(object):
     DELTA_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {}
     DELTA_CELL_BALANCER_CONFIG = {}
+    DELTA_TABLET_BALANCER_CONFIG = {}
 
     USE_PORTO = False
     USE_CUSTOM_ROOTFS = False
@@ -305,6 +307,10 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def modify_tablet_balancer_config(cls, config):
+        pass
+
+    @classmethod
     def on_masters_started(cls):
         pass
 
@@ -361,6 +367,7 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_CONTROLLER_AGENTS", index)
                 if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None
                 else cls.get_param("NUM_SCHEDULERS", index)),
+            tablet_balancer_count=cls.get_param("NUM_TABLET_BALANCERS", index),
             defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
             http_proxy_count=(
                 cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0),
@@ -584,6 +591,10 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
             configs["cell_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_cell_balancer_config(configs["cell_balancer"][index])
+        for index, config in enumerate(configs["tablet_balancer"]):
+            config = update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
+            configs["tablet_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_cell_balancer_config(configs["tablet_balancer"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             config = update_inplace(

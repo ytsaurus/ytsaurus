@@ -736,3 +736,11 @@ b"""
     }
 }
 """)
+
+def get_tablet_balancer_config():
+    return yson.loads(
+b"""
+{
+}
+"""
+)

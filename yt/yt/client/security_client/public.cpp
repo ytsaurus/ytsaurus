@@ -24,6 +24,7 @@ const TString TabletCellSnapshotterUserName("tablet_cell_snapshotter");
 const TString TableMountInformerUserName("table_mount_informer");
 const TString AlienCellSynchronizerUserName("alien_cell_synchronizer");
 const TString QueueAgentUserName("queue_agent");
+const TString TabletBalancerUserName("tablet_balancer");
 
 const TString EveryoneGroupName("everyone");
 const TString UsersGroupName("users");

@@ -102,6 +102,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueList)                                                    (1934))  // achulkov2
     ((BackupErrors)                                                 (1935))  // ifsmirnov
     ((EnableTypeV3Dyntable)                                         (1936))  // ermolovd
+    ((TabletBalancerUser)                                           (1937))  // alexelexa
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.

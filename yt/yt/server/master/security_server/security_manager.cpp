@@ -477,6 +477,7 @@ public:
         TableMountInformerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffea);
         AlienCellSynchronizerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe9);
         QueueAgentUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe8);
+        TabletBalancerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe7);
 
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
@@ -2436,6 +2437,9 @@ private:
     TUserId QueueAgentUserId_;
     TUser* QueueAgentUser_ = nullptr;
 
+    TUserId TabletBalancerUserId_;
+    TUser* TabletBalancerUser_ = nullptr;
+
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
 
@@ -2597,7 +2601,8 @@ private:
             id == TabletCellSnapshotterUserId_ ||
             id == TableMountInformerUserId_ ||
             id == AlienCellSynchronizerUserId_ ||
-            id == QueueAgentUserId_)
+            id == QueueAgentUserId_ ||
+            id == TabletBalancerUserId_)
         {
             return SuperusersGroup_;
         } else {
@@ -3135,6 +3140,7 @@ private:
         TableMountInformerUser_ = nullptr;
         AlienCellSynchronizerUser_ = nullptr;
         QueueAgentUser_ = nullptr;
+        TabletBalancerUser_ = nullptr;
         ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
         FileCacheUser_ = nullptr;
@@ -3305,6 +3311,9 @@ private:
 
         // queue agent
         EnsureBuiltinUserInitialized(QueueAgentUser_, QueueAgentUserId_, QueueAgentUserName);
+
+        // tablet balancer
+        EnsureBuiltinUserInitialized(TabletBalancerUser_, TabletBalancerUserId_, TabletBalancerUserName);
 
         // Accounts
         // root, infinite resources, not meant to be used
