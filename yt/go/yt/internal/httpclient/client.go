@@ -209,14 +209,34 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	req.Header.Add("X-YT-Header-Format", "<format=text>yson")
 	req.Header.Add("X-YT-Output-Format", "yson")
 
-	if requestCredentials := yt.ContextCredentials(ctx); requestCredentials != nil {
-		requestCredentials.Set(req)
-	} else if c.credentials != nil {
-		c.credentials.Set(req)
+	credentials, err := c.requestCredentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if credentials != nil {
+		credentials.Set(req)
 	}
 
 	c.logRequest(ctx, req)
 	return
+}
+
+func (c *httpClient) requestCredentials(ctx context.Context) (yt.Credentials, error) {
+	if creds := yt.ContextCredentials(ctx); creds != nil {
+		return creds, nil
+	}
+
+	if c.config.TVMFn != nil {
+		ticket, err := c.config.TVMFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		credentials := &yt.ServiceTicketCredentials{Ticket: ticket}
+		return credentials, nil
+	}
+
+	return c.credentials, nil
 }
 
 func (c *httpClient) logRequest(ctx context.Context, req *http.Request) {
@@ -682,8 +702,10 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Wrap(client.readRetrier.Write).
 		Wrap(errorWrapper.Write)
 
-	if token := c.GetToken(); token != "" {
-		client.credentials = &yt.TokenCredentials{Token: token}
+	if c.TVMFn == nil {
+		if token := c.GetToken(); token != "" {
+			client.credentials = &yt.TokenCredentials{Token: token}
+		}
 	}
 
 	return &client, nil

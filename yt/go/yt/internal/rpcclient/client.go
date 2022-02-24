@@ -150,8 +150,14 @@ func (c *client) invoke(
 
 	opts = append(opts,
 		bus.WithRequestID(call.CallID),
-		bus.WithToken(c.token),
 	)
+
+	credentials, err := c.requestCredentials(ctx)
+	if err != nil {
+		return err
+	}
+	opts = append(opts, bus.WithCredentials(credentials))
+
 	if call.Attachments != nil {
 		opts = append(opts, bus.WithAttachments(call.Attachments...))
 	}
@@ -184,6 +190,25 @@ func (c *client) invoke(
 	}
 
 	return err
+}
+
+func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error) {
+	if creds := yt.ContextCredentials(ctx); creds != nil {
+		return creds, nil
+	}
+
+	if c.conf.TVMFn != nil {
+		ticket, err := c.conf.TVMFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		credentials := &yt.ServiceTicketCredentials{Ticket: ticket}
+		return credentials, nil
+	}
+
+	credentials := &yt.TokenCredentials{Token: c.token}
+	return credentials, nil
 }
 
 func (c *client) getConn(ctx context.Context, addr string) (*conn, error) {

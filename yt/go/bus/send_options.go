@@ -73,6 +73,19 @@ func WithToken(token string) *sendOption {
 	}
 }
 
+type Credentials interface {
+	SetExtension(req *rpc.TRequestHeader)
+}
+
+func WithCredentials(credentials Credentials) *sendOption {
+	return &sendOption{
+		Before: func(req *clientReq) {
+			credentials.SetExtension(req.reqHeader)
+		},
+		After: func(req *clientReq) {},
+	}
+}
+
 func WithUser(user string) *sendOption {
 	return &sendOption{
 		Before: func(req *clientReq) {
