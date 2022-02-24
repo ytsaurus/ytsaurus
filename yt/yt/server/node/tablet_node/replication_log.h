@@ -46,7 +46,7 @@ struct IReplicationLogParser
         TTimestamp* timestamp,
         bool isVersioned) = 0;
 
-    virtual i64 ComputeStartRowIndex(
+    virtual std::optional<i64> ComputeStartRowIndex(
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions) = 0;

@@ -349,7 +349,7 @@ TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgr
     return result;
 }
 
-NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress)
+TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress)
 {
     auto minTimestamp = MaxTimestamp;
     for (const auto& segment : progress.Segments) {
@@ -358,7 +358,7 @@ NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplica
     return minTimestamp;
 }
 
-NTransactionClient::TTimestamp GetReplicationProgressTimestampForKey(
+TTimestamp GetReplicationProgressTimestampForKey(
     const TReplicationProgress& progress,
     TUnversionedRow key)
 {
@@ -372,6 +372,29 @@ NTransactionClient::TTimestamp GetReplicationProgressTimestampForKey(
 
     YT_VERIFY(it != progress.Segments.begin());
     return (it - 1)->Timestamp;
+}
+
+TTimestamp GetReplicationProgressMinTimestamp(
+    const TReplicationProgress& progress,
+    TLegacyKey lower,
+    TLegacyKey upper)
+{
+    auto it = std::upper_bound(
+        progress.Segments.begin(),
+        progress.Segments.end(),
+        lower,
+        [] (const auto& lhs, const auto& rhs) {
+            return CompareRows(lhs, rhs.LowerKey) < 0;
+        });
+
+    YT_VERIFY(it != progress.Segments.begin());
+    --it;
+
+    auto minTimestamp = MaxTimestamp;
+    for (; it < progress.Segments.end() && it->LowerKey < upper; ++it) {
+        minTimestamp = std::min(it->Timestamp, minTimestamp);
+    }
+    return minTimestamp;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

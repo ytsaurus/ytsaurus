@@ -3793,12 +3793,13 @@ private:
                 ToProto(req.mutable_schema_id(), table->GetSchema()->GetId());
                 ToProto(req.mutable_schema(), *table->GetSchema()->AsTableSchema());
 
-                if (table->IsPhysicallySorted()) {
+                if (table->IsSorted() && !table->IsReplicated()) {
                     ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
                     ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == std::ssize(allTablets)
                         ? MaxKey()
                         : allTablets[tabletIndex + 1]->GetPivotKey());
-                } else {
+                }
+                if (!table->IsPhysicallySorted()) {
                     req.set_trimmed_row_count(tablet->GetTrimmedRowCount());
                 }
                 FillTableSettings(&req, serializedTableSettings);

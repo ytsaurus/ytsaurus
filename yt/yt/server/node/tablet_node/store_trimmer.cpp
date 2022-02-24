@@ -1,14 +1,16 @@
 #include "store_trimmer.h"
 
 #include "bootstrap.h"
-#include "store.h"
 #include "ordered_chunk_store.h"
+#include "private.h"
 #include "slot_manager.h"
+#include "store.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "private.h"
+#include "tablet_snapshot_store.h"
+#include "replication_log.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -45,8 +47,13 @@ using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NTabletClient;
+using namespace NChunkClient;
 
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,9 +128,16 @@ private:
         TTablet* tablet)
     {
         if (tablet->IsPhysicallyLog()) {
-            return;
+            return RequestReplicationLogStoreTrim(slot, tablet);
         }
 
+        RequestOrderedStoreTrim(slot, tablet);
+    }
+
+    void RequestOrderedStoreTrim(
+        const ITabletSlotPtr& slot,
+        TTablet* tablet)
+    {
         const auto& mountConfig = tablet->GetSettings().MountConfig;
 
         if (mountConfig->MinDataVersions != 0) {
@@ -163,15 +177,118 @@ private:
             trimmedRowCount = chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount();
         }
 
-        if (trimmedRowCount > tablet->GetTrimmedRowCount()) {
-            NProto::TReqTrimRows hydraRequest;
-            ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
-            hydraRequest.set_mount_revision(tablet->GetMountRevision());
-            hydraRequest.set_trimmed_row_count(trimmedRowCount);
-            NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
-            CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->CommitAndLog(TabletNodeLogger);
+        CommitTrimRowsMutation(slot, tablet->GetId(), trimmedRowCount);
+    }
+
+    void RequestReplicationLogStoreTrim(
+        const ITabletSlotPtr& slot,
+        TTablet* tablet)
+    {
+        if (tablet->IsReplicated()) {
+            return;
         }
+
+        const auto& replicationCard = tablet->ChaosData()->ReplicationCard;
+
+        if (!replicationCard) {
+            return;
+        }
+
+        auto selfMinTimestamp = NullTimestamp;
+        auto minTimestamp = MaxTimestamp;
+        auto lower = tablet->GetPivotKey().Get();
+        auto upper = tablet->GetNextPivotKey().Get();
+
+        for (const auto& [replicaId, replica] : replicationCard->Replicas) {
+            auto replicaMinTimestamp = GetReplicationProgressMinTimestamp(
+                replica.ReplicationProgress,
+                lower,
+                upper);
+
+            if (replicaId == tablet->GetUpstreamReplicaId()) {
+                selfMinTimestamp = replicaMinTimestamp;
+            } else {
+                minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
+            }
+        }
+
+        if (selfMinTimestamp > minTimestamp) {
+            Bootstrap_->GetTableReplicatorPoolInvoker()->Invoke(BIND(
+                &TStoreTrimmer::FindReplicationLogTrimRowIndex,
+                MakeWeak(this),
+                tablet->GetId(),
+                tablet->GetEpochAutomatonInvoker(),
+                minTimestamp,
+                slot));
+        }
+    }
+
+    void FindReplicationLogTrimRowIndex(
+        TTabletId tabletId,
+        IInvokerPtr tabletInvoker,
+        TTimestamp trimTimestamp,
+        ITabletSlotPtr slot)
+    {
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+
+        auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId);
+        if (!tabletSnapshot) {
+            return;
+        }
+
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
+            .ReadSessionId = TReadSessionId::Create(),
+        };
+        auto logParser = CreateReplicationLogParser(
+            tabletSnapshot->TableSchema,
+            tabletSnapshot->Settings.MountConfig,
+            EWorkloadCategory::SystemTabletReplication,
+            Logger);
+        auto startRowIndex = logParser->ComputeStartRowIndex(
+            tabletSnapshot,
+            trimTimestamp,
+            chunkReadOptions);
+
+        YT_LOG_DEBUG("Computed replication log trim row count (TabletId: %v, TrimTimestamp: %v, TrimRowCount: %v)",
+            tabletId,
+            trimTimestamp,
+            startRowIndex);
+
+        if (!startRowIndex) {
+            return;
+        }
+
+        tabletInvoker->Invoke(BIND(
+            &TStoreTrimmer::CommitTrimRowsMutation,
+            MakeWeak(this),
+            slot,
+            tabletId,
+            *startRowIndex));
+    }
+
+    void CommitTrimRowsMutation(
+        ITabletSlotPtr slot,
+        TTabletId tabletId,
+        i64 trimmedRowCount)
+    {
+        auto* tablet = slot->GetTabletManager()->FindTablet(tabletId);
+        if (!tablet) {
+            YT_LOG_ALERT("Tablet not found while we are in tablet automaton invoker (TabletId: %v)",
+                tabletId);
+            return;
+        }
+
+        if (trimmedRowCount <= tablet->GetTrimmedRowCount()) {
+            return;
+        }
+
+        NProto::TReqTrimRows hydraRequest;
+        ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
+        hydraRequest.set_mount_revision(tablet->GetMountRevision());
+        hydraRequest.set_trimmed_row_count(trimmedRowCount);
+        CreateMutation(slot->GetHydraManager(), hydraRequest)
+            ->CommitAndLog(Logger);
     }
 
     void TrimStores(
