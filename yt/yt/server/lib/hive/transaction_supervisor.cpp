@@ -1420,6 +1420,11 @@ private:
 
         RemovePersistentCommit(commit);
 
+        // Transaction may have been (unsuccessfully) aborted. Cached abort errors should not outlive the commit.
+        if (auto* abort = FindAbort(transactionId)) {
+            RemoveAbort(abort);
+        }
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Distributed transaction commit finished (TransactionId: %v)",
             transactionId);
     }
