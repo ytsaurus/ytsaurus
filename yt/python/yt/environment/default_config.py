@@ -602,6 +602,9 @@ b"""
             chaos_cell_synchronizer = {
                 sync_period = 100;
             };
+            replication_card_observer = {
+                observation_period = 100;
+            };
             era_commencing_period = 100;
         };
         snapshot_store_read_pool_size = 1;

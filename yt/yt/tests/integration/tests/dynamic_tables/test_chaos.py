@@ -1,8 +1,8 @@
 from test_dynamic_tables import DynamicTablesBase
 
 from yt_commands import (
-    authors, wait, execute_command, get_driver, get, set, ls, create, exists, remove,
-    start_transaction, commit_transaction,
+    authors, print_debug, wait, execute_command, get_driver,
+    get, set, ls, create, exists, remove, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
@@ -963,6 +963,57 @@ class TestChaos(ChaosTestBase):
         assert attributes["replica_path"] == "//tmp/r0"
         assert attributes["cluster_name"] == "remote_0"
 
+    @authors("savrus")
+    @pytest.mark.parametrize("disable_data", [True, False])
+    def test_trim_replica_history_items(self, disable_data):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        def _insistent_alter_table_replica(replica_id, mode):
+            try:
+                alter_table_replica(replica_id, mode=mode)
+                return True
+            except YtError as err:
+                if err.contains_text("Replica mode is transitioning"):
+                    return False
+                raise err
+
+        wait(lambda: _insistent_alter_table_replica(replica_ids[2], "sync"))
+        wait(lambda: _insistent_alter_table_replica(replica_ids[1], "async"))
+        if disable_data:
+            self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
+        wait(lambda: _insistent_alter_table_replica(replica_ids[1], "sync"))
+        wait(lambda: _insistent_alter_table_replica(replica_ids[2], "async"))
+        wait(lambda: _insistent_alter_table_replica(replica_ids[2], "sync"))
+        wait(lambda: _insistent_alter_table_replica(replica_ids[1], "async"))
+        if disable_data:
+            self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
+
+        def _check():
+            card = get("#{0}/@".format(card_id))
+            if card["era"] < 4 or any(len(replica["history"]) > 1 for replica in card["replicas"].values()):
+                return False
+            return True
+        wait(_check)
+
+        rows = [{"key": 1, "value": "1"}]
+        keys = [{"key": 1}]
+
+        def _insistent_insert_rows():
+            try:
+                insert_rows("//tmp/t", rows)
+                return True
+            except YtError as err:
+                print_debug("Insert failed: ", err)
+                return False
+        wait(_insistent_insert_rows)
+        wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
 ##################################################################
 

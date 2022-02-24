@@ -58,4 +58,15 @@ message TReqResumeCoordinator
     required NYT.NProto.TGuid coordinator_cell_id = 1;
 }
 
+message TExpiredReplicaHistory
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required uint64 retain_timestamp = 2;
+}
+
+message TReqRemoveExpiredReplicaHistory
+{
+    repeated TExpiredReplicaHistory expired_replica_histories = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

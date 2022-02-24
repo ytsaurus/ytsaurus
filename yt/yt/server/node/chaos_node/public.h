@@ -29,6 +29,7 @@ DECLARE_REFCOUNTED_STRUCT(ICoordinatorManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(IChaosCellSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(IShortcutSnapshotStore)
+DECLARE_REFCOUNTED_STRUCT(IReplicationCardObserver)
 
 enum class EChaosSnapshotVersion;
 class TSaveContext;
