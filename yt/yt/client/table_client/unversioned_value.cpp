@@ -1,7 +1,5 @@
 #include "unversioned_value.h"
 
-#include <yt/yt/core/misc/farm_hash.h>
-
 
 #ifndef YT_COMPILING_UDF
 
@@ -41,24 +39,24 @@ ui64 GetHash(const TUnversionedValue& value)
 }
 
 // Forever-fixed Google FarmHash fingerprint.
-TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
+TFingerprint FarmFingerprint(const TUnversionedValue& value)
 {
     auto type = value.Type;
     switch (type) {
         case EValueType::String:
-            return FarmFingerprint(value.Data.String, value.Length);
+            return NYT::FarmFingerprint(value.Data.String, value.Length);
 
         case EValueType::Int64:
         case EValueType::Uint64:
         case EValueType::Double:
             // These types are aliased.
-            return FarmFingerprint(value.Data.Int64);
+            return NYT::FarmFingerprint(value.Data.Int64);
 
         case EValueType::Boolean:
-            return FarmFingerprint(value.Data.Boolean);
+            return NYT::FarmFingerprint(value.Data.Boolean);
 
         case EValueType::Null:
-            return FarmFingerprint(0);
+            return NYT::FarmFingerprint(0);
 
         default:
 
@@ -75,23 +73,23 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
     }
 }
 
+TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
+{
+    return FarmFingerprint(value);
+}
+
 TFingerprint GetHash(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
     ui64 result = 0xdeadc0de;
     for (const auto* value = begin; value < end; ++value) {
-        result = FarmFingerprint(result, GetHash(*value));
+        result = NYT::FarmFingerprint(result, GetHash(*value));
     }
     return result ^ (end - begin);
 }
 
-// Forever-fixed Google FarmHash fingerprint.
 TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    ui64 result = 0xdeadc0de;
-    for (const auto* value = begin; value < end; ++value) {
-        result = FarmFingerprint(result, GetFarmFingerprint(*value));
-    }
-    return result ^ (end - begin);
+    return NYT::FarmFingerprint<TUnversionedValue>(begin, end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
