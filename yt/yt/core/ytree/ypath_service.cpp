@@ -203,7 +203,110 @@ private:
 
 IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer, TDuration cachePeriod)
 {
-    return New<TFromProducerYPathService>(producer, cachePeriod);
+    return New<TFromProducerYPathService>(std::move(producer), cachePeriod);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFromExtendedProducerYPathService
+    : public TYPathServiceBase
+    , public TSupportsGet
+{
+    using TUnderlyingProducer = TExtendedYsonProducer<const IAttributeDictionaryPtr&>;
+public:
+    explicit TFromExtendedProducerYPathService(TUnderlyingProducer producer)
+        : Producer_(std::move(producer))
+    { }
+
+    TResolveResult Resolve(
+        const TYPath& path,
+        const IServiceContextPtr& context) override
+    {
+        // Try to handle root get requests without constructing ephemeral YTree.
+        if (path.empty() && context->GetMethod() == "Get") {
+            return TResolveResultHere{path};
+        } else {
+            auto typedContext = New<TCtxGet>(context, NRpc::THandlerInvocationOptions{});
+            if (!typedContext->DeserializeRequest()) {
+                THROW_ERROR_EXCEPTION("Error deserializing request");
+            }
+
+            const auto& request = typedContext->Request();
+            IAttributeDictionaryPtr options;
+            if (request.has_options()) {
+                options = NYTree::FromProto(request.options());
+            }
+
+            return TResolveResultThere{BuildNodeFromProducer(options), path};
+        }
+    }
+
+private:
+    TUnderlyingProducer Producer_;
+
+    bool DoInvoke(const IServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Get);
+        return TYPathServiceBase::DoInvoke(context);
+    }
+
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        IAttributeDictionaryPtr options;
+        if (request->has_options()) {
+            options = NYTree::FromProto(request->options());
+        }
+
+        if (request->has_attributes())  {
+            // Execute fallback.
+            auto node = BuildNodeFromProducer(options);
+            ExecuteVerb(node, IServiceContextPtr(context));
+            return;
+        }
+
+        auto yson = BuildStringFromProducer(options);
+        response->set_value(yson.ToString());
+        context->Reply();
+    }
+
+    void GetRecursive(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
+    {
+        YT_ABORT();
+    }
+
+    void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& /*context*/) override
+    {
+        YT_ABORT();
+    }
+
+
+    TYsonString BuildStringFromProducer(const IAttributeDictionaryPtr& options)
+    {
+        TStringStream stream;
+        {
+            TBufferedBinaryYsonWriter writer(&stream);
+            Producer_.Run(&writer, options);
+            writer.Flush();
+        }
+
+        auto str = stream.Str();
+        if (str.empty()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No data is available");
+        }
+
+        return TYsonString(std::move(str));
+    }
+
+    INodePtr BuildNodeFromProducer(const IAttributeDictionaryPtr& options)
+    {
+        return ConvertTo<INodePtr>(BuildStringFromProducer(options));
+    }
+};
+
+IYPathServicePtr IYPathService::FromProducer(
+    NYson::TExtendedYsonProducer<const IAttributeDictionaryPtr&> producer)
+{
+    return New<TFromExtendedProducerYPathService>(std::move(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

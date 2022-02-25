@@ -17,6 +17,7 @@
 
 #include <variant>
 
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,12 +86,20 @@ struct IYPathService
 
     //! Creates a YPath service from a YSON producer.
     /*!
-     *  Each time a request is issued, producer is called, its output is turned in
+     *  Each time a request is executed, producer is called, its output is turned into
      *  an ephemeral tree, and the request is forwarded to that tree.
      */
     static IYPathServicePtr FromProducer(
         NYson::TYsonProducer producer,
         TDuration cachePeriod = {});
+    
+    //! Creates a YPath service from an extended YSON producer.
+    /*!
+     *  Each time a request is executed, producer is called, its output is turned into
+     *  an ephemeral tree, and the request is forwarded to that tree.
+     */
+    static IYPathServicePtr FromProducer(
+        NYson::TExtendedYsonProducer<const IAttributeDictionaryPtr&> producer);
 
     //! Creates a producer from YPath service.
     /*!

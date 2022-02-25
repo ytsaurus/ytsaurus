@@ -2,11 +2,14 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, run_sleeping_vanilla, wait, get, set, exists, ls,
-    create_pool, create_pool_tree)
+    create_pool, create_pool_tree, get_driver)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path,
     scheduler_orchid_operation_by_pool_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_tree_path)
+
+from yt.wrapper.client import create_client_with_command_params
+from yt.wrapper import YtClient
 
 import builtins
 import time
@@ -85,6 +88,36 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         wait(lambda: get(
             scheduler_new_orchid_pool_tree_path("default") + "/resource_distribution_info") == get(
                 scheduler_orchid_pool_tree_path("default") + "/resource_distribution_info"))
+
+    @authors("pogorelov")
+    def test_orchid_filter(self):
+        create_pool("pool")
+        create_pool("child", parent_name="pool", attributes={"weight": 3.0})
+
+        client = create_client_with_command_params(
+            YtClient(config={
+                "enable_token": False,
+                "backend": "native",
+                "driver_config": get_driver().get_config(),
+            }),
+            fields=["running_operation_count", "mode", "is_ephemeral"],
+        )
+
+        assert client.get(scheduler_new_orchid_pool_tree_path("default") + "/pools") == {
+            'child': {
+                'mode': 'fair_share',
+                'is_ephemeral': False,
+                'running_operation_count': 0,
+            },
+            'pool': {
+                'mode': 'fair_share',
+                'is_ephemeral': False,
+                'running_operation_count': 0,
+            },
+            '<Root>': {
+                'running_operation_count': 0,
+            },
+        }
 
 
 class TestOrchidOnSchedulerRestart(YTEnvSetup):

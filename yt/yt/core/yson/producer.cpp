@@ -4,9 +4,6 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonProducer::TYsonProducer()
-{ }
-
 TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)
     : Type_(type)
     , Callback_(std::move(callback))
