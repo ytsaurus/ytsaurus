@@ -173,6 +173,8 @@ public:
 
     bool EnableInfinibandClusterTagValidation;
 
+    bool AllowOnlyGangOperationsInLargeSegment;
+
     const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);

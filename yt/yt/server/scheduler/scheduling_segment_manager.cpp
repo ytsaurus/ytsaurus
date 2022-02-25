@@ -651,14 +651,18 @@ static constexpr int LargeGpuSegmentJobGpuDemand = 8;
 ////////////////////////////////////////////////////////////////////////////////
 
 ESchedulingSegment TStrategySchedulingSegmentManager::GetSegmentForOperation(
-    ESegmentedSchedulingMode mode,
-    const TJobResources& operationMinNeededResources)
+    const TFairShareStrategySchedulingSegmentsConfigPtr& config,
+    const TJobResources& operationMinNeededResources,
+    bool isGang)
 {
-    switch (mode) {
-        case ESegmentedSchedulingMode::LargeGpu:
-            return operationMinNeededResources.GetGpu() == LargeGpuSegmentJobGpuDemand
+    switch (config->Mode) {
+        case ESegmentedSchedulingMode::LargeGpu: {
+            bool meetsGangCriterion = isGang || !config->AllowOnlyGangOperationsInLargeSegment;
+            bool meetsJobGpuDemandCriterion = operationMinNeededResources.GetGpu() == LargeGpuSegmentJobGpuDemand;
+            return meetsGangCriterion && meetsJobGpuDemandCriterion
                 ? ESchedulingSegment::LargeGpu
                 : ESchedulingSegment::Default;
+        }
         default:
             return ESchedulingSegment::Default;
     }

@@ -1204,7 +1204,7 @@ public:
     void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
-    void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
+    void InitOrUpdateSchedulingSegment(const TFairShareStrategySchedulingSegmentsConfigPtr& schedulingSegmentsConfig);
 
     const NVectorHdrf::TJobResourcesConfig* GetStrongGuaranteeResourcesConfig() const override;
     TResourceVector GetMaxShare() const override;
