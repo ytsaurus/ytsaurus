@@ -863,14 +863,17 @@ class TestClickHouseCommon(ClickHouseTestBase):
             "interruption_graceful_timeout": 1000,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             instances = clique.get_active_instances()
             assert len(instances) == 1
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
-            time.sleep(0.5)
-            assert len(clique.get_active_instances()) == 0
+
+            wait(lambda: len(clique.get_active_instances()) == 0)
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
-            time.sleep(0.8)
+
+            time.sleep(1)
+
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
@@ -886,16 +889,18 @@ class TestClickHouseCommon(ClickHouseTestBase):
             "interruption_graceful_timeout": 10000,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             instances = clique.get_active_instances()
             assert len(instances) == 1
             pid = instances[0].attributes["pid"]
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             self._signal_instance(pid, signal.SIGINT)
-            time.sleep(0.2)
-            assert len(clique.get_active_instances()) == 0
+
+            wait(lambda: len(clique.get_active_instances()) == 0)
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
+
             self._signal_instance(pid, signal.SIGINT)
-            time.sleep(0.2)
+            time.sleep(1)
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
@@ -911,7 +916,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             "graceful_interruption_delay": 0,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
-            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             instances = clique.get_active_instances()
             assert len(instances) == 1
 
@@ -931,6 +935,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     raise YtError("Query completed without exception")
                 except YtError as e:
                     return e.contains_code(InstanceUnavailableCode)
+
+            update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
 
             wait(check_instance_stopped, iter=10, sleep_backoff=0.2)
 
