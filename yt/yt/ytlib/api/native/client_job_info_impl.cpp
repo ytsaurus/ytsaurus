@@ -513,7 +513,7 @@ void TClient::DoDumpJobContext(
     const TYPath& path,
     const TDumpJobContextOptions& /*options*/)
 {
-    auto req = JobProberProxy_->DumpInputContext();
+    auto req = SchedulerJobProberProxy_->DumpInputContext();
     ToProto(req->mutable_job_id(), jobId);
     ToProto(req->mutable_path(), path);
 

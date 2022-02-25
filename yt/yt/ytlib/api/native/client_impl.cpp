@@ -140,8 +140,8 @@ TClient::TClient(
         wrapChannelFactory(Connection_->GetChannelFactory()),
         Connection_->GetNetworks());
 
-    SchedulerProxy_ = std::make_unique<TSchedulerServiceProxy>(GetSchedulerChannel());
-    JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(GetSchedulerChannel());
+    SchedulerOperationProxy_ = std::make_unique<TOperationServiceProxy>(GetSchedulerChannel());
+    SchedulerJobProberProxy_ = std::make_unique<TJobProberServiceProxy>(GetSchedulerChannel());
 
     TransactionManager_ = New<TTransactionManager>(
         Connection_,

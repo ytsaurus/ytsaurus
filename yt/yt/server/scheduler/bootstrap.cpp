@@ -137,12 +137,6 @@ void TBootstrap::DoRun()
 
     ControllerAgentTracker_ = New<TControllerAgentTracker>(Config_->Scheduler, this);
 
-    ResponseKeeper_ = New<TResponseKeeper>(
-        Config_->ResponseKeeper,
-        GetControlInvoker(EControlQueue::UserRequest),
-        SchedulerLogger,
-        SchedulerProfiler);
-
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -175,10 +169,10 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker(EControlQueue::StaticOrchid)));
-    RpcServer_->RegisterService(CreateSchedulerService(this));
+    RpcServer_->RegisterService(CreateOperationService(this, Scheduler_->GetOperationServiceResponseKeeper()));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
-    RpcServer_->RegisterService(CreateControllerAgentTrackerService(this));
+    RpcServer_->RegisterService(CreateControllerAgentTrackerService(this, ControllerAgentTracker_->GetResponseKeeper()));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -236,11 +230,6 @@ const TSchedulerPtr& TBootstrap::GetScheduler() const
 const TControllerAgentTrackerPtr& TBootstrap::GetControllerAgentTracker() const
 {
     return ControllerAgentTracker_;
-}
-
-const TResponseKeeperPtr& TBootstrap::GetResponseKeeper() const
-{
-    return ResponseKeeper_;
 }
 
 const ICoreDumperPtr& TBootstrap::GetCoreDumper() const

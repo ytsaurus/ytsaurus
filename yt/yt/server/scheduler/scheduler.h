@@ -68,7 +68,7 @@ public:
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const;
 
     const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const;
-    
+
     /*!
      *  \note Thread affinity: any
      */
@@ -169,6 +169,8 @@ public:
     TFuture<void> ValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell);
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId);
+
+    const NRpc::TResponseKeeperPtr& GetOperationServiceResponseKeeper() const;
 
 private:
     class TImpl;

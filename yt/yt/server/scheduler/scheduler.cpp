@@ -171,6 +171,11 @@ public:
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
         , FairShareUpdatePool_(New<TThreadPool>(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
         , BackgroundThreadPool_(New<TThreadPool>(Config_->BackgroundThreadCount, "Background"))
+        , OperationServiceResponseKeeper_(New<TResponseKeeper>(
+            Config_->OperationServiceResponseKeeper,
+            GetControlInvoker(EControlQueue::UserRequest),
+            SchedulerLogger,
+            SchedulerProfiler))
     {
         YT_VERIFY(config);
         YT_VERIFY(bootstrap);
@@ -1944,6 +1949,11 @@ public:
             .Run();
     }
 
+    const TResponseKeeperPtr& GetOperationServiceResponseKeeper() const
+    {
+        return OperationServiceResponseKeeper_;
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -1963,6 +1973,8 @@ private:
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const TThreadPoolPtr FairShareUpdatePool_;
     const TThreadPoolPtr BackgroundThreadPool_;
+
+    NRpc::TResponseKeeperPtr OperationServiceResponseKeeper_;
 
     std::optional<TString> ClusterName_;
 
@@ -2227,8 +2239,7 @@ private:
         DoCleanup();
 
         // NB: Must start the keeper before registering operations.
-        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
-        responseKeeper->Start();
+        OperationServiceResponseKeeper_->Start();
 
         OperationsCleaner_->Start();
     }
@@ -2288,8 +2299,7 @@ private:
                     NScheduler::NProto::TRspStartOperation response;
                     ToProto(response.mutable_operation_id(), operation->GetId());
                     auto responseMessage = CreateResponseMessage(response);
-                    auto responseKeeper = Bootstrap_->GetResponseKeeper();
-                    responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
+                    OperationServiceResponseKeeper_->EndRequest(operation->GetMutationId(), responseMessage);
                 }
 
                 // NB: it is valid to reset state, since operation revival descriptor
@@ -2388,8 +2398,7 @@ private:
             queue.clear();
         }
 
-        const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
-        responseKeeper->Stop();
+        OperationServiceResponseKeeper_->Stop();
 
         if (TransientOperationQueueScanPeriodExecutor_) {
             TransientOperationQueueScanPeriodExecutor_->Stop();
@@ -3550,7 +3559,7 @@ private:
             TError(),
             operationProgress.Progress,
             operationProgress.Alerts);
-        
+
         FinishOperation(operation);
 
         YT_LOG_INFO("Operation completed (OperationId: %v)",
@@ -4976,6 +4985,11 @@ TFuture<void> TScheduler::ValidateJobShellAccess(
 TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId)
 {
     return Impl_->FindOperationIdByJobId(jobId);
+}
+
+const TResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const
+{
+    return Impl_->GetOperationServiceResponseKeeper();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -541,8 +541,8 @@ private:
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
     TLazyIntrusivePtr<NQueryClient::TFunctionImplCache> FunctionImplCache_;
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
-    std::unique_ptr<NScheduler::TSchedulerServiceProxy> SchedulerProxy_;
-    std::unique_ptr<NScheduler::TJobProberServiceProxy> JobProberProxy_;
+    std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
+    std::unique_ptr<NScheduler::TJobProberServiceProxy> SchedulerJobProberProxy_;
 
     struct TReplicaClient final
     {

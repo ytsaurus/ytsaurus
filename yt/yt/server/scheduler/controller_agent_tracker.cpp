@@ -188,6 +188,11 @@ public:
         , Config_(SchedulerConfig_->ControllerAgentTracker)
         , Bootstrap_(bootstrap)
         , MessageOffloadThreadPool_(New<TThreadPool>(Config_->MessageOffloadThreadCount, "MessageOffload"))
+        , ResponseKeeper_(New<TResponseKeeper>(
+            Config_->ResponseKeeper,
+            Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
+            SchedulerLogger,
+            SchedulerProfiler))
     { }
 
     void Initialize()
@@ -353,12 +358,24 @@ public:
             operation->GetId());
     }
 
+    const TControllerAgentTrackerConfigPtr& GetConfig() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Config_;
+    }
+
     void UpdateConfig(TSchedulerConfigPtr config)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         SchedulerConfig_ = std::move(config);
         Config_ = SchedulerConfig_->ControllerAgentTracker;
+    }
+
+    const TResponseKeeperPtr& GetResponseKeeper() const
+    {
+        return ResponseKeeper_;
     }
 
     TControllerAgentPtr FindAgent(const TAgentId& id)
@@ -381,13 +398,6 @@ public:
     void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        if (Config_->EnableResponseKeeper && Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
-            return;
-        }
 
         auto* request = &context->Request();
         auto* response = &context->Response();
@@ -495,11 +505,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        if (Config_->EnableResponseKeeper && Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
-            return;
-        }
 
         auto* request = &context->Request();
         auto* response = &context->Response();
@@ -872,11 +877,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        if (Config_->EnableResponseKeeper && Bootstrap_->GetResponseKeeper()->TryReplyFrom(context)) {
-            return;
-        }
 
         auto* request = &context->Request();
         const auto& agentId = request->agent_id();
@@ -929,8 +929,9 @@ private:
     TSchedulerConfigPtr SchedulerConfig_;
     TControllerAgentTrackerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
     const TThreadPoolPtr MessageOffloadThreadPool_;
+
+    TResponseKeeperPtr ResponseKeeper_;
 
     THashMap<TAgentId, TControllerAgentPtr> IdToAgent_;
 
@@ -1151,12 +1152,16 @@ private:
 
         DoCleanup();
 
+        ResponseKeeper_->Start();
+
         YT_LOG_INFO("Master connected for controller agent tracker");
     }
 
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ResponseKeeper_->Stop();
 
         DoCleanup();
 
@@ -1220,10 +1225,20 @@ void TControllerAgentTracker::UnregisterOperationFromAgent(const TOperationPtr& 
 {
     Impl_->UnregisterOperationFromAgent(operation);
 }
+    
+const TControllerAgentTrackerConfigPtr& TControllerAgentTracker::GetConfig() const
+{
+    return Impl_->GetConfig();
+}
 
 void TControllerAgentTracker::UpdateConfig(TSchedulerConfigPtr config)
 {
     Impl_->UpdateConfig(std::move(config));
+}
+
+const TResponseKeeperPtr& TControllerAgentTracker::GetResponseKeeper() const
+{
+    return Impl_->GetResponseKeeper();
 }
 
 void TControllerAgentTracker::ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)

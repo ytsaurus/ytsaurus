@@ -10,11 +10,11 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerServiceProxy
+class TOperationServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TSchedulerServiceProxy, SchedulerService,
+    DEFINE_RPC_PROXY(TOperationServiceProxy, SchedulerService,
         .SetProtocolVersion(4));
 
     DEFINE_RPC_PROXY_METHOD(NScheduler::NProto, StartOperation);
