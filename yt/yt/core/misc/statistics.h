@@ -77,9 +77,13 @@ public:
     //! Get range of all elements whose path starts with a given strict prefix path (possibly empty).
     /*!
      * Pre-requisites: `prefixPath` must not have terminating slash.
-     * Examples: /a/b is a prefix path for /a/bcd/efg but not for /a/b/hij nor /a/b itself.
+     * Examples: /a/b is a prefix path for /a/b/hij but not for /a/bcd/efg nor /a/b itself.
      */
     TSummaryRange GetRangeByPrefix(const TString& prefixPath) const;
+
+    //! Remove all the elements starting from prefixPath.
+    //! The requirements for prefixPath are the same as in GetRangeByPrefix.
+    void RemoveRangeByPrefix(const TString& prefixPath);
 
     void Persist(const TStreamPersistenceContext& context);
 

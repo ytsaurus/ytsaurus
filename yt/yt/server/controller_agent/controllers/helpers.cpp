@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "aggregated_job_statistics.h"
 #include "config.h"
 #include "table.h"
 
@@ -195,6 +196,30 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
     options->EnableTabletIndex = ioConfig->ControlAttributes->EnableTabletIndex;
     return options;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void UpdateAggregatedJobStatistics(
+    TAggregatedJobStatistics& targetStatistics,
+    const TJobletPtr& joblet,
+    const TStatistics& statistics,
+    EJobState jobState,
+    int customStatisticsLimit,
+    bool& isLimitExceeded)
+{
+    if (targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit) {
+        // Limit is already exceeded, so truncate the statistics.
+        auto statisticsCopy = statistics;
+        statisticsCopy.RemoveRangeByPrefix("/custom");
+        targetStatistics.UpdateJobStatistics(joblet, statisticsCopy, jobState);
+    } else {
+        targetStatistics.UpdateJobStatistics(joblet, statistics, jobState);
+    }
+
+    // NB. We need the second check of custom statistics count to ensure that the limit was not
+    // violated after the update.
+    isLimitExceeded = targetStatistics.CalculateCustomStatisticsCount() > customStatisticsLimit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

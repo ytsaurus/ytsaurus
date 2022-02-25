@@ -73,6 +73,7 @@ struct ITaskHost
 
     virtual const TControllerAgentConfigPtr& GetConfig() const = 0;
     virtual const TOperationSpecBasePtr& GetSpec() const = 0;
+    virtual const TOperationOptionsPtr& GetOptions() const = 0;
 
     virtual void OnOperationFailed(const TError& error, bool flush = true, bool abortAllJoblets = true) = 0;
 
@@ -160,6 +161,8 @@ struct ITaskHost
     virtual const TInputTablePtr& GetInputTable(int tableIndex) const = 0;
     virtual const TOutputTablePtr& GetOutputTable(int tableIndex) const = 0;
     virtual int GetOutputTableCount() const = 0;
+
+    virtual void SetOperationAlert(EOperationAlertType type, const TError& alert) = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
 };

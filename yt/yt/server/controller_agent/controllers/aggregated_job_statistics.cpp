@@ -51,6 +51,17 @@ void TAggregatedJobStatistics::UpdateJobStatistics(const TJobletPtr& joblet, con
     TaggedJobStatistics_.AppendStatistics(statistics, tags);
 }
 
+i64 TAggregatedJobStatistics::CalculateCustomStatisticsCount() const
+{
+    i64 count = 0;
+    for (const auto& [key, value] : TaggedJobStatistics_.GetData()) {
+        if (key.StartsWith("/custom/")) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 EJobState TAggregatedJobStatistics::GetStatisticsJobState(const TJobletPtr& joblet, EJobState state)
 {
     // NB: Completed restarted job is considered as lost in statistics.

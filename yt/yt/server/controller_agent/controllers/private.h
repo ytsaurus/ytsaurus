@@ -37,6 +37,8 @@ struct TJobNodeDescriptor;
 
 struct IJobSplitter;
 
+class TAggregatedJobStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
