@@ -555,7 +555,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     driver = Worker(driver_cores or worker_cores, driver_memory or worker_memory,
                     driver_num or worker_num, driver_cores_overhead or worker_cores_overhead,
                     driver_timeout or worker_timeout)
-    dedicated_operation_mode = dedicated_operation_mode and driver.num > 0
+    dedicated_operation_mode = dedicated_operation_mode and driver_num > 0
 
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
 
