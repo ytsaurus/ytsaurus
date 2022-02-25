@@ -65,21 +65,21 @@ using NVectorHdrf::RatioComparisonPrecision;
 class TAccumulatedResourceUsageInfo
 {
 public:
-    explicit TAccumulatedResourceUsageInfo(TDuration updatePeriod)
-        : UpdatePeriod_(updatePeriod)
-        , LocalInstantPoolToAccumulatedResourceUsageUpdateTime_(TInstant::Now())
+    TAccumulatedResourceUsageInfo()
+        : LocalInstantPoolToAccumulatedResourceUsageUpdateTime_(TInstant::Now())
     { }
 
-    void Update(const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+    void Update(const TFairShareTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
     {
         auto now = TInstant::Now();
         auto period = now - LocalInstantPoolToAccumulatedResourceUsageUpdateTime_;
+        auto updatePeriod = treeSnapshot->TreeConfig()->AccumulatedResourceUsageUpdatePeriod;
 
         for (const auto& [poolName, resourceUsage] : resourceUsageSnapshot->PoolToResourceUsage) {
             LocalPoolToAccumulatedResourceUsage_[poolName] += TResourceVolume(resourceUsage, period);
         }
 
-        if (LastPoolToAccumulatedResourceUsageUpdateTime_ + UpdatePeriod_ < now) {
+        if (LastPoolToAccumulatedResourceUsageUpdateTime_ + updatePeriod < now) {
             auto guard = Guard(PoolToAccumulatedResourceUsageLock_);
             for (const auto& [poolName, resourceVolume] : LocalPoolToAccumulatedResourceUsage_) {
                 PoolToAccumulatedResourceUsage_[poolName] += resourceVolume;
@@ -101,8 +101,6 @@ public:
 
 
 private:
-    TDuration UpdatePeriod_;
-
     // This map is updated regularly from some thread pool.
     THashMap<TString, TResourceVolume> LocalPoolToAccumulatedResourceUsage_;
     TInstant LocalInstantPoolToAccumulatedResourceUsageUpdateTime_;
@@ -194,7 +192,6 @@ public:
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_text_log_time"))
-        , AccumulatedResourceUsageInfo_(TAccumulatedResourceUsageInfo(Config_->AccumulatedResourceUsageUpdatePeriod))
     {
         RootElement_ = New<TSchedulerRootElement>(StrategyHost_, this, Config_, TreeId_, Logger);
 
@@ -2364,7 +2361,7 @@ private:
         resourceUsageSnapshot->OperationIdToResourceUsage = std::move(operationResourceUsageMap);
         resourceUsageSnapshot->PoolToResourceUsage = std::move(poolResourceUsageMap);
 
-        AccumulatedResourceUsageInfo_.Update(resourceUsageSnapshot);
+        AccumulatedResourceUsageInfo_.Update(treeSnapshot, resourceUsageSnapshot);
 
         if (!treeSnapshot->TreeConfig()->EnableResourceUsageSnapshot) {
             resourceUsageSnapshot = nullptr;
