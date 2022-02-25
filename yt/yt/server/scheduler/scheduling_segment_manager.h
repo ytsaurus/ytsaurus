@@ -154,8 +154,9 @@ class TStrategySchedulingSegmentManager
 {
 public:
     static ESchedulingSegment GetSegmentForOperation(
-        ESegmentedSchedulingMode mode,
-        const TJobResources& operationMinNeededResources);
+        const TFairShareStrategySchedulingSegmentsConfigPtr& config,
+        const TJobResources& operationMinNeededResources,
+        bool isGang);
 
     static void ManageSegmentsInTree(
         TManageTreeSchedulingSegmentsContext* context,

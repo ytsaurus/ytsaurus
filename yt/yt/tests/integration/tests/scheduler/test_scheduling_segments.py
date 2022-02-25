@@ -14,7 +14,7 @@ from yt_commands import (
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
     vanilla, run_test_vanilla, run_sleeping_vanilla,
-    update_controller_agent_config)
+    update_controller_agent_config, update_pool_tree_config_option)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
@@ -107,8 +107,8 @@ class TestSchedulingSegments(YTEnvSetup):
     def setup_class(cls):
         if is_asan_build():
             pytest.skip("test suite has too high memory consumption for ASAN build")
-        if is_debug_build():
-            pytest.skip("test suite uses 10 nodes that is too much for debug build")
+        # if is_debug_build():
+        #     pytest.skip("test suite uses 10 nodes that is too much for debug build")
         super(TestSchedulingSegments, cls).setup_class()
 
     def setup_method(self, method):
@@ -851,6 +851,26 @@ class TestSchedulingSegments(YTEnvSetup):
             set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": {"SAS": "-3.0"}})
         with pytest.raises(YtError):
             set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"large_gpu": {"VLA": "-3.0"}})
+
+    @authors("eshcherbin")
+    def test_only_gang_operations_in_large_segment(self):
+        update_pool_tree_config_option(
+            "default",
+            "scheduling_segments/allow_only_gang_operations_in_large_segment",
+            True)
+
+        gang_op = run_sleeping_vanilla(
+            job_count=8,
+            spec={"pool": "large_gpu", "is_gang": True},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        op = run_sleeping_vanilla(
+            job_count=8,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: get(scheduler_orchid_operation_path(gang_op.id) + "/scheduling_segment", default=None) == "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default=None) == "default")
 
 
 ##################################################################

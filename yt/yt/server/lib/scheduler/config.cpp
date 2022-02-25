@@ -118,6 +118,10 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_infiniband_cluster_tag_validation", &TThis::EnableInfinibandClusterTagValidation)
         .Default(false);
 
+    // TODO(eshcherbin): Change default to true.
+    registrar.Parameter("allow_only_gang_operations_in_large_segment", &TThis::AllowOnlyGangOperationsInLargeSegment)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);

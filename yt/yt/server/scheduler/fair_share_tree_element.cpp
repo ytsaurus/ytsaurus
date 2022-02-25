@@ -2993,7 +2993,7 @@ void TSchedulerOperationElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     YT_VERIFY(Mutable_);
 
     if (TreeConfig_->SchedulingSegments->Mode != config->SchedulingSegments->Mode) {
-        InitOrUpdateSchedulingSegment(config->SchedulingSegments->Mode);
+        InitOrUpdateSchedulingSegment(config->SchedulingSegments);
     }
 
     TSchedulerElement::UpdateTreeConfig(config);
@@ -3972,18 +3972,25 @@ void TSchedulerOperationElement::MarkPendingBy(TSchedulerCompositeElement* viola
         violatedPool->GetMaxRunningOperationCount());
 }
 
-void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode)
+void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(
+    const TFairShareStrategySchedulingSegmentsConfigPtr& schedulingSegmentsConfig)
 {
     auto maybeInitialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources();
     auto segment = Spec_->SchedulingSegment.value_or(
         TStrategySchedulingSegmentManager::GetSegmentForOperation(
-            mode,
-            maybeInitialMinNeededResources.value_or(TJobResources{})));
+            schedulingSegmentsConfig,
+            maybeInitialMinNeededResources.value_or(TJobResources{}),
+            IsGang()));
 
     if (SchedulingSegment() != segment) {
-        YT_LOG_DEBUG("Setting new scheduling segment for operation (Segment: %v, Mode: %v, InitialMinNeededResources: %v, SpecifiedSegment: %v)",
+        YT_LOG_DEBUG(
+            "Setting new scheduling segment for operation ("
+            "Segment: %v, Mode: %v, AllowOnlyGangOperationsInLargeSegment: %v, IsGang: %v, "
+            "InitialMinNeededResources: %v, SpecifiedSegment: %v)",
             segment,
-            mode,
+            schedulingSegmentsConfig->Mode,
+            schedulingSegmentsConfig->AllowOnlyGangOperationsInLargeSegment,
+            IsGang(),
             maybeInitialMinNeededResources,
             Spec_->SchedulingSegment);
 

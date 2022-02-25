@@ -849,7 +849,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        element->InitOrUpdateSchedulingSegment(Config_->SchedulingSegments->Mode);
+        element->InitOrUpdateSchedulingSegment(Config_->SchedulingSegments);
 
         YT_VERIFY(element->SchedulingSegment());
         return *element->SchedulingSegment();
