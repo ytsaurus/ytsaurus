@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "hyperloglog_bias.h"
+#include "farm_hash.h"
 
 #include <cmath>
 

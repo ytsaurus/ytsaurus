@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compact_vector.h"
+#include "farm_hash.h"
 #include "public.h"
 
 #include <util/system/types.h>

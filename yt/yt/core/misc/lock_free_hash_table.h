@@ -3,6 +3,8 @@
 #include "public.h"
 #include "atomic_ptr.h"
 
+#include <library/cpp/yt/misc/farm_hash.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
