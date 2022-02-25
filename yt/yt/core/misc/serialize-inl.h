@@ -795,7 +795,7 @@ struct TOptionalSerializer
         if (hasValue) {
             T temp{};
             TUnderlyingSerializer::Load(context, temp);
-            optional = temp;
+            optional = std::move(temp);
         } else {
             optional.reset();
             SERIALIZATION_DUMP_WRITE(context, "null");

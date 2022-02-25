@@ -336,13 +336,13 @@ void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObject* 
 
 void TStrongObjectPtrContext::Ref(TObject* object)
 {
-    YT_ASSERT(NDetail::IsInMutation());
+    YT_VERIFY(NDetail::IsInMutation());
     NDetail::Bootstrap->GetObjectManager()->RefObject(object);
 }
 
 void TStrongObjectPtrContext::Unref(TObject* object)
 {
-    YT_ASSERT(NDetail::IsInMutation() || NDetail::IsInTeardown());
+    YT_VERIFY(NDetail::IsInMutation() || NDetail::IsInTeardown());
     if (NDetail::IsInMutation()) {
         NDetail::ObjectsWithScheduledUnref.push_back(object);
     }
@@ -352,13 +352,13 @@ void TStrongObjectPtrContext::Unref(TObject* object)
 
 void TWeakObjectPtrContext::Ref(TObject* object)
 {
-    YT_ASSERT(NDetail::IsInMutation());
+    YT_VERIFY(NDetail::IsInMutation());
     NDetail::Bootstrap->GetObjectManager()->WeakRefObject(object);
 }
 
 void TWeakObjectPtrContext::Unref(TObject* object)
 {
-    YT_ASSERT(NDetail::IsInMutation() || NDetail::IsInTeardown());
+    YT_VERIFY(NDetail::IsInMutation() || NDetail::IsInTeardown());
     if (NDetail::IsInMutation()) {
         NDetail::ObjectsWithScheduledWeakUnref.push_back(object);
     }
@@ -368,7 +368,7 @@ void TWeakObjectPtrContext::Unref(TObject* object)
 
 TEphemeralObjectPtrContext TEphemeralObjectPtrContext::Capture()
 {
-    YT_ASSERT(NDetail::EpochContext->EphemeralPtrUnrefInvoker);
+    YT_VERIFY(NDetail::EpochContext->EphemeralPtrUnrefInvoker);
     return {
         NDetail::Bootstrap->GetObjectManager(),
         NDetail::EpochContext->CurrentEpoch,
@@ -473,8 +473,8 @@ void BeginMutation()
 void EndMutation()
 {
     NDetail::AssertAutomatonThreadAffinity();
-    YT_ASSERT(NDetail::IsInMutation());
-    YT_ASSERT(!NDetail::IsInTeardown());
+    YT_VERIFY(NDetail::IsInMutation());
+    YT_VERIFY(!NDetail::IsInTeardown());
 
     NDetail::DoFlushObjectUnrefs();
     YT_VERIFY(--NDetail::InMutationCounter >= 0);
@@ -501,8 +501,8 @@ void EndTeardown()
 void FlushObjectUnrefs()
 {
     NDetail::AssertAutomatonThreadAffinity();
-    YT_ASSERT(NDetail::IsInMutation());
-    YT_ASSERT(!NDetail::IsInTeardown());
+    YT_VERIFY(NDetail::IsInMutation());
+    YT_VERIFY(!NDetail::IsInTeardown());
 
     NDetail::DoFlushObjectUnrefs();
 }
