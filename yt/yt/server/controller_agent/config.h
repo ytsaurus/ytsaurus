@@ -140,7 +140,7 @@ public:
     double LowCpuUsageAlertCpuUsageThreshold;
     std::vector<TString> LowCpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowCpuUsageAlertJobStates;
-    
+
     // Minimum average job time to analyze operation
     TDuration HighCpuWaitAlertMinAverageJobTime;
     // Minimum cpu wait time ratio to send an alert
@@ -317,6 +317,9 @@ public:
     std::optional<int> ControllerBuildingJobSpecCountLimit;
     //! Total slice count of currently building job specs after which controller starts throttling.
     std::optional<i64> ControllerTotalBuildingJobSpecSliceCountLimit;
+
+    //! Limit for number of aggregated custom job statistics per operation.
+    i64 CustomStatisticsCountLimit;
 
     TUserJobOptionsPtr UserJobOptions;
 

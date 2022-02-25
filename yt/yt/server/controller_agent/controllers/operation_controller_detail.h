@@ -335,6 +335,7 @@ public:
 
     const TControllerAgentConfigPtr& GetConfig() const override;
     const TOperationSpecBasePtr& GetSpec() const override;
+    const TOperationOptionsPtr& GetOptions() const override;
 
     void OnOperationFailed(const TError& error, bool flush = true, bool abortAllJoblets = true) override;
     void OnOperationAborted(const TError& error);

@@ -323,6 +323,9 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("controller_total_building_job_spec_slice_count_limit", &TThis::ControllerTotalBuildingJobSpecSliceCountLimit)
         .Default();
 
+    registrar.Parameter("custom_statistics_count_limit", &TThis::CustomStatisticsCountLimit)
+        .Default(1024);
+
     registrar.Parameter("user_job_options", &TThis::UserJobOptions)
         .DefaultNew();
 

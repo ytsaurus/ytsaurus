@@ -1923,7 +1923,23 @@ TDuration TTask::GetExhaustTime() const
 
 void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    AggregatedFinishedJobStatistics_.UpdateJobStatistics(joblet, *jobSummary.Statistics, jobSummary.State);
+    i64 statisticsLimit = TaskHost_->GetOptions()->CustomStatisticsCountLimit;
+    bool isLimitExceeded = false;
+
+    UpdateAggregatedJobStatistics(
+        AggregatedFinishedJobStatistics_,
+        joblet,
+        *jobSummary.Statistics,
+        jobSummary.State,
+        statisticsLimit,
+        isLimitExceeded);
+
+    if (isLimitExceeded) {
+        TaskHost_->SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
+            TError("Limit for number of custom statistics exceeded for task, so they are truncated")
+                << TErrorAttribute("limit", statisticsLimit)
+                << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

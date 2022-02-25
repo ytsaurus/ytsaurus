@@ -193,9 +193,17 @@ void TStatistics::Merge(const TStatistics& statistics)
 TStatistics::TSummaryRange TStatistics::GetRangeByPrefix(const TString& prefix) const
 {
     auto begin = Data().lower_bound(prefix + '/');
-    // This will efficiently return an iterator to the first path not starting with "`prefix`/".
+    // This will effectively return an iterator to the first path not starting with "`prefix`/".
     auto end = Data().lower_bound(prefix + ('/' + 1));
     return TSummaryRange(begin, end);
+}
+
+void TStatistics::RemoveRangeByPrefix(const TString& prefixPath)
+{
+    auto begin = Data().lower_bound(prefixPath + '/');
+    // This will effectively return an iterator to the first path not starting with "`prefix`/".
+    auto end = Data().lower_bound(prefixPath + ('/' + 1));
+    Data_.erase(begin, end);
 }
 
 void TStatistics::Persist(const TStreamPersistenceContext& context)

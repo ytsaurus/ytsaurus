@@ -2933,7 +2933,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     const auto& result = jobSummary->Result;
 
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-    
+
     {
         bool restartNeeded = false;
         if (schedulerResultExt.has_restart_needed()) {
@@ -8463,10 +8463,25 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
 void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 {
+    i64 statisticsLimit = Options->CustomStatisticsCountLimit;
+    bool isLimitExceeded = false;
+
     TAggregatedJobStatistics runningJobStatistics;
     for (const auto& [jobId, joblet] : JobletMap) {
         if (joblet->StatisticsYson) {
-            runningJobStatistics.UpdateJobStatistics(joblet, ConvertTo<TStatistics>(joblet->StatisticsYson), EJobState::Running);
+            UpdateAggregatedJobStatistics(
+                runningJobStatistics,
+                joblet,
+                ConvertTo<TStatistics>(joblet->StatisticsYson),
+                EJobState::Running,
+                statisticsLimit,
+                isLimitExceeded);
+
+            if (isLimitExceeded) {
+                SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
+                    TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
+                        << TErrorAttribute("limit", statisticsLimit));
+            }
         }
     }
     AggregatedRunningJobStatistics_ = runningJobStatistics;
@@ -8536,7 +8551,22 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
 
 void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
-    AggregatedFinishedJobStatistics_.UpdateJobStatistics(joblet, *jobSummary.Statistics, jobSummary.State);
+    i64 statisticsLimit = Options->CustomStatisticsCountLimit;
+    bool isLimitExceeded = false;
+
+    UpdateAggregatedJobStatistics(
+        AggregatedFinishedJobStatistics_,
+        joblet,
+        *jobSummary.Statistics,
+        jobSummary.State,
+        statisticsLimit,
+        isLimitExceeded);
+
+    if (isLimitExceeded) {
+        SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
+            TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
+                << TErrorAttribute("limit", statisticsLimit));
+    }
 
     joblet->Task->UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
 }
@@ -8613,6 +8643,11 @@ const TControllerAgentConfigPtr& TOperationControllerBase::GetConfig() const
 const TOperationSpecBasePtr& TOperationControllerBase::GetSpec() const
 {
     return Spec_;
+}
+
+const TOperationOptionsPtr& TOperationControllerBase::GetOptions() const
+{
+    return Options;
 }
 
 const TOutputTablePtr& TOperationControllerBase::StderrTable() const

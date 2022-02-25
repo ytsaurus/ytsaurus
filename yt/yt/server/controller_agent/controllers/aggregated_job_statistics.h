@@ -34,6 +34,8 @@ public:
 
     void UpdateJobStatistics(const TJobletPtr& joblet, const TStatistics& statistics, EJobState jobState);
 
+    i64 CalculateCustomStatisticsCount() const;
+
     void Persist(const TPersistenceContext& context);
 
     i64 GetSumByJobStateAndType(

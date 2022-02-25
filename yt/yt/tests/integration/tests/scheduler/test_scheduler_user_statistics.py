@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, wait,
+    assert_statistics, authors, extract_deprecated_statistic, extract_statistic_v2, update_controller_agent_config, wait,
     get, create, write_table, map,
     with_breakpoint, wait_breakpoint, release_breakpoint)
 
@@ -132,6 +132,44 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 },
                 command="cat; " + write_line,
             )
+
+    @authors("gepardo")
+    def test_too_many_custom_statistics_per_operation(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        custom_statistics_count_limit = 16
+        update_controller_agent_config(
+            "map_operation_options/custom_statistics_count_limit",
+            custom_statistics_count_limit,
+        )
+
+        for i in range(custom_statistics_count_limit + 1):
+            write_table("<append=%true>//tmp/t1", {"id": i, "value": 42})
+
+        write_line1 = 'echo "{ name1=42 };">&5;'
+        write_line2 = 'echo "{ name1_${YT_JOB_INDEX}=42 };">&5;'
+        spec = {
+            "max_failed_job_count": 1,
+            "custom_statistics_count_limit": custom_statistics_count_limit,
+            "data_weight_per_job": 1,
+        }
+
+        op1 = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec=spec,
+            command="cat; " + write_line1,
+        )
+        assert "custom_statistics_limit_exceeded" not in op1.get_alerts()
+
+        op2 = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec=spec,
+            command="cat; " + write_line2,
+        )
+        assert "custom_statistics_limit_exceeded" in op2.get_alerts()
 
     @authors("tramsmm")
     def test_multiple_job_statistics(self):

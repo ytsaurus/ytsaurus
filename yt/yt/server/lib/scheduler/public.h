@@ -79,6 +79,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((UserJobMonitoringLimited)                    (26))
     ((MemoryOverconsumption)                       (27))
     ((InvalidControllerRuntimeData)                (28))
+    ((CustomStatisticsLimitExceeded)               (31))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
