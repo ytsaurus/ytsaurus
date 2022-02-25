@@ -583,6 +583,8 @@ class TControllerAgentTrackerConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
+    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+
     // Scheduler scheduler-to-agent operation request timeout for light requests.
     // These are expected to be served in O(1).
     TDuration LightRpcTimeout;
@@ -846,6 +848,8 @@ public:
 
     TDuration ScheduleJobEntryRemovalTimeout;
 
+    NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
@@ -863,8 +867,6 @@ public:
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
-
-    NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     //! Known scheduler addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;

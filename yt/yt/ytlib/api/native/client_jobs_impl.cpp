@@ -20,7 +20,7 @@ void TClient::DoAbandonJob(
     TJobId jobId,
     const TAbandonJobOptions& /*options*/)
 {
-    auto req = JobProberProxy_->AbandonJob();
+    auto req = SchedulerJobProberProxy_->AbandonJob();
     ToProto(req->mutable_job_id(), jobId);
 
     WaitFor(req->Invoke())
@@ -82,7 +82,7 @@ void TClient::DoAbortJob(
     TJobId jobId,
     const TAbortJobOptions& options)
 {
-    auto req = JobProberProxy_->AbortJob();
+    auto req = SchedulerJobProberProxy_->AbortJob();
     ToProto(req->mutable_job_id(), jobId);
     if (options.InterruptTimeout) {
         req->set_interrupt_timeout(ToProto<i64>(*options.InterruptTimeout));

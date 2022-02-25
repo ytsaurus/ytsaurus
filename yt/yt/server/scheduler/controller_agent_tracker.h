@@ -35,7 +35,11 @@ public:
 
     void UnregisterOperationFromAgent(const TOperationPtr& operation);
 
+    const TControllerAgentTrackerConfigPtr& GetConfig() const;
+
     void UpdateConfig(TSchedulerConfigPtr config);
+
+    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
 
     /*!
      *  Thread affinity: any

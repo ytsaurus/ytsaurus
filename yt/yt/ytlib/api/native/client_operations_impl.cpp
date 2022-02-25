@@ -15,7 +15,7 @@ TOperationId TClient::DoStartOperation(
     const TYsonString& spec,
     const TStartOperationOptions& options)
 {
-    auto req = SchedulerProxy_->StartOperation();
+    auto req = SchedulerOperationProxy_->StartOperation();
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
     req->set_type(ToProto<int>(type));
@@ -31,7 +31,7 @@ void TClient::DoAbortOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TAbortOperationOptions& options)
 {
-    auto req = SchedulerProxy_->AbortOperation();
+    auto req = SchedulerOperationProxy_->AbortOperation();
     ToProto(req, operationIdOrAlias);
     if (options.AbortMessage) {
         req->set_abort_message(*options.AbortMessage);
@@ -45,7 +45,7 @@ void TClient::DoSuspendOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TSuspendOperationOptions& options)
 {
-    auto req = SchedulerProxy_->SuspendOperation();
+    auto req = SchedulerOperationProxy_->SuspendOperation();
     ToProto(req, operationIdOrAlias);
     req->set_abort_running_jobs(options.AbortRunningJobs);
 
@@ -57,7 +57,7 @@ void TClient::DoResumeOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TResumeOperationOptions& /*options*/)
 {
-    auto req = SchedulerProxy_->ResumeOperation();
+    auto req = SchedulerOperationProxy_->ResumeOperation();
     ToProto(req, operationIdOrAlias);
 
     WaitFor(req->Invoke())
@@ -68,7 +68,7 @@ void TClient::DoCompleteOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TCompleteOperationOptions& /*options*/)
 {
-    auto req = SchedulerProxy_->CompleteOperation();
+    auto req = SchedulerOperationProxy_->CompleteOperation();
     ToProto(req, operationIdOrAlias);
 
     WaitFor(req->Invoke())
@@ -80,7 +80,7 @@ void TClient::DoUpdateOperationParameters(
     const TYsonString& parameters,
     const TUpdateOperationParametersOptions& /*options*/)
 {
-    auto req = SchedulerProxy_->UpdateOperationParameters();
+    auto req = SchedulerOperationProxy_->UpdateOperationParameters();
     ToProto(req, operationIdOrAlias);
     req->set_parameters(parameters.ToString());
 

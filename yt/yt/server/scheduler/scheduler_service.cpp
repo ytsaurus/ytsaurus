@@ -31,17 +31,17 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerService
+class TOperationService
     : public TServiceBase
 {
 public:
-    TSchedulerService(TBootstrap* bootstrap)
+    TOperationService(TBootstrap* bootstrap, const TResponseKeeperPtr& responseKeeper)
         : TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::UserRequest),
-            TSchedulerServiceProxy::GetDescriptor(),
+            TOperationServiceProxy::GetDescriptor(),
             SchedulerLogger)
         , Bootstrap_(bootstrap)
-        , ResponseKeeper_(Bootstrap_->GetResponseKeeper())
+        , ResponseKeeper_(responseKeeper)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
@@ -225,9 +225,9 @@ private:
     }
 };
 
-IServicePtr CreateSchedulerService(TBootstrap* bootstrap)
+IServicePtr CreateOperationService(TBootstrap* bootstrap, const TResponseKeeperPtr& responseKeeper)
 {
-    return New<TSchedulerService>(bootstrap);
+    return New<TOperationService>(bootstrap, responseKeeper);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

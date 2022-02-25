@@ -141,7 +141,7 @@ DECLARE_REFCOUNTED_CLASS(TExperimentOperationSpec)
 struct TDiskQuota;
 class TJobResourcesWithQuota;
 
-class TSchedulerServiceProxy;
+class TOperationServiceProxy;
 
 using NJobTrackerClient::EJobType;
 

@@ -38,7 +38,6 @@ public:
     IInvokerPtr GetControlInvoker(EControlQueue queue) const;
     const TSchedulerPtr& GetScheduler() const;
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
-    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const ICoreDumperPtr& GetCoreDumper() const;
 
     void Run();
@@ -56,7 +55,6 @@ private:
     NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
-    NRpc::TResponseKeeperPtr ResponseKeeper_;
     ICoreDumperPtr CoreDumper_;
     mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
 

@@ -172,6 +172,7 @@ b"""
         };
         controller_agent_tracker = {
             heartbeat_timeout = 10000;
+            enable_response_keeper = %true;
         };
     };
 }

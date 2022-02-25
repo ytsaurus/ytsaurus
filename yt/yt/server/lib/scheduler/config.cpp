@@ -510,7 +510,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("template_pool_tree_config_map", &TThis::TemplatePoolTreeConfigMap)
         .Default();
-    
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
@@ -652,6 +652,9 @@ void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonCo
 
 void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
+        .DefaultNew();
+
     registrar.Parameter("light_rpc_timeout", &TThis::LightRpcTimeout)
         .Default(TDuration::Seconds(30));
 
@@ -696,6 +699,10 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_response_keeper", &TThis::EnableResponseKeeper)
         .Default(false);
+    
+    registrar.Preprocessor([&] (TControllerAgentTrackerConfig* config) {
+        config->ResponseKeeper->EnableWarmup = false;
+    });
 
     registrar.Postprocessor([&] (TControllerAgentTrackerConfig* config) {
         if (!config->TagToAliveControllerAgentThresholds.contains(DefaultOperationTag)) {
@@ -729,6 +736,9 @@ void TResourceMeteringConfig::Register(TRegistrar registrar)
 void TSchedulerConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+        
+    registrar.Parameter("operation_service_response_keeper", &TThis::OperationServiceResponseKeeper)
+        .DefaultNew();
 
     registrar.Parameter("node_shard_count", &TThis::NodeShardCount)
         .Default(4)
@@ -936,6 +946,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         if (!config->EventLog->Path) {
             config->EventLog->Path = "//sys/scheduler/event_log";
         }
+        config->OperationServiceResponseKeeper->EnableWarmup = false;
     });
 
     registrar.Postprocessor([&] (TSchedulerConfig* config) {
@@ -956,8 +967,6 @@ void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
-    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
-        .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)
         .Default();
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
@@ -968,10 +977,6 @@ void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
-
-    registrar.Preprocessor([&] (TThis* config) {
-        config->ResponseKeeper->EnableWarmup = false;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
