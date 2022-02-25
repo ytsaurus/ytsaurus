@@ -494,7 +494,7 @@ private:
         replicaInfo.ClusterName = clusterName;
         replicaInfo.ReplicaPath = replicaPath;
         replicaInfo.ContentType = contentType;
-        replicaInfo.State = enabled ? ETableReplicaState::Enabling : ETableReplicaState::Disabling;
+        replicaInfo.State = enabled ? ETableReplicaState::Enabling : ETableReplicaState::Disabled;
         replicaInfo.Mode = mode;
         replicaInfo.ReplicationProgress = {
             .Segments = {{EmptyKey(), MinTimestamp}},
