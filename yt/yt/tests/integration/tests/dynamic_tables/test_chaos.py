@@ -596,6 +596,7 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
             {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
@@ -613,11 +614,11 @@ class TestChaos(ChaosTestBase):
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/q", values)
+        wait(lambda: _pull_rows(2) == values)
         wait(lambda: _pull_rows(1) == values)
-        wait(lambda: _pull_rows(0) == values)
 
-        async_rows = _pull_rows(0, True)
-        sync_rows = _pull_rows(1, True)
+        async_rows = _pull_rows(1, True)
+        sync_rows = _pull_rows(2, True)
         assert async_rows == sync_rows
 
     @authors("savrus")
@@ -626,7 +627,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": mode, "enabled": True, "replica_path": "//tmp/q"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
@@ -641,26 +643,26 @@ class TestChaos(ChaosTestBase):
 
         values0 = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values0)
+        wait(lambda: _pull_rows(2) == values0)
         wait(lambda: _pull_rows(1) == values0)
-        wait(lambda: _pull_rows(0) == values0)
 
-        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=False)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
 
+        wait(lambda: _pull_rows(2) == values0 + values1)
+        assert _pull_rows(1) == values0
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+
         wait(lambda: _pull_rows(1) == values0 + values1)
-        assert _pull_rows(0) == values0
-
-        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
-
-        wait(lambda: _pull_rows(0) == values0 + values1)
 
         values2 = [{"key": 2, "value": "2"}]
         insert_rows("//tmp/t", values2)
         values = values0 + values1 + values2
+        wait(lambda: _pull_rows(2) == values)
         wait(lambda: _pull_rows(1) == values)
-        wait(lambda: _pull_rows(0) == values)
 
     @authors("savrus")
     @pytest.mark.parametrize("content", ["data", "queue", "both"])
