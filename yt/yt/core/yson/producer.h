@@ -15,16 +15,20 @@ namespace NYT::NYson {
 //! methods for its IYsonConsumer argument.
 using TYsonCallback = TCallback<void(IYsonConsumer*)>;
 
+//! A callback capable of generating YSON by calling appropriate
+//! methods for its IYsonConsumer and some additional arguments.
+template <class... TAdditionalArgs>
+using TExtendedYsonCallback = TCallback<void(IYsonConsumer*, TAdditionalArgs...)>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A TYsonCallback annotated with type.
 class TYsonProducer
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
 
 public:
-    TYsonProducer();
+    TYsonProducer() = default;
     TYsonProducer(
         TYsonCallback callback,
         EYsonType type = NYson::EYsonType::Node);
@@ -32,8 +36,28 @@ public:
     void Run(IYsonConsumer* consumer) const;
 
 private:
-    const TYsonCallback Callback_;
+    TYsonCallback Callback_;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class... TAdditionalArgs>
+class TExtendedYsonProducer
+{
+    using TUnderlyingCallback = TExtendedYsonCallback<TAdditionalArgs...>;
+public:
+    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
+
+public:
+    TExtendedYsonProducer() = default;
+    TExtendedYsonProducer(
+        TUnderlyingCallback callback,
+        EYsonType type = NYson::EYsonType::Node);
+
+    void Run(IYsonConsumer* consumer, TAdditionalArgs... args) const;
+
+private:
+    TUnderlyingCallback Callback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,3 +68,7 @@ void Serialize(const TYsonCallback& value, NYson::IYsonConsumer* consumer);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYson
+
+#define PRODUCER_INL_H_
+#include "producer-inl.h"
+#undef PRODUCER_INL_H_

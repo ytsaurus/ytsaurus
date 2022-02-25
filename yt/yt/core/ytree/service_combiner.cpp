@@ -23,7 +23,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration UpdateKeysFailedBackoff = TDuration::Seconds(1);
+const TDuration UpdateKeysFailedBackoff = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,6 +158,9 @@ private:
             innerRequest->set_limit(limit);
             if (request->has_attributes()) {
                 innerRequest->mutable_attributes()->mutable_keys()->CopyFrom(request->attributes().keys());
+            }
+            if (request->has_options()) {
+                innerRequest->mutable_options()->CopyFrom(request->options());
             }
             auto asyncInnerResult = ExecuteVerb(service, innerRequest)
                 .Apply(BIND([&] (TYPathProxy::TRspGetPtr response) {

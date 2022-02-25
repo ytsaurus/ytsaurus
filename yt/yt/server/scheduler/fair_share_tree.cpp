@@ -36,6 +36,14 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
+#define ITEM_DO_IF_SUITABLE_FOR_FILTER(filter, field, ...) DoIf(filter.IsFieldSuitable(field), [&] (TFluentMap fluent) { \
+        fluent.Item(field).Do(__VA_ARGS__); \
+    })
+
+#define ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, field, ...) DoIf(filter.IsFieldSuitable(field), [&] (TFluentMap fluent) { \
+        fluent.Item(field).Value(__VA_ARGS__); \
+    })
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -953,6 +961,55 @@ public:
             .Run()));
     }
 
+    class TFieldsFilter final
+    {
+    public:
+        TFieldsFilter()
+            : Filter_{ParseFiterFromOptions({})}
+        { }
+
+        TFieldsFilter(const IAttributeDictionaryPtr& options)
+            : Filter_{ParseFiterFromOptions(options)}
+        { }
+
+        bool IsFieldSuitable(TStringBuf field) const
+        {
+            if (!Filter_) {
+                return true;
+            }
+
+            return Filter_->contains(field);
+        }
+
+    private:
+        std::optional<THashSet<TString>> Filter_;
+
+        static std::optional<THashSet<TString>> ParseFiterFromOptions(
+            const IAttributeDictionaryPtr& options)
+        {
+            if (!options) {
+                return std::nullopt;
+            }
+
+            auto fields = options->Find<THashSet<TString>>("fields");
+            if (!fields) {
+                return std::nullopt;
+            }
+
+            return std::move(*fields);
+        }
+    };
+
+    static IYPathServicePtr FromProducer(
+        NYson::TExtendedYsonProducer<const TFieldsFilter&> producer)
+    {
+        return IYPathService::FromProducer(BIND(
+            [producer{std::move(producer)}] (IYsonConsumer* consumer, const IAttributeDictionaryPtr& options) {
+                TFieldsFilter filter{options};
+                producer.Run(consumer, filter);
+            }));
+    }
+
     IYPathServicePtr GetOrchidService() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -1025,16 +1082,17 @@ public:
                 .Value(GetPoolCount());
         })));
 
-        dynamicOrchidService->AddChild("pools", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            auto treeSnapshot = GetTreeSnapshot();
-            if (!treeSnapshot) {
-                ThrowOrchidIsNotReady();
-            }
+        dynamicOrchidService->AddChild("pools", FromProducer(BIND(
+            [this_ = MakeStrong(this), this] (IYsonConsumer* consumer, const TFieldsFilter& filter) {
+                auto treeSnapshot = GetTreeSnapshot();
+                if (!treeSnapshot) {
+                    ThrowOrchidIsNotReady();
+                }
 
-            BuildYsonFluently(consumer).BeginMap()
-                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), std::move(treeSnapshot)))
-            .EndMap();
-        }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
+                BuildYsonFluently(consumer).BeginMap()
+                    .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), std::move(treeSnapshot), filter))
+                .EndMap();
+            }))->Via(StrategyHost_->GetOrchidWorkerInvoker()));
 
         dynamicOrchidService->AddChild("resource_distribution_info", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
             auto treeSnapshot = GetTreeSnapshot();
@@ -2385,7 +2443,7 @@ private:
         fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("pool_count").Value(treeSnapshot->PoolMap().size())
             .Item("pools").BeginMap()
-                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshot))
+                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshot, TFieldsFilter{}))
             .EndMap()
             .Finish();
         fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -2432,54 +2490,55 @@ private:
         return fairShareInfo;
     }
 
-    void DoBuildPoolsInformation(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
+    void DoBuildPoolsInformation(const TFairShareTreeSnapshotPtr& treeSnapshot, const TFieldsFilter& filter, TFluentMap fluent) const
     {
         auto buildCompositeElementInfo = [&] (const TSchedulerCompositeElement* element, TFluentMap fluent) {
             const auto& attributes = element->Attributes();
             fluent
-                .Item("running_operation_count").Value(element->RunningOperationCount())
-                .Item("pool_operation_count").Value(element->GetChildOperationCount())
-                .Item("operation_count").Value(element->OperationCount())
-                .Item("max_running_operation_count").Value(element->GetMaxRunningOperationCount())
-                .Item("max_operation_count").Value(element->GetMaxOperationCount())
-                .Item("forbid_immediate_operations").Value(element->AreImmediateOperationsForbidden())
-                .Item("total_resource_flow_ratio").Value(attributes.TotalResourceFlowRatio)
-                .Item("total_burst_ratio").Value(attributes.TotalBurstRatio)
-                .DoIf(element->GetParent(), [&] (TFluentMap fluent) {
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "running_operation_count", element->RunningOperationCount())
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "pool_operation_count", element->GetChildOperationCount())
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "operation_count", element->OperationCount())
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_running_operation_count", element->GetMaxRunningOperationCount())
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_operation_count", element->GetMaxOperationCount())
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "forbid_immediate_operations", element->AreImmediateOperationsForbidden())
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "total_resource_flow_ratio", attributes.TotalBurstRatio)
+                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "total_burst_ratio", attributes.TotalBurstRatio)
+                .DoIf(element->GetParent(), ([&] (TFluentMap fluent) {
                     fluent
-                        .Item("parent").Value(element->GetParent()->GetId());
-                })
-                .Do(std::bind(&TFairShareTree::DoBuildElementYson, element, std::placeholders::_1));
+                        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
+                }))
+                .Do(std::bind(&TFairShareTree::DoBuildElementYson, element, filter, std::placeholders::_1));
         };
 
         auto buildPoolInfo = [&] (const TSchedulerPoolElement* pool, TFluentMap fluent) {
             const auto& id = pool->GetId();
             fluent
                 .Item(id).BeginMap()
-                    .Item("mode").Value(pool->GetMode())
-                    .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
-                    .Item("integral_guarantee_type").Value(pool->GetIntegralGuaranteeType())
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "mode", pool->GetMode())
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "is_ephemeral", pool->IsDefaultConfigured())
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "integral_guarantee_type", pool->GetIntegralGuaranteeType())
                     .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
                         auto burstRatio = pool->GetSpecifiedBurstRatio();
                         auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
                         fluent
-                            .Item("integral_pool_capacity").Value(pool->GetIntegralPoolCapacity())
-                            .Item("specified_burst_ratio").Value(burstRatio)
-                            .Item("specified_burst_guarantee_resources").Value(pool->GetTotalResourceLimits() * burstRatio)
-                            .Item("specified_resource_flow_ratio").Value(resourceFlowRatio)
-                            .Item("specified_resource_flow").Value(pool->GetTotalResourceLimits() * resourceFlowRatio)
-                            .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
-                            .Item("accumulated_resource_volume").Value(pool->GetAccumulatedResourceVolume());
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "integral_pool_capacity", pool->GetIntegralPoolCapacity())
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_burst_ratio", burstRatio)
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_burst_guarantee_resources", pool->GetTotalResourceLimits() * burstRatio)
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow_ratio", resourceFlowRatio)
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "specified_resource_flow", pool->GetTotalResourceLimits() * resourceFlowRatio)
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_ratio_volume", pool->GetAccumulatedResourceRatioVolume())
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "accumulated_resource_volume", pool->GetAccumulatedResourceVolume());
                         if (burstRatio > resourceFlowRatio + RatioComparisonPrecision) {
-                            fluent.Item("estimated_burst_usage_duration_seconds").Value(
-                                pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
+                            fluent
+                                .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "estimated_burst_usage_duration_seconds",
+                                    pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
                         }
                     })
                     .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                         fluent
-                            .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());
+                            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fifo_sort_parameters", pool->GetFifoSortParameters());
                     })
-                    .Item("abc").Value(pool->GetConfig()->Abc)
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "abc", pool->GetConfig()->Abc)
                     .Do(std::bind(buildCompositeElementInfo, pool, std::placeholders::_1))
                 .EndMap();
         };
@@ -2524,81 +2583,105 @@ private:
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
             .Item("disk_request_media").Value(element->DiskRequestMedia())
-            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(element)));
+            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(element), TFieldsFilter{}));
     }
 
-    static void DoBuildElementYson(const TSchedulerElement* element, TFluentMap fluent)
+    static void DoBuildElementYson(const TSchedulerElement* element, const TFieldsFilter& filter, TFluentMap fluent)
     {
         const auto& attributes = element->Attributes();
         const auto& persistentAttributes = element->PersistentAttributes();
 
         auto promisedFairShareResources = element->GetTotalResourceLimits() * attributes.PromisedFairShare;
 
-        // TODO(eshcherbin): Rethink which fields should be here and which should in in |TSchedulerElement::BuildYson|.
+        // TODO(eshcherbin): Rethink which fields should be here and which should be in |TSchedulerElement::BuildYson|.
         // Also rethink which scalar fields should be exported to Orchid.
         fluent
-            .Item("scheduling_status").Value(element->GetStatus())
-            .Item("starvation_status").Value(element->GetStarvationStatus())
-            .Item("fair_share_starvation_tolerance").Value(element->GetSpecifiedFairShareStarvationTolerance())
-            .Item("fair_share_starvation_timeout").Value(element->GetSpecifiedFairShareStarvationTimeout())
-            .Item("effective_fair_share_starvation_tolerance").Value(element->GetEffectiveFairShareStarvationTolerance())
-            .Item("effective_fair_share_starvation_timeout").Value(element->GetEffectiveFairShareStarvationTimeout())
-            .Item("aggressive_starvation_enabled").Value(element->IsAggressiveStarvationEnabled())
-            .Item("effective_aggressive_starvation_enabled").Value(element->GetEffectiveAggressiveStarvationEnabled())
-            .Item("aggressive_preemption_allowed").Value(element->IsAggressivePreemptionAllowed())
-            .Item("effective_aggressive_preemption_allowed").Value(element->GetEffectiveAggressivePreemptionAllowed())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "scheduling_status", element->GetStatus())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "starvation_status", element->GetStarvationStatus())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "fair_share_starvation_tolerance",
+                element->GetSpecifiedFairShareStarvationTolerance())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "fair_share_starvation_timeout",
+                element->GetSpecifiedFairShareStarvationTimeout())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_fair_share_starvation_tolerance",
+                element->GetEffectiveFairShareStarvationTolerance())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_fair_share_starvation_timeout",
+                element->GetEffectiveFairShareStarvationTimeout())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_starvation_enabled", element->IsAggressiveStarvationEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_aggressive_starvation_enabled",
+                element->GetEffectiveAggressiveStarvationEnabled())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_preemption_allowed", element->IsAggressivePreemptionAllowed())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_aggressive_preemption_allowed",
+                element->GetEffectiveAggressivePreemptionAllowed())
             .DoIf(element->GetLowestAggressivelyStarvingAncestor(), [&] (TFluentMap fluent) {
-                fluent.Item("lowest_aggressively_starving_ancestor").Value(element->GetLowestAggressivelyStarvingAncestor()->GetId());
+                fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                    filter,
+                    "lowest_aggressively_starving_ancestor",
+                    element->GetLowestAggressivelyStarvingAncestor()->GetId());
             })
             .DoIf(element->GetLowestStarvingAncestor(), [&] (TFluentMap fluent) {
-                fluent.Item("lowest_starving_ancestor").Value(element->GetLowestStarvingAncestor()->GetId());
+                fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lowest_starving_ancestor", element->GetLowestStarvingAncestor()->GetId());
             })
-            .Item("weight").Value(element->GetWeight())
-            .Item("max_share_ratio").Value(element->GetMaxShareRatio())
-            .Item("dominant_resource").Value(attributes.DominantResource)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "weight", element->GetWeight())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "max_share_ratio", element->GetMaxShareRatio())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_resource", attributes.DominantResource)
 
-            .Item("resource_usage").Value(element->GetResourceUsageAtUpdate())
-            .Item("usage_share").Value(attributes.UsageShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_usage", element->GetResourceUsageAtUpdate())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "usage_share", attributes.UsageShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("usage_ratio").Value(element->GetResourceDominantUsageShareAtUpdate())
-            .Item("dominant_usage_share").Value(element->GetResourceDominantUsageShareAtUpdate())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "usage_ratio", element->GetResourceDominantUsageShareAtUpdate())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate())
 
-            .Item("resource_demand").Value(element->GetResourceDemand())
-            .Item("demand_share").Value(attributes.DemandShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_demand", element->GetResourceDemand())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "demand_share", attributes.DemandShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("demand_ratio").Value(MaxComponent(attributes.DemandShare))
-            .Item("dominant_demand_share").Value(MaxComponent(attributes.DemandShare))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "demand_ratio", MaxComponent(attributes.DemandShare))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "dominant_demand_share", MaxComponent(attributes.DemandShare))
 
-            .Item("resource_limits").Value(element->GetResourceLimits())
-            .Item("limits_share").Value(attributes.LimitsShare)
-            .Item("scheduling_tag_filter_resource_limits").Value(element->GetSchedulingTagFilterResourceLimits())
-
-            // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("min_share").Value(attributes.StrongGuaranteeShare)
-            .Item("strong_guarantee_share").Value(attributes.StrongGuaranteeShare)
-            // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("min_share_resources").Value(element->GetSpecifiedStrongGuaranteeResources())
-            .Item("strong_guarantee_resources").Value(element->GetSpecifiedStrongGuaranteeResources())
-            // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("effective_min_share_resources").Value(attributes.EffectiveStrongGuaranteeResources)
-            .Item("effective_strong_guarantee_resources").Value(attributes.EffectiveStrongGuaranteeResources)
-            // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("min_share_ratio").Value(MaxComponent(attributes.StrongGuaranteeShare))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "resource_limits", element->GetResourceLimits())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "limits_share", attributes.LimitsShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "scheduling_tag_filter_resource_limits", element->GetSchedulingTagFilterResourceLimits())
 
             // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
-            .Item("detailed_fair_share").Value(attributes.FairShare)
-            .Item("detailed_dominant_fair_share").Do(std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share", attributes.StrongGuaranteeShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_share", attributes.StrongGuaranteeShare)
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_resources", element->GetSpecifiedStrongGuaranteeResources())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "strong_guarantee_resources", element->GetSpecifiedStrongGuaranteeResources())
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_min_share_resources", attributes.EffectiveStrongGuaranteeResources)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_strong_guarantee_resources", attributes.EffectiveStrongGuaranteeResources)
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "min_share_ratio", MaxComponent(attributes.StrongGuaranteeShare))
 
-            .Item("promised_fair_share").Value(attributes.PromisedFairShare)
-            .Item("promised_dominant_fair_share").Value(MaxComponent(attributes.PromisedFairShare))
-            .Item("promised_fair_share_resources").Value(promisedFairShareResources)
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fair_share_ratio", MaxComponent(attributes.FairShare.Total))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "detailed_fair_share", attributes.FairShare)
+            .ITEM_DO_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "detailed_dominant_fair_share",
+                std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1))
 
-            .Item("proposed_integral_share").Value(attributes.ProposedIntegralShare)
-            .Item("best_allocation_share").Value(persistentAttributes.BestAllocationShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share", attributes.PromisedFairShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare))
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "promised_fair_share_resources", promisedFairShareResources)
 
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
-            .Item("local_satisfaction_ratio").Value(attributes.LocalSatisfactionRatio);
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "proposed_integral_share", attributes.ProposedIntegralShare)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)
+
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", attributes.SatisfactionRatio)
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", attributes.LocalSatisfactionRatio);
     }
 
     void DoBuildEssentialFairShareInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

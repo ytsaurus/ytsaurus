@@ -12,6 +12,8 @@ namespace NYT::NYson {
 enum class ETokenType;
 
 class TYsonProducer;
+template <class... TAdditionalArgs>
+class TExtendedYsonProducer;
 
 class TYsonInput;
 class TYsonOutput;
