@@ -48,8 +48,8 @@ public:
         }
 
         YT_LOG_DEBUG("Loaded chunks (Location: %v, Count: %v, ElapsedTime: %v)",
-            Chunks_.size(),
             locationId,
+            Chunks_.size(),
             timer.GetElapsedTime());
     }
 
@@ -92,7 +92,7 @@ public:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Starting load test (Location: %v)",
-            Location_->GetPath());
+            Location_->GetId());
 
         auto randomFileProvider = New<TRandomFileProvider>(ChunkStore_, Location_->GetUuid(), Logger);
         auto loader = CreateGentleLoader(
@@ -133,7 +133,7 @@ public:
 
         if (ScheduledAt_ || session) {
             YT_LOG_DEBUG("Stopping load test (Location: %v)",
-                Location_->GetPath());
+                Location_->GetId());
         }
 
         if (session) {
@@ -155,7 +155,7 @@ public:
         YT_VERIFY(!ScheduledAt_);
 
         YT_LOG_DEBUG("Scheduled load test (Location: %v, ScheduledTime: %v)",
-            Location_->GetPath(),
+            Location_->GetId(),
             scheduledTime);
 
         ScheduledAt_ = scheduledTime;
@@ -190,6 +190,11 @@ public:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         return Location_->GetPath();
+    }
+
+    TString GetId() const
+    {
+        return Location_->GetId();
     }
 
 private:
@@ -264,7 +269,7 @@ private:
         if (Session_->RoundsCount > config->MaxCongestionsPerTest || overallDuration > config->TestingTimeSoftLimit) {
             YT_LOG_WARNING("Setting test results (Location: %v, OverallDuration: %v, RoundsCount: %v, "
                 "DiskReadRate: %v, DiskWriteRate: %v, BestRoundDuration: %v)",
-                Location_->GetPath(),
+                Location_->GetId(),
                 overallDuration,
                 Session_->RoundsCount,
                 Session_->BestRoundResult.DiskReadRate,
@@ -297,7 +302,7 @@ class TIOThroughputMeter
     : public IIOThroughputMeter
 {
 public:
-    explicit TIOThroughputMeter(
+    TIOThroughputMeter(
         TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         TChunkStorePtr chunkStore,
         NLogging::TLogger logger)
@@ -316,7 +321,7 @@ public:
                 ChunkStore_,
                 location,
                 Invoker_,
-                Logger);
+                Logger.WithTag("Location:%v", location->GetId()));
         }
 
         ProbesExecutor_->Start();
@@ -357,34 +362,54 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
         auto config = DynamicConfigManager_->GetConfig()->DataNode->IOThroughputMeter;
 
+        // Cancel all scheduled/ongoing test for locations that should not be tested anymore.
         for (auto& [_, location] : Locations_) {
             auto mediumConfig = GetMediumConfig(config, location->GetMediumName());
 
-            YT_LOG_WARNING("Sync state (Enabled: %v, Medium: %v, MediumsSize: %v)",
-                config->Enabled,
-                location->GetMediumName(),
-                config->Mediums.size());
-
             if (!config->Enabled || !mediumConfig || !mediumConfig->Enabled) {
-                Stop(location);
+                location->Stop();
                 continue;
             }
 
-            auto scheduled = location->GetScheduledTime();
-            if (!scheduled) {
-                Schedule(location, config);
-                continue;
-            }
-
-            if (TInstant::Now() > scheduled) {
-                RunTest(location, config, mediumConfig);
-                continue;
-            }
-
-            if (location->GetRunningTime() > config->TestingTimeHardLimit) {
+            if (location->Running() && location->GetRunningTime() > config->TestingTimeHardLimit) {
+                YT_LOG_WARNING("Cancel stucked tests (Location: %v, RunningTime: %v, TestingTimeHardLimit: %v)",
+                    location->GetId(),
+                    location->GetRunningTime(),
+                    config->TestingTimeHardLimit);
                 location->Stop();
             }
         }
+
+        // Schedule throughput tests if needed.
+        if (!AnyScheduled()) {
+            ScheduleAll(config);
+            return;
+        }
+
+        // Run tests one by one.
+        if (!AnyRunning()) {
+            RunOne(config);
+        }
+    }
+
+    bool AnyScheduled()
+    {
+        for (auto& [_, location] : Locations_) {
+            if (location->GetScheduledTime()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool AnyRunning()
+    {
+        for (auto& [_, location] : Locations_) {
+            if (location->Running()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     TMediumThroughputMeterConfigPtr GetMediumConfig(
@@ -399,26 +424,44 @@ private:
         return {};
     }
 
-    void Schedule(const TLocationLoadTesterPtr& location, const TIOThroughputMeterConfigPtr& config)
-    {
-        auto period = config->TimeBetweenTests;
-        auto runAfter = period / 2 + TDuration::Seconds(RandomNumber(period.Seconds()));
-        location->SetScheduledTime(TInstant::Now() + runAfter);
-    }
-
-    void RunTest(
-        const TLocationLoadTesterPtr& location,
-        const TIOThroughputMeterConfigPtr& config,
-        const TMediumThroughputMeterConfigPtr& mediumConfig)
-    {
-        if (!location->Running()) {
-            location->Run(config, mediumConfig);
+    void VisitEnabledLocation(const TIOThroughputMeterConfigPtr& config, auto visitor) {
+        for (auto& [_, location] : Locations_) {
+            auto mediumConfig = GetMediumConfig(config, location->GetMediumName());
+            if (!config->Enabled || !mediumConfig || !mediumConfig->Enabled) {
+                continue;
+            }
+            if (!visitor(location, mediumConfig)) {
+                break;
+            }
         }
     }
 
-    void Stop(const TLocationLoadTesterPtr& locationTest)
+    void ScheduleAll(const TIOThroughputMeterConfigPtr& config)
     {
-        locationTest->Stop();
+        VisitEnabledLocation(config, [&] (const TLocationLoadTesterPtr& location, const TMediumThroughputMeterConfigPtr&) {
+            auto scheduled = location->GetScheduledTime();
+            YT_VERIFY(!scheduled);
+
+            auto period = config->TimeBetweenTests;
+            auto runAfter = period / 2 + TDuration::Seconds(RandomNumber(period.Seconds()));
+            location->SetScheduledTime(TInstant::Now() + runAfter);
+            return true;
+        });
+    }
+
+    void RunOne(const TIOThroughputMeterConfigPtr& config)
+    {
+        VisitEnabledLocation(config, [&] (const TLocationLoadTesterPtr& location, const TMediumThroughputMeterConfigPtr& mediumConfig) {
+            YT_VERIFY(!location->Running());
+
+            auto scheduled = location->GetScheduledTime();
+            if (scheduled && TInstant::Now() > scheduled) {
+                location->Run(config, mediumConfig);
+                // Signal not to continue.
+                return false;
+            }
+            return true;
+        });
     }
 };
 
