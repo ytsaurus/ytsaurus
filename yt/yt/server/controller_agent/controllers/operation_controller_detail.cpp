@@ -1787,8 +1787,8 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
             return;
         }
 
-        YT_VERIFY(finishedJobInfo->State != TFinishedJobInfo::EState::FullyReceived);
-        if (finishedJobInfo->State == TFinishedJobInfo::EState::Released) {
+        if (finishedJobInfo->State == TFinishedJobInfo::EState::FullyReceived ||
+            finishedJobInfo->State == TFinishedJobInfo::EState::Released) {
             YT_LOG_DEBUG("Finished job info is already received, abort skipped (JobId: %v)", jobId);
             return;
         }
