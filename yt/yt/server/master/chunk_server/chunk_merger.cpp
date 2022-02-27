@@ -423,7 +423,7 @@ private:
 
     bool IsNodeMergeable() const
     {
-        if (!Node_->IsAlive()) {
+        if (!Node_.IsAlive()) {
             return false;
         }
 
