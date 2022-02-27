@@ -1,10 +1,12 @@
 #pragma once
 
+#include "public.h"
+
+#include <yt/yt/ytlib/object_client/public.h>
+
 #include <yt/yt/client/api/connection.h>
 
 #include <yt/yt/client/hive/public.h>
-
-#include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -74,6 +76,33 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDirectory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A simple wrapper around #TClusterDirectory for creating clients
+//! with given credentials.
+class TClientDirectory
+    : public TRefCounted
+{
+public:
+    TClientDirectory(
+        TClusterDirectoryPtr clusterDirecotry,
+        NApi::TClientOptions clientOptions);
+
+    //! Returns the client to the cluster with a given #clusterName.
+    //! Returns |nullptr| if no connection is found in the underlying cluster
+    //! directory.
+    NApi::IClientPtr FindClient(const TString& clusterName) const;
+    //! Same as #FindClient but throws if no connection is found in the
+    //! underlying cluster directory.
+    NApi::IClientPtr GetClientOrThrow(const TString& clusterName) const;
+
+private:
+    TClusterDirectoryPtr ClusterDirectory_;
+    NApi::TClientOptions ClientOptions_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TClientDirectory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

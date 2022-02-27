@@ -20,7 +20,7 @@ public:
 public:
     TQueueAgent(
         TQueueAgentConfigPtr config,
-        NHiveClient::TClusterDirectoryPtr clusterDirectory,
+        NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState);
 
@@ -30,7 +30,7 @@ public:
 
 private:
     const TQueueAgentConfigPtr Config_;
-    const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
+    const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const NConcurrency::TThreadPoolPtr ControllerThreadPool_;

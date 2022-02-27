@@ -168,4 +168,25 @@ TClusterTag TClusterDirectory::GetClusterTag(const TClusterDirectory::TCluster& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TClientDirectory::TClientDirectory(
+    TClusterDirectoryPtr clusterDirectory,
+    TClientOptions clientOptions)
+    : ClusterDirectory_(std::move(clusterDirectory))
+    , ClientOptions_(std::move(clientOptions))
+{ }
+
+IClientPtr TClientDirectory::FindClient(const TString& clusterName) const
+{
+    const auto& connection = ClusterDirectory_->FindConnection(clusterName);
+    return connection->CreateClient(ClientOptions_);
+}
+
+IClientPtr TClientDirectory::GetClientOrThrow(const TString& clusterName) const
+{
+    const auto& connection = ClusterDirectory_->GetConnectionOrThrow(clusterName);
+    return connection->CreateClient(ClientOptions_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHiveClient

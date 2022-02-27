@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -50,6 +52,8 @@ private:
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
+
+    NHiveClient::TClientDirectoryPtr ClientDirectory_;
 
     NCypressElection::ICypressElectionManagerPtr ElectionManager_;
 

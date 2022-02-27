@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -65,11 +67,11 @@ public:
         TCypressSynchronizerConfigPtr config,
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState,
-        TClusterDirectoryPtr clusterDirectory)
+        TClientDirectoryPtr clientDirectory)
         : Config_(std::move(config))
         , ControlInvoker_(std::move(controlInvoker))
         , DynamicState_(std::move(dynamicState))
-        , ClusterDirectory_(std::move(clusterDirectory))
+        , ClientDirectory_(std::move(clientDirectory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TPollingCypressSynchronizer::Poll, MakeWeak(this)),
@@ -123,7 +125,7 @@ private:
     const TCypressSynchronizerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TClientDirectoryPtr ClientDirectory_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const IYPathServicePtr OrchidService_;
 
@@ -146,7 +148,7 @@ private:
         for (const auto& [cluster, objects] : clusterToObjects) {
             IChannelPtr channel;
             try {
-                auto client = GetClusterClient(ClusterDirectory_, cluster);
+                auto client = AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
                 channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error connecting to cluster %v", cluster) << ex;
@@ -290,7 +292,7 @@ private:
         for (const auto& [cluster, modifiedObjects] : clusterToModifiedObjects) {
             IChannelPtr channel;
             try {
-                auto client = GetClusterClient(ClusterDirectory_, cluster);
+                auto client = AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
                 channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error connecting to cluster %v", cluster) << ex;
@@ -381,13 +383,13 @@ ICypressSynchronizerPtr CreatePollingCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
-    TClusterDirectoryPtr clusterDirectory)
+    TClientDirectoryPtr clientDirectory)
 {
     return New<TPollingCypressSynchronizer>(
         std::move(config),
         std::move(controlInvoker),
         std::move(dynamicState),
-        std::move(clusterDirectory));
+        std::move(clientDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
