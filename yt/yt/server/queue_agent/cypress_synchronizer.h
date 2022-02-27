@@ -27,7 +27,7 @@ ICypressSynchronizerPtr CreatePollingCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
-    NHiveClient::TClusterDirectoryPtr clusterDirectory);
+    NHiveClient::TClientDirectoryPtr clientDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

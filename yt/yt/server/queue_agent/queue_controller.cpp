@@ -5,6 +5,8 @@
 #include "config.h"
 #include "helpers.h"
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -37,13 +39,13 @@ class TOrderedDynamicTableController
 public:
     TOrderedDynamicTableController(
         TQueueControllerConfigPtr config,
-        TClusterDirectoryPtr clusterDirectory,
+        TClientDirectoryPtr clientDirectory,
         TCrossClusterReference queueRef,
         TQueueTableRow queueRow,
         TConsumerRowMap consumerRowMap,
         IInvokerPtr invoker)
         : Config_(std::move(config))
-        , ClusterDirectory_(std::move(clusterDirectory))
+        , ClientDirectory_(std::move(clientDirectory))
         , QueueRef_(std::move(queueRef))
         , Invoker_(std::move(invoker))
         , Logger(QueueAgentLogger.WithTag("Queue: %Qv", QueueRef_))
@@ -122,7 +124,7 @@ public:
 
 private:
     const TQueueControllerConfigPtr Config_;
-    const TClusterDirectoryPtr ClusterDirectory_;
+    const TClientDirectoryPtr ClientDirectory_;
     const TCrossClusterReference QueueRef_;
 
     TQueueSnapshotPtr QueueSnapshot_;
@@ -203,7 +205,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto client = GetClusterClient(ClusterDirectory_, QueueRef_.Cluster);
+        auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
         const auto& tableMountCache = client->GetTableMountCache();
 
         // Fetch partition count (which is equal to tablet count).
@@ -283,7 +285,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 
 IQueueControllerPtr CreateQueueController(
     TQueueControllerConfigPtr config,
-    NHiveClient::TClusterDirectoryPtr clusterDirectory,
+    NHiveClient::TClientDirectoryPtr clientDirectory,
     TCrossClusterReference queueRef,
     EQueueFamily queueFamily,
     TQueueTableRow queueRow,
@@ -294,7 +296,7 @@ IQueueControllerPtr CreateQueueController(
         case EQueueFamily::OrderedDynamicTable:
             return New<TOrderedDynamicTableController>(
                 std::move(config),
-                std::move(clusterDirectory),
+                std::move(clientDirectory),
                 std::move(queueRef),
                 std::move(queueRow),
                 std::move(consumerRefToRow),

@@ -4,15 +4,9 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
-#include <yt/yt/client/security_client/public.h>
-
 namespace NYT::NQueueAgent {
 
-using namespace NSecurityClient;
 using namespace NObjectClient;
-using namespace NHiveClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,13 +25,8 @@ TErrorOr<EQueueFamily> DeduceQueueFamily(const TQueueTableRow& row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::NNative::IClientPtr GetClusterClient(
-    TClusterDirectoryPtr clusterDirectory,
-    const TString& clusterName)
+NApi::NNative::IClientPtr AssertNativeClient(const NApi::IClientPtr& client)
 {
-    auto client = clusterDirectory
-        ->GetConnectionOrThrow(clusterName)
-        ->CreateClient(NApi::TClientOptions::FromUser(QueueAgentUserName));
     auto nativeClient = MakeStrong(dynamic_cast<NApi::NNative::IClient*>(client.Get()));
     YT_VERIFY(nativeClient);
     return nativeClient;

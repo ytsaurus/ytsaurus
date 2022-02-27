@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 
 IQueueControllerPtr CreateQueueController(
     TQueueControllerConfigPtr config,
-    NHiveClient::TClusterDirectoryPtr clusterDirectory,
+    NHiveClient::TClientDirectoryPtr clientDirectory,
     TCrossClusterReference queueRef,
     EQueueFamily queueFamily,
     TQueueTableRow queueRow,

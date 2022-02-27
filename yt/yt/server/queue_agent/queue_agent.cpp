@@ -27,12 +27,12 @@ static const auto& Logger = QueueAgentLogger;
 
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
-    TClusterDirectoryPtr clusterDirectory,
+    TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState)
     : OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgent::BuildOrchid, MakeWeak(this)))->Via(controlInvoker))
     , Config_(std::move(config))
-    , ClusterDirectory_(std::move(clusterDirectory))
+    , ClientDirectory_(std::move(clientDirectory))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
     , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
@@ -343,7 +343,7 @@ void TQueueAgent::Poll()
 
             queue.Controller = CreateQueueController(
                 Config_->Controller,
-                ClusterDirectory_,
+                ClientDirectory_,
                 queueRef,
                 queue.QueueFamily,
                 GetOrCrash(queueRefToRow, queueRef),

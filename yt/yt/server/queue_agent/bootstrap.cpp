@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/monitoring/http_integration.h>
 #include <yt/yt/ytlib/monitoring/monitoring_manager.h>
@@ -67,6 +68,7 @@ using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NLogging;
 using namespace NCypressElection;
+using namespace NHiveClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +105,10 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO("Starting queue agent process (NativeCluster: %v)", Config_->ClusterConnection->ClusterName);
+    YT_LOG_INFO(
+        "Starting queue agent process (NativeCluster: %v, User: %v)",
+        Config_->ClusterConnection->ClusterName,
+        Config_->User);
 
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -117,6 +122,8 @@ void TBootstrap::DoRun()
 
     auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
+
+    ClientDirectory_ = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -132,7 +139,7 @@ void TBootstrap::DoRun()
 
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
-        NativeConnection_->GetClusterDirectory(),
+        ClientDirectory_,
         ControlInvoker_,
         DynamicState_);
 
@@ -140,7 +147,7 @@ void TBootstrap::DoRun()
         Config_->CypressSynchronizer,
         ControlInvoker_,
         DynamicState_,
-        NativeConnection_->GetClusterDirectory());
+        ClientDirectory_);
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
