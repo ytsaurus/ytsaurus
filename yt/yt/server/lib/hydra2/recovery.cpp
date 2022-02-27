@@ -270,19 +270,24 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
             }
         }
 
-        for (int changelogToTruncateId = latestChangelogId; changelogToTruncateId > changelog->GetId(); --changelogToTruncateId) {
-            auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogToTruncateId));
+        for (int changelogIdToTruncate = latestChangelogId; changelogIdToTruncate > changelog->GetId(); --changelogIdToTruncate) {
+            auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogIdToTruncate));
             if (!errorOrChangelogToTruncate.IsOK()) {
                 YT_LOG_INFO("Changelog does not exist, skipping (ChangelogId: %v)",
-                    changelogToTruncateId);
+                    changelogIdToTruncate);
                 continue;
             }
             auto changelogToTruncate = errorOrChangelogToTruncate.ValueOrThrow();
-            YT_LOG_INFO("Removing all records from changelog (ChangelogId: %v, RecordCount: %v)",
-                changelogToTruncateId,
-                changelogToTruncate->GetRecordCount());
-            auto result = WaitFor(changelogToTruncate->Truncate(0));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
+            if (changelogToTruncate->GetRecordCount() > 0) {
+                YT_LOG_INFO("Removing all records from changelog (ChangelogId: %v, RecordCount: %v)",
+                    changelogIdToTruncate,
+                    changelogToTruncate->GetRecordCount());
+                auto result = WaitFor(changelogToTruncate->Truncate(0));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
+            } else {
+                YT_LOG_INFO("Changelog is empty, will not truncate (ChangelogId: %v)",
+                    changelogIdToTruncate);
+            }
         }
 
         auto result = WaitFor(changelog->Truncate(adjustedRemoteRecordCount));
