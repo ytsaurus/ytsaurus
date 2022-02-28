@@ -400,13 +400,13 @@ protected:
             nodeKind);
     }
 
-    void CommitTransaction()
+    void CommitTransaction(const TTransactionCommitOptions& options = {})
     {
         YT_LOG_DEBUG("Committing transaction");
 
         // NB: failing to commit still means we shouldn't try to abort.
         TransactionCommitted_ = true;
-        auto error = WaitFor(Transaction_->Commit());
+        auto error = WaitFor(Transaction_->Commit(options));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error committing transaction");
 
         YT_LOG_DEBUG("Transaction committed");
@@ -461,7 +461,9 @@ public:
             RemoveSource();
         }
         SyncExternalCellsWithClonedNodeCell();
-        CommitTransaction();
+        TTransactionCommitOptions commitOptions = {};
+        commitOptions.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
+        CommitTransaction(commitOptions);
         YT_LOG_DEBUG("Cross-cell node cloning completed");
         return DstNodeId_;
     }
@@ -927,10 +929,8 @@ TNodeId TClient::DoCloneNode(
         return FromProto<TNodeId>(rsp->node_id());
     }
 
-    if (!options.PrerequisiteTransactionIds.empty() ||
-        !options.PrerequisiteRevisions.empty())
-    {
-        THROW_ERROR_EXCEPTION("Cross-cell \"copy\"/\"move\" command does not support prerequisites");
+    if (!options.PrerequisiteRevisions.empty()) {
+        THROW_ERROR_EXCEPTION("Cross-cell \"copy\"/\"move\" command does not support prerequisite revisions");
     }
 
     if (options.Retry) {
