@@ -419,7 +419,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if ssd_limit:
         worker_task_spec["disk_request"] = {
             "disk_space": _parse_memory(ssd_limit),
-            "medium_name": "ssd_blobs"
+            "medium_name": "ssd_slots_physical"
         }
         worker_environment["SPARK_LOCAL_DIRS"] = "."
 
