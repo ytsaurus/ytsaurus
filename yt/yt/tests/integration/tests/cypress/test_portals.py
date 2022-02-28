@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy, move,
+    authors, raises_yt_error, wait, create, ls, get, set, copy, move,
     remove, link,
     exists, concatenate, create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle,
     make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
@@ -1289,6 +1289,24 @@ class TestPortals(YTEnvSetup):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             create("map_node", "//tmp/t", ignore_existing=True)
+
+    @authors("kvk1920")
+    def test_cross_cell_copy_with_prerequisite_transaction_ids(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
+
+        write_table("//tmp/t", {"a": "b"})
+        tx = start_transaction()
+        copy("//tmp/t", "//tmp/p/t", prerequisite_transaction_ids=[tx])
+        commit_transaction(tx)
+
+        assert exists("//tmp/p/t")
+        assert read_table("//tmp/p/t") == [{"a": "b"}]
+
+        with raises_yt_error("Prerequisite check failed"):
+            copy("//tmp/t", "//tmp/p/t2", prerequisite_transaction_ids=[tx])
+
+        assert not exists("//tmp/p/t2")
 
 
 ##################################################################
