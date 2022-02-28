@@ -62,7 +62,7 @@ public:
 
     void Shutdown();
 
-    //! Registers a just-written chunk.
+    //! Registers a just-written chunk unless the chunk already exists or location is disabled.
     void RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session);
 
     //! Triggers another round of master notification for a chunk that is already registered.

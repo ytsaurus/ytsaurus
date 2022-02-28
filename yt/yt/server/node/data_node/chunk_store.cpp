@@ -187,12 +187,11 @@ void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& se
                 << TErrorAttribute("current_master_epoch", masterEpoch);
         }
 
-        auto oldChunk = DoFindExistingChunk(chunk).Chunk;
-        YT_LOG_FATAL_IF(
-            oldChunk,
-            "Duplicate chunk: %v vs %v",
-            chunk->GetLocation()->GetChunkPath(chunk->GetId()),
-            oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+        if (auto oldChunk = DoFindExistingChunk(chunk).Chunk) {
+            THROW_ERROR_EXCEPTION("Attempted to register duplicate chunk")
+                << TErrorAttribute("new_chunk_path", chunk->GetLocation()->GetChunkPath(chunk->GetId()))
+                << TErrorAttribute("old_chunk_path", oldChunk->GetLocation()->GetChunkPath(oldChunk->GetId()));
+        }
 
         // NB: This is multimap.
         ChunkMap_.emplace(chunk->GetId(), entry);

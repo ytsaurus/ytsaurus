@@ -673,11 +673,28 @@ class TestDynamicMedia(YTEnvSetup):
         }
     }
 
+    def _validate_empty_medium_overrides(self):
+        for location in ls("//sys/chunk_locations"):
+            remove(f"//sys/chunk_locations/{location}/@medium_override")
+
+        def medium_overrides_applied():
+            for location in ls("//sys/chunk_locations"):
+                if get(f"//sys/chunk_locations/{location}/@statistics/medium_name") != "default":
+                    return False
+            return True
+
+        wait(medium_overrides_applied)
+
     def teardown_method(self, method):
         for node in ls("//sys/data_nodes"):
-            for location in self._get_locations("//sys/data_nodes/" + node):
-                remove("//sys/chunk_locations/{}/@medium_override".format(location))
+            for location in self._get_locations(f"//sys/data_nodes/{node}"):
+                remove(f"//sys/chunk_locations/{location}/@medium_override")
+
         super(TestDynamicMedia, self).teardown_method(method)
+
+    def _set_medium_override_and_wait(self, location, medium):
+        set(f"//sys/chunk_locations/{location}/@medium_override", medium)
+        wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
 
     @classmethod
     def modify_node_config(cls, config):
@@ -713,6 +730,7 @@ class TestDynamicMedia(YTEnvSetup):
 
     @authors("kvk1920")
     def test_medium_change_simple(self):
+        self._validate_empty_medium_overrides()
         node = "//sys/data_nodes/" + ls("//sys/data_nodes")[0]
 
         medium_name = "testmedium"
@@ -757,6 +775,66 @@ class TestDynamicMedia(YTEnvSetup):
 
         assert self._get_locations(node)[location1]["medium_name"] == "default"
         assert self._get_locations(node)[location2]["medium_name"] == medium_name
+
+    @authors("kvk1920")
+    def test_medium_override_removal(self):
+        self._validate_empty_medium_overrides()
+        medium = "testmedium"
+        if not exists(f"//sys/media/{medium}"):
+            create_medium(medium)
+
+        location = ls("//sys/chunk_locations")[0]
+        assert get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == "default"
+        set(f"//sys/chunk_locations/{location}/@medium_override", medium)
+        wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == medium)
+        remove(f"//sys/chunk_locations/{location}/@medium_override")
+        wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == "default")
+
+    @authors("kvk1920")
+    def test_replica_collision(self):
+        self._validate_empty_medium_overrides()
+        medium = "testmedium"
+        if not exists(f"//sys/media/{medium}"):
+            create_medium(medium)
+        tumbstone = "tumbstone"
+        if not exists(f"//sys/media/{tumbstone}"):
+            create_medium(tumbstone)
+
+        locations = ls("//sys/chunk_locations")
+        location = locations[0]
+        self._set_medium_override_and_wait(location, medium)
+        create("table", "//tmp/t", attributes={"media": {
+            "default": {"replication_factor": 1, "data_parts_only": False},
+            medium: {"replication_factor": 1, "data_parts_only": False},
+        }})
+        write_table("//tmp/t", {"foo": "bar"})
+        chunk = get_singular_chunk_id("//tmp/t")
+        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 2)
+
+        def get_used_space():
+            return [
+                get(f"//sys/chunk_locations/{loc}/@statistics/used_space")
+                for loc in locations
+            ]
+        used_space = get_used_space()
+
+        remove(f"//sys/chunk_locations/{location}/@medium_override")
+        set("//tmp/t/@media", {"default": {"replication_factor": 1, "data_parts_only": False}})
+        wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == "default")
+        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 1)
+        assert read_table("//tmp/t") == [{"foo": "bar"}]
+
+        set("//tmp/t/@media", {
+            "default": {"replication_factor": 1, "data_parts_only": False},
+            medium: {"replication_factor": 1, "data_parts_only": False},
+        })
+        self._set_medium_override_and_wait(location, medium)
+        self._set_medium_override_and_wait(locations[1], tumbstone)
+        self._set_medium_override_and_wait(locations[1], "default")
+        wait(lambda: len(get(f"#{chunk}/@stored_replicas")) == 2)
+        assert read_table("//tmp/t") == [{"foo": "bar"}]
+        # NB: Total used space should not change.
+        wait(lambda: get_used_space() == used_space)
 
 
 ################################################################################
