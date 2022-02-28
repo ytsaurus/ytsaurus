@@ -15,7 +15,8 @@ class TThreadPool
 public:
     TThreadPool(
         int threadCount,
-        const TString& threadNamePrefix);
+        const TString& threadNamePrefix,
+        bool startThreads = true);
 
     virtual ~TThreadPool();
 
@@ -25,6 +26,9 @@ public:
     //! because it clamped between 1 and maximum thread count.
     int GetThreadCount();
     void Configure(int threadCount);
+
+    //! Starts the threads if they were not previously started.
+    void EnsureStarted();
 
     const IInvokerPtr& GetInvoker();
 

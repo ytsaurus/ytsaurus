@@ -20,6 +20,7 @@ public:
 
     void Configure(int threadCount);
     void Shutdown();
+    void EnsureStarted();
 
     int GetThreadCount();
 
@@ -28,16 +29,16 @@ protected:
 
     const TShutdownCookie ShutdownCookie_;
 
+    std::atomic<int> ThreadCount_ = 0;
     std::atomic<bool> StartFlag_ = false;
     std::atomic<bool> ShutdownFlag_ = false;
 
-    IInvokerPtr FinalizerInvoker_;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TSchedulerThreadBasePtr> Threads_;
+    IInvokerPtr FinalizerInvoker_;
 
-
-    void EnsureStarted();
+    void Resize();
+    void EnsureFinalizerInvoker();
 
     TString MakeThreadName(int index);
 
