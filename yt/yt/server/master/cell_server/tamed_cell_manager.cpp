@@ -1101,6 +1101,9 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
+    // COMPAT(gritukan)
+    bool NeedToRecomputeTabletCellBundleRefCounters_ = false;
+
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -1142,6 +1145,8 @@ private:
         CellBundleMap_.LoadKeys(context);
         CellMap_.LoadKeys(context);
         AreaMap_.LoadKeys(context);
+
+        NeedToRecomputeTabletCellBundleRefCounters_ = context.GetVersion() >= EMasterReign::RefCountedInheritableAttributes;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1236,6 +1241,67 @@ private:
             cell->GossipStatus().Initialize(Bootstrap_);
         }
 
+        if (NeedToRecomputeTabletCellBundleRefCounters_) {
+            THashMap<TCellBundle*, int> refCounters;
+
+            const auto& tabletCells = Cells(ECellarType::Tablet);
+
+            // Tablet cell bundles are referenced by their tablet cells.
+            for (auto* tabletCell : tabletCells) {
+                auto* cellBundle = tabletCell->GetCellBundle();
+                YT_VERIFY(IsObjectAlive(cellBundle) && cellBundle->GetType() == EObjectType::TabletCellBundle);
+                ++refCounters[cellBundle];
+            }
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                // Also, tablet cell bundles are referenced by tables in it.
+                if (node->GetType() == EObjectType::Table) {
+                    auto* table = node->As<TTableNode>();
+                    if (table->TabletCellBundle()) {
+                        ++refCounters[table->TabletCellBundle().Get()];
+                    }
+                }
+
+                // Finally, tablet cell bundles are referenced by Cypress nodes with
+                // @tablet_cell_bundle attribute.
+                if (auto* compositeNode = dynamic_cast<TCompositeNodeBase*>(node)) {
+                    if (auto tabletCellBundle = compositeNode->TryGetTabletCellBundle()) {
+                        ++refCounters[*tabletCellBundle];
+                    }
+                }
+            }
+
+            for (auto [cellBundleId, cellBundle] : CellBundleMap_) {
+                if (cellBundle->GetType() != EObjectType::TabletCellBundle) {
+                    continue;
+                }
+
+                if (!IsObjectAlive(cellBundle)) {
+                    YT_VERIFY(refCounters[cellBundle] == 0);
+                    continue;
+                }
+
+                auto oldRefCounter = cellBundle->GetObjectRefCounter(/*flushObjectUnrefs*/ true);
+                auto newRefCounter = refCounters[cellBundle];
+                // Every tablet cell bundle gets one more reference just because it exists.
+                ++newRefCounter;
+                if (oldRefCounter != newRefCounter) {
+                    YT_VERIFY(newRefCounter < oldRefCounter);
+                    const auto& objectManager = Bootstrap_->GetObjectManager();
+                    objectManager->UnrefObject(cellBundle, oldRefCounter - newRefCounter);
+                    YT_VERIFY(cellBundle->GetObjectRefCounter(/*flushUnrefs*/ true) == newRefCounter);
+
+                    YT_LOG_ALERT("Fixed tablet cell bundle ref counter "
+                        "(TabletCellBundleId: %v, TabletCellBundleName: %v, RefCounter: %v -> %v)",
+                        cellBundle->GetId(),
+                        cellBundle->GetName(),
+                        oldRefCounter,
+                        newRefCounter);
+                }
+            }
+        }
+
         AfterSnapshotLoaded_.Fire();
     }
 
@@ -1255,6 +1321,8 @@ private:
         CellBundlesPerTypeMap_.clear();
         CellsPerTypeMap_.clear();
         BundleNodeTracker_->Clear();
+
+        NeedToRecomputeTabletCellBundleRefCounters_ = false;
     }
 
     void OnCellStatusGossip(bool incremental)
