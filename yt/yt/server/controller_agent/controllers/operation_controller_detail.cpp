@@ -4861,7 +4861,6 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
         // Job spec is necessary for ACL checks for fail context.
         releaseJobFlags.ArchiveJobSpec = true;
     }
-
     releaseJobFlags.ArchiveProfile = true;
 
     // TODO(gritukan, prime): This is always true.
@@ -4896,8 +4895,10 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     if (hasStderr) {
         ++RetainedJobWithStderrCount_;
     }
+    if (retainJob) {
+        ++RetainedJobCount_;
+    }
     RetainedJobsCoreInfoCount_ += coreInfoCount;
-    ++RetainedJobCount_;
 
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, -joblet->DiskQuota);
 }
