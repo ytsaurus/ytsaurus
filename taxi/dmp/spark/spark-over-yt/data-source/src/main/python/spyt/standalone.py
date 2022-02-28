@@ -18,7 +18,7 @@ from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spy
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_cluster_version, update_config_inplace, validate_custom_params, validate_mtn_config, \
     latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf, python_bin_path, \
-    worker_num_limit, validate_worker_num, read_cluster_conf
+    worker_num_limit, validate_worker_num, read_cluster_conf, validate_ssd_config
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
 from .version import __version__
@@ -270,7 +270,7 @@ def get_spark_conf(config, enablers):
 
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker,
-                               tmpfs_limit, ssd_limit,
+                               tmpfs_limit, ssd_limit, ssd_account,
                                master_memory_limit, shs_location,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
@@ -419,6 +419,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if ssd_limit:
         worker_task_spec["disk_request"] = {
             "disk_space": _parse_memory(ssd_limit),
+            "account": ssd_account,
             "medium_name": "ssd_slots_physical"
         }
         worker_environment["SPARK_LOCAL_DIRS"] = "."
@@ -496,6 +497,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         operation_alias=None, discovery_path=None, pool=None,
                         tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
                         ssd_limit=SparkDefaultArguments.SPARK_WORKER_SSD_LIMIT,
+                        ssd_account=None,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
                         history_server_cpu_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_CPU_LIMIT,
@@ -520,6 +522,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param worker_timeout: timeout to fail master waiting
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param ssd_limit: limit of ssd usage, default None, ssd disabled
+    :param ssd_account: account for ssd quota
     :param master_memory_limit: memory limit for master, default 2G
     :param history_server_memory_limit: memory limit for history server, default 16G,
     total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
@@ -578,6 +581,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     validate_custom_params(params)
     validate_mtn_config(enablers, network_project, tvm_id, tvm_secret)
     validate_worker_num(worker.num, worker_num_limit(global_conf))
+    validate_ssd_config(ssd_limit, ssd_account)
 
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(
@@ -599,6 +603,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         'worker': worker,
         'tmpfs_limit': tmpfs_limit,
         'ssd_limit': ssd_limit,
+        'ssd_account': ssd_account,
         'master_memory_limit': master_memory_limit,
         'shs_location': shs_location,
         'history_server_memory_limit': history_server_memory_limit,

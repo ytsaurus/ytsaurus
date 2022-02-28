@@ -91,6 +91,12 @@ def validate_worker_num(worker_num, worker_num_lim):
         raise RuntimeError("Number of workers ({0}) is more than limit ({1})".format(worker_num, worker_num_lim))
 
 
+def validate_ssd_config(ssd_limit, ssd_account):
+    if ssd_limit is not None and ssd_account is None:
+        raise RuntimeError("Ssd account must be provided to use ssd limit, please add --ssd-account option")
+
+
+
 def get_available_cluster_versions(client=None):
     subdirs = yt_list(CONF_BASE_PATH.join(RELEASES_SUBDIR), client=client)
     return [x for x in subdirs if x != "spark-launch-conf"]
