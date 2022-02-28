@@ -22,7 +22,8 @@ class TThreadPool::TImpl
 public:
     TImpl(
         int threadCount,
-        const TString& threadNamePrefix)
+        const TString& threadNamePrefix,
+        bool startThreads)
         : TThreadPoolBase(threadNamePrefix)
         , Queue_(New<TMpmcInvokerQueue>(
             CallbackEventCount_,
@@ -30,6 +31,9 @@ public:
         , Invoker_(Queue_)
     {
         Configure(threadCount);
+        if (startThreads) {
+            EnsureStarted();
+        }
     }
 
     ~TImpl()
@@ -77,10 +81,12 @@ private:
 
 TThreadPool::TThreadPool(
     int threadCount,
-    const TString& threadNamePrefix)
+    const TString& threadNamePrefix,
+    bool startThreads)
     : Impl_(New<TImpl>(
         threadCount,
-        threadNamePrefix))
+        threadNamePrefix,
+        startThreads))
 { }
 
 TThreadPool::~TThreadPool() = default;
@@ -98,6 +104,11 @@ int TThreadPool::GetThreadCount()
 void TThreadPool::Configure(int threadCount)
 {
     return Impl_->Configure(threadCount);
+}
+
+void TThreadPool::EnsureStarted()
+{
+    return Impl_->EnsureStarted();
 }
 
 const IInvokerPtr& TThreadPool::GetInvoker()

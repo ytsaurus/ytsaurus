@@ -14,7 +14,6 @@ TThreadPoolBase::TThreadPoolBase(TString threadNamePrefix)
         Format("ThreadPool(%v)", ThreadNamePrefix_),
         BIND(&TThreadPoolBase::Shutdown, MakeWeak(this)),
         /*priority*/ 100))
-    , FinalizerInvoker_(GetFinalizerInvoker())
 { }
 
 void TThreadPoolBase::Configure(int threadCount)
@@ -33,6 +32,7 @@ void TThreadPoolBase::Shutdown()
 void TThreadPoolBase::EnsureStarted()
 {
     if (!StartFlag_.exchange(true)) {
+        Resize();
         DoStart();
     }
 }
@@ -40,6 +40,15 @@ void TThreadPoolBase::EnsureStarted()
 TString TThreadPoolBase::MakeThreadName(int index)
 {
     return Format("%v:%v", ThreadNamePrefix_, index);
+}
+
+void TThreadPoolBase::EnsureFinalizerInvoker()
+{
+    auto guard = Guard(SpinLock_);
+    if (!FinalizerInvoker_) {
+        FinalizerInvoker_ = GetFinalizerInvoker();
+        YT_VERIFY(FinalizerInvoker_);
+    }
 }
 
 void TThreadPoolBase::DoStart()
@@ -50,6 +59,8 @@ void TThreadPoolBase::DoStart()
         threads = Threads_;
     }
 
+    EnsureFinalizerInvoker();
+
     for (const auto& thread : threads) {
         thread->Start();
     }
@@ -57,8 +68,16 @@ void TThreadPoolBase::DoStart()
 
 void TThreadPoolBase::DoShutdown()
 {
-    FinalizerInvoker_->Invoke(MakeFinalizerCallback());
-    FinalizerInvoker_.Reset();
+    EnsureFinalizerInvoker();
+
+    IInvokerPtr finalizerInvoker;
+    {
+        auto guard = Guard(SpinLock_);
+        finalizerInvoker = FinalizerInvoker_;
+        FinalizerInvoker_.Reset();
+    }
+
+    finalizerInvoker->Invoke(MakeFinalizerCallback());
 }
 
 TClosure TThreadPoolBase::MakeFinalizerCallback()
@@ -84,10 +103,20 @@ int TThreadPoolBase::GetThreadCount()
 
 void TThreadPoolBase::DoConfigure(int threadCount)
 {
+    ThreadCount_.store(threadCount);
+    if (StartFlag_.load()) {
+        Resize();
+    }
+}
+
+void TThreadPoolBase::Resize()
+{
     decltype(Threads_) threadsToStart;
     decltype(Threads_) threadsToStop;
     {
         auto guard = Guard(SpinLock_);
+
+        int threadCount = ThreadCount_.load();
 
         while (std::ssize(Threads_) < threadCount) {
             auto thread = SpawnThread(std::ssize(Threads_));
@@ -104,9 +133,6 @@ void TThreadPoolBase::DoConfigure(int threadCount)
     for (const auto& thread : threadsToStop) {
         thread->Stop();
     }
-
-    StartFlag_.store(false);
-    EnsureStarted();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

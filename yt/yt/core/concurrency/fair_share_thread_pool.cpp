@@ -490,6 +490,7 @@ public:
             GetThreadTags(ThreadNamePrefix_)))
     {
         Configure(threadCount);
+        EnsureStarted();
     }
 
     ~TFairShareThreadPool()

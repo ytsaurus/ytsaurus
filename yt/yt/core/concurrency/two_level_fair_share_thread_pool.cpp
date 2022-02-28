@@ -611,6 +611,7 @@ public:
             ThreadNamePrefix_))
     {
         Configure(threadCount);
+        EnsureStarted();
     }
 
     ~TTwoLevelFairShareThreadPool()
