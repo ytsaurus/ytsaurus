@@ -19,8 +19,6 @@ struct IDistributedThrottlerManager
         NDistributedThrottler::EDistributedThrottlerMode mode,
         TDuration rpcTimeout,
         bool admitUnlimitedThrottler) = 0;
-
-    virtual void Finalize() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerManager)

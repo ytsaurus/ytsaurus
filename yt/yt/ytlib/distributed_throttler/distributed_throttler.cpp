@@ -254,14 +254,24 @@ public:
 
     void Initialize()
     {
+        if (Active_) {
+            return;
+        }
+
         RpcServer_->RegisterService(this);
         UpdatePeriodicExecutor_->Start();
+        Active_ = true;
     }
 
     void Finalize()
     {
+        if (!Active_) {
+            return;
+        }
+
         UpdatePeriodicExecutor_->Stop();
         RpcServer_->UnregisterService(this);
+        Active_ = false;
     }
 
     void Reconfigure(const TDistributedThrottlerConfigPtr& config)
@@ -386,6 +396,8 @@ private:
     const TThrottlersPtr Throttlers_;
     const NLogging::TLogger Logger;
     const int ShardCount_;
+
+    bool Active_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigurationLock_);
     TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
@@ -755,6 +767,14 @@ public:
         attributes->Set(AddressAttributeKey, address);
 
         MemberClient_->SetPriority(TInstant::Now().Seconds());
+        UpdateLimitsExecutor_->Start();
+        UpdateLeaderExecutor_->Start();
+    }
+
+    ~TDistributedThrottlerFactory()
+    {
+        MemberClient_->Stop();
+        DistributedThrottlerService_->Finalize();
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
@@ -802,11 +822,15 @@ public:
                 // NB: Could be null.
                 wrappedThrottler->SetLeaderChannel(LeaderChannel_);
             }
+            auto wasEmpty = Throttlers_->Throttlers.empty();
             Throttlers_->Throttlers[throttlerId] = std::move(wrappedThrottler);
 
+            if (wasEmpty) {
+                Start();
+            }
             YT_LOG_DEBUG("Distributed throttler created (ThrottlerId: %v)", throttlerId);
         }
-        
+
         {
             auto queueGuard = Guard(UpdateQueueLock_);
             UpdateQueue_.emplace(throttlerId, MakeWeak(wrappedThrottler));
@@ -846,37 +870,6 @@ public:
         Config_.Store(std::move(config));
     }
 
-    void Start() override
-    {
-        MemberClient_->Start();
-
-        UpdateLimitsExecutor_->Start();
-        UpdateLeaderExecutor_->Start();
-    }
-
-    void Stop() override
-    {
-        MemberClient_->Stop();
-
-        UpdateLimitsExecutor_->Stop();
-
-        UpdateLeaderExecutor_->Stop()
-            .Subscribe(
-                BIND([=, this_ = MakeStrong(this)] (const TError&) {
-                    std::optional<TMemberId> oldLeaderId;
-                    {
-                        auto guard = WriterGuard(Lock_);
-                        oldLeaderId = LeaderId_;
-                        LeaderId_.reset();
-                        LeaderChannel_.Reset();
-                    }
-
-                    if (oldLeaderId == MemberId_) {
-                        DistributedThrottlerService_->Finalize();
-                    }
-                }));
-    }
-
 private:
     const IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
@@ -893,6 +886,8 @@ private:
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
+    std::atomic<bool> Active_ = false;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     std::optional<TMemberId> LeaderId_;
     IChannelPtr LeaderChannel_;
@@ -901,8 +896,28 @@ private:
     TRingQueue<std::pair<TString, TWeakPtr<TWrappedThrottler>>> UpdateQueue_;
     THashSet<TString> UnreportedThrottlers_;
 
+    void Start()
+    {
+        VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
+
+        MemberClient_->Start();
+        Active_ = true;
+    }
+
+    void Stop()
+    {
+        VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
+
+        Active_ = false;
+        MemberClient_->Stop();
+    }
+
     void UpdateLimits()
     {
+        if (!Active_) {
+            return;
+        }
+
         auto config = Config_.Load();
         if (config->Mode == EDistributedThrottlerMode::Precise) {
             return;
@@ -936,10 +951,10 @@ private:
                 if (UpdateQueue_.empty()) {
                     break;
                 }
-                
+
                 auto [throttlerId, weakThrottler] = std::move(UpdateQueue_.front());
                 UpdateQueue_.pop();
-                
+
                 if (auto throttler = weakThrottler.Lock()) {
                     if (throttler->GetUsageRate() > 0 || UnreportedThrottlers_.contains(throttlerId)) {
                         UnreportedThrottlers_.erase(throttlerId);
@@ -956,7 +971,20 @@ private:
         if (!deadThrottlerIds.empty()) {
             auto guard = WriterGuard(Throttlers_->Lock);
             for (const auto& throttlerId : deadThrottlerIds) {
-                Throttlers_->Throttlers.erase(throttlerId);
+                auto it = Throttlers_->Throttlers.find(throttlerId);
+                if (it == Throttlers_->Throttlers.end()) {
+                    continue;
+                }
+                auto throttler = it->second.Lock();
+                if (throttler) {
+                    continue;
+                }
+                Throttlers_->Throttlers.erase(it);
+            }
+
+            if (Throttlers_->Throttlers.empty()) {
+                Stop();
+                return;
             }
         }
 
@@ -1047,6 +1075,16 @@ private:
 
     void UpdateLeader()
     {
+        if (!Active_.load()) {
+            {
+                auto guard = WriterGuard(Lock_);
+                LeaderId_.reset();
+                LeaderChannel_.Reset();
+            }
+            DistributedThrottlerService_->Finalize();
+            return;
+        }
+
         TListMembersOptions options;
         options.Limit = 1;
         options.AttributeKeys = {AddressAttributeKey, RealmIdAttributeKey};
