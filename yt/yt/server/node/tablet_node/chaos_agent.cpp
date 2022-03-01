@@ -202,7 +202,7 @@ private:
                     oldestTimestamp);
             } else {
                 const auto& item = selfReplica->History[historyItemIndex];
-                if (item.Era == InitialReplicationEra || IsReplicaReallySync(item.Mode, item.State)) {
+                if (IsReplicaReallySync(item.Mode, item.State)) {
                     forwardReplicationProgress(historyItemIndex + 1);
                 }
             }

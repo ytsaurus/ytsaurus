@@ -504,7 +504,7 @@ private:
             .Era = InitialReplicationEra,
             .Timestamp = MinTimestamp,
             .Mode = mode,
-            .State = ETableReplicaState::Disabled
+            .State = enabled ? ETableReplicaState::Enabled : ETableReplicaState::Disabled
         });
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v)",
