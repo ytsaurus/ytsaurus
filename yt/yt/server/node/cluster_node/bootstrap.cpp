@@ -663,7 +663,6 @@ private:
 
     TNodeMemoryTrackerPtr MemoryUsageTracker_;
     TNodeResourceManagerPtr NodeResourceManager_;
-    TDiskTrackerPtr DiskTracker_;
     TBufferedProducerPtr BufferedProducer_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
@@ -768,9 +767,6 @@ private:
             std::vector<std::pair<EMemoryCategory, i64>>{},
             Logger,
             ClusterNodeProfiler.WithPrefix("/memory_usage"));
-
-        DiskTracker_ = New<TDiskTracker>();
-        ClusterNodeProfiler.AddProducer("", DiskTracker_);
 
         BufferedProducer_ = New<TBufferedProducer>();
         ClusterNodeProfiler.AddProducer("", BufferedProducer_);
