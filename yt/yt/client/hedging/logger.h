@@ -2,8 +2,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 extern const NYT::NLogging::TLogger Logger;
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

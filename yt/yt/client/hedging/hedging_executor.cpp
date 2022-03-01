@@ -5,7 +5,7 @@
 #include <yt/yt/core/logging/log.h>
 
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 THedgingClientOptions::TClientOptions::TClientOptions(
     NYT::NApi::IClientPtr client,
@@ -91,4 +91,4 @@ THedgingExecutor::TEntry::TEntry(NYT::NApi::IClientPtr client, NYT::NProfiling::
 {
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

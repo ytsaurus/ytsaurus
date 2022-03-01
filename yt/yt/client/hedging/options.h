@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/api/connection.h>
 
-namespace NYT::NHedgingClient {
+namespace NYT::NClient::NHedging {
 
 //! fill client options from environment variable (client options is permanent for whole lifecycle of program)
 // UserName is extracted from YT_USER env variable or uses current system username
@@ -12,4 +12,4 @@ NYT::NApi::TClientOptions GetClientOpsFromEnv();
 //! resolves options only once per launch and then returns the cached result
 const NYT::NApi::TClientOptions& GetClientOpsFromEnvStatic();
 
-} // namespace NYT::NHedgingClient
+} // namespace NYT::NClient::NHedging

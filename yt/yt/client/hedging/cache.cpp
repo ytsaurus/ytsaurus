@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 namespace {
 
@@ -59,4 +59,4 @@ IClientsCachePtr CreateClientsCache() {
     return CreateClientsCache(GetClientOpsFromEnvStatic());
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

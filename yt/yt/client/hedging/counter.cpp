@@ -1,6 +1,6 @@
 #include "counter.h"
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 static const auto HedgingClientProfiler = NYT::NProfiling::TRegistry{"/hedging_client"}.WithHot();
 static const auto LagPenaltyProviderProfiler = NYT::NProfiling::TRegistry{"/lag_penalty_provider"}.WithHot();
@@ -40,4 +40,4 @@ TLagPenaltyProviderCounters::TLagPenaltyProviderCounters(const TString& tablePat
 {
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

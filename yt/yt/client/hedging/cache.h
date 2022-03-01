@@ -4,7 +4,7 @@
 
 #include <util/generic/strbuf.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 class TConfig;
 
@@ -29,4 +29,4 @@ IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options);
 //! shortcut to create cache with default config
 IClientsCachePtr CreateClientsCache();
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

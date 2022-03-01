@@ -1,4 +1,4 @@
-package NYT.NHedgingClient.NRpc;
+package NYT.NClient.NHedging.NRpc;
 
 // connection options
 message TConfig {

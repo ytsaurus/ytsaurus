@@ -5,7 +5,7 @@
 #include <util/generic/strbuf.h>
 
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 class TConfig;
 
@@ -32,4 +32,4 @@ NYT::NApi::IClientPtr CreateClient();
 //! shortcut to create client to cluster with custom options
 NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl, const NYT::NApi::TClientOptions& options);
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

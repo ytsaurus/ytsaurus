@@ -7,7 +7,7 @@
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 // ! Counters which will be collected from yt-client
 struct TCounter final {
@@ -38,4 +38,4 @@ struct TLagPenaltyProviderCounters final {
 
 DEFINE_REFCOUNTED_TYPE(TLagPenaltyProviderCounters);
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

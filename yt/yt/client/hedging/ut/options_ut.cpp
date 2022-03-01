@@ -8,7 +8,7 @@
 #include <util/stream/file.h>
 #include <util/system/env.h>
 
-namespace NYT::NHedgingClient {
+namespace NYT::NClient::NHedging {
 
 TEST(TClientOptionsTest, TokenFromFile) {
     TTempDir tmpDir;
@@ -78,4 +78,4 @@ TEST(TClientOptionsTest, ErrorIfNoToken) {
     ASSERT_THROW_MESSAGE_HAS_SUBSTR(GetClientOpsFromEnv(), std::exception, "No YtToken found!");
 }
 
-} // namespace NYT::NHedgingClient
+} // namespace NYT::NClient::NHedging

@@ -22,7 +22,7 @@ TString ExpandClusterName(TString cluster) {
 
 } // namespace
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 void SetClusterUrl(TConfig& config, TStringBuf clusterUrl) {
     TStringBuf cluster;
@@ -106,4 +106,4 @@ NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl, const NYT::NApi::TClie
     return CreateClient(config, options);
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

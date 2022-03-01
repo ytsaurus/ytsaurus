@@ -25,7 +25,7 @@
 //          If any of the clients responses with an error: it's InitialPenalty is
 //          increased by BanPenalty value for the next BanDuration time interval.
 //          Both BanPenalty and BanDuration values are set in MultiClientCluster config.
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 // from config.proto
 class THedgingClientConfig;
@@ -56,4 +56,4 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
 // @brief Method for creating HedgingClient options from given config
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config);
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

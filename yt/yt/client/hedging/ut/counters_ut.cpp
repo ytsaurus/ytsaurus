@@ -15,7 +15,7 @@
 #include <util/generic/vector.h>
 #include <util/string/join.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 using ::testing::_;
 using ::testing::Return;
@@ -223,4 +223,4 @@ TEST(THedgingClientCountersTest, CountersAfterFirstClientBanHasElapsed) {
     EXPECT_DURATION_NEAR(SleepQuantum, TTesting::ReadTimeGauge(secondClientCounter->EffectivePenalty));
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

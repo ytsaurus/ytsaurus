@@ -5,7 +5,7 @@
 
 // @brief    IPenaltyProvider interface is used in HedgingClient to provide external penalties for different clusters.
 //           Current implementations are DummyPenaltyProvider and ReplicaionLagPenaltyProvider.
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 DECLARE_REFCOUNTED_CLASS(IPenaltyProvider);
 
@@ -27,4 +27,4 @@ class TReplicaionLagPenaltyProviderConfig;
 //        Master client - main cluster with replicated table. ReplicaCluster + TablePath specifies concrete replica for table from main cluster.
 IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(const TReplicaionLagPenaltyProviderConfig& config, NYT::NApi::IClientPtr masterClient);
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

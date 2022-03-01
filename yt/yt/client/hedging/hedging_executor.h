@@ -17,7 +17,7 @@
 #include <util/system/spinlock.h>
 
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 // @brief options for hedging client.
 struct THedgingClientOptions {
@@ -109,4 +109,4 @@ private:
 };
 DEFINE_REFCOUNTED_TYPE(THedgingExecutor);
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc
