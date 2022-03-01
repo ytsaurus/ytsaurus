@@ -9,7 +9,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 using ::testing::_;
 using ::testing::Return;
@@ -111,7 +111,7 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetReplicaIdFailed) {
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
-    NHedgingClient::NRpc::TReplicaionLagPenaltyProviderConfig config = GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
+    NClient::NHedging::NRpc::TReplicaionLagPenaltyProviderConfig config = GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
 
     auto masterClient = New<TStrictMockClient>();
 
@@ -153,7 +153,7 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsInfoFailed) {
     NYson::TYsonString replicasResult(TStringBuf("{\"575f-131-40502c5-201b420f\" = {\"cluster_name\" = \"seneca-vla\"}}"));
     NYson::TYsonString tabletCountResult(TStringBuf("1"));
 
-    NHedgingClient::NRpc::TReplicaionLagPenaltyProviderConfig config =
+    NClient::NHedging::NRpc::TReplicaionLagPenaltyProviderConfig config =
         GenerateReplicaionLagPenaltyProviderConfig(path, cluster);
 
     auto masterClient = New<TStrictMockClient>();
@@ -211,4 +211,4 @@ TEST(TLagPenaltyProviderTest, ClearPenaltiesAfterError) {
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

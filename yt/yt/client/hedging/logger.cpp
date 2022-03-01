@@ -1,7 +1,7 @@
 #include "logger.h"
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 const NYT::NLogging::TLogger Logger("TYtHedgingClient");
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

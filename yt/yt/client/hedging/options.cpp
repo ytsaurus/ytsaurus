@@ -6,7 +6,7 @@
 #include <util/string/strip.h>
 #include <util/system/env.h>
 
-namespace NYT::NHedgingClient {
+namespace NYT::NClient::NHedging {
 
 NYT::NApi::TClientOptions GetClientOpsFromEnv() {
     NYT::NApi::TClientOptions options;
@@ -38,4 +38,4 @@ const NYT::NApi::TClientOptions& GetClientOpsFromEnvStatic() {
     return options;
 }
 
-} // namespace NYT::NHedgingClient
+} // namespace NYT::NClient::NHedging

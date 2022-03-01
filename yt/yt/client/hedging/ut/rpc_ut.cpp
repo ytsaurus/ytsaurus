@@ -3,7 +3,7 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 TEST(RpcClientTest, SetClusterUrlWithoutProxy) {
     TConfig config;
@@ -25,4 +25,4 @@ TEST(RpcClientTest, ProxyRoleOverride) {
     EXPECT_THROW(SetClusterUrl(config, "markov/bigb"), std::exception);
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

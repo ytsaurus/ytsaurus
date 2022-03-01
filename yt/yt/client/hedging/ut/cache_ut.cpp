@@ -11,7 +11,7 @@
 
 #include <thread>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 // yt does not create physical connection immediately, so try to use this fact to create connection to non existence server
 TEST(TClientsCacheTest, GetSameClient) {
@@ -64,4 +64,4 @@ TEST(TClientsCacheTest, MultiThreads) {
     }
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

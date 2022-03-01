@@ -19,7 +19,7 @@
 
 namespace {
 
-using namespace NYT::NHedgingClient::NRpc;
+using namespace NYT::NClient::NHedging::NRpc;
 
 class TDummyLagProvider: public IPenaltyProvider {
 public:
@@ -194,7 +194,7 @@ private:
 
 } // namespace
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 IPenaltyProviderPtr CreateDummyPenaltyProvider() {
     return NYT::New<TDummyLagProvider>();
@@ -204,4 +204,4 @@ IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(const TReplicaionLagPenal
     return NYT::New<TLagPenaltyProvider>(config, masterClient);
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

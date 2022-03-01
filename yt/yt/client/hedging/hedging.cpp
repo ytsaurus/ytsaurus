@@ -23,7 +23,7 @@
 
 namespace {
 
-using namespace NYT::NHedgingClient::NRpc;
+using namespace NYT::NClient::NHedging::NRpc;
 
 using namespace NYT;
 using namespace NApi;
@@ -198,7 +198,7 @@ private:
 
 } // namespace
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options) {
     return NYT::New<THedgingClient>(options, CreateDummyPenaltyProvider());
@@ -244,7 +244,7 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
 
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config) {
     return GetHedgingClientOptions(config, [](const auto& clientConfig) {
-        return NYT::NHedgingClient::NRpc::CreateClient(clientConfig);
+        return NYT::NClient::NHedging::NRpc::CreateClient(clientConfig);
     });
 }
 
@@ -254,4 +254,4 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
     });
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc

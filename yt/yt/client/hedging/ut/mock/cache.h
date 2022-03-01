@@ -4,11 +4,11 @@
 
 #include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 
-namespace NYT::NHedgingClient {
+namespace NYT::NClient::NHedging {
 
-class TMockClientsCache : public NYT::NHedgingClient::NRpc::IClientsCache {
+class TMockClientsCache : public NYT::NClient::NHedging::NRpc::IClientsCache {
 public:
     MOCK_METHOD(NYT::NApi::IClientPtr, GetClient, (TStringBuf url), (override));
 };
 
-} // namespace NYT::NHedgingClient
+} // namespace NYT::NClient::NHedging

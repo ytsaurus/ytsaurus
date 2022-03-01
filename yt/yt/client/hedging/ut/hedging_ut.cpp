@@ -16,7 +16,7 @@
 
 #include <util/generic/vector.h>
 
-namespace NYT::NHedgingClient::NRpc {
+namespace NYT::NClient::NHedging::NRpc {
 
 using ::testing::_;
 using ::testing::Return;
@@ -481,4 +481,4 @@ TEST(THedgingClientTest, ResponseFromFirstClientWhenReplicationLagUpdaterFails) 
     EXPECT_EQ(queryResultWithCleanedPenalty.Value().AsStringBuf(), firstClientResult.AsStringBuf());
 }
 
-} // namespace NYT::NHedgingClient::NRpc
+} // namespace NYT::NClient::NHedging::NRpc
