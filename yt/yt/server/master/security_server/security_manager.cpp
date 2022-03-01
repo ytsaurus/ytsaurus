@@ -3000,11 +3000,13 @@ private:
             const TClusterResources& accountUsage,
             const TClusterResources& expectedUsage)
         {
-            auto accountUsageCopy = accountUsage;
             // Ignore master memory as it's always recomputed anyway.
+            auto accountUsageCopy = accountUsage;
             accountUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
+            auto expectedUsageCopy = expectedUsage;
+            expectedUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
 
-            if (accountUsageCopy == expectedUsage) {
+            if (accountUsageCopy == expectedUsageCopy) {
                 return true;
             }
             if (account != SysAccount_) {
@@ -3013,7 +3015,7 @@ private:
 
             // Root node requires special handling (unless resource usage have previously been recomputed).
             accountUsageCopy.SetNodeCount(accountUsageCopy.GetNodeCount() + 1);
-            return accountUsageCopy == expectedUsage;
+            return accountUsageCopy == expectedUsageCopy;
         };
 
         for (auto [accountId, account] : Accounts()) {
