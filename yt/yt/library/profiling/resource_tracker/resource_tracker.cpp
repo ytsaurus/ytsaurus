@@ -27,7 +27,6 @@ using namespace NProfiling;
 using namespace NConcurrency;
 
 DEFINE_REFCOUNTED_TYPE(TCgroupTracker)
-DEFINE_REFCOUNTED_TYPE(TDiskTracker)
 DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,67 +95,6 @@ void TCgroupTracker::CollectSensors(ISensorWriter* writer)
         if (!CgroupErrorLogged_) {
             YT_LOG_ERROR(ex, "Failed to collect cgroup cpu statistics");
             CgroupErrorLogged_ = true;
-        }
-    }
-}
-
-void TDiskTracker::InitDiskNames()
-{
-    if (!Disks_.empty()) {
-        return;
-    }
-
-    static const TString NVMEDiskPrefix("nvme");
-    static const TString SCSIDiskPrefix("sd");
-
-    for (const auto& disk : ListDisks()) {
-        if (disk.StartsWith(NVMEDiskPrefix) || disk.StartsWith(SCSIDiskPrefix)) {
-            Disks_.push_back(disk);
-        }
-    }
-}
-
-void TDiskTracker::CollectSensors(ISensorWriter* writer)
-{
-    // https://www.kernel.org/doc/html/latest/block/stat.html
-    // read sectors, write sectors, discard_sectors
-    // These values count the number of sectors read from, written to, or discarded from this block device.
-    // The “sectors” in question are the standard UNIX 512-byte sectors, not any device- or filesystem-specific block size.
-    static const i64 UnixSectorSize = 512;
-
-    try {
-        InitDiskNames();
-        auto stats = GetDiskStats();
-
-        for (const auto& diskName : Disks_) {
-
-            auto it = stats.find(diskName);
-            if (it == stats.end()) {
-                continue;
-            }
-
-            TWithTagGuard diskNameGuard(writer, "disk", diskName);
-            const auto& diskStat = it->second;
-
-            writer->AddCounter(
-                "/disk/bytes_read",
-                diskStat.SectorsRead * UnixSectorSize
-            );
-
-            writer->AddCounter(
-                "/disk/bytes_written",
-                diskStat.SectorsWritten * UnixSectorSize
-            );
-
-            writer->AddGauge(
-                "/disk/io_in_progress",
-                diskStat.IOCurrentlyInProgress
-            );
-        }
-    } catch (const std::exception& ex) {
-        if (!ErrorLogged_) {
-            YT_LOG_ERROR(ex, "Failed to collect disk statistics");
-            ErrorLogged_ = true;
         }
     }
 }

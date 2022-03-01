@@ -26,25 +26,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDiskTracker)
-
-class TDiskTracker
-    : public NProfiling::ISensorProducer
-{
-public:
-    void CollectSensors(ISensorWriter* writer) override;
-
-private:
-    void InitDiskNames();
-
-private:
-    std::vector<TString> Disks_;
-    bool ErrorLogged_ = false;
-};
-
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TResourceTracker)
 
 class TResourceTracker

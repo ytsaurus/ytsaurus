@@ -59,6 +59,12 @@ using namespace NYson;
 // Others must not be able to list chunk store and chunk cache directories.
 static const int ChunkFilesPermissions = 0751;
 
+// https://www.kernel.org/doc/html/latest/block/stat.html
+// read sectors, write sectors, discard_sectors
+// These values count the number of sectors read from, written to, or discarded from this block device.
+// The “sectors” in question are the standard UNIX 512-byte sectors, not any device- or filesystem-specific block size.
+static const int UnixSectorSize = 512;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TProfiler& profiler)
@@ -907,22 +913,25 @@ const TChunkStorePtr& TChunkLocation::GetChunkStore() const
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreLocation::TIOStatisticsProvider
-    : public TRefCounted
+    : public NProfiling::ISensorProducer
 {
 public:
     TIOStatisticsProvider(
-        TLogger logger,
         TString deviceName,
         NIO::IIOEnginePtr ioEngine,
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager)
-        : Logger(std::move(logger))
-        , DeviceName_(std::move(deviceName))
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+        NProfiling::TProfiler profiler,
+        TLogger logger)
+        : DeviceName_(std::move(deviceName))
         , IOEngine_(std::move(ioEngine))
+        , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
         , LastCounters_(GetCounters())
     {
         dynamicConfigManager->SubscribeConfigChanged(
             BIND(&TIOStatisticsProvider::OnDynamicConfigChanged, MakeWeak(this)));
+
+        profiler.AddProducer("", MakeStrong(this));
     }
 
     TIOStatistics Get()
@@ -945,9 +954,9 @@ private:
         i64 DiskWritten = 0;
     };
 
-    const TLogger Logger;
     const TString DeviceName_;
     const NIO::IIOEnginePtr IOEngine_;
+    const TLogger Logger;
     std::atomic<TDuration> UpdateStatisticsTimeout_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CountersLock_);
@@ -955,10 +964,10 @@ private:
     std::optional<TCounters> LastCounters_;
     TIOStatistics Statistics_;
 
-    std::optional<TCounters> GetCounters() const
-    {
-        static const int UnixSectorSize = 512;
+    bool ErrorLogged_ = false;
 
+    std::optional<TCounters> GetCounters()
+    {
         try {
             auto counters = TCounters{
                 .FilesystemRead = IOEngine_->GetTotalReadBytes(),
@@ -973,7 +982,6 @@ private:
             } else {
                 YT_LOG_WARNING("Can't find disk statistics for location with disk label %v", DeviceName_);
             }
-
             return counters;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get IO statistics");
@@ -1015,6 +1023,36 @@ private:
 
         UpdateStatisticsTimeout_.store(newConfig->DataNode->IOStatisticsUpdateTimeout);
     }
+
+    void CollectSensors(ISensorWriter* writer) override
+    {
+        try {
+            auto stats = GetDiskStats();
+            auto it = stats.find(DeviceName_);
+            if (it == stats.end()) {
+                return;
+            }
+            const auto& diskStat = it->second;
+
+            writer->AddCounter(
+                "/disk/bytes_read",
+                diskStat.SectorsRead * UnixSectorSize);
+
+            writer->AddCounter(
+                "/disk/bytes_written",
+                diskStat.SectorsWritten * UnixSectorSize);
+
+            writer->AddGauge(
+                "/disk/io_in_progress",
+                diskStat.IOCurrentlyInProgress);
+
+        } catch (const std::exception& ex) {
+            if (!ErrorLogged_) {
+                YT_LOG_ERROR(ex, "Failed to collect disk statistics");
+                ErrorLogged_ = true;
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1045,10 +1083,11 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         Config_->TrashCheckPeriod))
     , StatisticsProvider_(New<TIOStatisticsProvider>(
-        Logger,
         Config_->DeviceName,
         GetIOEngine(),
-        dynamicConfigManager))
+        dynamicConfigManager,
+        Profiler_,
+        Logger))
 {
     YT_VERIFY(chunkStore);
 
