@@ -71,7 +71,7 @@ public:
         auto config = New<TDistributedThrottlerConfig>();
         config->MemberClient->ServerAddresses = Addresses_;
         config->MemberClient->AttributeUpdatePeriod = TDuration::MilliSeconds(300);
-        config->MemberClient->HeartbeatPeriod = TDuration::MilliSeconds(200);
+        config->MemberClient->HeartbeatPeriod = TDuration::MilliSeconds(50);
         config->DiscoveryClient->ServerAddresses = Addresses_;
         config->LimitUpdatePeriod = TDuration::MilliSeconds(100);
         config->LeaderUpdatePeriod = TDuration::MilliSeconds(1500);
@@ -191,6 +191,9 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     for (int i = 0; i < throttlersCount; ++i) {
         futures.push_back(BIND([=] {
             for (int j = 0; j < 5; ++j) {
+                // To make sure that usage rate is synchronized.
+                WaitFor(throttlers[i]->Throttle(1)).ThrowOnError();
+                Sleep(TDuration::MilliSeconds(50));
                 WaitFor(throttlers[i]->Throttle(30)).ThrowOnError();
             }
         })
