@@ -1146,7 +1146,9 @@ private:
         CellMap_.LoadKeys(context);
         AreaMap_.LoadKeys(context);
 
-        NeedToRecomputeTabletCellBundleRefCounters_ = context.GetVersion() >= EMasterReign::RefCountedInheritableAttributes;
+        NeedToRecomputeTabletCellBundleRefCounters_ =
+            context.GetVersion() >= EMasterReign::RefCountedInheritableAttributes &&
+            context.GetVersion() <  EMasterReign::RecomputeTabletCellBundleRefCounters;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
