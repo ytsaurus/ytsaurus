@@ -237,9 +237,7 @@ public:
     }
 
     void Finalize()
-    {
-        DistributedThrottlerManager_->Finalize();
-    }
+    { }
 
     void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
     {

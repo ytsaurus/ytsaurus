@@ -69,7 +69,6 @@ public:
                     factoryName);
 
                 factory = DoCreateFactory(factoryName, cellTag, mode);
-                factory->Start();
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
                     "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v)",
@@ -84,13 +83,6 @@ public:
         }
 
         return factory->GetOrCreateThrottler(throttlerId, config, rpcTimeout);
-    }
-
-    void Finalize() override
-    {
-        for (const auto& [key, factory] : Factories_) {
-            factory->Stop();
-        }
     }
 
 private:

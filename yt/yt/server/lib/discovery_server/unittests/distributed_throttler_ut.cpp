@@ -143,7 +143,6 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
             rpcServer,
             address,
             DiscoveryServerLogger);
-        factory->Start();
         factories.push_back(factory);
 
         throttlers.push_back(factory->GetOrCreateThrottler(
@@ -203,13 +202,9 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     i64 duration = timer.GetElapsedTime().MilliSeconds();
     EXPECT_GE(duration, 3000);
     EXPECT_LE(duration, 7000);
-
-    for (const auto& factory : factories) {
-        factory->Stop();
-    }
 }
 
-TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
+TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 {
     int throttlersCount = 4;
     auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
@@ -240,7 +235,6 @@ TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
             rpcServer,
             address,
             DiscoveryServerLogger);
-        factory->Start();
         factories.push_back(factory);
 
         throttlers.push_back(factory->GetOrCreateThrottler(
@@ -301,10 +295,6 @@ TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
     auto duration = timer.GetElapsedTime().MilliSeconds();
     EXPECT_GE(duration, 8000u);
     EXPECT_LE(duration, 15000u);
-
-    for (const auto& factory : factories) {
-        factory->Stop();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

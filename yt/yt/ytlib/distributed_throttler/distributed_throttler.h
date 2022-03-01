@@ -23,9 +23,6 @@ struct IDistributedThrottlerFactory
         TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout) = 0;
 
     virtual void Reconfigure(TDistributedThrottlerConfigPtr config) = 0;
-
-    virtual void Start() = 0;
-    virtual void Stop() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)

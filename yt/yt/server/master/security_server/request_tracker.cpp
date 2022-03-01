@@ -53,8 +53,6 @@ void TRequestTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ThrottlerFactory_->Start();
-
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
 
@@ -70,8 +68,6 @@ void TRequestTracker::Start()
 void TRequestTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    ThrottlerFactory_->Stop();
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
