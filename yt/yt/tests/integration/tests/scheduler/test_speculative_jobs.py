@@ -323,7 +323,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT; cat"),
             spec={
                 "job_io": {"buffer_row_count": 1},
-                "data_weight_per_job": 2 * 10 ** 7,
+                "data_weight_per_job": 1 * 10 ** 7,
             },
         )
         wait_breakpoint(job_count=6)
@@ -344,7 +344,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT; cat"),
             spec={
                 "job_io": {"buffer_row_count": 1},
-                "data_weight_per_job": 2 * 10 ** 7,
+                "data_weight_per_job": 1 * 10 ** 7,
                 "max_speculative_job_count_per_task": 1,
             },
         )
