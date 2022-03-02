@@ -315,6 +315,7 @@ struct ITabletContext
     virtual TString GetLocalHostName() = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
     virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
+    virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

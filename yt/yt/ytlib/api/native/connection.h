@@ -63,6 +63,8 @@ struct IConnection
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NNodeTrackerClient::TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
 
+    virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
+
     virtual const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(

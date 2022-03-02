@@ -54,6 +54,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
 #include <yt/yt/ytlib/distributed_throttler/config.h>
 
@@ -634,6 +635,11 @@ private:
         NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
         {
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
+        }
+
+        NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override
+        {
+            return Owner_->Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
         }
 
         TString GetLocalHostName() override
@@ -2644,6 +2650,30 @@ private:
             tablet->GetChaosAgent()->Enable();
             tablet->GetTablePuller()->Enable();
         }
+
+        if (tablet->GetSettings().MountConfig->PrecacheChunkReplicasOnMount) {
+            PrecacheChunkReplicas(tablet);
+        }
+    }
+
+    void PrecacheChunkReplicas(TTablet* tablet)
+    {
+        auto hunkChunkIds = GetKeys(tablet->HunkChunkMap());
+
+        YT_LOG_DEBUG("Started precaching chunk replicas (ChunkCount: %v)",
+            hunkChunkIds.size());
+
+        auto futures = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetChunkReplicaCache()
+            ->GetReplicas(hunkChunkIds);
+
+        AllSet(std::move(futures))
+            .AsVoid()
+            .Subscribe(BIND([Logger = Logger] (const TError& /*error*/) {
+                YT_LOG_DEBUG("Finished precaching chunk replicas");
+            }));
     }
 
     void StopTabletEpoch(TTablet* tablet)

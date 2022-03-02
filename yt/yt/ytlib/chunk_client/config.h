@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -269,21 +271,26 @@ public:
     double NetQueueSizeFactor;
     double DiskQueueSizeFactor;
 
-    //! Rpc timeouts of ProbeChunkSet and GetChunkFragmentSet.
+    //! RPC timeouts of ProbeChunkSet and GetChunkFragmentSet.
     TDuration ProbeChunkSetRpcTimeout;
     TDuration GetChunkFragmentSetRpcTimeout;
 
     //! Channel multiplexing parallelism for GetChunkFragmentSet.
     int GetChunkFragmentSetMultiplexingParallelism;
 
+    //! Delay before sending a hedged request. If null then hedging is disabled.
+    std::optional<TDuration> FragmentReadHedgingDelay;
+
     //! Limit on retry count.
-    int MaxRetryCount;
+    int RetryCountLimit;
     //! Time between retries.
     TDuration RetryBackoffTime;
+    //! Maximum time to serve fragments read request.
+    TDuration ReadTimeLimit;
 
     //! Chunk that was not accessed for the time by user
     //! will stop being accessed within periodic updates and then will be evicted via expiring cache logic.
-    TDuration EvictAfterSuccessfulAccessTime;
+    TDuration ChunkInfoCacheExpirationTimeout;
 
     //! Will locate new replicas from master
     //! if node was suspicious for at least the period (unless null).
@@ -296,6 +303,21 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkReplicaCacheConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TDuration ExpirationTime;
+    TDuration ExpirationSweepPeriod;
+    int MaxChunksPerLocate;
+
+    TChunkReplicaCacheConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

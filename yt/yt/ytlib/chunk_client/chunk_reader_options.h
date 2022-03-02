@@ -16,6 +16,7 @@ struct TClientChunkReadOptions
     TReadSessionId ReadSessionId;
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
     // NB: If |HunkChunkReaderStatistics| is null and hunk chunk reading is performed,
     // relevant statistics will be updated within |ChunkReaderStatistics|.
     NTableClient::IHunkChunkReaderStatisticsPtr HunkChunkReaderStatistics;

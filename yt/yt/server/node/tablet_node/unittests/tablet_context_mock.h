@@ -33,6 +33,7 @@ public:
     NRpc::IServerPtr GetLocalRpcServer() override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override;
     NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override;
+    NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override;
     TString GetLocalHostName() override;
 
 private:

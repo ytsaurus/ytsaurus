@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -855,6 +856,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }));
 
         TStoreFlushResult result;
+
         {
             auto& descriptor = result.StoresToAdd.emplace_back();
             descriptor.set_store_type(ToProto<int>(EStoreType::SortedChunk));
@@ -863,11 +865,20 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             *descriptor.mutable_chunk_meta() = *storeWriter->GetMeta();
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         }
+
         if (hunkChunkPayloadWriter->HasHunks()) {
             auto& descriptor = result.HunkChunksToAdd.emplace_back();
             ToProto(descriptor.mutable_chunk_id(), hunkChunkPayloadWriter->GetChunkId());
             *descriptor.mutable_chunk_meta() = *hunkChunkPayloadWriter->GetMeta();
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+
+            if (mountConfig->RegisterChunkReplicasOnStoresUpdate) {
+                TabletContext_
+                    ->GetChunkReplicaCache()
+                    ->RegisterReplicas(
+                        hunkChunkWriter->GetChunkId(),
+                        hunkChunkWriter->GetWrittenChunkReplicas());
+            }
         }
         return result;
     });

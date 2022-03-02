@@ -21,7 +21,7 @@ public:
         return std::vector<std::optional<TInstant>>(nodeIds.size(), std::nullopt);
     }
 
-    std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
+    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
         const std::vector<TNodeId>& /*nodeIds*/) const override
     {
         return {};

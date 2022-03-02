@@ -48,6 +48,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                   hunk_chunk_reader={
                                       "max_hunk_count_per_read": 2,
                                       "max_total_hunk_length_per_read": 60,
+                                      "use_new_chunk_fragment_reader": True,
+                                      "fragment_read_hedging_delay": 1
                                   },
                                   hunk_chunk_writer={
                                       "desired_block_size": 50
@@ -891,8 +893,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             name="lookup/hunks/ref_value_count",
             tags={"column": "value"})
 
-        backend_request_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/backend_request_count")
+        backend_read_request_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="lookup/hunks/backend_read_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
@@ -905,7 +907,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: columnar_inline_hunk_value_count.get_delta() == 10)
         wait(lambda: columnar_ref_hunk_value_count.get_delta() == 5)
 
-        wait(lambda: backend_request_count.get_delta() == 1)
+        wait(lambda: backend_read_request_count.get_delta() == 1)
 
     @authors("akozhikhov")
     def test_hunks_profiling_select(self):

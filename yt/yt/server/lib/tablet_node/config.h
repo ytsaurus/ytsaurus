@@ -167,6 +167,9 @@ public:
     int MinHunkCompactionChunkCount;
     int MaxHunkCompactionChunkCount;
 
+    bool PrecacheChunkReplicasOnMount;
+    bool RegisterChunkReplicasOnStoresUpdate;
+
     TTableMountConfig();
 };
 
@@ -208,7 +211,13 @@ DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
 class TTabletHunkReaderConfig
     : public NChunkClient::TChunkFragmentReaderConfig
     , public NTableClient::TBatchHunkReaderConfig
-{ };
+{
+public:
+    // COMPAT(babenko)
+    bool UseNewChunkFragmentReader;
+
+    TTabletHunkReaderConfig();
+};
 
 DEFINE_REFCOUNTED_TYPE(TTabletHunkReaderConfig)
 

@@ -49,6 +49,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/new_chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -296,7 +297,7 @@ public:
 
         return Bootstrap_->GetMasterClient()->GetNativeConnection();
     }
-        
+
 
     TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() override
     {
@@ -467,7 +468,10 @@ public:
 
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
-        return NChunkClient::CreateChunkFragmentReader(
+        auto creator = tablet->GetSettings().HunkReaderConfig->UseNewChunkFragmentReader
+            ? &NChunkClient::CreateNewChunkFragmentReader
+            : &NChunkClient::CreateChunkFragmentReader;
+        return creator(
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetHintManager(),

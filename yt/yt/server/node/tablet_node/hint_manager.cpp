@@ -138,25 +138,25 @@ public:
         return markTimes;
     }
 
-    std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
+    THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
         const std::vector<TNodeId>& nodeIds) const override
     {
         if (nodeIds.empty()) {
             return {};
         }
 
-        std::vector<std::pair<TNodeId, TInstant>> suspiciousNodesWithMarkTime;
+        THashMap<TNodeId, TInstant> nodeIdToSuspicionMarkTime;
 
         auto guard = ReaderGuard(SuspiciousNodesSpinLock_);
 
         for (auto nodeId : nodeIds) {
             auto it = SuspiciousNodesMarkTime_.find(nodeId);
             if (it != SuspiciousNodesMarkTime_.end()) {
-                suspiciousNodesWithMarkTime.emplace_back(nodeId, it->second);
+                nodeIdToSuspicionMarkTime[nodeId] = it->second;
             }
         }
 
-        return suspiciousNodesWithMarkTime;
+        return nodeIdToSuspicionMarkTime;
     }
 
     bool ShouldMarkNodeSuspicious(const TError& error) const override

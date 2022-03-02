@@ -33,7 +33,8 @@ struct IChunkFragmentReader
         i64 DataWeight = 0;
         int ChunkCount = 0;
 
-        int BackendRequestCount = 0;
+        int BackendReadRequestCount = 0;
+        int BackendHedgingReadRequestCount = 0;
         int BackendProbingRequestCount = 0;
     };
 

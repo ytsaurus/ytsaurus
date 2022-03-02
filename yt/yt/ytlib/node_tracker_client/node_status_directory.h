@@ -20,12 +20,13 @@ struct INodeStatusDirectory
         bool suspicious,
         std::optional<TInstant> previousMarkTime) = 0;
 
+    // COMPAT(babenko): drop once old Chunk Fragment Reader is no more.
     //! For each nodeId from #nodesIds returns mark time if the node is suspicious and null otherwise.
     virtual std::vector<std::optional<TInstant>> RetrieveSuspicionMarkTimes(
         const std::vector<TNodeId>& nodeIds) const = 0;
 
     //! For each nodeId from #nodeIds that is suspicious returns this node id and mark time.
-    virtual std::vector<std::pair<TNodeId, TInstant>> RetrieveSuspiciousNodeIdsWithMarkTime(
+    virtual THashMap<TNodeId, TInstant> RetrieveSuspiciousNodeIdsWithMarkTime(
         const std::vector<TNodeId>& nodeIds) const = 0;
 
     //! Returns whether node should be marked as suspicious or not.
