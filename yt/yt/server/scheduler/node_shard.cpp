@@ -1385,8 +1385,10 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 
     auto it = JobIdToScheduleEntry_.find(jobId);
     if (it == std::cend(JobIdToScheduleEntry_)) {
-        YT_LOG_ERROR("No schedule entry for job (JobId: %v)", jobId);
-        YT_ABORT();
+        YT_LOG_WARNING("No schedule entry for job, probably job was scheduled by controller too late (OperationId: %v, JobId: %v)",
+            operationId,
+            jobId);
+        return;
     }
 
     auto& entry = it->second;
