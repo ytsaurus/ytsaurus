@@ -530,9 +530,14 @@ public:
         return RefValueCount_;
     }
 
-    std::atomic<int>& BackendRequestCount() override
+    std::atomic<int>& BackendReadRequestCount() override
     {
-        return BackendRequestCount_;
+        return BackendReadRequestCount_;
+    }
+
+    std::atomic<int>& BackendHedgingReadRequestCount() override
+    {
+        return BackendHedgingReadRequestCount_;
     }
 
     std::atomic<int>& BackendProbingRequestCount() override
@@ -551,7 +556,8 @@ private:
     std::atomic<int> InlineValueCount_ = 0;
     std::atomic<int> RefValueCount_ = 0;
 
-    std::atomic<int> BackendRequestCount_ = 0;
+    std::atomic<int> BackendReadRequestCount_ = 0;
+    std::atomic<int> BackendHedgingReadRequestCount_ = 0;
     std::atomic<int> BackendProbingRequestCount_ = 0;
 };
 
@@ -636,7 +642,8 @@ THunkChunkReaderCounters::THunkChunkReaderCounters(
     , DroppedDataWeight_(profiler.Counter("/dropped_data_weight"))
     , InlineValueCount_(profiler.Counter("/inline_value_count"))
     , RefValueCount_(profiler.Counter("/ref_value_count"))
-    , BackendRequestCount_(profiler.Counter("/backend_request_count"))
+    , BackendReadRequestCount_(profiler.Counter("/backend_read_request_count"))
+    , BackendHedgingReadRequestCount_(profiler.Counter("/backend_hedging_read_request_count"))
     , BackendProbingRequestCount_(profiler.Counter("/backend_probing_request_count"))
     , ChunkReaderStatisticsCounters_(profiler.WithPrefix("/chunk_reader_statistics"))
 { }
@@ -655,7 +662,8 @@ void THunkChunkReaderCounters::Increment(
     InlineValueCount_.Increment(statistics->InlineValueCount());
     RefValueCount_.Increment(statistics->RefValueCount());
 
-    BackendRequestCount_.Increment(statistics->BackendRequestCount());
+    BackendReadRequestCount_.Increment(statistics->BackendReadRequestCount());
+    BackendHedgingReadRequestCount_.Increment(statistics->BackendHedgingReadRequestCount());
     BackendProbingRequestCount_.Increment(statistics->BackendProbingRequestCount());
 
     ChunkReaderStatisticsCounters_.Increment(statistics->GetChunkReaderStatistics(), failed);
@@ -1067,7 +1075,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 hunkChunkReaderStatistics->ChunkCount() += response.ChunkCount;
                 hunkChunkReaderStatistics->InlineValueCount() += inlineHunkValueCount;
                 hunkChunkReaderStatistics->RefValueCount() += std::ssize(requestedValues);
-                hunkChunkReaderStatistics->BackendRequestCount() += response.BackendRequestCount;
+                hunkChunkReaderStatistics->BackendReadRequestCount() += response.BackendReadRequestCount;
+                hunkChunkReaderStatistics->BackendHedgingReadRequestCount() += response.BackendHedgingReadRequestCount;
                 hunkChunkReaderStatistics->BackendProbingRequestCount() += response.BackendProbingRequestCount;
             }
 

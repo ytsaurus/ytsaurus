@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
@@ -245,6 +246,8 @@ public:
             Config_->NodeDirectorySynchronizer,
             MakeStrong(this),
             NodeDirectory_);
+
+        ChunkReplicaCache_ = CreateChunkReplicaCache(this);
     }
 
     // IConnection implementation.
@@ -445,6 +448,11 @@ public:
         return NodeDirectorySynchronizer_;
     }
 
+    const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() override
+    {
+        return ChunkReplicaCache_;
+    }
+
     const TCellTrackerPtr& GetDownedCellTracker() override
     {
         return DownedCellTracker_;
@@ -608,6 +616,8 @@ private:
 
     TNodeDirectoryPtr NodeDirectory_;
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
+
+    IChunkReplicaCachePtr ChunkReplicaCache_;
 
     TThreadPoolPtr ConnectionThreadPool_;
     IInvokerPtr ConnectionInvoker_;

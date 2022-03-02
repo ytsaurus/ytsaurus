@@ -90,7 +90,8 @@ struct IHunkChunkReaderStatistics
     virtual std::atomic<int>& InlineValueCount() = 0;
     virtual std::atomic<int>& RefValueCount() = 0;
 
-    virtual std::atomic<int>& BackendRequestCount() = 0;
+    virtual std::atomic<int>& BackendReadRequestCount() = 0;
+    virtual std::atomic<int>& BackendHedgingReadRequestCount() = 0;
     virtual std::atomic<int>& BackendProbingRequestCount() = 0;
 };
 
@@ -158,7 +159,8 @@ private:
     NProfiling::TCounter InlineValueCount_;
     NProfiling::TCounter RefValueCount_;
 
-    NProfiling::TCounter BackendRequestCount_;
+    NProfiling::TCounter BackendReadRequestCount_;
+    NProfiling::TCounter BackendHedgingReadRequestCount_;
     NProfiling::TCounter BackendProbingRequestCount_;
 
     NChunkClient::TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters_;

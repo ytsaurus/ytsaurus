@@ -46,6 +46,7 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -273,6 +274,15 @@ private:
 
         WaitFor(BlockCache_->Finish(chunkInfos))
             .ThrowOnError();
+
+        if (HunkChunkPayloadWriter_->HasHunks() && TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            Bootstrap_
+                ->GetMasterConnection()
+                ->GetChunkReplicaCache()
+                ->RegisterReplicas(
+                    HunkChunkWriter_->GetChunkId(),
+                    HunkChunkWriter_->GetWrittenChunkReplicas());
+        }
     }
 
     IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const

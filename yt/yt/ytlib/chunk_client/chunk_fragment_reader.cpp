@@ -556,9 +556,8 @@ private:
             }
         }
 
-        auto suspiciousNodeIdsWithMarkTime =
-            Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
-        for (auto [nodeId, _] : suspiciousNodeIdsWithMarkTime) {
+        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
+        for (auto [nodeId, _] : nodeIdToSuspicionMarkTime) {
             auto it = PeerToRequestInfo_.find(nodeId);
             for (auto&& chunkFragmentSetInfo : it->second.ChunkFragmentSetInfos) {
                 PendingChunkFragmentSetInfos_.push_back(std::move(chunkFragmentSetInfo));
@@ -571,7 +570,7 @@ private:
             Requests_.size(),
             chunkIdToFragmentInfos.size(),
             PendingChunkFragmentSetInfos_.size(),
-            suspiciousNodeIdsWithMarkTime.size());
+            nodeIdToSuspicionMarkTime.size());
 
         if (PendingChunkFragmentSetInfos_.empty()) {
             // Fast path.
@@ -587,7 +586,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-        YT_VERIFY(Iteration_ < Config_->MaxRetryCount);
+        YT_VERIFY(Iteration_ < Config_->RetryCountLimit);
         YT_VERIFY(!PendingChunkFragmentSetInfos_.empty());
 
         YT_LOG_DEBUG("Starting new iteration of chunk fragment read session "
@@ -670,7 +669,7 @@ private:
         std::vector<TFuture<TProbeChunkSetResult>> peerProbingFutures;
         peerProbingFutures.reserve(nodeIds.size());
 
-        auto suspicionMarkTimes = Reader_->NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds);
+        auto nodeIdToSuspicionMarkTime = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
 
         // NB: If a chunk is not assigned to any peer due to failure or ban, session is stopped with fatal error.
         // If the same happens due to peer being suspicious, we ignore suspiciousness and treat all nodes as normal.
@@ -717,8 +716,8 @@ private:
                 continue;
             }
 
-            if (auto markTime = suspicionMarkTimes[i]) {
-                probingInfo.PeerInfoOrError.Value().SuspicionMarkTime = markTime;
+            if (auto it = nodeIdToSuspicionMarkTime.find(nodeId)) {
+                probingInfo.PeerInfoOrError.Value().SuspicionMarkTime = it->second;
                 onSuspiciousNode(probingInfo);
             }
 
@@ -762,7 +761,7 @@ private:
                     continue;
                 }
 
-                if (suspiciousNodeCount != 0 && suspicionMarkTimes[i]) {
+                if (suspiciousNodeCount != 0 && nodeIdToSuspicionMarkTime.contains(peerProbingInfos[i].NodeId)) {
                     peerProbingFutures[i].Cancel(TError("Node is suspicious"));
                     continue;
                 }
@@ -1057,7 +1056,7 @@ private:
             }
             YT_VERIFY(attachmentIndex == std::ssize(response->Attachments()));
 
-            ++Response_.BackendRequestCount;
+            ++Response_.BackendReadRequestCount;
         }
 
         auto finished = PendingChunkFragmentSetInfos_.empty();
@@ -1176,10 +1175,10 @@ private:
             return;
         }
 
-        if (++Iteration_ >= Config_->MaxRetryCount) {
+        if (++Iteration_ >= Config_->RetryCountLimit) {
             ProcessFatalError(TError(
                 "Retry count limit %v was exceeded",
-                Config_->MaxRetryCount));
+                Config_->RetryCountLimit));
             return;
         }
 
@@ -1284,7 +1283,7 @@ private:
 
     bool IsChunkObsolete(const TPeerAccessInfo& peerAccessInfo, TInstant now) const
     {
-        return peerAccessInfo.LastSuccessfulAccessTime + Config_->EvictAfterSuccessfulAccessTime < now;
+        return peerAccessInfo.LastSuccessfulAccessTime + Config_->ChunkInfoCacheExpirationTimeout < now;
     }
 
     void FindFreshAndObsoleteChunks()

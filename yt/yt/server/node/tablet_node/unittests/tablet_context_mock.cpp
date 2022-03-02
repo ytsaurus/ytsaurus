@@ -99,6 +99,11 @@ TNodeMemoryTrackerPtr TTabletContextMock::GetMemoryUsageTracker()
     return nullptr;
 }
 
+NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache()
+{
+    return nullptr;
+}
+
 TString TTabletContextMock::GetLocalHostName()
 {
     return TString();

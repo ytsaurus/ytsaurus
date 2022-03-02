@@ -159,6 +159,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkFragmentReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkReplicaCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 
@@ -216,6 +217,7 @@ DECLARE_REFCOUNTED_CLASS(IReaderMemoryManager)
 DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManager)
 
 DECLARE_REFCOUNTED_CLASS(TChunkReplicaLocator)
+DECLARE_REFCOUNTED_STRUCT(IChunkReplicaCache)
 
 struct TChunkReaderMemoryManagerOptions;
 

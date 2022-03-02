@@ -22,6 +22,7 @@ struct TChunkReaderStatistics
     std::atomic<i64> DataBytesTransmitted = 0;
     std::atomic<i64> DataBytesReadFromCache = 0;
     std::atomic<i64> MetaBytesReadFromDisk = 0;
+    // COMPAT(babenko): drop
     std::atomic<i64> OmittedSuspiciousNodeCount = 0;
 
     // TODO(prime@): replace with max time. Cumulative disk IO time has not physical meaning.

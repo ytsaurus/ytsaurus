@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/security_client/config.h>
 
+#include <yt/yt/ytlib/chunk_client/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/compression/public.h>
@@ -98,6 +100,7 @@ public:
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
+    NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
     NHiveClient::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
     NChunkClient::TMediumDirectorySynchronizerConfigPtr MediumDirectorySynchronizer;
     NNodeTrackerClient::TNodeDirectorySynchronizerConfigPtr NodeDirectorySynchronizer;

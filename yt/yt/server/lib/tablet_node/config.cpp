@@ -281,6 +281,11 @@ TTableMountConfig::TTableMountConfig()
         .GreaterThan(1)
         .Default(5);
 
+    RegisterParameter("precache_chunk_replicas_on_mount", PrecacheChunkReplicasOnMount)
+        .Default(true);
+    RegisterParameter("register_chunk_replicas_on_stores_update", RegisterChunkReplicasOnStoresUpdate)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
@@ -328,6 +333,14 @@ void TTabletStoreReaderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("prefer_local_replicas", &TThis::PreferLocalReplicas)
         .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTabletHunkReaderConfig::TTabletHunkReaderConfig()
+{
+    RegisterParameter("use_new_chunk_fragment_reader", UseNewChunkFragmentReader)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

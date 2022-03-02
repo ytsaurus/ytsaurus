@@ -168,17 +168,22 @@ TChunkFragmentReaderConfig::TChunkFragmentReaderConfig()
     RegisterParameter("get_chunk_fragment_set_rpc_timeout", GetChunkFragmentSetRpcTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("get_chunk_fragment_multiplexing_parallelism", GetChunkFragmentSetMultiplexingParallelism)
+    RegisterParameter("get_chunk_fragment_set_multiplexing_parallelism", GetChunkFragmentSetMultiplexingParallelism)
         .GreaterThan(0)
         .Default(1);
 
-    RegisterParameter("max_retry_count", MaxRetryCount)
+    RegisterParameter("fragment_read_hedging_delay", FragmentReadHedgingDelay)
+        .Default();
+
+    RegisterParameter("retry_count_limit", RetryCountLimit)
         .GreaterThanOrEqual(1)
-        .Default(3);
+        .Default(10);
     RegisterParameter("retry_backoff_time", RetryBackoffTime)
         .Default(TDuration::MilliSeconds(10));
+    RegisterParameter("read_time_limit", ReadTimeLimit)
+        .Default(TDuration::Seconds(15));
 
-    RegisterParameter("evict_after_successful_access_time", EvictAfterSuccessfulAccessTime)
+    RegisterParameter("chunk_info_cache_expiration_timeout", ChunkInfoCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
 
     RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
@@ -187,6 +192,18 @@ TChunkFragmentReaderConfig::TChunkFragmentReaderConfig()
     RegisterParameter("use_direct_io", UseDirectIO)
         .Default(false)
         .DontSerializeDefault();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkReplicaCacheConfig::TChunkReplicaCacheConfig()
+{
+    RegisterParameter("expiration_time", ExpirationTime)
+        .Default(TDuration::Minutes(15));
+    RegisterParameter("expiration_sweep_period", ExpirationSweepPeriod)
+        .Default(TDuration::Minutes(1));
+    RegisterParameter("max_chunks_per_locate", MaxChunksPerLocate)
+        .Default(1'000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
