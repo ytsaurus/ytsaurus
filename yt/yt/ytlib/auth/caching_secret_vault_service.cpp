@@ -9,6 +9,8 @@ namespace NYT::NAuth {
 
 using namespace NConcurrency;
 
+static const auto& Logger = AuthLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingSecretVaultService
@@ -50,6 +52,23 @@ public:
     TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
     {
         return Underlying_->GetDelegationToken(std::move(request));
+    }
+
+protected:
+    //! Called under write lock.
+    void OnAdded(const ISecretVaultService::TSecretSubrequest& subrequest) noexcept override
+    {
+        YT_LOG_DEBUG("Secret added to cache (SecretId: %v, SecretVersion: %v)",
+            subrequest.SecretId,
+            subrequest.SecretVersion);
+    }
+
+    //! Called under write lock.
+    void OnRemoved(const ISecretVaultService::TSecretSubrequest& subrequest) noexcept override
+    {
+        YT_LOG_DEBUG("Secret removed from cache (SecretId: %v, SecretVersion: %v)",
+            subrequest.SecretId,
+            subrequest.SecretVersion);
     }
 
 private:
