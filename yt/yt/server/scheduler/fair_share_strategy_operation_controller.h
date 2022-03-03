@@ -45,7 +45,8 @@ public:
     void AbortJob(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId);
+        const TString& treeId,
+        TControllerEpoch jobEpoch);
 
     void OnScheduleJobFailed(
         NProfiling::TCpuInstant now,

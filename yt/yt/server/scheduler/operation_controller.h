@@ -42,7 +42,8 @@ struct IOperationControllerStrategyHost
     virtual void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId) = 0;
+        const TString& treeId,
+        TControllerEpoch jobEpoch) = 0;
 
     //! Returns the total resources that are additionally needed.
     virtual TCompositeNeededResources GetNeededResources() const = 0;
@@ -137,7 +138,7 @@ struct IOperationController
     : public IOperationControllerStrategyHost
 {
     //! Assigns the agent to the operation controller.
-    virtual void AssignAgent(const TControllerAgentPtr& agent) = 0;
+    virtual void AssignAgent(const TControllerAgentPtr& agent, TControllerEpoch epoch) = 0;
 
     //! Revokes the agent; safe to call multiple times.
     virtual bool RevokeAgent() = 0;
@@ -190,7 +191,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobStarted(const TJobPtr& job) = 0;
+    virtual bool OnJobStarted(const TJobPtr& job) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has completed.
     /*!

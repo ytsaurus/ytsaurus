@@ -3355,7 +3355,7 @@ private:
     {
         auto agent = operation->GetAgentOrCancelFiber();
         const auto& controller = operation->GetController();
-        controller->AssignAgent(agent);
+        controller->AssignAgent(agent, operation->ControllerEpoch());
         WaitFor(controller->Register(operation))
             .ThrowOnError();
     }

@@ -152,8 +152,9 @@ void ProcessScheduleJobResponses(
                     auto controllerEpoch = protoResponse->controller_epoch();
                     auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
                     if (controllerEpoch != expectedControllerEpoch) {
-                        YT_LOG_DEBUG("Received job schedule result with unexpected controller epoch; ignored "
-                                     "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                        YT_LOG_DEBUG(
+                            "Received job schedule result with unexpected controller epoch; result is ignored "
+                            "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
                             operationId,
                             jobId,
                             controllerEpoch,
@@ -161,8 +162,9 @@ void ProcessScheduleJobResponses(
                         continue;
                     }
                     if (nodeShard->IsOperationControllerTerminated(operationId)) {
-                        YT_LOG_DEBUG("Received job schedule result for operation whose controller is terminated; "
-                                     " ignored (OperationId: %v, JobId: %v)",
+                        YT_LOG_DEBUG(
+                            "Received job schedule result for operation whose controller is terminated; "
+                            "result is ignored (OperationId: %v, JobId: %v)",
                             operationId,
                             jobId);
                         continue;
