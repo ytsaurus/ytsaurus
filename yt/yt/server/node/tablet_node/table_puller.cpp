@@ -307,11 +307,12 @@ private:
 
         YT_LOG_DEBUG("Pick replica to pull from");
 
-        auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
+        auto findFreshQueueReplica = [&] (TTimestamp oldestTimestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
                 if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
                     replicaInfo.State == ETableReplicaState::Enabled &&
-                    !IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress))
+                    !IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress) &&
+                    replicaInfo.FindHistoryItemIndex(oldestTimestamp) != -1)
                 {
                     return {replicaId, &replicaInfo};
                 }
@@ -333,6 +334,10 @@ private:
                 if (const auto& item = replicaInfo.History[historyItemIndex]; !IsReplicaReallySync(item.Mode, item.State)) {
                     continue;
                 }
+
+                YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
+                    replicaId,
+                    replicaInfo.History[historyItemIndex]);
 
                 // Pull from (past) sync replica until it changed mode or we became sync.
                 auto upperTimestamp = NullTimestamp;
@@ -360,6 +365,14 @@ private:
             return {};
         }
 
+        if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, selfReplicaInfo->ReplicationProgress)) {
+            YT_LOG_DEBUG("Will not pull rows since actual replication progress is behind replication card replica progress"
+                " (ReplicationProgress: %v, ReplicaInfo: %v)",
+                static_cast<TReplicationProgress>(*replicationProgress),
+                *selfReplicaInfo);
+            return {};
+        }
+
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
         auto historyItemIndex = selfReplicaInfo->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
@@ -384,7 +397,7 @@ private:
             // NB: Allow this since sync replica could be catching up.
         }
 
-        if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(); queueReplica) {
+        if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(oldestTimestamp); queueReplica) {
             YT_LOG_DEBUG("Pull rows from fresh replica (ReplicaId: %v)",
                 queueReplicaId);
             return {queueReplicaId, queueReplica, NullTimestamp};

@@ -117,6 +117,8 @@ private:
         auto contentType = attributes->Get<ETableReplicaContentType>("content_type", ETableReplicaContentType::Data);
         auto mode = attributes->Get<ETableReplicaMode>("mode", ETableReplicaMode::Async);
         auto enabled = attributes->Get<bool>("enabled", false);
+        auto catchup = attributes->Get<bool>("catchup", true);
+        auto replicationProgress = attributes->Find<TReplicationProgress>("replication_progress");
 
         auto channel = Client_->GetChaosChannelByCardId(replicationCardId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
@@ -129,6 +131,10 @@ private:
         req->set_content_type(ToProto<int>(contentType));
         req->set_mode(ToProto<int>(mode));
         req->set_enabled(enabled);
+        req->set_catchup(catchup);
+        if (replicationProgress) {
+            ToProto(req->mutable_replication_progress(), *replicationProgress);
+        }
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();

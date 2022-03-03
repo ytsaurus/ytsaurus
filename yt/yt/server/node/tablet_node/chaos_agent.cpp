@@ -165,6 +165,48 @@ private:
             return;
         }
 
+        auto initialReplicationProgressAdvance = [&] {
+            if (progress->Segments.size() != 1 || progress->Segments[0].Timestamp != MinTimestamp) {
+                return;
+            }
+
+            auto historyTimestamp = selfReplica->History[0].Timestamp;
+            auto progressTimestamp = GetReplicationProgressMinTimestamp(
+                selfReplica->ReplicationProgress,
+                Tablet_->GetPivotKey().Get(),
+                Tablet_->GetNextPivotKey().Get());
+
+            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %llx, HistoryMinTimestamp: %llx)",
+                progressTimestamp,
+                historyTimestamp);
+
+            if (progressTimestamp == historyTimestamp) {
+                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %llx)",
+                    static_cast<TReplicationProgress>(*progress),
+                    selfReplica,
+                    historyTimestamp);
+
+                *progress = AdvanceReplicationProgress(
+                    *progress,
+                    historyTimestamp);
+                Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
+                return;
+            }
+
+            YT_LOG_DEBUG("Checking that replication card contains further progress (ReplicationProgress: %v, Replica: %v)",
+                static_cast<TReplicationProgress>(*progress),
+                selfReplica);
+
+            if (!IsReplicationProgressGreaterOrEqual(*progress, selfReplica->ReplicationProgress)) {
+                *progress = ExtractReplicationProgress(
+                    selfReplica->ReplicationProgress, 
+                    Tablet_->GetPivotKey().Get(),
+                    Tablet_->GetNextPivotKey().Get());
+                YT_LOG_DEBUG("Advanced replication progress (ReplicationProgress: %v)",
+                    static_cast<TReplicationProgress>(*progress));
+            }
+        };
+
         auto forwardReplicationProgress = [&] (int historyItemIndex) {
             if (historyItemIndex >= std::ssize(selfReplica->History)) {
                 YT_LOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
@@ -181,7 +223,7 @@ private:
             YT_LOG_DEBUG("Advance replication progress to next era (Era: %v, Timestamp: %llx, ReplicationProgress: %v)",
                 selfReplica->History[historyItemIndex].Era,
                 selfReplica->History[historyItemIndex].Timestamp,
-                static_cast<NChaosClient::TReplicationProgress>(*progress));
+                static_cast<TReplicationProgress>(*progress));
         };
 
         // TODO(savrus): Update write mode after advancing replication progress.
@@ -190,6 +232,8 @@ private:
             auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
             auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
+            initialReplicationProgressAdvance();
+
             YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %llx, HistoryItemIndex: %v)",
                 ETabletWriteMode::Pull,
                 oldestTimestamp,
@@ -197,7 +241,7 @@ private:
 
             if (historyItemIndex == -1) {
                 YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %llx)",
-                    static_cast<NChaosClient::TReplicationProgress>(*progress),
+                    static_cast<TReplicationProgress>(*progress),
                     *selfReplica,
                     oldestTimestamp);
             } else {
@@ -217,7 +261,7 @@ private:
 
             YT_LOG_DEBUG("Advance replication progress to barrier (BarrierTimestamp: %llx, ReplicationProgress: %v)",
                 barrierTimestamp,
-                static_cast<NChaosClient::TReplicationProgress>(*progress));
+                static_cast<TReplicationProgress>(*progress));
         }
     }
 

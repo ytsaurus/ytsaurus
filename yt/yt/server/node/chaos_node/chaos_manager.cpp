@@ -461,6 +461,10 @@ private:
         auto contentType = FromProto<ETableReplicaContentType>(request->content_type());
         auto mode = FromProto<ETableReplicaMode>(request->mode());
         auto enabled = request->enabled();
+        auto catchup = request->catchup();
+        auto replicationProgress = request->has_replication_progress()
+            ? std::make_optional(FromProto<TReplicationProgress>(request->replication_progress()))
+            : std::nullopt;
 
         if (!IsStableReplicaMode(mode)) {
             THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", mode);
@@ -483,10 +487,38 @@ private:
             }
         }
 
-        // TODO(savrus): validate that there is sync queue with relevant history.
-        // We also need to be sure that old data is actually present at replicas.
-        // One way to do that is to split removing process: a) first update progress at the replication card
-        // and b) remove only data that is older than replication card progress says (e.g. data 'invisible' to other replicas)
+        if (!catchup && replicationProgress) {
+            THROW_ERROR_EXCEPTION("Replication progress specified while replica is not to be catched up")
+                << TErrorAttribute("replication_progress", *replicationProgress);
+        }
+
+        if (!replicationProgress) {
+            replicationProgress = TReplicationProgress{
+                .Segments = {{EmptyKey(), MinTimestamp}},
+                .UpperKey = MaxKey()
+            };
+        }
+
+        auto isWaitingReplica = [&] {
+            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+                if (!replicaInfo.History.empty() &&
+                    IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress))
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Validate that old data is actually present at queues.
+        // To do this we check that at least one replica is as far behind as the new one (as should be in case of replica copying).
+        // This is correct since a) data replica first updates its progress at the replication card
+        // b) queue only removes data that is older than overall replication card progress (e.g. data 'invisible' to other replicas)
+
+        if (catchup && replicationCard->GetEra() != InitialReplicationEra && !isWaitingReplica()) {
+            THROW_ERROR_EXCEPTION("Could not create replica since all other replicas already left it behind")
+                << TErrorAttribute("replication_progress", *replicationProgress);
+        }
 
         auto newReplicaId = GenerateNewReplicaId(replicationCard);
 
@@ -496,16 +528,18 @@ private:
         replicaInfo.ContentType = contentType;
         replicaInfo.State = enabled ? ETableReplicaState::Enabling : ETableReplicaState::Disabled;
         replicaInfo.Mode = mode;
-        replicaInfo.ReplicationProgress = {
-            .Segments = {{EmptyKey(), MinTimestamp}},
-            .UpperKey = MaxKey()
-        };
-        replicaInfo.History.push_back({
-            .Era = InitialReplicationEra,
-            .Timestamp = MinTimestamp,
-            .Mode = mode,
-            .State = enabled ? ETableReplicaState::Enabled : ETableReplicaState::Disabled
-        });
+        replicaInfo.ReplicationProgress = std::move(*replicationProgress);
+
+        if (catchup) {
+            replicaInfo.History.push_back({
+                .Era = replicationCard->GetEra(),
+                .Timestamp = MinTimestamp,
+                .Mode = mode,
+                .State = enabled && replicationCard->GetEra() == InitialReplicationEra
+                    ? ETableReplicaState::Enabled
+                    : ETableReplicaState::Disabled
+            });
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v)",
             replicationCardId,
@@ -859,7 +893,16 @@ private:
             }
 
             if (updated) {
-                // TODO(savrus) Implement history cleanup policy.
+                if (replicaInfo.History.empty()) {
+                    auto& replicationProgress = replicaInfo.ReplicationProgress;
+                    YT_VERIFY(replicationProgress.Segments.size() == 1);
+                    YT_VERIFY(replicationProgress.UpperKey == MaxKey());
+                    YT_VERIFY(replicationProgress.Segments[0].LowerKey == EmptyKey());
+                    YT_VERIFY(replicationProgress.Segments[0].Timestamp == MinTimestamp);
+
+                    replicationProgress.Segments[0].Timestamp = timestamp;
+                }
+
                 replicaInfo.History.push_back({newEra, timestamp, replicaInfo.Mode, replicaInfo.State});
             }
         }

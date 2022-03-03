@@ -62,6 +62,8 @@ message TReqCreateTableReplica
     required int32 content_type = 4; // NTabletClient::ETableReplicaContentType
     required int32 mode = 5; // NTabletClient::ETableReplicaMode
     optional bool enabled = 6;
+    optional bool catchup = 7 [default = true];
+    optional TReplicationProgress replication_progress = 8;
 }
 
 message TRspCreateTableReplica

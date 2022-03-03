@@ -5,7 +5,7 @@ from yt_commands import (
     get, set, ls, create, exists, remove, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     reshard_table, alter_table,
-    insert_rows, delete_rows, lookup_rows, pull_rows, build_snapshot, wait_for_cells,
+    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp)
@@ -75,7 +75,7 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_check)
         return get("#{0}/@".format(card_id))
 
-    def _create_chaos_table_replica(self, replica, replication_card_id=None, table_path=None):
+    def _create_chaos_table_replica(self, replica, replication_card_id=None, table_path=None, catchup=True, replication_progress=None):
         attributes = {
             "content_type": replica["content_type"],
             "mode": replica["mode"],
@@ -85,6 +85,10 @@ class ChaosTestBase(DynamicTablesBase):
             attributes["replication_card_id"] = replication_card_id
         if table_path is not None:
             attributes["table_path"] = table_path
+        if catchup is False:
+            attributes["catchup"] = catchup
+        if replication_progress is not None:
+            attributes["replication_progress"] = replication_progress
         return create_chaos_table_replica(replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
     def _create_chaos_table_replicas(self, replication_card_id, replicas):
@@ -173,6 +177,14 @@ class ChaosTestBase(DynamicTablesBase):
                 })
         driver = attributes.pop("driver", None)
         create("replication_log_table", path, attributes=attributes, driver=driver)
+
+    def _insistent_insert_rows(self, table, rows, driver=None):
+        try:
+            insert_rows(table, rows, driver=driver)
+            return True
+        except YtError as err:
+            print_debug("Insert into {0} failed: ".format(table), err)
+            return False
 
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
@@ -539,14 +551,7 @@ class TestChaos(ChaosTestBase):
         _check_lookup([{"key": 0}], values[:1], old_mode)
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=new_mode)
 
-        def _insistent_insert_rows():
-            try:
-                insert_rows("//tmp/t", values[1:])
-                return True
-            except YtError:
-                return False
-
-        wait(_insistent_insert_rows)
+        wait(lambda: self._insistent_insert_rows("//tmp/t", values[1:]))
         _check_lookup([{"key": 1}], values[1:], new_mode)
 
         orchid = self._get_table_orchids("//tmp/t")[0]
@@ -1007,15 +1012,7 @@ class TestChaos(ChaosTestBase):
 
         rows = [{"key": 1, "value": "1"}]
         keys = [{"key": 1}]
-
-        def _insistent_insert_rows():
-            try:
-                insert_rows("//tmp/t", rows)
-                return True
-            except YtError as err:
-                print_debug("Insert failed: ", err)
-                return False
-        wait(_insistent_insert_rows)
+        wait(lambda: self._insistent_insert_rows("//tmp/t", rows))
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
     @authors("savrus")
@@ -1052,6 +1049,114 @@ class TestChaos(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
         assert get("#{0}/@".format(card_id))["replicas"][replica_ids[2]]["state"] == "disabled"
+
+    @authors("savrus")
+    def test_new_data_replica(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=False))
+        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+
+        wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
+        assert(select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values1)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_new_data_replica_catchup(self, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=True))
+        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+
+        values1 = [{"key": 1, "value": "1"}]
+        wait(lambda: self._insistent_insert_rows("//tmp/t", values1))
+        wait(lambda: select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values0 + values1)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("catchup", [True, False])
+    def test_new_queue_replica(self, catchup):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=catchup))
+        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=False)
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
+
+        expected = values0 + values1 if catchup else []
+        wait(lambda: select_rows("* from [//tmp/t]") == expected)
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+        wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_new_replica_with_progress(self, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        drivers = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+
+        sync_unmount_table("//tmp/q", driver=drivers[1])
+        tablet_id = get("//tmp/q/@tablets/0/tablet_id", driver=drivers[1])
+        replication_progress = get("#{0}/@replication_progress".format(tablet_id), driver=drivers[1])
+        sync_mount_table("//tmp/q", driver=drivers[1])
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, replication_progress=replication_progress))
+        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+
+        values1 = [{"key": 1, "value": "1"}]
+        wait(lambda: self._insistent_insert_rows("//tmp/t", values1))
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
+        wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
+
+        assert(select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
 
 
 ##################################################################
