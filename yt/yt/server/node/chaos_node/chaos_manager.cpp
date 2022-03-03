@@ -677,6 +677,17 @@ private:
                 continue;
             }
 
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
+                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got grant shortcut response but shortcut is not waiting for it"
+                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
+                    replicationCardId,
+                    era,
+                    coordinatorCellId,
+                    it ? std::make_optional(it->second.State) : std::nullopt);
+
+                continue;
+            }
+
             replicationCardIds.push_back(replicationCardId);
             replicationCard->Coordinators()[coordinatorCellId].State = EShortcutState::Granted;
         }
@@ -717,6 +728,17 @@ private:
                 continue;
             }
 
+            if (auto it = replicationCard->Coordinators().find(coordinatorCellId); it && it->second.State != EShortcutState::Revoking) {
+                YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got revoke shortcut response but shortcut is not waiting for it"
+                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetEra(),
+                    coordinatorCellId,
+                    it->second.State);
+
+                continue;
+            }
+
             replicationCardIds.push_back(replicationCardId);
             EraseOrCrash(replicationCard->Coordinators(), coordinatorCellId);
             ScheduleNewEraIfReplicationCardIsReady(replicationCard);
@@ -741,6 +763,12 @@ private:
 
         for (auto& [cellId, coordinator] : replicationCard->Coordinators()) {
             if (coordinator.State == EShortcutState::Revoking) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not revoke shortcut since it already is revoking "
+                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetEra(),
+                    cellId);
+
                 continue;
             }
 
@@ -768,8 +796,16 @@ private:
 
         for (auto cellId : coordinatorCellIds) {
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
-            // Need to make a better protocol.
-            YT_VERIFY(!replicationCard->Coordinators().contains(cellId));
+            // Need to make a better protocol (YT-16072).
+            if (replicationCard->Coordinators().contains(cellId)) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Will not revoke shortcut since it already is in replication card "
+                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
+                    replicationCard->GetId(),
+                    replicationCard->GetEra(),
+                    cellId);
+
+                continue;
+            }
 
             replicationCard->Coordinators().insert(std::make_pair(cellId, TCoordinatorInfo{EShortcutState::Granting}));
             auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
