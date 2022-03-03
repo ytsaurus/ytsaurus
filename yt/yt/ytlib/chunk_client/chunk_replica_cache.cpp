@@ -119,8 +119,8 @@ public:
                         currentPromises.push_back(promises[index]);
 
                         if (!currentReq) {
-                            auto req = proxy.LocateChunks();
-                            req->SetResponseHeavy(true);
+                            currentReq = proxy.LocateChunks();
+                            currentReq->SetResponseHeavy(true);
                         }
 
                         ToProto(currentReq->add_subrequests(), chunkId);
