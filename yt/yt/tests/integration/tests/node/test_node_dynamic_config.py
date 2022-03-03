@@ -502,3 +502,26 @@ class TestNodeDynamicConfig(YTEnvSetup):
             return gauge1 == gauge2 == gauge3 == 1.0
 
         wait(check)
+
+        config2 = {
+            "nodeA": {
+                "config_annotation": 55,
+            },
+            "nodeB": {
+            }
+        }
+
+        set("//sys/cluster_nodes/@config", config2)
+
+        def check2():
+            profiler_a = profiler_factory().at_node(nodes[0])
+            gauge1 = profiler_a.get(
+                "cluster_node/alerts",
+                {"error_code": "NYT::EErrorCode::Generic"})
+            gauge2 = profiler_a.get(
+                "cluster_node/alerts",
+                {"error_code": "NYT::NDynamicConfig::EErrorCode::InvalidDynamicConfig"})
+            profiler_b = profiler_factory().at_node(nodes[1])
+            return gauge1 == gauge2 == 1.0 and not profiler_b.get_all("cluster_node/alerts")
+
+        wait(check2)

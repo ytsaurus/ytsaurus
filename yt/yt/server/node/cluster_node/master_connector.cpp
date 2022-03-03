@@ -315,10 +315,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (alerts.empty()) {
-            return;
-        }
-
         THashSet<int> codes;
         for (const auto& alert : alerts) {
             TraverseError(alert, [&codes] (const TError& error, int /*depth*/) {
