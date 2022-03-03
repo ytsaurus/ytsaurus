@@ -2366,7 +2366,7 @@ IChannelPtr TClient::GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind)
 {
     const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
     if (auto channel = cellDirectory->FindChannelByCellId(cellId, peerKind)) {
-        return channel;
+        return WrapChaosChannel(std::move(channel));
     }
 
     auto cellTag = CellTagFromId(cellId);
@@ -2403,7 +2403,7 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
 {
     const auto& cellDirectory = GetNativeConnection()->GetCellDirectory();
     if (auto channel = cellDirectory->FindChannelByCellTag(cellTag, peerKind)) {
-        return channel;
+        return WrapChaosChannel(std::move(channel));
     }
 
     auto masterChannel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
