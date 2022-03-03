@@ -1260,6 +1260,10 @@ private:
 
     TProgressCounterPtr TotalJobCounter_;
 
+    NProfiling::TTimeCounter TotalCompletedJobTime_;
+    NProfiling::TTimeCounter TotalFailedJobTime_;
+    NProfiling::TTimeCounter TotalAbortedJobTime_;
+
     void AccountExternalScheduleJobFailures() const;
 
     void InitializeOrchid();

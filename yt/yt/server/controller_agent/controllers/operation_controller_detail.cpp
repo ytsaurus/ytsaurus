@@ -11,6 +11,7 @@
 #include <yt/yt/server/controller_agent/operation.h>
 #include <yt/yt/server/controller_agent/scheduling_context.h>
 #include <yt/yt/server/controller_agent/config.h>
+#include <yt/yt/server/controller_agent/private.h>
 
 #include <yt/yt/server/lib/job_agent/job_report.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
@@ -308,6 +309,9 @@ TOperationControllerBase::TOperationControllerBase(
     , MediumDirectory_(Host->GetMediumDirectory())
     , ExperimentAssignments_(operation->ExperimentAssignments())
     , TotalJobCounter_(New<TProgressCounter>())
+    , TotalCompletedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_completed_wall_time"))
+    , TotalFailedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_failed_wall_time"))
+    , TotalAbortedJobTime_(ControllerAgentProfiler.TimeCounter("/jobs/total_aborted_wall_time"))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -1302,6 +1306,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
             auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, jobSummary)
                 .Item("reason").Value(abortReason);
             UpdateAggregatedFinishedJobStatistics(joblet, jobSummary);
+
+            TotalAbortedJobTime_.Add(joblet->FinishTime - joblet->StartTime);
         }
         joblet->Task->OnJobAborted(joblet, jobSummary);
     }
@@ -3384,6 +3390,21 @@ void TOperationControllerBase::FinalizeJoblet(
     if (joblet->JobProxyMemoryReserveFactor) {
         statistics.AddSample("/job_proxy/memory_reserve_factor_x10000", static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));
     }
+
+    const TDuration duration = joblet->FinishTime - joblet->StartTime;
+    const auto getTimeCounter = [&] (const EJobState jobState) -> auto& {
+        switch (jobState) {
+            case EJobState::Completed:
+                return TotalCompletedJobTime_;
+            case EJobState::Aborted:
+                return TotalAbortedJobTime_;
+            case EJobState::Failed:
+                return TotalFailedJobTime_;            
+            default:
+                YT_ABORT();
+        }
+    };
+    getTimeCounter(jobSummary->State).Add(duration);
 }
 
 void TOperationControllerBase::BuildJobAttributes(
