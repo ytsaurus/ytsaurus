@@ -769,7 +769,7 @@ private:
             ClusterNodeProfiler.WithPrefix("/memory_usage"));
 
         BufferedProducer_ = New<TBufferedProducer>();
-        ClusterNodeProfiler.AddProducer("", BufferedProducer_);
+        ClusterNodeProfiler.WithProducerRemoveSupport().AddProducer("", BufferedProducer_);
 
         MasterCacheQueue_ = New<TActionQueue>("MasterCache");
         StorageHeavyThreadPool_ = New<TThreadPool>(
