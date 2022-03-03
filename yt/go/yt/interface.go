@@ -53,6 +53,7 @@ type TransactionOptions struct {
 	Ping                               bool `http:"ping"`
 	PingAncestors                      bool `http:"ping_ancestor_transactions"`
 	SuppressTransactionCoordinatorSync bool `http:"suppress_transaction_coordinator_sync"`
+	SuppressUpstreamSync               bool `http:"suppress_upstream_sync"`
 }
 
 // AccessTrackingOptions suppresses update of "modification_time", "access_time" and

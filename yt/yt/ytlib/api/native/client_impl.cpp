@@ -339,13 +339,6 @@ void TClient::SetTransactionId(
     NCypressClient::SetTransactionId(request, GetTransactionId(options, allowNullTransaction));
 }
 
-void TClient::SetPrerequisites(
-    const IClientRequestPtr& request,
-    const TPrerequisiteOptions& options)
-{
-    NTransactionClient::SetPrerequisites(request, options);
-}
-
 void TClient::SetSuppressAccessTracking(
     const IClientRequestPtr& request,
     const TSuppressableAccessTrackingOptions& commandOptions)
@@ -473,8 +466,10 @@ void TClient::ValidateSuperuserPermissions()
     }
 
     auto pathToGroupYsonList = NSecurityClient::GetUserPath(*Options_.User) + "/@member_of_closure";
+
     TGetNodeOptions options;
     options.SuppressTransactionCoordinatorSync = true;
+    options.SuppressUpstreamSync = true;
     auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 

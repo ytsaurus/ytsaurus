@@ -13,11 +13,14 @@
 
 #include <yt/yt/ytlib/security_client/account_ypath_proxy.h>
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
-#include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -31,6 +34,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NSecurityClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

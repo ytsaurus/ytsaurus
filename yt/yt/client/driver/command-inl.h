@@ -47,6 +47,8 @@ TTransactionalCommandBase<
         .Optional();
     this->RegisterParameter("suppress_transaction_coordinator_sync", this->Options.SuppressTransactionCoordinatorSync)
         .Optional();
+    this->RegisterParameter("suppress_upstream_sync", this->Options.SuppressUpstreamSync)
+        .Optional();
 }
 
 template <class TOptions>

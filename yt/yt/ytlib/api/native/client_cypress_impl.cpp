@@ -26,6 +26,7 @@
 #include <yt/yt/ytlib/table_client/schema_inferer.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -672,7 +673,7 @@ TNodeId TClient::CreateNodeImpl(
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Create(path);
@@ -715,7 +716,7 @@ void TClient::DoSetNode(
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TYPathProxy::Set(path);
@@ -749,7 +750,7 @@ void TClient::DoMultisetAttributesNode(
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TYPathProxy::MultisetAttributes(path);
@@ -830,9 +831,9 @@ TLockNodeResult TClient::DoLockNode(
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
     auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
-    auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
 
+    auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Lock(path);
@@ -868,8 +869,9 @@ void TClient::DoUnlockNode(
     const TUnlockNodeOptions& options)
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+
     auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Unlock(path);
@@ -906,8 +908,9 @@ TNodeId TClient::DoCloneNode(
     const TOptions& options)
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+
     auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Copy(dstPath);
@@ -972,7 +975,7 @@ TNodeId TClient::DoLinkNode(
     }
 
     auto batchReq = proxy->ExecuteBatch();
-    batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
 
     auto req = TCypressYPathProxy::Create(dstPath);

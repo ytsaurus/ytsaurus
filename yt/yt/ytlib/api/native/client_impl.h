@@ -577,9 +577,6 @@ private:
         const NRpc::IClientRequestPtr& request,
         const TTransactionalOptions& options,
         bool allowNullTransaction);
-    void SetPrerequisites(
-        const NRpc::IClientRequestPtr& request,
-        const TPrerequisiteOptions& options);
     void SetSuppressAccessTracking(
         const NRpc::IClientRequestPtr& request,
         const TSuppressableAccessTrackingOptions& commandOptions);
