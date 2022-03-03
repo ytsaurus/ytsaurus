@@ -282,9 +282,9 @@ TTableMountConfig::TTableMountConfig()
         .Default(5);
 
     RegisterParameter("precache_chunk_replicas_on_mount", PrecacheChunkReplicasOnMount)
-        .Default(true);
+        .Default(false);
     RegisterParameter("register_chunk_replicas_on_stores_update", RegisterChunkReplicasOnStoresUpdate)
-        .Default(true);
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
