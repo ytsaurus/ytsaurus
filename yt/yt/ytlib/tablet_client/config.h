@@ -42,8 +42,6 @@ public:
     std::optional<double> CpuPerTabletSlot;
     std::optional<bool> SuppressTabletCellDecommission;
     double ForcedRotationMemoryRatio;
-    // TODO(babenko): either drop or make always false.
-    bool EnableForcedRotationBackingMemoryAccounting;
     int DynamicMemoryPoolWeight;
     bool EnableTabletDynamicMemoryLimit;
     std::optional<TString> SolomonTag;

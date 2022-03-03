@@ -415,8 +415,6 @@ TStoreFlusherDynamicConfig::TStoreFlusherDynamicConfig()
     RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
         .InRange(0.0, 1.0)
         .Optional();
-    RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
-        .Optional();
     RegisterParameter("thread_pool_size", ThreadPoolSize)
         .GreaterThan(0)
         .Optional();
@@ -658,8 +656,6 @@ TTabletNodeConfig::TTabletNodeConfig()
         .InRange(0.0, 1.0)
         .Default(0.8)
         .Alias("forced_rotations_memory_ratio");
-    RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
-        .Default(true);
 
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();

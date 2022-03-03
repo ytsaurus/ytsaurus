@@ -109,6 +109,7 @@ DEFINE_ENUM(EMasterReign,
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.
     ((LogicalDataWeight)                                            (2000))  // achulkov2
+    ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
