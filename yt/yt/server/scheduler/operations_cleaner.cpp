@@ -2,6 +2,8 @@
 #include "operations_cleaner.h"
 #include "operation.h"
 #include "bootstrap.h"
+#include "scheduler.h"
+#include "master_connector.h"
 #include "helpers.h"
 #include "operation_alert_event.h"
 
@@ -656,6 +658,33 @@ public:
         YT_LOG_DEBUG("Operation submitted for archivation (OperationId: %v, ArchivationStartTime: %v)",
             id,
             deadline);
+    }
+
+    void SubmitForArchivation(std::vector<TOperationId> operationIds)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!IsEnabled()) {
+            return;
+        }
+        YT_LOG_INFO("Operations submitted for fetching by ids and further archivation (OperationCount: %v)",
+            operationIds.size());
+
+        BIND(&TImpl::DoFetchFinishedOperationsById, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run(std::move(operationIds))
+            .Subscribe(BIND([
+                bootstrap = Bootstrap_,
+                disconnectOnFailure = Config_->DisconnectOnFinishedOperationFetchFailure
+            ] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_LOG_WARNING(error, "Failed to fetch finished operations from Cypress (DisconnectOnFailure: %v)",
+                        disconnectOnFailure);
+                    if (disconnectOnFailure) {
+                        bootstrap->GetScheduler()->GetMasterConnector()->Disconnect(error);
+                    }
+                }
+            }).Via(GetInvoker()));
     }
 
     void SetArchiveVersion(int version)
@@ -1433,23 +1462,31 @@ private:
         }
     }
 
+    TObjectServiceProxy::TReqExecuteBatchPtr CreateBatchRequest()
+    {
+        auto channel = Client_->GetMasterChannelOrThrow(
+            EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
+
+        TObjectServiceProxy proxy(channel);
+        return proxy.ExecuteBatch();
+    }
+
     void DoFetchFinishedOperations()
     {
         YT_LOG_INFO("Fetching all finished operations from Cypress");
 
-        auto createBatchRequest = BIND([this] {
-            auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
+        auto listOperationsResult = ListOperations(BIND(&TImpl::CreateBatchRequest, MakeStrong(this)));
+        DoFetchFinishedOperationsById(std::move(listOperationsResult.OperationsToArchive));
+    }
 
-            TObjectServiceProxy proxy(channel);
-            return proxy.ExecuteBatch();
-        });
+    void DoFetchFinishedOperationsById(std::vector<TOperationId> operationIds)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto listOperationsResult = ListOperations(createBatchRequest);
-
+        YT_LOG_INFO("Started fetching finished operations from Cypress (OperationCount: %v)", operationIds.size());
         auto operations = FetchOperationsFromCypressForCleaner(
-            listOperationsResult.OperationsToArchive,
-            createBatchRequest,
+            operationIds,
+            BIND(&TImpl::CreateBatchRequest, MakeStrong(this)),
             Config_->ParseOperationAttributesBatchSize,
             Host_->GetBackgroundInvoker());
 
@@ -1467,7 +1504,7 @@ private:
             SubmitForArchivation(std::move(operation));
         }
 
-        YT_LOG_INFO("Fetched and processed all finished operations");
+        YT_LOG_INFO("Fetched and processed finished operations from Cypress (OperationCount: %v)", operationIds.size());
     }
 
     const TArchiveOperationRequest& GetRequest(TOperationId operationId) const
@@ -1568,6 +1605,11 @@ void TOperationsCleaner::SubmitForArchivation(TArchiveOperationRequest request)
     Impl_->SubmitForArchivation(std::move(request));
 }
 
+void TOperationsCleaner::SubmitForArchivation(std::vector<TOperationId> operationIds)
+{
+    Impl_->SubmitForArchivation(std::move(operationIds));
+}
+
 void TOperationsCleaner::UpdateConfig(const TOperationsCleanerConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
@@ -1628,7 +1670,12 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 
     auto rspOrError = WaitFor(batchReq->Invoke());
     auto error = GetCumulativeError(rspOrError);
-    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error requesting operations attributes for archivation");
+    if (!error.IsOK()) {
+        THROW_ERROR_EXCEPTION("Error requesting operations attributes for archivation")
+            << error;
+    } else {
+        YT_LOG_INFO("Fetched operations attributes for cleaner (OperationCount: %v)", operationIds.size());
+    }
 
     auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
     YT_VERIFY(operationIds.size() == rsps.size());
@@ -1668,6 +1715,8 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
             return result;
         });
 
+        YT_LOG_INFO("Operations attributes for cleaner parsing started");
+
         const int operationCount{static_cast<int>(operationIds.size())};
         std::vector<TFuture<std::vector<TArchiveOperationRequest>>> futures;
         futures.reserve(RoundUp(operationCount, parseOperationAttributesBatchSize));
@@ -1686,7 +1735,6 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
             );
         }
 
-        YT_LOG_INFO("Operations attributes for cleaner fetch started");
         auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();
 
         result.reserve(operationCount);

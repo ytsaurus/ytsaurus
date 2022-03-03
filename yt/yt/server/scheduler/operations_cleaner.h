@@ -75,6 +75,7 @@ public:
     void Stop();
 
     void SubmitForArchivation(TArchiveOperationRequest request);
+    void SubmitForArchivation(std::vector<TOperationId> operations);
 
     void UpdateConfig(const TOperationsCleanerConfigPtr& config);
 

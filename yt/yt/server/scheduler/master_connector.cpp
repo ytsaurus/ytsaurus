@@ -784,7 +784,6 @@ private:
             SyncMediumDirectory();
             ListOperations();
             RequestOperationAttributes();
-            SubmitOperationsToCleaner();
             RequestSchedulingSegmentsState();
             RequestLastMeteringLogTime();
             FireHandshake();
@@ -795,7 +794,6 @@ private:
         const TAddressMap ServiceAddresses_;
 
         std::vector<TOperationId> OperationIds_;
-        std::vector<TOperationId> OperationIdsToArchive_;
 
         TMasterHandshakeResult Result_;
 
@@ -963,7 +961,8 @@ private:
                 OperationIds_.push_back(operationId);
             }
 
-            OperationIdsToArchive_ = std::move(listOperationsResult.OperationsToArchive);
+            auto operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
+            operationsCleaner->SubmitForArchivation(std::move(listOperationsResult.OperationsToArchive));
 
             YT_LOG_INFO("Finished listing existing operations");
         }
@@ -1306,33 +1305,6 @@ private:
                 throw;
             }
 
-        }
-
-        void SubmitOperationsToCleaner()
-        {
-            YT_LOG_INFO("Submitting operations to cleaner (ArchiveCount: %v)",
-                OperationIdsToArchive_.size());
-
-            const auto& operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
-
-            auto createBatchRequest = BIND(
-                &TImpl::StartObjectBatchRequest,
-                Owner_,
-                EMasterChannelKind::Follower,
-                PrimaryMasterCellTagSentinel,
-                Owner_->Config_->FetchOperationAttributesSubbatchSize);
-
-            auto operations = FetchOperationsFromCypressForCleaner(
-                OperationIdsToArchive_,
-                createBatchRequest,
-                Owner_->Config_->OperationsCleaner->ParseOperationAttributesBatchSize,
-                Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker());
-
-            for (auto& operation : operations) {
-                operationsCleaner->SubmitForArchivation(std::move(operation));
-            }
-
-            YT_LOG_INFO("Operations submitted to cleaner");
         }
 
         void RequestSchedulingSegmentsState()

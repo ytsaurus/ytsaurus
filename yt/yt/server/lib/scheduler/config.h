@@ -562,6 +562,10 @@ public:
     //! within this period, alert is raised.
     TDuration OperationAlertSenderAlertThreshold;
 
+    //! Disconnect from master in case of finished operation fetch failure.
+    //! This option does not affect fetching after cleaner is re-enabled.
+    bool DisconnectOnFinishedOperationFetchFailure;
+
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
 
     static void Register(TRegistrar registrar);
