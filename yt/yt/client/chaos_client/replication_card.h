@@ -112,6 +112,10 @@ void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicatio
 bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, const TReplicationProgress& other);
 bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
 
+TReplicationProgress ExtractReplicationProgress(
+    const TReplicationProgress& progress,
+    NTableClient::TLegacyKey lower,
+    NTableClient::TLegacyKey upper);
 TReplicationProgress AdvanceReplicationProgress(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
 TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
 

@@ -317,6 +317,34 @@ bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, T
     return true;
 }
 
+TReplicationProgress ExtractReplicationProgress(
+    const TReplicationProgress& progress,
+    TLegacyKey lower,
+    TLegacyKey upper)
+{
+    TReplicationProgress extracted;
+    extracted.UpperKey = TUnversionedOwningRow(upper);
+
+    auto it = std::upper_bound(
+        progress.Segments.begin(),
+        progress.Segments.end(),
+        lower,
+        [] (const auto& lhs, const auto& rhs) {
+            return CompareRows(lhs, rhs.LowerKey) < 0;
+        });
+
+    YT_VERIFY(it != progress.Segments.begin());
+    --it;
+
+    extracted.Segments.push_back({TUnversionedOwningRow(lower), it->Timestamp});
+
+    for (++it; it < progress.Segments.end() && it->LowerKey < upper; ++it) {
+        extracted.Segments.push_back(*it);
+    }
+
+    return extracted;
+}
+
 TReplicationProgress AdvanceReplicationProgress(const TReplicationProgress& progress, TTimestamp timestamp)
 {
     TReplicationProgress result;
