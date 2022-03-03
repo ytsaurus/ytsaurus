@@ -295,9 +295,6 @@ public:
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
     std::optional<double> ForcedRotationMemoryRatio;
 
-    // TODO(babenko): either drop or make always false.
-    std::optional<bool> EnableForcedRotationBackingMemoryAccounting;
-
     std::optional<int> ThreadPoolSize;
     std::optional<int> MaxConcurrentFlushes;
     std::optional<i64> MinForcedFlushDataSize;
@@ -587,9 +584,6 @@ class TTabletNodeConfig
 public:
     // TODO(ifsmirnov): drop in favour of dynamic config.
     double ForcedRotationMemoryRatio;
-
-    // TODO(ifsmirnov): drop in favour of dynamic config.
-    bool EnableForcedRotationBackingMemoryAccounting;
 
     //! Limits resources consumed by tablets.
     TResourceLimitsConfigPtr ResourceLimits;

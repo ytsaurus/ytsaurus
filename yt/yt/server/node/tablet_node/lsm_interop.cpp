@@ -151,8 +151,6 @@ private:
 
             NLsm::TTabletCellBundleState bundleState{
                 .ForcedRotationMemoryRatio = options->ForcedRotationMemoryRatio,
-                .EnableForcedRotationBackingMemoryAccounting =
-                    options->EnableForcedRotationBackingMemoryAccounting,
                 .EnablePerBundleMemoryLimit = options->EnableTabletDynamicMemoryLimit,
                 .DynamicMemoryLimit =
                     memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),

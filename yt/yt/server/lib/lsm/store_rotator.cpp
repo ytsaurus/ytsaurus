@@ -67,9 +67,6 @@ public:
         SavedTablets_.clear();
         MemoryDigest_ = {};
 
-        EnableForcedRotationBackingMemoryAccounting_ =
-            dynamicConfig->EnableForcedRotationBackingMemoryAccounting.value_or(
-                config->EnableForcedRotationBackingMemoryAccounting);
         ForcedRotationMemoryRatio_ =
             dynamicConfig->ForcedRotationMemoryRatio.value_or(
                 config->ForcedRotationMemoryRatio);
@@ -137,7 +134,6 @@ private:
     THashMap<TString, TMemoryDigest> BundleMemoryDigests_;
     std::vector<TStore*> ForcedRotationCandidates_;
     std::vector<TTabletPtr> SavedTablets_;
-    bool EnableForcedRotationBackingMemoryAccounting_;
     double ForcedRotationMemoryRatio_;
     i64 MinForcedFlushDataSize_;
 
@@ -212,7 +208,6 @@ private:
 
             return IsRotationForced(
                 bundleMemoryDigest,
-                bundleState.EnableForcedRotationBackingMemoryAccounting,
                 bundleState.ForcedRotationMemoryRatio);
         };
 
@@ -234,7 +229,6 @@ private:
 
             if (IsRotationForced(
                 MemoryDigest_,
-                EnableForcedRotationBackingMemoryAccounting_,
                 ForcedRotationMemoryRatio_))
             {
                 reason = "global memory pressure condition";
@@ -270,14 +264,11 @@ private:
 
     static bool IsRotationForced(
         const TMemoryDigest& memoryDigest,
-        bool enableForcedRotationBackingMemoryAccounting,
         double forcedRotationMemoryRatio)
     {
         i64 adjustedUsage = memoryDigest.TotalUsage;
         adjustedUsage -= memoryDigest.PassiveUsage;
-        if (!enableForcedRotationBackingMemoryAccounting) {
-            adjustedUsage -= memoryDigest.BackingUsage;
-        }
+        adjustedUsage -= memoryDigest.BackingUsage;
         return adjustedUsage > memoryDigest.Limit * forcedRotationMemoryRatio;
     }
 

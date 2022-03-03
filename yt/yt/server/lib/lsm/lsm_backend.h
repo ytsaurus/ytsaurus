@@ -72,7 +72,6 @@ private:
 struct TTabletCellBundleState
 {
     double ForcedRotationMemoryRatio = 0;
-    bool EnableForcedRotationBackingMemoryAccounting = true;
     bool EnablePerBundleMemoryLimit = true;
     i64 DynamicMemoryLimit = 0;
     i64 DynamicMemoryUsage = 0;
