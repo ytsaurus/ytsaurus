@@ -108,9 +108,9 @@ bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(TCpuInst
     return ScheduleJobBackoffDeadline_ > now;
 }
 
-void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason, const TString& treeId)
+void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason, const TString& treeId, TControllerEpoch jobEpoch)
 {
-    Controller_->OnNonscheduledJobAborted(jobId, abortReason, treeId);
+    Controller_->OnNonscheduledJobAborted(jobId, abortReason, treeId, jobEpoch);
 }
 
 TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJob(
@@ -157,7 +157,11 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
                         auto jobId = scheduleJobResult->StartDescriptor->Id;
                         YT_LOG_WARNING("Aborting late job (JobId: %v)",
                             jobId);
-                        AbortJob(jobId, EAbortReason::SchedulingTimeout, treeId);
+                        AbortJob(
+                            jobId,
+                            EAbortReason::SchedulingTimeout,
+                            treeId,
+                            scheduleJobResult->ControllerEpoch);
                     }
             }));
         }

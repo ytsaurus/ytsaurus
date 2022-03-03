@@ -192,7 +192,7 @@ public:
 
     void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
 
-    void OnNonscheduledJobAborted(TJobId, EAbortReason, const TString&) override;
+    void OnNonscheduledJobAborted(TJobId, EAbortReason, const TString&, TControllerEpoch epoch) override;
 
     bool IsOperationCompleted() const override ;
 
@@ -368,7 +368,7 @@ void TSimulatorOperationController::OnJobCompleted(std::unique_ptr<TCompletedJob
     }
 }
 
-void TSimulatorOperationController::OnNonscheduledJobAborted(TJobId jobId, EAbortReason, const TString&)
+void TSimulatorOperationController::OnNonscheduledJobAborted(TJobId jobId, EAbortReason, const TString&, TControllerEpoch)
 {
     const auto& jobDescription = IdToDescription_.Get(jobId);
 

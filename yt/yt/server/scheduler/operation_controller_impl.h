@@ -18,7 +18,7 @@ public:
         TSchedulerConfigPtr config,
         const TOperationPtr& operation);
 
-    void AssignAgent(const TControllerAgentPtr& agent) override;
+    void AssignAgent(const TControllerAgentPtr& agent, TControllerEpoch epoch) override;
 
     bool RevokeAgent() override;
 
@@ -35,7 +35,7 @@ public:
     TFuture<TOperationControllerUnregisterResult> Unregister() override;
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
 
-    void OnJobStarted(const TJobPtr& job) override;
+    bool OnJobStarted(const TJobPtr& job) override;
     void OnJobCompleted(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
@@ -50,7 +50,8 @@ public:
     void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId) override;
+        const TString& treeId,
+        TControllerEpoch jobEpoch) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
@@ -89,6 +90,8 @@ private:
     TWeakPtr<TControllerAgent> Agent_;
     std::unique_ptr<NControllerAgent::TControllerAgentServiceProxy> AgentProxy_;
 
+    std::atomic<TControllerEpoch> Epoch_;
+
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
@@ -100,6 +103,9 @@ private:
     TPromise<TOperationControllerCommitResult> PendingCommitResult_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    bool ShouldSkipJobEvent(TJobId jobId, TControllerEpoch jobEpoch) const;
+    bool ShouldSkipJobEvent(const TJobPtr& job) const;
 
     bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);

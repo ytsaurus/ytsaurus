@@ -59,7 +59,7 @@ TOperationControllerImpl::TOperationControllerImpl(
 { }
 
 
-void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent)
+void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TControllerEpoch epoch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -70,6 +70,8 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent)
     Agent_ = agent;
 
     AgentProxy_ = std::make_unique<TControllerAgentServiceProxy>(agent->GetChannel());
+
+    Epoch_.store(epoch);
 
     JobEventsOutbox_ = agent->GetJobEventsOutbox();
     OperationEventsOutbox_ = agent->GetOperationEventsOutbox();
@@ -435,14 +437,20 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
 }
 
 
-void TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
+bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (ShouldSkipJobEvent(job)) {
+        return false;
+    }
 
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
     JobEventsOutbox_->Enqueue(std::move(event));
     YT_LOG_TRACE("Job start notification enqueued (JobId: %v)",
         job->GetId());
+
+    return true;
 }
 
 void TOperationControllerImpl::OnJobCompleted(
@@ -451,6 +459,10 @@ void TOperationControllerImpl::OnJobCompleted(
     bool abandoned)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (ShouldSkipJobEvent(job)) {
+        return;
+    }
 
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
     event.Abandoned = abandoned;
@@ -467,6 +479,10 @@ void TOperationControllerImpl::OnJobFailed(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (ShouldSkipJobEvent(job)) {
+        return;
+    }
+
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
     auto result = EnqueueJobEvent(std::move(event));
     YT_LOG_TRACE("Job failure notification %v (JobId: %v)",
@@ -480,6 +496,10 @@ void TOperationControllerImpl::OnJobAborted(
     bool byScheduler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (ShouldSkipJobEvent(job)) {
+        return;
+    }
 
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
     event.AbortReason = job->GetAbortReason();
@@ -496,9 +516,14 @@ void TOperationControllerImpl::OnJobAborted(
 void TOperationControllerImpl::OnNonscheduledJobAborted(
     TJobId jobId,
     EAbortReason abortReason,
-    const TString& treeId)
+    const TString& treeId,
+    TControllerEpoch jobEpoch)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (ShouldSkipJobEvent(jobId, jobEpoch)) {
+        return;
+    }
 
     auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
     ToProto(status->mutable_job_id(), jobId);
@@ -722,6 +747,24 @@ TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededJobResources() 
 EPreemptionMode TOperationControllerImpl::GetPreemptionMode() const
 {
     return PreemptionMode_;
+}
+
+bool TOperationControllerImpl::ShouldSkipJobEvent(TJobId jobId, TControllerEpoch jobEpoch) const
+{
+    auto currentEpoch = Epoch_.load();
+    if (jobEpoch != currentEpoch) {
+        YT_LOG_DEBUG("Job abort notification skipped since controller epoch mismatch (JobId: %v, JobEpoch: %v, CurrentEpoch: %v)",
+            jobId,
+            jobEpoch,
+            currentEpoch);
+        return true;
+    }
+    return false;
+}
+
+bool TOperationControllerImpl::ShouldSkipJobEvent(const TJobPtr& job) const
+{
+    return ShouldSkipJobEvent(job->GetId(), job->GetControllerEpoch());
 }
 
 bool TOperationControllerImpl::EnqueueJobEvent(TSchedulerToAgentJobEvent&& event)

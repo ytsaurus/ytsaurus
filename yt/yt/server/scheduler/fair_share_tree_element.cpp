@@ -3395,7 +3395,11 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
     if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits.ToJobResources(), precommittedResources)) {
-        Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled, TreeId_);
+        Controller_->AbortJob(
+            startDescriptor.Id,
+            EAbortReason::SchedulingOperationDisabled,
+            TreeId_,
+            scheduleJobResult->ControllerEpoch);
         deactivateOperationElement(EDeactivationReason::OperationDisabled);
         if (OperationElementSharedState_->Enabled()) {
             TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
@@ -3798,7 +3802,11 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
                     FormatResources(*precommittedResources + availableDelta),
                     FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
 
-                Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit, GetTreeId());
+                Controller_->AbortJob(
+                    jobId,
+                    EAbortReason::SchedulingResourceOvercommit,
+                    GetTreeId(),
+                    scheduleJobResult->ControllerEpoch);
 
                 // Reset result.
                 scheduleJobResult = New<TControllerScheduleJobResult>();
@@ -3809,7 +3817,11 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
                 auto jobId = scheduleJobResult->StartDescriptor->Id;
                 YT_LOG_DEBUG("Aborting job as operation is not alive in tree anymore (JobId: %v)", jobId);
 
-                Controller_->AbortJob(jobId, EAbortReason::SchedulingOperationIsNotAlive, GetTreeId());
+                Controller_->AbortJob(
+                    jobId,
+                    EAbortReason::SchedulingOperationIsNotAlive,
+                    GetTreeId(),
+                    scheduleJobResult->ControllerEpoch);
 
                 scheduleJobResult = New<TControllerScheduleJobResult>();
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationIsNotAlive);

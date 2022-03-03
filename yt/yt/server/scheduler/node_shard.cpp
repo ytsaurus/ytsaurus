@@ -2309,7 +2309,11 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
                 job->GetOperationId());
             if (!operationState->ControllerTerminated) {
                 const auto& controller = operationState->Controller;
-                controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::SchedulingOperationSuspended, job->GetTreeId());
+                controller->OnNonscheduledJobAborted(
+                    job->GetId(),
+                    EAbortReason::SchedulingOperationSuspended,
+                    job->GetTreeId(),
+                    job->GetControllerEpoch());
                 JobsToSubmitToStrategy_[job->GetId()] = TJobUpdate{
                     EJobUpdateStatus::Finished,
                     job->GetOperationId(),
@@ -2341,11 +2345,13 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
                 agent->GetIncarnationId());
             continue;
         }
+        
+        if (!controller->OnJobStarted(job)) {
+            continue;
+        }
 
         RegisterJob(job);
         UpdateProfilingCounter(job, 1);
-
-        controller->OnJobStarted(job);
 
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
