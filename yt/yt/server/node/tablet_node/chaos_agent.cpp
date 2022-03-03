@@ -186,9 +186,10 @@ private:
                     selfReplica,
                     historyTimestamp);
 
-                *progress = AdvanceReplicationProgress(
+                auto newProgress = AdvanceReplicationProgress(
                     *progress,
                     historyTimestamp);
+                progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
                 Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
                 return;
             }
@@ -198,10 +199,13 @@ private:
                 selfReplica);
 
             if (!IsReplicationProgressGreaterOrEqual(*progress, selfReplica->ReplicationProgress)) {
-                *progress = ExtractReplicationProgress(
+                auto newProgress = ExtractReplicationProgress(
                     selfReplica->ReplicationProgress, 
                     Tablet_->GetPivotKey().Get(),
                     Tablet_->GetNextPivotKey().Get());
+                progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
+                Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
+
                 YT_LOG_DEBUG("Advanced replication progress (ReplicationProgress: %v)",
                     static_cast<TReplicationProgress>(*progress));
             }
@@ -215,9 +219,10 @@ private:
                 return;
             }
 
-            *progress = AdvanceReplicationProgress(
+            auto newProgress = AdvanceReplicationProgress(
                 *progress,
                 selfReplica->History[historyItemIndex].Timestamp);
+            progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
             Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
 
             YT_LOG_DEBUG("Advance replication progress to next era (Era: %v, Timestamp: %llx, ReplicationProgress: %v)",
@@ -256,7 +261,8 @@ private:
         if (writeMode == ETabletWriteMode::Direct &&
             !IsReplicationProgressGreaterOrEqual(*progress, barrierTimestamp))
         {
-            *progress = AdvanceReplicationProgress(*progress, barrierTimestamp);
+            auto newProgress = AdvanceReplicationProgress(*progress, barrierTimestamp);
+            progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
             Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
 
             YT_LOG_DEBUG("Advance replication progress to barrier (BarrierTimestamp: %llx, ReplicationProgress: %v)",
