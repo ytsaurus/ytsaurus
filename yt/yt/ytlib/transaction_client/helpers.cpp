@@ -26,7 +26,9 @@ void SetTransactionId(IClientRequestPtr request, ITransactionPtr transaction)
         transaction ? transaction->GetId() : NullTransactionId);
 }
 
-void SetPrerequisites(const IClientRequestPtr& request, const TPrerequisiteOptions& options)
+void SetPrerequisites(
+    const IClientRequestPtr& request,
+    const TPrerequisiteOptions& options)
 {
     if (options.PrerequisiteTransactionIds.empty() && options.PrerequisiteRevisions.empty()) {
         return;
@@ -42,6 +44,14 @@ void SetPrerequisites(const IClientRequestPtr& request, const TPrerequisiteOptio
         prerequisiteRevision->set_path(revision->Path);
         prerequisiteRevision->set_revision(revision->Revision);
     }
+}
+
+void SetSuppressUpstreamSyncs(
+    const TObjectServiceProxy::TReqExecuteBatchBasePtr& request,
+    const TTransactionalOptions& options)
+{
+    request->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+    request->SetSuppressUpstreamSync(options.SuppressUpstreamSync);
 }
 
 TTransactionId MakeTabletTransactionId(

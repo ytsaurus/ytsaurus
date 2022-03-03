@@ -122,6 +122,7 @@ func convertTransactionOptions(opts *yt.TransactionOptions) *rpc_proxy.TTransact
 		Ping:                               &opts.Ping,
 		PingAncestors:                      &opts.PingAncestors,
 		SuppressTransactionCoordinatorSync: &opts.SuppressTransactionCoordinatorSync,
+		SuppressUpstreamSync:               &opts.SuppressUpstreamSync,
 	}
 }
 

@@ -6,11 +6,14 @@
 
 #include <yt/yt/ytlib/journal_client/journal_ypath_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
 using namespace NObjectClient;
 using namespace NJournalClient;
+using namespace NTransactionClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

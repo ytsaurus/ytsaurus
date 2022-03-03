@@ -534,7 +534,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
                 monitoring = get(
                     "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
                     default=None,
-                    suppress_transaction_coordinator_sync=True)
+                    suppress_transaction_coordinator_sync=True,
+                    suppress_upstream_sync=True)
                 if monitoring is not None and monitoring["state"] == "leading" and monitoring["read_only"]:
                     return True
 
@@ -560,7 +561,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         # Must not hang on this.
         get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(primary[0]),
-            suppress_transaction_coordinator_sync=True)
+            suppress_transaction_coordinator_sync=True,
+            suppress_upstream_sync=True)
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
@@ -572,7 +574,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
                 monitoring = get(
                     "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
                     default=None,
-                    suppress_transaction_coordinator_sync=True)
+                    suppress_transaction_coordinator_sync=True,
+                    suppress_upstream_sync=True)
                 if monitoring is None or not monitoring["read_only"]:
                     return False
 
@@ -580,10 +583,16 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         build_master_snapshots(set_read_only=True)
 
-        primary = ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)
+        primary = ls(
+            "//sys/primary_masters",
+            suppress_transaction_coordinator_sync=True,
+            suppress_upstream_sync=True)
         wait(lambda: all_peers_in_readonly("//sys/primary_masters", primary))
 
-        secondary_masters = get("//sys/secondary_masters", suppress_transaction_coordinator_sync=True)
+        secondary_masters = get(
+            "//sys/secondary_masters",
+            suppress_transaction_coordinator_sync=True,
+            suppress_upstream_sync=True)
         for cell_tag in secondary_masters:
             addresses = list(secondary_masters[cell_tag].keys())
             wait(lambda: all_peers_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))

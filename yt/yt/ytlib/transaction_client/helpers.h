@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -10,15 +12,18 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Attaches transaction id to the given request.
-/*!
-*  #transaction may be null.
-*/
-void SetTransactionId(NRpc::IClientRequestPtr request, NApi::ITransactionPtr transaction);
+void SetTransactionId(
+    NRpc::IClientRequestPtr request,
+    NApi::ITransactionPtr transaction);
 
-void SetPrerequisites(const NRpc::IClientRequestPtr& request, const NApi::TPrerequisiteOptions& options);
+void SetSuppressUpstreamSyncs(
+    const NObjectClient::TObjectServiceProxy::TReqExecuteBatchBasePtr& request,
+    const NApi::TTransactionalOptions& options);
 
-//! Constructs a tablet transaction id.
+void SetPrerequisites(
+    const NRpc::IClientRequestPtr& request,
+    const NApi::TPrerequisiteOptions& options);
+
 TTransactionId MakeTabletTransactionId(
     EAtomicity atomicity,
     NObjectClient::TCellTag cellTag,

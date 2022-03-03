@@ -21,6 +21,8 @@ func writeTransactionOptions(w *yson.Writer, o *yt.TransactionOptions) {
 	w.Any(o.PingAncestors)
 	w.MapKeyString("suppress_transaction_coordinator_sync")
 	w.Any(o.SuppressTransactionCoordinatorSync)
+	w.MapKeyString("suppress_upstream_sync")
+	w.Any(o.SuppressUpstreamSync)
 }
 
 func writeAccessTrackingOptions(w *yson.Writer, o *yt.AccessTrackingOptions) {

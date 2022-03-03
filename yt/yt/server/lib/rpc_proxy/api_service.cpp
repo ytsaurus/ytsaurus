@@ -132,18 +132,11 @@ void FromProto(
     TTransactionalOptions* options,
     const NApi::NRpcProxy::NProto::TTransactionalOptions& proto)
 {
-    if (proto.has_transaction_id()) {
-        FromProto(&options->TransactionId, proto.transaction_id());
-    }
-    if (proto.has_ping()) {
-        options->Ping = proto.ping();
-    }
-    if (proto.has_ping_ancestors()) {
-        options->PingAncestors = proto.ping_ancestors();
-    }
-    if (proto.has_suppress_transaction_coordinator_sync()) {
-        options->SuppressTransactionCoordinatorSync = proto.suppress_transaction_coordinator_sync();
-    }
+    FromProto(&options->TransactionId, proto.transaction_id());
+    options->Ping = proto.ping();
+    options->PingAncestors = proto.ping_ancestors();
+    options->SuppressTransactionCoordinatorSync = proto.suppress_transaction_coordinator_sync();
+    options->SuppressUpstreamSync = proto.suppress_upstream_sync();
 }
 
 void FromProto(

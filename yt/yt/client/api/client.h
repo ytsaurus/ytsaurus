@@ -119,6 +119,9 @@ struct TTransactionalOptions
     //! For internal use only.
     //! Setting it to |true| may result in loss of consistency.
     bool SuppressTransactionCoordinatorSync = false;
+    //! For internal use only.
+    //! Setting it to |true| may result in loss of consistency .
+    bool SuppressUpstreamSync = false;
 };
 
 struct TSuppressableAccessTrackingOptions

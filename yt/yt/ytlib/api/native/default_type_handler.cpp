@@ -59,7 +59,7 @@ public:
     {
         auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
         auto batchReq = proxy->ExecuteBatch();
-        batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+        SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
         Client_->SetBalancingHeader(batchReq, options);
 
@@ -92,7 +92,7 @@ public:
     {
         auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
         auto batchReq = proxy->ExecuteBatch();
-        batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+        SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
         Client_->SetBalancingHeader(batchReq, options);
 
@@ -122,7 +122,7 @@ public:
     {
         auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
         auto batchReq = proxy->ExecuteBatch();
-        batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+        SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
         Client_->SetBalancingHeader(batchReq, options);
 
@@ -146,7 +146,7 @@ public:
     {
         auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
-        batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
+        SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
 
         auto req = TYPathProxy::Remove(path);

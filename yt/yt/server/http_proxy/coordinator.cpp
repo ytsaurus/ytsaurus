@@ -248,6 +248,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
     TListNodeOptions options;
     options.Timeout = Config_->CypressTimeout;
     options.SuppressTransactionCoordinatorSync = true;
+    options.SuppressUpstreamSync = true;
     options.ReadFrom = EMasterChannelKind::Cache;
     options.Attributes = {"role", "banned", "liveness", BanMessageAttributeName};
 
@@ -352,21 +353,21 @@ void TCoordinator::UpdateState()
             return;
         }
 
-        TSetNodeOptions setOptions;
-        setOptions.Timeout = Config_->CypressTimeout;
-        setOptions.SuppressTransactionCoordinatorSync = true;
-
         if (Config_->Announce) {
+            TSetNodeOptions setOptions;
+            setOptions.Timeout = Config_->CypressTimeout;
+            setOptions.SuppressTransactionCoordinatorSync = true;
+
             WaitFor(Client_->SetNode(selfPath + "/@liveness", ConvertToYsonString(Self_->Entry->Liveness), setOptions))
                 .ThrowOnError();
         }
 
         auto proxies = ListCypressProxies();
-
         {
             auto guard = Guard(ProxiesLock_);
             Proxies_ = proxies;
         }
+
         for (auto& proxy : proxies) {
             if (proxy->Entry->Endpoint != Self_->Entry->Endpoint) {
                 continue;
