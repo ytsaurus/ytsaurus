@@ -69,6 +69,10 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
             if (!entry->IsExpired(now)) {
                 HitCounter_.Increment();
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config()->ExpireAfterAccessTime);
+                if (!entry->Future.IsSet()) {
+                    YT_LOG_DEBUG("Waiting for cache entry (Key: %v)",
+                        key);
+                }
                 return {entry->Future, false};
             }
         }
