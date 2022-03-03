@@ -41,10 +41,14 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
     SyncYPathSet(
         orchidRoot,
         "/error_codes",
-        BuildYsonStringFluently().DoMapFor(TErrorCodeRegistry::Get()->GetAll(), [] (TFluentMap fluent, const auto& pair) {
-            fluent
-                .Item(ToString(pair.first)).Value(ToString(pair.second));
-        }));
+        BuildYsonStringFluently()
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .DoMapFor(TErrorCodeRegistry::Get()->GetAll(), [] (TFluentMap fluent, const auto& pair) {
+                fluent
+                    .Item(ToString(pair.first)).Value(ToString(pair.second));
+            }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
