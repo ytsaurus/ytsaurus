@@ -1115,17 +1115,26 @@ private:
 
         NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
 
+        // Provide same penalty for each node across all replicas.
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
+        THashMap<TNodeId, double> nodeIdToPenalty;
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
-            if (!NodeIdToSuspicionMarkTime_.empty() || !State_->BannedNodeIds.empty()) {
-                for (auto& replica : chunkState.Replicas) {
-                    auto nodeId = replica.PeerInfo->NodeId;
-                    if (NodeIdToSuspicionMarkTime_.contains(nodeId)) {
-                        replica.Penalty += SuspiciousNodePenalty;
-                    } else if (State_->BannedNodeIds.contains(nodeId)) {
-                        replica.Penalty += BannedNodePenalty;
-                    }
+            if (chunkState.Replicas.empty()) {
+                continue;
+            }
+
+            for (auto& replica : chunkState.Replicas) {
+                auto nodeId = replica.PeerInfo->NodeId;
+                if (auto it = nodeIdToPenalty.find(nodeId); it != nodeIdToPenalty.end()) {
+                    replica.Penalty = it->second;
+                } else {
+                    EmplaceOrCrash(nodeIdToPenalty, nodeId, replica.Penalty);
+                }
+                if (NodeIdToSuspicionMarkTime_.contains(nodeId)) {
+                    replica.Penalty += SuspiciousNodePenalty;
+                } else if (State_->BannedNodeIds.contains(nodeId)) {
+                    replica.Penalty += BannedNodePenalty;
                 }
             }
 
@@ -1133,10 +1142,8 @@ private:
                 return std::make_tuple(replicaInfo.Penalty, replicaInfo.PeerInfo->NodeId);
             });
 
-            if (!chunkState.Replicas.empty()) {
-                chunkState.Controller->SetReplicas(chunkState.Replicas);
-                ++PendingChunkCount_;
-            }
+            chunkState.Controller->SetReplicas(chunkState.Replicas);
+            ++PendingChunkCount_;
         }
 
         int unavailableChunkCount = PendingChunkCount_ - std::ssize(ChunkIdToChunkState_);
