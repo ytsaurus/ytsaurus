@@ -360,7 +360,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
 
         def event_filter(event):
             return event.get("data_node_method@") == "FinishChunk" and \
-                event["chunk_id"] == chunk_id
+                event["category"] == "IORaw" and event["chunk_id"] == chunk_id
 
         has_replication_job = False
         read_count = 0
