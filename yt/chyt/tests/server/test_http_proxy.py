@@ -134,7 +134,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_ban_stopped_instance_in_proxy(self):
         patch = {
-            "interruption_graceful_timeout": 100000,
+            "graceful_interruption_delay": 100000,
         }
 
         cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed_count")
@@ -150,7 +150,14 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             assert len(instances) == 2
 
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            self._signal_instance(instances[0].attributes["pid"], signal.SIGINT)
+            wait(lambda: len(clique.get_active_instances()) == 1)
+
+            alive_instances = clique.get_active_instances()
+            assert set(map(str, alive_instances)).issubset(set(map(str, instances)))
+
+            # We want instances[0] be dead and instances[1] be alive.
+            if str(alive_instances[0]) == str(instances[0]):
+                instances[0], instances[1] = instances[1], instances[0]
 
             with raises_yt_error(QueryFailedError):
                 clique.make_direct_query(instances[0], "select 1")
@@ -178,7 +185,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])
         patch = {
-            "interruption_graceful_timeout": 600,
+            "graceful_interruption_delay": 600,
         }
 
         cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed_count")

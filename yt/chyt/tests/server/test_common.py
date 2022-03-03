@@ -860,7 +860,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_single_interrupt(self):
         patch = {
-            "interruption_graceful_timeout": 1000,
+            "graceful_interruption_delay": 1000,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
             instances = clique.get_active_instances()
@@ -886,7 +886,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_double_interrupt(self):
         patch = {
-            "interruption_graceful_timeout": 10000,
+            "graceful_interruption_delay": 10000,
         }
         with Clique(1, max_failed_job_count=2, config_patch=patch) as clique:
             instances = clique.get_active_instances()
