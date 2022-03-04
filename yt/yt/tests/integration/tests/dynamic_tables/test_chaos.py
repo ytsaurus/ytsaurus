@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver,
     get, set, ls, create, exists, remove, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
-    reshard_table, alter_table,
+    suspend_coordinator, resume_coordinator, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, build_snapshot, wait_for_cells,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
@@ -1157,6 +1157,39 @@ class TestChaos(ChaosTestBase):
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
 
         assert(select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
+
+    @authors("savrus")
+    def test_coordinator_suspension(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        coordinator_cell_id = self._sync_create_chaos_cell()
+        assert len(get("//sys/chaos_cells")) == 2
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
+
+        def _get_orchid(cell_id, path):
+            address = get("#{0}/@peers/0/address".format(coordinator_cell_id))
+            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}{2}".format(address, cell_id, path))
+
+        def _get_shortcuts(cell_id):
+            return _get_orchid(cell_id, "/coordinator_manager/shortcuts")
+
+        assert list(_get_shortcuts(cell_id).keys()) == [card_id]
+        assert list(_get_shortcuts(coordinator_cell_id).keys()) == [card_id]
+
+        chaos_cell_ids = [cell_id, coordinator_cell_id]
+        assert_items_equal(get("#{0}/@coordinator_cell_ids".format(card_id)), chaos_cell_ids)
+
+        suspend_coordinator(coordinator_cell_id)
+        assert _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended") is True
+        wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [cell_id])
+
+        resume_coordinator(coordinator_cell_id)
+        assert _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended") is False
+        wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
 
 
 ##################################################################

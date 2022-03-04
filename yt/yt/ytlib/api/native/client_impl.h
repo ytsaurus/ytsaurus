@@ -507,6 +507,14 @@ public:
         const TString& address,
         const THealExecNodeOptions& options),
         (address, options))
+    IMPLEMENT_METHOD(void, SuspendCoordinator, (
+        NObjectClient::TCellId coordinatorCellId,
+        const TSuspendCoordinatorOptions& options),
+        (coordinatorCellId, options))
+    IMPLEMENT_METHOD(void, ResumeCoordinator, (
+        NObjectClient::TCellId coordinatorCellId,
+        const TResumeCoordinatorOptions& options),
+        (coordinatorCellId, options))
 
     IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
@@ -1304,6 +1312,12 @@ private:
     void DoHealExecNode(
         const TString& address,
         const THealExecNodeOptions& options);
+    void DoSuspendCoordinator(
+        NObjectClient::TCellId coordinatorCellId,
+        const TSuspendCoordinatorOptions& options);
+    void DoResumeCoordinator(
+        NObjectClient::TCellId coordinatorCellId,
+        const TResumeCoordinatorOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

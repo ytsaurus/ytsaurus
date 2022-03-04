@@ -44,12 +44,13 @@ namespace NYT::NApi::NRpcProxy {
 using NYT::ToProto;
 using NYT::FromProto;
 
-using namespace NRpc;
 using namespace NChaosClient;
+using namespace NObjectClient;
+using namespace NRpc;
+using namespace NScheduler;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NScheduler;
 using namespace NYTree;
 using namespace NYson;
 
@@ -1371,6 +1372,20 @@ TFuture<void> TClient::HealExecNode(
     const THealExecNodeOptions& /* options */)
 {
     ThrowUnimplemented("HealExecNode");
+}
+
+TFuture<void> TClient::SuspendCoordinator(
+    TCellId /*coordinatorCellId*/,
+    const TSuspendCoordinatorOptions& /*options*/)
+{
+    ThrowUnimplemented("SuspendCoordinator");
+}
+
+TFuture<void> TClient::ResumeCoordinator(
+    TCellId /*coordinatorCellId*/,
+    const TResumeCoordinatorOptions& /*options*/)
+{
+    ThrowUnimplemented("ResumeCoordinator");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,4 +99,34 @@ void THealExecNodeCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSuspendCoordinatorCommand::TSuspendCoordinatorCommand()
+{
+    RegisterParameter("coordinator_cell_id", CoordinatorCellId_);
+}
+
+void TSuspendCoordinatorCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->SuspendCoordinator(CoordinatorCellId_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResumeCoordinatorCommand::TResumeCoordinatorCommand()
+{
+    RegisterParameter("coordinator_cell_id", CoordinatorCellId_);
+}
+
+void TResumeCoordinatorCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->ResumeCoordinator(CoordinatorCellId_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

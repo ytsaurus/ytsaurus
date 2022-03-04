@@ -197,6 +197,14 @@ public:
         const TString& address,
         const THealExecNodeOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, SuspendCoordinator, (
+        NObjectClient::TCellId coordinatorCellid,
+        const TSuspendCoordinatorOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, ResumeCoordinator, (
+        NObjectClient::TCellId coordinatorCellid,
+        const TResumeCoordinatorOptions& options), (override));
+
     // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;

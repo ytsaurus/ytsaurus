@@ -8,6 +8,9 @@
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+
 #include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -15,8 +18,9 @@
 
 namespace NYT::NChaosNode {
 
-using namespace NClusterNode;
 using namespace NApi;
+using namespace NCellarClient;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +46,12 @@ public:
     }
 
     void Run() override
-    { }
+    {
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/chaos_cells",
+            CreateVirtualNode(GetCellarManager()->GetCellar(ECellarType::Chaos)->GetOrchidService()));
+    }
 
     const IInvokerPtr& GetTransactionTrackerInvoker() const override
     {

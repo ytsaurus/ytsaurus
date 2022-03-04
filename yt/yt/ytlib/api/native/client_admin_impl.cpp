@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+
 #include <yt/yt/ytlib/exec_node_admin/exec_node_admin_service_proxy.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -30,17 +32,18 @@ namespace NYT::NApi::NNative {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NAdmin;
+using namespace NChaosClient;
 using namespace NConcurrency;
-using namespace NRpc;
-using namespace NObjectClient;
-using namespace NTabletClient;
-using namespace NNodeTrackerClient;
-using namespace NHydra;
-using namespace NHiveClient;
-using namespace NJobTrackerClient;
-using namespace NScheduler;
 using namespace NControllerAgent;
 using namespace NExecNode;
+using namespace NHiveClient;
+using namespace NHydra;
+using namespace NJobTrackerClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NRpc;
+using namespace NScheduler;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,6 +279,34 @@ void TClient::DoHealExecNode(
         req->add_alert_types_to_reset(alertType);
     }
     req->set_force_reset(options.ForceReset);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoSuspendCoordinator(
+    TCellId coordinatorCellId,
+    const TSuspendCoordinatorOptions& options)
+{
+    auto channel = GetChaosChannelByCellTag(CellTagFromId(coordinatorCellId), EPeerKind::Leader);
+    auto proxy = TCoordinatorServiceProxy(std::move(channel));
+
+    auto req = proxy.SuspendCoordinator();
+    SetMutationId(req, options);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoResumeCoordinator(
+    TCellId coordinatorCellId,
+    const TResumeCoordinatorOptions& options)
+{
+    auto channel = GetChaosChannelByCellTag(CellTagFromId(coordinatorCellId), EPeerKind::Leader);
+    auto proxy = TCoordinatorServiceProxy(std::move(channel));
+
+    auto req = proxy.ResumeCoordinator();
+    SetMutationId(req, options);
 
     WaitFor(req->Invoke())
         .ThrowOnError();
