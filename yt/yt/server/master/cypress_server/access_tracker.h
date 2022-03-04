@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/yt/ytlib/cypress_client/proto/cypress_service.pb.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -49,7 +47,7 @@ private:
         NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest;
         std::vector<NObjectClient::TObjectId> NodesWithAccessStatisticsUpdate;
 
-        NCypressClient::NProto::TReqTouchNodes TouchNodesRequest;
+        NProto::TReqTouchNodes TouchNodesRequest;
         std::vector<NObjectClient::TObjectId> TouchedNodes;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);

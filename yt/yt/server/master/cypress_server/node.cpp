@@ -221,6 +221,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, Acd_);
     Save(context, Opaque_);
     Save(context, AccessTime_);
+    Save(context, TouchTime_);
     Save(context, AccessCounter_);
     Save(context, Shard_);
     Save(context, Annotation_);
@@ -249,6 +250,10 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, Acd_);
     Load(context, Opaque_);
     Load(context, AccessTime_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::PersistentNodeTouchTime) {
+        Load(context, TouchTime_);
+    }
     Load(context, AccessCounter_);
     Load(context, Shard_);
     Load(context, Annotation_);

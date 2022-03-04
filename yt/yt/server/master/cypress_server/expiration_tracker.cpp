@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NConcurrency;
@@ -46,7 +48,6 @@ void TExpirationTracker::Start()
     YT_LOG_INFO("Started registering node expiration (Count: %v)",
         expiredNodes.size());
 
-    auto now = TInstant::Now();
     for (auto* trunkNode : expiredNodes) {
         YT_ASSERT(!trunkNode->GetExpirationTimeIterator() && !trunkNode->GetExpirationTimeoutIterator());
 
@@ -54,9 +55,8 @@ void TExpirationTracker::Start()
             RegisterNodeExpirationTime(trunkNode, *expirationTime);
         }
 
-        auto expirationTimeout = trunkNode->TryGetExpirationTimeout();
-        if (expirationTimeout && !IsNodeLocked(trunkNode)) {
-            RegisterNodeExpirationTimeout(trunkNode, now + *expirationTimeout);
+        if (trunkNode->TryGetExpirationTimeout() && !IsNodeLocked(trunkNode)) {
+            RegisterNodeExpirationTimeout(trunkNode);
         }
     }
     YT_LOG_INFO("Finished registering node expiration");
@@ -133,7 +133,7 @@ void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
             trunkNode->GetId(),
             *expirationTimeout);
         if (!IsNodeLocked(trunkNode)) {
-            RegisterNodeExpirationTimeout(trunkNode, TInstant::Now() + *expirationTimeout);
+            RegisterNodeExpirationTimeout(trunkNode);
         }
     } else {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration timeout reset (NodeId: %v)",
@@ -143,10 +143,9 @@ void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
 
 void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    YT_VERIFY(HasMutationContext());
 
     YT_ASSERT(trunkNode->IsTrunk());
-    YT_VERIFY(trunkNode->TryGetExpirationTimeout());
 
     if (trunkNode->IsForeign()) {
         return;
@@ -159,14 +158,14 @@ void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
         UnregisterNodeExpirationTimeout(trunkNode);
     }
 
-    if (!IsNodeLocked(trunkNode)) {
+    if (trunkNode->TryGetExpirationTimeout() && !IsNodeLocked(trunkNode)) {
         auto expirationTimeout = trunkNode->GetExpirationTimeout();
-        auto expirationTime = TInstant::Now() + expirationTimeout;
+        auto expirationTime = trunkNode->GetTouchTime() + expirationTimeout;
         YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
             trunkNode->GetId(),
             expirationTimeout,
             expirationTime);
-        RegisterNodeExpirationTimeout(trunkNode, expirationTime);
+        RegisterNodeExpirationTimeout(trunkNode);
     }
 }
 
@@ -216,7 +215,9 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 
         if (!IsNodeLocked(trunkNode)) {
             auto* mutationContext = GetCurrentMutationContext();
-            RegisterNodeExpirationTimeout(trunkNode, mutationContext->GetTimestamp() + trunkNode->GetExpirationTimeout());
+            // Prolong expiration in case of removal failure. This is debatable but seems safer.
+            trunkNode->SetTouchTime(mutationContext->GetTimestamp());
+            RegisterNodeExpirationTimeout(trunkNode);
         } // Else expiration will be rescheduled on lock release.
     }
 }
@@ -242,14 +243,19 @@ void TExpirationTracker::RegisterNodeExpirationTime(TCypressNode* trunkNode, TIn
     }
 }
 
-void TExpirationTracker::RegisterNodeExpirationTimeout(TCypressNode* trunkNode, TInstant expirationTime)
+void TExpirationTracker::RegisterNodeExpirationTimeout(TCypressNode* trunkNode)
 {
     YT_ASSERT(!trunkNode->GetExpirationTimeoutIterator());
 
     auto* shard = GetShard(trunkNode);
     auto& expiredNodes = shard->ExpiredNodes;
     if (expiredNodes.find(trunkNode) == expiredNodes.end()) {
-        auto it = shard->ExpirationMap.emplace(expirationTime, trunkNode);
+        auto touchTime = trunkNode->GetTouchTime();
+        YT_VERIFY(touchTime);
+        auto expirationTimeout = trunkNode->GetExpirationTimeout();
+        YT_VERIFY(expirationTimeout);
+
+        auto it = shard->ExpirationMap.emplace(touchTime + expirationTimeout, trunkNode);
         trunkNode->SetExpirationTimeoutIterator(it);
     }
 }
@@ -288,7 +294,7 @@ void TExpirationTracker::OnCheck()
         return request.node_ids_size() < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
     };
 
-    auto now = TInstant::Now();
+    auto now = NProfiling::GetInstant();
     for (auto& shard : Shards_) {
         auto& expirationMap = shard.ExpirationMap;
         while (!expirationMap.empty() && canRemoveMoreExpiredNodes()) {

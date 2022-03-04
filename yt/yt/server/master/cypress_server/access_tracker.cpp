@@ -15,8 +15,6 @@
 
 #include <yt/yt/server/lib/hydra_common/hydra_context.h>
 
-#include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
-
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -101,7 +99,7 @@ void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
     auto* shard = GetShard(trunkNode);
     auto guard = Guard(shard->Lock);
 
-    int index = trunkNode->GetAccessStatisticsUpdateIndex();
+    auto index = trunkNode->GetAccessStatisticsUpdateIndex();
     if (index < 0) {
         index = shard->UpdateAccessStatisticsRequest.updates_size();
         trunkNode->SetAccessStatisticsUpdateIndex(index);
@@ -130,13 +128,17 @@ void TAccessTracker::SetTouched(TCypressNode* trunkNode)
 
     auto index = trunkNode->GetTouchNodesIndex();
     if (index < 0) {
-        index = shard->TouchNodesRequest.node_ids_size();
+        index = shard->TouchNodesRequest.updates_size();
         trunkNode->SetTouchNodesIndex(index);
-
         shard->TouchedNodes.push_back(trunkNode->GetId());
 
-        ToProto(shard->TouchNodesRequest.add_node_ids(), trunkNode->GetId());
+        auto* update = shard->TouchNodesRequest.add_updates();
+        ToProto(update->mutable_node_id(), trunkNode->GetId());
     }
+
+    auto now = NProfiling::GetInstant();
+    auto* update = shard->TouchNodesRequest.mutable_updates(index);
+    update->set_touch_time(ToProto<i64>(now));
 }
 
 void TAccessTracker::Reset()
@@ -201,24 +203,19 @@ void TAccessTracker::OnFlush()
     }
 
     if (touchedNodeCount > 0) {
-        YT_LOG_DEBUG("Sending node touch request to leader (NodeCount: %v)",
+        YT_LOG_DEBUG("Sending node touch commit (NodeCount: %v)",
             touchedNodeCount);
 
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto leaderChannel = cellDirectory->GetChannelByCellId(multicellManager->GetCellId(), EPeerKind::Leader);
-
-        TCypressServiceProxy leaderProxy(std::move(leaderChannel));
-        auto leaderRequest = leaderProxy.TouchNodes();
-
+        NProto::TReqTouchNodes request;
         for (const auto& shard : Shards_) {
-            for (auto touchedNodeId : shard.TouchNodesRequest.node_ids()) {
-                *leaderRequest->add_node_ids() = touchedNodeId;
+            for (const auto& update : shard.TouchNodesRequest.updates()) {
+                *request.add_updates() = update;
             }
         }
 
-        auto asyncResult = leaderRequest->Invoke().AsVoid();
-        // TODO(shakurov): fire & forget?
+        auto mutation = CreateMutation(hydraManager, request);
+        mutation->SetAllowLeaderForwarding(true);
+        auto asyncResult = mutation->CommitAndLog(Logger).AsVoid();
         asyncResults.push_back(std::move(asyncResult));
     }
 

@@ -929,6 +929,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraUpdateAccessStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraTouchNodes, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateForeignNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCloneForeignNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveExpiredNodes, Unretained(this)));
@@ -1387,10 +1388,6 @@ public:
         error.ThrowOnError();
 
         if (IsLockRedundant(trunkNode, transaction, request)) {
-            if (!transaction) {
-                SetTouched(trunkNode);
-            }
-
             return GetVersionedNode(trunkNode, transaction);
         }
 
@@ -1837,15 +1834,7 @@ public:
             return;
         }
 
-        // This is essential on the leader, but let's do this on followers just
-        // to be nice and keep expiration tracker states (more or less)
-        // identical.
-        ExpirationTracker_->OnNodeTouched(trunkNode);
-
-        if (HydraManager_->IsFollower() && !HasMutationContext()) {
-            // Since it is the leader who decides when and if to expire a node,
-            // followers will need to inform it that the node has been
-            // touched. This is done via the access tracker.
+        if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetTouched(trunkNode);
         }
     }
@@ -1870,9 +1859,16 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (timeout) {
+            if (!node->TryGetExpirationTimeout()) {
+                // Touch time is not tracked for nodes without expiration timeout.
+                auto* context = GetCurrentMutationContext();
+                YT_ASSERT(context);
+                node->SetTouchTime(context->GetTimestamp());
+            }
             node->SetExpirationTimeout(*timeout);
         } else {
             node->RemoveExpirationTimeout();
+            node->SetTouchTime(TInstant::Zero());
         }
 
         if (node->IsTrunk()) {
@@ -2054,6 +2050,8 @@ private:
     bool TestVirtualMutations_ = false;
     // COMPAT(gritukan)
     bool NeedToRecreateClusterNodeMap_ = false;
+    // COMPAT(shakurov)
+    bool NeedInitializeNodeTouchTimes_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2094,6 +2092,8 @@ private:
         TestVirtualMutations_ = context.GetVersion() <= EMasterReign::VirtualMutations;
         // COMPAT(gritukan)
         NeedToRecreateClusterNodeMap_ = context.GetVersion() <= EMasterReign::FixClusterNodeMapMigration;
+        // COMPAT(shakurov)
+        NeedInitializeNodeTouchTimes_ = context.GetVersion() <= EMasterReign::PersistentNodeTouchTime;
     }
 
     void Clear() override
@@ -2212,6 +2212,10 @@ private:
             }
 
             if (node->IsTrunk() && node->TryGetExpirationTimeout()) {
+                if (NeedInitializeNodeTouchTimes_) {
+                    const auto* hydraContext = GetCurrentHydraContext();
+                    node->SetTouchTime(hydraContext->GetTimestamp());
+                }
                 ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
             }
         }
@@ -2917,8 +2921,6 @@ private:
                 transaction->GetId());
         }
 
-        SetTouched(trunkNode);
-
         if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
@@ -3039,7 +3041,7 @@ private:
         }
 
         for (auto* trunkNode : lockedNodes) {
-            SetTouched(trunkNode);
+            ExpirationTracker_->OnNodeTouched(trunkNode);
         }
     }
 
@@ -3448,6 +3450,26 @@ private:
             // Update access counter.
             i64 accessCounter = node->GetAccessCounter() + update.access_counter_delta();
             node->SetAccessCounter(accessCounter);
+        }
+    }
+
+    void HydraTouchNodes(NProto::TReqTouchNodes* request) noexcept
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& update : request->updates()) {
+            auto nodeId = FromProto<TNodeId>(update.node_id());
+            auto* node = FindNode(TVersionedNodeId(nodeId));
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto touchTime = FromProto<TInstant>(update.touch_time());
+            if (touchTime > node->GetTouchTime()) {
+                node->SetTouchTime(touchTime);
+            }
+
+            ExpirationTracker_->OnNodeTouched(node);
         }
     }
 

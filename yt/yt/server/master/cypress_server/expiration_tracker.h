@@ -58,7 +58,7 @@ private:
     TShard* GetShard(TCypressNode* node);
 
     void RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime);
-    void RegisterNodeExpirationTimeout(TCypressNode* trunkNode, TInstant expirationTime);
+    void RegisterNodeExpirationTimeout(TCypressNode* trunkNode);
     void UnregisterNodeExpirationTime(TCypressNode* trunkNode);
     void UnregisterNodeExpirationTimeout(TCypressNode* trunkNode);
 
