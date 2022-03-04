@@ -31,19 +31,46 @@ public:
             TJobTrackerServiceProxy::GetDescriptor(),
             ControllerAgentLogger)
         , Bootstrap_(bootstrap)
+        , HeartbeatStatisticBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/statistic_bytes"))
+        , HeartbeatJobResultBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/job_result_bytes"))
+        , HeartbeatProtoMessageBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/proto_message_bytes"))
+        , HeartbeatCount_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/count"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
 
 private:
     TBootstrap* const Bootstrap_;
+    NProfiling::TCounter HeartbeatStatisticBytes_;
+    NProfiling::TCounter HeartbeatJobResultBytes_;
+    NProfiling::TCounter HeartbeatProtoMessageBytes_;
+    NProfiling::TCounter HeartbeatCount_;
+
+    void ProfileHeartbeatRequest(NProto::TReqHeartbeat* const request)
+    {
+        i64 totalJobStatisticsSize = 0;
+        i64 totalJobResultSize = 0;
+        for (auto& job : *request->mutable_jobs()) {
+            if (job.has_statistics()) {
+                totalJobStatisticsSize += std::size(job.statistics());
+            }
+            if (job.has_result()) {
+                totalJobResultSize += job.result().ByteSizeLong();
+            }
+        }
+
+        HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
+        HeartbeatStatisticBytes_.Increment(totalJobStatisticsSize);
+        HeartbeatJobResultBytes_.Increment(totalJobResultSize);
+        HeartbeatCount_.Increment();
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
+        ProfileHeartbeatRequest(request);
         THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
         for (auto& job : *request->mutable_jobs()) {
             const auto operationId = FromProto<TOperationId>(job.operation_id());
-
             groupedJobSummaries[operationId].push_back(ParseJobSummary(&job, Logger));
         }
         
