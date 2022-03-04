@@ -2697,6 +2697,11 @@ def update_pool_tree_config(tree, config, wait_for_orchid=True):
             wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)) == value)
 
 
+def update_user_to_default_pool_map(user_to_default_pool):
+    set("//sys/scheduler/user_to_default_pool", user_to_default_pool)
+    wait(lambda: get("//sys/scheduler/orchid/scheduler/user_to_default_pool") == user_to_default_pool)
+
+
 def get_nodes_with_flavor(flavor):
     cluster_nodes = ls("//sys/cluster_nodes", attributes=["flavors"])
     nodes = []

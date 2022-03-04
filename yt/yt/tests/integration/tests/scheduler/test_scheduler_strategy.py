@@ -15,6 +15,7 @@ from yt_commands import (
     vanilla, sort, run_test_vanilla,
     run_sleeping_vanilla, abort_op,
     get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
+    update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_banned_flag,
     create_test_tables, PrepareTables)
 
@@ -1447,7 +1448,7 @@ class TestEphemeralPools(YTEnvSetup):
     }
 
     def teardown_method(self, method):
-        remove("//sys/scheduler/user_to_default_pool", force=True)
+        update_user_to_default_pool_map({})
         super(TestEphemeralPools, self).teardown_method(method)
 
     def wait_pool_exists(self, pool):
@@ -1459,9 +1460,9 @@ class TestEphemeralPools(YTEnvSetup):
     @authors("ignat")
     def test_default_parent_pool(self):
         create_pool("default_pool")
-        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
-        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
-        time.sleep(0.2)
+        update_pool_tree_config(
+            "default",
+            {"default_parent_pool": "default_pool", "max_ephemeral_pools_per_user": 2})
 
         command = with_breakpoint("BREAKPOINT")
         op1 = run_test_vanilla(command)
@@ -1490,11 +1491,10 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_is_created_in_user_default_parent_pool(self):
-        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
         create_user("u")
         create_pool("default_for_u")
-        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
-        time.sleep(0.2)
+        update_pool_tree_config("default", {"use_user_default_parent_pool_map": True})
+        update_user_to_default_pool_map({"u": "default_for_u"})
 
         op = run_sleeping_vanilla(authenticated_user="u")
 
@@ -1505,22 +1505,22 @@ class TestEphemeralPools(YTEnvSetup):
     def test_change_in_user_default_parent_pool_map_changes_parent_of_existing_ephemeral_pool(self):
         create_user("u")
         create_pool("default_for_u")
-        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
+        update_pool_tree_config("default", {"use_user_default_parent_pool_map": True})
 
         run_sleeping_vanilla(authenticated_user="u")
+        wait(lambda: exists(scheduler_orchid_pool_path("u")))
         wait(lambda: get(scheduler_orchid_pool_path("u") + "/parent", default="") == "<Root>")
 
-        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
+        update_user_to_default_pool_map({"u": "default_for_u"})
 
         wait(lambda: get(scheduler_orchid_pool_path("u") + "/parent", default="") == "default_for_u")
 
     @authors("renadeen")
     def test_nonexistent_pools_are_created_in_default_user_pool(self):
-        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
+        update_pool_tree_config("default", {"use_user_default_parent_pool_map": True})
         create_user("u")
         create_pool("default_for_u")
-        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_for_u"}})
-        time.sleep(0.2)
+        update_user_to_default_pool_map({"u": "default_for_u"})
 
         op = run_sleeping_vanilla(spec={"pool": "nonexistent"}, authenticated_user="u")
 
@@ -1538,9 +1538,11 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
-        create_pool("custom_pool")
-        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        time.sleep(0.2)
+        create_pool(
+            "custom_pool",
+            attributes={
+                "create_ephemeral_subpools": True,
+            })
 
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
@@ -1553,9 +1555,11 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_persists_after_pool_update(self):
-        create_pool("custom_pool")
-        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        time.sleep(0.2)
+        create_pool(
+            "custom_pool",
+            attributes={
+                "create_ephemeral_subpools": True,
+            })
 
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
@@ -1574,9 +1578,11 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_ephemeral_pool_parent_is_removed_after_operation_complete(self):
-        create_pool("custom_pool")
-        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        time.sleep(0.2)
+        create_pool(
+            "custom_pool",
+            attributes={
+                "create_ephemeral_subpools": True,
+            })
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "custom_pool"})
         wait_breakpoint()
@@ -1592,10 +1598,12 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_scheduling_mode(self):
-        create_pool("custom_pool_fifo")
-        set("//sys/pools/custom_pool_fifo/@create_ephemeral_subpools", True)
-        set("//sys/pools/custom_pool_fifo/@ephemeral_subpool_config", {"mode": "fifo"})
-        time.sleep(0.2)
+        create_pool(
+            "custom_pool_fifo",
+            attributes={
+                "create_ephemeral_subpools": True,
+                "ephemeral_subpool_config": {"mode": "fifo"},
+            })
 
         op = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
@@ -1607,10 +1615,12 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_max_operation_count(self):
-        create_pool("custom_pool")
-        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"max_operation_count": 1})
-        time.sleep(0.2)
+        create_pool(
+            "custom_pool",
+            attributes={
+                "create_ephemeral_subpools": True,
+                "ephemeral_subpool_config": {"max_operation_count": 1},
+            })
 
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
@@ -1620,13 +1630,12 @@ class TestEphemeralPools(YTEnvSetup):
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_resource_limits(self):
-        create_pool("custom_pool")
-        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
-        set(
-            "//sys/pools/custom_pool/@ephemeral_subpool_config",
-            {"resource_limits": {"cpu": 1}},
-        )
-        time.sleep(0.2)
+        create_pool(
+            "custom_pool",
+            attributes={
+                "create_ephemeral_subpools": True,
+                "ephemeral_subpool_config": {"resource_limits": {"cpu": 1}}
+            })
 
         run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
@@ -1656,9 +1665,8 @@ class TestEphemeralPools(YTEnvSetup):
         create_pool("u")
         create_pool("default_parent_for_u")
 
-        set("//sys/pool_trees/default/@config/use_user_default_parent_pool_map", True)
-        create("document", "//sys/scheduler/user_to_default_pool", attributes={"value": {"u": "default_parent_for_u"}})
-        time.sleep(0.2)
+        update_pool_tree_config("default", {"use_user_default_parent_pool_map": True})
+        update_user_to_default_pool_map({"u": "default_parent_for_u"})
 
         op = run_sleeping_vanilla(authenticated_user="u")
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "u")

@@ -1091,6 +1091,14 @@ class YTEnvSetup(object):
         # Could not add this to the batch request because of possible races at scheduler.
         yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
 
+        if not yt_commands.exists("//sys/scheduler/user_to_default_pool", driver=driver):
+            yt_commands.create(
+                "document",
+                "//sys/scheduler/user_to_default_pool",
+                attributes={"value": {}},
+                force=True,
+                driver=driver)
+
         if should_set_default_config:
             yt_commands.set(scheduler_pool_trees_root + "/default/@config", default_pool_tree_config)
 
