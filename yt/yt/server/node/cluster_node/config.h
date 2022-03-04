@@ -402,6 +402,9 @@ public:
     //! Bucket configuration for out network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> OutThrottlers;
 
+    //! IO tracker config.
+    NIO::TIOTrackerConfigPtr IOTracker;
+
     REGISTER_YSON_STRUCT(TClusterNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

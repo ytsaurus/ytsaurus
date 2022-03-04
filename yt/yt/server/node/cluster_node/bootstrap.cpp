@@ -81,6 +81,9 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/server/lib/io/config.h>
+#include <yt/yt/server/lib/io/io_tracker.h>
+
 #ifdef __linux__
 #include <yt/yt/server/lib/containers/instance.h>
 #include <yt/yt/server/lib/containers/instance_limits_tracker.h>
@@ -218,6 +221,7 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NNet;
 using namespace NYTree;
+using namespace NIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -578,6 +582,11 @@ public:
         return JobController_;
     }
 
+    const IIOTrackerPtr& GetIOTracker() const override
+    {
+        return IOTracker_;
+    }
+
     EJobEnvironmentType GetJobEnvironmentType() const override
     {
         const auto& slotManagerConfig = Config_->ExecNode->SlotManager;
@@ -716,6 +725,8 @@ private:
 
     TObjectServiceCachePtr ObjectServiceCache_;
     std::vector<ICachingObjectServicePtr> CachingObjectServices_;
+
+    IIOTrackerPtr IOTracker_;
 
     THashSet<ENodeFlavor> Flavors_;
 
@@ -866,6 +877,8 @@ private:
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
+        IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
         ChunkRegistry_ = CreateChunkRegistry(this);
         ChunkReaderSweeper_ = New<TChunkReaderSweeper>(
@@ -1242,6 +1255,8 @@ private:
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
+        IOTracker_->SetConfig(newConfig->IOTracker);
+
     #ifdef __linux__
         if (InstanceLimitsTracker_) {
             auto useInstanceLimitsTracker = newConfig->ResourceLimits->UseInstanceLimitsTracker;
@@ -1566,6 +1581,11 @@ const TJobControllerPtr& TBootstrapBase::GetJobController() const
 EJobEnvironmentType TBootstrapBase::GetJobEnvironmentType() const
 {
     return Bootstrap_->GetJobEnvironmentType();
+}
+
+const IIOTrackerPtr& TBootstrapBase::GetIOTracker() const
+{
+    return Bootstrap_->GetIOTracker();
 }
 
 const THashSet<ENodeFlavor>& TBootstrapBase::GetFlavors() const

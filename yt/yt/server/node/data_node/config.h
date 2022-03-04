@@ -765,9 +765,6 @@ public:
     //! If |true|, node will abort when location becomes disabled.
     bool AbortOnLocationDisabled;
 
-    //! IO tracker config.
-    NIO::TIOTrackerConfigPtr IOTracker;
-
     TP2PConfigPtr P2P;
 
     TChunkAutotomizerConfigPtr ChunkAutotomizer;

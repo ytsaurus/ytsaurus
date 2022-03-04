@@ -27,8 +27,6 @@
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
-#include <yt/yt/server/lib/io/config.h>
-
 #include <yt/yt/ytlib/tablet_client/row_comparer_generator.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
@@ -101,8 +99,6 @@ public:
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
         const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
-
-        IOTracker_ = NIO::CreateIOTracker(dynamicConfig->IOTracker);
 
         JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
 
@@ -414,11 +410,6 @@ public:
         return RowComparerProvider_;
     }
 
-    const NIO::IIOTrackerPtr& GetIOTracker() const override
-    {
-        return IOTracker_;
-    }
-
     const IIOThroughputMeterPtr& GetIOThroughputMeter() const override
     {
         return IOThroughputMeter_;
@@ -457,8 +448,6 @@ private:
 
     NHttp::IServerPtr SkynetHttpServer_;
 
-    NIO::IIOTrackerPtr IOTracker_;
-
     IIOThroughputMeterPtr IOThroughputMeter_;
 
     void OnDynamicConfigChanged(
@@ -486,8 +475,6 @@ private:
         MasterJobThreadPool_->Configure(newConfig->DataNode->MasterJobThreadCount);
 
         TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
-
-        IOTracker_->SetConfig(newConfig->DataNode->IOTracker);
 
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);

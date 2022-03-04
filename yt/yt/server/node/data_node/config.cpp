@@ -750,9 +750,6 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
     RegisterParameter("abort_on_location_disabled", AbortOnLocationDisabled)
         .Default(true);
 
-    RegisterParameter("io_tracker", IOTracker)
-        .DefaultNew();
-
     RegisterParameter("p2p", P2P)
         .Optional();
 

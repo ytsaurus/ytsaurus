@@ -27,13 +27,11 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def setup_method(self, method):
         super(TestNodeIOTrackingBase, self).setup_method(method)
         update_nodes_dynamic_config({
-            "data_node": {
-                "io_tracker": {
-                    "enable": True,
-                    "enable_raw": True,
-                    "period_quant": 10,
-                    "aggregation_period": 5000,
-                }
+            "io_tracker": {
+                "enable": True,
+                "enable_raw": True,
+                "period_quant": 10,
+                "aggregation_period": 5000,
             }
         })
 
@@ -1805,13 +1803,11 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
     def setup_method(self, method):
         super(TestRemoteCopyIOTrackingBase, self).setup_method(method)
         update_nodes_dynamic_config({
-            "data_node": {
-                "io_tracker": {
-                    "enable": True,
-                    "enable_raw": True,
-                    "period_quant": 10,
-                    "aggregation_period": 5000,
-                }
+            "io_tracker": {
+                "enable": True,
+                "enable_raw": True,
+                "period_quant": 10,
+                "aggregation_period": 5000,
             }
         }, driver=self.remote_driver)
 
