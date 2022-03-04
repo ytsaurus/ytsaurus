@@ -1035,11 +1035,11 @@ private:
             const auto& diskStat = it->second;
 
             writer->AddCounter(
-                "/disk/bytes_read",
+                "/disk/read_bytes",
                 diskStat.SectorsRead * UnixSectorSize);
 
             writer->AddCounter(
-                "/disk/bytes_written",
+                "/disk/written_bytes",
                 diskStat.SectorsWritten * UnixSectorSize);
 
             writer->AddGauge(
