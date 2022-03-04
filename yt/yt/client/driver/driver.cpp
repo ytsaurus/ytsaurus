@@ -305,6 +305,9 @@ public:
         REGISTER_ALL(TSwitchLeaderCommand,                 "switch_leader",                   Null,       Structured, true,  false);
         REGISTER_ALL(THealExecNodeCommand,                 "heal_exec_node",                  Null,       Structured, true,  false);
 
+        REGISTER_ALL(TSuspendCoordinatorCommand,           "suspend_coordinator",             Null,       Structured, false,  false);
+        REGISTER_ALL(TResumeCoordinatorCommand,            "resume_coordinator",              Null,       Structured, false,  false);
+
 #undef REGISTER
 #undef REGISTER_ALL
     }

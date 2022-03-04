@@ -59,4 +59,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspendCoordinatorCommand
+    : public TTypedCommand<NApi::TSuspendCoordinatorOptions>
+{
+public:
+    TSuspendCoordinatorCommand();
+
+private:
+    NObjectClient::TCellId CoordinatorCellId_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResumeCoordinatorCommand
+    : public TTypedCommand<NApi::TResumeCoordinatorOptions>
+{
+public:
+    TResumeCoordinatorCommand();
+
+private:
+    NObjectClient::TCellId CoordinatorCellId_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

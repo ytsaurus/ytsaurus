@@ -1363,6 +1363,16 @@ struct THealExecNodeOptions
     bool ForceReset = false;
 };
 
+struct TSuspendCoordinatorOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
+struct TResumeCoordinatorOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 struct TTableBackupManifest
@@ -1865,6 +1875,14 @@ struct IClient
     virtual TFuture<void> HealExecNode(
         const TString& address,
         const THealExecNodeOptions& options = {}) = 0;
+
+    virtual TFuture<void> SuspendCoordinator(
+        NObjectClient::TCellId coordinatorCellId,
+        const TSuspendCoordinatorOptions& options = {}) = 0;
+
+    virtual TFuture<void> ResumeCoordinator(
+        NObjectClient::TCellId coordinatorCellId,
+        const TResumeCoordinatorOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

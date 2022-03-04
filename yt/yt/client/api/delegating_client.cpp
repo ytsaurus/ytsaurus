@@ -708,6 +708,19 @@ TFuture<void> TDelegatingClient::HealExecNode(
     return Underlying_->HealExecNode(address, options);
 }
 
+TFuture<void> TDelegatingClient::SuspendCoordinator(
+    NObjectClient::TCellId coordinatorCellId,
+    const TSuspendCoordinatorOptions& options)
+{
+    return Underlying_->SuspendCoordinator(coordinatorCellId, options);
+}
+
+TFuture<void> TDelegatingClient::ResumeCoordinator(
+    NObjectClient::TCellId coordinatorCellId,
+    const TResumeCoordinatorOptions& options)
+{
+    return Underlying_->ResumeCoordinator(coordinatorCellId, options);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi

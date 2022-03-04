@@ -445,6 +445,13 @@ public:
         const TString& address,
         const THealExecNodeOptions& options = {}) override;
 
+    TFuture<void> SuspendCoordinator(
+        NObjectClient::TCellId coordinatorCellId,
+        const TSuspendCoordinatorOptions& options = {}) override;
+
+    TFuture<void> ResumeCoordinator(
+        NObjectClient::TCellId coordinatorCellId,
+        const TResumeCoordinatorOptions& options = {}) override;
 protected:
     const IClientPtr Underlying_;
 };

@@ -1575,6 +1575,16 @@ def heal_exec_node(address, locations=None, alert_types_to_reset=None, force_res
     return execute_command("heal_exec_node", parameters, parse_yson=True)
 
 
+def suspend_coordinator(coordinator_cell_id, **kwargs):
+    parameters = {"coordinator_cell_id": coordinator_cell_id}
+    return execute_command("suspend_coordinator", parameters, **kwargs)
+
+
+def resume_coordinator(coordinator_cell_id, **kwargs):
+    parameters = {"coordinator_cell_id": coordinator_cell_id}
+    return execute_command("resume_coordinator", parameters, **kwargs)
+
+
 def set_node_resource_targets(address, cpu_limit, memory_limit):
     _get_driver(driver=None).set_node_resource_targets(
         address=address,
