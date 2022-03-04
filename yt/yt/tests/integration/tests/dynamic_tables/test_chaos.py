@@ -124,6 +124,8 @@ class ChaosTestBase(DynamicTablesBase):
 
     def _sync_alter_replica(self, card_id, replicas, replica_ids, replica_index, **kwargs):
         replica_id = replica_ids[replica_index]
+        replica = replicas[replica_index]
+        replica_driver=get_driver(cluster=replica["cluster_name"])
         alter_table_replica(replica_id, **kwargs)
 
         enabled = kwargs.get("enabled", None)
@@ -136,8 +138,7 @@ class ChaosTestBase(DynamicTablesBase):
             return True
 
         def _check():
-            replica = replicas[replica_index]
-            orchids = self._get_table_orchids(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+            orchids = self._get_table_orchids(replica["replica_path"], driver=replica_driver)
             if not all(_replica_checker(orchid["replication_card"]["replicas"][replica_id]) for orchid in orchids):
                 return False
             if len(builtins.set(orchid["replication_card"]["era"] for orchid in orchids)) > 1:
@@ -149,7 +150,7 @@ class ChaosTestBase(DynamicTablesBase):
             return True
 
         wait(_check)
-        era = self._get_table_orchids("//tmp/t")[0]["replication_card"]["era"]
+        era = self._get_table_orchids(replica["replica_path"], driver=replica_driver)[0]["replication_card"]["era"]
 
         # These request also includes coordinators to use same replication card cache key as insert_rows does.
         wait(lambda: get("#{0}/@era".format(card_id)) == era)
