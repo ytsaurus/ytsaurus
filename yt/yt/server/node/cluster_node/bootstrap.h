@@ -22,6 +22,8 @@
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 
+#include <yt/yt/server/lib/io/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -150,6 +152,9 @@ struct IBootstrapBase
     // Job environment.
     virtual NExecNode::EJobEnvironmentType GetJobEnvironmentType() const = 0;
 
+    // IO tracker.
+    virtual const NIO::IIOTrackerPtr& GetIOTracker() const = 0;
+
     // Node flavors accessors.
     virtual const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const = 0;
 
@@ -275,6 +280,8 @@ public:
     const NJobAgent::TJobControllerPtr& GetJobController() const override;
 
     NExecNode::EJobEnvironmentType GetJobEnvironmentType() const override;
+
+    const NIO::IIOTrackerPtr& GetIOTracker() const override;
 
     const THashSet<NNodeTrackerClient::ENodeFlavor>& GetFlavors() const override;
 

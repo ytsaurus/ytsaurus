@@ -438,6 +438,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
+    registrar.Parameter("io_tracker", &TThis::IOTracker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
