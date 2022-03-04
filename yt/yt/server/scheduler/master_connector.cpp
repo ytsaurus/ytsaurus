@@ -1357,6 +1357,98 @@ private:
         }
     };
 
+    void GetTransactionsAndRevivalDiscriptor(const TOperationPtr& operation, IAttributeDictionaryPtr attributes)
+    {
+        auto operationId = operation->GetId();
+        auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
+            if (!transactionId) {
+                if (name) {
+                    YT_LOG_DEBUG("Missing %v transaction (OperationId: %v)",
+                        name,
+                        operationId,
+                        transactionId);
+                }
+                return nullptr;
+            }
+            try {
+                auto client = Bootstrap_->GetRemoteMasterClient(CellTagFromId(transactionId));
+
+                TTransactionAttachOptions options;
+                options.PingPeriod = Config_->OperationTransactionPingPeriod;
+                options.Ping = ping;
+                options.PingAncestors = false;
+                auto transaction = client->AttachTransaction(transactionId, options);
+                WaitFor(transaction->Ping())
+                    .ThrowOnError();
+                return transaction;
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
+                    operationId,
+                    transactionId);
+                return nullptr;
+            }
+        };
+
+        TOperationTransactions transactions;
+        TOperationRevivalDescriptor revivalDescriptor;
+        transactions.AsyncTransaction = attachTransaction(
+            attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
+            true,
+            "async");
+        transactions.InputTransaction = attachTransaction(
+            attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
+            true,
+            "input");
+        transactions.OutputTransaction = attachTransaction(
+            attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
+            true,
+            "output");
+        transactions.OutputCompletionTransaction = attachTransaction(
+            attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
+            true,
+            "output completion");
+        transactions.DebugTransaction = attachTransaction(
+            attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
+            true,
+            "debug");
+        transactions.DebugCompletionTransaction = attachTransaction(
+            attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
+            true,
+            "debug completion");
+
+        auto nestedInputTransactionIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {});
+        THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
+        for (auto transactionId : nestedInputTransactionIds) {
+            auto it = transactionIdToTransaction.find(transactionId);
+            if (it == transactionIdToTransaction.end()) {
+                auto transaction = attachTransaction(
+                    transactionId,
+                    true,
+                    "nested input transaction"
+                );
+                YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
+                transactions.NestedInputTransactions.push_back(transaction);
+            } else {
+                transactions.NestedInputTransactions.push_back(it->second);
+            }
+        }
+
+        const auto& userTransactionId = operation->GetUserTransactionId();
+        auto userTransaction = attachTransaction(userTransactionId, false);
+
+        revivalDescriptor.UserTransactionAborted = !userTransaction && userTransactionId;
+
+        for (const auto& event : operation->Events()) {
+            if (event.State == EOperationState::Aborting) {
+                revivalDescriptor.OperationAborting = true;
+                break;
+            }
+        }
+
+        operation->RevivalDescriptor() = std::move(revivalDescriptor);
+        operation->Transactions() = std::move(transactions);
+    }
+
     void DoFetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1396,6 +1488,10 @@ private:
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
+            YT_LOG_INFO("Fetched operation transaction ids (OperationCount: %v)",
+                operations.size());
+            
+            std::vector<TFuture<void>> futures;
             for (const auto& operation : operations) {
                 auto operationId = operation->GetId();
 
@@ -1411,95 +1507,14 @@ private:
                         << TErrorAttribute("operation_id", operationId)
                         << ex;
                 }
-
-                auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const TString& name = TString()) -> ITransactionPtr {
-                    if (!transactionId) {
-                        if (name) {
-                            YT_LOG_DEBUG("Missing %v transaction (OperationId: %v)",
-                                name,
-                                operationId,
-                                transactionId);
-                        }
-                        return nullptr;
-                    }
-                    try {
-                        auto client = Bootstrap_->GetRemoteMasterClient(CellTagFromId(transactionId));
-
-                        TTransactionAttachOptions options;
-                        options.PingPeriod = Config_->OperationTransactionPingPeriod;
-                        options.Ping = ping;
-                        options.PingAncestors = false;
-                        auto transaction = client->AttachTransaction(transactionId, options);
-                        WaitFor(transaction->Ping())
-                            .ThrowOnError();
-                        return transaction;
-                    } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
-                            operationId,
-                            transactionId);
-                        return nullptr;
-                    }
-                };
-
-                TOperationTransactions transactions;
-                TOperationRevivalDescriptor revivalDescriptor;
-                transactions.AsyncTransaction = attachTransaction(
-                    attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
-                    true,
-                    "async");
-                transactions.InputTransaction = attachTransaction(
-                    attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
-                    true,
-                    "input");
-                transactions.OutputTransaction = attachTransaction(
-                    attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
-                    true,
-                    "output");
-                transactions.OutputCompletionTransaction = attachTransaction(
-                    attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
-                    true,
-                    "output completion");
-                transactions.DebugTransaction = attachTransaction(
-                    attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
-                    true,
-                    "debug");
-                transactions.DebugCompletionTransaction = attachTransaction(
-                    attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
-                    true,
-                    "debug completion");
-
-                auto nestedInputTransactionIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {});
-                THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
-                for (auto transactionId : nestedInputTransactionIds) {
-                    auto it = transactionIdToTransaction.find(transactionId);
-                    if (it == transactionIdToTransaction.end()) {
-                        auto transaction = attachTransaction(
-                            transactionId,
-                            true,
-                            "nested input transaction"
-                        );
-                        YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
-                        transactions.NestedInputTransactions.push_back(transaction);
-                    } else {
-                        transactions.NestedInputTransactions.push_back(it->second);
-                    }
-                }
-
-                const auto& userTransactionId = operation->GetUserTransactionId();
-                auto userTransaction = attachTransaction(userTransactionId, false);
-
-                revivalDescriptor.UserTransactionAborted = !userTransaction && userTransactionId;
-
-                for (const auto& event : operation->Events()) {
-                    if (event.State == EOperationState::Aborting) {
-                        revivalDescriptor.OperationAborting = true;
-                        break;
-                    }
-                }
-
-                operation->RevivalDescriptor() = std::move(revivalDescriptor);
-                operation->Transactions() = std::move(transactions);
+                futures.push_back(
+                    BIND(&TImpl::GetTransactionsAndRevivalDiscriptor, MakeStrong(this))
+                        .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
+                        .Run(operation, attributes)
+                );
             }
+            WaitFor(AllSucceeded(futures))
+                .ThrowOnError();
         }
 
         std::vector<TOperationPtr> operationsToFetchCommittedFlag;

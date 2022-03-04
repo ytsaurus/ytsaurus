@@ -2017,6 +2017,7 @@ private:
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyHungOperationsChecker_;
+    TPeriodicExecutorPtr OrphanedOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
@@ -2322,6 +2323,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        OrphanedOperationQueueScanPeriodExecutor_ = New<TPeriodicExecutor>(
+            MasterConnector_->GetCancelableControlInvoker(EControlQueue::OperationsPeriodicActivity),
+            BIND(&TImpl::HandleOrphanedOperations, MakeWeak(this)),
+            Config_->TransientOperationQueueScanPeriod);
+        OrphanedOperationQueueScanPeriodExecutor_->Start();
+
         TransientOperationQueueScanPeriodExecutor_ = New<TPeriodicExecutor>(
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::OperationsPeriodicActivity),
             BIND(&TImpl::ScanTransientOperationQueue, MakeWeak(this)),
@@ -2400,6 +2407,10 @@ private:
 
         OperationServiceResponseKeeper_->Stop();
 
+        if (OrphanedOperationQueueScanPeriodExecutor_) {
+            OrphanedOperationQueueScanPeriodExecutor_->Stop();
+            OrphanedOperationQueueScanPeriodExecutor_.Reset();
+        }
         if (TransientOperationQueueScanPeriodExecutor_) {
             TransientOperationQueueScanPeriodExecutor_->Stop();
             TransientOperationQueueScanPeriodExecutor_.Reset();
@@ -2753,6 +2764,9 @@ private:
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
 
+            if (OrphanedOperationQueueScanPeriodExecutor_) {
+                OrphanedOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
+            }
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -4105,7 +4119,11 @@ private:
     {
         StateToTransientOperations_[operation->GetState()].push_back(operation);
 
-        if (TransientOperationQueueScanPeriodExecutor_) {
+        if (operation->GetState() == EOperationState::Orphaned) {
+            if (OrphanedOperationQueueScanPeriodExecutor_) {
+                OrphanedOperationQueueScanPeriodExecutor_->ScheduleOutOfBand();
+            }
+        } else if (TransientOperationQueueScanPeriodExecutor_) {
             TransientOperationQueueScanPeriodExecutor_->ScheduleOutOfBand();
         }
 
@@ -4295,8 +4313,6 @@ private:
 
             YT_LOG_DEBUG("Waiting for agent operations handled (OperationCount: %v)", scannedOperationCount);
         }
-
-        HandleOrphanedOperations();
 
         YT_LOG_DEBUG("Finished scanning transient operation queue");
     }
