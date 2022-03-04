@@ -270,6 +270,13 @@ void RegisterCustomProtobufBytesFieldConverter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString YsonStringToProto(
+    const TYsonString& ysonString,
+    const TProtobufMessageType* payloadType,
+    EUnknownYsonFieldsMode unknownFieldsMode);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYson
 
 #define PROTOBUF_INTEROP_INL_H_

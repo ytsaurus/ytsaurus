@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/yson/stream.h>
+#include <yt/yt/core/yson/string_merger.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -321,6 +322,136 @@ TEST(TYsonTest, TYsonStringFromStringBuf)
     auto ysonString = TYsonString(stringBuf);
     EXPECT_EQ(stringBuf, ysonString.AsStringBuf());
     EXPECT_EQ(stringBuf, ysonString.ToString());
+}
+
+TEST(TYsonStringMerger, NestedPaths)
+{
+    using namespace std::literals;
+    {
+        auto parentYsonStringBuf = TYsonStringBuf{R"({a=1;  b="eleven";  c={"1" = "one"; "2"="two"}})"sv};
+        auto child1YsonStringBuf = TYsonStringBuf{R"({"1"="one"; "2"="two"})"sv};
+        auto child2YsonStringBuf = TYsonStringBuf{R"("eleven")"sv};
+
+        auto mergedYsonString1 = MergeYsonStrings({"/c", "/b", ""}, {child1YsonStringBuf, child2YsonStringBuf, parentYsonStringBuf});
+        auto mergedYsonString2 = MergeYsonStrings({"", "/c", "/b"}, {parentYsonStringBuf, child1YsonStringBuf, child2YsonStringBuf});
+        auto mergedYsonString3 = MergeYsonStrings({"/c", "", "/b"}, {child1YsonStringBuf, parentYsonStringBuf, child2YsonStringBuf});
+
+        EXPECT_EQ(parentYsonStringBuf, mergedYsonString1);
+        EXPECT_EQ(parentYsonStringBuf, mergedYsonString2);
+        EXPECT_EQ(parentYsonStringBuf, mergedYsonString3);
+
+        auto node = ConvertToNode(mergedYsonString1);
+        auto expectedNode = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("a").Value(1)
+                .Item("b").Value("eleven")
+                .Item("c").BeginMap()
+                    .Item("1").Value("one")
+                    .Item("2").Value("two")
+                .EndMap()
+            .EndMap();
+        EXPECT_TRUE(AreNodesEqual(node, expectedNode));
+    }
+
+    {
+        auto parentYsonStringBuf = TYsonStringBuf{"0"sv};
+        auto childYsonStringBuf = TYsonStringBuf{"1"sv};
+        auto leftoutYsonStringBuf = TYsonStringBuf{"2"sv};
+
+        auto mergedYsonString1 = MergeYsonStrings({"/path1/a", "/path1/a/b", "/path2"}, {parentYsonStringBuf, childYsonStringBuf, leftoutYsonStringBuf});
+        auto mergedYsonString2 = MergeYsonStrings({"/path1/a/b", "/path2", "/path1/a"}, {childYsonStringBuf, leftoutYsonStringBuf, parentYsonStringBuf});
+        auto mergedYsonString3 = MergeYsonStrings({"/path2", "/path1/a", "/path1/a/b"}, {leftoutYsonStringBuf, parentYsonStringBuf, childYsonStringBuf});
+
+        auto expectedYsonString = TYsonString{"{\x01\x0Apath1={\x01\x02""a=0;};\x01\x0Apath2=2;}"sv};
+
+        EXPECT_EQ(expectedYsonString.AsStringBuf(), mergedYsonString1.AsStringBuf());
+        EXPECT_EQ(expectedYsonString.AsStringBuf(), mergedYsonString2.AsStringBuf());
+        EXPECT_EQ(expectedYsonString.AsStringBuf(), mergedYsonString3.AsStringBuf());
+
+        auto node = ConvertToNode(mergedYsonString1);
+        auto expectedNode = BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("path1").BeginMap()
+                    .Item("a").Value(0)
+                .EndMap()
+                .Item("path2").Value(2)
+            .EndMap();
+        EXPECT_TRUE(AreNodesEqual(node, expectedNode));
+    }
+
+    {
+        auto element0YsonStringBuf = TYsonStringBuf{R"({a=1})"sv};
+        auto element1YsonStringBuf = TYsonStringBuf{R"({b=1})"sv};
+        EXPECT_EQ(MergeYsonStrings({"/path", "/path"}, {element1YsonStringBuf, element0YsonStringBuf}).AsStringBuf(), "{\x01\x08path={a=1};}");
+        EXPECT_EQ(MergeYsonStrings({"/path", "/path"}, {element0YsonStringBuf, element1YsonStringBuf}).AsStringBuf(), "{\x01\x08path={b=1};}");
+    }
+}
+
+TEST(TYsonStringMerger, PathWithIndexes)
+{
+    using namespace std::literals;
+    auto element0YsonStringBuf = TYsonStringBuf{R"({a=1})"sv};
+    auto element1YsonStringBuf = TYsonStringBuf{R"({b=2})"sv};
+    auto mergedYsonString = MergeYsonStrings(
+        {"/map/0", "/map/5"},
+        {element0YsonStringBuf, element1YsonStringBuf},
+        EYsonFormat::Text);
+    auto expectedYsonString = TYsonString{R"({"map"={"0"={a=1};"5"={b=2};};})"sv};
+    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+
+    auto node = ConvertToNode(mergedYsonString);
+    auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("map").BeginMap()
+                .Item("0").BeginMap()
+                    .Item("a").Value(1)
+                .EndMap()
+                .Item("5").BeginMap()
+                    .Item("b").Value(2)
+                .EndMap()
+            .EndMap()
+        .EndMap();
+    EXPECT_TRUE(AreNodesEqual(node, expectedNode));
+}
+
+TEST(TYsonStringMerger, BinaryYsonStrings)
+{
+    using namespace std::literals;
+    auto element0YsonStringBuf = TYsonStringBuf{R"({a=1})"sv};
+    auto binaryYsonString = ConvertToYsonString(
+        BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("map").BeginMap()
+                    .Item("int").Value(100)
+                    .Item("str").Value("200")
+                    .Item("bool").Value(true)
+                .EndMap()
+            .EndMap(),
+        EYsonFormat::Binary);
+    auto element1YsonStringBuf = TYsonStringBuf{binaryYsonString};
+    auto mergedYsonString = MergeYsonStrings(
+        {"/first_key", "/second_key"},
+        {element0YsonStringBuf, element1YsonStringBuf},
+        EYsonFormat::Text);
+
+    auto expectedYsonString = TYsonString{R"({"first_key"={a=1};"second_key"=)" + TString{element1YsonStringBuf.AsStringBuf()} + ";}"};
+    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+
+    auto node = ConvertToNode(mergedYsonString);
+    auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("first_key").BeginMap()
+                .Item("a").Value(1)
+            .EndMap()
+            .Item("second_key").BeginMap()
+                .Item("map").BeginMap()
+                    .Item("int").Value(100)
+                    .Item("str").Value("200")
+                    .Item("bool").Value(true)
+                .EndMap()
+            .EndMap()
+        .EndMap();
+    EXPECT_TRUE(AreNodesEqual(node, expectedNode));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
