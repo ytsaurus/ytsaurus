@@ -26,8 +26,6 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/yt/ytlib/cypress_client/cypress_service_proxy.h>
-
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/library/erasure/public.h>

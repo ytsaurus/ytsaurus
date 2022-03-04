@@ -19,6 +19,22 @@ message TReqUpdateAccessStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TNodeTouch
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required int64 touch_time = 2;
+}
+
+message TReqTouchNodes
+{
+    repeated TNodeTouch updates = 1;
+}
+
+message TRspTouchNodes
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCreateForeignNode
 {
     required NYT.NProto.TGuid node_id = 1;

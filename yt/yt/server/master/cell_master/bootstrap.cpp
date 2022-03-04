@@ -20,7 +20,6 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_integration.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
-#include <yt/yt/server/master/cypress_server/cypress_service.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
 
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
@@ -860,19 +859,18 @@ void TBootstrap::DoInitialize()
     }
 
     RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, fileSnapshotStore)); // cell realm
-    RpcServer_->RegisterService(CreateNodeTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateDataNodeTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateExecNodeTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateCellarNodeTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateTabletNodeTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(ObjectService_); // master hydra service
-    RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateNodeTrackerService(this));
+    RpcServer_->RegisterService(CreateDataNodeTrackerService(this));
+    RpcServer_->RegisterService(CreateExecNodeTrackerService(this));
+    RpcServer_->RegisterService(CreateCellarNodeTrackerService(this));
+    RpcServer_->RegisterService(CreateTabletNodeTrackerService(this));
+    RpcServer_->RegisterService(ObjectService_);
+    RpcServer_->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreateChunkService(this));
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
-    RpcServer_->RegisterService(CreateTransactionService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateCypressService(this)); // master hydra service
-    RpcServer_->RegisterService(CreateMasterChaosService(this)); // master chaos service
-    RpcServer_->RegisterService(CreateCellTrackerService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateTransactionService(this));
+    RpcServer_->RegisterService(CreateMasterChaosService(this));
+    RpcServer_->RegisterService(CreateCellTrackerService(this));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));

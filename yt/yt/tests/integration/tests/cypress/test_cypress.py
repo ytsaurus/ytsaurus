@@ -9,7 +9,9 @@ from yt_commands import (
     start_transaction, abort_transaction,
     commit_transaction, lock, unlock, read_file, read_table,
     raises_yt_error, gc_collect, execute_command,
-    get_batch_output)
+    get_batch_output,
+    switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address)
 
 from yt_helpers import get_current_time
 
@@ -1586,7 +1588,8 @@ class TestCypress(YTEnvSetup):
             set("//tmp/t/@expiration_time", "hello")
 
     @authors("babenko")
-    def test_expiration_time_change_requires_remove_permission_failure(self):
+    @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
+    def test_expiration_change_requires_remove_permission_failure(self, expiration):
         create_user("u")
         create("table", "//tmp/t")
         set(
@@ -1595,13 +1598,14 @@ class TestCypress(YTEnvSetup):
         )
         with pytest.raises(YtError):
             set(
-                "//tmp/t/@expiration_time",
-                str(get_current_time()),
+                "//tmp/t/@" + expiration[0],
+                expiration[1],
                 authenticated_user="u",
             )
 
     @authors("babenko")
-    def test_expiration_time_change_requires_recursive_remove_permission_failure(self):
+    @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time())), ("expiration_timeout", 3600000)])
+    def test_expiration_change_requires_recursive_remove_permission_failure(self, expiration):
         create_user("u")
         create("map_node", "//tmp/m")
         create("table", "//tmp/m/t")
@@ -1611,36 +1615,38 @@ class TestCypress(YTEnvSetup):
         )
         with pytest.raises(YtError):
             set(
-                "//tmp/m/@expiration_time",
-                str(get_current_time()),
+                "//tmp/m/@" + expiration[0],
+                expiration[1],
                 authenticated_user="u",
             )
 
     @authors("babenko")
-    def test_expiration_time_reset_requires_write_permission_success(self):
+    @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
+    def test_expiration_reset_requires_write_permission_success(self, expiration):
         create_user("u")
         create(
             "table",
             "//tmp/t",
-            attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"},
+            attributes={expiration[0]: expiration[1]},
         )
         set(
             "//tmp/t/@acl",
             [make_ace("allow", "u", "write"), make_ace("deny", "u", "remove")],
         )
-        remove("//tmp/t/@expiration_time", authenticated_user="u")
+        remove("//tmp/t/@" + expiration[0], authenticated_user="u")
 
     @authors("babenko")
-    def test_expiration_time_reset_requires_write_permission_failure(self):
+    @pytest.mark.parametrize("expiration", [("expiration_time", str(get_current_time() + timedelta(days=1))), ("expiration_timeout", 3600000)])
+    def test_expiration_reset_requires_write_permission_failure(self, expiration):
         create_user("u")
         create(
             "table",
             "//tmp/t",
-            attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"},
+            attributes={expiration[0]: expiration[1]},
         )
         set("//tmp/t/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
-            remove("//tmp/t/@expiration_time", authenticated_user="u")
+            remove("//tmp/t/@" + expiration[0], authenticated_user="u")
 
     @authors("babenko")
     def test_expiration_time_change(self):
@@ -1956,13 +1962,25 @@ class TestCypress(YTEnvSetup):
     @flaky(max_runs=3)
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
-        time.sleep(1.5)
         # Accessing a node may affect its lifetime. Hence no waiting here.
+        time.sleep(1.5)
         assert not exists("//tmp/t")
 
     @authors("shakurov")
     @flaky(max_runs=3)
     def test_expiration_timeout2(self):
+        set("//sys/@config/cypress_manager/expiration_check_period", 200)
+        set("//sys/@config/cypress_manager/statistics_flush_period", 200)
+
+        create("table", "//tmp/t", attributes={"expiration_timeout": 2000})
+        time.sleep(1.0)
+        set("//tmp/t/@expiration_timeout", 1000, suppress_expiration_timeout_renewal=True)
+        time.sleep(0.6)
+        assert not exists("//tmp/t")
+
+    @authors("shakurov")
+    @flaky(max_runs=3)
+    def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
         create("table", "//tmp/t2", attributes={"expiration_timeout": 2000})
         time.sleep(0.5)
@@ -1975,7 +1993,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     @flaky(max_runs=3)
-    def test_expiration_timeout3(self):
+    def test_expiration_timeout4(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
         for i in range(10):
             # NB: asking if whether the node exists prolongs its life.
@@ -1987,7 +2005,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     @flaky(max_runs=3)
-    def test_expiration_timeout4(self):
+    def test_expiration_timeout5(self):
         tx = start_transaction()
 
         create("table", "//tmp/t")
@@ -2005,7 +2023,25 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     @flaky(max_runs=3)
-    def test_expiration_timeout5(self):
+    def test_expiration_timeout6(self):
+        tx = start_transaction()
+
+        create("table", "//tmp/t")
+        lock("//tmp/t", tx=tx, mode="snapshot")
+
+        set("//tmp/t/@expiration_timeout", 1000)
+
+        time.sleep(1.5)
+        assert exists("//tmp/t")
+
+        abort_transaction(tx)
+
+        time.sleep(1.5)
+        assert not exists("//tmp/t")
+
+    @authors("shakurov")
+    @flaky(max_runs=3)
+    def test_expiration_timeout7(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
         set("//tmp/t/@expiration_timeout", 3000)
 
@@ -3608,6 +3644,31 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 
 ##################################################################
 
+
+class TestCypressLeaderSwitch(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    def _switch_leader(self):
+        old_leader_rpc_address = get_active_primary_master_leader_address(self)
+        new_leader_rpc_address = get_active_primary_master_follower_address(self)
+        cell_id = get("//sys/@cell_id")
+        switch_leader(cell_id, new_leader_rpc_address)
+        wait(lambda: is_active_primary_master_leader(new_leader_rpc_address))
+        wait(lambda: is_active_primary_master_follower(old_leader_rpc_address))
+
+    @authors("shakurov")
+    @flaky(max_runs=3)
+    def test_expiration_timeout_leader_switch(self):
+        create("table", "//tmp/t", attributes={"expiration_timeout": 2000})
+
+        self._switch_leader()
+
+        time.sleep(2.0)
+        assert not exists("//tmp/t")
+
+
+##################################################################
 
 class TestCypressForbidSet(YTEnvSetup):
     NUM_MASTERS = 1
