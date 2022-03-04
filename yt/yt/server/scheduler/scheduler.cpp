@@ -4042,6 +4042,7 @@ private:
                         }
                     })
                 .EndMap()
+                .Item("user_to_default_pool").Value(UserToDefaultPoolMap_)
                 .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
             .EndMap();
     }
