@@ -1,5 +1,7 @@
 #include "protobuf_interop.h"
 
+#include "parser.h"
+
 #include <yt/yt_proto/yt/core/yson/proto/protobuf_interop.pb.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -2600,6 +2602,24 @@ void RegisterCustomProtobufBytesFieldConverter(
 {
     // NB: Protobuf internal singletons might not be ready, so we can't get field descriptor here.
     TProtobufTypeRegistry::Get()->RegisterMessageBytesFieldConverter(descriptor, fieldNumber, converter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString YsonStringToProto(
+    const TYsonString& ysonString,
+    const TProtobufMessageType* payloadType,
+    EUnknownYsonFieldsMode unknownFieldsMode)
+{
+    TString serializedProto;
+    google::protobuf::io::StringOutputStream protobufStream(&serializedProto);
+    TProtobufWriterOptions protobufWriterOptions;
+    protobufWriterOptions.UnknownYsonFieldModeResolver =
+        TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(
+            unknownFieldsMode);
+    auto protobufWriter = CreateProtobufWriter(&protobufStream, payloadType, protobufWriterOptions);
+    ParseYsonStringBuffer(ysonString.AsStringBuf(), EYsonType::Node, protobufWriter.get());
+    return serializedProto;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

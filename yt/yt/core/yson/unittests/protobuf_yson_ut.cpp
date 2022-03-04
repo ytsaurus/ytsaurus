@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/string_merger.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node.h>
@@ -2126,6 +2127,242 @@ TEST(TProtobufEnums, FindLiteralByValue)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonToProtobufTest, ConvertToYsonString)
+{
+    auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("int32_field").Value(10000)
+            .Item("uint32_field").Value(10000U)
+            .Item("sint32_field").Value(10000)
+            .Item("int64_field").Value(10000)
+            .Item("uint64_field").Value(10000U)
+            .Item("fixed32_field").Value(10000U)
+            .Item("fixed64_field").Value(10000U)
+            .Item("bool_field").Value(true)
+            .Item("string_field").Value("hello")
+            .Item("float_field").Value(3.14)
+            .Item("double_field").Value(3.14)
+            .Item("repeated_int32_field").BeginList()
+                .Item().Value(1)
+                .Item().Value(2)
+                .Item().Value(3)
+            .EndList()
+            .Item("nested_message1").BeginMap()
+                .Item("int32_field").Value(123)
+                .Item("color").Value("blue")
+                .Item("nested_message").BeginMap()
+                    .Item("color").Value("green")
+                .EndMap()
+            .EndMap()
+            .Item("repeated_nested_message1").BeginList()
+                .Item().BeginMap()
+                    .Item("int32_field").Value(456)
+                    .Item("repeated_int32_field").BeginList()
+                        .Item().Value(1)
+                        .Item().Value(2)
+                        .Item().Value(3)
+                    .EndList()
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("int32_field").Value(654)
+                .EndMap()
+            .EndList()
+            .Item("attributes").BeginMap()
+                .Item("k1").Value(1)
+                .Item("k2").Value("test")
+                .Item("k3").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2)
+                    .Item().Value(3)
+                .EndList()
+            .EndMap()
+            .Item("yson_field").BeginMap()
+                .Item("a").Value(1)
+                .Item("b").BeginList()
+                    .Item().Value("foobar")
+                .EndList()
+            .EndMap()
+            .Item("string_to_int32_map").BeginMap()
+                .Item("hello").Value(0)
+                .Item("world").Value(1)
+            .EndMap()
+            .Item("int32_to_int32_map").BeginMap()
+                .Item("100").Value(0)
+                .Item("-200").Value(1)
+            .EndMap()
+            .Item("nested_message_map").BeginMap()
+                .Item("hello").BeginMap()
+                    .Item("int32_field").Value(123)
+                .EndMap()
+                .Item("world").BeginMap()
+                    .Item("color").Value("blue")
+                    .Item("nested_message_map").BeginMap()
+                        .Item("test").BeginMap()
+                            .Item("repeated_int32_field").BeginList()
+                                .Item().Value(1)
+                                .Item().Value(2)
+                                .Item().Value(3)
+                            .EndList()
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+            .EndMap()
+            .Item("extension").BeginMap()
+                .Item("extension_extension").BeginMap()
+                    .Item("extension_extension_field").Value(23U)
+                .EndMap()
+                .Item("extension_field").Value(12U)
+            .EndMap()
+            .Item("nested_message_with_custom_converter").BeginMap()
+                .Item("x").Value(43)
+                .Item("y").Value(101)
+            .EndMap()
+            .Item("repeated_nested_message_with_custom_converter").BeginList()
+                .Item().BeginMap()
+                    .Item("x").Value(13)
+                    .Item("y").Value(24)
+                .EndMap()
+            .EndList()
+            .Item("int32_to_nested_message_with_custom_converter_map").BeginMap()
+                .Item("123").BeginMap()
+                    .Item("x").Value(7)
+                    .Item("y").Value(8)
+                .EndMap()
+            .EndMap()
+            .Item("guid").Value("0-deadbeef-0-abacaba")
+            .Item("bytes_with_custom_converter").BeginMap()
+                .Item("x").Value(43)
+            .EndMap()
+            .Item("repeated_bytes_with_custom_converter").BeginList()
+                .Item().BeginMap()
+                    .Item("x").Value(124)
+                .EndMap()
+            .EndList()
+            .Item("extensions").BeginMap()
+                .Item("ext").BeginMap()
+                    .Item("x").Value(42)
+                .EndMap()
+            .EndMap()
+        .EndMap();
+
+    auto unknownFieldsMode = NYT::NYson::EUnknownYsonFieldsMode::Skip;
+    auto ysonStringBinary = ConvertToYsonString(expectedNode, NYT::NYson::EYsonFormat::Binary);
+    auto ysonStringText = ConvertToYsonString(expectedNode, NYT::NYson::EYsonFormat::Text);
+    auto rootType = ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>();
+    auto protobufStringBinary = YsonStringToProto(ysonStringBinary, rootType, unknownFieldsMode);
+    auto protobufStringText = YsonStringToProto(ysonStringText, rootType, unknownFieldsMode);
+    ASSERT_EQ(protobufStringBinary, protobufStringText);
+}
+
+TEST(TYsonToProtobufTest, YsonStringMerger)
+{
+    auto expectedNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("uint32_field").Value(324234)
+            .Item("repeated_nested_message1").BeginList()
+                .Item().BeginMap()
+                    .Item("int32_field").Value(456)
+                    .Item("repeated_int32_field").BeginList()
+                        .Item().Value(1)
+                        .Item().Value(2)
+                        .Item().Value(3)
+                    .EndList()
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("int32_field").Value(654)
+                .EndMap()
+            .EndList()
+            .Item("nested_message_map").BeginMap()
+                .Item("hello").BeginMap()
+                    .Item("int32_field").Value(123)
+                .EndMap()
+                .Item("world").BeginMap()
+                    .Item("color").Value("blue")
+                    .Item("nested_message_map").BeginMap()
+                        .Item("test").BeginMap()
+                            .Item("repeated_int32_field").BeginList()
+                                .Item().Value(1)
+                                .Item().Value(2)
+                                .Item().Value(3)
+                            .EndList()
+                        .EndMap()
+                    .EndMap()
+                .EndMap()
+            .EndMap()
+        .EndMap();
+
+    NYPath::TYPath repeatedNestedMessage1Path = "/repeated_nested_message1";
+    auto repeatedNestedMessage1 = BuildYsonNodeFluently()
+        .BeginList()
+            .Item().BeginMap()
+                .Item("int32_field").Value(456)
+                .Item("repeated_int32_field").BeginList()
+                    .Item().Value(1)
+                    .Item().Value(2)
+                    .Item().Value(3)
+                .EndList()
+            .EndMap()
+            .Item().BeginMap()
+                .Item("int32_field").Value(654)
+            .EndMap()
+        .EndList();
+
+    NYPath::TYPath nestedMessageMapHelloPath = "/nested_message_map/hello";
+    auto nestedMessageMapHello = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("int32_field").Value(123)
+        .EndMap();
+
+    NYPath::TYPath nestedMessageMapWorldPath = "/nested_message_map/world";
+    auto nestedMessageMapWorld = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("color").Value("blue")
+            .Item("nested_message_map").BeginMap()
+                .Item("test").BeginMap()
+                    .Item("repeated_int32_field").BeginList()
+                        .Item().Value(1)
+                        .Item().Value(2)
+                        .Item().Value(3)
+                    .EndList()
+                .EndMap()
+            .EndMap()
+        .EndMap();
+
+    NYPath::TYPath uint32FieldPath = "/uint32_field";
+    auto uint32Field = BuildYsonNodeFluently()
+        .Value(324234);
+
+    auto paths = std::vector<NYPath::TYPath>{
+        repeatedNestedMessage1Path,
+        nestedMessageMapHelloPath,
+        nestedMessageMapWorldPath,
+        uint32FieldPath
+    };
+
+    // Yson strings of different types can be merged.
+    std::vector<TYsonString> ysonStrings{
+        ConvertToYsonString(repeatedNestedMessage1, EYsonFormat::Binary),
+        ConvertToYsonString(nestedMessageMapHello, EYsonFormat::Text),
+        ConvertToYsonString(nestedMessageMapWorld, EYsonFormat::Binary),
+        ConvertToYsonString(uint32Field, EYsonFormat::Text)
+    };
+
+    std::vector<TYsonStringBuf> ysonStringBufs;
+    for (const auto& ysonString : ysonStrings) {
+        ysonStringBufs.push_back(ysonString);
+    }
+    auto ysonStringMerged = MergeYsonStrings(paths, ysonStringBufs);
+    auto unknownFieldsMode = NYT::NYson::EUnknownYsonFieldsMode::Skip;
+    auto ysonStringBinary = ConvertToYsonString(expectedNode, NYT::NYson::EYsonFormat::Binary);
+    auto ysonStringText = ConvertToYsonString(expectedNode, NYT::NYson::EYsonFormat::Text);
+    auto rootType = ReflectProtobufMessageType<NYT::NYson::NProto::TMessage>();
+    auto protobufStringBinary = YsonStringToProto(ysonStringBinary, rootType, unknownFieldsMode);
+    auto protobufStringText = YsonStringToProto(ysonStringText, rootType, unknownFieldsMode);
+    auto protobufStringMerged = YsonStringToProto(ysonStringMerged, rootType, unknownFieldsMode);
+    ASSERT_EQ(protobufStringBinary, protobufStringText);
+    ASSERT_EQ(protobufStringBinary, protobufStringMerged);
+}
 
 } // namespace
 } // namespace NYT::NYson
