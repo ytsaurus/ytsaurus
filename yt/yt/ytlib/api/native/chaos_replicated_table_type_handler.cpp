@@ -187,7 +187,7 @@ private:
     {
         TTransactionCommitOptions options;
         options.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
-        WaitFor(transaction->Commit())
+        WaitFor(transaction->Commit(options))
             .ThrowOnError();
     }
 };
