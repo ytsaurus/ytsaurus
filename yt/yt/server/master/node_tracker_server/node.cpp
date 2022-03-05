@@ -191,9 +191,14 @@ bool TNode::IsTabletNode() const
     return Flavors_.contains(ENodeFlavor::Tablet);
 }
 
+bool TNode::IsChaosNode() const
+{
+    return Flavors_.contains(ENodeFlavor::Chaos);
+}
+
 bool TNode::IsCellarNode() const
 {
-    return IsTabletNode();
+    return IsTabletNode() || IsChaosNode();
 }
 
 bool TNode::ReportedClusterNodeHeartbeat() const
