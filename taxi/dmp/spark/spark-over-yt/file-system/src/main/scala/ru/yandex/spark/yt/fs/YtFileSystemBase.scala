@@ -12,20 +12,18 @@ import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.TError
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.rpc.RpcError
-import ru.yandex.yt.ytree.TAttributeDictionary
 
 import java.io.FileNotFoundException
 import java.net.URI
 import java.util.UUID
 import java.util.concurrent.CompletionException
-import java.util.stream.Collectors
 import scala.annotation.tailrec
 import scala.collection.convert.ImplicitConversions.`collection AsScalaIterable`
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 abstract class YtFileSystemBase extends FileSystem with LogLazy {
-  val id: String = UUID.randomUUID().toString
+  val id: String = s"YtFileSystemBase-${UUID.randomUUID()}"
 
   private val log = LoggerFactory.getLogger(getClass)
 
