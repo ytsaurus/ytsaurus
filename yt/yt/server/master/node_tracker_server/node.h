@@ -126,6 +126,7 @@ public:
     bool IsDataNode() const;
     bool IsExecNode() const;
     bool IsTabletNode() const;
+    bool IsChaosNode() const;
     bool IsCellarNode() const;
 
     //! This set contains heartbeat types that were reported by the node since last registration.
