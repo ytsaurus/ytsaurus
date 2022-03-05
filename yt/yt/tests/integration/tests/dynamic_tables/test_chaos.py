@@ -1185,11 +1185,11 @@ class TestChaos(ChaosTestBase):
         assert_items_equal(get("#{0}/@coordinator_cell_ids".format(card_id)), chaos_cell_ids)
 
         suspend_coordinator(coordinator_cell_id)
-        assert _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended") is True
+        assert _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended")
         wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [cell_id])
 
         resume_coordinator(coordinator_cell_id)
-        assert _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended") is False
+        assert not _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended")
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
 
 
