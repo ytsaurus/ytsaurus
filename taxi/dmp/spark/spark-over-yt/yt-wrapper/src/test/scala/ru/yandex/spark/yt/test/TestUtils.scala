@@ -2,13 +2,13 @@ package ru.yandex.spark.yt.test
 
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
-import ru.yandex.inside.yt.kosher.impl.ytree.`object`.{YTreeRowSerializer, YTreeSerializer}
+import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeRowSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.misc.reflection.ClassX
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
+import ru.yandex.type_info.TiType
 import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.`object`.{UnversionedRowSerializer, WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
@@ -99,7 +99,7 @@ trait TestUtils {
 
       override def deserialize(node: YTreeNode): String = ???
 
-      override def getColumnValueType: ColumnValueType = ColumnValueType.STRING
+      override def getColumnValueType: TiType = TiType.string()
 
       override def serializeRow(obj: String, consumer: YsonConsumer, keyFieldsOnly: Boolean, compareWith: String): Unit = {
         serialize(obj, consumer)
