@@ -221,6 +221,10 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 tableManager->RegisterQueue(node);
             }
 
+            if (node->IsConsumerObject()) {
+                tableManager->RegisterConsumer(node);
+            }
+
             if (node->IsNative()) {
                 if (optionalTabletCount) {
                     tabletManager->PrepareReshardTable(node, 0, 0, *optionalTabletCount, {}, true);
@@ -254,6 +258,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 
     if (table->IsQueueObject()) {
         tableManager->UnregisterQueue(table);
+    }
+
+    if (table->IsConsumerObject()) {
+        tableManager->UnregisterConsumer(table);
     }
 
     if (table->IsTrunk()) {

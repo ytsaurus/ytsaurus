@@ -96,10 +96,16 @@ public:
     void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation);
     TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const;
 
-    //! Queue management.
+    // Queue agent object management.
+
     const THashSet<TTableNode*>& GetQueues() const;
     void RegisterQueue(TTableNode* node);
     void UnregisterQueue(TTableNode* node);
+
+    const THashSet<TTableNode*>& GetConsumers() const;
+    void RegisterConsumer(TTableNode* node);
+    void UnregisterConsumer(TTableNode* node);
+
     TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const;
 
 private:

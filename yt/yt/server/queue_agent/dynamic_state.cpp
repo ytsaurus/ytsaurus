@@ -369,7 +369,7 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"target", "revision", "type", "treat_as_consumer", "schema", "vital"};
+    return {"target", "revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -385,9 +385,9 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .Target = target,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("revision"),
         .ObjectType = cypressAttributes->Get<EObjectType>("type"),
-        .TreatAsConsumer = cypressAttributes->Get<bool>("treat_as_consumer", false),
+        .TreatAsConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
-        .Vital = cypressAttributes->Get<bool>("vital", false),
+        .Vital = cypressAttributes->Get<bool>("vital_queue_consumer", false),
     };
 }
 

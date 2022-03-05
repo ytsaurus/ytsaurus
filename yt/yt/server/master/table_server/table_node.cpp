@@ -92,6 +92,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, BackupCheckpointTimestamp);
     Save(context, BackupError);
     Save(context, QueueAgentStage);
+    Save(context, TreatAsConsumer);
+    Save(context, IsVitalConsumer);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -159,6 +161,11 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(max42)
     if (context.GetVersion() >= EMasterReign::QueueAgentStageAttribute) {
         Load(context, QueueAgentStage);
+    }
+    // COMPAT(achulkov2)
+    if (context.GetVersion() >= EMasterReign::ConsumerAttributes) {
+        Load(context, TreatAsConsumer);
+        Load(context, IsVitalConsumer);
     }
 }
 
@@ -456,6 +463,16 @@ bool TTableNode::IsQueueObject() const
     return IsNative() && IsTrunk() && IsQueue();
 }
 
+bool TTableNode::IsConsumer() const
+{
+    return GetTreatAsConsumer();
+}
+
+bool TTableNode::IsConsumerObject() const
+{
+    return IsNative() && IsTrunk() && IsConsumer();
+}
+
 bool TTableNode::IsEmpty() const
 {
     return ComputeTotalStatistics().chunk_count() == 0;
@@ -721,6 +738,7 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 
     // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
     YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
+    YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

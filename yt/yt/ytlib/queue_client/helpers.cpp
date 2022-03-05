@@ -13,20 +13,22 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath GetQueueRemotePath(const TString& cluster, const TYPath& queuePath)
+TYPath GetQueueAgentObjectRemotePath(const TString& cluster, const TString& objectKind, const TYPath& objectPath)
 {
-    auto queueRef = Format("%v:%v", cluster, queuePath);
-    return Format("//queue_agent/queues/%v", ToYPathLiteral(queueRef));
+    auto objectRef = Format("%v:%v", cluster, objectPath);
+    // NB: Mind the plural!
+    return Format("//queue_agent/%vs/%v", objectKind, ToYPathLiteral(objectRef));
 }
 
-IYPathServicePtr CreateQueueYPathService(
+IYPathServicePtr CreateQueueAgentYPathService(
     IChannelPtr queueAgentChannel,
     const TString& cluster,
-    const TYPath& queuePath)
+    const TString& objectKind,
+    const TYPath& objectPath)
 {
     return CreateOrchidYPathService(TOrchidOptions{
         .Channel = std::move(queueAgentChannel),
-        .RemoteRoot = GetQueueRemotePath(cluster, queuePath),
+        .RemoteRoot = GetQueueAgentObjectRemotePath(cluster, objectKind, objectPath),
     });
 }
 
