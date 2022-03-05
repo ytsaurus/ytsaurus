@@ -164,7 +164,8 @@ TObjectServiceCache::TObjectServiceCache(
     const NProfiling::TProfiler& profiler)
     : TMemoryTrackingAsyncSlruCacheBase(
         config,
-        std::move(memoryTracker))
+        std::move(memoryTracker),
+        profiler)
     , Config_(std::move(config))
     , Logger(logger)
     , Profiler_(profiler.WithSparse())
