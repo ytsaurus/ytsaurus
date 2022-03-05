@@ -100,7 +100,8 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
             if (!result) {
               throw new IllegalArgumentException("Decimal value couldn't fit in yt limitations (precision <= 35)")
             }
-            writeBytes(writeable, idMapping, aggregate, i, textToBinary(value.toString, precision, scale))
+            writeBytes(writeable, idMapping, aggregate, i,
+              textToBinary(value.toBigDecimal.bigDecimal.toPlainString, precision, scale))
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
             val skipNulls = sparkField.metadata.contains("skipNulls") && sparkField.metadata.getBoolean("skipNulls")
             writeBytes(writeable, idMapping, aggregate, i,

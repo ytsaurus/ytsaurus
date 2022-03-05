@@ -247,7 +247,7 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
 
   it should "write decimal to yt" in {
     import spark.implicits._
-    val data = Seq(BigDecimal("1.23"), BigDecimal("0.21"))
+    val data = Seq(BigDecimal("1.23"), BigDecimal("0.21"), BigDecimal("0"), BigDecimal("0.1"))
     data
       .toDF("a").coalesce(1)
       .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
@@ -256,9 +256,11 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
       val res = reader.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
 
       res.columns should contain theSameElementsAs Seq("a")
-      res.collect().map(x => x.getDecimal(0).toString) should contain theSameElementsAs Seq(
+      res.collect().map(x => x.getDecimal(0).toPlainString) should contain theSameElementsAs Seq(
         "1.230000000000000",
-        "0.210000000000000"
+        "0.210000000000000",
+        "0.000000000000000",
+        "0.100000000000000"
       )
     }
   }
