@@ -5,8 +5,9 @@ import org.apache.spark.sql.connector.read.{Scan, SupportsPushDownFilters}
 import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex
 import org.apache.spark.sql.execution.datasources.v2.FileScanBuilder
 import org.apache.spark.sql.sources.Filter
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.v2.YtScanBuilder.pushStructMetadata
 import ru.yandex.spark.yt.common.utils.ExpressionTransformer.filtersToSegmentSet
 import ru.yandex.spark.yt.common.utils.SegmentSet
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
@@ -36,16 +37,7 @@ case class YtScanBuilder(sparkSession: SparkSession,
   override protected val supportsNestedSchemaPruning: Boolean = true
 
   override def pruneColumns(requiredSchema: StructType): Unit = {
-    this.requiredSchema = StructType(
-      requiredSchema.fields.map {
-        f =>
-          val opt = dataSchema.fields.find(sf => sf.name == f.name)
-          opt match {
-            case None => f
-            case Some(v) => f.copy(metadata = v.metadata)
-          }
-      }
-    )
+    this.requiredSchema = pushStructMetadata(requiredSchema, dataSchema)
   }
 
   private var pushedFilterSegments: SegmentSet = SegmentSet()
@@ -67,5 +59,41 @@ case class YtScanBuilder(sparkSession: SparkSession,
     YtScan(sparkSession, hadoopConf, fileIndex, dataSchema, readDataSchema(), readPartitionSchema(),
       new CaseInsensitiveStringMap(opts.asJava), pushedFilterSegments = pushedFilterSegments,
       pushedFilters = pushedFilters())
+  }
+}
+
+object YtScanBuilder {
+  private[v2] def pushStructMetadata(source: StructType, meta: StructType): StructType = {
+    source.copy(fields = source.fields.map {
+      f =>
+        val opt = meta.fields.find(sf => sf.name == f.name)
+        opt match {
+          case None => f
+          case Some(v) => f.copy(dataType = pushMetadata(f.dataType, v.dataType),
+            metadata = v.metadata)
+        }
+    })
+  }
+
+  private def pushMapMetadata(source: MapType, meta: MapType): MapType = {
+    source.copy(keyType = pushMetadata(source.keyType, meta.keyType),
+      valueType = pushMetadata(source.valueType, meta.valueType))
+  }
+
+  private def pushArrayMetadata(source: ArrayType, meta: ArrayType): ArrayType = {
+    source.copy(elementType = pushMetadata(source.elementType, meta.elementType))
+  }
+
+  private def pushMetadata(source: DataType, meta: DataType): DataType = {
+    if (source.getClass != meta.getClass) {
+      source
+    } else {
+      source match {
+        case s: StructType => pushStructMetadata(s, meta.asInstanceOf[StructType])
+        case m: MapType => pushMapMetadata(m, meta.asInstanceOf[MapType])
+        case a: ArrayType => pushArrayMetadata(a, meta.asInstanceOf[ArrayType])
+        case other => other
+      }
+    }
   }
 }

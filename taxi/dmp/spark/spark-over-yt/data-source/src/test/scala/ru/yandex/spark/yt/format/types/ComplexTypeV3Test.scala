@@ -20,6 +20,16 @@ import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
 class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
   import spark.implicits._
 
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    spark.conf.set("spark.sql.schema.forcingNullableIfNoMetadata.enabled", value = false)
+  }
+
+  override def afterAll(): Unit = {
+    spark.conf.set("spark.sql.schema.forcingNullableIfNoMetadata.enabled", value = true)
+    super.afterAll()
+  }
+
   private def codeListImpl(list: Seq[Any], transformer: (YTreeBuilder, Int, Any) => Unit): Array[Byte] = {
     val builder = new YTreeBuilder
     builder.onBeginList()
@@ -189,7 +199,7 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
 
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.schema shouldBe StructType(Seq(
-      StructField("tagged", LongType, nullable = true,
+      StructField("tagged", LongType, nullable = false,
         new MetadataBuilder()
           .putString(MetadataFields.TAG, "main").putString(MetadataFields.ORIGINAL_NAME, "tagged")
           .putLong(MetadataFields.KEY_ID, -1).build())
@@ -281,13 +291,29 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
     res.collect() should contain theSameElementsAs data.map(Row(_))
   }
 
+  it should "write tagged from yt" in {
+    val data = Seq(1L, 2L)
+    data.map(Some(_))
+      .toDF("tagged").coalesce(1).write
+      .schemaHint(Map("tagged" -> YtLogicalType.Tagged(YtLogicalType.Int64, "main")))
+      .option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
+
+    val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+    res.schema shouldBe StructType(Seq(
+      StructField("tagged", LongType, nullable = false,
+        new MetadataBuilder()
+          .putString(MetadataFields.TAG, "main").putString(MetadataFields.ORIGINAL_NAME, "tagged")
+          .putLong(MetadataFields.KEY_ID, -1).build())
+    ))
+    res.collect() should contain theSameElementsAs Seq(Row(1L), Row(2L))
+  }
+
   it should "write struct to yt" in {
     import spark.implicits._
     val data = Seq(TestStruct(1.0, "a"), TestStruct(3.2, "b"))
     data.map(Some(_))
       .toDF("a").coalesce(1)
       .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
-
 
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
 
@@ -302,7 +328,6 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
       .toDF("a").coalesce(1)
       .write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
 
-
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
 
     res.columns should contain theSameElementsAs Seq("a")
@@ -315,9 +340,9 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
     data.map(Some(_))
       .toDF("a").coalesce(1).write
       .schemaHint(Map("a" ->
-        YtLogicalType.VariantOverTuple(Seq(YtLogicalType.String, YtLogicalType.Double))))
+        YtLogicalType.VariantOverTuple(Seq(
+          (YtLogicalType.String, Metadata.empty), (YtLogicalType.Double, Metadata.empty)))))
       .option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
-
 
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.collect() should contain theSameElementsAs nullableData.map(x => Row(Row.fromTuple(x)))
@@ -329,12 +354,38 @@ class ComplexTypeV3Test extends FlatSpec with Matchers with LocalSpark with TmpD
     data.map(Some(_))
       .toDF("a").coalesce(1).write
       .schemaHint(Map("a" ->
-        YtLogicalType.VariantOverStruct(Seq(("i", YtLogicalType.Int32), ("s", YtLogicalType.String)))))
+        YtLogicalType.VariantOverStruct(Seq(
+          ("i", YtLogicalType.Int32, Metadata.empty), ("s", YtLogicalType.String, Metadata.empty)))))
       .option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
-
 
     val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
     res.collect() should contain theSameElementsAs nullableData.map(x => Row(Row.fromTuple(x)))
+  }
+
+  it should "not change variant schema in read-write operation" in {
+    val tmpPath2 = s"$tmpPath-copy"
+    val data = Seq(TestVariant(None, Some("2.0")), TestVariant(Some(1), None))
+    data.map(Some(_))
+      .toDF("a").coalesce(1).write
+      .schemaHint(Map("a" ->
+        YtLogicalType.VariantOverStruct(Seq(
+          ("i", YtLogicalType.Int32, Metadata.empty), ("s", YtLogicalType.String, Metadata.empty)))))
+      .option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath)
+
+    val res = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath)
+    res.write.option(YtTableSparkSettings.WriteTypeV3.name, value = true).yt(tmpPath2)
+    val res2 = spark.read.option(YtUtils.Options.PARSING_TYPE_V3, value = true).yt(tmpPath2)
+
+    res.schema shouldBe res2.schema
+    res2.schema shouldBe StructType(Seq(
+      StructField("a", StructType(Seq(
+        StructField("_vi", IntegerType, nullable = true,
+          metadata = new MetadataBuilder().putBoolean("optional", false).build()),
+        StructField("_vs", StringType, nullable = true,
+          metadata = new MetadataBuilder().putBoolean("optional", false).build())
+      )), nullable = false,
+        metadata = new MetadataBuilder().putLong("key_id", -1).putString("original_name", "a").build())
+    ))
   }
 
   it should "write combined complex types" in {

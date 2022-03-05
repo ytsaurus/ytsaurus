@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.format.types
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yson.YsonType
 import org.apache.spark.sql.{Encoders, Row, SaveMode}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
@@ -411,6 +412,30 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
       Row(Row(1, Row(2, Row(3, "spark")))),
       Row(Row(4, Row(5, Row(6, "yql")))),
       Row(Row(7, Row(8, Row(9, null)))),
+    )
+  }
+
+  it should "read dataset with variant" in {
+    Seq(
+      Array[Byte](91, 1, 6, 's', 't', 'r', 59, 1, 2, 'a', 93),
+      Array[Byte](91, 1, 6, 's', 't', 'r', 59, 1, 6, 't', 'm', 'p', 59, 93),
+      Array[Byte](91, 1, 8, 'l', 'o', 'n', 'g', 59, 2, 200.toByte, 1, 59, 93)
+    ).toDF("value")
+      .coalesce(1)
+      .withColumn("value", 'value.cast(YsonType))
+      .write.yt(tmpPath)
+
+    val schema = TypeUtils.variantOverStruct(("str", StringType), ("long", LongType))
+
+    val res = spark.read
+      .schemaHint("value" -> schema)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Row("a", null)),
+      Row(Row("tmp", null)),
+      Row(Row(null, 100))
     )
   }
 

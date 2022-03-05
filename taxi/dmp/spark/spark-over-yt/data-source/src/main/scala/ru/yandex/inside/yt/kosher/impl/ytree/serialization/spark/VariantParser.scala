@@ -30,7 +30,12 @@ trait VariantParser {
     res(index) = parseNode(parseToken(allowEof), allowEof, dt)
 
     val end = parseToken(allowEof)
-    if (end != endToken) unexpectedToken(end, "END_TOKEN")
+    if (end == YsonTags.ITEM_SEPARATOR) {
+      val next = parseToken(allowEof)
+      if (next != endToken) unexpectedToken(next, "END_TOKEN")
+    } else {
+      if (end != endToken) unexpectedToken(end, "END_TOKEN")
+    }
 
     res
   }
