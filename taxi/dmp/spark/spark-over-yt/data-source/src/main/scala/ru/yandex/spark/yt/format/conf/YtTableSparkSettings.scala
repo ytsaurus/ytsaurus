@@ -65,6 +65,8 @@ object YtTableSparkSettings {
 
   case object WriteTypeV3 extends BooleanConfigEntry("write_type_v3", Some(false))
 
+  case object NullTypeAllowed extends BooleanConfigEntry("null_type_allowed", Some(false))
+
   case object OptimizeFor extends StringConfigEntry("optimize_for")
 
   case object Path extends StringListConfigEntry("path")
@@ -80,11 +82,15 @@ object YtTableSparkSettings {
       }.getOrElse(str)
     }
 
-    val excludeOptions: Set[String] = Set(SortColumns, Schema, WriteTypeV3, Path).map(_.name)
+    val excludeOptions: Set[String] = Set(SortColumns, Schema, WriteTypeV3, NullTypeAllowed, Path).map(_.name)
   }
 
   def isTable(configuration: Configuration): Boolean = {
     configuration.ytConf(IsTable)
+  }
+
+  def isNullTypeAllowed(options: Map[String, String]): Boolean = {
+    options.ytConf(NullTypeAllowed)
   }
 
   def isTableSorted(configuration: Configuration): Boolean = {

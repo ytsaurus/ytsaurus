@@ -9,6 +9,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
+import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.{NullTypeAllowed, isNullTypeAllowed}
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
 import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
@@ -259,11 +261,16 @@ object SchemaConverter {
     YTreeTextSerializer.serialize(serializeTypeV3(ytLogicalTypeV3(sparkType), innerForm = true))
   }
 
-  def checkSchema(schema: StructType): Unit = {
+  def checkSchema(schema: StructType, options: Map[String, String]): Unit = {
     schema.foreach { field =>
       if (!YtTable.supportsDataType(field.dataType)) {
         throw new IllegalArgumentException(
-          s"YT data source does not support ${field.dataType.simpleString} data type.")
+          s"YT data source does not support ${field.dataType.simpleString} data type(column `${field.name}`).")
+      }
+      if (field.dataType == NullType && !isNullTypeAllowed(options)) {
+        throw new IllegalArgumentException(
+          s"Writing null data type(column `${field.name}`) is not allowed now, because of uselessness. " +
+            s"If you are sure you can enable `null_type_allowed` option.")
       }
     }
   }
