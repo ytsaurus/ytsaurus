@@ -90,6 +90,8 @@ private:
         NTransactionClient::TTimestamp BackupCheckpointTimestamp = NTransactionClient::NullTimestamp;
         TError BackupError;
         TString QueueAgentStage = NQueueClient::ProductionStage;
+        bool TreatAsConsumer = false;
+        bool IsVitalConsumer = false;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -147,6 +149,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupCheckpointTimestamp);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupError);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsConsumer);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IsVitalConsumer);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)
@@ -189,6 +193,8 @@ public:
     bool IsDynamic() const;
     bool IsQueue() const;
     bool IsQueueObject() const;
+    bool IsConsumer() const;
+    bool IsConsumerObject() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
     bool IsUniqueKeys() const;

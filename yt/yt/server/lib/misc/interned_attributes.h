@@ -328,6 +328,8 @@
     XX(ProxyKind, proxy_kind) \
     XX(QueueAgentObjectRevisions, queue_agent_object_revisions) \
     XX(QueueAgentStage, queue_agent_stage) \
+    XX(QueueConsumerStatus, queue_consumer_status) \
+    XX(QueueConsumerPartitions, queue_consumer_partitions) \
     XX(QueueStatus, queue_status) \
     XX(QueuePartitions, queue_partitions) \
     XX(QuorumInfo, quorum_info) \
@@ -438,6 +440,7 @@
     XX(TotalStatistics, total_statistics) \
     XX(TransactionId, transaction_id) \
     XX(Transient, transient) \
+    XX(TreatAsQueueConsumer, treat_as_queue_consumer) \
     XX(Tree, tree) \
     XX(TrimmedChildCount, trimmed_child_count) \
     XX(TrimmedRowCount, trimmed_row_count) \
@@ -465,6 +468,7 @@
     XX(Version, version) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
+    XX(VitalQueueConsumer, vital_queue_consumer) \
     XX(Weight, weight) \
     XX(WeakRefCounter, weak_ref_counter) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \

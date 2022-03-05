@@ -684,6 +684,41 @@ public:
         }
     }
 
+    const THashSet<TTableNode*>& GetConsumers() const
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return Consumers_;
+    }
+
+    void RegisterConsumer(TTableNode* node)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Consumers_.insert(node).second) {
+            YT_LOG_ALERT_IF(
+                IsMutationLoggingEnabled(),
+                "Attempting to register a consumer twice (Node: %v, Path: %Qv)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    void UnregisterConsumer(TTableNode* node)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
+        if (!Consumers_.erase(node)) {
+            YT_LOG_ALERT_IF(
+                IsMutationLoggingEnabled(),
+                "Attempting to unregister an unknown consumer (Node: %v, Path: %Qv)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
     TFuture<TYsonString> GetQueueAgentObjectRevisionsAsync() const
     {
         Bootstrap_->VerifyPersistentStateRead();
@@ -694,18 +729,22 @@ public:
         using ObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
 
         ObjectRevisionMap objectRevisions;
-        objectRevisions["queues"] = {};
-        objectRevisions["consumers"] = {};
-        for (auto* node : GetQueues()) {
-            if (IsObjectAlive(node)) {
-                EPathRootType pathRootType;
-                auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr, /*pathRootType*/ &pathRootType);
-                // We are intentionally skipping trunk nodes which are hanging in the air.
-                if (pathRootType != EPathRootType::Other) {
-                    objectRevisions["queues"][path] = node->GetRevision();
+        auto addToObjectRevisions = [&] (const TString& key, const THashSet<TTableNode*>& nodes) {
+            objectRevisions[key] = {};
+            for (auto* node : nodes) {
+                if (IsObjectAlive(node)) {
+                    EPathRootType pathRootType;
+                    auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr, /*pathRootType*/ &pathRootType);
+                    // We are intentionally skipping dangling trunk nodes.
+                    if (pathRootType != EPathRootType::Other) {
+                        objectRevisions[key][path] = node->GetRevision();
+                    }
                 }
             }
-        }
+        };
+        addToObjectRevisions("queues", GetQueues());
+        addToObjectRevisions("consumers", GetConsumers());
+
         if (multicellManager->IsPrimaryMaster() && multicellManager->GetRoleMasterCellCount(EMasterCellRole::CypressNodeHost) > 1) {
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
             for (auto cellTag : multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost)) {
@@ -773,6 +812,8 @@ private:
 
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TTableNode*> Queues_;
+    //! Contains native trunk nodes for which IsConsumer() is true.
+    THashSet<TTableNode*> Consumers_;
 
     // COMPAT(achulkov2)
     bool NeedToFillQueueSet_ = false;
@@ -1059,6 +1100,7 @@ private:
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
         NeedToFillQueueSet_ = false;
+        Consumers_.clear();
     }
 
     void SetZeroState() override
@@ -1085,6 +1127,11 @@ private:
         // COMPAT(achulkov2)
         if (context.GetVersion() >= EMasterReign::QueueList) {
             Load(context, Queues_);
+        }
+
+        // COMPAT(achulkov2)
+        if (context.GetVersion() >= EMasterReign::ConsumerAttributes) {
+            Load(context, Consumers_);
         }
 
         NeedToFillQueueSet_ = context.GetVersion() < EMasterReign::QueueList;
@@ -1130,6 +1177,7 @@ private:
         Save(context, StatisticsUpdateRequests_);
         TableCollocationMap_.SaveValues(context);
         Save(context, Queues_);
+        Save(context, Consumers_);
     }
 };
 
@@ -1307,6 +1355,21 @@ void TTableManager::RegisterQueue(TTableNode* node)
 void TTableManager::UnregisterQueue(TTableNode* node)
 {
     Impl_->UnregisterQueue(node);
+}
+
+const THashSet<TTableNode*>& TTableManager::GetConsumers() const
+{
+    return Impl_->GetConsumers();
+}
+
+void TTableManager::RegisterConsumer(TTableNode* node)
+{
+    Impl_->RegisterConsumer(node);
+}
+
+void TTableManager::UnregisterConsumer(TTableNode* node)
+{
+    Impl_->UnregisterConsumer(node);
 }
 
 TFuture<NYson::TYsonString> TTableManager::GetQueueAgentObjectRevisionsAsync() const

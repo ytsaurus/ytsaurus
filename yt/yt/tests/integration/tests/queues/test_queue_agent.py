@@ -419,6 +419,49 @@ class TestMasterIntegration(YTEnvSetup):
         for attribute in ("queue_status", "queue_partitions"):
             assert full_attributes[attribute] == YsonEntity()
 
+    @authors("achulkov2")
+    def test_consumer_attributes(self):
+        self._prepare_tables()
+
+        create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        sync_mount_table("//tmp/q")
+        # TODO: This table should have a correct schema at some point.
+        create("table",
+               "//tmp/c",
+               attributes={"dynamic": True,
+                           "schema": [{"name": "data", "type": "string", "sort_order": "ascending"},
+                                      {"name": "test", "type": "string"}]})
+        with raises_yt_error('Builtin attribute "vital_queue_consumer" cannot be set'):
+            set("//tmp/c/@vital_queue_consumer", True)
+        set("//tmp/c/@treat_as_queue_consumer", True)
+        set("//tmp/c/@vital_queue_consumer", True)
+        sync_mount_table("//tmp/c")
+
+        assert get("//tmp/c/@queue_agent_stage") == "production"
+
+        # Before consumer is registered, queue agent backed attributes would throw resolution error.
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
+            get("//tmp/c/@queue_consumer_status")
+
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
+                      "target_cluster": "primary", "target_path": "//tmp/q"}])
+        insert_rows("//sys/queue_agents/queues",
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
+                      "dynamic": True, "sorted": False}],
+                    update=True)
+
+        # Wait for consumer status to become available.
+        # TODO: This will change into something reasonable in the future.
+        wait(lambda: get("//tmp/c/@queue_consumer_status/partition_count") == 0, ignore_exceptions=True)
+
+        # TODO: Check the queue_consumer_partitions attribute once the corresponding queue_controller code is written.
+
+        # Check that consumer attributes are opaque.
+        full_attributes = get("//tmp/c/@")
+        for attribute in ("queue_consumer_status", "queue_consumer_partitions"):
+            assert full_attributes[attribute] == YsonEntity()
+
     @authors("max42")
     def test_queue_agent_stage(self):
         self._prepare_tables()
@@ -539,7 +582,9 @@ class TestCypressSynchronizer(YTEnvSetup):
     def _set_account_tablet_count_limit(self, account, value):
         set("//sys/accounts/{0}/@resource_limits/tablet_count".format(account), value)
 
+    LAST_REVISIONS = dict()
     QUEUE_REGISTRY = []
+    CONSUMER_REGISTRY = []
 
     def _create_and_register_queue(self, path):
         create("table",
@@ -550,28 +595,32 @@ class TestCypressSynchronizer(YTEnvSetup):
         self.QUEUE_REGISTRY.append(path)
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+        self.LAST_REVISIONS[path] = 1
 
     def _drop_queues(self):
         for queue in self.QUEUE_REGISTRY:
             remove(queue, force=True)
+            del self.LAST_REVISIONS[queue]
         self.QUEUE_REGISTRY.clear()
-
-    CONSUMER_REGISTRY = []
 
     def _create_and_register_consumer(self, path):
         create("table",
                path,
                attributes={"dynamic": True,
                            "schema": [{"name": "useless", "type": "string", "sort_order": "ascending"},
-                                      {"name": "also_useless", "type": "string"}]},
+                                      {"name": "also_useless", "type": "string"}],
+                           "treat_as_queue_consumer": True},
                force=True)
         self.CONSUMER_REGISTRY.append(path)
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+        assert path not in self.LAST_REVISIONS
+        self.LAST_REVISIONS[path] = 1
 
     def _drop_consumers(self):
         for consumer in self.CONSUMER_REGISTRY:
             remove(consumer, force=True)
+            del self.LAST_REVISIONS[consumer]
         self.CONSUMER_REGISTRY.clear()
 
     def _check_queue_count_and_column_counts(self, queues, size):
@@ -598,10 +647,19 @@ class TestCypressSynchronizer(YTEnvSetup):
             self._check_consumer_count_and_column_counts(consumers, expected_count)
         for consumer in consumers:
             assert consumer["revision"] == get(consumer["path"] + "/@revision")
+            assert consumer["treat_as_consumer"] == get(consumer["path"] + "/@treat_as_queue_consumer")
             # Enclosing into a list is a workaround for storing YSON with top-level attributes.
             assert consumer["schema"] == [get(consumer["path"] + "/@schema")]
-            assert consumer["vital"] == get(consumer["path"] + "/@", attributes=["vital"]).get("vital", False)
+            assert consumer["vital"] == get(
+                consumer["path"] + "/@", attributes=["vital_queue_consumer"]).get("vital_queue_consumer", False)
         return consumers
+
+    def _assert_constant_revision(self, row):
+        assert self.LAST_REVISIONS[row["path"]] == row["row_revision"]
+
+    def _assert_increased_revision(self, row):
+        assert self.LAST_REVISIONS[row["path"]] < row["row_revision"]
+        self.LAST_REVISIONS[row["path"]] = row["row_revision"]
 
     @authors("achulkov2")
     def test_basic(self):
@@ -621,9 +679,9 @@ class TestCypressSynchronizer(YTEnvSetup):
         queues = self._get_queues_and_check_invariants(expected_count=1)
         consumers = self._get_consumers_and_check_invariants(expected_count=1)
         for queue in queues:
-            assert queue["row_revision"] == 2
+            self._assert_increased_revision(queue)
         for consumer in consumers:
-            assert consumer["row_revision"] == 2
+            self._assert_increased_revision(consumer)
 
         self._create_and_register_queue(q2)
         self._create_and_register_consumer(c2)
@@ -631,24 +689,33 @@ class TestCypressSynchronizer(YTEnvSetup):
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
         consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        set(c2 + "/@treat_as_queue_consumer", False)
         for queue in queues:
-            assert queue["row_revision"] == 2
+            if queue["path"] == q1:
+                self._assert_constant_revision(queue)
+            elif queue["path"] == q2:
+                self._assert_increased_revision(queue)
         for consumer in consumers:
-            assert consumer["row_revision"] == 2
+            if consumer["path"] == c1:
+                self._assert_constant_revision(consumer)
+            elif consumer["path"] == c2:
+                self._assert_increased_revision(consumer)
+                assert not consumer["vital"]
 
+        set(c2 + "/@treat_as_queue_consumer", True)
         set(c2 + "/@target", "a_cluster:a_path")
-        set(c2 + "/@vital", False)
+        set(c2 + "/@vital_queue_consumer", False)
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
         consumers = self._get_consumers_and_check_invariants(expected_count=2)
         for queue in queues:
-            assert queue["row_revision"] == 2
+            self._assert_constant_revision(queue)
         for consumer in consumers:
             if consumer["path"] == c1:
-                assert consumer["row_revision"] == 2
+                self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
-                assert consumer["row_revision"] == 3
+                self._assert_increased_revision(consumer)
                 assert consumer["target_cluster"] == "a_cluster"
                 assert consumer["target_path"] == "a_path"
                 assert not consumer["vital"]
@@ -658,18 +725,18 @@ class TestCypressSynchronizer(YTEnvSetup):
 
         sync_mount_table("//sys/queue_agents/queues")
         set(c2 + "/@target", "another_cluster:another_path")
-        set(c2 + "/@vital", True)
+        set(c2 + "/@vital_queue_consumer", True)
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
         consumers = self._get_consumers_and_check_invariants(expected_count=2)
         for queue in queues:
-            assert queue["row_revision"] == 2
+            self._assert_constant_revision(queue)
         for consumer in consumers:
             if consumer["path"] == c1:
-                assert consumer["row_revision"] == 2
+                self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
-                assert consumer["row_revision"] == 4
+                self._assert_increased_revision(consumer)
                 assert consumer["target_cluster"] == "another_cluster"
                 assert consumer["target_path"] == "another_path"
                 assert consumer["vital"]

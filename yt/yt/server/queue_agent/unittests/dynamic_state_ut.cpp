@@ -65,11 +65,11 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
 TEST(TTableRowTest, ConsumerBoilerplateSanity)
 {
     CheckConversions<TConsumerTableRow>(
-        {.Cluster ="mamma", .Path ="mia"},
+        {.Cluster = "mamma", .Path = "mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{revision=43u; type=table; target=\"cluster:path\"; treat_as_consumer=%true; "
-            "schema=[{name=a; type=int64; sort_order=ascending}]; vital=%true}")),
+            "{revision=43u; type=table; target=\"cluster:path\"; treat_as_queue_consumer=%true; "
+            "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,

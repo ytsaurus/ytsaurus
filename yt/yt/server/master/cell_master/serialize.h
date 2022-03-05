@@ -105,6 +105,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletBalancerUser)                                           (1937))  // alexelexa
     ((ReplicationLogTablesTrimming)                                 (1938))  // savrus
     ((RecomputeTabletCellBundleRefCounters)                         (1939))  // gritukan
+    ((ConsumerAttributes)                                           (1940))  // achulkov2
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.
