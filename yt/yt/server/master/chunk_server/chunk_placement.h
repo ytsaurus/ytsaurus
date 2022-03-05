@@ -92,10 +92,16 @@ public:
         const TConsistentChunkPlacement* consistentPlacement,
         NCellMaster::TBootstrap* bootstrap);
 
+    void OnDynamicConfigChanged();
+
     void OnNodeRegistered(TNode* node);
     void OnNodeUpdated(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeDisposed(TNode* node);
+
+    void OnDataCenterChanged(NNodeTrackerServer::TDataCenter* dataCenter);
+
+    bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter) const;
 
     TNodeList AllocateWriteTargets(
         TMedium* medium,
@@ -135,11 +141,24 @@ public:
     int GetMaxReplicasPerRack(
         const TMedium* medium,
         const TChunk* chunk,
-        std::optional<int> replicationFactorOverride = std::nullopt);
+        std::optional<int> replicationFactorOverride = std::nullopt) const;
     int GetMaxReplicasPerRack(
         int mediumIndex,
         const TChunk* chunk,
-        std::optional<int> replicationFactorOverride = std::nullopt);
+        std::optional<int> replicationFactorOverride = std::nullopt) const;
+
+    int GetMaxReplicasPerDataCenter(
+        const TMedium* medium,
+        const TChunk* chunk,
+        const NNodeTrackerServer::TDataCenter* dataCenter,
+        std::optional<int> replicationFactorOverride = std::nullopt) const;
+    int GetMaxReplicasPerDataCenter(
+        int mediumIndex,
+        const TChunk* chunk,
+        const NNodeTrackerServer::TDataCenter* dataCenter,
+        std::optional<int> replicationFactorOverride = std::nullopt) const;
+
+    const std::vector<TError>& GetAlerts() const;
 
 private:
     class TTargetCollector;
@@ -158,6 +177,13 @@ private:
     TFillFactorToNodeMaps MediumToFillFactorToNode_;
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
     TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
+
+    bool IsDataCenterAware_ = false;
+
+    THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;
+    THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
+    THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
+    std::vector<TError> DataCenterSetErrors_;
 
     void RegisterNode(TNode* node);
     void UnregisterNode(TNode* node);
@@ -198,7 +224,11 @@ private:
         TMedium* medium);
 
     bool IsValidWriteTargetToInsert(TMedium* medium, TNode* node);
-    bool IsValidWriteTargetToAllocate(TNode* node, TTargetCollector* collector, bool enableRackAwareness);
+    bool IsValidWriteTargetToAllocate(
+        TNode* node,
+        TTargetCollector* collector,
+        bool enableRackAwareness,
+        bool enableDataCenterAwareness);
     bool IsValidWriteTargetCore(TNode* node);
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,
@@ -206,7 +236,11 @@ private:
     bool IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium);
 
     bool IsValidBalancingTargetToInsert(TMedium* medium, TNode* node);
-    bool IsValidBalancingTargetToAllocate(TNode* node, TTargetCollector* collector, bool enableRackAwareness);
+    bool IsValidBalancingTargetToAllocate(
+        TNode* node,
+        TTargetCollector* collector,
+        bool enableRackAwareness,
+        bool enableDataCenterAwareness);
     bool IsValidBalancingTargetCore(TNode* node);
 
     bool IsValidRemovalTarget(TNode* node);
@@ -221,6 +255,8 @@ private:
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     bool IsConsistentChunkPlacementEnabled() const;
+
+    void RecomputeDataCenterSets();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)

@@ -1,9 +1,10 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, ls, get, set, remove, create_data_center, create_rack,
-    remove_data_center, write_file,
-    read_journal, write_journal, wait_until_sealed, get_nodes, get_racks, get_data_centers)
+    authors, create, ls, get, set, exists, remove, create_data_center, create_rack,
+    remove_data_center, write_file, wait,
+    read_journal, write_journal, write_table, wait_until_sealed,
+    get_nodes, get_racks, get_data_centers, get_singular_chunk_id)
 
 from yt.environment.helpers import assert_items_equal
 
@@ -11,7 +12,6 @@ from yt.common import YtError
 
 import pytest
 
-import time
 import builtins
 
 ##################################################################
@@ -27,17 +27,18 @@ class TestDataCenters(YTEnvSetup):
     def _get_replica_nodes(self, chunk_id):
         return list(str(x) for x in get("#" + chunk_id + "/@stored_replicas"))
 
-    def _wait_for_safely_placed(self, chunk_id, replica_count):
-        ok = False
-        for i in range(60):
-            if (
-                not get("#" + chunk_id + "/@replication_status/unsafely_placed")
-                and len(self._get_replica_nodes(chunk_id)) == replica_count
-            ):
-                ok = True
-                break
-            time.sleep(1.0)
-        assert ok
+    def _get_replica_racks(self, chunk_id):
+        return [get("//sys/cluster_nodes/{}/@rack".format(n)) for n in self._get_replica_nodes(chunk_id)]
+
+    def _get_replica_data_centers(self, chunk_id):
+        return [get("//sys/cluster_nodes/{}/@data_center".format(n)) for n in self._get_replica_nodes(chunk_id)]
+
+    def _wait_for_safely_placed(self, chunk_id):
+        def check():
+            stat = get("#{0}/@replication_status/default".format(chunk_id))
+            return not stat["unsafely_placed"] and not stat["overreplicated"]
+
+        wait(lambda: check())
 
     def _set_rack(self, node, rack):
         set("//sys/cluster_nodes/" + node + "/@rack", rack)
@@ -138,6 +139,46 @@ class TestDataCenters(YTEnvSetup):
             dc_to_counter.setdefault(dc, 0)
             dc_to_counter[rack] += 1
         return max(dc_to_counter.values())
+
+    def _create_chunk(self, replication_factor=None, erasure_codec=None):
+        if exists("//tmp/t"):
+            remove("//tmp/t")
+        if replication_factor:
+            create("table", "//tmp/t", attributes={"replication_factor": replication_factor})
+        else:
+            create("table", "//tmp/t", attributes={"erasure_codec": erasure_codec})
+        write_table("//tmp/t", [{"x": 42}])
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        if replication_factor:
+            wait(lambda: len(self._get_replica_nodes(chunk_id)) == replication_factor)
+        return chunk_id
+
+    def _get_rack_counters(self, chunk_id):
+        counters = {}
+        for rack in self._get_replica_racks(chunk_id):
+            if rack in counters:
+                counters[rack] += 1
+            else:
+                counters[rack] = 1
+        return list(counters.values())
+
+    def _get_data_center_counters(self, chunk_id):
+        counters = {}
+        for data_center in self._get_replica_data_centers(chunk_id):
+            if data_center in counters:
+                counters[data_center] += 1
+            else:
+                counters[data_center] = 1
+        return list(counters.values())
+
+    def _init_data_center_aware_replicator(self):
+        self._init_n_racks(10)
+        self._init_n_data_centers(3)
+        set("//sys/@config/chunk_manager/use_data_center_aware_replicator", True)
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d0", "d1", "d2"])
+
+    def _ban_data_centers(self, data_centers):
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", data_centers)
 
     @authors("shakurov")
     def test_create(self):
@@ -294,6 +335,105 @@ class TestDataCenters(YTEnvSetup):
         with pytest.raises(YtError):
             create_data_center("too_many")
 
+    @authors("gritukan")
+    def test_replica_uniformity(self):
+        self._init_data_center_aware_replicator()
+
+        chunk_id = self._create_chunk(replication_factor=1)
+        assert sorted(self._get_data_center_counters(chunk_id)) == [1]
+
+        chunk_id = self._create_chunk(replication_factor=3)
+        assert sorted(self._get_data_center_counters(chunk_id)) == [1, 1, 1]
+
+        chunk_id = self._create_chunk(replication_factor=5)
+        assert sorted(self._get_data_center_counters(chunk_id)) == [1, 2, 2]
+
+        chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
+        assert sorted(self._get_data_center_counters(chunk_id)) == [2, 2, 2]
+
+        chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_6_3")
+        assert sorted(self._get_data_center_counters(chunk_id)) == [3, 3, 3]
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_ban_data_center(self, erasure):
+        self._init_data_center_aware_replicator()
+
+        def check_no_ban(chunk_id):
+            expected_counters = [2, 2, 2] if erasure else [1, 1, 1]
+            return sorted(self._get_data_center_counters(chunk_id)) == expected_counters
+
+        def check_ban(chunk_id, data_center):
+            expected_counters = [3, 3] if erasure else [1, 2]
+            if sorted(self._get_data_center_counters(chunk_id)) != expected_counters:
+                return False
+            return data_center not in self._get_replica_data_centers(chunk_id)
+
+        if erasure:
+            chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
+        else:
+            chunk_id = self._create_chunk(replication_factor=3)
+        assert check_no_ban(chunk_id)
+
+        self._ban_data_centers(["d0"])
+        wait(lambda: check_ban(chunk_id, "d0"))
+
+        self._ban_data_centers([])
+        wait(lambda: check_no_ban(chunk_id))
+
+        self._ban_data_centers(["d2"])
+        wait(lambda: check_ban(chunk_id, "d2"))
+
+        if erasure:
+            chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
+        else:
+            chunk_id = self._create_chunk(replication_factor=3)
+        assert check_ban(chunk_id, "d2")
+
+    @authors("gritukan")
+    def test_ban_too_many_data_centers(self):
+        self._init_data_center_aware_replicator()
+
+        self._ban_data_centers(["d0", "d1"])
+        chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
+        assert self._get_replica_data_centers(chunk_id) == ["d2"] * 6
+
+        wait(lambda: chunk_id in ls("//sys/unsafely_placed_chunks"))
+
+    @authors("gritukan")
+    def test_ban_all_data_centers(self):
+        self._init_data_center_aware_replicator()
+
+        self._ban_data_centers(["d0", "d1", "d2"])
+        with pytest.raises(YtError):
+            self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
+
+    @authors("gritukan")
+    def test_invalid_data_center_sets(self):
+        self._init_data_center_aware_replicator()
+        set("//sys/@config/cell_master/alert_update_period", 100)
+
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                if msg in str(alert):
+                    return True
+            return False
+
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d"])
+        wait(lambda: has_alert("Storage data center \"d\" is unknown"))
+
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d0", "d1", "d2"])
+        wait(lambda: not has_alert("Storage data center \"d\" is unknown"))
+
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d"])
+        wait(lambda: has_alert("Banned data center \"d\" is unknown"))
+
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", [])
+        wait(lambda: not has_alert("Banned data center \"d\" is unknown"))
+
+        set("//sys/@config/chunk_manager/storage_data_centers", ["d1", "d2"])
+        set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d0"])
+        wait(lambda: has_alert("Banned data center \"d0\" is not a storage data center"))
 
 ##################################################################
 

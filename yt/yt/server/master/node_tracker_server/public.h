@@ -68,9 +68,10 @@ constexpr int NullRackIndex = 0;
 using TRackSet = std::bitset<RackIndexBound>;
 
 constexpr int MaxDataCenterCount = 16;
+// NB: +1 is because of null data center.
+constexpr int DataCenterIndexBound = MaxDataCenterCount + 1;
 constexpr int NullDataCenterIndex = 0;
-// NB: +1 is because of null dataCenter.
-using TDataCenterSet = std::bitset<MaxDataCenterCount + 1>;
+using TDataCenterSet = std::bitset<DataCenterIndexBound>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -229,6 +229,8 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
 
+    void ScheduleGlobalChunkRefresh();
+
     TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
     //! Computes quorum info for a given journal chunk

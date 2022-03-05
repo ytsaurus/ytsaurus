@@ -408,6 +408,10 @@ public:
         nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeDecommissionChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND(&TImpl::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
 
+        nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterChanged, MakeWeak(this)));
+
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
         dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
@@ -2452,6 +2456,10 @@ private:
         if (node->ReportedDataNodeHeartbeat()) {
             ScheduleNodeRefresh(node);
         }
+
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnNodeUpdated(node);
+        }
     }
 
     void OnNodeRackChanged(TNode* node, TRack* /*oldRack*/)
@@ -2462,6 +2470,13 @@ private:
     void OnNodeDataCenterChanged(TNode* node, TDataCenter* /*oldDataCenter*/)
     {
         OnNodeChanged(node);
+    }
+
+    void OnDataCenterChanged(TDataCenter* dataCenter)
+    {
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnDataCenterChanged(dataCenter);
+        }
     }
 
     void OnMaybeNodeWriteTargetValidityChanged(TNode* node, EWriteTargetValidityChange change)
@@ -4757,6 +4772,11 @@ private:
             alerts.push_back(TError("Job registry throttler is overdrafted"));
         }
 
+        if (ChunkPlacement_) {
+            auto chunkPlacementAlerts = ChunkPlacement_->GetAlerts();
+            alerts.insert(alerts.end(), chunkPlacementAlerts.begin(), chunkPlacementAlerts.end());
+        }
+
         return alerts;
     }
 
@@ -4790,6 +4810,10 @@ private:
                     node->IncrementalHeartbeatCounters().reset();
                 }
             }
+        }
+
+        if (ChunkPlacement_) {
+            ChunkPlacement_->OnDynamicConfigChanged();
         }
     }
 
@@ -5185,6 +5209,11 @@ bool TChunkManager::IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const
 int TChunkManager::GetTotalReplicaCount()
 {
     return Impl_->GetTotalReplicaCount();
+}
+
+void TChunkManager::ScheduleGlobalChunkRefresh()
+{
+    Impl_->ScheduleGlobalChunkRefresh();
 }
 
 TMediumMap<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)

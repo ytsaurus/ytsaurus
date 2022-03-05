@@ -448,6 +448,18 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
     RegisterParameter("testing", Testing)
         .DefaultNew();
 
+    RegisterParameter("use_data_center_aware_replicator", UseDataCenterAwareReplicator)
+        .Default(false)
+        .DontSerializeDefault();
+
+    RegisterParameter("storage_data_centers", StorageDataCenters)
+        .Default()
+        .DontSerializeDefault();
+
+    RegisterParameter("banned_storage_data_centers", BannedStorageDataCenters)
+        .Default()
+        .DontSerializeDefault();
+
     RegisterPreprocessor([&] {
         JobThrottler->Limit = 10000;
     });

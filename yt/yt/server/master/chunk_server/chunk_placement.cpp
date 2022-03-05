@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/node_tracker_server/data_center.h>
 #include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -38,12 +39,17 @@ class TChunkPlacement::TTargetCollector
 {
 public:
     TTargetCollector(
+        const TChunkPlacement* chunkPlacement,
         const TMedium* medium,
         const TChunk* chunk,
-        int maxReplicasPerRack,
+        std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
         const TNodeList* forbiddenNodes)
-        : MaxReplicasPerRack_(maxReplicasPerRack)
+        : ChunkPlacement_(chunkPlacement)
+        , Medium_(medium)
+        , Chunk_(chunk)
+        , MaxReplicasPerRack_(ChunkPlacement_->GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride))
+        , ReplicationFactorOverride_(replicationFactorOverride)
         , AllowMultipleReplicasPerNode_(allowMultipleReplicasPerNode)
     {
         if (forbiddenNodes) {
@@ -59,6 +65,7 @@ public:
                 }
                 if (!replica.GetPtr()->GetDecommissioned()) {
                     IncreaseRackUsage(node);
+                    IncreaseDataCenterUsage(node);
                 }
             }
         }
@@ -66,17 +73,21 @@ public:
         std::sort(ForbiddenNodes_.begin(), ForbiddenNodes_.end());
     }
 
-    bool CheckNode(TNode* node, bool enableRackAwareness) const
+    bool CheckNode(
+        TNode* node,
+        bool enableRackAwareness,
+        bool enableDataCenterAwareness) const
     {
         if (std::find(ForbiddenNodes_.begin(), ForbiddenNodes_.end(), node) != ForbiddenNodes_.end()) {
             return false;
         }
 
-        if (enableRackAwareness) {
-            const auto* rack = node->GetRack();
-            if (rack && PerRackCounters_[rack->GetIndex()] >= MaxReplicasPerRack_) {
-                return false;
-            }
+        if (enableRackAwareness && !CheckRackUsage(node)) {
+            return false;
+        }
+
+        if (enableDataCenterAwareness && !CheckDataCenterUsage(node)) {
+            return false;
         }
 
         return true;
@@ -85,6 +96,7 @@ public:
     void AddNode(TNode* node)
     {
         IncreaseRackUsage(node);
+        IncreaseDataCenterUsage(node);
         AddedNodes_.push_back(node);
         if (!AllowMultipleReplicasPerNode_) {
             ForbiddenNodes_.push_back(node);
@@ -97,20 +109,74 @@ public:
     }
 
 private:
+    const TChunkPlacement* const ChunkPlacement_;
+
+    const TMedium* const Medium_;
+    const TChunk* const Chunk_;
+
     const int MaxReplicasPerRack_;
+    const std::optional<int> ReplicationFactorOverride_;
     const bool AllowMultipleReplicasPerNode_;
 
     std::array<i8, RackIndexBound> PerRackCounters_{};
+
+    // TODO(gritukan): YT-16557
+    TCompactFlatMap<const TDataCenter*, i8, 4> PerDataCenterCounters_;
+
     TNodeList ForbiddenNodes_;
     TNodeList AddedNodes_;
 
-private:
     void IncreaseRackUsage(TNode* node)
     {
         const auto* rack = node->GetRack();
         if (rack) {
             ++PerRackCounters_[rack->GetIndex()];
         }
+    }
+
+    bool CheckRackUsage(TNode* node) const
+    {
+        if (const auto* rack = node->GetRack()) {
+            auto usage = PerRackCounters_[rack->GetIndex()];
+            return usage < MaxReplicasPerRack_;
+        } else {
+            return true;
+        }
+    }
+
+    void IncreaseDataCenterUsage(TNode* node)
+    {
+        if (const auto* dataCenter = node->GetDataCenter()) {
+            auto counterIt = PerDataCenterCounters_.find(dataCenter);
+            if (counterIt == PerDataCenterCounters_.end()) {
+                PerDataCenterCounters_.emplace(dataCenter, 1);
+            } else {
+                ++counterIt->second;
+            }
+        }
+    }
+
+    bool CheckDataCenterUsage(TNode* node) const
+    {
+        auto* dataCenter = node->GetDataCenter();
+        YT_ASSERT(dataCenter);
+        auto counterIt = PerDataCenterCounters_.find(dataCenter);
+        if (counterIt == PerDataCenterCounters_.end()) {
+            return true;
+        }
+
+        auto counter = counterIt->second;
+        auto maxReplicasPerDataCenter = GetMaxReplicasPerDataCenter(dataCenter);
+        return counter < maxReplicasPerDataCenter;
+    }
+
+    int GetMaxReplicasPerDataCenter(TDataCenter* dataCenter) const
+    {
+        return ChunkPlacement_->GetMaxReplicasPerDataCenter(
+            Medium_,
+            Chunk_,
+            dataCenter,
+            ReplicationFactorOverride_);
     }
 };
 
@@ -130,6 +196,16 @@ TChunkPlacement::TChunkPlacement(
     for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
         OnNodeUpdated(node);
     }
+
+    // Just in case.
+    OnDynamicConfigChanged();
+}
+
+void TChunkPlacement::OnDynamicConfigChanged()
+{
+    IsDataCenterAware_ = GetDynamicConfig()->UseDataCenterAwareReplicator;
+
+    RecomputeDataCenterSets();
 }
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
@@ -176,6 +252,16 @@ void TChunkPlacement::OnNodeDisposed(TNode* node)
     }
 }
 
+void TChunkPlacement::OnDataCenterChanged(TDataCenter* /*dataCenter*/)
+{
+    RecomputeDataCenterSets();
+}
+
+bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter) const
+{
+    return AliveStorageDataCenters_.contains(dataCenter);
+}
+
 TNodeList TChunkPlacement::AllocateWriteTargets(
     TMedium* medium,
     TChunk* chunk,
@@ -189,10 +275,10 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     auto targetNodes = GetWriteTargets(
         medium,
         chunk,
-        /* replicaIndexes */ {},
+        /*replicaIndexes*/ {},
         desiredCount,
         minCount,
-        sessionType == ESessionType::Replication,
+        /*forceRackAwareness*/ sessionType == ESessionType::Replication,
         replicationFactorOverride,
         forbiddenNodes,
         preferredHostName);
@@ -342,16 +428,21 @@ TNodeList TChunkPlacement::GetWriteTargets(
         return TNodeList();
     }
 
-    int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
     TTargetCollector collector(
+        this,
         medium,
         chunk,
-        maxReplicasPerRack,
+        replicationFactorOverride,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
         forbiddenNodes);
 
-    auto tryAdd = [&] (TNode* node, bool enableRackAwareness) {
-        if (!IsValidWriteTargetToAllocate(node, &collector, enableRackAwareness)) {
+    auto tryAdd = [&] (TNode* node, bool enableRackAwareness, bool enableDataCenterAwareness) {
+        if (!IsValidWriteTargetToAllocate(
+            node,
+            &collector,
+            enableRackAwareness,
+            enableDataCenterAwareness))
+        {
             return false;
         }
         collector.AddNode(node);
@@ -362,7 +453,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
         return std::ssize(collector.GetAddedNodes()) == desiredCount;
     };
 
-    auto tryAddAll = [&] (bool enableRackAwareness) {
+    auto tryAddAll = [&] (bool enableRackAwareness, bool enableDataCenterAwareness) {
         YT_VERIFY(!hasEnoughTargets());
 
         bool hasProgress = false;
@@ -371,22 +462,26 @@ TNodeList TChunkPlacement::GetWriteTargets(
         }
         for ( ; !hasEnoughTargets() && LoadFactorToNodeIterator_.IsValid(); ++LoadFactorToNodeIterator_) {
             auto* node = LoadFactorToNodeIterator_->second;
-            hasProgress |= tryAdd(node, enableRackAwareness);
+            hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
         }
         return hasProgress;
     };
 
     if (preferredNode) {
-        tryAdd(preferredNode, true);
+        tryAdd(
+            preferredNode,
+            /*enableRackAwareness*/ true,
+            /*enableDataCenterAwareness*/ IsDataCenterAware_);
     }
 
     if (!hasEnoughTargets()) {
-        tryAddAll(true);
+        tryAddAll(/*enableRackAwareness*/ true, /*enableDataCenterAwareness*/ IsDataCenterAware_);
     }
 
     if (!forceRackAwareness) {
         while (!hasEnoughTargets()) {
-            if (!tryAddAll(false)) {
+            // Disabling rack awareness also disables data center awareness.
+            if (!tryAddAll(/*enableRackAwareness*/ false, /*enableDataCenterAwareness*/ false)) {
                 break;
             }
             if (!chunk->IsErasure() || !Config_->AllowMultipleErasurePartsPerNode) {
@@ -627,26 +722,31 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     auto* chunk = chunkWithIndexes.GetPtr();
     auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
     auto mediumIndex = chunkWithIndexes.GetMediumIndex();
-    int maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
+    auto maxReplicasPerRack = GetMaxReplicasPerRack(mediumIndex, chunk);
 
     std::array<i8, RackIndexBound> perRackCounters{};
+    // TODO(gritukan): YT-16557.
+    TCompactFlatMap<const TDataCenter*, i8, 4> perDataCenterCounters;
+
     for (auto replica : chunk->StoredReplicas()) {
         if (replica.GetMediumIndex() != mediumIndex) {
             continue;
         }
 
-        const auto* rack = replica.GetPtr()->GetRack();
-        if (!rack) {
-            continue;
+        if (const auto* rack = replica.GetPtr()->GetRack()) {
+            ++perRackCounters[rack->GetIndex()];
+            if (const auto* dataCenter = rack->GetDataCenter()) {
+                ++perDataCenterCounters[dataCenter];
+            }
         }
-
-        ++perRackCounters[rack->GetIndex()];
     }
 
     // An arbitrary node that violates consistent placement requirements.
     TNode* consistentPlacementWinner = nullptr;
     // An arbitrary node from a rack with too many replicas.
     TNode* rackWinner = nullptr;
+    // An arbitrary node from a data center with too many replicas.
+    TNode* dataCenterWinner = nullptr;
     // A node with the largest fill factor.
     TNode* fillFactorWinner = nullptr;
 
@@ -695,9 +795,17 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
             consistentPlacementWinner = node;
         }
 
-        const auto* rack = node->GetRack();
-        if (rack && perRackCounters[rack->GetIndex()] > maxReplicasPerRack) {
-            rackWinner = node;
+        if (const auto* rack = node->GetRack()) {
+            if (perRackCounters[rack->GetIndex()] > maxReplicasPerRack) {
+                rackWinner = node;
+            }
+
+            if (const auto* dataCenter = rack->GetDataCenter()) {
+                auto maxReplicasPerDataCenter = GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+                if (perDataCenterCounters[dataCenter] > maxReplicasPerDataCenter) {
+                    dataCenterWinner = node;
+                }
+            }
         }
 
         auto nodeFillFactor = node->GetFillFactor(mediumIndex);
@@ -714,6 +822,8 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
         return consistentPlacementWinner;
     } else if (rackWinner) {
         return rackWinner;
+    } else if (dataCenterWinner) {
+        return dataCenterWinner;
     } else {
         return fillFactorWinner;
     }
@@ -755,11 +865,11 @@ TNode* TChunkPlacement::GetBalancingTarget(
     TChunk* chunk,
     double maxFillFactor)
 {
-    int maxReplicasPerRack = GetMaxReplicasPerRack(medium, chunk, std::nullopt);
     TTargetCollector collector(
+        this,
         medium,
         chunk,
-        maxReplicasPerRack,
+        /*replicationFactorOverride*/ std::nullopt,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
         nullptr);
 
@@ -771,7 +881,12 @@ TNode* TChunkPlacement::GetBalancingTarget(
         if (*nodeFillFactor > maxFillFactor) {
             break;
         }
-        if (IsValidBalancingTargetToAllocate(node, &collector, true)) {
+        if (IsValidBalancingTargetToAllocate(
+            node,
+            &collector,
+            /*enableRackAwareness*/ true,
+            /*enableDataCenterAwareness*/ IsDataCenterAware_))
+        {
             return node;
         }
     }
@@ -810,14 +925,20 @@ bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium
 bool TChunkPlacement::IsValidWriteTargetToAllocate(
     TNode* node,
     TTargetCollector* collector,
-    bool enableRackAwareness)
+    bool enableRackAwareness,
+    bool enableDataCenterAwareness)
 {
     // Check node first.
     if (!IsValidWriteTargetCore(node)) {
         return false;
     }
 
-    if (!collector->CheckNode(node, enableRackAwareness)) {
+    // If replicator is data center aware, unaware nodes are not allowed.
+    if (enableDataCenterAwareness && !node->GetDataCenter()) {
+        return false;
+    }
+
+    if (!collector->CheckNode(node, enableRackAwareness, enableDataCenterAwareness)) {
         // The collector does not like this node.
         return false;
     }
@@ -837,6 +958,13 @@ bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
         return false;
     }
 
+    if (IsDataCenterAware_) {
+        const auto* dataCenter = node->GetDataCenter();
+        if (!dataCenter || !IsDataCenterFeasible(dataCenter)) {
+            return false;
+        }
+    }
+
     // Seems OK :)
     return true;
 }
@@ -854,7 +982,8 @@ bool TChunkPlacement::IsValidBalancingTargetToInsert(TMedium* medium, TNode* nod
 bool TChunkPlacement::IsValidBalancingTargetToAllocate(
     TNode* node,
     TTargetCollector* collector,
-    bool enableRackAwareness)
+    bool enableRackAwareness,
+    bool enableDataCenterAwareness)
 {
     // Check node first.
     if (!IsValidBalancingTargetCore(node)) {
@@ -862,7 +991,12 @@ bool TChunkPlacement::IsValidBalancingTargetToAllocate(
     }
 
     // Balancing implies write, after all.
-    if (!IsValidWriteTargetToAllocate(node, collector, enableRackAwareness)) {
+    if (!IsValidWriteTargetToAllocate(
+        node,
+        collector,
+        enableRackAwareness,
+        enableDataCenterAwareness))
+    {
         return false;
     }
 
@@ -953,9 +1087,9 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 int TChunkPlacement::GetMaxReplicasPerRack(
     const TMedium* medium,
     const TChunk* chunk,
-    std::optional<int> replicationFactorOverride)
+    std::optional<int> replicationFactorOverride) const
 {
-    auto result = chunk->GetMaxReplicasPerRack(
+    auto result = chunk->GetMaxReplicasPerFailureDomain(
         medium->GetIndex(),
         replicationFactorOverride,
         Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
@@ -963,11 +1097,20 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     result = std::min(result, config->MaxReplicasPerRack);
 
     switch (chunk->GetType()) {
-        case EObjectType::Chunk:                result = std::min(result, config->MaxRegularReplicasPerRack); break;
-        case EObjectType::ErasureChunk:         result = std::min(result, config->MaxErasureReplicasPerRack); break;
-        case EObjectType::JournalChunk:         result = std::min(result, config->MaxJournalReplicasPerRack); break;
-        case EObjectType::ErasureJournalChunk:  result = std::min({result, config->MaxJournalReplicasPerRack, config->MaxErasureReplicasPerRack}); break;
-        default:                                YT_ABORT();
+        case EObjectType::Chunk:
+            result = std::min(result, config->MaxRegularReplicasPerRack);
+            break;
+        case EObjectType::ErasureChunk:
+            result = std::min(result, config->MaxErasureReplicasPerRack);
+            break;
+        case EObjectType::JournalChunk:
+            result = std::min(result, config->MaxJournalReplicasPerRack);
+            break;
+        case EObjectType::ErasureJournalChunk:
+            result = std::min({result, config->MaxJournalReplicasPerRack, config->MaxErasureReplicasPerRack});
+            break;
+        default:
+            YT_ABORT();
     }
     return result;
 }
@@ -975,11 +1118,59 @@ int TChunkPlacement::GetMaxReplicasPerRack(
 int TChunkPlacement::GetMaxReplicasPerRack(
     int mediumIndex,
     const TChunk* chunk,
-    std::optional<int> replicationFactorOverride)
+    std::optional<int> replicationFactorOverride) const
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
     return GetMaxReplicasPerRack(medium, chunk, replicationFactorOverride);
+}
+
+int TChunkPlacement::GetMaxReplicasPerDataCenter(
+    const TMedium* medium,
+    const TChunk* chunk,
+    const TDataCenter* dataCenter,
+    std::optional<int> replicationFactorOverride) const
+{
+    return GetMaxReplicasPerDataCenter(medium->GetIndex(), chunk, dataCenter, replicationFactorOverride);
+}
+
+int TChunkPlacement::GetMaxReplicasPerDataCenter(
+    int mediumIndex,
+    const TChunk* chunk,
+    const TDataCenter* dataCenter,
+    std::optional<int> replicationFactorOverride) const
+{
+    if (!IsDataCenterAware_) {
+        return Max<int>();
+    }
+
+    if (!IsDataCenterFeasible(dataCenter)) {
+        return 0;
+    }
+
+    auto* chunkRequisitionRegistry = Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
+    auto replicaCount = replicationFactorOverride.value_or(
+        chunk->GetPhysicalReplicationFactor(mediumIndex, chunkRequisitionRegistry));
+    auto aliveStorageDataCenterCount = std::ssize(AliveStorageDataCenters_);
+    if (aliveStorageDataCenterCount == 0) {
+        // Dividing by zero is bad, so case of zero alive data centers is handled separately.
+        // Actually, in this case replica allocation is impossible, so we can return any possible value.
+        return replicaCount;
+    }
+
+    auto maxReplicasPerDataCenter = DivCeil<int>(replicaCount, aliveStorageDataCenterCount);
+    auto maxReplicasPerFailureDomain = chunk->GetMaxReplicasPerFailureDomain(
+        mediumIndex,
+        replicationFactorOverride,
+        chunkRequisitionRegistry);
+
+    maxReplicasPerDataCenter = std::min<int>(maxReplicasPerDataCenter, maxReplicasPerFailureDomain);
+    return maxReplicasPerDataCenter;
+}
+
+const std::vector<TError>& TChunkPlacement::GetAlerts() const
+{
+    return DataCenterSetErrors_;
 }
 
 void TChunkPlacement::PrepareFillFactorIterator(const TMedium* medium)
@@ -1009,6 +1200,83 @@ const TDynamicChunkManagerConfigPtr& TChunkPlacement::GetDynamicConfig() const
 bool TChunkPlacement::IsConsistentChunkPlacementEnabled() const
 {
     return GetDynamicConfig()->ConsistentReplicaPlacement->Enable;
+}
+
+void TChunkPlacement::RecomputeDataCenterSets()
+{
+    // At first, clear everything.
+    auto oldStorageDataCenters = std::move(StorageDataCenters_);
+    auto oldBannedStorageDataCenters = std::move(BannedStorageDataCenters_);
+    auto oldAliveStorageDataCenters = std::move(AliveStorageDataCenters_);
+    DataCenterSetErrors_.clear();
+
+    auto refreshGuard = Finally([&] {
+        if (StorageDataCenters_ != oldStorageDataCenters ||
+            BannedStorageDataCenters_ != oldBannedStorageDataCenters ||
+            AliveStorageDataCenters_ != oldAliveStorageDataCenters)
+        {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            chunkManager->ScheduleGlobalChunkRefresh();
+        }
+    });
+
+    // If replicator is not data center aware, data center sets are not required.
+    if (!IsDataCenterAware_) {
+        return;
+    }
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+    for (const auto& storageDataCenter : GetDynamicConfig()->StorageDataCenters) {
+        if (auto* dataCenter = nodeTracker->FindDataCenterByName(storageDataCenter); IsObjectAlive(dataCenter)) {
+            InsertOrCrash(StorageDataCenters_, dataCenter);
+        } else {
+            auto error = TError("Storage data center %Qv is unknown",
+                storageDataCenter);
+            DataCenterSetErrors_.push_back(error);
+        }
+    }
+
+    for (const auto& bannedDataCenter : GetDynamicConfig()->BannedStorageDataCenters) {
+        if (auto* dataCenter = nodeTracker->FindDataCenterByName(bannedDataCenter); IsObjectAlive(dataCenter)) {
+            if (StorageDataCenters_.contains(dataCenter)) {
+                InsertOrCrash(BannedStorageDataCenters_, dataCenter);
+            } else {
+                auto error = TError("Banned data center %Qv is not a storage data center",
+                    bannedDataCenter);
+                DataCenterSetErrors_.push_back(error);
+            }
+        } else {
+            auto error = TError("Banned data center %Qv is unknown",
+                bannedDataCenter);
+            DataCenterSetErrors_.push_back(error);
+        }
+    }
+
+    for (auto* dataCenter : StorageDataCenters_) {
+        if (!BannedStorageDataCenters_.contains(dataCenter)) {
+            InsertOrCrash(AliveStorageDataCenters_, dataCenter);
+        }
+    }
+
+    THashSet<const TDataCenter*> livenessChangedDataCenters;
+    for (auto* dataCenter : AliveStorageDataCenters_) {
+        if (!oldAliveStorageDataCenters.contains(dataCenter)) {
+            livenessChangedDataCenters.insert(dataCenter);
+        }
+    }
+    for (auto* dataCenter : oldAliveStorageDataCenters) {
+        if (!AliveStorageDataCenters_.contains(dataCenter)) {
+            livenessChangedDataCenters.insert(dataCenter);
+        }
+    }
+    for (auto* dataCenter : livenessChangedDataCenters) {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        for (auto* rack : nodeTracker->GetDataCenterRacks(dataCenter)) {
+            for (auto* node : nodeTracker->GetRackNodes(rack)) {
+                OnNodeUpdated(node);
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
