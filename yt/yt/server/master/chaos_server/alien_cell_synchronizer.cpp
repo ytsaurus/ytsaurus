@@ -79,12 +79,23 @@ private:
 
     TAlienCellSynchronizerConfigPtr Config_;
     TPeriodicExecutorPtr SynchronizationExecutor_;
+    TInstant LastFullSync_ = Now();
 
     using TAlienDescriptorsMap = THashMap<int, std::vector<TAlienCellDescriptorLite>>;
 
     void DoReconfigure()
     {
         SynchronizationExecutor_->SetPeriod(Config_->SyncPeriod);
+    }
+
+    bool IsTimeForFullSync()
+    {
+        auto now = Now();
+        if (now - LastFullSync_ > Config_->FullSyncPeriod) {
+            LastFullSync_ = now;
+            return true;
+        }
+        return false;
     }
 
     void Synchronize()
@@ -100,6 +111,7 @@ private:
 
     void DoSynchronize()
     {
+        auto fullSync = IsTimeForFullSync();
         auto descriptorsMap = ScanCells();
 
         std::vector<TFuture<std::vector<TAlienCellDescriptor>>> asyncAlienDescriptors;
@@ -107,10 +119,14 @@ private:
         std::vector<TString> clusterNames;
         std::vector<IClientPtr> clients;
 
+        NNative::TSyncAlienCellOptions options{
+            .FullSync = fullSync
+        };
+
         for (auto& [alienClusterIndex, descriptors] : descriptorsMap) {
             auto clusterName = GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex);
             if (auto client = GetAlienClusterClient(clusterName)) {
-                auto asyncResult = client->SyncAlienCells(std::move(descriptors));
+                auto asyncResult = client->SyncAlienCells(std::move(descriptors), options);
                 asyncAlienDescriptors.push_back(std::move(asyncResult));
                 clients.push_back(std::move(client));
                 clusterIndexes.push_back(alienClusterIndex);
@@ -141,9 +157,14 @@ private:
             }
 
             const auto& descriptors = descriptorsOrError.Value();
+            auto lostAlienCellIds = fullSync
+                ? CalculateLostCellIds(descriptorsMap[alienClusterIndex], descriptors)
+                : std::vector<TCellId>();
+
             constellations.push_back({
                 .AlienClusterIndex = alienClusterIndex,
-                .AlienCells = std::move(descriptors)
+                .AlienCells = std::move(descriptors),
+                .LostAlienCellIds = std::move(lostAlienCellIds)
             });
         }
 
@@ -153,6 +174,7 @@ private:
 
         NProto::TReqUpdateAlienCellPeers request;
         ToProto(request.mutable_constellations(), constellations);
+        request.set_full_sync(fullSync);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         CreateMutation(hydraManager, request)
@@ -179,6 +201,20 @@ private:
         }
 
         return result;
+    }
+
+    std::vector<TCellId> CalculateLostCellIds(
+        const std::vector<TAlienCellDescriptorLite>& knownByUs,
+        const std::vector<TAlienCellDescriptor>& knownByOther)
+    {
+        THashSet<TCellId> seen;
+        for (const auto& [cellId, version] : knownByUs) {
+            seen.insert(cellId);
+        }
+        for (const auto& descriptor : knownByOther) {
+            seen.erase(descriptor.CellId);
+        }
+        return std::vector<TCellId>(seen.begin(), seen.end());
     }
 
     NNative::IClientPtr GetAlienClusterClient(const TString& clusterName)

@@ -77,12 +77,14 @@ void ToProto(NProto::TAlienCellConstellation* protoConstellation, const TAlienCe
 {
     protoConstellation->set_alien_cluster_index(constellation.AlienClusterIndex);
     ToProto(protoConstellation->mutable_alien_cells(), constellation.AlienCells);
+    ToProto(protoConstellation->mutable_lost_alien_cell_ids(), constellation.LostAlienCellIds);
 }
 
 void FromProto(TAlienCellConstellation* constellation, const NProto::TAlienCellConstellation& protoConstellation)
 {
     constellation->AlienClusterIndex = protoConstellation.alien_cluster_index();
     FromProto(&constellation->AlienCells, protoConstellation.alien_cells());
+    FromProto(&constellation->LostAlienCellIds, protoConstellation.lost_alien_cell_ids());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -195,6 +195,7 @@ class ChaosTestBase(DynamicTablesBase):
             synchronizer_config = {
                 "enable": True,
                 "sync_period": 100,
+                "full_sync_period": 200,
             }
             set("//sys/@config/chaos_manager/alien_cell_synchronizer", synchronizer_config, driver=driver)
 
@@ -301,6 +302,15 @@ class TestChaos(ChaosTestBase):
 
         for index, driver in enumerate(self._get_drivers()):
             _check(get("#{0}/@peers".format(cell_id), driver=driver), index)
+
+    @authors("savrus")
+    def test_remove_chaos_cell(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        remove("#{0}".format(cell_id))
+        wait(lambda: not exists("#{0}".format(cell_id)))
+
+        _, remote_driver0, _ = self._get_drivers()
+        wait(lambda: not exists("#{0}/@peers/0/address".format(cell_id), driver=remote_driver0))
 
     @authors("savrus")
     def test_replication_card(self):
