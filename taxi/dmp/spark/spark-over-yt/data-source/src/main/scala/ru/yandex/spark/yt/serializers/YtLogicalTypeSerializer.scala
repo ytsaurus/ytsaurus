@@ -1,39 +1,42 @@
 package ru.yandex.spark.yt.serializers
 
+import org.apache.spark.sql.types.Metadata
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.{YTree, YTreeBuilder}
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode, YTreeStringNode}
 
 import scala.collection.JavaConverters.asScalaBufferConverter
 
 object YtLogicalTypeSerializer {
-  private def serializeTupleField(ytType: YtLogicalType, innerForm: Boolean): YTreeNode = {
-    YTree.builder.beginMap
-      .key("type").value(serializeTypeV3(ytType, innerForm))
-      .buildMap
+  private def serializeTupleField(ytType: YtLogicalType, meta: Metadata,
+                                  innerForm: Boolean): YTreeNode = {
+    val builder = YTree.builder.beginMap
+    builder.key("metadata").value(meta.json)
+    builder.key("type").value(serializeTypeV3(ytType, innerForm)).buildMap
   }
 
-  private def serializeStructField(name: String, ytType: YtLogicalType, innerForm: Boolean): YTreeNode = {
-    YTree.builder.beginMap
-      .key("name").value(name)
-      .key("type").value(serializeTypeV3(ytType, innerForm))
-      .buildMap
+  private def serializeStructField(name: String, ytType: YtLogicalType, meta: Metadata,
+                                   innerForm: Boolean): YTreeNode = {
+    val builder = YTree.builder.beginMap.key("name").value(name)
+    builder.key("metadata").value(meta.json)
+    builder.key("type").value(serializeTypeV3(ytType, innerForm)).buildMap
   }
 
-  private def serializeElements(builder: YTreeBuilder, elements: Seq[YtLogicalType], innerForm: Boolean): Unit = {
+  private def serializeElements(builder: YTreeBuilder, elements: Seq[(YtLogicalType, Metadata)],
+                                innerForm: Boolean): Unit = {
     builder.key("elements").beginList()
-    elements.foreach { e =>
+    elements.foreach { case (e, meta) =>
       builder.onListItem()
-      builder.value(serializeTupleField(e, innerForm))
+      builder.value(serializeTupleField(e, meta, innerForm))
     }
     builder.endList()
   }
 
-  private def serializeMembers(builder: YTreeBuilder, members: Seq[(String, YtLogicalType)],
+  private def serializeMembers(builder: YTreeBuilder, members: Seq[(String, YtLogicalType, Metadata)],
                                innerForm: Boolean): Unit = {
     builder.key("members").beginList()
-    members.foreach { case (name, ytType) =>
+    members.foreach { case (name, ytType, meta) =>
       builder.onListItem()
-      builder.value(serializeStructField(name, ytType, innerForm))
+      builder.value(serializeStructField(name, ytType, meta, innerForm))
     }
     builder.endList()
   }
@@ -62,6 +65,7 @@ object YtLogicalTypeSerializer {
           serializeElements(builder, tuple.elements, innerForm)
         case tagged: YtLogicalType.Tagged =>
           builder.key("item").value(serializeTypeV3(tagged.inner, innerForm))
+            .key("tag").value(tagged.tag)
         case variantOverTuple: YtLogicalType.VariantOverTuple =>
           serializeElements(builder, variantOverTuple.fields, innerForm)
         case variantOverStruct: YtLogicalType.VariantOverStruct =>
@@ -74,16 +78,24 @@ object YtLogicalTypeSerializer {
     YTree.builder().value(ytType.getName(isColumnType)).build()
   }
 
-  private def deserializeMembers(m: YTreeMapNode): Seq[(String, YtLogicalType)] = {
-    m.getOrThrow("members").asList().asScala.map(member => (
-        member.mapNode().getOrThrow("name").stringValue(),
-        deserializeTypeV3(member.mapNode().getOrThrow("type")))
+  private def deserializeMembers(m: YTreeMapNode): Seq[(String, YtLogicalType, Metadata)] = {
+    m.getOrThrow("members").asList().asScala.map { m =>
+      val member = m.mapNode()
+      (
+        member.getOrThrow("name").stringValue(),
+        deserializeTypeV3(member.getOrThrow("type")),
+        member.getStringO("metadata").map[Metadata](Metadata.fromJson).orElse(Metadata.empty)
       )
+    }
   }
 
-  private def deserializeElements(m: YTreeMapNode): Seq[YtLogicalType] = {
-    m.getOrThrow("elements").asList().asScala.map { element =>
-      deserializeTypeV3(element.mapNode().getOrThrow("type"))
+  private def deserializeElements(m: YTreeMapNode): Seq[(YtLogicalType, Metadata)] = {
+    m.getOrThrow("elements").asList().asScala.map { e =>
+      val element = e.mapNode()
+      (
+        deserializeTypeV3(element.mapNode().getOrThrow("type")),
+        element.getStringO("metadata").map[Metadata](Metadata.fromJson).orElse(Metadata.empty)
+      )
     }
   }
 

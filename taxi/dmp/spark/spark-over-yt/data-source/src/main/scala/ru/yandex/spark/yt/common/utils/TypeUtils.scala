@@ -15,6 +15,12 @@ object TypeUtils {
     structFieldNames == expectedTupleFieldNames
   }
 
+  def variantOverStruct(elementTypes: (String, DataType)*): StructType = {
+    StructType(
+      elementTypes.zipWithIndex.map {case ((name, element), i) => StructField(s"_v$name", element)}
+    )
+  }
+
   def isVariantOverTuple(struct: StructType): Boolean = {
     val structFieldNames = struct.fieldNames.toSeq
     val expectedTupleFieldNames = (1 to struct.length).map(n => s"_v_$n")

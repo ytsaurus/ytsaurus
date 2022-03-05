@@ -18,6 +18,7 @@ object SchemaConverter {
     val ORIGINAL_NAME = "original_name"
     val KEY_ID = "key_id"
     val TAG = "tag"
+    val OPTIONAL = "optional"
   }
 
   sealed trait SortOption {
@@ -40,7 +41,7 @@ object SchemaConverter {
     } else if (fieldMap.containsKey("type")) {
       val requiredAttribute = fieldMap.get("required")
       val requiredValue = if (requiredAttribute != null) requiredAttribute.boolValue() else false
-      wrapNullable(sparkTypeV1(fieldMap.get("type").stringValue()), !requiredValue)
+      wrapSparkAttributes(sparkTypeV1(fieldMap.get("type").stringValue()), !requiredValue)
     } else {
       throw new NoSuchElementException("No parsable data type description")
     }
@@ -122,22 +123,35 @@ object SchemaConverter {
     }.toMap
   }
 
-  private def wrapNullable(inner: YtLogicalType, flag: Boolean): YtLogicalType = {
-    if (flag) {
-      YtLogicalType.Optional(inner)
-    } else {
-      inner
+  private def wrapSparkAttributes(inner: YtLogicalType, flag: Boolean,
+                                    metadata: Option[Metadata] = None): YtLogicalType = {
+    def wrapNullable(ytType: YtLogicalType): YtLogicalType = {
+      val optionalO = metadata.flatMap { m =>
+        if (m.contains(MetadataFields.OPTIONAL)) Some(m.getBoolean(MetadataFields.OPTIONAL)) else None
+      }
+      if (optionalO.getOrElse(flag)) YtLogicalType.Optional(ytType) else ytType
     }
+
+    def wrapTagged(ytType: YtLogicalType): YtLogicalType = {
+      val tagO = metadata.flatMap { m =>
+        if (m.contains(MetadataFields.TAG)) Some(m.getString(MetadataFields.TAG)) else None
+      }
+      tagO.map(t => YtLogicalType.Tagged(ytType, t)).getOrElse(ytType)
+    }
+
+    wrapNullable(wrapTagged(inner))
   }
 
-  def ytLogicalTypeV3Variant(struct: StructType): YtLogicalType = {
+  private def ytLogicalTypeV3Variant(struct: StructType): YtLogicalType = {
     if (isVariantOverTuple(struct)) {
       YtLogicalType.VariantOverTuple {
-        struct.fields.map(tF => wrapNullable(ytLogicalTypeV3(tF.dataType), tF.nullable))
+        struct.fields.map(tF =>
+          (wrapSparkAttributes(ytLogicalTypeV3(tF.dataType), tF.nullable, Some(tF.metadata)), tF.metadata))
       }
     } else {
       YtLogicalType.VariantOverStruct {
-        struct.fields.map(sf => (sf.name.drop(2), wrapNullable(ytLogicalTypeV3(sf.dataType), sf.nullable)))
+        struct.fields.map(sf => (sf.name.drop(2),
+          wrapSparkAttributes(ytLogicalTypeV3(sf.dataType), sf.nullable, Some(sf.metadata)), sf.metadata))
       }
     }
   }
@@ -156,20 +170,22 @@ object SchemaConverter {
       val dT = if (d.precision > 35) applyYtLimitToSparkDecimal(d) else d
       YtLogicalType.Decimal(dT.precision, dT.scale)
     case aT: ArrayType =>
-      YtLogicalType.Array(wrapNullable(ytLogicalTypeV3(aT.elementType), aT.containsNull))
+      YtLogicalType.Array(wrapSparkAttributes(ytLogicalTypeV3(aT.elementType), aT.containsNull))
     case sT: StructType if isTuple(sT) =>
       YtLogicalType.Tuple {
-        sT.fields.map(tF => wrapNullable(ytLogicalTypeV3(tF.dataType), tF.nullable))
+        sT.fields.map(tF =>
+          (wrapSparkAttributes(ytLogicalTypeV3(tF.dataType), tF.nullable, Some(tF.metadata)), tF.metadata))
       }
     case sT: StructType if isVariant(sT) => ytLogicalTypeV3Variant(sT)
     case sT: StructType =>
       YtLogicalType.Struct {
-        sT.fields.map(sf => (sf.name, wrapNullable(ytLogicalTypeV3(sf.dataType), sf.nullable)))
+        sT.fields.map(sf => (sf.name,
+          wrapSparkAttributes(ytLogicalTypeV3(sf.dataType), sf.nullable, Some(sf.metadata)), sf.metadata))
       }
     case mT: MapType =>
       YtLogicalType.Dict(
         ytLogicalTypeV3(mT.keyType),
-        wrapNullable(ytLogicalTypeV3(mT.valueType), mT.valueContainsNull))
+        wrapSparkAttributes(ytLogicalTypeV3(mT.valueType), mT.valueContainsNull))
     case YsonType => YtLogicalType.Any
     case BinaryType => YtLogicalType.Binary
     case DateType => YtLogicalType.Date
@@ -188,10 +204,11 @@ object SchemaConverter {
       val builder = YTree.builder
         .beginMap
         .key("name").value(field.name)
-      val fieldType = hint.getOrElse(field.name, ytLogicalTypeV3(field.dataType))
+      val fieldType = hint.getOrElse(field.name,
+        wrapSparkAttributes(ytLogicalTypeV3(field.dataType), field.nullable, Some(field.metadata)))
       if (typeV3Format) {
         builder
-          .key("type_v3").value(serializeTypeV3(wrapNullable(fieldType, field.nullable)))
+          .key("type_v3").value(serializeTypeV3(fieldType))
       } else {
         builder
           .key("type").value(serializeType(fieldType, isTableSchema))

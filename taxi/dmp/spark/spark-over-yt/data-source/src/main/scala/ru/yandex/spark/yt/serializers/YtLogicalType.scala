@@ -2,9 +2,12 @@ package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
+import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.type_info.StructType.Member
 import ru.yandex.type_info.{TiType, TypeName}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
+
+import scala.annotation.tailrec
 
 case class DataTypeHolder(dataType: DataType, nullable: Boolean = false)
 
@@ -153,13 +156,13 @@ object YtLogicalType {
 
   case object Array extends CompositeYtLogicalTypeAlias(TypeName.List.getWireName)
 
-  case class Struct(fields: Seq[(String, YtLogicalType)]) extends CompositeYtLogicalType {
+  case class Struct(fields: Seq[(String, YtLogicalType, Metadata)]) extends CompositeYtLogicalType {
     override def sparkType: DataType = StructType(fields
-      .map { case (name, ytType) => getStructField(name, ytType) })
+      .map { case (name, ytType, meta) => getStructField(name, ytType, meta) })
 
     import scala.collection.JavaConverters._
     override def tiType: TiType = TiType.struct(
-      fields.map{ case (name, ytType) => new Member(name, ytType.tiType)}.asJava
+      fields.map{ case (name, ytType, _) => new Member(name, ytType.tiType)}.asJava
     )
 
     override def alias: CompositeYtLogicalTypeAlias = Struct
@@ -167,13 +170,13 @@ object YtLogicalType {
 
   case object Struct extends CompositeYtLogicalTypeAlias(TypeName.Struct.getWireName)
 
-  case class Tuple(elements: Seq[YtLogicalType]) extends CompositeYtLogicalType {
+  case class Tuple(elements: Seq[(YtLogicalType, Metadata)]) extends CompositeYtLogicalType {
     override def sparkType: DataType = StructType(elements.zipWithIndex
-      .map { case (ytType, index) => getStructField(s"_${1 + index}", ytType) })
+      .map { case ((ytType, meta), index) => getStructField(s"_${1 + index}", ytType, meta) })
 
     import scala.collection.JavaConverters._
     override def tiType: TiType = TiType.tuple(
-      elements.map(e => e.tiType).asJava
+      elements.map { case (e, _) => e.tiType } .asJava
     )
 
     override def alias: CompositeYtLogicalTypeAlias = Tuple
@@ -191,25 +194,25 @@ object YtLogicalType {
 
   case object Tagged extends CompositeYtLogicalTypeAlias(TypeName.Tagged.getWireName)
 
-  case class VariantOverStruct(fields: Seq[(String, YtLogicalType)]) extends CompositeYtLogicalType {
-    override def sparkType: DataType = StructType(fields
-      .map { case (name, ytType) => getStructField(s"_v$name", ytType) })
+  case class VariantOverStruct(fields: Seq[(String, YtLogicalType, Metadata)]) extends CompositeYtLogicalType {
+    override def sparkType: DataType = StructType(fields.map { case (name, ytType, meta) =>
+      getStructField(s"_v$name", ytType, meta, forcedNullability = Some(true)) })
 
     import scala.collection.JavaConverters._
     override def tiType: TiType = TiType.variantOverStruct(
-      fields.map{ case (name, ytType) => new Member(name, ytType.tiType)}.asJava
+      fields.map{ case (name, ytType, _) => new Member(name, ytType.tiType)}.asJava
     )
 
     override def alias: CompositeYtLogicalTypeAlias = Variant
   }
 
-  case class VariantOverTuple(fields: Seq[YtLogicalType]) extends CompositeYtLogicalType {
-    override def sparkType: DataType = StructType(fields.zipWithIndex
-      .map { case (ytType, index) => getStructField(s"_v_${1 + index}", ytType) })
+  case class VariantOverTuple(fields: Seq[(YtLogicalType, Metadata)]) extends CompositeYtLogicalType {
+    override def sparkType: DataType = StructType(fields.zipWithIndex.map { case ((ytType, meta), index) =>
+      getStructField(s"_v_${1 + index}", ytType, meta, forcedNullability = Some(true)) })
 
     import scala.collection.JavaConverters._
     override def tiType: TiType = TiType.variantOverTuple(
-      fields.map(e => e.tiType).asJava
+      fields.map { case (e, _) => e.tiType }.asJava
     )
 
     override def alias: CompositeYtLogicalTypeAlias = Variant
@@ -236,21 +239,25 @@ object YtLogicalType {
       .getOrElse(throw new IllegalArgumentException(s"Unknown logical yt type: $name"))
   }
 
-  def getStructField(name: String, ytType: YtLogicalType, metadata: Metadata = Metadata.empty): StructField = {
+  def getStructField(name: String, ytType: YtLogicalType, metadata: Metadata = Metadata.empty,
+                     forcedNullability: Option[Boolean] = None): StructField = {
     val metadataBuilder = new MetadataBuilder
     metadataBuilder.withMetadata(metadata)
     addInnerMetadata(metadataBuilder, ytType)
+    forcedNullability.foreach(_ => metadataBuilder.putBoolean(MetadataFields.OPTIONAL, ytType.nullable))
     StructField(
       name,
       ytType.sparkType,
-      ytType.nullable,
+      forcedNullability.getOrElse(ytType.nullable),
       metadataBuilder.build()
     )
   }
 
+  @tailrec
   private def addInnerMetadata(metadataBuilder: MetadataBuilder, ytType: YtLogicalType): Unit = {
     ytType match {
-      case t: Tagged => metadataBuilder.putString("tag", t.tag)
+      case o: Optional => addInnerMetadata(metadataBuilder, o.inner)
+      case t: Tagged => metadataBuilder.putString(MetadataFields.TAG, t.tag)
       case _ =>
     }
   }

@@ -169,8 +169,10 @@ class SchemaConverterTest extends FlatSpec with Matchers
       structField("dict", MapType(DoubleType, StringType, valueContainsNull = false), nullable = false),
       structField("struct", StructType(Seq(StructField("a", StringType, nullable = false), StructField("b", YsonType, nullable = true))), nullable = false),
       structField("tuple", StructType(Seq(StructField("_1", BooleanType, nullable = false), StructField("_2", DateType, nullable = false))), nullable = false),
-      structField("variantOverStruct", StructType(Seq(StructField("_vc", IntegerType, nullable = false), StructField("_vd", LongType, nullable = false))), nullable = false),
-      structField("variantOverTuple", StructType(Seq(StructField("_v_1", FloatType, nullable = false), StructField("_v_2", LongType, nullable = false))), nullable = false)
+      structField("variantOverStruct", StructType(Seq(StructField("_vc", IntegerType, metadata = new MetadataBuilder().putBoolean("optional", false).build()),
+        StructField("_vd", LongType, metadata = new MetadataBuilder().putBoolean("optional", false).build()))), nullable = false),
+      structField("variantOverTuple", StructType(Seq(StructField("_v_1", FloatType, metadata = new MetadataBuilder().putBoolean("optional", false).build()),
+        StructField("_v_2", LongType, metadata = new MetadataBuilder().putBoolean("optional", false).build()))), nullable = false)
     ))
   }
 
