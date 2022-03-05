@@ -88,6 +88,9 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
           case BinaryType | YsonType => writeBytes(writeable, idMapping, aggregate, i, row.getBinary(i))
           case StringType => writeBytes(writeable, idMapping, aggregate, i, row.getUTF8String(i).getBytes)
           case d: DecimalType =>
+            if (!typeV3Format) {
+              throw new IllegalArgumentException("Writing decimal type without enabled type_v3 is not supported")
+            }
             val (precision, scale) = if (ytFieldHint.exists(_.isDecimal)) {
               val decimalHint = ytFieldHint.get.asDecimal()
               (decimalHint.getPrecision, decimalHint.getScale)
