@@ -14,9 +14,9 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerialize
 import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeNode}
 import ru.yandex.spark.yt.serializers.SchemaConverter.Unordered
 import ru.yandex.spark.yt.serializers.YsonRowConverter.{isNull, serializeValue}
+import ru.yandex.type_info.TiType
 import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.proxy.TableWriter
-import ru.yandex.yt.ytclient.tables.ColumnValueType
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.annotation.tailrec
@@ -38,7 +38,7 @@ class YsonRowConverter(schema: StructType, ytSchema: YtTypeHolder,
 
   override def getClazz: Class[Row] = classOf[Row]
 
-  override def getColumnValueType: ColumnValueType = ColumnValueType.ANY
+  override def getColumnValueType: TiType = TiType.yson()
 
   private def skipNullsForField(field: StructField): Boolean = {
     field.metadata.contains("skipNulls") && field.metadata.getBoolean("skipNulls")

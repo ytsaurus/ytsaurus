@@ -1,11 +1,10 @@
 package ru.yandex.spark.yt.wrapper
 
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+
 import java.time.{Duration => JavaDuration}
 import java.util.Optional
 import java.util.concurrent.TimeUnit
-import ru.yandex.bolts.collection.{Option => BoltsOption}
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-
 import scala.concurrent.duration.Duration
 
 object YtJavaConverters {
