@@ -1067,6 +1067,7 @@ class TestChaos(ChaosTestBase):
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=False))
         self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        self._sync_replication_era(card_id, replicas)
 
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
@@ -1091,9 +1092,11 @@ class TestChaos(ChaosTestBase):
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=True))
         self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        if mode == "sync":
+            self._sync_replication_era(card_id, replicas)
 
         values1 = [{"key": 1, "value": "1"}]
-        wait(lambda: self._insistent_insert_rows("//tmp/t", values1))
+        insert_rows("//tmp/t", values1)
         wait(lambda: select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values0 + values1)
 
     @authors("savrus")
@@ -1113,6 +1116,7 @@ class TestChaos(ChaosTestBase):
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=catchup))
         self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        self._sync_replication_era(card_id, replicas)
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=False)
 
@@ -1150,9 +1154,11 @@ class TestChaos(ChaosTestBase):
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, replication_progress=replication_progress))
         self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        if mode == "sync":
+            self._sync_replication_era(card_id, replicas)
 
         values1 = [{"key": 1, "value": "1"}]
-        wait(lambda: self._insistent_insert_rows("//tmp/t", values1))
+        insert_rows("//tmp/t", values1)
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
