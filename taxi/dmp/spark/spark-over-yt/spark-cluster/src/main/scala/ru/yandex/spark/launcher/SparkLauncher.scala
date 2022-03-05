@@ -185,7 +185,7 @@ trait SparkLauncher {
     try f(service) finally service.stop()
   }
 
-  def withOptionService[T, S <: Service](service: Option[S])(f: Option[S] => T): T = {
+  def withOptionalService[T, S <: Service](service: Option[S])(f: Option[S] => T): T = {
     try f(service) finally service.foreach(_.stop())
   }
 

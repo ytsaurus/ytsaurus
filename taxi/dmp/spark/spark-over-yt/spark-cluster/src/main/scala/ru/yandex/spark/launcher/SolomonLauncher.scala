@@ -28,9 +28,10 @@ trait SolomonLauncher extends SidecarLauncher {
 
   def startSolomonAgent(args: Array[String],
                         sparkComponent: String,
-                        sparkUiPort: Int): BasicService = {
-    val config = SolomonConfig(sparkSystemProperties, args, sparkComponent, sparkUiPort)
-    startService(config, prepareConfigFile, processWorkingDir = Some(new File(path(config.configDirectory))))
+                        sparkUiPort: Int): Option[BasicService] = {
+    SolomonConfig(sparkSystemProperties, args, sparkComponent, sparkUiPort).map { config =>
+      startService(config, prepareConfigFile, processWorkingDir = Some(new File(path(config.configDirectory))))
+    }
   }
 }
 
@@ -58,29 +59,31 @@ object SolomonConfig extends SidecarConfigUtils {
   def apply(sparkConf: Map[String, String],
             args: Array[String],
             sparkComponent: String,
-            sparkUiPort: Int): SolomonConfig = {
+            sparkUiPort: Int): Option[SolomonConfig] = {
     SolomonConfig(sparkConf, Args(args), sparkComponent, sparkUiPort)
   }
 
-  def apply(sparkConf: Map[String, String], args: Args, sparkComponent: String, sparkUiPort: Int): SolomonConfig = {
+  def apply(sparkConf: Map[String, String], args: Args, sparkComponent: String, sparkUiPort: Int): Option[SolomonConfig] = {
     implicit val a = args
-    val agentConfig = "solomon-agent.template.conf"
-    val serviceConfig = s"solomon-service-$sparkComponent.template.conf"
-    SolomonConfig(
-      binaryPath = optionArg("binary-path").getOrElse("/usr/local/bin/solomon-agent"),
-      configPaths = optionArg("config-paths")
-        .map(_.split(",").toSeq)
-        .getOrElse(Seq(s"$$HOME/$agentConfig", s"$$HOME/$serviceConfig")),
-      configDirectory = optionArg("config-dir").getOrElse("$HOME"),
-      solomonConfigFile = optionArg("service-config-file").getOrElse(serviceConfig.replace(".template", "")),
-      port = optionArg("port").map(_.toInt).getOrElse(27100),
-      monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27101),
-      operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
-      ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),
-      ytConf = ytConf,
-      timeout = timeout,
-      sparkComponent = sparkComponent,
-      sparkUiPort = sparkUiPort
-    )
+    if (optionArg("enabled").forall(_.toBoolean)) {
+      val agentConfig = "solomon-agent.template.conf"
+      val serviceConfig = s"solomon-service-$sparkComponent.template.conf"
+      Some(SolomonConfig(
+        binaryPath = optionArg("binary-path").getOrElse("/usr/local/bin/solomon-agent"),
+        configPaths = optionArg("config-paths")
+          .map(_.split(",").toSeq)
+          .getOrElse(Seq(s"$$HOME/$agentConfig", s"$$HOME/$serviceConfig")),
+        configDirectory = optionArg("config-dir").getOrElse("$HOME"),
+        solomonConfigFile = optionArg("service-config-file").getOrElse(serviceConfig.replace(".template", "")),
+        port = optionArg("port").map(_.toInt).getOrElse(27100),
+        monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27101),
+        operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
+        ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),
+        ytConf = ytConf,
+        timeout = timeout,
+        sparkComponent = sparkComponent,
+        sparkUiPort = sparkUiPort
+      ))
+    } else None
   }
 }

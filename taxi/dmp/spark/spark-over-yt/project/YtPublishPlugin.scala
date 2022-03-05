@@ -5,14 +5,15 @@ import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.YtClient
-import ru.yandex.yt.ytclient.proxy.request.{CreateNode, LinkNode, ObjectType, SetNode}
+import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.rpc.RpcCredentials
 import sbt.Keys._
 import sbt._
 
+import java.io.{BufferedInputStream, FileInputStream}
 import java.time.Duration
+import scala.annotation.tailrec
 import scala.io.Source
-import scala.sys.process._
 
 object YtPublishPlugin extends AutoPlugin {
 
@@ -52,11 +53,46 @@ object YtPublishPlugin extends AutoPlugin {
       private def dstName: String = remoteName.getOrElse(localFile.getName)
 
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
-        val src = localFile.getAbsolutePath
+        val src = localFile
         val dst = s"$remoteDir/$dstName"
 
         log.info(s"Upload $src to YT cluster $proxyName $dst..")
-        s"cat $src" #| s"yt --proxy $proxyName write-file $dst" !
+        val transaction = yt.startTransaction(new StartTransaction(TransactionType.Master)).join()
+        try {
+          if (yt.existsNode(dst).join()) yt.removeNode(dst).join()
+          yt.createNode(dst, ObjectType.File).join()
+
+          val buffer = new Array[Byte](64 * 1024)
+          val writer = yt.writeFile(new WriteFile(dst)).join()
+          @tailrec
+          def write(len: Int): Unit = {
+            writer.readyEvent().join()
+            if (!writer.write(buffer, 0, len)) {
+              write(len)
+            }
+          }
+
+          try {
+            val is = new BufferedInputStream(new FileInputStream(src))
+            try {
+              Stream.continually {
+                val res = is.read(buffer)
+                if (res > 0) write(res)
+                res
+              }.dropWhile(_ > 0)
+            } finally {
+              is.close()
+            }
+          } finally {
+            writer.close().join()
+          }
+
+          transaction.commit().join()
+        } catch {
+          case e: Throwable =>
+            transaction.abort().join()
+            throw e
+        }
 
         log.info(s"Finished upload $src to YT cluster $proxyName $dst")
       }
@@ -125,7 +161,13 @@ object YtPublishPlugin extends AutoPlugin {
       .setReadTimeout(Duration.ofMinutes(5))
       .setWriteTimeout(Duration.ofMinutes(5))
 
-    new YtClient(connector, proxy, credentials) -> connector
+    if (proxy == "local") {
+      val proxyHost = sys.env.getOrElse("YT_LOCAL_HOST", "localhost")
+      val credentials = new RpcCredentials("root", "")
+      new YtClient(connector, s"$proxyHost:8000", credentials) -> connector
+    } else {
+      new YtClient(connector, proxy, credentials) -> connector
+    }
   }
 
   private def readDefaultToken: String = {
@@ -138,7 +180,8 @@ object YtPublishPlugin extends AutoPlugin {
     }
   }
 
-  private def publishArtifact(artifact: YtPublishArtifact, proxy: String, log: Logger)(implicit yt: YtClient): Unit = {
+  private def publishArtifact(artifact: YtPublishArtifact, proxy: String, log: Logger)
+                             (implicit yt: YtClient): Unit = {
     if (artifact.proxy.forall(_ == proxy)) {
       if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
         log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
@@ -147,7 +190,6 @@ object YtPublishPlugin extends AutoPlugin {
         createDir(artifact.remoteDir, proxy, log, ttlMillis)
         artifact.publish(proxy, log)
       }
-
     }
   }
 

@@ -4,7 +4,7 @@ import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.rest.MasterWrapperLauncher
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.spark.yt.wrapper.discovery.{OperationSet, SparkConfYsonable}
+import ru.yandex.spark.yt.wrapper.discovery.SparkConfYsonable
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -22,7 +22,7 @@ object MasterLauncher extends App
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, _) =>
     withService(startMaster) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
-        withService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) { solomonAgent =>
+        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) { solomonAgent =>
           master.waitAndThrowIfNotAlive(5 minutes)
           masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
@@ -36,7 +36,7 @@ object MasterLauncher extends App
           )
           log.info("Master registered")
 
-          checkPeriodically(master.isAlive(3) && solomonAgent.isAlive(3))
+          checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
           log.error("Master is not alive")
         }
       }
