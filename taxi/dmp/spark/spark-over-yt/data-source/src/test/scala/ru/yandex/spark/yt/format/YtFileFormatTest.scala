@@ -645,6 +645,18 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     spark.read.csv(s"yt:/$tmpPath").count() shouldEqual 100000
   }
 
+  it should "write null type" in {
+    val data = Seq((null, null), (null, null))
+
+    a[IllegalArgumentException] shouldBe thrownBy {
+      data.toDF("a", "b").coalesce(1).write.yt(tmpPath)
+    }
+    data.toDF("a", "b").coalesce(1).write
+      .option("null_type_allowed", value = true).yt(tmpPath)
+
+    spark.read.yt(tmpPath).collect() should contain theSameElementsAs data.map(Row.fromTuple)
+  }
+
   it should "write double" in {
     val data = Seq(0.4, 0.5, 0.6)
     data.toDF().coalesce(1).write.yt(tmpPath)

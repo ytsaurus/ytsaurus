@@ -116,10 +116,10 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                             job: Job,
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
-    SchemaConverter.checkSchema(dataSchema)
+    val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
+    SchemaConverter.checkSchema(dataSchema, options)
 
     val ytClientConf = ytClientConfiguration(sparkSession)
-    val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
     val updatedOptions = addWriteOptions(options, writeConfiguration)
     YtTableSparkSettings.serialize(updatedOptions, dataSchema, job.getConfiguration)
 

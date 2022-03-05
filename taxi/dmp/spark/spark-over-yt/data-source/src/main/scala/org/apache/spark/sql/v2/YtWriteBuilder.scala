@@ -29,10 +29,10 @@ class YtWriteBuilder(paths: Seq[String],
                             job: Job,
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
-    SchemaConverter.checkSchema(dataSchema)
+    val writeConfiguration = SparkYtWriteConfiguration(sqlConf)
+    SchemaConverter.checkSchema(dataSchema, options)
 
     val ytClientConf = ytClientConfiguration(sqlConf)
-    val writeConfiguration = SparkYtWriteConfiguration(sqlConf)
     val updatedOptions = addWriteOptions(options, writeConfiguration)
     YtTableSparkSettings.serialize(updatedOptions, dataSchema, job.getConfiguration)
 
