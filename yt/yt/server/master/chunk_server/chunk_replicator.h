@@ -107,8 +107,6 @@ public:
     bool IsRefreshEnabled();
     bool IsRequisitionUpdateEnabled();
 
-    bool IsEnabled();
-
     void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
     // IJobController implementation.
@@ -203,6 +201,8 @@ private:
     std::vector<TChunkId> ChunkIdsPendingEndorsementRegistration_;
 
     std::optional<bool> Enabled_;
+
+    TEnumIndexedVector<EJobType, i64> MisscheduledJobs_;
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
@@ -331,8 +331,6 @@ private:
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
     bool IsConsistentChunkPlacementEnabled() const;
-
-    TEnumIndexedVector<EJobType, i64> MisscheduledJobs_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

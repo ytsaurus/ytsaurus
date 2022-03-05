@@ -519,7 +519,6 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    int maxReplicasPerRack,
     std::optional<int> replicationFactorOverride,
     std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
@@ -529,12 +528,11 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     const auto& Logger = logger;
 
     YT_LOG_DEBUG("Allocating write targets "
-        "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, MaxReplicasPerRack: %v, "
+        "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, "
         "PreferredHostName: %v, ForbiddenAddresses: %v)",
         sessionId,
         desiredTargetCount,
         minTargetCount,
-        maxReplicasPerRack,
         preferredHostName,
         forbiddenAddresses);
 
@@ -545,7 +543,6 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     auto* req = batchReq->add_subrequests();
     req->set_desired_target_count(desiredTargetCount);
     req->set_min_target_count(minTargetCount);
-    req->set_max_replicas_per_rack(maxReplicasPerRack);
     if (replicationFactorOverride) {
         req->set_replication_factor_override(*replicationFactorOverride);
     }

@@ -24,7 +24,6 @@ public:
     //! A default value for an additional bound for the number of replicas per
     //! rack for every chunk. The value is used when a new medium is created to
     //! initialize corresponding medium-specific setting.
-    //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
     //! Same as #MaxReplicasPerRack but only applies to regular chunks.
     int MaxRegularReplicasPerRack;
@@ -63,7 +62,6 @@ public:
     int MaxReplicationFactor;
 
     //! Provides an additional bound for the number of replicas per rack for every chunk.
-    //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
 
     //! Same as #MaxReplicasPerRack but only applies to regular chunks.
@@ -442,6 +440,15 @@ public:
     TDynamicChunkAutotomizerConfigPtr ChunkAutotomizer;
 
     TDynamicChunkManagerTestingConfigPtr Testing;
+
+    //! If true, replicator is aware of data centers when placing replicas.
+    bool UseDataCenterAwareReplicator;
+
+    //! Set of data centers that are used for chunk storage.
+    THashSet<TString> StorageDataCenters;
+
+    //! Set of storage data centers on which replica placement is forbidden.
+    THashSet<TString> BannedStorageDataCenters;
 
     TDynamicChunkManagerConfig();
 };

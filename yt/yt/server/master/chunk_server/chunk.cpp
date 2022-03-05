@@ -539,7 +539,7 @@ int TChunk::GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitio
     }
 }
 
-int TChunk::GetMaxReplicasPerRack(
+int TChunk::GetMaxReplicasPerFailureDomain(
     int mediumIndex,
     std::optional<int> replicationFactorOverride,
     const TChunkRequisitionRegistry* registry) const

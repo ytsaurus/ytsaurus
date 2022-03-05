@@ -710,9 +710,6 @@ private:
             try {
                 TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
 
-                // See TChunk::GetMaxReplicasPerRack.
-                auto maxReplicasPerRack = ReplicaCount_ - ReadQuorum_;
-
                 // TODO(gritukan): Pass host name from tablet node.
                 auto preferredReplica = Config_->PreferLocalHost
                     ? std::make_optional(NNet::GetLocalHostName())
@@ -723,7 +720,6 @@ private:
                     session->Id,
                     ReplicaCount_,
                     ReplicaCount_,
-                    maxReplicasPerRack,
                     /*replicationFactorOverride*/ std::nullopt,
                     preferredReplica,
                     GetBannedNodes(),

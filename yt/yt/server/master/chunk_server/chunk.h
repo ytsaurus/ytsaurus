@@ -289,7 +289,7 @@ public:
     bool IsDiskSizeFinal() const;
 
     //! Returns the maximum number of replicas that can be stored in the same
-    //! rack without violating the availability guarantees.
+    //! failure domain without violating the availability guarantees.
     /*!
      *  As #GetAggregatedReplication(), takes into account only committed owners of
      *  this chunk, if there're any. Otherwise falls back to all owners.
@@ -297,7 +297,7 @@ public:
      *  \param replicationFactorOverride An override for replication factor;
      *  used when one wants to upload fewer replicas but still guarantee placement safety.
      */
-    int GetMaxReplicasPerRack(
+    int GetMaxReplicasPerFailureDomain(
         int mediumIndex,
         std::optional<int> replicationFactorOverride,
         const TChunkRequisitionRegistry* registry) const;

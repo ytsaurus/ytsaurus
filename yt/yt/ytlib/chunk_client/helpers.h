@@ -105,7 +105,6 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     TSessionId sessionId,
     int desiredTargetCount,
     int minTargetCount,
-    int maxReplicasPerRack,
     std::optional<int> replicationFactorOverride,
     std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,

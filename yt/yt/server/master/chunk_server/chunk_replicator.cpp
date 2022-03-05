@@ -439,6 +439,9 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
     TMediumMap<std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>> decommissionedReplicas;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    // TODO(gritukan): YT-16557.
+    TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
+
     // An arbitrary replica collocated with too may others within a single rack - per medium.
     TMediumIntMap unsafelyPlacedSealedReplicaIndexes;
     // An arbitrary replica that violates consistent placement requirements - per medium.
@@ -493,12 +496,20 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
 
         if (const auto* rack = node->GetRack()) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
-            int replicasPerRack = ++perRackReplicaCounters[mediumIndex][rackIndex];
-            // An erasure chunk is considered placed unsafely if some non-null rack
-            // contains more replicas than returned by TChunk::GetMaxReplicasPerRack.
+            // An erasure chunk is considered placed unsafely if it violates replica limits
+            // in any failure domain.
+            auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+            auto replicasPerRack = ++perRackReplicaCounters[mediumIndex][rackIndex];
             if (replicasPerRack > maxReplicasPerRack && isReplicaSealed) {
                 unsafelyPlacedSealedReplicaIndexes[mediumIndex] = replicaIndex;
+            }
+
+            if (auto* dataCenter = rack->GetDataCenter()) {
+                auto maxReplicasPerDataCenter = ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+                auto replicasPerDataCenter = ++perDataCenterReplicaCounters[mediumIndex][dataCenter];
+                if (replicasPerDataCenter > maxReplicasPerDataCenter && isReplicaSealed) {
+                    unsafelyPlacedSealedReplicaIndexes[mediumIndex] = replicaIndex;
+                }
             }
         }
 
@@ -871,6 +882,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
     TMediumSet hasUnsafelyPlacedReplica;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
+    // TODO(gritukan): YT-16557.
+    TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica that violates consistent placement requirements - per medium.
     TMediumMap<TNodePtrWithIndexes> inconsistentlyPlacedReplica;
@@ -909,9 +922,16 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 
         if (const auto* rack = replica.GetPtr()->GetRack()) {
             int rackIndex = rack->GetIndex();
-            int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
+            auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
                 hasUnsafelyPlacedReplica[mediumIndex] = true;
+            }
+
+            if (const auto* dataCenter = rack->GetDataCenter()) {
+                auto maxReplicasPerDataCenter = ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+                if (++perDataCenterReplicaCounters[mediumIndex][dataCenter] > maxReplicasPerDataCenter) {
+                    hasUnsafelyPlacedReplica[mediumIndex] = true;
+                }
             }
         }
 
@@ -1071,7 +1091,8 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     }
 
     if (hasSealedReplica &&
-        Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
+        Any(result.Status & (EChunkStatus::Underreplicated | EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced)))
+    {
         result.ReplicationIndexes.push_back(GenericChunkReplicaIndex);
     }
 }

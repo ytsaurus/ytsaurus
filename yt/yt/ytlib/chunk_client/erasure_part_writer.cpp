@@ -43,12 +43,10 @@ using namespace NErasureHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
-    NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     const TPartIndexList& partIndexList,
@@ -70,7 +68,6 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             sessionId,
             partIndexList.size(),
             partIndexList.size(),
-            codec->GetGuaranteedRepairablePartCount(),
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
             std::vector<TString>(),
@@ -124,7 +121,6 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
         config,
         options,
         sessionId,
-        codec,
         nodeDirectory,
         client,
         partIndexList,

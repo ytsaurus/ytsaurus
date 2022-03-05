@@ -1990,7 +1990,6 @@ private:
                 writeSessionId,
                 /*desiredTargetCount*/ ReplicationFactor_,
                 /*minTargetCount*/ ReplicationFactor_,
-                /*maxReplicasPerRack*/ ReplicationFactor_ - ReadQuorum_,
                 /*replicationFactorOverride*/ std::nullopt,
                 /*localHostName*/ Bootstrap_->GetLocalHostName(),
                 /*forbiddenAddresses*/ {},
