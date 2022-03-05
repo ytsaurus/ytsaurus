@@ -25,7 +25,9 @@ struct IClientBase
 struct TSyncAlienCellOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
-{ };
+{
+    bool FullSync = false;
+};
 
 struct IClient
     : public IClientBase

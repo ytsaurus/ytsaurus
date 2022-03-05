@@ -849,6 +849,11 @@ public:
             return;
         }
 
+        if (cell->GetCellarType() == ECellarType::Chaos) {
+            OnCellDecommissionedOnNode(cell);
+            return;
+        }
+
         // Decommission cell on node.
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting cell decommission on node (CellId: %v)",

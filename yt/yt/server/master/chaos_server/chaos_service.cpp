@@ -53,19 +53,22 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, SyncAlienCells)
     {
-        context->SetRequestInfo("CellCount: %v",
-            request->cell_descriptors_size());
+        auto requestDescriptors = FromProto<std::vector<TAlienCellDescriptorLite>>(request->cell_descriptors());
+        auto fullSync = request->full_sync();
+
+        context->SetRequestInfo("CellCount: %v, FullSync: %v",
+            requestDescriptors.size(),
+            fullSync);
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
-        auto requestDescriptors = FromProto<std::vector<TAlienCellDescriptorLite>>(request->cell_descriptors());
         std::vector<TAlienCellDescriptor> responseDescriptors;
 
-        for (const auto& requestDescriptor : requestDescriptors) {
-            auto cellId = requestDescriptor.CellId;
-            int configVersion = requestDescriptor.ConfigVersion;
-
+        for (auto [cellId, configVersion] : requestDescriptors) {
             auto cell = chaosManager->FindChaosCellById(cellId);
-            if (!IsObjectAlive(cell) || cell->GetConfigVersion() <= configVersion) {
+            if (!IsObjectAlive(cell)) {
+                continue;
+            }
+            if (!fullSync && cell->GetConfigVersion() <= configVersion) {
                 continue;
             }
 

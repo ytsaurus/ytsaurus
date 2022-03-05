@@ -47,13 +47,16 @@ class TAlienCellSynchronizerConfig
 public:
     bool Enable;
     TDuration SyncPeriod;
+    TDuration FullSyncPeriod;
 
     TAlienCellSynchronizerConfig()
     {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Minutes(1));
         RegisterParameter("enable", Enable)
             .Default(false);
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Minutes(1));
+        RegisterParameter("full_sync_period", FullSyncPeriod)
+            .Default(TDuration::Minutes(5));
     }
 };
 

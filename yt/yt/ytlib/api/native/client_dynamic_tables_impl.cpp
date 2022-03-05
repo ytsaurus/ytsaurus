@@ -2051,6 +2051,7 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     auto req = proxy.SyncAlienCells();
 
     ToProto(req->mutable_cell_descriptors(), alienCellDescriptors);
+    req->set_full_sync(options.FullSync);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

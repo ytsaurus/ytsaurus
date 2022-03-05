@@ -18,6 +18,7 @@ struct TAlienCellConstellation
 {
     int AlienClusterIndex;
     std::vector<TAlienCellDescriptor> AlienCells;
+    std::vector<NObjectClient::TCellId> LostAlienCellIds;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

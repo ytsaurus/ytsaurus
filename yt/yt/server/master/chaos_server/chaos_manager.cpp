@@ -229,25 +229,29 @@ private:
     void HydraUpdateAlienCellPeers(NProto::TReqUpdateAlienCellPeers* request)
     {
         auto constellations = FromProto<std::vector<TAlienCellConstellation>>(request->constellations());
+        auto fullSync = request->full_sync();
 
-        for (const auto& [alienClusterIndex, alienCells] : constellations) {
+        for (const auto& [alienClusterIndex, alienCells, lostAlienCellIds] : constellations) {
             for (const auto& alienCell : alienCells) {
                 auto* cell = FindChaosCellById(alienCell.CellId);
-                if (!IsObjectAlive(cell) || cell->GetAlienConfigVersion(alienClusterIndex) >= alienCell.ConfigVersion) {
+                if (!IsObjectAlive(cell)) {
+                    continue;
+                }
+                if (!fullSync && cell->GetAlienConfigVersion(alienClusterIndex) >= alienCell.ConfigVersion) {
                     continue;
                 }
 
                 for (const auto& alienPeer : alienCell.AlienPeers) {
-                    if (!cell->IsAlienPeer(alienPeer.PeerId)) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
+                    if (alienPeer.PeerId < 0 || alienPeer.PeerId >= std::ssize(cell->Peers())) {
+                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
                             cell->GetId(),
                             alienPeer.PeerId,
                             AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
                         continue;
                     }
 
-                    if (alienPeer.PeerId < 0 || alienPeer.PeerId >= std::ssize(cell->Peers())) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
+                    if (!cell->IsAlienPeer(alienPeer.PeerId)) {
+                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
                             cell->GetId(),
                             alienPeer.PeerId,
                             AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
@@ -265,6 +269,29 @@ private:
                 }
 
                 cell->SetAlienConfigVersion(alienClusterIndex, alienCell.ConfigVersion);
+            }
+
+            if (fullSync) {
+                for (auto cellId : lostAlienCellIds) {
+                    auto* cell = FindChaosCellById(cellId);
+                    if (!IsObjectAlive(cell) || cell->GetAlienConfigVersion(alienClusterIndex) == 0) {
+                        continue;
+                    }
+
+                    const auto& options = cell->GetChaosCellBundle()->GetChaosOptions();
+                    for (int peerId = 0; peerId < std::ssize(options->Peers); ++peerId) { 
+                        const auto& alienCluster = options->Peers[peerId]->AlienCluster;
+                        if (alienCluster && alienCluster == AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex)) {
+                            cell->UpdateAlienPeer(peerId, {});
+                        }
+                    }
+
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated alien peer config for lost peers (ChaosCellId: %v, AlienCluster: %v)",
+                        cellId,
+                        AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
+
+                    cell->SetAlienConfigVersion(alienClusterIndex, 0);
+                }
             }
         }
     }
