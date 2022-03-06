@@ -167,9 +167,9 @@ void TRecovery::DoRun()
     }
 
     YT_LOG_INFO("Replaying changelogs (TargetState: %v, ChangelogIds: %v-%v)",
-        TargetState_.SegmentId,
         TargetState_,
-        initialChangelogId);
+        initialChangelogId,
+        TargetState_.SegmentId);
 
     auto changelogId = initialChangelogId;
     IChangelogPtr changelog;
