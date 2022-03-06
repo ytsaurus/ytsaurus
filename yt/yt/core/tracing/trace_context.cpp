@@ -434,11 +434,11 @@ void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
     }
 }
 
-TTraceContextPtr TTraceContext::NewRoot(TString spanName)
+TTraceContextPtr TTraceContext::NewRoot(TString spanName, TTraceId traceId)
 {
     return New<TTraceContext>(
         TSpanContext{
-            .TraceId = TTraceId::Create(),
+            .TraceId = traceId ? traceId : TTraceId::Create(),
             .SpanId = InvalidSpanId,
             .Sampled = false,
             .Debug = false,

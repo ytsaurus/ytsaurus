@@ -11,6 +11,7 @@
 namespace NYT::NPython {
 
 using namespace NYson;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,6 +163,11 @@ void TDriverResponse::SetResponse(TFuture<void> response)
     if (ResponseCookie_ == InvalidFutureCookie) {
         throw CreateYtError("Finalization started");
     }
+}
+
+void TDriverResponse::SetTraceContextFinishGuard(TTraceContextFinishGuard&& guard)
+{
+    TraceContextFinishGuard_ = std::move(guard);
 }
 
 TIntrusivePtr<TDriverResponseHolder> TDriverResponse::GetHolder() const

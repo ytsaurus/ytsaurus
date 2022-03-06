@@ -416,6 +416,8 @@ def execute_command(
 
     parameters = prepare_parameters(parameters)
 
+    trace_id = generate_uuid()
+
     if verbose:
 
         def _is_text_yson(fmt):
@@ -426,7 +428,7 @@ def execute_command(
             if _is_text_yson(pretty_parameters.get(key, None)):
                 pretty_parameters.pop(key)
 
-        print_debug(str(datetime.now()), command_name, pretty_parameters)
+        print_debug(str(datetime.now()), command_name, pretty_parameters, trace_id)
 
     response = driver.execute(
         Request(
@@ -435,6 +437,7 @@ def execute_command(
             input_stream=input_stream,
             output_stream=output_stream,
             user=authenticated_user,
+            trace_id=trace_id,
         )
     )
 
