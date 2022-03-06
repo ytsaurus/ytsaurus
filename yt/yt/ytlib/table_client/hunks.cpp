@@ -11,11 +11,14 @@
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -45,6 +48,26 @@ static const auto& Logger = TableClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+template <class T>
+size_t WritePod(char* ptr, const T& pod)
+{
+    ::memcpy(ptr, &pod, sizeof(T));
+    return sizeof(T);
+}
+
+size_t WriteRef(char* ptr, TRef ref)
+{
+    ::memcpy(ptr, ref.Begin(), ref.Size());
+    return ref.Size();
+}
+
+template <class T>
+size_t ReadPod(const char* ptr, T* pod)
+{
+    ::memcpy(pod, ptr, sizeof(T));
+    return sizeof(T);
+}
 
 TRef GetValueRef(const TUnversionedValue& value)
 {
@@ -152,6 +175,9 @@ public:
 void ToProto(NTableClient::NProto::THunkChunkRef* protoRef, const THunkChunkRef& ref)
 {
     ToProto(protoRef->mutable_chunk_id(), ref.ChunkId);
+    if (ref.ErasureCodec != NErasure::ECodec::None) {
+        protoRef->set_erasure_codec(ToProto<int>(ref.ErasureCodec));
+    }
     protoRef->set_hunk_count(ref.HunkCount);
     protoRef->set_total_hunk_length(ref.TotalHunkLength);
 }
@@ -159,6 +185,7 @@ void ToProto(NTableClient::NProto::THunkChunkRef* protoRef, const THunkChunkRef&
 void FromProto(THunkChunkRef* ref, const NTableClient::NProto::THunkChunkRef& protoRef)
 {
     ref->ChunkId = FromProto<TChunkId>(protoRef.chunk_id());
+    ref->ErasureCodec = FromProto<NErasure::ECodec>(protoRef.erasure_codec());
     ref->HunkCount = protoRef.hunk_count();
     ref->TotalHunkLength = protoRef.total_hunk_length();
 }
@@ -168,6 +195,10 @@ void Serialize(const THunkChunkRef& ref, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("chunk_id").Value(ref.ChunkId)
+            .DoIf(ref.ErasureCodec != NErasure::ECodec::None, [&] (auto fluent) {
+                fluent
+                    .Item("erasure_codec").Value(ref.ErasureCodec);
+            })
             .Item("hunk_count").Value(ref.HunkCount)
             .Item("total_hunk_length").Value(ref.TotalHunkLength)
         .EndMap();
@@ -175,7 +206,13 @@ void Serialize(const THunkChunkRef& ref, IYsonConsumer* consumer)
 
 void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{ChunkId: %v, HunkCount: %v, TotalHunkLength: %v}",
+    builder->AppendFormat("{ChunkId: %v, ",
+        ref.ChunkId);
+    if (ref.ErasureCodec != NErasure::ECodec::None) {
+        builder->AppendFormat("ErasureCodec: %v, ",
+            ref.ErasureCodec);
+    }
+    builder->AppendFormat("HunkCount: %v, TotalHunkLength: %v}",
         ref.ChunkId,
         ref.HunkCount,
         ref.TotalHunkLength);
@@ -205,7 +242,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxLocalHunkRefSize);
     char* endPtr =  beginPtr + MaxLocalHunkRefSize;
     auto* currentPtr = beginPtr;
-    *currentPtr++ = static_cast<char>(EHunkValueTag::LocalRef);                     // tag
+    currentPtr += WritePod(currentPtr, static_cast<char>(EHunkValueTag::LocalRef)); // tag
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.ChunkIndex));  // chunkIndex
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));      // length
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));  // blockIndex
@@ -219,12 +256,14 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxGlobalHunkRefSize);
     char* endPtr =  beginPtr + MaxGlobalHunkRefSize;
     auto* currentPtr = beginPtr;
-    *currentPtr++ = static_cast<char>(EHunkValueTag::GlobalRef);                    // tag
-    ::memcpy(currentPtr, &value.ChunkId, sizeof(TChunkId));                         // chunkId
-    currentPtr += sizeof(TChunkId);
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));      // length
-    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));  // blockIndex
-    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset)); // blockOffset
+    currentPtr += WritePod(currentPtr, static_cast<char>(EHunkValueTag::GlobalRef));   // tag
+    currentPtr += WritePod(currentPtr, value.ChunkId);                                 // chunkId
+    if (IsErasureChunkId(value.ChunkId)) {
+        currentPtr += WriteVarInt32(currentPtr, static_cast<i32>(value.ErasureCodec)); // erasureCodec
+    }
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));         // length
+    currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));     // blockIndex
+    currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset));    // blockOffset
     pool->Free(currentPtr, endPtr);
     return TRef(beginPtr, currentPtr);
 }
@@ -236,11 +275,10 @@ size_t GetInlineHunkValueSize(const TInlineHunkValue& value)
 
 TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value)
 {
-    auto beginPtr = ptr;
-    auto currentPtr = ptr;
-    *currentPtr++ = static_cast<char>(EHunkValueTag::Inline);          // tag
-    ::memcpy(currentPtr, value.Payload.Begin(), value.Payload.Size()); // payload
-    currentPtr += value.Payload.Size();
+    auto* beginPtr = ptr;
+    auto* currentPtr = ptr;
+    currentPtr += WritePod(currentPtr, static_cast<char>(EHunkValueTag::Inline)); // tag
+    currentPtr += WriteRef(currentPtr, value.Payload);                            // payload
     return TRef(beginPtr, currentPtr);
 }
 
@@ -278,11 +316,14 @@ THunkValue ReadHunkValue(TRef input)
 
         case static_cast<char>(EHunkValueTag::GlobalRef): {
             TChunkId chunkId;
+            i32 erasureCodec = static_cast<i32>(NErasure::ECodec::None);
             ui64 length;
             ui32 blockIndex;
             ui64 blockOffset;
-            ::memcpy(&chunkId, currentPtr, sizeof(TChunkId));
-            currentPtr += sizeof(TChunkId);
+            currentPtr += ReadPod(currentPtr, &chunkId);
+            if (IsErasureChunkId(chunkId)) {
+                currentPtr += ReadVarInt32(currentPtr, &erasureCodec);
+            }
             currentPtr += ReadVarUint64(currentPtr, &length);
             currentPtr += ReadVarUint32(currentPtr, &blockIndex);
             currentPtr += ReadVarUint64(currentPtr, &blockOffset);
@@ -292,6 +333,7 @@ THunkValue ReadHunkValue(TRef input)
             }
             return TGlobalRefHunkValue{
                 .ChunkId = chunkId,
+                .ErasureCodec = static_cast<NErasure::ECodec>(erasureCodec),
                 .BlockIndex = static_cast<int>(blockIndex),
                 .BlockOffset = static_cast<i64>(blockOffset),
                 .Length = static_cast<i64>(length),
@@ -311,8 +353,10 @@ void DoGlobalizeHunkValue(
 {
     auto hunkValue = ReadHunkValue(TRef(value->Data.String, value->Length));
     if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
+        const auto& hunkChunkRef = hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex);
         auto globalRefHunkValue = TGlobalRefHunkValue{
-            .ChunkId = FromProto<TChunkId>(hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex).chunk_id()),
+            .ChunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id()),
+            .ErasureCodec = FromProto<NErasure::ECodec>(hunkChunkRef.erasure_codec()),
             .BlockIndex = localRefHunkValue->BlockIndex,
             .BlockOffset = localRefHunkValue->BlockOffset,
             .Length = localRefHunkValue->Length,
@@ -786,7 +830,7 @@ public:
                         },
                         [&] (const TGlobalRefHunkValue& globalRefHunkValue) {
                             TLocalRefHunkValue localRefHunkValue{
-                                .ChunkIndex = RegisterHunkRef(globalRefHunkValue.ChunkId, globalRefHunkValue.Length),
+                                .ChunkIndex = RegisterHunkRef(globalRefHunkValue),
                                 .BlockIndex = globalRefHunkValue.BlockIndex,
                                 .BlockOffset = globalRefHunkValue.BlockOffset,
                                 .Length = globalRefHunkValue.Length,
@@ -929,22 +973,24 @@ private:
     std::optional<int> HunkChunkPayloadWriterChunkIndex_;
 
 
-    int RegisterHunkRef(TChunkId chunkId, i64 length)
+    int RegisterHunkRef(const TGlobalRefHunkValue& globalRefHunkValue)
     {
         int chunkIndex;
         TChunkIdToIndex::insert_ctx context;
-        auto it = ChunkIdToIndex_.find(chunkId, context);
+        auto it = ChunkIdToIndex_.find(globalRefHunkValue.ChunkId, context);
         if (it == ChunkIdToIndex_.end()) {
             chunkIndex = std::ssize(HunkChunkRefs_);
-            HunkChunkRefs_.emplace_back().ChunkId = chunkId;
-            ChunkIdToIndex_.emplace_direct(context, chunkId, chunkIndex);
+            auto& ref = HunkChunkRefs_.emplace_back();
+            ref.ChunkId = globalRefHunkValue.ChunkId;
+            ref.ErasureCodec = globalRefHunkValue.ErasureCodec;
+            ChunkIdToIndex_.emplace_direct(context, globalRefHunkValue.ChunkId, chunkIndex);
         } else {
             chunkIndex = it->second;
         }
 
         auto& ref = HunkChunkRefs_[chunkIndex];
         ref.HunkCount += 1;
-        ref.TotalHunkLength += length;
+        ref.TotalHunkLength += globalRefHunkValue.Length;
 
         return chunkIndex;
     }
@@ -1037,6 +1083,7 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                 }
                 requests.push_back({
                     .ChunkId = globalRefHunkValue.ChunkId,
+                    .ErasureCodec = globalRefHunkValue.ErasureCodec,
                     .Length = static_cast<i64>(sizeof(THunkPayloadHeader)) + globalRefHunkValue.Length,
                     .BlockIndex = globalRefHunkValue.BlockIndex,
                     .BlockOffset = globalRefHunkValue.BlockOffset

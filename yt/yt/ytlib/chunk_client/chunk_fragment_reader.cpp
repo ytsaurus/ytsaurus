@@ -513,6 +513,11 @@ private:
         for (int i = 0; i < std::ssize(Requests_); ++i) {
             const auto& request = Requests_[i];
 
+            if (IsErasureChunkId(request.ChunkId)) {
+                Promise_.TrySet(TError("Old chunk fragment reader does not support erasure chunks"));
+                return;
+            }
+
             dataWeight += request.Length;
             chunkIdToFragmentInfos[request.ChunkId].push_back({
                 .FragmentIndex = i,

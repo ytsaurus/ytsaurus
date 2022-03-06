@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/table_client/versioned_row.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/range.h>
 
@@ -25,6 +27,7 @@ namespace NYT::NTableClient {
 struct THunkChunkRef
 {
     NChunkClient::TChunkId ChunkId;
+    NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
     i64 HunkCount = 0;
     i64 TotalHunkLength = 0;
 };
@@ -218,6 +221,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EHunkValueTag, ui8,
  *  3) tag == EHunkValueTag::GlobalRef
  *  Value payload is moved to a hunk chunk and is referenced by chunk id.
  *  * chunkId: TChunkId
+ *  * erasureCodec: NErasure::ECodec(varint32) if chunkId is erasure
  *  * blockIndex: varuint32
  *  * blockOffset: varuint64
  *  * length: varuint64
@@ -239,6 +243,7 @@ struct TLocalRefHunkValue
 struct TGlobalRefHunkValue
 {
     NChunkClient::TChunkId ChunkId;
+    NErasure::ECodec ErasureCodec;
     int BlockIndex;
     i64 BlockOffset;
     i64 Length;
@@ -265,6 +270,7 @@ constexpr auto MaxLocalHunkRefSize =
 constexpr auto MaxGlobalHunkRefSize =
     sizeof(ui8) +                    // tag
     sizeof(NChunkClient::TChunkId) + // chunkId
+    sizeof(NErasure::ECodec)       + // erasureCodec
     MaxVarUint64Size +               // length
     MaxVarUint32Size +               // blockIndex
     MaxVarUint64Size;                // blockOffset

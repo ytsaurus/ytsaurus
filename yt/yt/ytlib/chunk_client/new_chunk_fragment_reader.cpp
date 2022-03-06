@@ -66,7 +66,7 @@ struct TPeerProbingInfo
     TNodeId NodeId;
     TErrorOr<TPeerInfoPtr> PeerInfoOrError;
     std::vector<int> ChunkIndexes;
-    std::vector<TChunkId> ChunkIds;
+    std::vector<TChunkIdWithIndex> ChunkIdsWithIndices;
     std::optional<TInstant> SuspicionMarkTime;
 };
 
@@ -403,8 +403,8 @@ private:
                             probingInfo.NodeId,
                             peerInfo->Address,
                             suspicionMarkTime);
-                        for (auto chunkId : probingInfo.ChunkIds) {
-                            TryDiscardChunkReplicas(chunkId);
+                        for (const auto& chunkIdWithIndex : probingInfo.ChunkIdsWithIndices) {
+                            TryDiscardChunkReplicas(chunkIdWithIndex.Id);
                         }
                     }
                 }
@@ -446,14 +446,14 @@ private:
                 auto chunkIndex = probingInfo.ChunkIndexes[resultIndex];
                 const auto& subresponse = probingRsp->subresponses(resultIndex);
 
-                auto chunkId = probingInfo.ChunkIds[resultIndex];
-                YT_VERIFY(chunkId == ChunkIds_[chunkIndex]);
+                const auto& chunkIdWithIndex = probingInfo.ChunkIdsWithIndices[resultIndex];
+                YT_VERIFY(chunkIdWithIndex.Id == ChunkIds_[chunkIndex]);
 
-                TryUpdateChunkReplicas(chunkId, subresponse);
+                TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
 
                 if (!subresponse.has_complete_chunk()) {
                     YT_LOG_WARNING("Chunk is missing from node (ChunkId: %v, Address: %v)",
-                        chunkId,
+                        chunkIdWithIndex,
                         peerInfo->Address);
                     continue;
                 }
@@ -461,12 +461,13 @@ private:
                 if (subresponse.disk_throttling()) {
                     YT_LOG_DEBUG("Peer is disk-throttling (Address: %v, ChunkId: %v, DiskQueueSize: %v)",
                         peerInfo->Address,
-                        chunkId,
+                        chunkIdWithIndex,
                         subresponse.disk_queue_size());
                 }
 
-                auto& probingResult = chunkIdToProbingResult[chunkId];
+                auto& probingResult = chunkIdToProbingResult[chunkIdWithIndex.Id];
                 probingResult.Replicas.push_back(TChunkReplicaInfo{
+                    .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                     .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size()),
                     .PeerInfo = peerInfo
                 });
@@ -507,11 +508,6 @@ private:
         const TResponse& response)
     {
         VERIFY_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
-
-        // TODO(babenko): deal with erasure
-        if (!IsRegularChunkId(chunkId)) {
-            return;
-        }
 
         auto it = ChunkIdToReplicaInfoFuture_.find(chunkId);
         if (it == ChunkIdToReplicaInfoFuture_.end()) {
@@ -557,6 +553,7 @@ private:
 
             for (auto chunkReplica : allyReplicas.Replicas) {
                 auto nodeId = chunkReplica.GetNodeId();
+                auto chunkIdWithIndex = TChunkIdWithIndex(chunkId, chunkReplica.GetReplicaIndex());
                 auto [it, emplaced] = nodeIdToNodeIndex.try_emplace(nodeId);
                 if (emplaced) {
                     it->second = probingInfos.size();
@@ -566,7 +563,7 @@ private:
                     nodeIds.push_back(nodeId);
                 }
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
-                probingInfos[it->second].ChunkIds.push_back(chunkId);
+                probingInfos[it->second].ChunkIdsWithIndices.push_back(chunkIdWithIndex);
             }
         }
 
@@ -602,7 +599,9 @@ private:
         auto req = proxy.ProbeChunkSet();
         req->SetResponseHeavy(true);
         SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
-        ToProto(req->mutable_chunk_ids(), probingInfo.ChunkIds);
+        for (const auto& chunkIdWithIndex : probingInfo.ChunkIdsWithIndices) {
+            ToProto(req->add_chunk_ids(), EncodeChunkId(chunkIdWithIndex));
+        }
         req->SetAcknowledgementTimeout(std::nullopt);
 
         return req->Invoke();
@@ -935,7 +934,7 @@ private:
     struct TChunkState
     {
         TChunkReplicaInfoList Replicas;
-        std::optional<TChunkFragmentReadController> Controller;
+        std::unique_ptr<IChunkFragmentReadController> Controller;
     };
 
     THashMap<TChunkId, TChunkState> ChunkIdToChunkState_;
@@ -945,6 +944,7 @@ private:
     struct TPerPeerPlanItem
     {
         TChunkState* ChunkState = nullptr;
+        const TChunkFragmentReadControllerPlan* Plan = nullptr;
         int PeerIndex = -1;
         int RequestedFragmentCount = 0;
     };
@@ -1016,7 +1016,10 @@ private:
             auto it = ChunkIdToChunkState_.find(request.ChunkId);
             if (it == ChunkIdToChunkState_.end()) {
                 it = ChunkIdToChunkState_.emplace(request.ChunkId, TChunkState()).first;
-                it->second.Controller.emplace(request.ChunkId, &State_->Response.Fragments);
+                it->second.Controller = CreateChunkFragmentReadController(
+                    request.ChunkId,
+                    request.ErasureCodec,
+                    &State_->Response.Fragments);
             }
 
             auto& controller = *it->second.Controller;
@@ -1138,10 +1141,6 @@ private:
                 }
             }
 
-            SortBy(chunkState.Replicas, [] (const TChunkReplicaInfo& replicaInfo) {
-                return std::make_tuple(replicaInfo.Penalty, replicaInfo.PeerInfo->NodeId);
-            });
-
             chunkState.Controller->SetReplicas(chunkState.Replicas);
             ++PendingChunkCount_;
         }
@@ -1205,7 +1204,7 @@ private:
             }
 
             if (auto plan = chunkState.Controller->TryMakePlan()) {
-                for (auto peerIndex : *plan) {
+                for (auto peerIndex : plan->PeerIndices) {
                     const auto& replicaInfo = chunkState.Controller->GetReplica(peerIndex);
                     auto& perPeerPlan = peerInfoToPlan[replicaInfo.PeerInfo];
                     if (!perPeerPlan) {
@@ -1214,6 +1213,7 @@ private:
                     }
                     perPeerPlan->Items.push_back({
                         .ChunkState = &chunkState,
+                        .Plan = plan,
                         .PeerIndex = peerIndex
                     });
                 }
@@ -1241,9 +1241,12 @@ private:
             req->set_use_direct_io(Reader_->Config_->UseDirectIO);
 
             for (auto& item : plan->Items) {
-                item.RequestedFragmentCount = item.ChunkState->Controller->PrepareRpcSubrequest(
+                auto* subrequest = req->add_subrequests();
+                item.ChunkState->Controller->PrepareRpcSubrequest(
+                    item.Plan,
                     item.PeerIndex,
-                    req->add_subrequests());
+                    subrequest);
+                item.RequestedFragmentCount = subrequest->fragments_size();
             }
 
             YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ChunkIds: %v)",
@@ -1283,11 +1286,6 @@ private:
         const TResponse& response)
     {
         VERIFY_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
-
-        // TODO(babenko): deal with erasure
-        if (!IsRegularChunkId(chunkId)) {
-            return;
-        }
 
         auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
         if (it == Reader_->ChunkIdToChunkInfo_.end()) {
@@ -1381,6 +1379,7 @@ private:
                 }
 
                 controller.HandleRpcSubresponse(
+                    item.Plan,
                     item.PeerIndex,
                     subresponse,
                     fragments);
@@ -1438,7 +1437,11 @@ public:
 
     TFuture<TReadFragmentsResponse> Run()
     {
-        DoRun();
+        try {
+            DoRun();
+        } catch (const std::exception& ex) {
+            OnFatalError(ex);
+        }
         return Promise_;
     }
 
