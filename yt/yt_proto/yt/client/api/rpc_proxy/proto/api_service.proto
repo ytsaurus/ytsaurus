@@ -212,6 +212,7 @@ enum EMultiplexingBand
     MB_DEFAULT = 0;
     MB_CONTROL = 1;
     MB_HEAVY = 2;
+    MB_INTERACTIVE = 3;
 }
 
 enum ETableSchemaModification

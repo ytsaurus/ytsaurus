@@ -139,6 +139,7 @@ DEFINE_ENUM(EMultiplexingBand,
     ((Default)               (0))
     ((Control)               (1))
     ((Heavy)                 (2))
+    ((Interactive)           (3))
 );
 
 YT_DEFINE_ERROR_ENUM(

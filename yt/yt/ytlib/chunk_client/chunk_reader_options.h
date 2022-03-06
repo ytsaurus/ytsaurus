@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/core/rpc/public.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,7 @@ struct TClientChunkReadOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
     TReadSessionId ReadSessionId;
+    NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Heavy;
     int MultiplexingParallelism = 1;
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
