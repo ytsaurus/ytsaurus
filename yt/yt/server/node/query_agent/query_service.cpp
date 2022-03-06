@@ -584,6 +584,7 @@ private:
         TClientChunkReadOptions chunkReadOptionsBase{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
             .ReadSessionId = TReadSessionId::Create(),
+            .MultiplexingBand = EMultiplexingBand::Interactive,
             // NB: ChunkReaderStatistics will be created per lookup call.
             .ChunkReaderStatistics = nullptr
         };
