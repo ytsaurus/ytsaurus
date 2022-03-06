@@ -989,7 +989,8 @@ public:
                 BIND(&TNodeShard::AbortJobs,
                     NodeShards_[shardId],
                     jobIdsByShardId[shardId],
-                    TError("Job was in banned tentative pool tree")));
+                    TError("Job was in banned tentative pool tree")
+                        << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree)));
         }
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationBannedInTree)
@@ -3423,7 +3424,8 @@ private:
         WaitFor(AllSucceeded(abortFutures))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("All operations jobs aborted at scheduler (OperationId: %v)",
+        YT_LOG_INFO(error,
+            "All operations jobs aborted at scheduler (OperationId: %v)",
             operation->GetId());
 
         const auto& agent = operation->FindAgent();
@@ -3652,7 +3654,11 @@ private:
         operation->SetSuspended(true);
 
         if (abortRunningJobs) {
-            AbortOperationJobs(operation, error, /* terminated */ false);
+            AbortOperationJobs(
+                operation,
+                error
+                    << TErrorAttribute("abort_reason", EAbortReason::Suspended),
+                /* terminated */ false);
         }
 
         if (setAlert) {
