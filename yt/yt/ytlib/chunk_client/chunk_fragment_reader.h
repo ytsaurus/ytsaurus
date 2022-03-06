@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +23,7 @@ struct IChunkFragmentReader
     struct TChunkFragmentRequest
     {
         TChunkId ChunkId;
+        NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
         i64 Length;
         int BlockIndex;
         i64 BlockOffset;

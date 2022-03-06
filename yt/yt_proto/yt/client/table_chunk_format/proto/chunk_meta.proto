@@ -234,6 +234,7 @@ message THunkChunkRef
     required NYT.NProto.TGuid chunk_id = 1;
     optional int64 hunk_count = 2;
     optional int64 total_hunk_length = 3;
+    optional int32 erasure_codec = 4; // NErasure::ECodec
 }
 
 message THunkChunkRefsExt
