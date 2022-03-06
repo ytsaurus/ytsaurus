@@ -149,6 +149,8 @@ public:
     bool EnablePeerProbingInDataNodeLookup;
     bool EnableRejectsInDataNodeLookupIfThrottling;
 
+    int LookupRpcMultiplexingParallelism;
+
     bool EnableDynamicStoreRead;
     bool EnableNewScanReaderForLookup;
     bool EnableNewScanReaderForSelect;

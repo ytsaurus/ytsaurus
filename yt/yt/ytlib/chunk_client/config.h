@@ -275,9 +275,6 @@ public:
     TDuration ProbeChunkSetRpcTimeout;
     TDuration GetChunkFragmentSetRpcTimeout;
 
-    //! Channel multiplexing parallelism for GetChunkFragmentSet.
-    int GetChunkFragmentSetMultiplexingParallelism;
-
     //! Delay before sending a hedged request. If null then hedging is disabled.
     std::optional<TDuration> FragmentReadHedgingDelay;
 

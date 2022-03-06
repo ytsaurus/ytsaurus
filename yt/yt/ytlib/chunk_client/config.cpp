@@ -168,10 +168,6 @@ TChunkFragmentReaderConfig::TChunkFragmentReaderConfig()
     RegisterParameter("get_chunk_fragment_set_rpc_timeout", GetChunkFragmentSetRpcTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("get_chunk_fragment_set_multiplexing_parallelism", GetChunkFragmentSetMultiplexingParallelism)
-        .GreaterThan(0)
-        .Default(1);
-
     RegisterParameter("fragment_read_hedging_delay", FragmentReadHedgingDelay)
         .Default();
 
