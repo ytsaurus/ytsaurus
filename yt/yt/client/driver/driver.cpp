@@ -314,7 +314,10 @@ public:
 
     TFuture<void> Execute(const TDriverRequest& request) override
     {
-        TTraceContextGuard guard(TTraceContext::NewRoot("Driver"));
+        auto traceContext = GetCurrentTraceContext()
+            ? GetCurrentTraceContext()->CreateChild("Driver")
+            : TTraceContext::NewRoot("Driver");
+        TTraceContextGuard guard(std::move(traceContext));
 
         auto it = CommandNameToEntry_.find(request.CommandName);
         if (it == CommandNameToEntry_.end()) {

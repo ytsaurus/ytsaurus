@@ -3,7 +3,6 @@
 #include "response.h"
 #include "error.h"
 #include "descriptor.h"
-#include "yt/yt/core/tracing/trace_context.h"
 
 #include <yt/yt/python/common/buffered_stream.h>
 #include <yt/yt/python/common/shutdown.h>
@@ -25,6 +24,8 @@
 
 #include <yt/yt/core/net/config.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,6 +34,7 @@ using namespace NApi;
 using namespace NYTree;
 using namespace NDriver;
 using namespace NConcurrency;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,9 +90,24 @@ TDriverBase::~TDriverBase()
 
 Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
 {
+    auto pyRequest = ExtractArgument(args, kwargs, "request");
+
+    TTraceContextPtr traceContext;
+    // Note that trace_id attribute may be missing in case of an old Python caller,
+    // trying to keep compatibility here.
+    if (auto traceIdObject = FindAttr(pyRequest, "trace_id"); traceIdObject && !traceIdObject->isNone()) {
+        auto traceIdString = ConvertStringObjectToString(*traceIdObject);
+        TTraceId traceId;
+        if (!TTraceId::FromString(traceIdString, &traceId)) {
+            throw Py::RuntimeError("Malformed trace id");
+        }
+        traceContext = TTraceContext::NewRoot("PythonDriver", traceId);
+    }
+
+    TCurrentTraceContextGuard guard(traceContext);
+
     YT_LOG_DEBUG("Preparing driver request");
 
-    auto pyRequest = ExtractArgument(args, kwargs, "request");
     ValidateArgumentsEmpty(args, kwargs);
 
     Py::Callable classType(TDriverResponse::type());
@@ -116,19 +133,13 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         request.AuthenticatedUser = ConvertStringObjectToString(user);
     }
 
-    // COMPAT: check can be removed in future.
-    if (pyRequest.hasAttr("token")) {
-        auto token = GetAttr(pyRequest, "token");
-        if (!token.isNone()) {
-            request.UserToken = ConvertStringObjectToString(token);
-        }
+    // COMPAT: find may be replaced with get in the future.
+    if (auto token = FindAttr(pyRequest, "token"); token && !token->isNone()) {
+        request.UserToken = ConvertStringObjectToString(*token);
     }
 
-    if (pyRequest.hasAttr("id")) {
-        auto id = GetAttr(pyRequest, "id");
-        if (!id.isNone()) {
-            request.Id = static_cast<ui64>(Py::ConvertToLongLong(id));
-        }
+    if (auto id = FindAttr(pyRequest, "id"); id && !id->isNone()) {
+        request.Id = static_cast<ui64>(Py::ConvertToLongLong(*id));
     }
 
     auto inputStreamObj = GetAttr(pyRequest, "input_stream");
@@ -155,6 +166,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     try {
         auto driverResponse = UnderlyingDriver_->Execute(request);
         response->SetResponse(driverResponse);
+        response->SetTraceContextFinishGuard(TTraceContextFinishGuard(std::move(traceContext)));
         if (bufferedOutputStream) {
             auto outputStream = bufferedOutputStream->GetStream();
             driverResponse.Subscribe(BIND([=] (const TError& /*error*/) {

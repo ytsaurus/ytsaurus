@@ -63,6 +63,7 @@ public:
     TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs);
 
     void SetResponse(TFuture<void> response);
+    void SetTraceContextFinishGuard(NTracing::TTraceContextFinishGuard&& guard);
     TIntrusivePtr<TDriverResponseHolder> GetHolder() const;
 
     Py::Object ResponseParameters(Py::Tuple& args, Py::Dict& kwargs);
@@ -88,6 +89,7 @@ private:
     TFuture<void> ResponseFuture_;
     TFutureCookie ResponseCookie_;
     TIntrusivePtr<TDriverResponseHolder> Holder_;
+    std::optional<NTracing::TTraceContextFinishGuard> TraceContextFinishGuard_;
 
     static TString TypeName_;
 };

@@ -160,7 +160,7 @@ public:
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
     TDuration GetElapsedTime() const;
 
-    static TTraceContextPtr NewRoot(TString spanName);
+    static TTraceContextPtr NewRoot(TString spanName, TTraceId traceIt = TTraceId());
 
     static TTraceContextPtr NewChildFromRpc(
         const NProto::TTracingExt& ext,
