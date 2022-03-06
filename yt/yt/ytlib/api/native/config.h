@@ -178,6 +178,8 @@ public:
 
     NRpc::TRetryingChannelConfigPtr ChaosCellChannel;
 
+    NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
+
     TConnectionConfig();
 };
 
