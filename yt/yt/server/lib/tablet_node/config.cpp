@@ -242,6 +242,10 @@ TTableMountConfig::TTableMountConfig()
     RegisterParameter("enable_rejects_in_data_node_lookup_if_throttling", EnableRejectsInDataNodeLookupIfThrottling)
         .Default(false);
 
+    RegisterParameter("lookup_rpc_multiplexing_parallelism", LookupRpcMultiplexingParallelism)
+        .Default(1)
+        .InRange(1, 16);
+
     RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
         .Default(false);
 

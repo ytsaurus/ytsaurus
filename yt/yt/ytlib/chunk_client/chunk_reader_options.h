@@ -14,6 +14,7 @@ struct TClientChunkReadOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
     TReadSessionId ReadSessionId;
+    int MultiplexingParallelism = 1;
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
 

@@ -581,7 +581,7 @@ private:
         auto retentionTimestamp = FromProto<TTimestamp>(request->retention_timestamp());
 
         // TODO(sandello): Extract this out of RPC request.
-        TClientChunkReadOptions chunkReadOptions{
+        TClientChunkReadOptions chunkReadOptionsBase{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
             .ReadSessionId = TReadSessionId::Create(),
             // NB: ChunkReaderStatistics will be created per lookup call.
@@ -619,7 +619,7 @@ private:
             retentionTimestamp,
             requestCodecId,
             responseCodecId,
-            chunkReadOptions.ReadSessionId,
+            chunkReadOptionsBase.ReadSessionId,
             inMemoryMode,
             retentionConfig);
 
@@ -675,7 +675,7 @@ private:
                 ThrowUponNodeThrottlerOverdraft(
                     context->GetStartTime(),
                     context->GetTimeout(),
-                    chunkReadOptions,
+                    chunkReadOptionsBase,
                     Bootstrap_);
             }
 
@@ -696,6 +696,9 @@ private:
 
                             auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
                             snapshotStore->ValidateTabletAccess(tabletSnapshot, timestamp);
+
+                            auto chunkReadOptions = chunkReadOptionsBase;
+                            chunkReadOptions.MultiplexingParallelism = tabletSnapshot->Settings.MountConfig->LookupRpcMultiplexingParallelism;
 
                             ThrowUponDistributedThrottlerOverdraft(
                                 ETabletDistributedThrottlerKind::Lookup,
