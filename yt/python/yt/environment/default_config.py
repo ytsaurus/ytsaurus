@@ -556,9 +556,6 @@ b"""
     };
 
     flavors = [
-        "data";
-        "exec";
-        "tablet";
         "chaos";
     ];
 
