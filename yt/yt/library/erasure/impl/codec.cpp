@@ -51,14 +51,19 @@ struct TCodecTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <ECodec CodecId, class TUnderlying>
+template <class TUnderlying>
 class TCodec
     : public ICodec
 {
 public:
+    TCodec(ECodec id, bool bytewise)
+        : Id_(id)
+        , Bytewise_(bytewise)
+    { }
+
     ECodec GetId() const override
     {
-        return CodecId;
+        return Id_;
     }
 
     std::vector<TSharedRef> Encode(const std::vector<TSharedRef>& blocks) const override
@@ -108,7 +113,15 @@ public:
         return Underlying_.GetWordSize();
     }
 
+    bool IsBytewise() const override
+    {
+        return Bytewise_;
+    }
+
 private:
+    const ECodec Id_;
+    const bool Bytewise_;
+
     TUnderlying Underlying_;
 };
 
@@ -116,30 +129,28 @@ private:
 
 ICodec* GetCodec(ECodec id)
 {
+    // NB: Changing the set of supported codecs or their properties requires master reign promotion.
     switch (id) {
-        // NB: This codec uses Jerasure as a backend.
+        // These codecs use Jerasure as a backend.
         case ECodec::ReedSolomon_6_3: {
-            static TCodec<ECodec::ReedSolomon_6_3, TCauchyReedSolomonJerasure<6, 3, 8, TCodecTraits>> result;
+            static TCodec<TCauchyReedSolomonJerasure<6, 3, 8, TCodecTraits>> result(ECodec::ReedSolomon_6_3, /*bytewise*/ false);
             return &result;
         }
-        // NB: This codec uses ISA-l as a backend.
-        case ECodec::IsaReedSolomon_6_3: {
-            static TCodec<ECodec::IsaReedSolomon_6_3, TReedSolomonIsa<6, 3, 8, TCodecTraits>> result;
-            return &result;
-        }
-        // NB: This codec uses ISA-l as a backend.
-        case ECodec::ReedSolomon_3_3: {
-            static TCodec<ECodec::ReedSolomon_3_3, TReedSolomonIsa<3, 3, 8, TCodecTraits>> result;
-            return &result;
-        }
-        // NB: This codec uses Jerasure as a backend.
         case ECodec::JerasureLrc_12_2_2: {
-            static TCodec<ECodec::JerasureLrc_12_2_2, TLrcJerasure<12, 4, 8, TCodecTraits>> result;
+            static TCodec<TLrcJerasure<12, 4, 8, TCodecTraits>> result(ECodec::JerasureLrc_12_2_2, /*bytewise*/ false);
             return &result;
         }
-        // NB: This codec uses ISA-l as a backend.
+        // These codecs use ISA-l as a backend.
+        case ECodec::ReedSolomon_3_3: {
+            static TCodec<TReedSolomonIsa<3, 3, 8, TCodecTraits>> result(ECodec::ReedSolomon_3_3, /*bytewise*/ true);
+            return &result;
+        }
+        case ECodec::IsaReedSolomon_6_3: {
+            static TCodec<TReedSolomonIsa<6, 3, 8, TCodecTraits>> result(ECodec::IsaReedSolomon_6_3, /*bytewise*/ true);
+            return &result;
+        }
         case ECodec::IsaLrc_12_2_2: {
-            static TCodec<ECodec::IsaLrc_12_2_2, TLrcIsa<12, 4, 8, TCodecTraits>> result;
+            static TCodec<TLrcIsa<12, 4, 8, TCodecTraits>> result(ECodec::IsaLrc_12_2_2, /*bytewise*/ true);
             return &result;
         }
         default:

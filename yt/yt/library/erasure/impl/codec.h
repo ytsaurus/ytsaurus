@@ -61,6 +61,10 @@ struct ICodec
     //! Every block passed to this codec must have size divisible by the result of #GetWordSize.
     virtual int GetWordSize() const = 0;
 
+    //! Returns |true| if the codec is "bytewise", i.e. the i-th byte of any parity part depends only on
+    // the i-th bytes of data parts.
+    virtual bool IsBytewise() const = 0;
+
     // Extension methods
 
     //! Returns the sum of #GetDataPartCount and #GetParityPartCount.

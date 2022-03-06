@@ -62,20 +62,11 @@ void ValidateJournalAttributes(
             THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum <= replication_factor");
         }
     } else {
-        // These are "bytewise" codecs: the i-th byte of any parity part depends only on
-        // the i-th bytes of data parts. Not all codecs obey this property, e.g. all jerasure-based
-        // codecs are unsuitable.
-        // BEWARE: Changing this list requires master reign promotion.
-        static const std::vector<NErasure::ECodec> BytewiseCodecIds{
-            NErasure::ECodec::IsaLrc_12_2_2,
-            NErasure::ECodec::IsaReedSolomon_3_3,
-            NErasure::ECodec::IsaReedSolomon_6_3
-        };
-        if (Find(BytewiseCodecIds, codecId) == BytewiseCodecIds.end()) {
+        auto* codec = NErasure::GetCodec(codecId);
+        if (!codec->IsBytewise()) {
             THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure journals",
                 codecId);
         }
-        auto* codec = NErasure::GetCodec(codecId);
         if (replicationFactor != 1) {
             THROW_ERROR_EXCEPTION("\"replication_factor\" must be 1 for erasure journals",
                 codec->GetGuaranteedRepairablePartCount());
