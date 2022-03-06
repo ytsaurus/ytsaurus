@@ -240,6 +240,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("chaos_cell_channel", ChaosCellChannel)
         .DefaultNew();
 
+    RegisterParameter("hydra_admin_channel", HydraAdminChannel)
+        .DefaultNew();
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 

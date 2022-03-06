@@ -51,6 +51,7 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/rpc/helpers.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -400,7 +401,7 @@ IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
     return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(Connection_->GetNetworks()));
 }
 
-IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
+IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
 {
     try {
         WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
@@ -413,21 +414,27 @@ IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
         }
     }
 
-    const auto& cellDirectory = Connection_->GetCellDirectory();
-    if (cellDirectory->IsCellRegistered(cellId)) {
-        return cellDirectory->GetChannelByCellIdOrThrow(cellId);
-    }
-
-    auto config = Connection_->GetConfig()->ClockServers;
-    if (config && config->CellId == cellId) {
-        if (!config->Addresses) {
-            THROW_ERROR_EXCEPTION("Clock server addresses are empty");
+    auto channel = [&] {
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        if (cellDirectory->IsCellRegistered(cellId)) {
+            return cellDirectory->GetChannelByCellIdOrThrow(cellId);
         }
-        return CreatePeerChannel(config, Connection_->GetChannelFactory(), EPeerKind::Leader);
-    }
 
-    THROW_ERROR_EXCEPTION("Unknown cell %v",
-        cellId);
+        auto config = Connection_->GetConfig()->ClockServers;
+        if (config && config->CellId == cellId) {
+            if (!config->Addresses) {
+                THROW_ERROR_EXCEPTION("Clock server addresses are empty");
+            }
+            return CreatePeerChannel(config, Connection_->GetChannelFactory(), EPeerKind::Leader);
+        }
+
+        THROW_ERROR_EXCEPTION("Unknown cell %v",
+            cellId);
+    }();
+
+    return CreateRetryingChannel(
+        Connection_->GetConfig()->HydraAdminChannel,
+        std::move(channel));
 }
 
 TCellDescriptor TClient::GetCellDescriptorOrThrow(TCellId cellId)

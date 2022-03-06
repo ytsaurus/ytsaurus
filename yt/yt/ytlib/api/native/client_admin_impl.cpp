@@ -52,7 +52,7 @@ int TClient::DoBuildSnapshot(const TBuildSnapshotOptions& options)
     ValidateSuperuserPermissions();
 
     auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-    auto channel = GetLeaderCellChannelOrThrow(cellId);
+    auto channel = GetHydraAdminChannelOrThrow(cellId);
 
     THydraServiceProxy proxy(channel);
     auto req = proxy.ForceBuildSnapshot();
@@ -78,7 +78,7 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
     };
 
     auto constructRequest = [&] (TCellId cellId) {
-        auto channel = GetLeaderCellChannelOrThrow(cellId);
+        auto channel = GetHydraAdminChannelOrThrow(cellId);
         THydraServiceProxy proxy(channel);
         auto req = proxy.ForceBuildSnapshot();
         req->SetTimeout(options.Timeout);
@@ -149,7 +149,7 @@ void TClient::DoSwitchLeader(
     }
 
     auto addresses = GetCellAddressesOrThrow(cellId);
-    auto currentLeaderChannel = GetLeaderCellChannelOrThrow(cellId);
+    auto currentLeaderChannel = GetHydraAdminChannelOrThrow(cellId);
 
     std::vector<IChannelPtr> peerChannels;
     peerChannels.reserve(addresses.size());
