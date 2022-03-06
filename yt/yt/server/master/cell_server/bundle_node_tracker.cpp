@@ -229,7 +229,7 @@ bool CheckIfNodeCanHostCells(const TNode* node)
         return false;
     }
 
-    if (!node->ReportedTabletNodeHeartbeat()) {
+    if (!node->ReportedCellarNodeHeartbeat()) {
         return false;
     }
 
