@@ -402,8 +402,16 @@ IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 
 IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
 {
-    WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
-        .ThrowOnError();
+    try {
+        WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
+            .ThrowOnError();
+    } catch (const TErrorException& ex) {
+        if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
+            YT_LOG_WARNING(ex, "Skipping cell directory synchronization");
+        } else {
+            throw;
+        }
+    }
 
     const auto& cellDirectory = Connection_->GetCellDirectory();
     if (cellDirectory->IsCellRegistered(cellId)) {
