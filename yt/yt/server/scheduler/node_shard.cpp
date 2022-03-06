@@ -599,7 +599,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
                 job->GetOperationId());
             auto status = JobStatusFromError(
                 TError("Node without user slots")
-                << TErrorAttribute("abort_reason", EAbortReason::NodeWithZeroUserSlots));
+                    << TErrorAttribute("abort_reason", EAbortReason::NodeWithZeroUserSlots));
             OnJobAborted(job, &status, /* byScheduler */ true);
         }
     }
@@ -941,7 +941,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
     return errors;
 }
 
-void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool controllerTerminated)
+void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abortError, bool controllerTerminated)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -959,9 +959,10 @@ void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abor
     operationState->ControllerTerminated = controllerTerminated;
     operationState->ForbidNewJobs = true;
     auto jobs = operationState->Jobs;
-    for (const auto& job : jobs) {
-        auto status = JobStatusFromError(abortReason);
-        OnJobAborted(job.second, &status, /* byScheduler */ true);
+    for (const auto& [jobId, job] : jobs) {
+        auto status = JobStatusFromError(abortError);
+        YT_LOG_DEBUG(abortError, "Aborting job (JobId: %v, OperationId: %v)", jobId, operationId);
+        OnJobAborted(job, &status, /* byScheduler */ true);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1681,7 +1682,7 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reaso
     for (const auto& job : jobs) {
         auto status = JobStatusFromError(
             TError("All jobs on the node were aborted by scheduler")
-            << TErrorAttribute("abort_reason", reason));
+                << TErrorAttribute("abort_reason", reason));
         OnJobAborted(job, &status, /* byScheduler */ true);
     }
 
@@ -1928,7 +1929,10 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
 
         for (const auto& job : missingJobs) {
-            auto status = JobStatusFromError(TError("Job vanished"));
+            auto status = JobStatusFromError(
+                TError("Job vanished")
+                    << TErrorAttribute("abort_reason", EAbortReason::Vanished));
+            YT_LOG_DEBUG("Aborting vanished job (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
             OnJobAborted(job, &status, /* byScheduler */ true);
         }
     }
@@ -1941,7 +1945,10 @@ void TNodeShard::ProcessHeartbeatJobs(
             continue;
         }
 
-        auto status = JobStatusFromError(TError("Job not confirmed by node"));
+        auto status = JobStatusFromError(
+            TError("Job not confirmed by node")
+                << TErrorAttribute("abort_reason", EAbortReason::Unconfirmed));
+        YT_LOG_DEBUG("Aborting unconfirmed job (JobId: %v, OperationId: %v)", jobId, job->GetOperationId());
         OnJobAborted(job, &status, /* byScheduler */ true);
 
         ResetJobWaitingForConfirmation(job);
@@ -2135,7 +2142,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
         case EJobState::Aborted: {
             auto error = FromProto<TError>(jobStatus->result().error());
-            YT_LOG_DEBUG(error, "Job aborted, storage scheduled");
+            YT_LOG_DEBUG(error, "Job aborted on node, storage scheduled");
             AddRecentlyFinishedJob(job);
             if (job->GetPreempted() &&
                 (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
