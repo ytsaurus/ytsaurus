@@ -131,15 +131,17 @@ void ProcessScheduleJobResponses(
     TCtxHeartbeatPtr context,
     const std::vector<TNodeShardPtr>& nodeShards,
     const std::vector<IInvokerPtr>& nodeShardInvokers,
-    std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses)
+    std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses,
+    const IInvokerPtr& dtorInvoker)
 {
     auto Logger = SchedulerLogger
         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
     YT_LOG_DEBUG("Processing schedule job responses");
 
+    std::vector<TFuture<void>> futures;
     for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
-        nodeShardInvokers[shardId]->Invoke(
+        futures.push_back(
             BIND([
                 context,
                 nodeShard = nodeShards[shardId],
@@ -171,8 +173,18 @@ void ProcessScheduleJobResponses(
                     }
                     nodeShard->EndScheduleJob(*protoResponse);
                 }
-            }));
+            })
+            .AsyncVia(nodeShardInvokers[shardId])
+            .Run());
     }
+
+    AllSet(std::move(futures))
+        .Subscribe(
+            BIND([context = std::move(context)] (const TError&) { 
+                auto request = std::move(context->Request());
+                Y_UNUSED(request);
+            })
+            .Via(dtorInvoker));
 
     YT_LOG_DEBUG("Schedule job responses are processed");
 }
@@ -805,7 +817,8 @@ public:
             nodeShards = std::move(nodeShards),
             nodeShardInvokers = scheduler->GetNodeShardInvokers(),
             groupedJobEvents = std::move(groupedJobEvents),
-            groupedScheduleJobResponses = std::move(groupedScheduleJobResponses)
+            groupedScheduleJobResponses = std::move(groupedScheduleJobResponses),
+            dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
         ] {
             const auto Logger = SchedulerLogger
                 .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
@@ -863,7 +876,7 @@ public:
             }
             YT_LOG_DEBUG("Job events are processed");
 
-            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses));
+            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses), dtorInvoker);
         });
 
         response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
@@ -915,11 +928,12 @@ public:
             agent,
             scheduler,
             nodeShards = std::move(nodeShards),
-            nodeShardInvokers = scheduler->GetNodeShardInvokers()
+            nodeShardInvokers = scheduler->GetNodeShardInvokers(),
+            dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
         ] {
             std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
             ProcessScheduleJobMailboxes(context, agent, scheduler, groupedScheduleJobResponses);
-            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses));
+            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses), dtorInvoker);
         });
 
         context->SetResponseInfo("IncarnationId: %v", incarnationId);
