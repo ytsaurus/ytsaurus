@@ -516,6 +516,15 @@ public:
         }));
     }
 
+    TFuture<TMutationResponse> CommitHeartbeatMutation()
+    {
+        TMutationRequest mutationRequest{
+            .Reign = GetCurrentReign(),
+            .Type = HeartbeatMutationType
+        };
+        return CommitMutation(std::move(mutationRequest));
+    }
+
     TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
         auto state = GetAutomatonState();
@@ -1207,6 +1216,13 @@ private:
                 controlState);
         }
 
+        if (term && controlState != EPeerState::Following) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot handle follower ping with term in %Qlv state",
+                controlState);
+        }
+
         auto epochContext = GetControlEpochContext(epochId);
         if (term && epochContext->Term != term) {
             THROW_ERROR_EXCEPTION(
@@ -1808,6 +1824,11 @@ private:
                 GraceDelayStatus_ = EGraceDelayStatus::GraceDelayExecuted;
             }
 
+            YT_LOG_INFO("Waiting for followers to recover");
+            epochContext->LeaseTracker->EnableSendingTerm();
+            WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
+                .ThrowOnError();
+            YT_LOG_INFO("Followers recovered");
             YT_LOG_INFO("Acquiring leader lease");
             epochContext->LeaseTracker->EnableTracking();
             WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
@@ -1817,24 +1838,30 @@ private:
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
-            ControlLeaderRecoveryComplete_.Fire();
-
-            YT_LOG_INFO("Leader recovery completed");
-            SystemLockGuard_.Release();
-
-            LeaderRecovered_ = true;
-            if (Options_.ResponseKeeper) {
-                Options_.ResponseKeeper->Start();
-            }
+            epochContext->LeaderCommitter->Start();
+            epochContext->HeartbeatMutationCommitExecutor->Start();
 
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderRecoveryCompleteAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run())
                 .ThrowOnError();
 
-            epochContext->LeaderCommitter->Start();
+            SystemLockGuard_.Release();
 
-            epochContext->HeartbeatMutationCommitExecutor->Start();
+            YT_LOG_INFO("Committing initial heartbeat mutation");
+            WaitFor(CommitHeartbeatMutation())
+                .ThrowOnError();
+            YT_LOG_INFO("Initial heartbeat mutation committed");
+
+            LeaderRecovered_ = true;
+
+            ControlLeaderRecoveryComplete_.Fire();
+
+            YT_LOG_INFO("Leader recovery completed");
+
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
+            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
@@ -2465,7 +2492,7 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
+        CommitHeartbeatMutation()
             .WithTimeout(Config_->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {

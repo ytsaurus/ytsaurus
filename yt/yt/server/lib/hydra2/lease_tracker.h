@@ -86,6 +86,9 @@ public:
         std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
         NLogging::TLogger logger);
 
+    //! Starts sending term.
+    void EnableSendingTerm();
+
     //! Activates the tracking mode.
     void EnableTracking();
 
@@ -108,6 +111,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr LeaseCheckExecutor_;
 
+    bool TermSendingEnabled_ = false;
     bool TrackingEnabled_ = false;
     TPromise<void> NextCheckPromise_ = NewPromise<void>();
     TSingleShotCallbackList<void(const TError&)> LeaseLost_;

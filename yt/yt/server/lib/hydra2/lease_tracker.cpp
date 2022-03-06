@@ -117,7 +117,7 @@ private:
         auto req = proxy.PingFollower();
         req->SetTimeout(Owner_->Config_->LeaderLeaseTimeout);
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
-        if (Owner_->TrackingEnabled_) {
+        if (Owner_->TermSendingEnabled_) {
             req->set_term(epochContext->Term);
         }
         for (auto peerId : alivePeerIds) {
@@ -210,8 +210,17 @@ void TLeaseTracker::EnableTracking()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    YT_VERIFY(TermSendingEnabled_);
+
     Lease_->Restart();
     TrackingEnabled_ = true;
+}
+
+void TLeaseTracker::EnableSendingTerm()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TermSendingEnabled_ = true;
 }
 
 TFuture<void> TLeaseTracker::GetNextQuorumFuture()
