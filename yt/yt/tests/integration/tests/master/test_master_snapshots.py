@@ -546,7 +546,9 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
         build_snapshot(cell_id=self.Env.configs["master"][0]["primary_master"]["cell_id"], set_read_only=True)
 
-        primary = ls("//sys/primary_masters", suppress_transaction_coordinator_sync=True)
+        primary = ls("//sys/primary_masters",
+                     suppress_transaction_coordinator_sync=True,
+                     suppress_upstream_sync=True)
         wait(lambda: is_leader_in_readonly("//sys/primary_masters", primary))
 
         abort_transaction(tx)
@@ -554,7 +556,9 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
         for secondary_master in self.Env.configs["master"][0]["secondary_masters"]:
             build_snapshot(cell_id=secondary_master["cell_id"], set_read_only=True)
 
-        secondary_masters = get("//sys/secondary_masters", suppress_transaction_coordinator_sync=True)
+        secondary_masters = get("//sys/secondary_masters",
+                                suppress_transaction_coordinator_sync=True,
+                                suppress_upstream_sync=True)
         for cell_tag in secondary_masters:
             addresses = list(secondary_masters[cell_tag].keys())
             wait(lambda: is_leader_in_readonly("//sys/secondary_masters/{}".format(cell_tag), addresses))
