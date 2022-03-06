@@ -108,6 +108,7 @@ DEFINE_ENUM(EMasterReign,
     ((ConsumerAttributes)                                           (1940))  // achulkov2
     ((ChaosCellRemoval)                                             (1941))  // savrus
     ((SingleChaosFlavor)                                            (1942))  // savrus
+    ((HunkErasureCodecCheck)                                        (1943))  // babenko
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.
