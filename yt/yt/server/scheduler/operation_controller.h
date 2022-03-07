@@ -31,6 +31,9 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData);
 struct IOperationControllerStrategyHost
     : public virtual TRefCounted
 {
+    //! Returns epoch of the controller.
+    virtual TControllerEpoch GetEpoch() const = 0;
+
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,

@@ -632,8 +632,6 @@ protected:
     // Returns resource usage observed in current heartbeat.
     TJobResources GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const;
 
-    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
-
     virtual void DisableNonAliveElements() = 0;
 
     virtual void CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const = 0;
@@ -1056,7 +1054,7 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    bool AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
+    void AddJob(TJobId jobId, const TJobResources& resourceUsage);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
     EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
@@ -1233,6 +1231,7 @@ public:
         TJobId jobId,
         const TJobResources& resourceUsage,
         const TJobResources& precommittedResources,
+        TControllerEpoch scheduleJobEpoch,
         bool force = false);
     void OnJobFinished(TJobId jobId);
     void SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
@@ -1379,10 +1378,16 @@ private:
         TScheduleJobsContext* context,
         const TJobResources& resourceUsageDelta,
         bool checkAncestorsActiveness = true);
+    
+    void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
     EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
         TJobResources* availableResourceLimitsOutput = nullptr);
+
+    bool DecreaseHierarchicalResourceUsagePrecommit(
+        const TJobResources& precommittedResources,
+        TControllerEpoch scheduleJobEpoch);
 
     TJobResources GetHierarchicalAvailableResources(const TScheduleJobsContext& context) const;
 

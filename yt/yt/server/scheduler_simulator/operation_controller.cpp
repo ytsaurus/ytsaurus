@@ -184,6 +184,8 @@ public:
     // Lock_ must be acquired.
     void OnBucketCompleted(TJobBucket* deactivatedBucket) override;
 
+    TControllerEpoch GetEpoch() const override;
+
     //! Returns the mode which says how to preempt jobs of this operation.
     EPreemptionMode GetPreemptionMode() const override;
 
@@ -194,7 +196,7 @@ public:
 
     void OnNonscheduledJobAborted(TJobId, EAbortReason, const TString&, TControllerEpoch epoch) override;
 
-    bool IsOperationCompleted() const override ;
+    bool IsOperationCompleted() const override;
 
     //! Called during heartbeat processing to request actions the node must perform.
     TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
@@ -341,6 +343,11 @@ void TSimulatorOperationController::OnBucketCompleted(TJobBucket* deactivatedBuc
         }
     }
     YT_VERIFY(false);
+}
+
+TControllerEpoch TSimulatorOperationController::GetEpoch() const
+{
+    return 0;
 }
 
 EPreemptionMode TSimulatorOperationController::GetPreemptionMode() const

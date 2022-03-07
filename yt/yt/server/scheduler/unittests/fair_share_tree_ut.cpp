@@ -258,6 +258,11 @@ public:
         : JobResourcesList(std::move(jobResourcesList))
     { }
 
+    TControllerEpoch GetEpoch() const override
+    {
+        return 0;
+    }
+
     MOCK_METHOD(TFuture<TControllerScheduleJobResultPtr>, ScheduleJob, (
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
@@ -825,11 +830,13 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         operationElements[0]->OnJobStarted(
             TGuid::Create(),
             jobResources.ToJobResources(),
-            /* precommitedResources */ {});
+            /*precommitedResources*/ {},
+            /*scheduleJobEpoch*/ 0);
         operationElements[2]->OnJobStarted(
             TGuid::Create(),
             jobResources.ToJobResources(),
-            /* precommitedResources */ {});
+            /*precommitedResources*/ {},
+            /*scheduleJobEpoch*/ 0);
     }
 
     {
@@ -855,11 +862,13 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         operationElements[1]->OnJobStarted(
             TGuid::Create(),
             jobResources.ToJobResources(),
-            /* precommitedResources */ {});
+            /*precommitedResource */ {},
+            /*scheduleJobEpoch*/ 0);
         operationElements[3]->OnJobStarted(
             TGuid::Create(),
             jobResources.ToJobResources(),
-            /* precommitedResources */ {});
+            /*precommitedResources*/ {},
+            /*scheduleJobEpoch*/ 0);
     }
 
     {
@@ -1118,7 +1127,8 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
         operationElementX->OnJobStarted(
             jobId,
             jobResources.ToJobResources(),
-            /* precommitedResources */ {});
+            /*precommitedResources*/ {},
+            /*scheduleJobEpoch*/ 0);
     }
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
@@ -1692,7 +1702,8 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
     operationElementA->OnJobStarted(
         TGuid::Create(),
         jobResourcesA.ToJobResources(),
-        /* precommitedResources */ {});
+        /*precommitedResources*/ {},
+        /*scheduleJobEpoch*/ 0);
 
 	DoFairShareUpdate(strategyHost.Get(), rootElement);
 
@@ -1793,7 +1804,8 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
         operationElement->OnJobStarted(
             jobId,
             jobResources.ToJobResources(),
-            /* precommitedResources */ {});
+            /*precommitedResources*/ {},
+            /*scheduleJobEpoch*/ 0);
     }
 
 	DoFairShareUpdate(strategyHost.Get(), rootElement);
@@ -1847,7 +1859,11 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
 
     auto blockingOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), blockingOperation.Get(), blockingPool.Get());
-    blockingOperationElement->OnJobStarted(TGuid::Create(), jobResources, /*precommitedResources*/ {});
+    blockingOperationElement->OnJobStarted(
+        TGuid::Create(),
+        jobResources,
+        /*precommitedResources*/ {},
+        /*scheduleJobEpoch*/ 0);
 
     jobResources.SetUserSlots(1);
     jobResources.SetCpu(1);
@@ -1869,7 +1885,11 @@ TEST_F(TFairShareTreeTest, TestConditionalPreemption)
     for (int i = 0; i < 15; ++i) {
         auto job = CreateTestJob(TGuid::Create(), donorOperation->GetId(), execNode, now, jobResources);
         donorJobs.push_back(job);
-        donorOperationElement->OnJobStarted(job->GetId(), job->ResourceLimits(), /*precommitedResources*/ {});
+        donorOperationElement->OnJobStarted(
+            job->GetId(),
+            job->ResourceLimits(),
+            /*precommitedResources*/ {},
+            /*scheduleJobEpoch*/ 0);
     }
 
     auto [starvingOperationElement, starvingOperation] = CreateOperationWithJobs(10, strategyHost.Get(), guaranteedPool.Get());
@@ -2007,7 +2027,11 @@ TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA.Get(), pool.Get());
-    operationElementA->OnJobStarted(TGuid::Create(), jobResourcesA, /*precommitedResources*/ {});
+    operationElementA->OnJobStarted(
+        TGuid::Create(),
+        jobResourcesA,
+        /*precommitedResources*/ {},
+        /*scheduleJobEpoch*/ 0);
 
     TJobResources jobResourcesB;
     jobResourcesB.SetUserSlots(1);
@@ -2018,7 +2042,11 @@ TEST_F(TFairShareTreeTest, TestIncorrectStatusDueToPrecisionError)
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB.Get(), pool.Get());
-    operationElementB->OnJobStarted(TGuid::Create(), jobResourcesB, /*precommitedResources*/ {});
+    operationElementB->OnJobStarted(
+        TGuid::Create(),
+        jobResourcesB,
+        /*precommitedResources*/ {},
+        /*scheduleJobEpoch*/ 0);
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
 

@@ -24,6 +24,8 @@ public:
 
     TControllerAgentPtr FindAgent() const override;
 
+    TControllerEpoch GetEpoch() const override;
+
     TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override;
     TFuture<TOperationControllerPrepareResult> Prepare() override;
     TFuture<TOperationControllerMaterializeResult> Materialize() override;
