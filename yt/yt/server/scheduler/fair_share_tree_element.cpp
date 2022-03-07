@@ -5,6 +5,8 @@
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/core/profiling/profiler.h>
@@ -797,11 +799,6 @@ TJobResources TSchedulerElement::GetLocalAvailableResourceLimits(const TSchedule
             context.GetLocalUnconditionalUsageDiscountFor(this));
     }
     return TJobResources::Infinite();
-}
-
-void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
-{
-    TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsage(ResourceTreeElement_, delta);
 }
 
 TSchedulerElement::TSchedulerElement(
@@ -2476,13 +2473,9 @@ int TSchedulerOperationElementSharedState::GetAggressivelyPreemptableJobCount() 
     return AggressivelyPreemptableJobs_.size();
 }
 
-bool TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force)
+void TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage)
 {
     auto guard = WriterGuard(JobPropertiesMapLock_);
-
-    if (!Enabled_ && !force) {
-        return false;
-    }
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
 
@@ -2499,8 +2492,6 @@ bool TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResou
     ++RunningJobCount_;
 
     SetJobResourceUsage(&it.first->second, resourceUsage);
-
-    return true;
 }
 
 void TSchedulerOperationElementSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
@@ -3211,6 +3202,15 @@ void TSchedulerOperationElement::UpdateAncestorsDynamicAttributes(
     }
 }
 
+void TSchedulerOperationElement::ActivateOperation(TScheduleJobsContext* context)
+{
+    auto& attributes = context->DynamicAttributesList().AttributesOf(this);
+    YT_VERIFY(!attributes.Active);
+    attributes.Active = true;
+    GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
+    UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources(), /* checkAncestorsActiveness */ false);
+}
+
 void TSchedulerOperationElement::DeactivateOperation(TScheduleJobsContext* context, EDeactivationReason reason)
 {
     auto& attributes = context->DynamicAttributesList().AttributesOf(this);
@@ -3219,15 +3219,6 @@ void TSchedulerOperationElement::DeactivateOperation(TScheduleJobsContext* conte
     GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
     UpdateAncestorsDynamicAttributes(context, /*deltaResourceUsage*/ TJobResources());
     OnOperationDeactivated(context, reason, /*considerInOperationCounter*/ true);
-}
-
-void TSchedulerOperationElement::ActivateOperation(TScheduleJobsContext* context)
-{
-    auto& attributes = context->DynamicAttributesList().AttributesOf(this);
-    YT_VERIFY(!attributes.Active);
-    attributes.Active = true;
-    GetMutableParent()->UpdateChild(context->ChildHeapMap(), this);
-    UpdateAncestorsDynamicAttributes(context, /* deltaResourceUsage */ TJobResources(), /* checkAncestorsActiveness */ false);
 }
 
 void TSchedulerOperationElement::RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot)
@@ -3335,7 +3326,12 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     TJobResources precommittedResources;
     TJobResources availableResources;
 
-    auto deactivationReason = TryStartScheduleJob(*context, &precommittedResources, &availableResources);
+    int scheduleJobEpoch = Controller_->GetEpoch();
+
+    auto deactivationReason = TryStartScheduleJob(
+        *context,
+        &precommittedResources,
+        &availableResources);
     if (deactivationReason) {
         deactivateOperationElement(*deactivationReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -3354,7 +3350,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
 
         if (!acceptPacking) {
             recordHeartbeatWithTimer(*heartbeatSnapshot);
-            TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+            DecreaseHierarchicalResourceUsagePrecommit(precommittedResources, scheduleJobEpoch);
             deactivateOperationElement(EDeactivationReason::BadPacking);
             context->BadPackingOperations().emplace_back(this);
             FinishScheduleJob(context->SchedulingContext());
@@ -3384,9 +3380,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
             TreeId_,
             scheduleJobResult);
 
-        if (OperationElementSharedState_->Enabled()) {
-            TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        }
+        DecreaseHierarchicalResourceUsagePrecommit(precommittedResources, scheduleJobEpoch);
 
         FinishScheduleJob(context->SchedulingContext());
 
@@ -3394,16 +3388,20 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
     }
 
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
-    if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits.ToJobResources(), precommittedResources)) {
+
+    bool onJobStartedSuccess = OnJobStarted(
+        startDescriptor.Id,
+        startDescriptor.ResourceLimits.ToJobResources(),
+        precommittedResources,
+        scheduleJobEpoch);
+    if (!onJobStartedSuccess) {
         Controller_->AbortJob(
             startDescriptor.Id,
             EAbortReason::SchedulingOperationDisabled,
             TreeId_,
             scheduleJobResult->ControllerEpoch);
         deactivateOperationElement(EDeactivationReason::OperationDisabled);
-        if (OperationElementSharedState_->Enabled()) {
-            TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        }
+        DecreaseHierarchicalResourceUsagePrecommit(precommittedResources, scheduleJobEpoch);
         FinishScheduleJob(context->SchedulingContext());
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
@@ -3662,17 +3660,22 @@ bool TSchedulerOperationElement::OnJobStarted(
     TJobId jobId,
     const TJobResources& resourceUsage,
     const TJobResources& precommittedResources,
+    int scheduleJobEpoch,
     bool force)
 {
     YT_ELEMENT_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
 
-    if (OperationElementSharedState_->AddJob(jobId, resourceUsage, force)) {
-        TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
-        UpdatePreemptableJobsList();
-        return true;
-    } else {
+    if (!force && 
+        (!OperationElementSharedState_->Enabled() || Controller_->GetEpoch() != scheduleJobEpoch))
+    {
         return false;
     }
+
+    OperationElementSharedState_->AddJob(jobId, resourceUsage);
+    TreeElementHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
+    UpdatePreemptableJobsList();
+
+    return true;
 }
 
 void TSchedulerOperationElement::OnJobFinished(TJobId jobId)
@@ -3776,6 +3779,10 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
         ControllerConfig_->ScheduleJobTimeLimit,
         GetTreeId(),
         TreeConfig_);
+        
+    MaybeDelay(
+        Spec_->TestingOperationOptions->ScheduleJobDelay,
+        Spec_->TestingOperationOptions->ScheduleJobDelayType);
 
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->StartDescriptor) {
@@ -3881,6 +3888,11 @@ void TSchedulerOperationElement::UpdatePreemptableJobsList()
     }
 }
 
+void TSchedulerOperationElement::IncreaseHierarchicalResourceUsage(const TJobResources& delta)
+{
+    TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsage(ResourceTreeElement_, delta);
+}
+
 EResourceTreeIncreaseResult TSchedulerOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
@@ -3889,6 +3901,17 @@ EResourceTreeIncreaseResult TSchedulerOperationElement::TryIncreaseHierarchicalR
         ResourceTreeElement_,
         delta,
         availableResourceLimitsOutput);
+}
+
+bool TSchedulerOperationElement::DecreaseHierarchicalResourceUsagePrecommit(
+    const TJobResources& precommittedResources,
+    int scheduleJobEpoch)
+{
+    if (!OperationElementSharedState_->Enabled() || scheduleJobEpoch != Controller_->GetEpoch()) {
+        return false;
+    }
+    TreeElementHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
+    return true;
 }
 
 void TSchedulerOperationElement::AttachParent(TSchedulerCompositeElement* newParent, int slotIndex)

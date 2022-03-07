@@ -486,8 +486,10 @@ public:
             element->OnJobStarted(
                 job->GetId(),
                 job->ResourceUsage(),
-                /* precommittedResources */ {},
-                /* force */ true);
+                /*precommittedResources*/ {},
+                // NB: |scheduleJobEpoch| is ignored in case |force| is true.
+                /*scheduleJobEpoch*/ 0,
+                /*force*/ true);
         }
     }
 

@@ -183,10 +183,14 @@ void TJobIOConfig::Register(TRegistrar registrar)
 
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("scheduling_delay", &TThis::SchedulingDelay)
+    registrar.Parameter("controller_scheduling_delay", &TThis::ControllerSchedulingDelay)
         .Default();
-    registrar.Parameter("scheduling_delay_type", &TThis::SchedulingDelayType)
+    registrar.Parameter("controller_scheduling_delay_type", &TThis::ControllerSchedulingDelayType)
         .Default(EDelayType::Sync);
+    registrar.Parameter("schedule_job_delay", &TThis::ScheduleJobDelay)
+        .Default();
+    registrar.Parameter("schedule_job_delay_type", &TThis::ScheduleJobDelayType)
+        .Default();
     registrar.Parameter("delay_inside_revive", &TThis::DelayInsideRevive)
         .Default();
     registrar.Parameter("delay_inside_initialize", &TThis::DelayInsideInitialize)
@@ -506,9 +510,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("time_limit_job_fail_timeout", &TThis::TimeLimitJobFailTimeout)
         .Default(TDuration::Minutes(2));
-
-    registrar.Parameter("testing", &TThis::TestingOperationOptions)
-        .DefaultNew();
 
     registrar.Parameter("owners", &TThis::Owners)
         .Default();
@@ -1998,6 +1999,8 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("is_gang", &TThis::IsGang)
         .Default(false);
+    registrar.Parameter("testing", &TThis::TestingOperationOptions)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TStrategyOperationSpec* spec) {
         if (spec->SchedulingSegmentModules && spec->SchedulingSegmentModules->size() >= MaxSchedulingSegmentModuleCount) {

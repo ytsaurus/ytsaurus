@@ -620,7 +620,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 
-        testing_options = {"scheduling_delay": 100}
+        testing_options = {"controller_scheduling_delay": 100}
 
         job_count = 20
         original_data = [{"index": i} for i in range(job_count)]
@@ -684,7 +684,7 @@ class TestSchedulerCommon(YTEnvSetup):
     def test_concurrent_fail(self):
         create("table", "//tmp/input")
 
-        testing_options = {"scheduling_delay": 250}
+        testing_options = {"controller_scheduling_delay": 250}
 
         job_count = 1000
         original_data = [{"index": i} for i in range(job_count)]
@@ -1391,7 +1391,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
         write_table("//tmp/in", [{"foo": i} for i in range(5)])
         create("table", "//tmp/out")
 
-        testing_options = {"scheduling_delay": 500}
+        testing_options = {"controller_scheduling_delay": 500}
 
         op = map(
             track=False,
@@ -1419,7 +1419,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
     def test_parallel_snapshots(self):
         create("table", "//tmp/input")
 
-        testing_options = {"scheduling_delay": 100}
+        testing_options = {"controller_scheduling_delay": 100}
 
         job_count = 1
         original_data = [{"index": i} for i in range(job_count)]
@@ -2809,3 +2809,31 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
         assert len(records) == 1
 
         assert records[0]["objects_alive"] == 0
+
+##################################################################
+
+
+class TestScheduleJobDelayAndRevive(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {"heartbeat_period": 1},  # 1 msec
+            "controller_agent_connector": {"heartbeat_period": 1},  # 1 msec
+        },
+    }
+
+    @authors("ignat")
+    def test_schedule_job_delay(self):
+        testing_options = {"schedule_job_delay": 5000}
+        op = run_test_vanilla("sleep 2", job_count=2, spec={"testing": testing_options})
+
+        wait(lambda: op.get_state() == "running")
+
+        time.sleep(2)
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()

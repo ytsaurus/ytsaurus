@@ -109,6 +109,11 @@ TControllerAgentPtr TOperationControllerImpl::FindAgent() const
     return Agent_.Lock();
 }
 
+TControllerEpoch TOperationControllerImpl::GetEpoch() const
+{
+    return Epoch_.load();
+}
+
 TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initialize(const std::optional<TOperationTransactions>& transactions)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);

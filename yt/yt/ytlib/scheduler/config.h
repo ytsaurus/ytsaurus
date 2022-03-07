@@ -400,6 +400,8 @@ public:
 
     bool IsGang;
 
+    TTestingOperationOptionsPtr TestingOperationOptions;
+
     REGISTER_YSON_STRUCT(TStrategyOperationSpec);
 
     static void Register(TRegistrar registrar);
@@ -488,8 +490,11 @@ class TTestingOperationOptions
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> SchedulingDelay;
-    EDelayType SchedulingDelayType;
+    std::optional<TDuration> ControllerSchedulingDelay;
+    EDelayType ControllerSchedulingDelayType;
+    
+    std::optional<TDuration> ScheduleJobDelay;
+    EDelayType ScheduleJobDelayType;
 
     //! The following delays are used inside the operation controller.
 
@@ -754,8 +759,6 @@ public:
 
     //! Timeout to gracefully fail jobs after timeout limit exceeded.
     TDuration TimeLimitJobFailTimeout;
-
-    TTestingOperationOptionsPtr TestingOperationOptions;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
     std::vector<TString> Owners;

@@ -686,8 +686,8 @@ class TestRacyPreemption(YTEnvSetup):
         op = run_sleeping_vanilla(spec={
             "pool": "prod",
             "testing": {
-                "scheduling_delay": 5000,
-                "scheduling_delay_type": "async",
+                "controller_scheduling_delay": 5000,
+                "controller_scheduling_delay_type": "async",
             },
         })
 

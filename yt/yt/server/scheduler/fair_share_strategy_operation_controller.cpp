@@ -28,6 +28,11 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     YT_VERIFY(Controller_);
 }
 
+TControllerEpoch TFairShareStrategyOperationController::GetEpoch() const
+{
+    return Controller_->GetEpoch();
+}
+
 void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
     auto& shard = StateShards_[nodeShardId];
