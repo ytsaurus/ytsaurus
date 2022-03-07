@@ -2,8 +2,6 @@ package NYT.NNodeTrackerServer.NProto;
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
-import "yt_proto/yt/core/misc/proto/guid.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnregisterNode
