@@ -1,34 +1,34 @@
 #include "client_base.h"
-#include "transaction.h"
-#include "credentials_injecting_channel.h"
+
 #include "api_service_proxy.h"
-#include "helpers.h"
 #include "config.h"
-#include "private.h"
+#include "credentials_injecting_channel.h"
 #include "file_reader.h"
 #include "file_writer.h"
+#include "helpers.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
+#include "private.h"
 #include "table_reader.h"
 #include "table_writer.h"
+#include "transaction.h"
 
-#include <yt/yt/core/net/address.h>
-
-#include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/journal_reader.h>
 #include <yt/yt/client/api/journal_writer.h>
+#include <yt/yt/client/api/rowset.h>
 
-#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
-
+#include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/core/net/address.h>
 
 namespace NYT::NApi::NRpcProxy {
 
@@ -55,7 +55,7 @@ IConnectionPtr TClientBase::GetConnection()
 TApiServiceProxy TClientBase::CreateApiServiceProxy(NRpc::IChannelPtr channel)
 {
     if (!channel) {
-        channel = GetChannel();
+        channel = GetRetryingChannel();
     }
     TApiServiceProxy proxy(channel);
     const auto& config = GetRpcProxyConnection()->GetConfig();
@@ -88,9 +88,19 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
     bool sticky = (type == ETransactionType::Tablet) || options.Sticky;
-    bool dontRetryStartTransaction = sticky && options.Id != NullTransactionId;
-    auto channel = sticky ? GetStickyChannel() : GetChannel();
-    channel = sticky && !dontRetryStartTransaction ? WrapStickyChannel(channel) : channel;
+    // Based on this flag the sticky channel will be wrapped into retrying after the first non-retrying call.
+    bool wrapStickyChannelOnResponse = false;
+    NRpc::IChannelPtr channel;
+    if (sticky) {
+        channel = CreateNonRetryingStickyChannel();
+        if (options.Id == NullTransactionId) {
+            channel = WrapStickyChannelIntoRetrying(std::move(channel));
+        } else {
+            wrapStickyChannelOnResponse = true;
+        }
+    } else {
+        channel = GetRetryingChannel();
+    }
 
     const auto& config = connection->GetConfig();
     auto timeout = options.Timeout.value_or(config->DefaultTransactionTimeout);
@@ -137,13 +147,22 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
             client = std::move(client),
             channel = std::move(channel)
         ]
-        (const TApiServiceProxy::TRspStartTransactionPtr& rsp) {
+        (const TApiServiceProxy::TRspStartTransactionPtr& rsp) mutable {
+            std::optional<TStickyTransactionParameters> stickyParameters;
+            if (sticky) {
+                stickyParameters.emplace().ProxyAddress = rsp->GetAddress();
+            }
             auto transactionId = FromProto<TTransactionId>(rsp->id());
             auto startTimestamp = FromProto<TTimestamp>(rsp->start_timestamp());
+            if (wrapStickyChannelOnResponse) {
+                // The first call within the sticky channel has been non-retrying,
+                // so wrap the channel into retrying now for future use.
+                channel = WrapStickyChannelIntoRetrying(std::move(channel));
+            }
             return CreateTransaction(
                 std::move(connection),
                 std::move(client),
-                dontRetryStartTransaction ? WrapStickyChannel(std::move(channel)) : std::move(channel),
+                std::move(channel),
                 transactionId,
                 startTimestamp,
                 type,
@@ -152,8 +171,9 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
                 timeout,
                 options.PingAncestors,
                 pingPeriod,
-                sticky,
-                sticky ? rsp->GetAddress() : TString());
+                std::move(stickyParameters),
+                rsp->sequence_number_source_id(),
+                "Transaction started");
         }));
 }
 

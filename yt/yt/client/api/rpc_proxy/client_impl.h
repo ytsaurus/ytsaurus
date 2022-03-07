@@ -26,12 +26,12 @@ public:
     const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() override;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 
-    // Transactions
+    // Transactions.
     NApi::ITransactionPtr AttachTransaction(
         NTransactionClient::TTransactionId transactionId,
         const NApi::TTransactionAttachOptions& options) override;
 
-    // Tables
+    // Tables.
     TFuture<void> MountTable(
         const NYPath::TYPath& path,
         const NApi::TMountTableOptions& options) override;
@@ -120,7 +120,7 @@ public:
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options = {}) override;
 
-    // Files
+    // Files.
     TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,
         const NApi::TGetFileFromCacheOptions& options) override;
@@ -130,7 +130,7 @@ public:
         const TString& expectedMD5,
         const NApi::TPutFileToCacheOptions& options) override;
 
-    // Security
+    // Security.
     TFuture<void> AddMember(
         const TString& group,
         const TString& member,
@@ -159,7 +159,7 @@ public:
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options) override;
 
-    // Scheduler pools
+    // Scheduler pools.
     virtual TFuture<void> TransferPoolResources(
         const TString& srcPool,
         const TString& dstPool,
@@ -167,7 +167,7 @@ public:
         NYTree::INodePtr resourceDelta,
         const TTransferPoolResourcesOptions& options) override;
 
-    // Scheduler
+    // Scheduler.
     TFuture<NScheduler::TOperationId> StartOperation(
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
@@ -251,7 +251,7 @@ public:
         NJobTrackerClient::TJobId jobId,
         const NApi::TAbortJobOptions& options) override;
 
-    // Metadata
+    // Metadata.
     TFuture<NApi::TClusterMeta> GetClusterMeta(
         const NApi::TGetClusterMetaOptions&) override;
 
@@ -271,7 +271,7 @@ public:
         i64 rowCount,
         const NApi::TTruncateJournalOptions& options) override;
 
-    // Administration
+    // Administration.
     TFuture<int> BuildSnapshot(
         const NApi::TBuildSnapshotOptions& options) override;
 
@@ -317,21 +317,26 @@ public:
 private:
     const TConnectionPtr Connection_;
     const NRpc::TDynamicChannelPoolPtr ChannelPool_;
-    const NRpc::IChannelPtr Channel_;
+    const NRpc::IChannelPtr RetryingChannel_;
     const TClientOptions ClientOptions_;
 
     TLazyIntrusivePtr<NTabletClient::ITableMountCache> TableMountCache_;
 
     TLazyIntrusivePtr<NTransactionClient::ITimestampProvider> TimestampProvider_;
+
     NTransactionClient::ITimestampProviderPtr CreateTimestampProvider() const;
 
-    NRpc::IChannelPtr MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned);
+    NRpc::IChannelPtr MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned) const;
+    // Returns an RPC channel to use for API calls to the particular address (e.g.: AttachTransaction).
+    // The channel is non-retrying, so should be wrapped into retrying channel on demand.
+    NRpc::IChannelPtr CreateNonRetryingChannelByAddress(const TString& address) const;
 
     TConnectionPtr GetRpcProxyConnection() override;
     TClientPtr GetRpcProxyClient() override;
-    NRpc::IChannelPtr GetChannel() override;
-    NRpc::IChannelPtr GetStickyChannel() override;
-    NRpc::IChannelPtr WrapStickyChannel(NRpc::IChannelPtr) override;
+
+    NRpc::IChannelPtr GetRetryingChannel() const override;
+    NRpc::IChannelPtr CreateNonRetryingStickyChannel() const override;
+    NRpc::IChannelPtr WrapStickyChannelIntoRetrying(NRpc::IChannelPtr underlying) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

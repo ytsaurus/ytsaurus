@@ -437,7 +437,7 @@ protected:
         TObjectServiceProxy proxy(channel);
 
         auto batchRequest = proxy.ExecuteBatchWithRetriesInParallel(config, BIND(needRetry), subbatchSize, maxParallelSubbatchCount);
-        
+
         for (int i = 0; i < requestCount; ++i) {
             batchRequest->AddRequest(request);
         }
@@ -722,7 +722,7 @@ TEST_F(TModifyRowsTest, TestNoSeqNumbers)
     WriteSimpleRow(1, 15);
     SyncCommit();
 
-    CheckTableContents({{0, 14}, {1, 15}});
+    ValidateTableContent({{0, 14}, {1, 15}});
 }
 
 TEST_F(TModifyRowsTest, TestOrderedSeqNumbers)
@@ -735,7 +735,7 @@ TEST_F(TModifyRowsTest, TestOrderedSeqNumbers)
     WriteSimpleRow(1, 15, 5);
     SyncCommit();
 
-    CheckTableContents({{0, 14}, {1, 15}});
+    ValidateTableContent({{0, 14}, {1, 15}});
 }
 
 TEST_F(TModifyRowsTest, TestShuffledSeqNumbers)
@@ -748,7 +748,7 @@ TEST_F(TModifyRowsTest, TestShuffledSeqNumbers)
     WriteSimpleRow(1, 11, 1);
     SyncCommit();
 
-    CheckTableContents({{0, 14}, {1, 15}});
+    ValidateTableContent({{0, 14}, {1, 15}});
 }
 
 TEST_F(TModifyRowsTest, TestRepeatingSeqNumbers)
@@ -758,7 +758,7 @@ TEST_F(TModifyRowsTest, TestRepeatingSeqNumbers)
     EXPECT_THROW(WriteSimpleRow(0, 12, 1), TErrorException);
     EXPECT_THROW(SyncCommit(), TErrorException);
 
-    CheckTableContents({});
+    ValidateTableContent({});
 }
 
 TEST_F(TModifyRowsTest, TestMissingSeqNumbers)
@@ -770,7 +770,7 @@ TEST_F(TModifyRowsTest, TestMissingSeqNumbers)
     WriteSimpleRow(1, 15, 5);
     EXPECT_THROW(SyncCommit(), TErrorException);
 
-    CheckTableContents({});
+    ValidateTableContent({});
 }
 
 TEST_F(TModifyRowsTest, TestNegativeSeqNumbers)
@@ -778,7 +778,7 @@ TEST_F(TModifyRowsTest, TestNegativeSeqNumbers)
     EXPECT_THROW(WriteSimpleRow(0, 10, -1), TErrorException);
     EXPECT_THROW(SyncCommit(), TErrorException);
 
-    CheckTableContents({});
+    ValidateTableContent({});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

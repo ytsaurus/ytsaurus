@@ -37,8 +37,9 @@ public:
         TDuration timeout,
         bool pingAncestors,
         std::optional<TDuration> pingPeriod,
-        bool sticky,
-        TString stickyProxyAddress);
+        std::optional<TStickyTransactionParameters> stickyParameters,
+        i64 sequenceNumberSourceId,
+        TStringBuf capitalizedCreationReason);
 
     // ITransaction implementation.
     NApi::IConnectionPtr GetConnection() override;
@@ -220,6 +221,7 @@ private:
     const bool PingAncestors_;
     const std::optional<TDuration> PingPeriod_;
     const TString StickyProxyAddress_;
+    const i64 SequenceNumberSourceId_;
 
     const NLogging::TLogger Logger;
 
@@ -271,4 +273,3 @@ DEFINE_REFCOUNTED_TYPE(TTransaction)
 #define TRANSACTION_IMPL_INL_H_
 #include "transaction_impl-inl.h"
 #undef TRANSACTION_IMPL_INL_H_
-

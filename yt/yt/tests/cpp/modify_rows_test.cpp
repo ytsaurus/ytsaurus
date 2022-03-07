@@ -43,7 +43,6 @@ void TModifyRowsTest::TearDown()
     Keys_.clear();
 }
 
-
 void TModifyRowsTest::SetUpTestCase()
 {
     TDynamicTablesTestBase::SetUpTestCase();
@@ -55,7 +54,10 @@ void TModifyRowsTest::SetUpTestCase()
         "{name=value;type=int64}]");
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TModifyRowsTest::WriteSimpleRow(
+    const NApi::ITransactionPtr& transaction,
     i64 key,
     i64 value,
     std::optional<i64> sequenceNumber)
@@ -70,12 +72,23 @@ void TModifyRowsTest::WriteSimpleRow(
     TModifyRowsOptions options;
     options.SequenceNumber = sequenceNumber;
 
-    Transaction_->WriteRows(
+    transaction->WriteRows(
         Table_,
         std::get<1>(preparedRow),
         std::get<0>(preparedRow),
         options);
+}
 
+void TModifyRowsTest::WriteSimpleRow(
+    i64 key,
+    i64 value,
+    std::optional<i64> sequenceNumber)
+{
+    WriteSimpleRow(
+        Transaction_,
+        key,
+        value,
+        sequenceNumber);
 }
 
 void TModifyRowsTest::SyncCommit()
@@ -83,7 +96,7 @@ void TModifyRowsTest::SyncCommit()
     WaitFor(Transaction_->Commit()).ValueOrThrow();
 }
 
-void TModifyRowsTest::CheckTableContents(
+void TModifyRowsTest::ValidateTableContent(
     const std::vector<std::pair<i64, i64>>& simpleRows)
 {
     THashSet<TString> expected;

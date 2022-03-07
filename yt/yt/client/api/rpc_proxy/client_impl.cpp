@@ -1,19 +1,12 @@
 #include "client_impl.h"
-#include "helpers.h"
+
 #include "config.h"
-#include "transaction.h"
+#include "credentials_injecting_channel.h"
+#include "helpers.h"
 #include "private.h"
 #include "table_mount_cache.h"
 #include "timestamp_provider.h"
-#include "credentials_injecting_channel.h"
-
-#include <yt/yt/core/net/address.h>
-
-#include <yt/yt/core/rpc/retrying_channel.h>
-#include <yt/yt/core/rpc/stream.h>
-#include <yt/yt/core/rpc/dynamic_channel_pool.h>
-
-#include <yt/yt/core/ytree/convert.h>
+#include "transaction.h"
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -24,16 +17,24 @@
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
-#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/core/net/address.h>
+
+#include <yt/yt/core/rpc/dynamic_channel_pool.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
+#include <yt/yt/core/rpc/stream.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 #include <util/generic/cast.h>
 
@@ -82,16 +83,16 @@ TClient::TClient(
     TConnectionPtr connection,
     const TClientOptions& clientOptions)
     : Connection_(std::move(connection))
-    , Channel_(MaybeCreateRetryingChannel(
+    , RetryingChannel_(MaybeCreateRetryingChannel(
         CreateCredentialsInjectingChannel(
             Connection_->CreateChannel(false),
             clientOptions),
-        true /* retryProxyBanned */))
+        /*retryProxyBanned*/ true))
     , ClientOptions_(clientOptions)
     , TableMountCache_(BIND(
         &CreateTableMountCache,
         Connection_->GetConfig()->TableMountCache,
-        Channel_,
+        RetryingChannel_,
         RpcProxyClientLogger,
         Connection_->GetConfig()->RpcTimeout))
     , TimestampProvider_(BIND(&TClient::CreateTimestampProvider, Unretained(this)))
@@ -115,22 +116,9 @@ const ITimestampProviderPtr& TClient::GetTimestampProvider()
 void TClient::Terminate()
 { }
 
-TConnectionPtr TClient::GetRpcProxyConnection()
-{
-    return Connection_;
-}
+////////////////////////////////////////////////////////////////////////////////
 
-TClientPtr TClient::GetRpcProxyClient()
-{
-    return this;
-}
-
-IChannelPtr TClient::GetChannel()
-{
-    return Channel_;
-}
-
-NRpc::IChannelPtr TClient::MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned)
+IChannelPtr TClient::MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned) const
 {
     const auto& config = Connection_->GetConfig();
     if (config->EnableRetries) {
@@ -145,22 +133,52 @@ NRpc::IChannelPtr TClient::MaybeCreateRetryingChannel(NRpc::IChannelPtr channel,
     }
 }
 
-IChannelPtr TClient::GetStickyChannel()
+IChannelPtr TClient::CreateNonRetryingChannelByAddress(const TString& address) const
+{
+    return CreateCredentialsInjectingChannel(
+        Connection_->CreateChannelByAddress(address),
+        ClientOptions_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConnectionPtr TClient::GetRpcProxyConnection()
+{
+    return Connection_;
+}
+
+TClientPtr TClient::GetRpcProxyClient()
+{
+    return this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChannelPtr TClient::GetRetryingChannel() const
+{
+    return RetryingChannel_;
+}
+
+IChannelPtr TClient::CreateNonRetryingStickyChannel() const
 {
     return CreateCredentialsInjectingChannel(
         Connection_->CreateChannel(true),
         ClientOptions_);
 }
 
-IChannelPtr TClient::WrapStickyChannel(IChannelPtr channel)
+IChannelPtr TClient::WrapStickyChannelIntoRetrying(IChannelPtr underlying) const
 {
-    return MaybeCreateRetryingChannel(channel, false /* retryProxyBanned */);
+    return MaybeCreateRetryingChannel(
+        std::move(underlying),
+        /*retryProxyBanned*/ false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 ITimestampProviderPtr TClient::CreateTimestampProvider() const
 {
     return NRpcProxy::CreateTimestampProvider(
-        Channel_,
+        RetryingChannel_,
         Connection_->GetConfig()->RpcTimeout,
         Connection_->GetConfig()->TimestampProviderLatestTimestampUpdatePeriod);
 }
@@ -171,9 +189,12 @@ ITransactionPtr TClient::AttachTransaction(
 {
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
-    auto channel = GetChannel();
 
-    auto proxy = CreateApiServiceProxy();
+    auto channel = options.StickyAddress
+        ? WrapStickyChannelIntoRetrying(CreateNonRetryingChannelByAddress(options.StickyAddress))
+        : GetRetryingChannel();
+
+    auto proxy = CreateApiServiceProxy(channel);
 
     auto req = proxy.AttachTransaction();
     ToProto(req->mutable_transaction_id(), transactionId);
@@ -185,13 +206,28 @@ ITransactionPtr TClient::AttachTransaction(
     req->set_ping(options.Ping);
     req->set_ping_ancestors(options.PingAncestors);
 
-    auto rspOrError = NConcurrency::WaitFor(req->Invoke());
-    const auto& rsp = rspOrError.ValueOrThrow();
+    auto rsp = NConcurrency::WaitFor(req->Invoke())
+        .ValueOrThrow();
+
     auto transactionType = static_cast<ETransactionType>(rsp->type());
     auto startTimestamp = static_cast<TTimestamp>(rsp->start_timestamp());
     auto atomicity = static_cast<EAtomicity>(rsp->atomicity());
     auto durability = static_cast<EDurability>(rsp->durability());
     auto timeout = TDuration::FromValue(NYT::FromProto<i64>(rsp->timeout()));
+
+    if (options.StickyAddress && transactionType != ETransactionType::Tablet) {
+        THROW_ERROR_EXCEPTION("Sticky address is supported for tablet transactions only");
+    }
+
+    std::optional<TStickyTransactionParameters> stickyParameters;
+    if (options.StickyAddress || transactionType == ETransactionType::Tablet) {
+        stickyParameters.emplace();
+        if (options.StickyAddress) {
+            stickyParameters->ProxyAddress = options.StickyAddress;
+        } else {
+            stickyParameters->ProxyAddress = rsp->GetAddress();
+        }
+    }
 
     return CreateTransaction(
         std::move(connection),
@@ -205,8 +241,9 @@ ITransactionPtr TClient::AttachTransaction(
         timeout,
         options.PingAncestors,
         options.PingPeriod,
-        /* sticky */ false,
-        /* stickyProxyAddress */ TString());
+        std::move(stickyParameters),
+        rsp->sequence_number_source_id(),
+        "Transaction attached");
 }
 
 TFuture<void> TClient::MountTable(
@@ -868,7 +905,7 @@ TFuture<TOperation> TClient::GetOperation(
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetOperationPtr& rsp) {
         auto attributes = ConvertToAttributes(TYsonStringBuf(rsp->meta()));
         TOperation operation;
-        Deserialize(operation, std::move(attributes), /* clone */ false);
+        Deserialize(operation, std::move(attributes), /*clone*/ false);
         return operation;
     }));
 }
@@ -1314,7 +1351,7 @@ TFuture<int> TClient::BuildSnapshot(const TBuildSnapshotOptions& options)
     }));
 }
 
-TFuture<TCellIdToSnapshotIdMap> TClient::BuildMasterSnapshots(const TBuildMasterSnapshotsOptions& /* options */)
+TFuture<TCellIdToSnapshotIdMap> TClient::BuildMasterSnapshots(const TBuildMasterSnapshotsOptions& /*options*/)
 {
     ThrowUnimplemented("BuildMasterSnapshots");
 }
@@ -1340,36 +1377,36 @@ TFuture<void> TClient::GCCollect(const TGCCollectOptions& options)
 }
 
 TFuture<void> TClient::KillProcess(
-    const TString& /* address */,
-    const TKillProcessOptions& /* options */)
+    const TString& /*address*/,
+    const TKillProcessOptions& /*options*/)
 {
     ThrowUnimplemented("KillProcess");
 }
 
 TFuture<TString> TClient::WriteCoreDump(
-    const TString& /* address */,
-    const TWriteCoreDumpOptions& /* options */)
+    const TString& /*address*/,
+    const TWriteCoreDumpOptions& /*options*/)
 {
     ThrowUnimplemented("WriteCoreDump");
 }
 
 TFuture<TGuid> TClient::WriteLogBarrier(
-    const TString& /* address */,
-    const TWriteLogBarrierOptions& /* options */)
+    const TString& /*address*/,
+    const TWriteLogBarrierOptions& /*options*/)
 {
     ThrowUnimplemented("WriteLogBarrier");
 }
 
 TFuture<TString> TClient::WriteOperationControllerCoreDump(
-    TOperationId /* operationId */,
-    const TWriteOperationControllerCoreDumpOptions& /* options */)
+    TOperationId /*operationId*/,
+    const TWriteOperationControllerCoreDumpOptions& /*options*/)
 {
     ThrowUnimplemented("WriteOperationControllerCoreDump");
 }
 
 TFuture<void> TClient::HealExecNode(
-    const TString& /* address */,
-    const THealExecNodeOptions& /* options */)
+    const TString& /*address*/,
+    const THealExecNodeOptions& /*options*/)
 {
     ThrowUnimplemented("HealExecNode");
 }

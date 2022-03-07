@@ -1,4 +1,5 @@
 #include "transaction.h"
+
 #include "transaction_impl.h"
 
 namespace NYT::NApi::NRpcProxy {
@@ -17,8 +18,9 @@ NApi::ITransactionPtr CreateTransaction(
     TDuration timeout,
     bool pingAncestors,
     std::optional<TDuration> pingPeriod,
-    bool sticky,
-    TString stickyProxyAddress)
+    std::optional<TStickyTransactionParameters> stickyParameters,
+    i64 sequenceNumberSourceId,
+    TStringBuf capitalizedCreationReason)
 {
     return New<TTransaction>(
         std::move(connection),
@@ -32,8 +34,9 @@ NApi::ITransactionPtr CreateTransaction(
         timeout,
         pingAncestors,
         pingPeriod,
-        sticky,
-        std::move(stickyProxyAddress));
+        std::move(stickyParameters),
+        sequenceNumberSourceId,
+        capitalizedCreationReason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

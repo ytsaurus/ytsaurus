@@ -20,13 +20,19 @@ protected:
     static THashSet<i64> Keys_;
 
     static void WriteSimpleRow(
+        const NApi::ITransactionPtr& transaction,
+        i64 key,
+        i64 value,
+        std::optional<i64> sequenceNumber);
+
+    static void WriteSimpleRow(
         i64 key,
         i64 value,
         std::optional<i64> sequenceNumber = std::nullopt);
 
     static void SyncCommit();
 
-    static void CheckTableContents(
+    static void ValidateTableContent(
         const std::vector<std::pair<i64, i64>>& simpleRows);
 
 private:

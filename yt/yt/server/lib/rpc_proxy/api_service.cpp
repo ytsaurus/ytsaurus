@@ -705,6 +705,8 @@ private:
 
     NConcurrency::TSyncMap<std::optional<TYPath>, TDetailedProfilingCountersPtr> DetailedProfilingCountersMap_;
 
+    std::atomic<i64> NextSequenceNumberSourceId_ = 0;
+
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
@@ -823,7 +825,8 @@ private:
         if (searchInPool) {
             transaction = StickyTransactionPool_->FindTransactionAndRenewLease(transactionId);
         }
-        // Don't waste time trying to attach to tablet transactions.
+        // Attachment to a tablet transaction works via sticky transaction pool.
+        // Native client AttachTransaction is only supported for master transactions.
         if (!transaction && options && IsMasterTransactionId(transactionId)) {
             transaction = client->AttachTransaction(transactionId, *options);
         }
@@ -1050,6 +1053,9 @@ private:
                 auto* response = &context->Response();
                 ToProto(response->mutable_id(), transaction->GetId());
                 response->set_start_timestamp(transaction->GetStartTimestamp());
+                if (transactionType == ETransactionType::Tablet) {
+                    response->set_sequence_number_source_id(NextSequenceNumberSourceId_++);
+                }
 
                 if (options.Sticky) {
                     StickyTransactionPool_->RegisterTransaction(transaction);
@@ -1205,13 +1211,16 @@ private:
             request,
             transactionId,
             options,
-            false /* searchInPool */);
+            /*searchInPool*/ true);
 
         response->set_type(static_cast<NApi::NRpcProxy::NProto::ETransactionType>(transaction->GetType()));
         response->set_start_timestamp(transaction->GetStartTimestamp());
         response->set_atomicity(static_cast<NApi::NRpcProxy::NProto::EAtomicity>(transaction->GetAtomicity()));
         response->set_durability(static_cast<NApi::NRpcProxy::NProto::EDurability>(transaction->GetDurability()));
         response->set_timeout(static_cast<i64>(transaction->GetTimeout().GetValue()));
+        if (transaction->GetType() == ETransactionType::Tablet) {
+            response->set_sequence_number_source_id(NextSequenceNumberSourceId_++);
+        }
 
         context->Reply();
     }
@@ -3481,6 +3490,7 @@ private:
             request.has_sequence_number())
         {
             options.SequenceNumber = request.sequence_number();
+            options.SequenceNumberSourceId = request.sequence_number_source_id();
         }
 
         transaction->ModifyRows(
