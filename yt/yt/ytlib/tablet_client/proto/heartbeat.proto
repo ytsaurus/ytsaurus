@@ -1,7 +1,6 @@
 package NYT.NTabletClient.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
