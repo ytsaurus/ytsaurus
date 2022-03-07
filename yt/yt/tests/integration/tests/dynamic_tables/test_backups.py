@@ -27,6 +27,8 @@ class EmptyDynamicStoreIdPoolException(Exception):
 
 @authors("ifsmirnov")
 class TestBackups(DynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
     NUM_SCHEDULERS = 1
 
     def test_basic_backup(self):
