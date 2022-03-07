@@ -236,6 +236,11 @@ IChannelPtr TConnection::CreateChannel(bool sticky)
     return CreateRoamingChannel(std::move(provider));
 }
 
+IChannelPtr TConnection::CreateChannelByAddress(const TString& address)
+{
+    return ChannelFactory_->CreateChannel(address);
+}
+
 TClusterTag TConnection::GetClusterTag() const
 {
     YT_ABORT();

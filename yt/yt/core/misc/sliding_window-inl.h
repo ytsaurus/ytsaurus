@@ -8,17 +8,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TPacket>
+template <class TPacket>
 TSlidingWindow<TPacket>::TSlidingWindow(ssize_t maxSize)
     : MaxSize_(maxSize)
 { }
 
-template <typename TPacket>
-template <class F>
+template <class TPacket>
+template <class TCallback>
 void TSlidingWindow<TPacket>::AddPacket(
     ssize_t sequenceNumber,
     TPacket&& packet,
-    const F& callback)
+    const TCallback& callback)
 {
     if (sequenceNumber < GetNextSequenceNumber()) {
         THROW_ERROR_EXCEPTION("Packet sequence number is too small")
@@ -47,16 +47,51 @@ void TSlidingWindow<TPacket>::AddPacket(
     }
 }
 
-template <typename TPacket>
+template <class TPacket>
 ssize_t TSlidingWindow<TPacket>::GetNextSequenceNumber() const
 {
     return NextPacketSequenceNumber_;
 }
 
-template <typename TPacket>
+template <class TPacket>
 bool TSlidingWindow<TPacket>::IsEmpty() const
 {
     return Window_.empty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TPacket>
+TMultiSlidingWindow<TPacket>::TMultiSlidingWindow(ssize_t maxSize)
+    : MaxSize_(maxSize)
+{ }
+
+template <class TPacket>
+template <class TCallback>
+void TMultiSlidingWindow<TPacket>::AddPacket(
+    TMultiSlidingWindowSequenceNumber sequenceNumber,
+    TPacket&& packet,
+    const TCallback& callback)
+{
+    auto it = WindowPerSource_.find(sequenceNumber.SourceId);
+    if (it == WindowPerSource_.end()) {
+        it = WindowPerSource_.emplace(sequenceNumber.SourceId, TSlidingWindow<TPacket>(MaxSize_)).first;
+    }
+    it->second.AddPacket(sequenceNumber.Value, std::forward<TPacket>(packet), callback);
+}
+
+template <class TPacket>
+std::optional<TMultiSlidingWindowSequenceNumber> TMultiSlidingWindow<TPacket>::TryGetMissingSequenceNumber() const
+{
+    for (const auto& [sourceId, window] : WindowPerSource_) {
+        if (!window.IsEmpty()) {
+            return TMultiSlidingWindowSequenceNumber{
+                .SourceId = sourceId,
+                .Value = window.GetNextSequenceNumber()
+            };
+        }
+    }
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

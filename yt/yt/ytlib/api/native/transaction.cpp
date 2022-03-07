@@ -576,9 +576,16 @@ private:
             , TableSession_(transaction->GetOrCreateTableSession(Path_, Options_.UpstreamReplicaId, Options_.ReplicationCard))
         { }
 
-        std::optional<i64> GetSequenceNumber()
+        std::optional<TMultiSlidingWindowSequenceNumber> GetSequenceNumber()
         {
-            return Options_.SequenceNumber;
+            if (Options_.SequenceNumber) {
+                return TMultiSlidingWindowSequenceNumber{
+                    .SourceId = Options_.SequenceNumberSourceId,
+                    .Value = *Options_.SequenceNumber
+                };
+            } else {
+                return {};
+            }
         }
 
         void SubmitRows()
@@ -859,7 +866,7 @@ private:
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
     std::vector<TModificationRequest*> PendingRequests_;
-    TSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
+    TMultiSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
 
     struct TSyncReplica
     {
@@ -1224,16 +1231,20 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (auto sequenceNumber = request->GetSequenceNumber()) {
-            if (*sequenceNumber < 0) {
+            if (sequenceNumber->Value < 0) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::ProtocolError,
                     "Packet sequence number is negative")
-                    << TErrorAttribute("sequence_number", *sequenceNumber);
+                    << TErrorAttribute("sequence_number", sequenceNumber->Value)
+                    << TErrorAttribute("sequence_number_source_id", sequenceNumber->SourceId);
             }
             // This may call DoEnqueueModificationRequest right away.
-            OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get(), [&] (TModificationRequest* request) {
-                DoEnqueueModificationRequest(request);
-            });
+            OrderedRequestsSlidingWindow_.AddPacket(
+                *sequenceNumber,
+                request.get(),
+                [&] (TModificationRequest* request) {
+                    DoEnqueueModificationRequest(request);
+                });
         } else {
             DoEnqueueModificationRequest(request.get());
         }
@@ -1325,12 +1336,14 @@ private:
 
     TFuture<void> PrepareRequests()
     {
-        if (!OrderedRequestsSlidingWindow_.IsEmpty()) {
+        if (auto optionalMissingNumber = OrderedRequestsSlidingWindow_.TryGetMissingSequenceNumber()) {
+            auto missingNumber = *optionalMissingNumber;
             return MakeFuture(TError(
                 NRpc::EErrorCode::ProtocolError,
-                "Cannot prepare transaction %v since sequence number %v is missing",
+                "Cannot prepare transaction %v since sequence number %v from source %v is missing",
                 GetId(),
-                OrderedRequestsSlidingWindow_.GetNextSequenceNumber()));
+                missingNumber.Value,
+                missingNumber.SourceId));
         }
 
         return DoPrepareRequests();

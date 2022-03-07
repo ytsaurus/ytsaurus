@@ -321,6 +321,12 @@ message TRspStartTransaction
 {
     required NYT.NProto.TGuid id = 1;
     required uint64 start_timestamp = 2;
+    // Sequence number source id allocated for this client if transaction is tablet.
+    // Client is free not to use this source id and generate source id on its own,
+    // for example, for backward compatibility. In this case client is responsible for
+    // source id uniqueness between all transaction clients.
+    // See TReqModifyRows.sequence_number_source_id for details.
+    optional int64 sequence_number_source_id = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,9 +625,20 @@ message TRspGetTabletInfos
 
 message TReqModifyRows
 {
-    // ModifyRows requests are sent asynchronously. Sequential numbering is
-    // required to restore their order. (It's optional for compatibility.)
+    // Modifications are sent asynchronously. Sequential numbering is
+    // required to restore their order (optional for compatibility).
     optional int64 sequence_number = 6;
+
+    // Modifications can be sent from several sources in case of several clients
+    // attached to the same transaction.
+    //
+    // Modifications within one source will be serialized by this source sequence numbers.
+    // Modifications from different sources will be serialized arbitrarily, that is why
+    // different sources must send independent modifications.
+    //
+    // If sequence number is missing, source id is ignored.
+    // Otherwise missing source id is interpreted as source id = 0.
+    optional int64 sequence_number_source_id = 9;
 
     required NYT.NProto.TGuid transaction_id = 1;
     required string path = 2;
@@ -1189,6 +1206,12 @@ message TRspAttachTransaction
     required EAtomicity atomicity = 3;
     required EDurability durability = 4;
     required int64 timeout = 5;
+    // Sequence number source id allocated for this client if transaction is tablet.
+    // Client is free not to use this source id and generate source id on its own,
+    // for example, for backward compatibility. In this case client is responsible for
+    // source id uniqueness between all transaction clients.
+    // See TReqModifyRows.sequence_number_source_id for details.
+    optional int64 sequence_number_source_id = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

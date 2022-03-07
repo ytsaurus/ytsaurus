@@ -22,16 +22,18 @@ class TClientBase
     : public virtual NApi::IClientBase
 {
 protected:
-    // Must return a bound RPC proxy connection for this interface.
+    // Returns a bound RPC proxy connection for this interface.
     virtual TConnectionPtr GetRpcProxyConnection() = 0;
-    // Must return a bound RPC proxy client for this interface.
+    // Returns a bound RPC proxy client for this interface.
     virtual TClientPtr GetRpcProxyClient() = 0;
-    // Must return an RPC channel to use for API call.
-    virtual NRpc::IChannelPtr GetChannel() = 0;
-    // Must return an RPC channel to use for API calls within single transaction.
-    virtual NRpc::IChannelPtr GetStickyChannel() = 0;
-
-    virtual NRpc::IChannelPtr WrapStickyChannel(NRpc::IChannelPtr) = 0;
+    // Returns an RPC channel to use for API calls.
+    virtual NRpc::IChannelPtr GetRetryingChannel() const = 0;
+    // Returns an RPC channel to use for API calls within single transaction.
+    // The channel is non-retrying, so should be wrapped into retrying channel on demand.
+    virtual NRpc::IChannelPtr CreateNonRetryingStickyChannel() const = 0;
+    // Wraps the underlying sticky channel into retrying channel.
+    // Stickiness affects retries policy.
+    virtual NRpc::IChannelPtr WrapStickyChannelIntoRetrying(NRpc::IChannelPtr underlying) const = 0;
 
     TApiServiceProxy CreateApiServiceProxy(NRpc::IChannelPtr channel = {});
     void InitStreamingRequest(NRpc::TClientRequest& request);
@@ -40,12 +42,12 @@ protected:
 public:
     NApi::IConnectionPtr GetConnection() override;
 
-    // Transactions
+    // Transactions.
     TFuture<NApi::ITransactionPtr> StartTransaction(
         NTransactionClient::ETransactionType type,
         const NApi::TTransactionStartOptions& options) override;
 
-    // Tables
+    // Tables.
     TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
@@ -74,9 +76,9 @@ public:
         const NYPath::TYPath& path,
         const NApi::TPullRowsOptions& options) override;
 
-    // TODO(babenko): batch read and batch write
+    // TODO(babenko): batch read and batch write.
 
-    // Cypress
+    // Cypress.
     TFuture<bool> NodeExists(
         const NYPath::TYPath& path,
         const NApi::TNodeExistsOptions& options) override;
@@ -146,13 +148,13 @@ public:
         const NYPath::TYPath& path,
         const TInternalizeNodeOptions& options = {}) override;
 
-    // Objects
+    // Objects.
     TFuture<NObjectClient::TObjectId> CreateObject(
         NObjectClient::EObjectType type,
         const NApi::TCreateObjectOptions& options) override;
 
     //! NB: Readers and writers returned by methods below are NOT thread-safe.
-    // Files
+    // Files.
     TFuture<NApi::IFileReaderPtr> CreateFileReader(
         const NYPath::TYPath& path,
         const NApi::TFileReaderOptions& options) override;
@@ -161,7 +163,7 @@ public:
         const NYPath::TRichYPath& path,
         const NApi::TFileWriterOptions& options) override;
 
-    // Journals
+    // Journals.
     NApi::IJournalReaderPtr CreateJournalReader(
         const NYPath::TYPath& path,
         const NApi::TJournalReaderOptions& options) override;
@@ -170,7 +172,7 @@ public:
         const NYPath::TYPath& path,
         const NApi::TJournalWriterOptions& options) override;
 
-    // Tables
+    // Tables.
     TFuture<NApi::ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const NApi::TTableReaderOptions& options) override;

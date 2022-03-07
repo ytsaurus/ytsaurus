@@ -37,8 +37,9 @@ TTransaction::TTransaction(
     TDuration timeout,
     bool pingAncestors,
     std::optional<TDuration> pingPeriod,
-    bool sticky,
-    TString stickyProxyAddress)
+    std::optional<TStickyTransactionParameters> stickyParameters,
+    i64 sequenceNumberSourceId,
+    TStringBuf capitalizedCreationReason)
     : Connection_(std::move(connection))
     , Client_(std::move(client))
     , Channel_(std::move(channel))
@@ -50,7 +51,8 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingAncestors_(pingAncestors)
     , PingPeriod_(pingPeriod)
-    , StickyProxyAddress_(std::move(stickyProxyAddress))
+    , StickyProxyAddress_(stickyParameters ? std::move(stickyParameters->ProxyAddress) : TString())
+    , SequenceNumberSourceId_(sequenceNumberSourceId)
     , Logger(RpcProxyClientLogger.WithTag("TransactionId: %v, %v",
         Id_,
         Connection_->GetLoggingTag()))
@@ -62,9 +64,9 @@ TTransaction::TTransaction(
     Proxy_.SetDefaultResponseCodec(config->ResponseCodec);
     Proxy_.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
 
-   // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
-    YT_LOG_DEBUG("Transaction started (Type: %v, StartTimestamp: %llx, Atomicity: %v, "
-        "Durability: %v, Timeout: %v, PingAncestors: %v, PingPeriod: %v, Sticky: %v)",
+    YT_LOG_DEBUG("%v (Type: %v, StartTimestamp: %llx, Atomicity: %v, "
+        "Durability: %v, Timeout: %v, PingAncestors: %v, PingPeriod: %v, Sticky: %v, StickyProxyAddress: %v)",
+        capitalizedCreationReason,
         GetType(),
         GetStartTimestamp(),
         GetAtomicity(),
@@ -72,7 +74,8 @@ TTransaction::TTransaction(
         GetTimeout(),
         PingAncestors_,
         PingPeriod_,
-        sticky);
+        /*sticky*/ stickyParameters.has_value(),
+        StickyProxyAddress_);
 
     // TODO(babenko): don't run periodic pings if client explicitly disables them in options
     RunPeriodicPings();
@@ -379,6 +382,7 @@ void TTransaction::ModifyRows(
 
     auto req = Proxy_.ModifyRows();
     req->set_sequence_number(reqSequenceNumber);
+    req->set_sequence_number_source_id(SequenceNumberSourceId_);
     ToProto(req->mutable_transaction_id(), GetId());
     req->set_path(path);
     req->set_require_sync_replica(options.RequireSyncReplica);
@@ -433,7 +437,7 @@ void TTransaction::ModifyRows(
         ValidateActive();
         future = req->Invoke().As<void>();
     } else {
-        YT_LOG_DEBUG("Pushing a subrequest into a BatchModifyRows rows request (SubrequestAttachmentCount: 1+%v)",
+        YT_LOG_DEBUG("Pushing a subrequest into a batch modify rows request (SubrequestAttachmentCount: 1+%v)",
             req->Attachments().size());
 
         auto reqBody = SerializeProtoToRef(*req);

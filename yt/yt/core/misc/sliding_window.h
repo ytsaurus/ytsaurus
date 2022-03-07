@@ -26,7 +26,7 @@ namespace NYT {
  */
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TPacket>
+template <class TPacket>
 class TSlidingWindow
 {
 public:
@@ -45,8 +45,8 @@ public:
     *  Throws if setting this packet would exceed the window size (i.e. the
     *  sequence number is too large).
     */
-    template <class F>
-    void AddPacket(ssize_t sequenceNumber, TPacket&& packet, const F& callback);
+    template <class TCallback>
+    void AddPacket(ssize_t sequenceNumber, TPacket&& packet, const TCallback& callback);
 
     //! Checks whether the window stores no packets.
     bool IsEmpty() const;
@@ -59,6 +59,38 @@ private:
 
     ssize_t NextPacketSequenceNumber_ = 0;
     THashMap<ssize_t, TPacket> Window_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMultiSlidingWindowSequenceNumber
+{
+    ssize_t SourceId;
+    ssize_t Value;
+};
+
+//! Incorporates several independent sliding windows indexed by source id.
+template <class TPacket>
+class TMultiSlidingWindow
+{
+public:
+    explicit TMultiSlidingWindow(ssize_t maxSize);
+
+    template <class TCallback>
+    void AddPacket(
+        TMultiSlidingWindowSequenceNumber sequenceNumber,
+        TPacket&& packet,
+        const TCallback& callback);
+
+    //! Returns null if every window is empty.
+    //! Otherwise returns next sequence number within some non-empty window,
+    //! so effectively returns any missing sequence number.
+    std::optional<TMultiSlidingWindowSequenceNumber> TryGetMissingSequenceNumber() const;
+
+private:
+    const ssize_t MaxSize_;
+
+    THashMap<ssize_t, TSlidingWindow<TPacket>> WindowPerSource_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
