@@ -85,6 +85,7 @@ using namespace NObjectClient;
 using namespace NHiveServer;
 using namespace NCellMaster;
 using namespace NProfiling;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,7 +322,7 @@ public:
         TCtxExecutePtr rpcContext)
         : Owner_(std::move(owner))
         , RpcContext_(std::move(rpcContext))
-        , TraceContext_(NTracing::GetCurrentTraceContext())
+        , TraceContext_(GetCurrentTraceContext())
         , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
         , UserName_(RpcContext_->GetAuthenticationIdentity().User)
@@ -416,10 +417,15 @@ public:
         }
     }
 
+    TTraceContextPtr GetTraceContext() const
+    {
+        return TraceContext_;
+    }
+
 private:
     const TObjectServicePtr Owner_;
     const TCtxExecutePtr RpcContext_;
-    const NTracing::TTraceContextPtr TraceContext_;
+    const TTraceContextPtr TraceContext_;
 
     NCellMaster::TBootstrap* const Bootstrap_;
     const int TotalSubrequestCount_;
@@ -452,7 +458,7 @@ private:
         std::optional<TCompactVector<TYPathRewrite, 4>> PrerequisiteRevisionPathRewrites;
         TSharedRefArray RemoteRequestMessage;
         TSharedRefArray ResponseMessage;
-        NTracing::TTraceContextPtr TraceContext;
+        TTraceContextPtr TraceContext;
         NHydra::TRevision Revision = NHydra::NullRevision;
         std::atomic<bool> Uncertain = false;
         std::atomic<bool> LocallyStarted = false;
@@ -1774,7 +1780,7 @@ private:
             subrequest->TraceContext = TraceContext_->CreateChild(
                 ConcatToString(TStringBuf("YPathRead:"), rpcContext->GetService(), TStringBuf("."), rpcContext->GetMethod()));
         }
-        NTracing::TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
+        TCurrentTraceContextGuard traceContextGuard(subrequest->TraceContext);
 
         try {
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2153,6 +2159,7 @@ TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
     }
 
     auto session = SessionScheduler_->Dequeue();
+    TCurrentTraceContextGuard guard(session->GetTraceContext());
 
     return BIND(&TObjectService::TExecuteSession::RunRead, session);
 }
@@ -2208,6 +2215,8 @@ void TObjectService::ProcessSessions()
     });
 
     ReadySessions_.DequeueAll(false, [&] (TExecuteSessionPtr& session) {
+        TCurrentTraceContextGuard guard(session->GetTraceContext());
+
         session->OnDequeued();
 
         if (!session->RunAutomatonFast()) {
@@ -2223,6 +2232,8 @@ void TObjectService::ProcessSessions()
 
     while (!AutomatonSessionScheduler_->Empty() && GetCpuInstant() < deadlineTime) {
         auto session = AutomatonSessionScheduler_->Dequeue();
+        TCurrentTraceContextGuard guard(session->GetTraceContext());
+
         session->RunAutomatonSlow();
     }
 
