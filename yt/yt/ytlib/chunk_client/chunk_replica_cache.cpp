@@ -147,6 +147,7 @@ public:
                             auto& entry = *it->second;
                             auto entryGuard = Guard(entry.Lock);
                             if (entry.Promise == promises[index]) {
+                                entryGuard.Release();
                                 Entries_.erase(it);
                             }
                         }
@@ -170,6 +171,7 @@ public:
             auto entryGuard = Guard(entry.Lock);
             entry.LastAccessTime = now;
             if (entry.Promise.ToFuture() == future) {
+                entryGuard.Release();
                 Entries_.erase(it);
                 YT_LOG_DEBUG("Chunk replicas discarded (ChunkId: %v)",
                     chunkId);
