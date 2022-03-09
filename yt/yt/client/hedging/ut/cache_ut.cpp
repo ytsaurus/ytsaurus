@@ -13,8 +13,11 @@
 
 namespace NYT::NClient::NHedging::NRpc {
 
-// yt does not create physical connection immediately, so try to use this fact to create connection to non existence server
-TEST(TClientsCacheTest, GetSameClient) {
+////////////////////////////////////////////////////////////////////////////////
+
+// YT does not create physical connection immediately, so try to use this fact to create connection to non existence server.
+TEST(TClientsCacheTest, GetSameClient)
+{
     SetEnv("YT_TOKEN", "AAAA-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     auto cache = CreateClientsCache();
     auto client1 = cache->GetClient("localhost");
@@ -22,7 +25,8 @@ TEST(TClientsCacheTest, GetSameClient) {
     EXPECT_TRUE(client1 == client2);
 }
 
-TEST(TClientsCacheTest, GetClientWithProxyRole) {
+TEST(TClientsCacheTest, GetClientWithProxyRole)
+{
     SetEnv("YT_TOKEN", "AAAA-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     auto cache = CreateClientsCache();
     auto client1 = cache->GetClient("bigb@localhost");
@@ -30,7 +34,8 @@ TEST(TClientsCacheTest, GetClientWithProxyRole) {
     EXPECT_TRUE(client1 != client2);
 }
 
-TEST(TClientsCacheTest, MultiThreads) {
+TEST(TClientsCacheTest, MultiThreads)
+{
     SetEnv("YT_TOKEN", "AAAA-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
     auto cache = CreateClientsCache();
     TVector<std::thread> threads(Reserve(10));
@@ -63,5 +68,7 @@ TEST(TClientsCacheTest, MultiThreads) {
         EXPECT_EQ(1u, collision);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

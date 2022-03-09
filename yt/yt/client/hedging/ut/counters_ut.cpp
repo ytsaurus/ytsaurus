@@ -25,6 +25,8 @@ using namespace NYT::NProfiling;
 
 using TStrictMockClient = StrictMock<NYT::NApi::TMockClient>;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 const auto SleepQuantum = TDuration::MilliSeconds(100);
@@ -33,7 +35,8 @@ const auto SleepQuantum = TDuration::MilliSeconds(100);
 
 NApi::IClientPtr CreateTestHedgingClient(std::initializer_list<NApi::IClientPtr> clients,
                                               std::initializer_list<TCounterPtr> counters,
-                                              TDuration banDuration = SleepQuantum * 5) {
+                                              TDuration banDuration = SleepQuantum * 5)
+{
     THedgingClientOptions options;
     options.BanPenalty = SleepQuantum * 2;
     options.BanDuration = banDuration;
@@ -47,7 +50,10 @@ NApi::IClientPtr CreateTestHedgingClient(std::initializer_list<NApi::IClientPtr>
 
 } // namespace
 
-TEST(THedgingClientCountersTest, CountersAfterSuccessFromFristClient) {
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(THedgingClientCountersTest, CountersAfterSuccessFromFristClient)
+{
     NYPath::TYPath path = "/test/1234";
     NApi::TListNodeOptions options;
     options.Attributes = {"some_attribute"};
@@ -87,7 +93,8 @@ TEST(THedgingClientCountersTest, CountersAfterSuccessFromFristClient) {
     EXPECT_DURATION_NEAR(SleepQuantum, TTesting::ReadTimeGauge(secondClientCounter->EffectivePenalty));
 }
 
-TEST(THedgingClientCountersTest, CountersAfterFirstClientHasFailed) {
+TEST(THedgingClientCountersTest, CountersAfterFirstClientHasFailed)
+{
     NYPath::TYPath path = "/test/1234";
     NApi::TListNodeOptions options;
     options.Attributes = {"some_attribute"};
@@ -127,7 +134,8 @@ TEST(THedgingClientCountersTest, CountersAfterFirstClientHasFailed) {
     EXPECT_DURATION_NEAR(SleepQuantum, TTesting::ReadTimeGauge(secondClientCounter->EffectivePenalty));
 }
 
-TEST(THedgingClientCountersTest, CountersWhenFirstClientIsBanned) {
+TEST(THedgingClientCountersTest, CountersWhenFirstClientIsBanned)
+{
     NYPath::TYPath path = "/test/1234";
     NApi::TListNodeOptions options;
     options.Attributes = {"some_attribute"};
@@ -173,7 +181,8 @@ TEST(THedgingClientCountersTest, CountersWhenFirstClientIsBanned) {
     EXPECT_DURATION_NEAR(TDuration::Zero(), TTesting::ReadTimeGauge(secondClientCounter->EffectivePenalty));
 }
 
-TEST(THedgingClientCountersTest, CountersAfterFirstClientBanHasElapsed) {
+TEST(THedgingClientCountersTest, CountersAfterFirstClientBanHasElapsed)
+{
     NYPath::TYPath path = "/test/1234";
     NApi::TListNodeOptions options;
     options.Attributes = {"some_attribute"};
@@ -222,5 +231,7 @@ TEST(THedgingClientCountersTest, CountersAfterFirstClientBanHasElapsed) {
     EXPECT_EQ(1, TTesting::ReadCounter(secondClientCounter->CancelRequestCount));
     EXPECT_DURATION_NEAR(SleepQuantum, TTesting::ReadTimeGauge(secondClientCounter->EffectivePenalty));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

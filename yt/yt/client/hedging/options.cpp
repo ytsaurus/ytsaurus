@@ -8,7 +8,10 @@
 
 namespace NYT::NClient::NHedging {
 
-NYT::NApi::TClientOptions GetClientOpsFromEnv() {
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NApi::TClientOptions GetClientOpsFromEnv()
+{
     NYT::NApi::TClientOptions options;
 
     auto user = Strip(GetEnv("YT_USER"));
@@ -33,9 +36,12 @@ NYT::NApi::TClientOptions GetClientOpsFromEnv() {
     return options;
 }
 
-const NYT::NApi::TClientOptions& GetClientOpsFromEnvStatic() {
+const NYT::NApi::TClientOptions& GetClientOpsFromEnvStatic()
+{
     static const NYT::NApi::TClientOptions options = GetClientOpsFromEnv();
     return options;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging

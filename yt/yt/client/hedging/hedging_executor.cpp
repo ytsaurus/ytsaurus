@@ -7,6 +7,8 @@
 
 namespace NYT::NClient::NHedging::NRpc {
 
+////////////////////////////////////////////////////////////////////////////////
+
 THedgingClientOptions::TClientOptions::TClientOptions(
     NYT::NApi::IClientPtr client,
     TString clusterName,
@@ -45,7 +47,8 @@ THedgingExecutor::THedgingExecutor(const THedgingClientOptions& options, const I
     }
 }
 
-NYT::NApi::IConnectionPtr THedgingExecutor::GetConnection() {
+NYT::NApi::IConnectionPtr THedgingExecutor::GetConnection()
+{
     return Clients_[0].Client->GetConnection();
 }
 
@@ -55,8 +58,8 @@ void THedgingExecutor::OnFinishRequest(
     NYT::NProfiling::TCpuDuration adaptivePenalty,
     NYT::NProfiling::TCpuDuration externalPenalty,
     NYT::NProfiling::TCpuInstant start,
-    const NYT::TError& error
-) {
+    const NYT::TError& error)
+{
     auto& clientInfo = Clients_[clientIndex];
     if (error.IsOK()) {
         if (adaptivePenalty) {
@@ -80,7 +83,10 @@ void THedgingExecutor::OnFinishRequest(
     clientInfo.Counter->ExternalPenalty.Update(NYT::NProfiling::CpuDurationToDuration(externalPenalty));
 }
 
-THedgingExecutor::TEntry::TEntry(NYT::NApi::IClientPtr client, NYT::NProfiling::TCpuDuration initialPenalty, TCounterPtr counter, TString clusterName)
+THedgingExecutor::TEntry::TEntry(NYT::NApi::IClientPtr client,
+                                 NYT::NProfiling::TCpuDuration initialPenalty,
+                                 TCounterPtr counter,
+                                 TString clusterName)
     : Client(std::move(client))
     , ClusterName(std::move(clusterName))
     , AdaptivePenalty(0)
@@ -90,5 +96,7 @@ THedgingExecutor::TEntry::TEntry(NYT::NApi::IClientPtr client, NYT::NProfiling::
     , Counter(std::move(counter))
 {
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

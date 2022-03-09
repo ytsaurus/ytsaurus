@@ -17,9 +17,15 @@
 #include <util/generic/hash.h>
 #include <util/generic/xrange.h>
 
+namespace NYT::NClient::NHedging::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 using namespace NYT::NClient::NHedging::NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TDummyLagProvider: public IPenaltyProvider {
 public:
@@ -28,7 +34,11 @@ public:
     }
 };
 
-class TLagPenaltyProvider: public IPenaltyProvider {
+////////////////////////////////////////////////////////////////////////////////
+
+class TLagPenaltyProvider
+    : public IPenaltyProvider
+{
 public:
     TLagPenaltyProvider(const TReplicaionLagPenaltyProviderConfig& config, NYT::NApi::IClientPtr masterClient)
         : TablePath_(config.GetTablePath())
@@ -58,10 +68,9 @@ public:
         Executor_->Start();
     }
 
-    /**
-     * Checks that all ReplicaIds in ReplicaClusters_ have been set
-     */
-    NYT::TError CheckAllReplicaIdsPresent() const {
+    // Checks that all ReplicaIds in ReplicaClusters_ have been set.
+    NYT::TError CheckAllReplicaIdsPresent() const
+    {
         for (const auto& [cluster, info] : ReplicaClusters_) {
             if (!info.ReplicaId) {
                 return NYT::TError{"ReplicaId was not found for %v", cluster};
@@ -70,10 +79,9 @@ public:
         return {};
     }
 
-    /**
-     * Fills ReplicaIds in ReplicaClusters_
-     */
-    void UpdateReplicaIds() {
+    // Fills ReplicaIds in ReplicaClusters_.
+    void UpdateReplicaIds()
+    {
         auto replicasNode = NYT::NYTree::ConvertToNode(NYT::NConcurrency::WaitFor(MasterClient_->GetNode(TablePath_ + "/@replicas", GetNodeOptions_)).ValueOrThrow())->AsMap();
 
         for (const auto& row : replicasNode->GetChildren()) {
@@ -86,14 +94,14 @@ public:
         CheckAllReplicaIdsPresent().ThrowOnError();
     }
 
-    ui64 GetTotalNumberOfTablets() {
+    ui64 GetTotalNumberOfTablets()
+    {
         return NYT::NYTree::ConvertTo<ui64>(NYT::NConcurrency::WaitFor(MasterClient_->GetNode(TablePath_ + "/@tablet_count", GetNodeOptions_)).ValueOrThrow());
     }
 
-    /**
-     * Returns a map: ReplicaId -> # of tablets
-     */
-    THashMap<NYT::NTabletClient::TTableReplicaId, ui64> CalculateNumbersOfTabletsWithLag(const ui64 tabletsCount) {
+    // Returns a map: ReplicaId -> # of tablets.
+    THashMap<NYT::NTabletClient::TTableReplicaId, ui64> CalculateNumbersOfTabletsWithLag(const ui64 tabletsCount)
+    {
         auto tabletsRange = xrange(tabletsCount);
         auto tabletsInfo = NYT::NConcurrency::WaitFor(MasterClient_->GetTabletInfos(TablePath_, {tabletsRange.begin(), tabletsRange.end()})).ValueOrThrow();
 
@@ -116,11 +124,13 @@ public:
         return tabletsWithLag;
     }
 
-    NYT::NProfiling::TCpuDuration CalculateLagPenalty(const ui64 tabletsCount, const ui64 tabletsWithLag) {
+    NYT::NProfiling::TCpuDuration CalculateLagPenalty(const ui64 tabletsCount, const ui64 tabletsWithLag)
+    {
         return tabletsWithLag >= tabletsCount * MaxTabletsWithLagFraction_ ? LagPenalty_ : 0;
     }
 
-    void UpdateCurrentLagPenalty() {
+    void UpdateCurrentLagPenalty()
+    {
         try {
             YT_LOG_INFO("Start penalty updater check for: %v", TablePath_);
 
@@ -163,19 +173,22 @@ public:
         }
     }
 
-    NYT::NProfiling::TCpuDuration Get(const TString& cluster) override {
+    NYT::NProfiling::TCpuDuration Get(const TString& cluster) override
+    {
         if (const TReplicaInfo* info = ReplicaClusters_.FindPtr(cluster)) {
             return info->CurrentLagPenalty.load(std::memory_order_relaxed);
         }
         return 0;
     }
 
-    ~TLagPenaltyProvider() {
+    ~TLagPenaltyProvider()
+    {
         Executor_->Stop();
     }
 
 private:
-    struct TReplicaInfo {
+    struct TReplicaInfo
+    {
         NYT::NTabletClient::TTableReplicaId ReplicaId = {};
         std::atomic<NYT::NProfiling::TCpuDuration> CurrentLagPenalty = 0;
     };
@@ -192,16 +205,24 @@ private:
     NYT::NConcurrency::TPeriodicExecutorPtr Executor_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
-namespace NYT::NClient::NHedging::NRpc {
+////////////////////////////////////////////////////////////////////////////////
 
-IPenaltyProviderPtr CreateDummyPenaltyProvider() {
+IPenaltyProviderPtr CreateDummyPenaltyProvider()
+{
     return NYT::New<TDummyLagProvider>();
 }
 
-IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(const TReplicaionLagPenaltyProviderConfig& config, NYT::NApi::IClientPtr masterClient) {
+IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(
+        const TReplicaionLagPenaltyProviderConfig& config,
+        NYT::NApi::IClientPtr masterClient)
+{
     return NYT::New<TLagPenaltyProvider>(config, masterClient);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

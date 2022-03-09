@@ -8,16 +8,21 @@
 
 namespace NYT::NClient::NHedging::NRpc {
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
-class TClientsCache: public IClientsCache {
+class TClientsCache
+    : public IClientsCache
+{
 public:
     TClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options)
         : CommonConfig_(config)
         , Options_(options)
     {}
 
-    NYT::NApi::IClientPtr GetClient(TStringBuf clusterUrl) override {
+    NYT::NApi::IClientPtr GetClient(TStringBuf clusterUrl) override
+    {
         {
             auto guard = ReaderGuard(Lock_);
             auto clientIt = Clients_.find(clusterUrl);
@@ -43,20 +48,28 @@ private:
 
 } // namespace
 
-IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options) {
+////////////////////////////////////////////////////////////////////////////////
+
+IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options)
+{
     return NYT::New<TClientsCache>(config, options);
 }
 
-IClientsCachePtr CreateClientsCache(const TConfig& config) {
+IClientsCachePtr CreateClientsCache(const TConfig& config)
+{
     return CreateClientsCache(config, GetClientOpsFromEnvStatic());
 }
 
-IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options) {
+IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options)
+{
     return CreateClientsCache({}, options);
 }
 
-IClientsCachePtr CreateClientsCache() {
+IClientsCachePtr CreateClientsCache()
+{
     return CreateClientsCache(GetClientOpsFromEnvStatic());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

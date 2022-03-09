@@ -19,12 +19,21 @@
 
 namespace NYT::NClient::NHedging::NRpc {
 
-// @brief options for hedging client.
-struct THedgingClientOptions {
-    struct TClientOptions {
-        TClientOptions(NYT::NApi::IClientPtr client, TString clusterName, TDuration initialPenalty, TCounterPtr counter = {});
+////////////////////////////////////////////////////////////////////////////////
 
-        TClientOptions(NYT::NApi::IClientPtr client, TDuration initialPenalty, TCounterPtr counter = {});
+// @brief options for hedging client.
+struct THedgingClientOptions
+{
+    struct TClientOptions
+    {
+        TClientOptions(NYT::NApi::IClientPtr client,
+                      TString clusterName,
+                      TDuration initialPenalty,
+                      TCounterPtr counter = {});
+
+        TClientOptions(NYT::NApi::IClientPtr client,
+                       TDuration initialPenalty,
+                       TCounterPtr counter = {});
 
         NYT::NApi::IClientPtr Client;
         TString ClusterName;
@@ -37,15 +46,20 @@ struct THedgingClientOptions {
     TDuration BanDuration;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(THedgingExecutor);
-class THedgingExecutor final {
+
+class THedgingExecutor final
+{
 public:
     THedgingExecutor(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider);
 
     NYT::NApi::IConnectionPtr GetConnection();
 
     template <typename T>
-    NYT::TFuture<T> DoWithHedging(NYT::TCallback<NYT::TFuture<T>(NYT::NApi::IClientPtr)> callback) {
+    NYT::TFuture<T> DoWithHedging(NYT::TCallback<NYT::TFuture<T>(NYT::NApi::IClientPtr)> callback)
+    {
         NYT::NProfiling::TCpuInstant now = NYT::NProfiling::GetCpuInstant();
         auto clients = [=]() -> auto {
             TGuard guard(SpinLock_);
@@ -89,8 +103,12 @@ private:
         NYT::NProfiling::TCpuInstant start,
         const NYT::TError& r);
 
-    struct TEntry {
-        TEntry(NYT::NApi::IClientPtr client, NYT::NProfiling::TCpuDuration initialPenalty, TCounterPtr counter, TString clusterName);
+    struct TEntry
+    {
+        TEntry(NYT::NApi::IClientPtr client,
+               NYT::NProfiling::TCpuDuration initialPenalty,
+               TCounterPtr counter,
+               TString clusterName);
 
         NYT::NApi::IClientPtr Client;
         TString ClusterName;
@@ -107,6 +125,9 @@ private:
     IPenaltyProviderPtr PenaltyProvider_;
     TSpinLock SpinLock_;
 };
+
 DEFINE_REFCOUNTED_TYPE(THedgingExecutor);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

@@ -10,9 +10,14 @@
 #include <util/string/strip.h>
 #include <util/system/env.h>
 
+namespace NYT::NClient::NHedging::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
-TString ExpandClusterName(TString cluster) {
+TString ExpandClusterName(TString cluster)
+{
     Y_ENSURE(!cluster.empty(), "No cluster name specified!");
     if (cluster.find('.') == TString::npos && cluster.find(':') == TString::npos && cluster != "localhost") {
         cluster += ".yt.yandex.net";
@@ -22,9 +27,10 @@ TString ExpandClusterName(TString cluster) {
 
 } // namespace
 
-namespace NYT::NClient::NHedging::NRpc {
+////////////////////////////////////////////////////////////////////////////////
 
-void SetClusterUrl(TConfig& config, TStringBuf clusterUrl) {
+void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
+{
     TStringBuf cluster;
     TStringBuf proxyRole;
     clusterUrl.Split('/', cluster, proxyRole);
@@ -35,7 +41,8 @@ void SetClusterUrl(TConfig& config, TStringBuf clusterUrl) {
     config.SetClusterName(ToString(cluster));
 }
 
-NYT::NApi::IClientPtr CreateClient(const TConfig& config, const NYT::NApi::TClientOptions& options) {
+NYT::NApi::IClientPtr CreateClient(const TConfig& config, const NYT::NApi::TClientOptions& options)
+{
     auto ytConfig = NYT::New<NYT::NApi::NRpcProxy::TConnectionConfig>();
     ytConfig->SetDefaults();
     ytConfig->ClusterUrl = ExpandClusterName(config.GetClusterName());
@@ -79,15 +86,18 @@ NYT::NApi::IClientPtr CreateClient(const TConfig& config, const NYT::NApi::TClie
     return NYT::NApi::NRpcProxy::CreateConnection(ytConfig)->CreateClient(options);
 }
 
-NYT::NApi::IClientPtr CreateClient(const TConfig& config) {
+NYT::NApi::IClientPtr CreateClient(const TConfig& config)
+{
     return CreateClient(config, GetClientOpsFromEnvStatic());
 }
 
-NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl) {
+NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl)
+{
     return CreateClient(clusterUrl, GetClientOpsFromEnvStatic());
 }
 
-NYT::NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole) {
+NYT::NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole)
+{
     TConfig config;
     config.SetClusterName(ToString(cluster));
     if (!proxyRole.empty()) {
@@ -96,14 +106,18 @@ NYT::NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole) {
     return CreateClient(config);
 }
 
-NYT::NApi::IClientPtr CreateClient() {
+NYT::NApi::IClientPtr CreateClient()
+{
     return CreateClient(Strip(GetEnv("YT_PROXY")));
 }
 
-NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl, const NYT::NApi::TClientOptions& options) {
+NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl, const NYT::NApi::TClientOptions& options)
+{
     TConfig config;
     SetClusterUrl(config, clusterUrl);
     return CreateClient(config, options);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc
