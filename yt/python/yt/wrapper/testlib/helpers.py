@@ -27,7 +27,10 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
-
+try:
+    import collections.abc as collections_abc
+except ImportError:
+    import collections as collections_abc
 
 TEST_DIR = "//home/wrapper_tests"
 
@@ -104,7 +107,7 @@ def _filter_simple_types(obj):
         return obj
     elif isinstance(obj, list):
         return [_filter_simple_types(item) for item in obj]
-    elif isinstance(obj, collections.Mapping):
+    elif isinstance(obj, collections_abc.Mapping):
         return dict([(key, _filter_simple_types(value)) for key, value in iteritems(obj)])
     return None
 
