@@ -496,6 +496,7 @@ void TLeaderCommitter::DrainQueue()
             LoggingFailed_.Fire(TError("Mutation queue mutation count limit exceeded, but the first mutation in queue is still uncommitted")
                 << TErrorAttribute("mutation_count", MutationQueue_.size())
                 << TErrorAttribute("mutation_sequence_number", mutation->SequenceNumber));
+            return;
         }
         popMutationQueue();
     }
@@ -506,6 +507,7 @@ void TLeaderCommitter::DrainQueue()
             LoggingFailed_.Fire(TError("Mutation queue data size limit exceeded, but the first mutation in queue is still uncommitted")
                 << TErrorAttribute("queue_data_size", MutationQueueDataSize_)
                 << TErrorAttribute("mutation_sequence_number", mutation->SequenceNumber));
+            return;
         }
         popMutationQueue();
     }
