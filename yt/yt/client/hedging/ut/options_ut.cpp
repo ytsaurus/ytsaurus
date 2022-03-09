@@ -10,7 +10,10 @@
 
 namespace NYT::NClient::NHedging {
 
-TEST(TClientOptionsTest, TokenFromFile) {
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TClientOptionsTest, TokenFromFile)
+{
     TTempDir tmpDir;
     MakeDirIfNotExist(tmpDir.Name() + "/.yt");
     {
@@ -27,7 +30,8 @@ TEST(TClientOptionsTest, TokenFromFile) {
     EXPECT_EQ("AAAA-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", *clientOptions.Token);
 }
 
-TEST(TClientOptionsTest, TokenFromYtTokenPath) {
+TEST(TClientOptionsTest, TokenFromYtTokenPath)
+{
     TTempDir tmpDir;
     const TString tokenPath = tmpDir.Name() + "/token";
     {
@@ -50,7 +54,8 @@ TEST(TClientOptionsTest, TokenFromEnv) {
     EXPECT_EQ("BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", *clientOptions.Token);
 }
 
-TEST(TClientOptionsTest, UserFromEnv) {
+TEST(TClientOptionsTest, UserFromEnv)
+{
     NTesting::TScopedEnvironment envGuard{{
         {"YT_TOKEN", "BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"},
         {"YT_USER", "yt_test_user"},
@@ -60,7 +65,8 @@ TEST(TClientOptionsTest, UserFromEnv) {
     EXPECT_EQ("yt_test_user", *clientOptions.User);
 }
 
-TEST(TClientOptionsTest, AllowEmptyUser) {
+TEST(TClientOptionsTest, AllowEmptyUser)
+{
     NTesting::TScopedEnvironment envGuard{{
         {"YT_TOKEN", "BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"},
         {"YT_USER", ""},
@@ -69,7 +75,8 @@ TEST(TClientOptionsTest, AllowEmptyUser) {
     EXPECT_TRUE(!clientOptions.User);
 }
 
-TEST(TClientOptionsTest, ErrorIfNoToken) {
+TEST(TClientOptionsTest, ErrorIfNoToken)
+{
     NTesting::TScopedEnvironment envGuard{{
         {"YT_TOKEN", ""},
         {"HOME", "/some_non_existing_dir"},
@@ -77,5 +84,7 @@ TEST(TClientOptionsTest, ErrorIfNoToken) {
 
     ASSERT_THROW_MESSAGE_HAS_SUBSTR(GetClientOpsFromEnv(), std::exception, "No YtToken found!");
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging

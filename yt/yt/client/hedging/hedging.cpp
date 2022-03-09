@@ -21,6 +21,10 @@
 #include <util/generic/va_args.h>
 #include <util/system/compiler.h>
 
+namespace NYT::NClient::NHedging::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 using namespace NYT::NClient::NHedging::NRpc;
@@ -29,7 +33,7 @@ using namespace NYT;
 using namespace NApi;
 using namespace NProfiling;
 
-//////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 using TClientBuilder = std::function<NYT::NApi::IClientPtr(const TConfig&)>;
 
@@ -50,15 +54,15 @@ using TClientBuilder = std::function<NYT::NApi::IClientPtr(const TConfig&)>;
 #define Y_VA_ARGS(...) __VA_ARGS__
 
 // Map input arguments types.
-// Example: Y_METHOD_UNUSED_ARGS_DECLARATION((int, TString)) ---> int, TString
+// Example: Y_METHOD_UNUSED_ARGS_DECLARATION((int, TString)) ---> int, TString.
 #define Y_METHOD_UNUSED_ARGS_DECLARATION(Args) Y_MAP_ARGS_WITH_LAST(Y_FUNCTION_ARG_UNUSED_COMMA, Y_FUNCTION_ARG_UNUSED, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
 
 // Map input arguments types with parameter names introduction.
-// Example: Y_METHOD_USED_ARGS_DECLARATION((int, TString)) ---> int a2, TString a1
+// Example: Y_METHOD_USED_ARGS_DECLARATION((int, TString)) ---> int a2, TString a1.
 #define Y_METHOD_USED_ARGS_DECLARATION(Args) Y_MAP_ARGS_WITH_LAST_N(Y_FUNCTION_ARG_COMMA, Y_FUNCTION_ARG, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
 
 // Map input arguments types into corresponding parameter names.
-// Example: Y_PASS_METHOD_USED_ARGS((int, TString)) ---> a2, a1
+// Example: Y_PASS_METHOD_USED_ARGS((int, TString)) ---> a2, a1.
 #define Y_PASS_METHOD_USED_ARGS(Args) Y_MAP_ARGS_WITH_LAST_N(Y_PASS_ARG_COMMA, Y_PASS_ARG, Y_PASS_VA_ARGS(Y_VA_ARGS Args))
 
 // Use at the end of macros declaration. It allows macros usage only with semicolon at the end.
@@ -78,15 +82,19 @@ using TClientBuilder = std::function<NYT::NApi::IClientPtr(const TConfig&)>;
         }));                                                                                \
     } Y_SEMICOLON_GUARD
 
-class THedgingClient: public IClient {
+////////////////////////////////////////////////////////////////////////////////
+
+class THedgingClient
+    : public IClient
+{
 public:
     THedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider)
         : Executor_(NYT::New<THedgingExecutor>(options, penaltyProvider))
     {
     }
 
-    // IClientBase methods
-    // Supported methods
+    // IClientBase methods.
+    // Supported methods.
     IConnectionPtr GetConnection() override {
         return Executor_->GetConnection();
     }
@@ -102,7 +110,7 @@ public:
     RETRYABLE_METHOD(TFuture<IFileReaderPtr>, CreateFileReader, (const NYPath::TYPath&, const TFileReaderOptions&));
     RETRYABLE_METHOD(TFuture<std::vector<IUnversionedRowsetPtr>>, MultiLookup, (const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&));
 
-    // Unsupported methods
+    // Unsupported methods.
     UNSUPPORTED_METHOD(TFuture<ITransactionPtr>, StartTransaction, (NTransactionClient::ETransactionType, const TTransactionStartOptions&));
     UNSUPPORTED_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (const NYPath::TRichYPath&, const TTableWriterOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, SetNode, (const NYPath::TYPath&, const NYT::NYson::TYsonString&, const TSetNodeOptions&));
@@ -122,8 +130,8 @@ public:
     UNSUPPORTED_METHOD(IJournalReaderPtr, CreateJournalReader, (const NYPath::TYPath&, const TJournalReaderOptions&));
     UNSUPPORTED_METHOD(IJournalWriterPtr, CreateJournalWriter, (const NYPath::TYPath&, const TJournalWriterOptions&));
 
-    // IClient methods
-    // Unsupported methods
+    // IClient methods.
+    // Unsupported methods.
     UNSUPPORTED_METHOD(void, Terminate, ());
     UNSUPPORTED_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, ());
     UNSUPPORTED_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, ());
@@ -200,29 +208,38 @@ private:
 
 } // namespace
 
-namespace NYT::NClient::NHedging::NRpc {
+////////////////////////////////////////////////////////////////////////////////
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options) {
+NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options)
+{
     return NYT::New<THedgingClient>(options, CreateDummyPenaltyProvider());
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider) {
+NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options,
+                                          const IPenaltyProviderPtr& penaltyProvider)
+{
     return NYT::New<THedgingClient>(options, penaltyProvider);
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config) {
+NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config)
+{
     return CreateHedgingClient(GetHedgingClientOptions(config));
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache) {
+NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache)
+{
     return CreateHedgingClient(GetHedgingClientOptions(config, clientsCache));
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache, const IPenaltyProviderPtr& penaltyProvider) {
+NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config,
+                                          const IClientsCachePtr& clientsCache,
+                                          const IPenaltyProviderPtr& penaltyProvider)
+{
     return CreateHedgingClient(GetHedgingClientOptions(config, clientsCache), penaltyProvider);
 }
 
-THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, TClientBuilder clientBuilder) {
+THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, TClientBuilder clientBuilder)
+{
     THedgingClientOptions options;
     options.BanPenalty = TDuration::MilliSeconds(config.GetBanPenalty());
     options.BanDuration = TDuration::MilliSeconds(config.GetBanDuration());
@@ -244,13 +261,15 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
     return options;
 }
 
-THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config) {
+THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config)
+{
     return GetHedgingClientOptions(config, [](const auto& clientConfig) {
         return NYT::NClient::NHedging::NRpc::CreateClient(clientConfig);
     });
 }
 
-THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache) {
+THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache) 
+{
     return GetHedgingClientOptions(config, [clientsCache](const auto& clientConfig) {
         return clientsCache->GetClient(clientConfig.GetClusterName());
     });

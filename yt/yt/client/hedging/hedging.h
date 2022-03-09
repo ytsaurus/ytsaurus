@@ -27,12 +27,16 @@
 //          Both BanPenalty and BanDuration values are set in MultiClientCluster config.
 namespace NYT::NClient::NHedging::NRpc {
 
+////////////////////////////////////////////////////////////////////////////////
+
 // from config.proto
 class THedgingClientConfig;
 
 // @brief Options for hedging client.
 //        from hedging_executor.h
 struct THedgingClientOptions;
+
+////////////////////////////////////////////////////////////////////////////////
 
 // @brief Method for creating HedgingClient with given options.
 NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options);
@@ -41,19 +45,21 @@ NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options);
 //        Currently for experimental usage.
 NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider);
 
-// @brief Method for creating HedgingClient with given rpc clients config
+// @brief Method for creating HedgingClient with given rpc clients config.
 NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config);
 
 // @brief Method for creating HedgingClient with given rpc clients config and preinitialized clients.
 NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache);
 
-// @brief Method for creating HedgingClient with given rpc clients config, preinitialized clients and PenaltyProvider
+// @brief Method for creating HedgingClient with given rpc clients config, preinitialized clients and PenaltyProvider.
 NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache, const IPenaltyProviderPtr& penaltyProvider);
 
 // @brief Method for creating HedgingClient options from given config and preinitialized clients.
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache);
 
-// @brief Method for creating HedgingClient options from given config
+// @brief Method for creating HedgingClient options from given config.
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

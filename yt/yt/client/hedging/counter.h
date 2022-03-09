@@ -9,8 +9,11 @@
 
 namespace NYT::NClient::NHedging::NRpc {
 
-// ! Counters which will be collected from yt-client
-struct TCounter final {
+////////////////////////////////////////////////////////////////////////////////
+
+// ! Counters which will be collected from yt-client.
+struct TCounter final
+{
     TCounter(const TString& clusterName);
     TCounter(const NYT::NProfiling::TTagSet& tagSet);
     TCounter(const NYT::NProfiling::TRegistry& registry);
@@ -25,8 +28,11 @@ struct TCounter final {
 
 DEFINE_REFCOUNTED_TYPE(TCounter);
 
-// ! Counters for TReplicaionLagPenaltyProvider
-struct TLagPenaltyProviderCounters final {
+////////////////////////////////////////////////////////////////////////////////
+
+// ! Counters for TReplicaionLagPenaltyProvider.
+struct TLagPenaltyProviderCounters final
+{
     TLagPenaltyProviderCounters(const NYT::NProfiling::TRegistry& registry, const TVector<TString>& clusters);
     TLagPenaltyProviderCounters(const TString& tablePath, const TVector<TString>& replicaClusters);
 
@@ -37,5 +43,7 @@ struct TLagPenaltyProviderCounters final {
 };
 
 DEFINE_REFCOUNTED_TYPE(TLagPenaltyProviderCounters);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

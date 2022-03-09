@@ -24,20 +24,25 @@ using ::testing::StrictMock;
 
 using TStrictMockClient = StrictMock<NApi::TMockClient>;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
     const auto SleepQuantum = TDuration::MilliSeconds(100);
     const auto CheckPeriod = TDuration::Seconds(1);
 
-    class TMockClientsCache : public IClientsCache {
+    class TMockClientsCache
+        : public IClientsCache
+    {
     public:
         MOCK_METHOD(NApi::IClientPtr, GetClient, (TStringBuf url), (override));
     };
 
     NApi::IClientPtr CreateTestHedgingClient(TDuration banPenalty, TDuration banDuration,
-                                                  std::initializer_list<NApi::IClientPtr> clients,
-                                                  std::initializer_list<TDuration> initialPenalties = {TDuration::Zero(), SleepQuantum},
-                                                  const IPenaltyProviderPtr& penaltyProvider = CreateDummyPenaltyProvider()) {
+                                             std::initializer_list<NApi::IClientPtr> clients,
+                                             std::initializer_list<TDuration> initialPenalties = {TDuration::Zero(), SleepQuantum},
+                                             const IPenaltyProviderPtr& penaltyProvider = CreateDummyPenaltyProvider()) 
+    {
         THedgingClientOptions options;
         options.BanPenalty = banPenalty;
         options.BanDuration = banDuration;
@@ -56,7 +61,8 @@ namespace {
             TDuration lagPenalty,
             NApi::IClientPtr masterClient,
             const bool clearPenaltiesOnErrors = false,
-            const TDuration checkPeriod = CheckPeriod) {
+            const TDuration checkPeriod = CheckPeriod)
+    {
         TReplicaionLagPenaltyProviderConfig config;
 
         config.SetTablePath(path);
@@ -72,9 +78,12 @@ namespace {
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
 // Using LinkNode method for testing because it's return value is YsonString.
 // It makes easier to check from which client result has come from just by comparing corresponding string values.
-TEST(THedgingClientTest, GetResultFromClientWithMinEffectivePenalty) {
+TEST(THedgingClientTest, GetResultFromClientWithMinEffectivePenalty)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -94,7 +103,8 @@ TEST(THedgingClientTest, GetResultFromClientWithMinEffectivePenalty) {
     EXPECT_EQ(queryResult.Value().AsStringBuf(), firstClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientHasFailed) {
+TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientHasFailed)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -118,7 +128,8 @@ TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientHasFailed) {
     EXPECT_EQ(queryResult.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, GetFirstClientResultAfterBanTimeHasElapsed) {
+TEST(THedgingClientTest, GetFirstClientResultAfterBanTimeHasElapsed)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -150,7 +161,8 @@ TEST(THedgingClientTest, GetFirstClientResultAfterBanTimeHasElapsed) {
     EXPECT_EQ(secondQueryResult.Value().AsStringBuf(), firstClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsBanned) {
+TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsBanned)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -179,7 +191,8 @@ TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsBanned) {
     EXPECT_EQ(secondQueryResult.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsSleeping) {
+TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsSleeping)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -202,7 +215,8 @@ TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsSleeping) {
     EXPECT_EQ(queryResult.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, FirstClientIsBannedBecauseResponseWasCancelled) {
+TEST(THedgingClientTest, FirstClientIsBannedBecauseResponseWasCancelled)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -235,7 +249,8 @@ TEST(THedgingClientTest, FirstClientIsBannedBecauseResponseWasCancelled) {
     EXPECT_EQ(secondQueryResult.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, AmnestyBanPenaltyIfClientSucceeded) {
+TEST(THedgingClientTest, AmnestyBanPenaltyIfClientSucceeded)
+{
     NYPath::TYPath path = "/test/1234";
 
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
@@ -284,7 +299,8 @@ TEST(THedgingClientTest, AmnestyBanPenaltyIfClientSucceeded) {
     EXPECT_EQ(thirdQueryResult.Value().AsStringBuf(), firstClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, MultiThread) {
+TEST(THedgingClientTest, MultiThread)
+{
     NYPath::TYPath path = "/test/1234";
 
     auto firstMockClient = New<TStrictMockClient>();
@@ -331,7 +347,8 @@ TEST(THedgingClientTest, MultiThread) {
     }
 }
 
-TEST(THedgingClientTest, ResponseFromSecondClientWhenFirstHasReplicationLag) {
+TEST(THedgingClientTest, ResponseFromSecondClientWhenFirstHasReplicationLag)
+{
     NYPath::TYPath path = "/test/1234";
 
     auto firstMockClient = New<TStrictMockClient>();
@@ -393,7 +410,8 @@ TEST(THedgingClientTest, ResponseFromSecondClientWhenFirstHasReplicationLag) {
     EXPECT_EQ(queryResultWithReplicationLagPolicy.Value().AsStringBuf(), secondClientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, CreatingHedgingClientWithPreinitializedClients) {
+TEST(THedgingClientTest, CreatingHedgingClientWithPreinitializedClients)
+{
     const TString clusterName = "test_cluster";
     NYPath::TYPath path = "/test/1234";
     NYson::TYsonString clientResult(TStringBuf("ClientData"));
@@ -421,7 +439,8 @@ TEST(THedgingClientTest, CreatingHedgingClientWithPreinitializedClients) {
     EXPECT_EQ(queryResult.Value().AsStringBuf(), clientResult.AsStringBuf());
 }
 
-TEST(THedgingClientTest, ResponseFromFirstClientWhenReplicationLagUpdaterFails) {
+TEST(THedgingClientTest, ResponseFromFirstClientWhenReplicationLagUpdaterFails)
+{
     NYPath::TYPath path = "/test/1234";
 
     auto firstMockClient = New<TStrictMockClient>();
@@ -480,5 +499,7 @@ TEST(THedgingClientTest, ResponseFromFirstClientWhenReplicationLagUpdaterFails) 
     EXPECT_TRUE(queryResultWithCleanedPenalty.IsOK());
     EXPECT_EQ(queryResultWithCleanedPenalty.Value().AsStringBuf(), firstClientResult.AsStringBuf());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc

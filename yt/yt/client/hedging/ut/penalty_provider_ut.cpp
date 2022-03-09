@@ -17,8 +17,9 @@ using ::testing::StrictMock;
 
 using TStrictMockClient = StrictMock<NApi::TMockClient>;
 
-namespace {
+////////////////////////////////////////////////////////////////////////////////
 
+namespace {
     const auto CheckPeriod = TDuration::Seconds(1);
 
     TReplicaionLagPenaltyProviderConfig GenerateReplicaionLagPenaltyProviderConfig(
@@ -39,10 +40,12 @@ namespace {
 
         return config;
     }
-
 } // namespace
 
-TEST(TLagPenaltyProviderTest, UpdateExternalPenaltyWhenReplicaHasLag) {
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TLagPenaltyProviderTest, UpdateExternalPenaltyWhenReplicaHasLag)
+{
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
@@ -75,7 +78,8 @@ TEST(TLagPenaltyProviderTest, UpdateExternalPenaltyWhenReplicaHasLag) {
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), NProfiling::DurationToCpuDuration(TDuration::MilliSeconds(config.GetLagPenalty())));
 }
 
-TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenReplicaHasNoLag) {
+TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenReplicaHasNoLag)
+{
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
@@ -107,7 +111,8 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenReplicaHasNoLag) {
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
 }
 
-TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetReplicaIdFailed) {
+TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetReplicaIdFailed)
+{
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
@@ -124,7 +129,8 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetReplicaIdFailed) {
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
 }
 
-TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsCountFailed) {
+TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsCountFailed)
+{
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
@@ -146,7 +152,8 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsCountFailed) {
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
 }
 
-TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsInfoFailed) {
+TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsInfoFailed)
+{
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
@@ -173,7 +180,8 @@ TEST(TLagPenaltyProviderTest, DoNotUpdatePenaltyWhenGetTabletsInfoFailed) {
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
 }
 
-TEST(TLagPenaltyProviderTest, ClearPenaltiesAfterError) {
+TEST(TLagPenaltyProviderTest, ClearPenaltiesAfterError)
+{
     NYPath::TYPath path = "/test/1234";
     TString cluster = "seneca-vla";
 
@@ -210,5 +218,7 @@ TEST(TLagPenaltyProviderTest, ClearPenaltiesAfterError) {
     Sleep(2 * CheckPeriod);
     EXPECT_EQ(PenaltyProviderPtr->Get(cluster), 0);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClient::NHedging::NRpc
