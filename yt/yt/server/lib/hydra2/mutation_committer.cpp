@@ -987,7 +987,7 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 
     if (auto changelog = openFuture.Value()) {
         if (Changelog_) {
-            YT_LOG_ALERT("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
+            YT_LOG_INFO("Changelog opened, but it should not exist (OldChangelogId: %v, ChangelogId: %v)",
                 Changelog_->GetId(),
                 changelogId);
             // There is a verify above that checks that mutation has version N:0 if it is not the first changelog,
