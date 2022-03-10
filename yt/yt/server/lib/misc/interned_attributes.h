@@ -400,6 +400,7 @@
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \
     XX(StrongGuaranteeResources, strong_guarantee_resources) \
+    XX(StripedErasure, striped_erasure) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \

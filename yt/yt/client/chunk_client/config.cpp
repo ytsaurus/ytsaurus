@@ -320,7 +320,21 @@ void TErasureWriterConfig::Register(TRegistrar registrar)
         .Default(8_MB)
         .GreaterThan(0);
 
+    registrar.Parameter("writer_window_size", &TThis::WriterWindowSize)
+        .Default(64_MB)
+        .GreaterThan(0);
+    registrar.Parameter("writer_group_size", &TThis::WriterGroupSize)
+        .Default(16_MB)
+        .GreaterThan(0);
+
+    registrar.Parameter("desired_segment_part_size", &TThis::DesiredSegmentPartSize)
+        .Default(0)
+        .GreaterThanOrEqual(0);
+
     registrar.Parameter("erasure_store_original_block_checksums", &TThis::ErasureStoreOriginalBlockChecksums)
+        .Default(false);
+
+    registrar.Parameter("use_striped_erasure_writer", &TThis::UseStripedErasureWriter)
         .Default(false);
 
     registrar.Parameter("erasure_stripe_size", &TThis::ErasureStripeSize)

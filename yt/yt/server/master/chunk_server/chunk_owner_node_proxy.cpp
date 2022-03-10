@@ -192,6 +192,7 @@ void BuildChunkSpec(
     ToProto(chunkSpec->mutable_replicas(), replicas);
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
+    chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
 
     ToProto(
         chunkSpec->mutable_chunk_meta(),

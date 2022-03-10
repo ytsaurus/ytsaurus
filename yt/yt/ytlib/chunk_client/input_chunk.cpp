@@ -34,6 +34,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
     , TabletIndex_(chunkSpec.tablet_index())
     , OverrideTimestamp_(chunkSpec.override_timestamp())
     , MaxClipTimestamp_(chunkSpec.max_clip_timestamp())
+    , StripedErasure_(chunkSpec.striped_erasure())
 {
     SetReplicaList(FromProto<TChunkReplicaList>(chunkSpec.replicas()));
 
@@ -142,7 +143,8 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, ValuesPerRow_) == 192, "invalid offset");
     static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 196, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 200, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 208, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, StripedErasure_) == 208, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 216, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +324,8 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
         chunkSpec->set_erasure_codec(ToProto<int>(inputChunk->ErasureCodec_));
     }
 
+    chunkSpec->set_striped_erasure(inputChunk->StripedErasure_);
+
     if (inputChunk->TableRowIndex_ > 0) {
         chunkSpec->set_table_row_index(inputChunk->TableRowIndex_);
     }
@@ -369,7 +373,7 @@ TString ToString(const TInputChunkPtr& inputChunk)
     }
 
     return Format(
-        "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, TableRowIndex: %v, "
+        "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, StripedErasure: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, ChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "
         "BoundaryKeys: {%v}, PartitionsExt: {%v}}",
@@ -377,6 +381,7 @@ TString ToString(const TInputChunkPtr& inputChunk)
         inputChunk->GetReplicaList(),
         inputChunk->GetTableIndex(),
         inputChunk->GetErasureCodec(),
+        inputChunk->GetStripedErasure(),
         inputChunk->GetTableRowIndex(),
         inputChunk->GetRangeIndex(),
         inputChunk->GetChunkIndex(),

@@ -36,7 +36,8 @@ bool TMemoryWriter::WriteBlock(const TBlock& block)
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
 
-    Blocks_.emplace_back(block);
+    Blocks_.push_back(block);
+    ChunkInfo_.set_disk_space(ChunkInfo_.disk_space() + block.Size());
     return true;
 }
 
@@ -76,7 +77,7 @@ TFuture<void> TMemoryWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 
 const TChunkInfo& TMemoryWriter::GetChunkInfo() const
 {
-    YT_UNIMPLEMENTED();
+    return ChunkInfo_;
 }
 
 const TDataStatistics& TMemoryWriter::GetDataStatistics() const

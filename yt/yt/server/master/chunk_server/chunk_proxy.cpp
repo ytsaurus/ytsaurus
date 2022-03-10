@@ -194,6 +194,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ConsistentReplicaPlacement)
             .SetPresent(chunk->HasConsistentReplicaPlacementHash() && !isForeign)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StripedErasure)
+            .SetPresent(chunk->IsBlob() && chunk->IsErasure() && chunk->IsConfirmed()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -844,6 +846,15 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::StripedErasure: {
+                if (!chunk->IsBlob() || !chunk->IsErasure() || !chunk->IsConfirmed()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetStripedErasure());
+            }
+
             default:
                 break;
         }
@@ -911,6 +922,7 @@ private:
         ToProto(chunkSpec->mutable_replicas(), replicas);
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+        chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
         ToProto(chunkSpec->mutable_chunk_meta(), chunk->ChunkMeta());
 
         context->Reply();

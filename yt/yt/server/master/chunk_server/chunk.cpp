@@ -136,6 +136,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
     Save(context, GetOverlayed());
+    Save(context, GetStripedErasure());
     {
         // COMPAT(shakurov)
         TCompactVector<TChunkTree*, TypicalChunkParentCount> parents;
@@ -184,6 +185,13 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
     SetOverlayed(Load<bool>(context));
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::StripedErasureChunks) {
+        SetStripedErasure(Load<bool>(context));
+    } else {
+        SetStripedErasure(false);
+    }
 
     auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
     for (auto* parent : parents) {
@@ -488,6 +496,16 @@ void TChunk::SetSealed(bool value)
     Flags_.Sealed = value;
 }
 
+bool TChunk::GetStripedErasure() const
+{
+    return Flags_.StripedErasure;
+}
+
+void TChunk::SetStripedErasure(bool value)
+{
+    Flags_.StripedErasure = value;
+}
+
 i64 TChunk::GetPhysicalSealedRowCount() const
 {
     YT_VERIFY(Flags_.Sealed);
@@ -681,6 +699,7 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
     CompressionCodec_ = FromProto<NCompression::ECodec>(miscExt.compression_codec());
     SystemBlockCount_ = miscExt.system_block_count();
     SetSealed(miscExt.sealed());
+    SetStripedErasure(miscExt.striped_erasure());
 
     if (miscExt.has_physical_row_count()) {
         auto physicalRowCount = GetPhysicalSealedRowCount();
