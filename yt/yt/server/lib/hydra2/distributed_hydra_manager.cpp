@@ -1579,10 +1579,10 @@ private:
         } else {
             // TODO(aleksandra-zh): our priority is logged state.
             auto state = DecoratedAutomaton_->GetReachableState();
-            YT_VERIFY(ControlEpochContext_);
-            YT_LOG_INFO("Election priority is not available, using automaton state instead (AutomatonState: %v)",
-                state);
-            return {DecoratedAutomaton_->GetLastMutationTerm(), state};
+            TElectionPriority priority(DecoratedAutomaton_->GetLastMutationTerm(), state);
+            YT_LOG_INFO("Election priority is not available, using automaton state instead (AutomatonElectionPriority: %v)",
+                priority);
+            return priority;
         }
     }
 
@@ -1705,8 +1705,10 @@ private:
         auto newChangelogId = changelogId + 1;
         auto newTerm = term + 1;
 
-        WaitFor(ChangelogStore_->SetTerm(newTerm))
-            .ThrowOnError();
+        if (Options_.WriteChangelogsAtFollowers) {
+            WaitFor(ChangelogStore_->SetTerm(newTerm))
+                .ThrowOnError();
+        }
         ControlEpochContext_->Term = newTerm;
 
         // TODO(aleksandra-zh): What kind of barrier should I have here (if any)?
@@ -2175,8 +2177,10 @@ private:
         // If we join an active quorum, we wont get an AcquireChangelog request from leader,
         // so we wont be able to promote our term there, so we have to do it here.
         // Looks safe.
-        WaitFor(ChangelogStore_->SetTerm(term))
-            .ThrowOnError();
+        if (Options_.WriteChangelogsAtFollowers) {
+            WaitFor(ChangelogStore_->SetTerm(term))
+                .ThrowOnError();
+        }
         epochContext->Term = term;
 
         // Make sure we dont try to build the same snapshot twice.
@@ -2199,11 +2203,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto selfPeerId = electionEpochContext->CellManager->GetSelfPeerId();
+        auto voting = electionEpochContext->CellManager->GetPeerConfig(selfPeerId).Voting;
+
         auto epochContext = New<TEpochContext>();
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableState = ElectionPriority_->ReachableState;
-        epochContext->Term = ChangelogStore_->GetTermOrThrow();
+        epochContext->Term = voting ? ChangelogStore_->GetTermOrThrow() : InvalidTerm;
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;
@@ -2214,7 +2221,8 @@ private:
             epochContext->EpochControlInvoker,
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
             Config_->HeartbeatMutationPeriod);
-        if (epochContext->LeaderId == epochContext->CellManager->GetSelfPeerId()) {
+        if (epochContext->LeaderId == selfPeerId) {
+            YT_VERIFY(voting);
             epochContext->AlivePeersUpdateExecutor = New<TPeriodicExecutor>(
                 epochContext->EpochControlInvoker,
                 BIND(&TDistributedHydraManager::OnUpdateAlivePeers, MakeWeak(this)),

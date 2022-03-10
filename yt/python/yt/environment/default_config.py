@@ -516,6 +516,10 @@ b"""
         changelogs = {
             lock_transaction_timeout = 3000;
         };
+
+        hydra_manager = {
+            use_new_hydra = %true;
+        };
     };
 
     query_agent = {
