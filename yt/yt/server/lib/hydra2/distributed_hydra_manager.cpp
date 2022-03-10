@@ -1841,7 +1841,6 @@ private:
             ControlState_ = EPeerState::Leading;
 
             epochContext->LeaderCommitter->Start();
-            epochContext->HeartbeatMutationCommitExecutor->Start();
 
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderRecoveryCompleteAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
@@ -1850,14 +1849,20 @@ private:
 
             SystemLockGuard_.Release();
 
+            ControlLeaderRecoveryComplete_.Fire();
+
             YT_LOG_INFO("Committing initial heartbeat mutation");
             WaitFor(CommitHeartbeatMutation())
                 .ThrowOnError();
             YT_LOG_INFO("Initial heartbeat mutation committed");
 
             LeaderRecovered_ = true;
+            epochContext->HeartbeatMutationCommitExecutor->Start();
 
-            ControlLeaderRecoveryComplete_.Fire();
+            WaitFor(BIND(&TDistributedHydraManager::OnLeaderActiveAutomaton, MakeWeak(this))
+                .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
+                .Run())
+                .ThrowOnError();
 
             YT_LOG_INFO("Leader recovery completed");
 
@@ -1877,6 +1882,11 @@ private:
 
         DecoratedAutomaton_->OnLeaderRecoveryComplete();
         AutomatonLeaderRecoveryComplete_.Fire();
+    }
+
+    void OnLeaderActiveAutomaton()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         LeaderActive_.Fire();
     }
