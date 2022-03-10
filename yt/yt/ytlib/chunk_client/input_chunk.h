@@ -65,6 +65,8 @@ public:
     //! that are formed from it.
     DEFINE_BYVAL_RW_PROPERTY(double, ColumnSelectivityFactor, 1.0);
 
+    DEFINE_BYVAL_RO_PROPERTY(bool, StripedErasure, false);
+
 public:
     TInputChunkBase() = default;
     TInputChunkBase(TInputChunkBase&& other) = default;

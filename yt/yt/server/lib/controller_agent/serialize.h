@@ -20,6 +20,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DiskResourcesInSanityCheck)           (300804))
     ((AlertManager)                         (300805))
     ((MaxClipTimestamp)                     (300806))
+    ((StripedErasureChunks)                 (300807))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,6 +33,7 @@ const static THashSet<int> KnownExtensionTags = {
     TProtoExtensionTag<NProto::TMiscExt>::Value,
     TProtoExtensionTag<NProto::TBlocksExt>::Value,
     TProtoExtensionTag<NProto::TErasurePlacementExt>::Value,
+    TProtoExtensionTag<NProto::TStripedErasurePlacementExt>::Value,
     TProtoExtensionTag<TDataBlockMetaExt>::Value,
     TProtoExtensionTag<TNameTableExt>::Value,
     TProtoExtensionTag<TBoundaryKeysExt>::Value,

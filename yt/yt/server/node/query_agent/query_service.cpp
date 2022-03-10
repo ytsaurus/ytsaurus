@@ -1269,6 +1269,7 @@ private:
         ToProto(chunkSpec->mutable_replicas(), chunk->GetReplicas(localNodeId));
 
         chunkSpec->set_erasure_codec(miscExt.erasure_codec());
+        chunkSpec->set_striped_erasure(miscExt.striped_erasure());
 
         chunkSpec->set_row_count_override(miscExt.row_count());
         chunkSpec->set_data_weight_override(miscExt.data_weight());

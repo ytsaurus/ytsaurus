@@ -714,6 +714,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
         chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
+        chunkSpec.set_striped_erasure(MiscExt_.striped_erasure());
         *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
         CachedWeakChunk_.Reset();
         auto nodeStatusDirectory = Bootstrap_

@@ -360,11 +360,19 @@ class TErasureWriterConfig
     : public virtual TBlockReordererConfig
 {
 public:
-    i64 ErasureWindowSize;
+    i64 WriterWindowSize;
+    i64 WriterGroupSize;
+
+    // TODO(gritukan): Drop.
     std::optional<i64> ErasureStripeSize;
+    i64 ErasureWindowSize;
+    bool ErasureStoreOriginalBlockChecksums;
+
+    i64 DesiredSegmentPartSize;
 
     bool EnableErasureTargetNodeReallocation;
-    bool ErasureStoreOriginalBlockChecksums;
+
+    bool UseStripedErasureWriter;
 
     REGISTER_YSON_STRUCT(TErasureWriterConfig);
 

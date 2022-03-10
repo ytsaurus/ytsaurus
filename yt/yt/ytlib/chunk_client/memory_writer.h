@@ -4,6 +4,8 @@
 #include "chunk_writer.h"
 #include "block.h"
 
+#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 namespace NYT::NChunkClient {
@@ -46,6 +48,8 @@ private:
 
     std::vector<TBlock> Blocks_;
     TRefCountedChunkMetaPtr ChunkMeta_;
+
+    NProto::TChunkInfo ChunkInfo_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWriter)

@@ -74,6 +74,8 @@ message TChunkSpec
     // rather than relative (chunk-wise).
     optional bool row_index_is_absolute = 21 [default = false];
 
+    optional bool striped_erasure = 24;
+
     reserved 5, 6, 8;
 }
 

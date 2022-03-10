@@ -11,6 +11,7 @@
 #include "private.h"
 #include "replication_writer.h"
 #include "session_id.h"
+#include "striped_erasure_writer.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -274,13 +275,22 @@ private:
             Throttler_,
             BlockCache_,
             std::move(TargetReplicas_));
-        return CreateErasureWriter(
-            Config_,
-            SessionId_,
-            Options_->ErasureCodec,
-            erasureCodec,
-            writers,
-            Config_->WorkloadDescriptor);
+        if (Config_->UseStripedErasureWriter) {
+            return CreateStripedErasureWriter(
+                Config_,
+                Options_->ErasureCodec,
+                SessionId_,
+                Config_->WorkloadDescriptor,
+                std::move(writers));
+        } else {
+            return CreateErasureWriter(
+                Config_,
+                SessionId_,
+                Options_->ErasureCodec,
+                erasureCodec,
+                writers,
+                Config_->WorkloadDescriptor);
+        }
     }
 
     void DoClose()

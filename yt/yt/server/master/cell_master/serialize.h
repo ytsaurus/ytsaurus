@@ -109,6 +109,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosCellRemoval)                                             (1941))  // savrus
     ((SingleChaosFlavor)                                            (1942))  // savrus
     ((HunkErasureCodecCheck)                                        (1943))  // babenko
+    ((StripedErasureChunks)                                         (1944))  // gritukan
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.

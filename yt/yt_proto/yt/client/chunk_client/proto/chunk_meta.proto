@@ -82,6 +82,9 @@ message TMiscExt
 
     // System blocks contain internal information (e.g. chunk index).
     optional int32 system_block_count = 21;
+
+    // Is it a striped erasure chunk?
+    optional bool striped_erasure = 22;
 }
 
 message TPartInfo
@@ -111,6 +114,29 @@ message TErasurePlacementExt
     repeated fixed64 part_checksums = 6;
 
     repeated fixed64 block_checksums = 7;
+}
+
+// Chunk meta extension.
+message TStripedErasurePlacementExt
+{
+    message TPartInfo
+    {
+        // Sizes of segments in given part.
+        repeated int64 segment_sizes = 1;
+
+        // Checksums of segments in given part.
+        repeated fixed64 segment_checksums = 2;
+    }
+    repeated TPartInfo part_infos = 1;
+
+    // Numbers of blocks in segments.
+    repeated int32 segment_block_counts = 2;
+
+    // Sizes of the original blocks.
+    repeated int64 block_sizes = 3;
+
+    // Checksums of the original blocks.
+    repeated fixed64 block_checksums = 4;
 }
 
 // TChunkMeta is stored in *.meta files on data nodes
