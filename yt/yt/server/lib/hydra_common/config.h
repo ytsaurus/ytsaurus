@@ -304,7 +304,7 @@ public:
     int MaxQueuedMutationCount;
 
     //! Leader's mutation queue data size limit, in bytes.
-    int MaxQueuedMutationDataSize;
+    i64 MaxQueuedMutationDataSize;
 
     //! If set, automaton invariants are checked after each mutation with this probability.
     //! Used for testing purposes only.
