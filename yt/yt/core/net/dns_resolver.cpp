@@ -7,11 +7,11 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/proc.h>
-#include <yt/yt/core/misc/relaxed_mpsc_queue.h>
 
 #include <yt/yt/core/concurrency/notification_handle.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread.h>
+#include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -215,15 +215,16 @@ public:
             enableIPv4,
             enableIPv6,
             {},
-            std::move(timeoutCookie),
-            {}}};
+            std::move(timeoutCookie)
+        }};
 
-        Queue_.Enqueue(std::move(request));
+        Queue_.enqueue(std::move(request));
 
         WakeupHandle_.Raise();
 
         if (!ResolverThread_->Start()) {
-            while (auto request = Queue_.TryDequeue()) {
+            std::unique_ptr<TNameRequest> request;
+            while (Queue_.try_dequeue(request)) {
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "DNS resolver is stopped"));
             }
         }
@@ -248,12 +249,9 @@ private:
         bool EnableIPv6;
         NProfiling::TWallTimer Timer;
         TDelayedExecutorCookie TimeoutCookie;
-
-        TRelaxedMpscQueueHook QueueHook;
     };
 
-    using TNameRequestQueue = TRelaxedIntrusiveMpscQueue<TNameRequest, &TNameRequest::QueueHook>;
-    TNameRequestQueue Queue_;
+    moodycamel::ConcurrentQueue<std::unique_ptr<TNameRequest>> Queue_;
 
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
     int EpollFD_ = -1;
@@ -286,8 +284,8 @@ private:
 
             auto drainQueue = [&] {
                 for (size_t iteration = 0; iteration < MaxRequestsPerDrain; ++iteration) {
-                    auto request = Owner_->Queue_.TryDequeue();
-                    if (!request) {
+                    std::unique_ptr<TNameRequest> request;
+                    if (!Owner_->Queue_.try_dequeue(request)) {
                         return true;
                     }
 
@@ -306,6 +304,7 @@ private:
                         family,
                         &OnNameResolution,
                         request.get());
+
                     // Releasing unique_ptr on a separate line,
                     // because argument evaluation order is not specified.
                     request.release();
