@@ -287,13 +287,16 @@ void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket>
         if (WritePosition_ - ReadPosition_ <= WindowSize_) {
             TDelayedExecutor::CancelAndClear(packet.TimeoutCookie);
             promisesToSet.push_back(std::move(packet.Promise));
+            ConfirmationQueue_.push({
+                .Position = WritePosition_
+            });
+        } else {
+            ConfirmationQueue_.push({
+                .Position = WritePosition_,
+                .Promise = std::move(packet.Promise),
+                .TimeoutCookie = std::move(packet.TimeoutCookie)
+            });
         }
-
-        ConfirmationQueue_.push({
-            WritePosition_,
-            std::move(packet.Promise),
-            std::move(packet.TimeoutCookie)
-        });
     }
 
     MaybeInvokePullCallback(guard);
@@ -329,9 +332,7 @@ TFuture<void> TAttachmentsOutputStream::Close()
     WritePosition_ += GetStreamingAttachmentSize(nullAttachment);
 
     ConfirmationQueue_.push({
-        WritePosition_,
-        {},
-        {}
+        .Position = WritePosition_
     });
 
     MaybeInvokePullCallback(guard);
@@ -446,7 +447,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     for (const auto& promise : promises) {
         if (promise) {
-            //Avoid double-setting ClosePromise_.
+            // Avoid double-setting ClosePromise_.
             promise.TrySet();
         }
     }
