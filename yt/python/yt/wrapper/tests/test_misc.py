@@ -36,7 +36,10 @@ except ImportError:
 from flaky import flaky
 
 from copy import deepcopy
-import collections
+try:
+    import collections.abc as collections_abc
+except ImportError:
+    import collections as collections_abc
 import gc
 import inspect
 import itertools
@@ -66,7 +69,7 @@ def test_docs_exist():
         public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and \
                                                           not o.__name__.startswith("_"))
         ignore_methods = set()
-        if issubclass(cl, collections.Iterator) and not PY3:
+        if issubclass(cl, collections_abc.Iterator) and not PY3:
             ignore_methods.add("next")
 
         methods_without_doc = [method for name, method in public_methods
