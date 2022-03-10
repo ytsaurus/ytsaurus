@@ -120,6 +120,11 @@ private:
 
     void ReconfigureTabletWriteMode()
     {
+        if (!ReplicationCard_) {
+            YT_LOG_DEBUG("Replication card is not available");
+            return;
+        }
+
         auto* selfReplica = [&] () -> TReplicaInfo* {
             auto* selfReplica = ReplicationCard_->FindReplica(Tablet_->GetUpstreamReplicaId());
             if (!selfReplica) {
