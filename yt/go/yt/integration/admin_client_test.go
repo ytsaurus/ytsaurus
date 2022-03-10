@@ -88,9 +88,6 @@ func (s *Suite) TestTransferAccountResources(t *testing.T, yc yt.Client) {
 func (s *Suite) TestTransferPoolResources(t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	// TODO(renadeen) REMOVE SKIP WHEN YT BINARIES WILL BE UPDATED IN ARC.
-	t.Skip()
-
 	poolTree := "tree-" + guid.New().String()
 	_ = s.CreatePoolTree(t, poolTree)
 
