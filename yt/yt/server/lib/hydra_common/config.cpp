@@ -241,11 +241,11 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
 
     RegisterParameter("max_queued_mutation_count", MaxQueuedMutationCount)
         .GreaterThan(0)
-        .Default(10'000);
+        .Default(100'000);
 
     RegisterParameter("max_queued_mutation_data_size", MaxQueuedMutationDataSize)
         .GreaterThan(0)
-        .Default(1_GB);
+        .Default(2_GB);
 
     RegisterParameter("leader_switch_timeout", LeaderSwitchTimeout)
         .Default(TDuration::Seconds(30));
