@@ -20,6 +20,8 @@ TTabletHydraManagerConfig::TTabletHydraManagerConfig()
 {
     RegisterParameter("response_keeper", ResponseKeeper)
         .DefaultNew();
+    RegisterParameter("use_new_hydra", UseNewHydra)
+        .Default(false);
 
     RegisterPreprocessor([&] {
         PreallocateChangelogs = true;

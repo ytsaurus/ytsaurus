@@ -508,8 +508,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
     @authors("lukyan")
-    @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
-    def test_changelog_resource_limits(self, resource):
+    def test_changelog_resource_limits(self):
         create_account("test_account")
         create_tablet_cell_bundle("custom", attributes={"options": {
             "changelog_account": "test_account",
@@ -526,7 +525,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
         for changelog in changelogs:
             assert get("//sys/tablet_cells/{0}/changelogs/{1}/@account".format(cell_id, changelog)) == "test_account"
 
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
+        set("//sys/accounts/test_account/@resource_limits/node_count", 0)
 
         with pytest.raises(YtError):
             build_snapshot(cell_id=cell_id)

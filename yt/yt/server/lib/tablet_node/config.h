@@ -37,6 +37,7 @@ class TTabletHydraManagerConfig
 {
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+    bool UseNewHydra;
 
     TTabletHydraManagerConfig();
 };
