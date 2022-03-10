@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -92,6 +93,10 @@ public abstract class RetryPolicy {
      */
     public static RetryPolicy attemptLimited(int attemptLimit, RetryPolicy inner) {
         return new AttemptLimitedRetryPolicy(attemptLimit, inner);
+    }
+
+    public static RetryPolicy either(RetryPolicy... retryPolicies) {
+        return new EitherRetryPolicy(Arrays.asList(retryPolicies));
     }
 
     public abstract Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options);
@@ -270,6 +275,32 @@ public abstract class RetryPolicy {
         @Override
         public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
             return Optional.of(Duration.ZERO);
+        }
+    }
+
+    static class EitherRetryPolicy extends RetryPolicy {
+        private final List<RetryPolicy> retryPolicies;
+
+        EitherRetryPolicy(List<RetryPolicy> retryPolicies) {
+            this.retryPolicies = retryPolicies;
+        }
+
+        @Override
+        public Optional<Duration> getBackoffDuration(Throwable error, RpcOptions options) {
+            for (RetryPolicy retryPolicy : retryPolicies) {
+                Optional<Duration> backoff = retryPolicy.getBackoffDuration(error, options);
+                if (backoff.isPresent()) {
+                    return backoff;
+                }
+            }
+            return Optional.empty();
+        }
+
+        @Override
+        public void onNewAttempt() {
+            for (RetryPolicy retryPolicy : retryPolicies) {
+                retryPolicy.onNewAttempt();
+            }
         }
     }
 }
