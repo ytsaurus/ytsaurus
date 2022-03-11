@@ -6,8 +6,6 @@ from yt.common import YtError
 
 from yt.environment.init_cluster import get_default_resource_limits
 
-from yt.packages.six.moves import xrange
-
 import argparse
 import copy
 import logging
@@ -80,7 +78,6 @@ class TableInfo(object):
             elif not key:
                 result["lock"] = "operations_cleaner"
             return result
-            
 
         def make_key_column(name, type_name, expression=None):
             result = make_column(name, type_name, key=True)
@@ -228,7 +225,7 @@ class ExecAction(object):
         subprocess.check_call(self.args)
 
 def get_default_pivots(shard_count):
-    return [[]] + [[yson.YsonUint64((i * 2 ** 64) / shard_count)] for i in xrange(1, shard_count)]
+    return [[]] + [[yson.YsonUint64((i * 2 ** 64) / shard_count)] for i in range(1, shard_count)]
 
 def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_obsolete_rows=False):
     if ttl is not None:
@@ -258,6 +255,7 @@ def create_operations_archive_account(client):
     logging.info("Setting account limits %s", limits)
     client.set("//sys/accounts/{0}/@{1}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
 
+
 def _create_table(client, table_info, table_path, shard_count=None):
     logging.info("Creating dynamic table %s", table_path)
     table_info = copy.deepcopy(table_info)
@@ -282,8 +280,10 @@ def _create_table(client, table_info, table_path, shard_count=None):
         table_info.attributes["in_memory_mode"] = "compressed"
     table_info.create_dynamic_table(client, table_path)
 
+
 INITIAL_TABLE_INFOS = {
-    "jobs": TableInfo([
+    "jobs": TableInfo(
+        [
             ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
             ("operation_id_hi", "uint64"),
             ("operation_id_lo", "uint64"),
@@ -313,7 +313,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "operation_ids": TableInfo([
+    "operation_ids": TableInfo(
+        [
             ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
             ("job_id_hi", "uint64"),
             ("job_id_lo", "uint64")
@@ -326,7 +327,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "job_specs": TableInfo([
+    "job_specs": TableInfo(
+        [
             ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
             ("job_id_hi", "uint64"),
             ("job_id_lo", "uint64"),
@@ -341,7 +343,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "stderrs": TableInfo([
+    "stderrs": TableInfo(
+        [
             ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
             ("operation_id_hi", "uint64"),
             ("operation_id_lo", "uint64"),
@@ -356,7 +359,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "fail_contexts": TableInfo([
+    "fail_contexts": TableInfo(
+        [
             ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
             ("operation_id_hi", "uint64"),
             ("operation_id_lo", "uint64"),
@@ -371,7 +375,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "ordered_by_id": TableInfo([
+    "ordered_by_id": TableInfo(
+        [
             ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
             ("id_hi", "uint64"),
             ("id_lo", "uint64"),
@@ -400,7 +405,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "ordered_by_start_time": TableInfo([
+    "ordered_by_start_time": TableInfo(
+        [
             ("start_time", "int64"),
             ("id_hi", "uint64"),
             ("id_lo", "uint64"),
@@ -418,7 +424,8 @@ INITIAL_TABLE_INFOS = {
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
             "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
         }),
-    "operation_aliases": TableInfo([
+    "operation_aliases": TableInfo(
+        [
             ("alias_hash", "uint64", "farm_hash(alias)"),
             ("alias", "string"),
         ], [
@@ -435,11 +442,12 @@ INITIAL_TABLE_INFOS = {
 
 INITIAL_VERSION = 26
 
+
 def _initialize_archive(client, archive_path, version=INITIAL_VERSION, tablet_cell_bundle=None, shard_count=1, mount=False):
     create_operations_archive_account(client)
 
     table_infos = copy.deepcopy(INITIAL_TABLE_INFOS)
-    for version in xrange(INITIAL_VERSION + 1, version + 1):
+    for version in range(INITIAL_VERSION + 1, version + 1):
         for conversion in TRANSFORMS.get(version, []):
             if conversion.table_info:
                 table_infos[conversion.table] = conversion.table_info
@@ -479,7 +487,8 @@ ACTIONS = {}
 TRANSFORMS[27] = [
     Conversion(
         "ordered_by_id",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -509,7 +518,8 @@ TRANSFORMS[27] = [
 TRANSFORMS[28] = [
     Conversion(
         "job_profiles",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -531,7 +541,8 @@ TRANSFORMS[28] = [
 TRANSFORMS[29] = [
     Conversion(
         "ordered_by_id",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -562,7 +573,8 @@ TRANSFORMS[29] = [
 TRANSFORMS[30] = [
     Conversion(
         "ordered_by_start_time",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("start_time", "int64"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -582,7 +594,8 @@ TRANSFORMS[30] = [
 TRANSFORMS[31] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -613,7 +626,8 @@ TRANSFORMS[31] = [
 TRANSFORMS[32] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -645,7 +659,8 @@ TRANSFORMS[32] = [
 TRANSFORMS[33] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -678,7 +693,8 @@ TRANSFORMS[33] = [
 TRANSFORMS[34] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -712,7 +728,8 @@ TRANSFORMS[34] = [
 TRANSFORMS[35] = [
     Conversion(
         "ordered_by_id",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -741,7 +758,8 @@ TRANSFORMS[35] = [
             in_memory=True)),
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -776,7 +794,8 @@ TRANSFORMS[35] = [
 TRANSFORMS[36] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -813,7 +832,8 @@ TRANSFORMS[36] = [
 TRANSFORMS[37] = [
     Conversion(
         "operation_ids",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
                 ("job_id_hi", "uint64"),
                 ("job_id_lo", "uint64")
@@ -824,7 +844,8 @@ TRANSFORMS[37] = [
             attributes={"atomicity": "none"})),
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -863,7 +884,8 @@ TRANSFORMS[37] = [
 TRANSFORMS[38] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
@@ -900,7 +922,8 @@ TRANSFORMS[38] = [
             attributes={"atomicity": "none"})),
     Conversion(
         "operation_ids",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
                 ("job_id_hi", "uint64"),
                 ("job_id_lo", "uint64")
@@ -919,7 +942,8 @@ TRANSFORMS[38] = [
 TRANSFORMS[39] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
@@ -960,7 +984,8 @@ TRANSFORMS[39] = [
 TRANSFORMS[40] = [
     Conversion(
         "ordered_by_id",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -994,7 +1019,8 @@ TRANSFORMS[40] = [
 TRANSFORMS[41] = [
     Conversion(
         "job_profiles",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
@@ -1017,7 +1043,8 @@ TRANSFORMS[41] = [
 TRANSFORMS[42] = [
     Conversion(
         "ordered_by_id",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -1052,7 +1079,8 @@ TRANSFORMS[42] = [
 TRANSFORMS[43] = [
     Conversion(
         "ordered_by_id",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -1088,7 +1116,8 @@ TRANSFORMS[43] = [
 TRANSFORMS[44] = [
     Conversion(
         "ordered_by_start_time",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("start_time", "int64"),
                 ("id_hi", "uint64"),
                 ("id_lo", "uint64"),
@@ -1123,15 +1152,16 @@ def swap_table(client, target, source, version):
 
     mount_table(client, target)
 
+
 def transform_archive(client, transform_begin, transform_end, force, archive_path, **kwargs):
     logging.info("Transforming archive from %s to %s version", transform_begin - 1, transform_end)
     table_infos = copy.deepcopy(INITIAL_TABLE_INFOS)
-    for version in xrange(INITIAL_VERSION, transform_begin):
+    for version in range(INITIAL_VERSION, transform_begin):
         for conversion in TRANSFORMS.get(version, []):
             if conversion.table_info:
                 table_infos[conversion.table] = conversion.table_info
 
-    for version in xrange(transform_begin, transform_end + 1):
+    for version in range(transform_begin, transform_end + 1):
         logging.info("Transforming to version %d", version)
         swap_tasks = []
         if version in TRANSFORMS:
@@ -1167,11 +1197,13 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
         if client.get(path + "/@tablet_state") != "mounted":
             mount_table(client, path)
 
+
 def _get_latest_version():
     latest_version = max(TRANSFORMS.keys())
     if ACTIONS:
         latest_version = max(latest_version, max(ACTIONS.keys()))
     return latest_version
+
 
 def create_tables(client, target_version, override_tablet_cell_bundle="default", shard_count=1, archive_path=DEFAULT_ARCHIVE_PATH):
     """ Creates operation archive tables of given version """
@@ -1194,7 +1226,7 @@ def create_tables(client, target_version, override_tablet_cell_bundle="default",
         "Expected archive version to be >= {}, got {}".format(INITIAL_VERSION, current_version)
 
     table_infos = {}
-    for version in xrange(current_version + 1, target_version + 1):
+    for version in range(current_version + 1, target_version + 1):
         for conversion in TRANSFORMS.get(version, []):
             if conversion.table_info:
                 table_infos[conversion.table] = conversion.table_info
@@ -1209,10 +1241,17 @@ def create_tables(client, target_version, override_tablet_cell_bundle="default",
 
     client.set(archive_path + "/@version", target_version)
 
+
 # Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
 def create_tables_latest_version(client, override_tablet_cell_bundle="default", shard_count=1, archive_path=DEFAULT_ARCHIVE_PATH):
     """ Creates operation archive tables of latest version """
-    create_tables(client, _get_latest_version(), override_tablet_cell_bundle, shard_count=shard_count, archive_path=archive_path)
+    create_tables(
+        client,
+        _get_latest_version(),
+        override_tablet_cell_bundle,
+        shard_count=shard_count,
+        archive_path=archive_path)
+
 
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform operations archive")
@@ -1226,6 +1265,7 @@ def build_arguments_parser():
     group.add_argument("--latest", action="store_true")
     return parser
 
+
 def run(client, args):
     archive_path = args.archive_path
 
@@ -1233,10 +1273,6 @@ def run(client, args):
 
     client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
 
-    one_day = 1000 * 3600 * 24
-    one_week = one_day * 7
-    one_month = one_day * 30
-    two_years = one_month * 12 * 2
     if client.exists(archive_path):
         current_version = client.get("{0}/@".format(archive_path)).get("version", INITIAL_VERSION)
     else:
@@ -1255,11 +1291,13 @@ def run(client, args):
         target_version = args.target_version
     transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
+
 def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
 
     run(client, args)
+
 
 if __name__ == "__main__":
     main()
