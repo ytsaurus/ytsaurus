@@ -1488,7 +1488,7 @@ private:
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            YT_LOG_INFO("Fetched operation transaction ids (OperationCount: %v)",
+            YT_LOG_INFO("Fetched operation transaction ids, starting to ping them (OperationCount: %v)",
                 operations.size());
             
             std::vector<TFuture<void>> futures;
