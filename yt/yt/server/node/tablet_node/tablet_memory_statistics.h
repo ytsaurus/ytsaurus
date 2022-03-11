@@ -74,6 +74,8 @@ struct TNodeMemoryUsageSummary
 
     // Per table memory usage summary.
     THashMap<TString /*tablePath*/, TMemoryStatistics> Tables;
+
+    THashMap<TString, TString> TablePathToBundleName;
 };
 
 

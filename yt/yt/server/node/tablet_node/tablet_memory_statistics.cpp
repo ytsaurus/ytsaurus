@@ -54,6 +54,7 @@ TNodeMemoryUsageSummary CalculateNodeMemoryUsageSummary(const std::vector<TTable
         for (const auto& tablet : cell.Tablets) {
             result.Total += tablet.Statistics;
             result.Tables[tablet.TablePath] += tablet.Statistics;
+            result.TablePathToBundleName[tablet.TablePath] = cell.BundleName;
             bundleSummary.Total += tablet.Statistics;
             cellSummary += tablet.Statistics;
         }
