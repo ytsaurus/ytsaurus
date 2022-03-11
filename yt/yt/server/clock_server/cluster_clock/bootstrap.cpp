@@ -253,7 +253,8 @@ void TBootstrap::DoInitialize()
         Config_->TimestampManager,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
         HydraFacade_->GetHydraManager(),
-        HydraFacade_->GetAutomaton());
+        HydraFacade_->GetAutomaton(),
+        GetCellTag());
 
     fileSnapshotStore->Initialize();
 

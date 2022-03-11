@@ -33,6 +33,13 @@ ui64 UnixTimeFromTimestamp(TTimestamp timestamp);
 //! Constructs the timestamp from a given unix time (assuming zero counter part).
 TTimestamp TimestampFromUnixTime(ui64 time);
 
+//! Embeds the cell tag into the higher counter bits of the timestamp (assuming zero rest counter part).
+TTimestamp EmbedCellTagIntoTimestamp(TTimestamp timestamp, NObjectClient::TCellTag cellTag);
+
+//! Checks if the timestamp with embedded cell tag can be advanced by |delta|
+//! without overflowing counter part.
+bool CanAdvanceTimestampWithEmbeddedCellTag(TTimestamp timestamp, int delta);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient

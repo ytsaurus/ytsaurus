@@ -79,6 +79,23 @@ TTimestamp TimestampFromUnixTime(ui64 time)
     return time << TimestampCounterWidth;
 }
 
+TTimestamp EmbedCellTagIntoTimestamp(TTimestamp timestamp, NObjectClient::TCellTag cellTag)
+{
+    static_assert(sizeof(TCellTag) == 2, "Invalid TCellTag size");
+
+    YT_VERIFY((timestamp & ((1ull << TimestampCounterWidth) - 1)) == 0);
+
+    return timestamp ^ (cellTag << (TimestampCounterWidth - 16));
+}
+
+bool CanAdvanceTimestampWithEmbeddedCellTag(TTimestamp timestamp, int delta)
+{
+    static_assert(sizeof(TCellTag) == 2, "Invalid TCellTag size");
+
+    return (timestamp >> (TimestampCounterWidth - 16)) ==
+        ((timestamp + delta) >> (TimestampCounterWidth - 16));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient
