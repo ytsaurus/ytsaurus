@@ -23,6 +23,9 @@ public:
     //! Cypress poll period.
     TDuration PollPeriod;
 
+    //! Flag for disabling cypress synchronizer entirely; used primarily for tests.
+    bool Enable;
+
     REGISTER_YSON_STRUCT(TCypressSynchronizerConfig)
 
     static void Register(TRegistrar registrar);

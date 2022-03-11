@@ -115,7 +115,10 @@ class TestQueueAgent(YTEnvSetup):
         },
         "queue_agent": {
             "poll_period": 100,
-        }
+        },
+        "cypress_synchronizer": {
+            "enable": False,
+        },
     }
 
     def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
@@ -166,6 +169,7 @@ class TestQueueAgent(YTEnvSetup):
         # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q"}])
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
         assert "type" not in status
@@ -174,6 +178,7 @@ class TestQueueAgent(YTEnvSetup):
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(1234)}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
         assert "type" not in status
@@ -183,6 +188,7 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(2345),
                       "object_type": "map_node"}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
 
@@ -191,6 +197,7 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(3456),
                       "object_type": "table", "dynamic": True, "sorted": True}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), "Only ordered dynamic tables are supported as queues")
 
@@ -199,6 +206,7 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
                       "dynamic": True, "sorted": False}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         # This error means that controller is instantiated and works properly (note that //tmp/q does not exist yet).
         assert_yt_error(YtError.from_dict(status["error"]), code=yt_error_codes.ResolveErrorCode)
@@ -208,12 +216,14 @@ class TestQueueAgent(YTEnvSetup):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(5678), "object_type": "table",
                       "dynamic": False, "sorted": False}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), "Only ordered dynamic tables are supported as queues")
         assert "family" not in status
 
         # Remove row; queue should be unregistered.
         delete_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+        orchid.wait_fresh_poll()
 
         queues = orchid.get_queues()
         assert len(queues) == 0
@@ -233,6 +243,7 @@ class TestQueueAgent(YTEnvSetup):
         # Missing row revision.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c"}])
+        orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(status["error"]), "Consumer is not in-sync yet")
         assert "target" not in status
@@ -241,6 +252,7 @@ class TestQueueAgent(YTEnvSetup):
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(1234)}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(status["error"]), "Consumer is missing target")
         assert "target" not in status
@@ -248,22 +260,24 @@ class TestQueueAgent(YTEnvSetup):
         # Unregistered target queue.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
-                      "target_cluster": "primary", "target_path": "//tmp/q"}],
+                      "target_cluster": "primary", "target_path": "//tmp/q", "treat_as_consumer": True}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(status["error"]), 'Target queue "primary://tmp/q" is not registered')
 
-        # Register target queue.
+        # Register target queue with wrong object type.
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
-                      "dynamic": True, "sorted": False}],
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567),
+                      "object_type": "map_node", "dynamic": True, "sorted": False}],
                     update=True)
+        orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(status["error"]), code=yt_error_codes.ResolveErrorCode)
+        assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
 
-        # TODO(max42): uncomment this in future.
-        # consumer = orchid.get_consumer_status("primary://tmp/c")
-        # assert_yt_error(YtError.from_dict(consumer["error"]), code=yt_error_codes.ResolveErrorCode)
+        # Queue error is propagated as consumer error.
+        status = orchid.get_consumer_status("primary://tmp/c")
+        assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
 
 
 class TestMultipleAgents(YTEnvSetup):

@@ -146,6 +146,10 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
                         }
                         YT_VERIFY(consumer.Target);
                         auto queue = GetOrCrash(queuesCopy, *consumer.Target);
+                        if (!queue.Error.IsOK()) {
+                            buildErrorYson(TError("Target queue %Qv is in error state", consumer.Target) << queue.Error, fluent);
+                            return;
+                        }
                         YT_VERIFY(queue.Controller);
 
                         auto error = WaitFor(
@@ -299,7 +303,11 @@ void TQueueAgent::Poll()
 
         auto& oldQueue = oldIt->second;
 
-        if (oldQueue.RowRevision == freshQueue.RowRevision &&
+        if (!freshQueue.Error.IsOK()) {
+            YT_LOG_TRACE("Queue has non-trivial error; resetting queue controller");
+            oldQueue.Reset();
+        } else if (
+            oldQueue.RowRevision == freshQueue.RowRevision &&
             oldQueue.ConsumerRowRevisions == freshQueue.ConsumerRowRevisions)
         {
             // We may use the controller of the old queue.
