@@ -10,9 +10,10 @@
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 
-#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -2234,6 +2235,7 @@ TPullRowsResult TClient::DoPullRows(
 
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
 
     auto& segments = options.ReplicationProgress.Segments;
     if (segments.empty()) {
@@ -2292,7 +2294,7 @@ TPullRowsResult TClient::DoPullRows(
     for (const auto& request : requests) {
         sessions.emplace_back(New<TTabletPullRowsSession>(
             this,
-            tableInfo->Schemas[ETableSchemaKind::Primary],
+            schema,
             tableInfo->Tablets[request.TabletIndex],
             options,
             request,
@@ -2347,7 +2349,9 @@ TPullRowsResult TClient::DoPullRows(
     }
 
     combinedResult.ReplicationProgress.UpperKey = options.ReplicationProgress.UpperKey;
-    combinedResult.Rows = MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer));
+    combinedResult.Rowset = CreateRowset(
+        schema,
+        MakeSharedRange(std::move(resultRows), std::move(outputRowBuffer)));
 
     YT_LOG_DEBUG("Pulled rows (ReplicationProgress: %v, EndRowIndexes: %v)",
         combinedResult.ReplicationProgress,
@@ -2371,32 +2375,16 @@ IChannelPtr TClient::GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind)
     }
 
     auto cellTag = CellTagFromId(cellId);
-
-    auto masterChannel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
-    auto proxy = TChaosMasterServiceProxy(std::move(masterChannel));
-
-    auto req = proxy.GetCellDescriptorsByCellTags();
-    req->add_cell_tags(cellTag);
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    YT_VERIFY(rsp->cell_descriptors_size() == 1);
-    auto descriptor = FromProto<TCellDescriptor>(rsp->cell_descriptors(0));
-
-    if (descriptor.CellId != cellId) {
-        YT_LOG_ALERT("Duplicate chaos cell id (CellTag: %v, ExistingCellId: %v, NewCellId: %v)",
-            cellTag,
-            descriptor.CellId,
-            cellId);
-        THROW_ERROR_EXCEPTION("Duplicate chaos cell id for tag %v", cellTag)
-            << TErrorAttribute("existing_cell_id", descriptor.CellId)
-            << TErrorAttribute("new_cell_id", cellId);
+    const auto& synchronizer = GetNativeConnection()->GetChaosCellDirectorySynchronizer();
+    synchronizer->AddCellTag(cellTag);
+    if (!cellDirectory->FindChannelByCellTag(cellTag)) {
+        YT_LOG_DEBUG("Synchronizing replication card chaos cells");
+        WaitFor(synchronizer->Sync())
+            .ThrowOnError();
+        YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
     }
 
-    cellDirectory->ReconfigureCell(descriptor);
-
-    auto channel = cellDirectory->GetChannelByCellId(cellId, peerKind);
+    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
     return WrapChaosChannel(std::move(channel));
 }
 
@@ -2407,21 +2395,16 @@ IChannelPtr TClient::GetChaosChannelByCellTag(TCellTag cellTag, EPeerKind peerKi
         return WrapChaosChannel(std::move(channel));
     }
 
-    auto masterChannel = GetMasterChannelOrThrow(EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
-    auto proxy = TChaosMasterServiceProxy(std::move(masterChannel));
+    const auto& synchronizer = GetNativeConnection()->GetChaosCellDirectorySynchronizer();
+    synchronizer->AddCellTag(cellTag);
+    if (!cellDirectory->FindChannelByCellTag(cellTag)) {
+        YT_LOG_DEBUG("Synchronizing replication card chaos cells");
+        WaitFor(synchronizer->Sync())
+            .ThrowOnError();
+        YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
+    }
 
-    auto req = proxy.GetCellDescriptorsByCellTags();
-    req->add_cell_tags(cellTag);
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    YT_VERIFY(rsp->cell_descriptors_size() == 1);
-    auto descriptor = FromProto<TCellDescriptor>(rsp->cell_descriptors(0));
-
-    cellDirectory->ReconfigureCell(descriptor);
-
-    auto channel = cellDirectory->GetChannelByCellTag(cellTag, peerKind);
+    auto channel = cellDirectory->GetChannelByCellTagOrThrow(cellTag, peerKind);
     return WrapChaosChannel(std::move(channel));
 }
 

@@ -18,7 +18,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, SyncAlienCells);
     DEFINE_RPC_PROXY_METHOD(NProto, GetCellDescriptorsByCellBundle);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetCellDescriptorsByCellTags);
+    DEFINE_RPC_PROXY_METHOD(NProto, FindCellDescriptorsByCellTags);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

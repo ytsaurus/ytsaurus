@@ -1412,17 +1412,27 @@ TFuture<void> TClient::HealExecNode(
 }
 
 TFuture<void> TClient::SuspendCoordinator(
-    TCellId /*coordinatorCellId*/,
+    TCellId coordinatorCellId,
     const TSuspendCoordinatorOptions& /*options*/)
 {
-    ThrowUnimplemented("SuspendCoordinator");
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.SuspendCoordinator();
+    ToProto(req->mutable_coordinator_cell_id(), coordinatorCellId);
+
+    return req->Invoke().As<void>();
 }
 
 TFuture<void> TClient::ResumeCoordinator(
-    TCellId /*coordinatorCellId*/,
+    TCellId coordinatorCellId,
     const TResumeCoordinatorOptions& /*options*/)
 {
-    ThrowUnimplemented("ResumeCoordinator");
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ResumeCoordinator();
+    ToProto(req->mutable_coordinator_cell_id(), coordinatorCellId);
+
+    return req->Invoke().As<void>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

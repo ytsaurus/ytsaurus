@@ -1,4 +1,6 @@
 #include "native_replication_card_cache_detail.h"
+
+#include "chaos_cell_directory_synchronizer.h"
 #include "chaos_node_service_proxy.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -8,6 +10,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/client/chaos_client/config.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -28,10 +32,11 @@ namespace NYT::NChaosClient {
 using namespace NApi;
 
 using namespace NConcurrency;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NNodeTrackerClient;
 using namespace NYTree;
 
 using NNative::IClientPtr;
@@ -110,6 +115,20 @@ public:
 
         YT_LOG_DEBUG("Got replication card (ReplicationCard: %v)",
             *replicationCard);
+
+        if (auto connection = Owner_->Connection_.Lock()) {
+            const auto& synchronizer = connection->GetChaosCellDirectorySynchronizer();
+            synchronizer->AddCellTag(CellTagFromId(Key_.CardId));
+            synchronizer->AddCellIds(replicationCard->CoordinatorCellIds);
+
+            const auto& cellDirectory = connection->GetCellDirectory();
+            if (!cellDirectory->FindChannelByCellTag(CellTagFromId(Key_.CardId))) {
+                YT_LOG_DEBUG("Synchronizing replication card chaos cells");
+                WaitFor(synchronizer->Sync())
+                    .ThrowOnError();
+                YT_LOG_DEBUG("Finished synchronizing replication card chaos cells");
+            }
+        }
 
         return replicationCard;
     }

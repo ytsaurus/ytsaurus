@@ -19,6 +19,8 @@
 #include <yt/yt/client/api/journal_writer.h>
 #include <yt/yt/client/api/rowset.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_base.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -940,10 +942,48 @@ TFuture<TYsonString> TClientBase::ExplainQuery(
 }
 
 TFuture<TPullRowsResult> TClientBase::PullRows(
-    const TYPath& /*path*/,
-    const TPullRowsOptions& /*options*/)
+    const TYPath& path,
+    const TPullRowsOptions& options)
 {
-    YT_ABORT();
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.PullRows();
+    req->SetResponseHeavy(true);
+    req->set_path(path);
+    ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
+    req->set_order_rows_by_timestamp(options.OrderRowsByTimestamp);
+    req->set_tablet_rows_per_read(options.TabletRowsPerRead);
+    ToProto(req->mutable_replication_progress(), options.ReplicationProgress);
+    if (options.UpperTimestamp != NullTimestamp) {
+        req->set_upper_timestamp(options.UpperTimestamp);
+    }
+    for (auto [tabletId, rowIndex] : options.StartReplicationRowIndexes) {
+        auto *protoReplicationRowIndex = req->add_start_replication_row_indexes();
+        ToProto(protoReplicationRowIndex->mutable_tablet_id(), tabletId);
+        protoReplicationRowIndex->set_row_index(rowIndex);
+    }
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullRowsPtr& rsp) {
+        TPullRowsResult result;
+        result.RowCount = rsp->row_count();
+        result.DataWeight = rsp->data_weight();
+        FromProto(&result.ReplicationProgress, rsp->replication_progress());
+
+        for (auto protoReplicationRowIndex : rsp->end_replication_row_indexes()) {
+            auto tabletId = FromProto<TTabletId>(protoReplicationRowIndex.tablet_id());
+            int rowIndex = protoReplicationRowIndex.row_index();
+            if (result.EndReplicationRowIndexes.contains(tabletId)) {
+                THROW_ERROR_EXCEPTION("Duplicate tablet id in end replication row indexes")
+                    << TErrorAttribute("tablet_id", tabletId);
+            }
+            InsertOrCrash(result.EndReplicationRowIndexes, std::make_pair(tabletId, rowIndex));
+        }
+        
+        result.Rowset = DeserializeRowset<TVersionedRow>(
+            rsp->rowset_descriptor(),
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
+        return result;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

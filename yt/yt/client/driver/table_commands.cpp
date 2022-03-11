@@ -904,14 +904,6 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
             << TErrorAttribute("rich_ypath", Path);
     }
 
-    auto tableMountCache = context->GetClient()->GetTableMountCache();
-    auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
-    auto tableInfo = WaitFor(asyncTableInfo)
-        .ValueOrThrow();
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-
-    tableInfo->ValidateDynamic();
-
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
 
@@ -920,8 +912,8 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
     auto pullResult = WaitFor(pullRowsFuture)
         .ValueOrThrow();
 
-    auto writer = CreateVersionedWriterForFormat(format, schema, output);
-    writer->Write(pullResult.Rows);
+    auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
+    writer->Write(pullResult.Rowset->GetRows());
     WaitFor(writer->Close())
         .ThrowOnError();
 }

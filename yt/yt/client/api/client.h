@@ -637,7 +637,7 @@ struct TPullRowsResult
     i64 RowCount = 0;
     i64 DataWeight = 0;
     NChaosClient::TReplicationProgress ReplicationProgress;
-    TSharedRange<NTableClient::TVersionedRow> Rows;
+    IVersionedRowsetPtr Rowset;
 };
 
 struct TGetNodeOptions

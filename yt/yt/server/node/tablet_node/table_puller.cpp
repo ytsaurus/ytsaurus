@@ -11,20 +11,21 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/client/chaos_client/replication_card_serialization.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/name_table.h>
-
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
-#include <yt/yt/client/api/transaction.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+
+#include <yt/yt/client/api/rowset.h>
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -216,7 +217,7 @@ private:
             auto rowCount = result.RowCount;
             auto dataWeight = result.DataWeight;
             const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
-            const auto& resultRows = result.Rows;
+            auto resultRows = result.Rowset->GetSharedRange();
             const auto& progress = result.ReplicationProgress;
 
             YT_LOG_DEBUG("Pulled rows (RowCount: %v, DataWeight: %v, NewProgress: %v, EndReplictionRowIndexes: %v)",
@@ -376,7 +377,7 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
         auto historyItemIndex = selfReplicaInfo->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
-            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %v, History: %v)",
+            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %llx, History: %v)",
                 oldestTimestamp,
                 selfReplicaInfo->History);
             return {};
@@ -385,7 +386,7 @@ private:
         YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplicaInfo->History));
         const auto& historyItem = selfReplicaInfo->History[historyItemIndex];
         if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
-            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
+            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %llx, HistoryItem: %v)",
                 oldestTimestamp,
                 historyItem);
             return {};

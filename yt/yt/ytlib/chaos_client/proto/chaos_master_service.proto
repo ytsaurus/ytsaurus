@@ -30,12 +30,12 @@ message TRspGetCellDescriptorsByCellBundle
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetCellDescriptorsByCellTags
+message TReqFindCellDescriptorsByCellTags
 {
     repeated int32 cell_tags = 1;
 }
 
-message TRspGetCellDescriptorsByCellTags
+message TRspFindCellDescriptorsByCellTags
 {
     repeated NYT.NHiveClient.NProto.TCellDescriptor cell_descriptors = 1;
 }
