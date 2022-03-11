@@ -3014,6 +3014,9 @@ const TJobResources& TSchedulerOperationElement::FillResourceUsageInDynamicAttri
         attributes.ResourceUsage = it != resourceUsageSnapshot->OperationIdToResourceUsage.end()
             ? it->second
             : TJobResources();
+        attributes.IsNotAlive =
+            resourceUsageSnapshot->AliveOperationIds.find(OperationId_) ==
+            resourceUsageSnapshot->AliveOperationIds.end();
     } else {
         ActualizeResourceUsageInDynamicAttributes(attributesList);
     }
@@ -3070,6 +3073,11 @@ void TSchedulerOperationElement::CheckForDeactivation(
 
     // Reset operation element activeness (it can be active after scheduling without preepmtion).
     attributes.Active = false;
+
+    if (attributes.IsNotAlive) {
+        onOperationDeactivated(EDeactivationReason::IsNotAlive);
+        return;
+    }
 
     if (targetOperationPreemptionPriority != EOperationPreemptionPriority::None &&
         targetOperationPreemptionPriority != context->GetOperationPreemptionPriority(this))
@@ -3665,7 +3673,7 @@ bool TSchedulerOperationElement::OnJobStarted(
 {
     YT_ELEMENT_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
 
-    if (!force && 
+    if (!force &&
         (!OperationElementSharedState_->Enabled() || Controller_->GetEpoch() != scheduleJobEpoch))
     {
         return false;
@@ -3779,7 +3787,7 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
         ControllerConfig_->ScheduleJobTimeLimit,
         GetTreeId(),
         TreeConfig_);
-        
+
     MaybeDelay(
         Spec_->TestingOperationOptions->ScheduleJobDelay,
         Spec_->TestingOperationOptions->ScheduleJobDelayType);

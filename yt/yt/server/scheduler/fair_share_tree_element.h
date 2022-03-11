@@ -101,6 +101,7 @@ struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
     bool Active = false;
+    bool IsNotAlive = false;
     TSchedulerOperationElement* BestLeafDescendant = nullptr;
     TJobResources ResourceUsage;
     NProfiling::TCpuInstant ResourceUsageUpdateTime;
@@ -114,6 +115,7 @@ struct TResourceUsageSnapshot final
 {
     static constexpr bool EnableHazard = true;
 
+    THashSet<TOperationId> AliveOperationIds;
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
     THashMap<TString, TJobResources> PoolToResourceUsage;
 };
@@ -1378,7 +1380,7 @@ private:
         TScheduleJobsContext* context,
         const TJobResources& resourceUsageDelta,
         bool checkAncestorsActiveness = true);
-    
+
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
     EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(

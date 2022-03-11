@@ -2345,11 +2345,14 @@ private:
 
         auto operationResourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
         auto poolResourceUsageMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
+        auto aliveOperationIds = THashSet<TOperationId>(treeSnapshot->EnabledOperationMap().size());
 
         for (const auto& [operationId, element] : treeSnapshot->EnabledOperationMap()) {
-            if (!element->IsAlive()) {
+            bool isAlive = element->IsAlive();
+            if (!isAlive) {
                 continue;
             }
+            aliveOperationIds.insert(operationId);
             auto resourceUsage = element->GetInstantResourceUsage();
             operationResourceUsageMap[operationId] = resourceUsage;
             const TSchedulerCompositeElement* parentPool = element->GetParent();
@@ -2362,6 +2365,7 @@ private:
         auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
         resourceUsageSnapshot->OperationIdToResourceUsage = std::move(operationResourceUsageMap);
         resourceUsageSnapshot->PoolToResourceUsage = std::move(poolResourceUsageMap);
+        resourceUsageSnapshot->AliveOperationIds = std::move(aliveOperationIds);
 
         AccumulatedResourceUsageInfo_.Update(treeSnapshot, resourceUsageSnapshot);
 
