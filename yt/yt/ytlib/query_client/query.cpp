@@ -71,12 +71,15 @@ TString InferName(TConstExpressionPtr expr, bool omitValues)
     return builder.Flush();
 }
 
-TString InferName(TConstBaseQueryPtr query, bool omitValues)
+TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases)
 {
     auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
-        builder->AppendFormat("%v AS %v",
-            InferName(item.Expression, omitValues),
-            item.Name);
+        builder->AppendString(InferName(item.Expression, omitValues));
+        if (!omitAliases) {
+            builder->AppendFormat("%v AS %v",
+                InferName(item.Expression, omitValues),
+                item.Name);
+        }
     };
 
     auto orderItemFormatter = [&] (TStringBuilderBase* builder, const TOrderItem& item) {
@@ -146,12 +149,11 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues)
         clauses.push_back(TString("ORDER BY ") + JoinToString(query->OrderClause->OrderItems, orderItemFormatter));
     }
 
-    if (query->Offset > 0) {
-        clauses.push_back(TString("OFFSET ") + ToString(query->Offset));
-    }
+
 
     if (query->Limit < std::numeric_limits<i64>::max()) {
-        clauses.push_back(TString("LIMIT ") + ToString(query->Limit));
+        clauses.push_back(TString("OFFSET ") + (omitValues ? "?" : ToString(query->Offset)));
+        clauses.push_back(TString("LIMIT ") + (omitValues ? "?" : ToString(query->Limit)));
     }
 
     return JoinToString(clauses, TStringBuf(" "));
@@ -258,13 +260,11 @@ void ThrowTypeMismatchError(
     TStringBuf lhsSource,
     TStringBuf rhsSource)
 {
-    THROW_ERROR_EXCEPTION(
-            "Type mismatch in expression %Qv",
-            source)
-            << TErrorAttribute("lhs_source", lhsSource)
-            << TErrorAttribute("rhs_source", rhsSource)
-            << TErrorAttribute("lhs_type", lhsType)
-            << TErrorAttribute("rhs_type", rhsType);
+    THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv", source)
+        << TErrorAttribute("lhs_source", lhsSource)
+        << TErrorAttribute("rhs_source", rhsSource)
+        << TErrorAttribute("lhs_type", lhsType)
+        << TErrorAttribute("rhs_type", rhsType);
 }
 
 std::vector<size_t> GetJoinGroups(
