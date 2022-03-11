@@ -33,6 +33,7 @@ using namespace NRpc;
 using namespace NHydra;
 using namespace NTransactionClient;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NTimestampServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +47,8 @@ public:
         TTimestampManagerConfigPtr config,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
-        TCompositeAutomatonPtr automaton)
+        TCompositeAutomatonPtr automaton,
+        TCellTag cellTag)
         : TServiceBase(
             // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
@@ -57,6 +59,7 @@ public:
             automaton,
             automatonInvoker)
         , Config_(std::move(config))
+        , CellTag_(cellTag)
         , TimestampQueue_(New<TActionQueue>("Timestamp"))
         , TimestampInvoker_(TimestampQueue_->GetInvoker())
         , CalibrationExecutor_(New<TPeriodicExecutor>(
@@ -94,6 +97,7 @@ public:
 
 private:
     const TTimestampManagerConfigPtr Config_;
+    const TCellTag CellTag_;
 
     const TActionQueuePtr TimestampQueue_;
     const IInvokerPtr TimestampInvoker_;
@@ -158,7 +162,12 @@ private:
             return;
         }
 
-        if (CurrentTimestamp_ + count >= CommittedTimestamp_) {
+        bool enoughSpareTimestamps = CurrentTimestamp_ + count < CommittedTimestamp_;
+        if (Config_->EmbedCellTag) {
+            enoughSpareTimestamps &= CanAdvanceTimestampWithEmbeddedCellTag(CurrentTimestamp_, count);
+        }
+
+        if (!enoughSpareTimestamps) {
             // Backoff and retry.
             YT_LOG_WARNING_UNLESS(BackingOff_, "Not enough spare timestamps; backing off");
             BackingOff_ = true;
@@ -213,6 +222,9 @@ private:
         if (committedTime >= timestampReserve) {
             ui64 reserveLimitTime = committedTime - timestampReserve;
             ui64 newCurrentTimestamp = TimestampFromUnixTime(std::min(currentTime, reserveLimitTime));
+            if (Config_->EmbedCellTag) {
+                newCurrentTimestamp = EmbedCellTagIntoTimestamp(newCurrentTimestamp, CellTag_);
+            }
             if (newCurrentTimestamp > CurrentTimestamp_) {
                 CurrentTimestamp_ = newCurrentTimestamp;
             }
@@ -296,6 +308,10 @@ private:
             CurrentTimestamp_ = persistentTimestamp;
             CommittedTimestamp_ = persistentTimestamp;
 
+            if (Config_->EmbedCellTag) {
+                CurrentTimestamp_ = EmbedCellTagIntoTimestamp(CurrentTimestamp_, CellTag_);
+            }
+
             YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %llx)",
                 persistentTimestamp);
         }).Via(invoker);
@@ -359,12 +375,14 @@ TTimestampManager::TTimestampManager(
     TTimestampManagerConfigPtr config,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
-    TCompositeAutomatonPtr automaton)
+    TCompositeAutomatonPtr automaton,
+    TCellTag cellTag)
     : Impl_(New<TImpl>(
         config,
         automatonInvoker,
         hydraManager,
-        automaton))
+        automaton,
+        cellTag))
 { }
 
 TTimestampManager::~TTimestampManager() = default;

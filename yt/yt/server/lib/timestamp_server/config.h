@@ -17,6 +17,7 @@ public:
     TDuration TimestampReserveInterval;
     int MaxTimestampsPerRequest;
     TDuration RequestBackoffTime;
+    bool EmbedCellTag;
 
     TTimestampManagerConfig()
     {
@@ -32,6 +33,8 @@ public:
             .Default(1000000);
         RegisterParameter("request_backoff_time", RequestBackoffTime)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("embed_cell_tag", EmbedCellTag)
+            .Default(false);
     }
 };
 

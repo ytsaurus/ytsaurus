@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NTimestampServer {
@@ -20,7 +22,8 @@ public:
         TTimestampManagerConfigPtr config,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
-        NHydra::TCompositeAutomatonPtr automaton);
+        NHydra::TCompositeAutomatonPtr automaton,
+        NObjectClient::TCellTag cellTag);
 
     ~TTimestampManager();
 
