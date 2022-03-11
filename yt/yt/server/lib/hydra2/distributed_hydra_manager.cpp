@@ -1077,12 +1077,6 @@ private:
         auto committedSegmentId = request->committed_segment_id();
         auto term = request->term();
 
-        auto epochContext = GetControlEpochContext(epochId);
-        // TODO(aleksandra-zh): I hate that.
-        SwitchTo(epochContext->EpochControlInvoker);
-
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto mutationCount = request->Attachments().size();
         context->SetRequestInfo("StartSequenceNumber: %v, CommittedSequenceNumber: %v, CommittedSegmentId: %v, EpochId: %v, MutationCount: %v",
             startSequenceNumber,
@@ -1090,6 +1084,12 @@ private:
             committedSegmentId,
             epochId,
             mutationCount);
+
+        auto epochContext = GetControlEpochContext(epochId);
+        // TODO(aleksandra-zh): I hate that.
+        SwitchTo(epochContext->EpochControlInvoker);
+
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto controlState = GetControlState();
         if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
