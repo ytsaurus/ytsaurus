@@ -13,6 +13,8 @@ from yt_commands import (
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
+import yt.yson as yson
+
 import pytest
 import time
 
@@ -1157,10 +1159,15 @@ class TestChaos(ChaosTestBase):
         values0 = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values0)
 
-        sync_unmount_table("//tmp/q", driver=drivers[1])
-        tablet_id = get("//tmp/q/@tablets/0/tablet_id", driver=drivers[1])
-        replication_progress = get("#{0}/@replication_progress".format(tablet_id), driver=drivers[1])
-        sync_mount_table("//tmp/q", driver=drivers[1])
+        timestamp = generate_timestamp()
+        replication_progress = {
+            "segments": [{
+                "lower_key": [],
+                "timestamp": timestamp
+            }],
+            "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+        }
+        print_debug("Creating new replica with progress:", replication_progress)
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, replication_progress=replication_progress))
         self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
@@ -1208,6 +1215,43 @@ class TestChaos(ChaosTestBase):
         assert not _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended")
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
 
+
+##################################################################
+
+
+class TestChaosRpcProxy(TestChaos):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    @authors("savrus")
+    def test_insert_first(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+
+        self.Env.kill_service("rpc_proxy")
+        self.Env.start_rpc_proxy()
+
+        def _check():
+            try:
+                return exists("/")
+            except YtError as err:
+                print_debug(err)
+                return False
+
+        wait(_check)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
 
 ##################################################################
 

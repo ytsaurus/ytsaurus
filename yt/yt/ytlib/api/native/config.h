@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/compression/public.h>
@@ -91,6 +93,7 @@ public:
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
     TClockServersConfigPtr ClockServers;
 
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;

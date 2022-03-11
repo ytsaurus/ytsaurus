@@ -45,7 +45,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptorsByCellBundle)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetCellDescriptorsByCellTags)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FindCellDescriptorsByCellTags)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))
             .SetHeavy(true));
     }
@@ -114,7 +114,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetCellDescriptorsByCellTags)
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, FindCellDescriptorsByCellTags)
     {
         auto cellTags = FromProto<std::vector<TCellTag>>(request->cell_tags());
 
@@ -123,8 +123,11 @@ private:
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         for (auto cellTag : cellTags) {
-            auto* cell = chaosManager->GetChaosCellByTagOrThrow(cellTag);
-            ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
+            if (auto* cell = chaosManager->FindChaosCellByTag(cellTag)) {
+                ToProto(response->add_cell_descriptors(), cell->GetDescriptor());
+            } else {
+                ToProto(response->add_cell_descriptors(), TCellDescriptor());
+            }
         }
 
         context->Reply();

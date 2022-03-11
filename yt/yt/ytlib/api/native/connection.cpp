@@ -8,6 +8,7 @@
 #include "private.h"
 
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
+#include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
@@ -198,6 +199,13 @@ public:
             CellDirectory_,
             GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
+
+        ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
+            Config_->ChaosCellDirectorySynchronizer,
+            CellDirectory_,
+            this,
+            Logger);
+        ChaosCellDirectorySynchronizer_->Start();
 
         if (Options_.BlockCache) {
             BlockCache_ = Options_.BlockCache;
@@ -436,6 +444,11 @@ public:
         return CellDirectorySynchronizer_;
     }
 
+    const NChaosClient::IChaosCellDirectorySynchronizerPtr& GetChaosCellDirectorySynchronizer() override
+    {
+        return ChaosCellDirectorySynchronizer_;
+    }
+
     const TNodeDirectoryPtr& GetNodeDirectory() override
     {
         NodeDirectorySynchronizer_->Start();
@@ -516,6 +529,7 @@ public:
 
         CellDirectory_->Clear();
         CellDirectorySynchronizer_->Stop();
+        ChaosCellDirectorySynchronizer_->Stop();
 
         MediumDirectory_->Clear();
         MediumDirectorySynchronizer_->Stop();
@@ -606,6 +620,7 @@ private:
 
     ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
     const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
 
     TClusterDirectoryPtr ClusterDirectory_;

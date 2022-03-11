@@ -69,6 +69,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
         .DefaultNew();
+    RegisterParameter("chaos_cell_directory_synchronizer", ChaosCellDirectorySynchronizer)
+        .DefaultNew();
     RegisterParameter("clock_servers", ClockServers)
         .Default();
     RegisterParameter("master_cell_directory_synchronizer", MasterCellDirectorySynchronizer)

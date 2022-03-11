@@ -1014,6 +1014,10 @@ def _build_cluster_connection_config(yt_config,
             "sync_period": 500,
             "sync_period_splay": 100,
         },
+        "chaos_cell_directory_synchronizer": {
+            "sync_period": 500,
+            "sync_period_splay": 100,
+        },
         "cluster_directory_synchronizer": {
             "sync_period": 500,
             "expire_after_successful_update_time": 500,

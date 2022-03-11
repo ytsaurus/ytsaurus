@@ -40,6 +40,8 @@
 
 #include <yt/yt/client/chunk_client/config.h>
 
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
@@ -637,6 +639,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
@@ -645,6 +649,8 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -3312,6 +3318,58 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PullRows)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        const auto& path = request->path();
+
+        TPullRowsOptions options;
+        FromProto(&options.UpstreamReplicaId, request->upstream_replica_id());
+        options.TabletRowsPerRead = request->tablet_rows_per_read();
+        options.OrderRowsByTimestamp = request->order_rows_by_timestamp();
+        FromProto(&options.ReplicationProgress, request->replication_progress());
+        if (request->has_upper_timestamp()) {
+            options.UpperTimestamp = request->upper_timestamp();
+        }
+        for (auto protoReplicationRowIndex : request->start_replication_row_indexes()){
+            auto tabletId = FromProto<TTabletId>(protoReplicationRowIndex.tablet_id());
+            int rowIndex = protoReplicationRowIndex.row_index();
+            if (options.StartReplicationRowIndexes.contains(tabletId)) {
+                THROW_ERROR_EXCEPTION("Duplicate tablet id in start replication row indexes")
+                    << TErrorAttribute("tablet_id", tabletId);
+            }
+            InsertOrCrash(options.StartReplicationRowIndexes, std::make_pair(tabletId, rowIndex));
+        }
+
+        context->SetRequestInfo("ReplicationProgress: %v, OrderRowsByTimestamp: %v, UpperTimestamp: %v",
+            options.ReplicationProgress,
+            options.OrderRowsByTimestamp,
+            options.UpperTimestamp);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PullRows(path, options);
+            },
+            [=, this_ = MakeStrong(this)] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_row_count(result.RowCount);
+                response->set_data_weight(result.DataWeight);
+                ToProto(response->mutable_replication_progress(), result.ReplicationProgress);
+
+                for (auto [tabletId, rowIndex] : result.EndReplicationRowIndexes) {
+                    auto *protoReplicationRowIndex = response->add_end_replication_row_indexes();
+                    ToProto(protoReplicationRowIndex->mutable_tablet_id(), tabletId);
+                    protoReplicationRowIndex->set_row_index(rowIndex);
+                }
+    
+                response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
+
+                context->SetResponseInfo("RowCount: %v",
+                    result.RowCount);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExplainQuery)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -3612,6 +3670,42 @@ private:
             context,
             [=] {
                 return client->GCCollect(options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SuspendCoordinator)
+    {
+        TSuspendCoordinatorOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
+
+        context->SetRequestInfo("CoordinatorCellId: %v",
+            coordinatorCellId);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->SuspendCoordinator(coordinatorCellId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResumeCoordinator)
+    {
+        TResumeCoordinatorOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
+
+        context->SetRequestInfo("CoordinatorCellId: %v",
+            coordinatorCellId);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ResumeCoordinator(coordinatorCellId, options);
             });
     }
 

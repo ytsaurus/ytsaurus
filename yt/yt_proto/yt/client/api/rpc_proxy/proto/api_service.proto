@@ -11,6 +11,7 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 // Scalars
@@ -569,7 +570,36 @@ message TRspExplainQuery
     required bytes value = 1; // YSON
 }
 
-//------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicationRowIndex
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 row_index = 2;
+}
+
+message TReqPullRows
+{
+    required string path = 1;
+
+    required NYT.NProto.TGuid upstream_replica_id = 2;
+    required bool order_rows_by_timestamp = 3;
+    required int64 tablet_rows_per_read = 4;
+    required NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 5;
+    optional uint64 upper_timestamp = 6;
+    repeated TReplicationRowIndex start_replication_row_indexes = 7;
+}
+
+message TRspPullRows
+{
+    required int64 row_count = 1;
+    required int64 data_weight = 2;
+    required NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 3;
+    repeated TReplicationRowIndex end_replication_row_indexes = 4;
+    required TRowsetDescriptor rowset_descriptor = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqGetInSyncReplicas
 {
@@ -695,6 +725,28 @@ message TReqGCCollect
 }
 
 message TRspGCCollect
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSuspendCoordinator
+{
+    optional NYT.NProto.TGuid coordinator_cell_id = 1;
+}
+
+message TRspSuspendCoordinator
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqResumeCoordinator
+{
+    optional NYT.NProto.TGuid coordinator_cell_id = 1;
+}
+
+message TRspResumeCoordinator
 {
 }
 

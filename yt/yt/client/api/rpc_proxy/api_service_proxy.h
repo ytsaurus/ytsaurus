@@ -68,6 +68,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MultiLookup);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SelectRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ExplainQuery);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PullRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetInSyncReplicas);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTabletInfos);
 
@@ -133,6 +134,8 @@ public:
     // Administration
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BuildSnapshot);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GCCollect);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SuspendCoordinator);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ResumeCoordinator);
 
     // Security
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);
