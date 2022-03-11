@@ -44,7 +44,14 @@ TJob::TJob(
     , PreemptionMode_(preemptionMode)
     , SchedulingIndex_(schedulingIndex)
     , SchedulingStage_(schedulingStage)
+    , Logger_(CreateLogger())
 { }
+
+void TJob::SetNode(const TExecNodePtr& node)
+{
+    Node_ = node;
+    Logger_ = CreateLogger();
+}
 
 TDuration TJob::GetDuration() const
 {
@@ -54,6 +61,15 @@ TDuration TJob::GetDuration() const
 bool TJob::IsRevived() const
 {
     return RevivalNodeId_ != NNodeTrackerClient::InvalidNodeId;
+}
+
+NLogging::TLogger TJob::CreateLogger()
+{
+    return SchedulerLogger.WithTag("JobId: %v, OperationId: %v, Address: %v, Type: %v",
+        Id_,
+        OperationId_,
+        Node_ ? Node_->GetDefaultAddress() : "<unknown>",
+        Type_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -334,12 +334,6 @@ private:
 
     void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
-    NLogging::TLogger CreateJobLogger(
-        TJobId jobId,
-        TOperationId operationId,
-        EJobState state,
-        const TString& address);
-
     TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
 
     TExecNodePtr GetOrRegisterNode(
