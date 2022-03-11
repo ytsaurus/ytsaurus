@@ -1183,6 +1183,9 @@ private:
 
         SetCommitSucceeded(commit);
         RemoveTransientCommit(commit);
+
+        // Transaction may have been (unsuccessfully) aborted. Cached abort errors should not outlive the commit.
+        TryRemoveAbort(transactionId);
     }
 
     void HydraCoordinatorCommitDistributedTransactionPhaseOne(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne* request)
@@ -1421,9 +1424,7 @@ private:
         RemovePersistentCommit(commit);
 
         // Transaction may have been (unsuccessfully) aborted. Cached abort errors should not outlive the commit.
-        if (auto* abort = FindAbort(transactionId)) {
-            RemoveAbort(abort);
-        }
+        TryRemoveAbort(transactionId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Distributed transaction commit finished (TransactionId: %v)",
             transactionId);
@@ -1720,6 +1721,11 @@ private:
     void RemoveAbort(TAbort* abort)
     {
         YT_VERIFY(TransientAbortMap_.erase(abort->GetTransactionId()) == 1);
+    }
+
+    void TryRemoveAbort(TTransactionId transactionId)
+    {
+        TransientAbortMap_.erase(transactionId);
     }
 
 
