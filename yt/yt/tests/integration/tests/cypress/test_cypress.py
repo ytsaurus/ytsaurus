@@ -187,10 +187,10 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_list_command(self):
-        set("//tmp/map", {"a": 1, "b": 2, "c": 3})
+        set("//tmp/map", {"a": 1, "b": 2, "c": 3}, force=True)
         assert ls("//tmp/map") == ["a", "b", "c"]
 
-        set("//tmp/map", {"a": 1})
+        set("//tmp/map", {"a": 1}, force=True)
         assert ls("//tmp/map", max_size=1) == ["a"]
 
         ls("//sys/chunks")
@@ -218,7 +218,7 @@ class TestCypress(YTEnvSetup):
             "list": [0, "a", {"some": "value"}],
         }
 
-        set("//tmp/map/list", [])
+        set("//tmp/map/list", [], force=True)
         assert get("//tmp/map") == {"hello": "not_world", "list": []}
 
         set("//tmp/map/list/end", {})
@@ -367,7 +367,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     def test_map_remove_all1(self):
         # remove items from map
-        set("//tmp/map", {"a": "b", "c": "d"})
+        set("//tmp/map", {"a": "b", "c": "d"}, force=True)
         assert get("//tmp/map/@count") == 2
         remove("//tmp/map/*")
         assert get("//tmp/map") == {}
@@ -375,9 +375,9 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_map_remove_all2(self):
-        set("//tmp/map", {"a": 1})
+        set("//tmp/map", {"a": 1}, force=True)
         tx = start_transaction()
-        set("//tmp/map", {"b": 2}, tx=tx)
+        set("//tmp/map", {"b": 2}, tx=tx, force=True)
         remove("//tmp/map/*", tx=tx)
         assert get("//tmp/map", tx=tx) == {}
         assert get("//tmp/map/@count", tx=tx) == 0
@@ -2400,13 +2400,13 @@ class TestCypress(YTEnvSetup):
 
     @authors("ignat")
     def test_node_path_with_slash(self):
-        set("//tmp/dir", {"my\\t": {}})
+        set("//tmp/dir", {"my\\t": {}}, force=True)
         assert ls("//tmp/dir") == ["my\\t"]
         # It is double quoted since ypath syntax additionally quote backslash.
         assert get("//tmp/dir/my\\\\t") == {}
         assert get("//tmp/dir/my\\\\t/@path") == "//tmp/dir/my\\\\t"
 
-        set("//tmp/dir", {"my\t": {}})
+        set("//tmp/dir", {"my\t": {}}, force=True)
         assert ls("//tmp/dir") == ["my\t"]
         # Non-ascii symbols are expressed in hex format in ypath.
         assert get("//tmp/dir/my\\x09") == {}
@@ -2818,7 +2818,7 @@ class TestCypress(YTEnvSetup):
         assert revision == attribute_revision
         assert revision > content_revision
 
-        set("//tmp/test_node", {"hello": "world", "list": [0, "a", {}], "n": 1})
+        set("//tmp/test_node", {"hello": "world", "list": [0, "a", {}], "n": 1}, force=True)
         revision = get("//tmp/test_node/@revision")
         attribute_revision = get("//tmp/test_node/@attribute_revision")
         content_revision = get("//tmp/test_node/@content_revision")
@@ -2929,7 +2929,7 @@ class TestCypress(YTEnvSetup):
         # test_user_attribute_removal2_yt_10192, but since one can't
         # directly create a map node's child via 'set', this is the
         # closest we can get.
-        set("//tmp/test_node", {"child": "some_string"}, tx=tx2)
+        set("//tmp/test_node", {"child": "some_string"}, tx=tx2, force=True)
         remove("//tmp/test_node/child", tx=tx2)
         assert not exists("//tmp/test_node/child", tx=tx2)
 
@@ -3416,7 +3416,6 @@ class TestCypress(YTEnvSetup):
 
     @authors("cookiedoth")
     def test_force(self):
-        set("//sys/@config/cypress_manager/forbid_set_command", True)
         create("map_node", "//tmp/a")
         with pytest.raises(YtError):
             set("//tmp/a", {"x": "y"})
@@ -3674,10 +3673,6 @@ class TestCypressForbidSet(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
 
-    def setup_method(self, method):
-        super(TestCypressForbidSet, self).setup_method(method)
-        set("//sys/@config/cypress_manager/forbid_set_command", True)
-
     @authors("shakurov")
     def test_map(self):
         create("map_node", "//tmp/d")
@@ -3783,17 +3778,17 @@ class TestCypressApiVersion4(YTEnvSetup):
 
     @authors("levysotsky", "shakurov")
     def test_lock_unlock(self):
-        self._execute("set", path="//tmp/a", input=b'{"a"= 1}')
+        self._execute("set", path="//tmp/a", input=b'{"a"= 1}', force=True)
         result = self._execute("start_transaction")
         tx = result["transaction_id"]
         lock_result = self._execute("lock", path="//tmp/a", transaction_id=tx)
         assert "lock_id" in lock_result and "node_id" in lock_result
         assert len(get("//tmp/a/@locks")) == 1
         with pytest.raises(YtError):
-            self._execute("set", path="//tmp/a", input=b'{"a"=2}')
+            self._execute("set", path="//tmp/a", input=b'{"a"=2}', force=True)
         self._execute("unlock", path="//tmp/a", transaction_id=tx)
         assert len(get("//tmp/a/@locks")) == 0
-        self._execute("set", path="//tmp/a", input=b'{"a"=3}')
+        self._execute("set", path="//tmp/a", input=b'{"a"=3}', force=True)
 
 
 ##################################################################

@@ -69,7 +69,7 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
         .Default(NCompression::ECodec::Lz4);
 
     RegisterParameter("forbid_set_command", ForbidSetCommand)
-        .Default(false);
+        .Default(true);
     RegisterParameter("enable_unlock_command", EnableUnlockCommand)
         .Default(false);
 

@@ -75,8 +75,8 @@ class TestCypressCommands(object):
         assert not yt.exists(TEST_DIR + "/some_node")
 
         with pytest.raises(yt.YtError):
-            yt.set(TEST_DIR + "/some_node/embedded_node", {})
-        yt.set(TEST_DIR + "/some_node", {})
+            yt.set(TEST_DIR + "/some_node/embedded_node", {}, force=True)
+        yt.set(TEST_DIR + "/some_node", {}, force=True)
 
         assert yt.exists(TEST_DIR + "/some_node")
 
@@ -93,7 +93,7 @@ class TestCypressCommands(object):
         else:
             assert yt.get(TEST_DIR + "/some_node/@attribut_na_russkom") == u"Привет".encode("utf-8")
 
-        yt.set(TEST_DIR, b'{"other_node": {}}', format="json")
+        yt.set(TEST_DIR, b'{"other_node": {}}', format="json", force=True)
         assert yt.get(TEST_DIR) == {"other_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"other_node": {}}
 
@@ -105,7 +105,7 @@ class TestCypressCommands(object):
             yt.remove(TEST_DIR + "/some_node", recursive=recursive, force=True)
 
         for force in [False, True]:
-            yt.set(TEST_DIR + "/some_node", {})
+            yt.set(TEST_DIR + "/some_node", {}, force=True)
             yt.remove(TEST_DIR + "/some_node",
                       recursive=True,
                       force=force)
@@ -608,7 +608,7 @@ class TestCypressCommands(object):
 
         yt.create("table", TEST_DIR + "/other_child")
         with pytest.raises(yt.YtError):
-            yt.set(TEST_DIR + "/child", {})
+            yt.set(TEST_DIR + "/child", {}, force=True)
 
         yt.commit_transaction(tx_id)
         yt.set(TEST_DIR + "/@my_attr", 30)
@@ -688,11 +688,11 @@ class TestCypressCommands(object):
 
     @authors("ignat")
     def test_commands_with_json_format(self):
-        yt.set(TEST_DIR + "/some_node", {})
+        yt.set(TEST_DIR + "/some_node", {}, force=True)
         assert json.loads(yt.get(TEST_DIR, format=yt.format.JsonFormat())) == {"some_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"some_node": {}}
 
-        yt.set(TEST_DIR, b'{"other_node": {}}', format="json")
+        yt.set(TEST_DIR, b'{"other_node": {}}', format="json", force=True)
         assert yt.get(TEST_DIR) == {"other_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"other_node": {}}
 
@@ -716,7 +716,7 @@ class TestCypressCommands(object):
         value_bytes = {b"\xee": yson.to_yson_type(b"\xff", attributes={b"encoding": b"custom"})}
 
         # Map Node case.
-        yt.set(TEST_DIR + "/some_node", value)
+        yt.set(TEST_DIR + "/some_node", value, force=True)
 
         search_result = [
             TEST_DIR,
@@ -768,12 +768,12 @@ class TestCypressCommands(object):
 
         # Map Node case.
         if PY3:
-            yt.set(TEST_DIR + "/some_node", value)
+            yt.set(TEST_DIR + "/some_node", value, force=True)
             assert yt.get(TEST_DIR + "/some_node") == value
         else:
-            yt.set(TEST_DIR + "/some_node", value)
+            yt.set(TEST_DIR + "/some_node", value, force=True)
             with set_config_option("structured_data_format", yt.YsonFormat(encoding="utf-8")):
-                yt.set(TEST_DIR + "/some_node", value)
+                yt.set(TEST_DIR + "/some_node", value, force=True)
             assert yt.get(TEST_DIR + "/some_node") == value_bytes
 
         # JSON applies encode_utf8 decoding on the server side.

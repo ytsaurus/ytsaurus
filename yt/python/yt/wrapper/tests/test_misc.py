@@ -261,8 +261,8 @@ class TestMutations(object):
         test_dir3 = ypath_join(TEST_DIR, "test3")
 
         self.check_command(
-            lambda: yt.set(test_dir, {"a": "b"}),
-            lambda: yt.set(test_dir, {}),
+            lambda: yt.set(test_dir, {"a": "b"}, force=True),
+            lambda: yt.set(test_dir, {}, force=True),
             lambda: yt.get(test_dir) == {})
 
         self.check_command(
@@ -537,7 +537,7 @@ class TestRetries(object):
                 yt.exists("/")
                 yt.exists(TEST_DIR)
                 yt.exists(TEST_DIR + "/some_node")
-                yt.set(TEST_DIR + "/some_node", {})
+                yt.set(TEST_DIR + "/some_node", {}, force=True)
                 yt.exists(TEST_DIR + "/some_node")
                 yt.list(TEST_DIR)
         finally:
