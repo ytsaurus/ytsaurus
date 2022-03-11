@@ -2192,10 +2192,8 @@ void PrepareQuery(
     TBuilderCtx& builder)
 {
     if (ast.WherePredicate) {
-        query->WhereClause = BuildPredicate(
-            *ast.WherePredicate,
-            builder,
-            "WHERE-clause");
+        auto wherePredicate = BuildPredicate(*ast.WherePredicate, builder, "WHERE-clause");
+        query->WhereClause = IsTrue(wherePredicate) ? nullptr : wherePredicate;
     }
 
     if (ast.GroupExprs) {

@@ -2,6 +2,7 @@
 #include "private.h"
 #include "helpers.h"
 #include "query.h"
+#include "query_helpers.h"
 #include "range_inferrer.h"
 
 #include <yt/yt/client/table_client/schema.h>
@@ -87,9 +88,8 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
         subquery->Id = TGuid::Create();
 
         if (query->WhereClause) {
-            subquery->WhereClause = refiner(
-                query->WhereClause,
-                subquery->GetKeyColumns());
+            auto refinedWhere = refiner(query->WhereClause, subquery->GetKeyColumns());
+            subquery->WhereClause = IsTrue(refinedWhere) ? nullptr : refinedWhere;
         }
 
         subqueries.push_back(subquery);

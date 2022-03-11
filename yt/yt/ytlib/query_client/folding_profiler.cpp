@@ -1361,7 +1361,7 @@ void TQueryProfiler::Profile(
         TSchemaProfiler::Profile(schema);
     }
 
-    if (whereClause && !IsTrue(whereClause)) {
+    if (whereClause) {
         Fold(static_cast<int>(EFoldingObjectType::FilterOp));
         TExpressionFragments filterExprFragments;
         size_t predicateId = TExpressionProfiler::Profile(whereClause, schema, &filterExprFragments);

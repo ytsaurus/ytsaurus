@@ -32,24 +32,17 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCachedCGQuery
-    : public TAsyncCacheValueBase<
-        llvm::FoldingSetNodeID,
-        TCachedCGQuery>
+struct TCachedCGQuery
+    : public TAsyncCacheValueBase<llvm::FoldingSetNodeID, TCachedCGQuery>
 {
-public:
-    TCachedCGQuery(const llvm::FoldingSetNodeID& id, TCGQueryCallback&& function)
+    const TString Fingerprint;
+    const TCGQueryCallback Function;
+
+    TCachedCGQuery(const llvm::FoldingSetNodeID& id, TString fingerprint, TCGQueryCallback function)
         : TAsyncCacheValueBase(id)
-        , Function_(std::move(function))
+        , Fingerprint(std::move(fingerprint))
+        , Function(std::move(function))
     { }
-
-    TCGQueryCallback GetQueryCallback()
-    {
-        return Function_;
-    }
-
-private:
-    TCGQueryCallback Function_;
 };
 
 typedef TIntrusivePtr<TCachedCGQuery> TCachedCGQueryPtr;
@@ -180,12 +173,13 @@ private:
 
         auto Logger = MakeQueryLogger(query);
 
+        auto queryFingerprint = InferName(query, true, true);
         auto compileWithLogging = [&] () {
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
 
             YT_LOG_DEBUG("Started compiling fragment");
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics.CodegenTime);
-            auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
+            auto cgQuery = New<TCachedCGQuery>(id, queryFingerprint, makeCodegenQuery());
             YT_LOG_DEBUG("Finished compiling fragment");
             return cgQuery;
         };
@@ -205,13 +199,20 @@ private:
 
             cgQuery = WaitFor(cookie.GetValue())
                 .ValueOrThrow();
+
+            if (cgQuery->Fingerprint != queryFingerprint) {
+                YT_LOG_FATAL("Code cache failure (ExpectedFingerprint: %v, ActualFingerprint: %v, Query: %v)",
+                    queryFingerprint,
+                    cgQuery->Fingerprint,
+                    InferName(query));
+            }
         } else {
             YT_LOG_DEBUG("Codegen cache disabled");
 
             cgQuery = compileWithLogging();
         }
 
-        return cgQuery->GetQueryCallback();
+        return cgQuery->Function;
     }
 };
 
