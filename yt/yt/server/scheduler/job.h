@@ -42,7 +42,7 @@ class TJob
     DEFINE_BYVAL_RW_PROPERTY(TControllerEpoch, ControllerEpoch);
 
     //! Exec node where the job is running.
-    DEFINE_BYVAL_RW_PROPERTY(TExecNodePtr, Node);
+    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
 
     //! Node id obtained from corresponding joblet during the revival process.
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, RevivalNodeId, NNodeTrackerClient::InvalidNodeId);
@@ -113,6 +113,9 @@ class TJob
 
     //! Job execution duration as reported by the node.
     DEFINE_BYVAL_RW_PROPERTY(TDuration, ExecDuration);
+    
+    //! Logger for this job.
+    DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
 public:
     TJob(
@@ -138,6 +141,11 @@ public:
 
     //! Returns true if the job was revived.
     bool IsRevived() const;
+
+    void SetNode(const TExecNodePtr& node);
+
+private:
+    NLogging::TLogger CreateLogger();
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

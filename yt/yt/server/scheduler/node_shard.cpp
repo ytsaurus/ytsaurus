@@ -2007,19 +2007,6 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
     }
 }
 
-NLogging::TLogger TNodeShard::CreateJobLogger(
-    TJobId jobId,
-    TOperationId operationId,
-    EJobState state,
-    const TString& address)
-{
-    return Logger.WithTag("Address: %v, JobId: %v, OperationId: %v, State: %v",
-        address,
-        jobId,
-        operationId,
-        state);
-}
-
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
@@ -2031,11 +2018,16 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     auto state = EJobState(jobStatus->state());
     const auto& address = node->GetDefaultAddress();
 
-    auto Logger = CreateJobLogger(jobId, operationId, state, address);
 
     auto job = FindJob(jobId, node);
-    auto operation = FindOperationState(operationId);
     if (!job) {
+        auto operation = FindOperationState(operationId);
+        auto Logger = SchedulerLogger.WithTag("Address: %v, JobId: %v, OperationId: %v, State: %v",
+            address,
+            jobId,
+            operationId,
+            state);
+
         // We can decide what to do with the job of an operation only when all
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
@@ -2092,31 +2084,29 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
     auto codicilGuard = MakeOperationCodicilGuard(job->GetOperationId());
 
-    Logger.AddTag("Type: %v",
-        job->GetType());
+    auto Logger = job->Logger();
 
     // Check if the job is running on a proper node.
     if (node->GetId() != job->GetNode()->GetId()) {
-        const auto& expectedAddress = job->GetNode()->GetDefaultAddress();
         // Job has moved from one node to another. No idea how this could happen.
         if (state == EJobState::Aborting) {
             // Do nothing, job is already terminating.
         } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
             ToProto(response->add_jobs_to_remove(), {jobId});
-            YT_LOG_WARNING("Job status report was expected from %v, removal scheduled",
-                expectedAddress);
+            YT_LOG_WARNING("Job status report was expected from unexpected node %v, removal scheduled (State: %v)",
+                node->GetDefaultAddress(),
+                state);
         } else {
             AddJobToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
-            YT_LOG_WARNING("Job status report was expected from %v, abort scheduled",
-                expectedAddress);
+            YT_LOG_WARNING("Job status report was expected from unexpected node %v, abort scheduled (State: %v)",
+                node->GetDefaultAddress(),
+                state);
         }
         return nullptr;
     }
 
     if (job->GetWaitingForConfirmation()) {
-        YT_LOG_DEBUG("Job confirmed (JobId: %v, State: %v)",
-            jobId,
-            state);
+        YT_LOG_DEBUG("Job confirmed (State: %v)", state);
         ResetJobWaitingForConfirmation(job);
     }
 
