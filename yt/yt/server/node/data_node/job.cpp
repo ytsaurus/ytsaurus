@@ -1435,10 +1435,11 @@ private:
             int currentBlockCount = 0;
             auto inputChunkBlockCount = chunkInfo.BlockCount;
             while (currentBlockCount < inputChunkBlockCount) {
+                std::vector<int> blockIndices(inputChunkBlockCount - currentBlockCount);
+                std::iota(blockIndices.begin(), blockIndices.end(), currentBlockCount);
                 auto asyncResult = chunkInfo.Reader->ReadBlocks(
                     chunkInfo.Options,
-                    currentBlockCount,
-                    inputChunkBlockCount - currentBlockCount);
+                    blockIndices);
 
                 auto readResult = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(readResult, "Error reading blocks");

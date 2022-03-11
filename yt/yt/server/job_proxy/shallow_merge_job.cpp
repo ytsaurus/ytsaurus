@@ -407,10 +407,11 @@ private:
             std::vector<TBlock> blocks;
             try {
                 TCurrentTraceContextGuard inputGuard(InputTraceContexts_[chunkState.InputSpecIndex]);
+                std::vector<int> blockIndices(CalculateBlockCountToRead(chunkState, blockSizes, currentBlockCount));
+                std::iota(blockIndices.begin(), blockIndices.end(), currentBlockCount);
                 auto asyncBlocks = chunkState.Reader->ReadBlocks(
                     ChunkReadOptions_,
-                    currentBlockCount,
-                    CalculateBlockCountToRead(chunkState, blockSizes, currentBlockCount));
+                    blockIndices);
                 blocks = WaitFor(asyncBlocks)
                     .ValueOrThrow();
             } catch (const std::exception& ex) {

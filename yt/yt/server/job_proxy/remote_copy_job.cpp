@@ -867,10 +867,11 @@ private:
                 endBlockIndex += 1;
             }
 
+            std::vector<int> blockIndices(endBlockIndex - beginBlockIndex);
+            std::iota(blockIndices.begin(), blockIndices.end(), beginBlockIndex);
             auto asyncResult = reader->ReadBlocks(
                 ChunkReadOptions_,
-                beginBlockIndex,
-                endBlockIndex - beginBlockIndex);
+                blockIndices);
 
             auto result = WaitFor(asyncResult);
 
