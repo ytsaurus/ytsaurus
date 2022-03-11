@@ -521,12 +521,12 @@ std::vector<TBlockFetcher::TBlockInfo> BuildBlockInfos(
                 const auto& blockMeta = blockMetas->data_blocks(*blockIt);
                 perGroupBlockRowLimits[groupId] = blockMeta.chunk_row_count();
 
-                TBlockFetcher::TBlockInfo blockInfo;
-                blockInfo.Index = *blockIt;
-                blockInfo.Priority = blockMeta.chunk_row_count() - blockMeta.row_count();
-                blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-
-                blockInfos.push_back(blockInfo);
+                blockInfos.push_back({
+                    .ReaderIndex = 0,
+                    .BlockIndex = static_cast<int>(*blockIt),
+                    .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count()),
+                    .UncompressedDataSize = blockMeta.uncompressed_size()
+                });
             }
         }
     }
@@ -598,7 +598,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             config,
             std::move(blockInfos),
             memoryManager,
-            underlyingReader,
+            std::vector{underlyingReader},
             blockCache,
             CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
             static_cast<double>(chunkMeta->Misc().compressed_data_size()) / chunkMeta->Misc().uncompressed_data_size(),

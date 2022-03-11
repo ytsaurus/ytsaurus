@@ -34,16 +34,18 @@ class TBlockFetcher
 public:
     struct TBlockInfo
     {
-        i64 UncompressedDataSize = 0;
-        int Index = -1;
+        int ReaderIndex = -1;
+        int BlockIndex = -1;
         int Priority = 0;
+
+        i64 UncompressedDataSize = 0;
     };
 
     TBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IChunkReaderPtr chunkReader,
+        std::vector<IChunkReaderPtr> chunkReaders,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         double compressionRatio,
@@ -55,6 +57,7 @@ public:
     bool HasMoreBlocks() const;
 
     //! Returns uncompressed size of block with given index.
+    i64 GetBlockSize(int readerIndex, int blockIndex) const;
     i64 GetBlockSize(int blockIndex) const;
 
     //! Asynchronously fetches the block with given index.
@@ -62,6 +65,7 @@ public:
      *  It is not allowed to fetch the block more times than it has been requested.
      *  If an error occurs during fetching then the whole session is failed.
      */
+    TFuture<TBlock> FetchBlock(int readerIndex, int blockIndex);
     TFuture<TBlock> FetchBlock(int blockIndex);
 
     //! Returns true if all blocks are fetched and false otherwise.
@@ -79,7 +83,7 @@ public:
 private:
     const TBlockFetcherConfigPtr Config_;
     std::vector<TBlockInfo> BlockInfos_;
-    const IChunkReaderPtr ChunkReader_;
+    const std::vector<IChunkReaderPtr> ChunkReaders_;
     const IBlockCachePtr BlockCache_;
     const IInvokerPtr CompressionInvoker_;
     const IInvokerPtr ReaderInvoker_;
@@ -93,7 +97,8 @@ private:
     std::atomic<i64> CompressedDataSize_ = 0;
     std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = 0;
 
-    THashMap<int, int> BlockIndexToWindowIndex_;
+    //! (ReaderIndex, BlockIndex) -> WindowIndex.
+    THashMap<std::pair<int, int>, int> BlockDescriptorToWindowIndex_;
 
     TFuture<TMemoryUsageGuardPtr> FetchNextGroupMemoryFuture_;
 
@@ -117,17 +122,25 @@ private:
     int FirstUnfetchedWindowIndex_ = 0;
     bool FetchingCompleted_ = false;
 
+    struct TBlockDescriptor
+    {
+        int ReaderIndex;
+        int BlockIndex;
+
+        bool operator==(const TBlockDescriptor&) const = default;
+    };
 
     void FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError);
 
     void RequestBlocks(
         std::vector<int> windowIndexes,
-        std::vector<int> blockIndexes,
+        std::vector<TBlockDescriptor> blockDescriptor,
         i64 uncompressedSize);
 
     void OnGotBlocks(
+        int readerIndex,
         std::vector<int> windowIndexes,
-        std::vector<int> blockIndexes,
+        std::vector<int> blockIndices,
         TErrorOr<std::vector<TBlock>>&& blocksOrError);
 
     void DecompressBlocks(
@@ -157,7 +170,7 @@ public:
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
         TChunkReaderMemoryManagerPtr memoryManager,
-        IChunkReaderPtr chunkReader,
+        std::vector<IChunkReaderPtr> chunkReaders,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         double compressionRatio,
