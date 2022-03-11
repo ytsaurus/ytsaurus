@@ -69,7 +69,7 @@ class TestCypressLocks(YTEnvSetup):
         assert list(rsp.keys()) == ["lock_id", "node_id", "revision"]
         assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
 
-        set("//tmp/node", {}, driver=driver)
+        set("//tmp/node", {}, driver=driver, force=True)
         assert rsp["node_id"] == get("//tmp/node/@id", tx=tx, driver=driver)
         assert rsp["revision"] == get("//tmp/node/@revision", tx=tx, driver=driver)
 

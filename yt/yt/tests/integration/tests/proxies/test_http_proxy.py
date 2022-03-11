@@ -678,7 +678,7 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
             )
 
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
-        set("//tmp/list_node", content)
+        set("//tmp/list_node", content, force=True)
 
         rsp = self._execute_command(
             "GET",

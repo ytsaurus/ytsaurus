@@ -953,8 +953,8 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko")
     def test_remove_self_requires_permission(self):
         create_user("u")
-        set("//tmp/x", {})
-        set("//tmp/x/y", {})
+        set("//tmp/x", {}, force=True)
+        set("//tmp/x/y", {}, force=True)
 
         set("//tmp/x/@inherit_acl", False)
         with pytest.raises(YtError):
@@ -982,8 +982,8 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko")
     def test_remove_recursive_requires_permission(self):
         create_user("u")
-        set("//tmp/x", {})
-        set("//tmp/x/y", {})
+        set("//tmp/x", {}, force=True)
+        set("//tmp/x/y", {}, force=True)
 
         set("//tmp/x/@inherit_acl", False)
         with pytest.raises(YtError):
@@ -998,25 +998,25 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko")
     def test_set_self_requires_remove_permission(self):
         create_user("u")
-        set("//tmp/x", {})
-        set("//tmp/x/y", {})
+        set("//tmp/x", {}, force=True)
+        set("//tmp/x/y", {}, force=True)
 
         set("//tmp/x/@inherit_acl", False)
         with pytest.raises(YtError):
-            set("//tmp/x", {}, authenticated_user="u")
+            set("//tmp/x", {}, authenticated_user="u", force=True)
         with pytest.raises(YtError):
-            set("//tmp/x/y", {}, authenticated_user="u")
+            set("//tmp/x/y", {}, authenticated_user="u", force=True)
 
         set("//tmp/x/@acl", [make_ace("allow", "u", "write")])
         set("//tmp/x/y/@acl", [make_ace("deny", "u", "remove")])
-        set("//tmp/x/y", {}, authenticated_user="u")
+        set("//tmp/x/y", {}, authenticated_user="u", force=True)
         with pytest.raises(YtError):
-            set("//tmp/x", {}, authenticated_user="u")
+            set("//tmp/x", {}, authenticated_user="u", force=True)
 
         set("//tmp/x/@acl", [make_ace("allow", "u", "write")])
         set("//tmp/x/y/@acl", [make_ace("allow", "u", "remove")])
-        set("//tmp/x/y", {}, authenticated_user="u")
-        set("//tmp/x", {}, authenticated_user="u")
+        set("//tmp/x/y", {}, authenticated_user="u", force=True)
+        set("//tmp/x", {}, authenticated_user="u", force=True)
 
     @authors("babenko")
     def test_guest_can_remove_users_groups(self):
