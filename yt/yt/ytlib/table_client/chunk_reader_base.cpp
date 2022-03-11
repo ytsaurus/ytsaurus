@@ -81,7 +81,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
         Config_,
         std::move(blockSequence),
         MemoryManager_,
-        UnderlyingReader_,
+        std::vector{UnderlyingReader_},
         BlockCache_,
         CheckedEnumCast<ECodec>(miscExt.compression_codec()),
         static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),

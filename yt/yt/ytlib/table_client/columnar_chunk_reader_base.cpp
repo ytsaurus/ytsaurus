@@ -170,9 +170,10 @@ TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockInd
     YT_VERIFY(ChunkMeta_);
     const auto& blockMeta = ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
     return {
+        .ReaderIndex = 0,
+        .BlockIndex = blockIndex,
+        .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count()),
         .UncompressedDataSize = blockMeta.uncompressed_size(),
-        .Index = blockIndex,
-        .Priority = static_cast<int>(blockMeta.chunk_row_count() - blockMeta.row_count())
     };
 }
 
@@ -438,7 +439,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             Config_,
             std::move(blockInfos),
             MemoryManager_,
-            UnderlyingReader_,
+            std::vector{UnderlyingReader_},
             BlockCache_,
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
             static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
@@ -590,7 +591,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
         Config_,
         std::move(blockInfos),
         MemoryManager_,
-        UnderlyingReader_,
+        std::vector{UnderlyingReader_},
         BlockCache_,
         CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
         static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),

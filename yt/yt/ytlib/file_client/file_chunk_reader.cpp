@@ -261,9 +261,10 @@ private:
             } else if (selectedSize < EndOffset_) {
                 selectedSize += size;
                 blockSequence.push_back({
+                    .ReaderIndex = 0,
+                    .BlockIndex = index,
+                    .Priority = index,
                     .UncompressedDataSize = size,
-                    .Index = index,
-                    .Priority = index
                 });
                 return true;
             }
@@ -299,7 +300,7 @@ private:
             Config_,
             std::move(blockSequence),
             MemoryManager_,
-            ChunkReader_,
+            std::vector{ChunkReader_},
             BlockCache_,
             CodecId_,
             static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),

@@ -975,9 +975,10 @@ private:
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
                 blocks.push_back({
+                    .ReaderIndex = 0,
+                    .BlockIndex = index,
+                    .Priority = index,
                     .UncompressedDataSize = blocksExt.blocks(index).size(),
-                    .Index = index,
-                    .Priority = index
                 });
             }
 
@@ -994,7 +995,7 @@ private:
                 artifactCacheReaderConfig,
                 std::move(blocks),
                 memoryManager,
-                chunkReader,
+                std::vector<IChunkReaderPtr>({chunkReader}),
                 GetNullBlockCache(),
                 NCompression::ECodec::None,
                 1.0, /* compressionRatio */

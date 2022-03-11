@@ -363,9 +363,10 @@ private:
                 auto& blockMeta = blockMetaExt->data_blocks(blockIndex);
                 int priority = blocks.size();
                 blocks.push_back({
+                    .ReaderIndex = 0,
+                    .BlockIndex = blockIndex,
+                    .Priority = priority,
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
-                    .Index = blockIndex,
-                    .Priority = priority
                 });
             }
 
@@ -606,9 +607,10 @@ private:
                 auto& blockMeta = blockMetaExt->data_blocks(blockIndex);
                 int priority = blocks.size();
                 blocks.push_back({
+                    .ReaderIndex = 0,
+                    .BlockIndex = blockIndex,
+                    .Priority = priority,
                     .UncompressedDataSize = blockMeta.uncompressed_size(),
-                    .Index = blockIndex,
-                    .Priority = priority
                 });
 
                 ++blocksIt;

@@ -489,9 +489,10 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
         const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
         int priority = blocks.size();
         blocks.push_back({
+            .ReaderIndex = 0,
+            .BlockIndex = blockMeta.block_index(),
+            .Priority = priority,
             .UncompressedDataSize = blockMeta.uncompressed_size(),
-            .Index = blockMeta.block_index(),
-            .Priority = priority
         });
     }
 
