@@ -1126,24 +1126,17 @@ void TFollowerCommitter::OnMutationsLogged(
     LoggingMutations_ = false;
 }
 
-void TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
+TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (committedSequenceNumber <= SelfCommittedSequenceNumber_) {
-        return;
+        return {};
     }
+    auto oldSelfCommittedSequenceNumber = std::exchange(SelfCommittedSequenceNumber_, committedSequenceNumber);
 
-    YT_LOG_DEBUG("Committing mutations at follower (ReceivedCommittedSequenceNumber: %v, SelfCommittedSequenceNumber: %v)",
-        committedSequenceNumber,
-        SelfCommittedSequenceNumber_);
-
-    SelfCommittedSequenceNumber_ = committedSequenceNumber;
-
-    auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-    YT_VERIFY(SelfCommittedSequenceNumber_ >= automatonSequenceNumber);
-    if (SelfCommittedSequenceNumber_ == automatonSequenceNumber) {
-        return;
+    if (LoggedMutations_.empty()) {
+        return {};
     }
 
     std::vector<TPendingMutationPtr> mutations;
@@ -1155,14 +1148,23 @@ void TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
 
         YT_VERIFY(!mutation->LocalCommitPromise);
         mutations.push_back(std::move(mutation));
+
         LoggedMutations_.pop();
     }
 
-    auto mutationCount = std::ssize(mutations);
-    ScheduleApplyMutations(std::move(mutations));
+    TCommitMutationsResult result{
+        .FirstSequenceNumber = mutations.front()->SequenceNumber,
+        .LastSequenceNumber = mutations.back()->SequenceNumber
+    };
 
-    YT_LOG_DEBUG("Mutations committed at follower (MutationCount: %v)",
-        mutationCount);
+    YT_LOG_DEBUG("Committing mutations at follower (SelfCommittedSequenceNumber: %v -> %v, ScheduledSequenceNumbers: %v-%v)",
+        oldSelfCommittedSequenceNumber,
+        SelfCommittedSequenceNumber_,
+        result.FirstSequenceNumber,
+        result.LastSequenceNumber);
+
+    return ScheduleApplyMutations(std::move(mutations))
+        .Apply(BIND([=] { return result; }));
 }
 
 void TFollowerCommitter::Stop()

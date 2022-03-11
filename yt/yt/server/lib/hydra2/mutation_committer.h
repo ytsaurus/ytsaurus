@@ -218,8 +218,16 @@ public:
     void AcceptMutations(
         i64 startSequenceNumber,
         const std::vector<TSharedRef>& recordsData);
+
     void LogMutations();
-    void CommitMutations(i64 committedSequenceNumber);
+
+    struct TCommitMutationsResult
+    {
+        i64 FirstSequenceNumber;
+        i64 LastSequenceNumber;
+    };
+
+    TFuture<TCommitMutationsResult> CommitMutations(i64 committedSequenceNumber);
 
     //! Forwards a given mutation to the leader via RPC.
     TFuture<NHydra::TMutationResponse> Forward(NHydra::TMutationRequest&& request);
