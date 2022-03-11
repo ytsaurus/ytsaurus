@@ -23,7 +23,7 @@
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
+#include <yt/yt/ytlib/chunk_client/new_chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -151,7 +151,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     auto nodeStatusDirectory = CreateTrivialNodeStatusDirectory();
     auto chunkFragmentReaderConfig = New<TChunkFragmentReaderConfig>();
     chunkFragmentReaderConfig->Postprocess();
-    auto chunkFragmentReader = CreateChunkFragmentReader(
+    auto chunkFragmentReader = CreateNewChunkFragmentReader(
         std::move(chunkFragmentReaderConfig),
         client,
         std::move(nodeStatusDirectory),

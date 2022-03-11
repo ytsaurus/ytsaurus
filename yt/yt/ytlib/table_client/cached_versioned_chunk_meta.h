@@ -26,6 +26,7 @@ class TCachedVersionedChunkMeta
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkMetasExt, HunkChunkMetasExt);
 
     explicit TCachedVersionedChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     static TCachedVersionedChunkMetaPtr Create(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);

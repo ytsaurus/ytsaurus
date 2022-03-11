@@ -242,6 +242,23 @@ message THunkChunkRefsExt
     repeated THunkChunkRef refs = 1;
 }
 
+// Bits of hunk chunk metas that are stored into meta of the chunk
+// referencing them. This extension is not stored at master however
+// try to keep it small.
+message THunkChunkMeta
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+
+    // NB: Block sizes equal zero for regular chunks. Also,
+    // block sizes may be equal zero for blocks without relevant hunks.
+    repeated int64 block_sizes = 2;
+}
+
+message THunkChunkMetasExt
+{
+    repeated THunkChunkMeta metas = 1;
+}
+
 message THunkChunkMiscExt
 {
     optional int64 hunk_count = 1;

@@ -26,6 +26,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::THeavyColumnStatisticsExt, 61)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TKeyColumnsExt, 14)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::THunkChunkRefsExt, 62)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::THunkChunkMiscExt, 63)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::THunkChunkMetasExt, 64)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,7 +22,9 @@ import builtins
 
 
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 7
+
+    NUM_NODES = 10
 
     NUM_SCHEDULERS = 1
 
@@ -36,6 +38,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             "enable_hunks": True
         }
     }
+
+    # Do not allow multiple erasure parts per node.
+    DELTA_MASTER_CONFIG = {}
 
     def _get_table_schema(self, schema, max_inline_hunk_size):
         schema[1]["max_inline_hunk_size"] = max_inline_hunk_size
@@ -52,7 +57,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                       "fragment_read_hedging_delay": 1
                                   },
                                   hunk_chunk_writer={
-                                      "desired_block_size": 50
+                                      "desired_block_size": 50,
                                   },
                                   min_hunk_compaction_total_hunk_length=1,
                                   max_hunk_compaction_garbage_ratio=0.5,
@@ -70,9 +75,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_flush_inline(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_flush_inline(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for)
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec)
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -97,9 +103,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_flush_to_hunk_chunk(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_flush_to_hunk_chunk(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for)
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec)
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -120,8 +127,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_id = hunk_chunk_ids[0]
 
         assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == [
-            {"chunk_id": hunk_chunk_ids[0], "hunk_count": 10, "total_hunk_length": 260}
+            {"chunk_id": hunk_chunk_ids[0], "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": hunk_erasure_codec}
         ]
+
         assert get("#{}/@ref_counter".format(hunk_chunk_id)) == 2
         assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
         assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
@@ -147,12 +155,14 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         wait(lambda: not exists("#{}".format(store_chunk_id)) and not exists("#{}".format(hunk_chunk_id)))
 
-    # TODO(babenko): this test will be rewritten once erasure hunks are fully supported
-    @authors("babenko")
-    def test_flush_to_erasure_hunk_chunk(self):
-        sync_create_cells(1)
-        HUNK_ERASURE_CODEC = "isa_reed_solomon_6_3"
-        self._create_table(hunk_erasure_codec=HUNK_ERASURE_CODEC)
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_lookup_hunk_chunk_with_repair(self, optimize_for):
+        self._separate_tablet_and_data_nodes()
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+
+        sync_create_cells(1)[0]
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec="isa_reed_solomon_6_3")
 
         sync_mount_table("//tmp/t")
         keys = [{"key": i} for i in range(10)]
@@ -161,41 +171,37 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
         sync_unmount_table("//tmp/t")
-
-        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
-        assert len(store_chunk_ids) == 1
-        store_chunk_id = store_chunk_ids[0]
-
-        assert get("#{}/@ref_counter".format(store_chunk_id)) == 1
+        sync_mount_table("//tmp/t")
 
         hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
 
-        assert get("#{}/@hunk_chunk_refs".format(store_chunk_id)) == [
-            {"chunk_id": hunk_chunk_ids[0], "hunk_count": 10, "total_hunk_length": 260}
-        ]
-        assert get("#{}/@ref_counter".format(hunk_chunk_id)) == 2
-        assert get("#{}/@data_weight".format(hunk_chunk_id)) == 260
-        assert get("#{}/@uncompressed_data_size".format(hunk_chunk_id)) == 340
-        assert get("#{}/@compressed_data_size".format(hunk_chunk_id)) == 340
-        assert get("#{}/@erasure_codec".format(hunk_chunk_id)) == HUNK_ERASURE_CODEC
+        def set_ban_for_parts(part_indicies, banned_flag):
+            chunk_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
 
-        assert get("//tmp/t/@chunk_format_statistics/hunk_default/chunk_count") == 1
+            nodes_to_ban = []
+            for part_index in part_indicies:
+                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+                nodes_to_ban += nodes
 
-        hunk_statistics = get("//tmp/t/@hunk_statistics")
-        assert hunk_statistics["hunk_chunk_count"] == 1
-        assert hunk_statistics["store_chunk_count"] == 1
-        assert hunk_statistics["hunk_count"] == 10
-        assert hunk_statistics["referenced_hunk_count"] == 10
-        assert hunk_statistics["total_hunk_length"] == 260
-        assert hunk_statistics["total_referenced_hunk_length"] == 260
+            set_banned_flag(banned_flag, nodes_to_ban)
+
+        set_ban_for_parts([0, 1, 4], True)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        set_ban_for_parts([0, 1, 4], False)
+
+        set_ban_for_parts([0, 1, 2, 4], True)
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t", keys)
+        set_ban_for_parts([0, 1, 2, 4], False)
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_compaction(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_compaction(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for)
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec)
         set("//tmp/t/@max_hunk_compaction_size", 1)
 
         sync_mount_table("//tmp/t")
@@ -236,10 +242,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             hunk_chunk_id1, hunk_chunk_id2 = hunk_chunk_id2, hunk_chunk_id1
 
         assert get("#{}/@hunk_chunk_refs".format(store_chunk_id1)) == [
-            {"chunk_id": hunk_chunk_id1, "hunk_count": 10, "total_hunk_length": 260}
+            {"chunk_id": hunk_chunk_id1, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": hunk_erasure_codec},
         ]
         assert get("#{}/@hunk_chunk_refs".format(store_chunk_id2)) == [
-            {"chunk_id": hunk_chunk_id2, "hunk_count": 10, "total_hunk_length": 270}
+            {"chunk_id": hunk_chunk_id2, "hunk_count": 10, "total_hunk_length": 270, "erasure_codec": hunk_erasure_codec},
         ]
 
         hunk_statistics = get("//tmp/t/@hunk_statistics")
@@ -265,8 +271,8 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         compacted_store_id = compacted_store_chunk_ids[0]
 
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(compacted_store_id)), [
-            {"chunk_id": hunk_chunk_id1, "hunk_count": 10, "total_hunk_length": 260},
-            {"chunk_id": hunk_chunk_id2, "hunk_count": 10, "total_hunk_length": 270},
+            {"chunk_id": hunk_chunk_id1, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": hunk_erasure_codec},
+            {"chunk_id": hunk_chunk_id2, "hunk_count": 10, "total_hunk_length": 270, "erasure_codec": hunk_erasure_codec},
         ])
 
         hunk_statistics = get("//tmp/t/@hunk_statistics")
@@ -417,9 +423,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_compaction_writes_hunk_chunk(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_compaction_writes_hunk_chunk(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=1000)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=1000, hunk_erasure_codec=hunk_erasure_codec)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
@@ -453,8 +460,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
+
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(compacted_store_id)), [
-            {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260},
+            {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": hunk_erasure_codec},
         ])
 
         hunk_statistics = get("//tmp/t/@hunk_statistics")
@@ -467,9 +475,12 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_compaction_inlines_hunks(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_compaction_inlines_hunks(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10)
+        self._create_table(optimize_for=optimize_for,
+                           max_inline_hunk_size=10,
+                           hunk_erasure_codec=hunk_erasure_codec)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
@@ -486,7 +497,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id = hunk_chunk_ids[0]
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
-            {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260},
+            {"chunk_id": hunk_chunk_id, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": hunk_erasure_codec},
         ])
 
         hunk_statistics = get("//tmp/t/@hunk_statistics")
@@ -517,9 +528,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_compaction_rewrites_hunk_chunk(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_compaction_rewrites_hunk_chunk(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=10, hunk_erasure_codec=hunk_erasure_codec)
 
         sync_mount_table("//tmp/t")
         rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
@@ -534,7 +546,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert len(hunk_chunk_ids) == 1
         hunk_chunk_id0 = hunk_chunk_ids[0]
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
-            {"chunk_id": hunk_chunk_id0, "hunk_count": 10, "total_hunk_length": 260},
+            {"chunk_id": hunk_chunk_id0, "hunk_count": 10, "total_hunk_length": 260, "erasure_codec": hunk_erasure_codec},
         ])
 
         hunk_statistics = get("//tmp/t/@hunk_statistics")
@@ -572,7 +584,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_id1 = hunk_chunk_ids[0]
         assert hunk_chunk_id0 == hunk_chunk_id1
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
-            {"chunk_id": hunk_chunk_id1, "hunk_count": 1, "total_hunk_length": 26},
+            {"chunk_id": hunk_chunk_id1, "hunk_count": 1, "total_hunk_length": 26, "erasure_codec": hunk_erasure_codec},
         ])
 
         chunk_ids_before_compaction2 = get("//tmp/t/@chunk_ids")
@@ -602,7 +614,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         hunk_chunk_id2 = hunk_chunk_ids[0]
         assert hunk_chunk_id1 != hunk_chunk_id2
         assert_items_equal(get("#{}/@hunk_chunk_refs".format(store_chunk_id)), [
-            {"chunk_id": hunk_chunk_id2, "hunk_count": 1, "total_hunk_length": 26},
+            {"chunk_id": hunk_chunk_id2, "hunk_count": 1, "total_hunk_length": 26, "erasure_codec": hunk_erasure_codec},
         ])
         assert get("#{}/@hunk_count".format(hunk_chunk_id2)) == 1
         assert get("#{}/@total_hunk_length".format(hunk_chunk_id2)) == 26
@@ -665,9 +677,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
-    def test_hunks_in_operation(self, optimize_for, hunk_type):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_hunks_in_operation(self, optimize_for, hunk_type, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for)
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec)
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":
@@ -694,14 +707,15 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("hunk_type", ["inline", "chunk"])
-    def test_hunks_in_operation_any_column(self, optimize_for, hunk_type):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_hunks_in_operation_any_column(self, optimize_for, hunk_type, hunk_erasure_codec):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "any", "max_inline_chunk_size": 10},
         ]
 
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for, schema=schema)
+        self._create_table(optimize_for=optimize_for, schema=schema, hunk_erasure_codec=hunk_erasure_codec)
         sync_mount_table("//tmp/t")
 
         if hunk_type == "inline":
@@ -727,9 +741,10 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_alter_to_hunks(self, optimize_for):
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_alter_to_hunks(self, optimize_for, hunk_erasure_codec):
         sync_create_cells(1)
-        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=None)
+        self._create_table(optimize_for=optimize_for, max_inline_hunk_size=None, hunk_erasure_codec=hunk_erasure_codec)
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
         insert_rows("//tmp/t", rows1)

@@ -195,10 +195,7 @@ void Serialize(const THunkChunkRef& ref, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("chunk_id").Value(ref.ChunkId)
-            .DoIf(ref.ErasureCodec != NErasure::ECodec::None, [&] (auto fluent) {
-                fluent
-                    .Item("erasure_codec").Value(ref.ErasureCodec);
-            })
+            .Item("erasure_codec").Value(ref.ErasureCodec)
             .Item("hunk_count").Value(ref.HunkCount)
             .Item("total_hunk_length").Value(ref.TotalHunkLength)
         .EndMap();
@@ -221,6 +218,20 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
 TString ToString(const THunkChunkRef& ref)
 {
     return ToStringViaBuilder(ref);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::THunkChunkMeta* protoMeta, const THunkChunkMeta& meta)
+{
+    ToProto(protoMeta->mutable_chunk_id(), meta.ChunkId);
+    ToProto(protoMeta->mutable_block_sizes(), meta.BlockSizes);
+}
+
+void FromProto(THunkChunkMeta* meta, const NProto::THunkChunkMeta& protoMeta)
+{
+    meta->ChunkId = FromProto<TChunkId>(protoMeta.chunk_id());
+    meta->BlockSizes = FromProto<std::vector<i64>>(protoMeta.block_sizes());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,6 +275,9 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));         // length
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));     // blockIndex
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset));    // blockOffset
+    if (IsErasureChunkId(value.ChunkId)) {
+        currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockSize));  // blockSize
+    }
     pool->Free(currentPtr, endPtr);
     return TRef(beginPtr, currentPtr);
 }
@@ -320,6 +334,7 @@ THunkValue ReadHunkValue(TRef input)
             ui64 length;
             ui32 blockIndex;
             ui64 blockOffset;
+            ui64 blockSize;
             currentPtr += ReadPod(currentPtr, &chunkId);
             if (IsErasureChunkId(chunkId)) {
                 currentPtr += ReadVarInt32(currentPtr, &erasureCodec);
@@ -327,6 +342,9 @@ THunkValue ReadHunkValue(TRef input)
             currentPtr += ReadVarUint64(currentPtr, &length);
             currentPtr += ReadVarUint32(currentPtr, &blockIndex);
             currentPtr += ReadVarUint64(currentPtr, &blockOffset);
+            if (IsErasureChunkId(chunkId)) {
+                currentPtr += ReadVarUint64(currentPtr, &blockSize);
+            }
             // TODO(babenko): better out-of-bounds check.
             if (currentPtr > input.End()) {
                 THROW_ERROR_EXCEPTION("Malformed global ref hunk value");
@@ -336,6 +354,7 @@ THunkValue ReadHunkValue(TRef input)
                 .ErasureCodec = static_cast<NErasure::ECodec>(erasureCodec),
                 .BlockIndex = static_cast<int>(blockIndex),
                 .BlockOffset = static_cast<i64>(blockOffset),
+                .BlockSize = static_cast<i64>(blockSize),
                 .Length = static_cast<i64>(length),
             };
         }
@@ -349,16 +368,27 @@ THunkValue ReadHunkValue(TRef input)
 void DoGlobalizeHunkValue(
     TChunkedMemoryPool* pool,
     const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    const NTableClient::NProto::THunkChunkMetasExt& hunkChunkMetasExt,
     TUnversionedValue* value)
 {
     auto hunkValue = ReadHunkValue(TRef(value->Data.String, value->Length));
     if (const auto* localRefHunkValue = std::get_if<TLocalRefHunkValue>(&hunkValue)) {
         const auto& hunkChunkRef = hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex);
+        auto chunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
+
+        i64 blockSize = 0;
+        if (IsErasureChunkId(chunkId)) {
+            const auto& hunkChunkMeta = hunkChunkMetasExt.metas(localRefHunkValue->ChunkIndex);
+            YT_VERIFY(FromProto<TChunkId>(hunkChunkMeta.chunk_id()) == chunkId);
+            blockSize = hunkChunkMeta.block_sizes(localRefHunkValue->BlockIndex);
+        }
+
         auto globalRefHunkValue = TGlobalRefHunkValue{
-            .ChunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id()),
+            .ChunkId = chunkId,
             .ErasureCodec = FromProto<NErasure::ECodec>(hunkChunkRef.erasure_codec()),
             .BlockIndex = localRefHunkValue->BlockIndex,
             .BlockOffset = localRefHunkValue->BlockOffset,
+            .BlockSize = blockSize,
             .Length = localRefHunkValue->Length,
         };
         auto globalRefPayload = WriteHunkValue(pool, globalRefHunkValue);
@@ -377,19 +407,24 @@ void GlobalizeHunkValues(
     }
 
     const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
+    const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
     for (int index = 0; index < row.GetValueCount(); ++index) {
         auto& value = row.BeginValues()[index];
         if (None(value.Flags & EValueFlags::Hunk)) {
             continue;
         }
 
-        DoGlobalizeHunkValue(pool, hunkChunkRefsExt, &value);
+        DoGlobalizeHunkValue(
+            pool,
+            hunkChunkRefsExt,
+            hunkChunkMetasExt,
+            &value);
     }
 }
 
 void GlobalizeHunkValuesAndSetHunkFlag(
     TChunkedMemoryPool* pool,
-    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     bool* columnHunkFlags,
     TMutableVersionedRow row)
 {
@@ -397,6 +432,8 @@ void GlobalizeHunkValuesAndSetHunkFlag(
         return;
     }
 
+    const auto& hunkChunkRefsExt = chunkMeta->HunkChunkRefsExt();
+    const auto& hunkChunkMetasExt = chunkMeta->HunkChunkMetasExt();
     for (int index = 0; index < row.GetValueCount(); ++index) {
         auto& value = row.BeginValues()[index];
 
@@ -406,7 +443,11 @@ void GlobalizeHunkValuesAndSetHunkFlag(
 
         value.Flags |= EValueFlags::Hunk;
 
-        DoGlobalizeHunkValue(pool, hunkChunkRefsExt, &value);
+        DoGlobalizeHunkValue(
+            pool,
+            hunkChunkRefsExt,
+            hunkChunkMetasExt,
+            &value);
     }
 }
 
@@ -875,6 +916,7 @@ public:
                 hunkChunkPayloadWriter = HunkChunkPayloadWriter_,
                 hunkChunkPayloadWriterChunkIndex = HunkChunkPayloadWriterChunkIndex_,
                 hunkChunkRefs = std::move(HunkChunkRefs_),
+                hunkChunkMetas = std::move(HunkChunkMetas_),
                 hunkCount = HunkCount_,
                 totalHunkLength = TotalHunkLength_
             ] (TDeferredChunkMeta* meta) mutable {
@@ -888,9 +930,20 @@ public:
                 if (hunkChunkPayloadWriterChunkIndex) {
                     hunkChunkRefs[*hunkChunkPayloadWriterChunkIndex] = THunkChunkRef{
                         .ChunkId = hunkChunkPayloadWriter->GetChunkId(),
+                        .ErasureCodec = hunkChunkPayloadWriter->GetErasureCodecId(),
                         .HunkCount = hunkCount,
                         .TotalHunkLength = totalHunkLength
                     };
+
+                    THunkChunkMeta meta{
+                        .ChunkId = hunkChunkPayloadWriter->GetChunkId()
+                    };
+                    if (IsErasureChunkId(meta.ChunkId)) {
+                        const auto& chunkMeta = hunkChunkPayloadWriter->GetMeta();
+                        auto erasurePlacementExt = GetProtoExtension<NChunkClient::NProto::TStripedErasurePlacementExt>(chunkMeta->extensions());
+                        meta.BlockSizes = FromProto<std::vector<i64>>(erasurePlacementExt.block_sizes());
+                    }
+                    hunkChunkMetas[*hunkChunkPayloadWriterChunkIndex] = std::move(meta);
                 }
 
                 YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v)",
@@ -900,6 +953,10 @@ public:
                 NTableClient::NProto::THunkChunkRefsExt hunkChunkRefsExt;
                 ToProto(hunkChunkRefsExt.mutable_refs(), hunkChunkRefs);
                 SetProtoExtension(meta->mutable_extensions(), hunkChunkRefsExt);
+
+                NTableClient::NProto::THunkChunkMetasExt hunkChunkMetasExt;
+                ToProto(hunkChunkMetasExt.mutable_metas(), hunkChunkMetas);
+                SetProtoExtension(meta->mutable_extensions(), hunkChunkMetasExt);
             });
 
         auto openFuture = HunkChunkPayloadWriterChunkIndex_ ? HunkChunkPayloadWriter_->GetOpenFuture() : VoidFuture;
@@ -969,6 +1026,7 @@ private:
     using TChunkIdToIndex = THashMap<TChunkId, int>;
     TChunkIdToIndex ChunkIdToIndex_;
     std::vector<THunkChunkRef> HunkChunkRefs_;
+    std::vector<THunkChunkMeta> HunkChunkMetas_;
 
     std::optional<int> HunkChunkPayloadWriterChunkIndex_;
 
@@ -984,6 +1042,9 @@ private:
             ref.ChunkId = globalRefHunkValue.ChunkId;
             ref.ErasureCodec = globalRefHunkValue.ErasureCodec;
             ChunkIdToIndex_.emplace_direct(context, globalRefHunkValue.ChunkId, chunkIndex);
+
+            auto& meta = HunkChunkMetas_.emplace_back();
+            meta.ChunkId = globalRefHunkValue.ChunkId;
         } else {
             chunkIndex = it->second;
         }
@@ -991,6 +1052,14 @@ private:
         auto& ref = HunkChunkRefs_[chunkIndex];
         ref.HunkCount += 1;
         ref.TotalHunkLength += globalRefHunkValue.Length;
+
+        auto& meta = HunkChunkMetas_[chunkIndex];
+        auto& blockSizes = meta.BlockSizes;
+        auto blockIndex = globalRefHunkValue.BlockIndex;
+        if (std::ssize(blockSizes) <= blockIndex) {
+            blockSizes.resize(blockIndex + 1);
+        }
+        blockSizes[blockIndex] = globalRefHunkValue.BlockSize;
 
         return chunkIndex;
     }
@@ -1000,6 +1069,7 @@ private:
         if (!HunkChunkPayloadWriterChunkIndex_) {
             HunkChunkPayloadWriterChunkIndex_ = std::ssize(HunkChunkRefs_);
             HunkChunkRefs_.emplace_back(); // to be filled on close
+            HunkChunkMetas_.emplace_back(); // to be filled on close
         }
         return *HunkChunkPayloadWriterChunkIndex_;
     }
@@ -1086,7 +1156,8 @@ TFuture<TSharedRange<TUnversionedValue*>> DecodeHunks(
                     .ErasureCodec = globalRefHunkValue.ErasureCodec,
                     .Length = static_cast<i64>(sizeof(THunkPayloadHeader)) + globalRefHunkValue.Length,
                     .BlockIndex = globalRefHunkValue.BlockIndex,
-                    .BlockOffset = globalRefHunkValue.BlockOffset
+                    .BlockOffset = globalRefHunkValue.BlockOffset,
+                    .BlockSize = globalRefHunkValue.BlockSize
                 });
                 requestedValues.push_back(value);
             });
@@ -1752,6 +1823,11 @@ public:
     TChunkId GetChunkId() const override
     {
         return Underlying_->GetChunkId();
+    }
+
+    NErasure::ECodec GetErasureCodecId() const override
+    {
+        return Underlying_->GetErasureCodecId();
     }
 
     const TDataStatistics& GetDataStatistics() const override
