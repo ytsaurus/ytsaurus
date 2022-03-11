@@ -27,6 +27,7 @@ struct IChunkFragmentReader
         i64 Length;
         int BlockIndex;
         i64 BlockOffset;
+        i64 BlockSize;
     };
 
     struct TReadFragmentsResponse

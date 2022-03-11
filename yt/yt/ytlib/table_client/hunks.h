@@ -42,6 +42,17 @@ TString ToString(const THunkChunkRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THunkChunkMeta
+{
+    NChunkClient::TChunkId ChunkId;
+    std::vector<i64> BlockSizes;
+};
+
+void ToProto(NProto::THunkChunkMeta* protoMeta, const THunkChunkMeta& meta);
+void FromProto(THunkChunkMeta* meta, const NProto::THunkChunkMeta& protoMeta);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Every hunk written to a hunk chunk is prepended with this header.
 //! Its size is not accounted in hunk ref length.
 struct THunkPayloadHeader
@@ -224,6 +235,7 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EHunkValueTag, ui8,
  *  * erasureCodec: NErasure::ECodec(varint32) if chunkId is erasure
  *  * blockIndex: varuint32
  *  * blockOffset: varuint64
+ *  * blockSize: varuint64 if chunkId is erasure
  *  * length: varuint64
  */
 
@@ -246,6 +258,7 @@ struct TGlobalRefHunkValue
     NErasure::ECodec ErasureCodec;
     int BlockIndex;
     i64 BlockOffset;
+    i64 BlockSize;
     i64 Length;
 };
 
@@ -273,7 +286,8 @@ constexpr auto MaxGlobalHunkRefSize =
     sizeof(NErasure::ECodec)       + // erasureCodec
     MaxVarUint64Size +               // length
     MaxVarUint32Size +               // blockIndex
-    MaxVarUint64Size;                // blockOffset
+    MaxVarUint64Size +               // blockOffset
+    MaxVarUint64Size;                // blockSize
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -293,7 +307,7 @@ void GlobalizeHunkValues(
 
 void GlobalizeHunkValuesAndSetHunkFlag(
     TChunkedMemoryPool* pool,
-    const NTableClient::NProto::THunkChunkRefsExt& hunkChunkRefsExt,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
     bool* columnHunkFlags,
     TMutableVersionedRow row);
 
@@ -387,6 +401,9 @@ struct IHunkChunkPayloadWriter
 
     //! Returns the chunk id. The chunk must be already open, see #GetOpenFuture.
     virtual NChunkClient::TChunkId GetChunkId() const = 0;
+
+    //! Returns the chunk erasure codec id.
+    virtual NErasure::ECodec GetErasureCodecId() const = 0;
 
     //! Returns the chunk data statistics.
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;

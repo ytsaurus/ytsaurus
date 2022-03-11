@@ -46,6 +46,9 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(const NChunkClient::NProto:
     if (auto optionalHunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkMeta.extensions())) {
         HunkChunkRefsExt_ = std::move(*optionalHunkChunkRefsExt);
     }
+    if (auto optionalHunkChunkMetasExt = FindProtoExtension<THunkChunkMetasExt>(chunkMeta.extensions())) {
+        HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
+    }
 }
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta)

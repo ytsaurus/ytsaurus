@@ -448,7 +448,7 @@ private:
             for (auto row : *rows) {
                 GlobalizeHunkValuesAndSetHunkFlag(
                     pool,
-                    ChunkMeta_->HunkChunkRefsExt(),
+                    ChunkMeta_,
                     ColumnHunkFlags_.get(),
                     row);
             }

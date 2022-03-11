@@ -1027,7 +1027,8 @@ private:
                 .FragmentIndex = index,
                 .Length = request.Length,
                 .BlockIndex = request.BlockIndex,
-                .BlockOffset = request.BlockOffset
+                .BlockOffset = request.BlockOffset,
+                .BlockSize = request.BlockSize
             });
         }
 
@@ -1251,8 +1252,8 @@ private:
 
             YT_LOG_DEBUG("Requesting chunk fragments (Address: %v, ChunkIds: %v)",
                 peerInfo->Address,
-                MakeFormattableView(plan->Items, [] (auto* builder, const auto& item) {
-                    builder->AppendFormat("%v", item.ChunkState->Controller->GetChunkId());
+                MakeFormattableView(req->subrequests(), [] (auto* builder, const auto& subrequest) {
+                    builder->AppendFormat("%v", FromProto<TChunkId>(subrequest.chunk_id()));
                 }));
 
             req->Invoke().Subscribe(
