@@ -274,6 +274,14 @@ private:
     {
         auto buildMemoryStatistics = BIND(&TSlotManager::BuildMemoryStatisticsYson, Unretained(this));
 
+        auto bundleByTable = [&] (const TString& tablePath) {
+            auto it = summary.TablePathToBundleName.find(tablePath);
+            YT_ASSERT(it != summary.TablePathToBundleName.end());
+            return it != summary.TablePathToBundleName.end()
+                ? it->second
+                : "";
+        };
+
         BuildYsonFluently(consumer)
         .BeginMap()
             .Item("total").DoMap(BIND(buildMemoryStatistics, summary.Total))
@@ -288,7 +296,10 @@ private:
                 summary.Tables,
                 [&] (auto fluent, const auto& tablePair) {
                     fluent
-                        .Item(tablePair.first).DoMap(BIND(buildMemoryStatistics, tablePair.second));
+                        .Item(tablePair.first).BeginMap()
+                            .Item("tablet_cell_bundle").Value(bundleByTable(tablePair.first))
+                            .Do(BIND(buildMemoryStatistics, tablePair.second))
+                        .EndMap();
                 })
         .EndMap();
     }
