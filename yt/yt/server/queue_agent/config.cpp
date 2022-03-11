@@ -16,6 +16,8 @@ void TCypressSynchronizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poll_period", &TThis::PollPeriod)
         .Default(TDuration::Seconds(2));
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

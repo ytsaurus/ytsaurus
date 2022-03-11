@@ -102,6 +102,10 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
+        if (!Config_->Enable) {
+            return;
+        }
+
         PollInstant_ = TInstant::Now();
         ++PollIndex_;
 
