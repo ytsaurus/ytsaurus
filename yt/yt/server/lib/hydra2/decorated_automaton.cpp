@@ -1030,13 +1030,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
         Options_.ResponseKeeper->EndRequest(mutationId, mutationContext->GetResponseData());
     }
 
-    ++SequenceNumber_;
+    auto sequenceNumber = ++SequenceNumber_;
 
     // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        SequenceNumber_ != mutationContext->GetSequenceNumber() && mutationContext->GetSequenceNumber() != 0,
+        sequenceNumber != mutationContext->GetSequenceNumber() && mutationContext->GetSequenceNumber() != 0,
         "Sequence numbers differ (AutomatonSequenceNumber: %v, MutationSequenceNumber: %v)",
-        SequenceNumber_.load(),
+        sequenceNumber,
         mutationContext->GetSequenceNumber());
 
     // COMPAT(aleksandra-zh)
@@ -1060,7 +1060,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     LastMutationTerm_ = term;
 
     if (Config_->EnableStateHashChecker) {
-        StateHashChecker_->Report(SequenceNumber_.load(), StateHash_);
+        StateHashChecker_->Report(sequenceNumber, StateHash_);
     }
 }
 

@@ -2385,6 +2385,7 @@ private:
         YT_VERIFY(!epochContext->LeaderSyncSequenceNumber);
         epochContext->LeaderSyncSequenceNumber = committedSequenceNumber;
         CommitMutationsAtFollower(committedSequenceNumber);
+        CheckForPendingLeaderSync();
     }
 
     void CheckForPendingLeaderSync()
@@ -2435,31 +2436,35 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto lastSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-
-        ControlEpochContext_->FollowerCommitter->CommitMutations(committedSequenceNumber);
-        CheckForPendingLeaderSync();
-
-        auto currentSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-
-        if (Config_->EnableStateHashChecker) {
-            ReportMutationStateHashesToLeader(lastSequenceNumber, currentSequenceNumber);
+        if (auto future = ControlEpochContext_->FollowerCommitter->CommitMutations(committedSequenceNumber)) {
+            future.Subscribe(BIND(&TDistributedHydraManager::OnMutationsCommittedAtFollower, MakeStrong(this))
+                .Via(ControlEpochContext_->EpochControlInvoker));
         }
     }
 
-    void ReportMutationStateHashesToLeader(i64 startSequenceNumber, i64 endSequenceNumber)
+    void OnMutationsCommittedAtFollower(const TErrorOr<TFollowerCommitter::TCommitMutationsResult>& resultOrError)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!resultOrError.IsOK()) {
+            return;
+        }
+        const auto& result = resultOrError.Value();
+
+        CheckForPendingLeaderSync();
+
+        if (Config_->EnableStateHashChecker) {
+            ReportMutationStateHashesToLeader(result);
+        }
+    }
+
+    void ReportMutationStateHashesToLeader(const TFollowerCommitter::TCommitMutationsResult& result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto rate = Config_->StateHashCheckerMutationVerificationSamplingRate;
-
-        // First sequence number divisible by rate greater than startSequenceNumber, since
-        // startSequenceNumber was already reported.
-        startSequenceNumber += rate;
-        startSequenceNumber -= startSequenceNumber % rate;
-
-        endSequenceNumber -= endSequenceNumber % rate;
-
+        auto startSequenceNumber = (result.FirstSequenceNumber + rate - 1) / rate * rate;
+        auto endSequenceNumber = result.LastSequenceNumber / rate * rate;
         if (startSequenceNumber > endSequenceNumber) {
             return;
         }

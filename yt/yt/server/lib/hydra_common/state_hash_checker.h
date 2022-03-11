@@ -21,7 +21,7 @@ public:
         NLogging::TLogger logger);
 
     void Report(i64 sequenceNumber, ui64 stateHash);
-    THashMap<i64, ui64> GetStateHashes(std::vector<i64> sequenceNumbers);
+    THashMap<i64, ui64> GetStateHashes(const std::vector<i64>& sequenceNumbers);
 
 private:
     const int Limit_;

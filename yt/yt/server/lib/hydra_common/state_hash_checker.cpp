@@ -36,7 +36,7 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
     }
 }
 
-THashMap<i64, ui64> TStateHashChecker::GetStateHashes(std::vector<i64> sequenceNumbers)
+THashMap<i64, ui64> TStateHashChecker::GetStateHashes(const std::vector<i64>& sequenceNumbers)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
