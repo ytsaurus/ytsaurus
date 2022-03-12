@@ -59,8 +59,8 @@ struct TCongestionDetectorConfig
     // Probe read request timeout.
     TDuration ProbeDeadline;
 
-    // Limiting inflight probes count to arbitrary large value.
-    i32 MaxInflightProbesCount;
+    // Limiting in-flight probes count to arbitrary large value.
+    i32 MaxInFlightProbeCount;
 
     // Failed probes percentages.
     i32 OverloadThreshold;

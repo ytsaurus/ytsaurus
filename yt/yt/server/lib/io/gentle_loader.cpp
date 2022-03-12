@@ -308,7 +308,7 @@ public:
             return ECongestedStatus::OK;
         }
 
-        if (std::ssize(Probes_) > Config_->MaxInflightProbesCount / 2) {
+        if (std::ssize(Probes_) > Config_->MaxInFlightProbeCount / 2) {
             return ECongestedStatus::HeavyOverload;
         }
 
@@ -359,14 +359,14 @@ private:
                 Probes_.pop_front();
             }
 
-            if (std::ssize(Probes_) < Config_->MaxInflightProbesCount) {
+            if (std::ssize(Probes_) < Config_->MaxInFlightProbeCount) {
                 Probes_.push_back(DoRandomRead(
                     IOEngine_,
                     RandomFileProvider_,
                     Config_->PacketSize,
                     UseDirectIO));
             } else {
-                YT_LOG_ERROR("Something went wrong: max probes request count reached");
+                YT_LOG_ERROR("Something went wrong: max probe request count reached");
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Congestion detector probes failed");
@@ -433,7 +433,7 @@ private:
         state.Status = std::max(
             InteractiveObserver_->GetCongestionStatus(),
             ProbesObserver_->GetCongestionStatus());
-            
+
         State_.store(state, std::memory_order_relaxed);
     }
 };
@@ -533,7 +533,7 @@ private:
         // State variable determines whether the slow start or congestion avoidance algorithm
         // is used to control data transmission
         i32 slowStartThreshold = Config_->MaxWindowSize;
-        
+
         TCongestedState lastState;
 
         ui64 requestsCounter = 0;
@@ -616,7 +616,7 @@ private:
         if (std::ssize(Results_) >= Config_->MaxInFlightCount) {
             auto _ = WaitFor(AnySet(Results_));
             Results_.erase(std::remove_if(
-                Results_.begin(), 
+                Results_.begin(),
                 Results_.end(),
                 [] (const TFuture<TDuration>& future) {
                     return future.IsSet();
