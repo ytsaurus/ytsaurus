@@ -452,37 +452,6 @@ public:
         return *CurrentEpochId;
     }
 
-    TFuture<TMutationResponse> EnqueueMutation(TMutationRequest&& request)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto keptResponse = DecoratedAutomaton_->TryBeginKeptRequest(request);
-        if (keptResponse) {
-            return keptResponse;
-        }
-
-        auto promise = NewPromise<TMutationResponse>();
-        auto future = promise.ToFuture();
-        if (!request.EpochId) {
-            request.EpochId = GetCurrentEpochId();
-        }
-
-        auto randomSeed = RandomNumber<ui64>();
-        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %llx, MutationType: %v, MutationId: %v, EpochId: %v)",
-            randomSeed,
-            request.Type,
-            request.MutationId,
-            request.EpochId);
-
-        MutationDraftQueue_->Enqueue({
-            .Request = request,
-            .Promise = std::move(promise),
-            .RandomSeed = randomSeed
-        });
-
-        return future;
-    }
-
     TFuture<TMutationResponse> Forward(TMutationRequest&& request)
     {
         // TODO(aleksandra-zh): Change affinity to any.
@@ -516,21 +485,26 @@ public:
         }));
     }
 
-    TFuture<TMutationResponse> CommitHeartbeatMutation()
+    TMutationRequest MakeHeartbeatMutationRequest()
     {
-        TMutationRequest mutationRequest{
+        return {
             .Reign = GetCurrentReign(),
             .Type = HeartbeatMutationType
         };
-        return CommitMutation(std::move(mutationRequest));
     }
 
     TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
         auto state = GetAutomatonState();
         switch (state) {
-            case EPeerState::Leading:
+            case EPeerState::Leading: {
+                if (!LeaderRecovered_) {
+                    return MakeFuture<TMutationResponse>(TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Leader has not recovered yet"));
+                }
                 return EnqueueMutation(std::move(request));
+            }
 
             case EPeerState::Following:
                 if (!request.AllowLeaderForwarding) {
@@ -1203,6 +1177,50 @@ private:
         context->Reply();
     }
 
+    TFuture<TMutationResponse> ForceCommitMutation(TMutationRequest&& request)
+    {
+        auto state = GetAutomatonState();
+        if (state != EPeerState::Leading) {
+            return MakeFuture<TMutationResponse>(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot commit mutation in %Qlv state",
+                state));
+        }
+
+        return EnqueueMutation(std::move(request));
+    }
+
+    TFuture<TMutationResponse> EnqueueMutation(TMutationRequest&& request)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto keptResponse = DecoratedAutomaton_->TryBeginKeptRequest(request);
+        if (keptResponse) {
+            return keptResponse;
+        }
+
+        auto promise = NewPromise<TMutationResponse>();
+        auto future = promise.ToFuture();
+        if (!request.EpochId) {
+            request.EpochId = GetCurrentEpochId();
+        }
+
+        auto randomSeed = RandomNumber<ui64>();
+        YT_LOG_DEBUG("Enqueue mutation (RandomSeed: %llx, MutationType: %v, MutationId: %v, EpochId: %v)",
+            randomSeed,
+            request.Type,
+            request.MutationId,
+            request.EpochId);
+
+        MutationDraftQueue_->Enqueue({
+            .Request = request,
+            .Promise = std::move(promise),
+            .RandomSeed = randomSeed
+        });
+
+        return future;
+    }
+
     // TODO(aleksandra-zh): epochId seems redundant.
     EPeerState PingFollower(TEpochId epochId, std::optional<int> term, TPeerIdSet alivePeerIds)
     {
@@ -1852,23 +1870,22 @@ private:
             ControlLeaderRecoveryComplete_.Fire();
 
             YT_LOG_INFO("Committing initial heartbeat mutation");
-            WaitFor(CommitHeartbeatMutation())
+            WaitFor(ForceCommitMutation(MakeHeartbeatMutationRequest()))
                 .ThrowOnError();
             YT_LOG_INFO("Initial heartbeat mutation committed");
 
             LeaderRecovered_ = true;
+            if (Options_.ResponseKeeper) {
+                Options_.ResponseKeeper->Start();
+            }
+
             epochContext->HeartbeatMutationCommitExecutor->Start();
 
+            YT_LOG_INFO("Leader recovery completed");
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderActiveAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run())
                 .ThrowOnError();
-
-            YT_LOG_INFO("Leader recovery completed");
-
-            if (Options_.ResponseKeeper) {
-                Options_.ResponseKeeper->Start();
-            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
@@ -2515,7 +2532,7 @@ private:
 
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
-        CommitHeartbeatMutation()
+        CommitMutation(MakeHeartbeatMutationRequest())
             .WithTimeout(Config_->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
