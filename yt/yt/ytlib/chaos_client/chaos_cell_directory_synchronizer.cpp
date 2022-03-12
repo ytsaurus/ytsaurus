@@ -135,9 +135,14 @@ private:
             YT_LOG_DEBUG("Started synchronizing chaos cells in cell directory");
 
             std::vector<TCellTag> cellTags;
-            cellTags.reserve(ObservedCells_.size());
             {
                 auto guard = Guard(SpinLock_);
+
+                if (ObservedCells_.empty()) {
+                    return;
+                }
+
+                cellTags.reserve(ObservedCells_.size());
                 for (auto [cellTag, cellId] : ObservedCells_) {
                     cellTags.push_back(cellTag);
                 }
