@@ -38,6 +38,17 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+i64 GetMutationDataSize(const TPendingMutationPtr& mutation)
+{
+    return sizeof(mutation) + mutation->RecordData.Size();
+}
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCommitterBase::TCommitterBase(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
@@ -277,6 +288,27 @@ void TLeaderCommitter::FlushMutations()
         }
 
         auto& followerState = PeerStates_[followerId];
+        if (followerState.Mode == EAcceptMutationsMode::Slow && followerState.InFlightRequestCount > 0) {
+            YT_LOG_DEBUG("Skipping sending mutations to follower since there are in-flight requests (FollowerId: %v, InFlightRequestCount: %v)",
+                followerId,
+                followerState.InFlightRequestCount);
+            continue;
+        }
+
+        if (followerState.Mode == EAcceptMutationsMode::Fast
+            && (followerState.InFlightRequestCount > Config_->MaxInFlightAcceptMutationsRequestCount
+            || followerState.InFlightMutationCount > Config_->MaxInFlightMutationCount
+            || followerState.InFlightMutationDataSize > Config_->MaxInFlightMutationDataSize))
+        {
+            YT_LOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated (FollowerId: %v,"
+                "InFlightRequestCount: %v, InFlightMutationCount: %v, InFlightMutationDataSize: %v)",
+                followerId,
+                followerState.InFlightRequestCount,
+                followerState.InFlightMutationCount,
+                followerState.InFlightMutationDataSize);
+            continue;
+        }
+
         if (!MutationQueue_.empty() && followerState.NextExpectedSequenceNumber < MutationQueue_.front()->SequenceNumber) {
             if (followerState.NextExpectedSequenceNumber == -1) {
                 // This is ok, it actually means that follower hasn't received initial ping (and hasn't recovered) yet,
@@ -297,7 +329,7 @@ void TLeaderCommitter::FlushMutations()
 
                 req->Invoke();
 
-                followerState = {-1, -1};
+                followerState = {};
                 continue;
             }
         }
@@ -338,17 +370,31 @@ void TLeaderCommitter::FlushMutations()
 
         BatchSummarySize_.Record(mutationCount);
 
+        i64 mutationDataSize = 0;
         if (mutationCount > 0) {
             auto startIndex = followerState.NextExpectedSequenceNumber - MutationQueue_.front()->SequenceNumber;
             for (int i = startIndex; i < startIndex + mutationCount; ++i) {
                 YT_VERIFY(i < std::ssize(MutationQueue_));
                 const auto& mutation = MutationQueue_[i];
+                mutationDataSize += GetMutationDataSize(mutation);
                 request->Attachments().push_back(mutation->RecordData);
             }
         }
 
+        if (followerState.Mode == EAcceptMutationsMode::Fast) {
+            followerState.NextExpectedSequenceNumber += mutationCount;
+        }
+
+        ++followerState.InFlightRequestCount;
+        followerState.InFlightMutationCount += mutationCount;
+        followerState.InFlightMutationDataSize += mutationDataSize;
+
         request->Invoke().Subscribe(
-            BIND(&TLeaderCommitter::OnMutationsAcceptedByFollower, MakeStrong(this), followerId)
+            BIND(&TLeaderCommitter::OnMutationsAcceptedByFollower,
+                MakeStrong(this),
+                followerId,
+                mutationCount,
+                mutationDataSize)
                 .Via(EpochContext_->EpochControlInvoker));
     }
 }
@@ -372,8 +418,19 @@ void TLeaderCommitter::OnSnapshotReply(int peerId)
 
 void TLeaderCommitter::OnMutationsAcceptedByFollower(
     int followerId,
+    int mutationCount,
+    i64 mutationDataSize,
     const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
 {
+    auto& peerState = PeerStates_[followerId];
+
+    --peerState.InFlightRequestCount;
+    YT_VERIFY(peerState.InFlightRequestCount >= 0);
+    peerState.InFlightMutationCount -= mutationCount;
+    YT_VERIFY(peerState.InFlightMutationCount >= 0);
+    peerState.InFlightMutationDataSize -= mutationDataSize;
+    YT_VERIFY(peerState.InFlightMutationDataSize >= 0);
+
     if (!rspOrError.IsOK()) {
         YT_LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
             followerId);
@@ -382,11 +439,14 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
             OnSnapshotReply(followerId);
         }
+        if (peerState.Mode == EAcceptMutationsMode::Fast) {
+            YT_LOG_DEBUG("Accept mutations mode is set to slow (FollowerId: %v)",
+                followerId);
+        }
+        peerState.Mode = EAcceptMutationsMode::Slow;
 
         return;
     }
-
-    auto& peerState = PeerStates_[followerId];
 
     const auto& rsp = rspOrError.Value();
 
@@ -412,14 +472,35 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
     // Take max here in case we receive out of order reply.
     peerState.LastLoggedSequenceNumber = std::max(loggedSequenceNumber, peerState.LastLoggedSequenceNumber);
 
+    auto mutationsAccepted = rsp->mutations_accepted();
     auto nextExpectedSequenceNumber = rsp->expected_sequence_number();
-    // Rollback here seems possible and ok (if follower restarts).
-    peerState.NextExpectedSequenceNumber = nextExpectedSequenceNumber;
 
-    YT_LOG_DEBUG("Mutations are flushed by follower (FollowerId: %v, NextExpectedSequenceNumber: %v, LoggedSequenceNumber: %v)",
-        followerId,
-        nextExpectedSequenceNumber,
-        loggedSequenceNumber);
+    // This does not depend on mode, do that anyway.
+    if (!mutationsAccepted) {
+        if (peerState.Mode == EAcceptMutationsMode::Fast) {
+            YT_LOG_DEBUG("Accept mutations mode is set to slow (FollowerId: %v)",
+                followerId);
+        }
+        peerState.Mode = EAcceptMutationsMode::Slow;
+        peerState.NextExpectedSequenceNumber = nextExpectedSequenceNumber;
+        YT_LOG_DEBUG("Mutations were not accepted by follower (FollowerId: %v, NextExpectedSequenceNumber: %v, LoggedSequenceNumber: %v)",
+            followerId,
+            nextExpectedSequenceNumber,
+            loggedSequenceNumber);
+    } else {
+        YT_LOG_DEBUG("Mutations are flushed by follower (FollowerId: %v, Mode: %v, NextExpectedSequenceNumber: %v, LoggedSequenceNumber: %v)",
+            followerId,
+            peerState.Mode,
+            nextExpectedSequenceNumber,
+            loggedSequenceNumber);
+        if (peerState.Mode == EAcceptMutationsMode::Slow) {
+            YT_LOG_DEBUG("Accept mutations mode is set to fast (FollowerId: %v)",
+                followerId);
+            // Rollback here seems possible and ok (if follower restarts).
+            peerState.NextExpectedSequenceNumber = nextExpectedSequenceNumber;
+        }
+        peerState.Mode = EAcceptMutationsMode::Fast;
+    }
 
     MaybePromoteCommittedSequenceNumber();
 }
@@ -483,7 +564,7 @@ void TLeaderCommitter::DrainQueue()
 {
     auto popMutationQueue = [&] () {
         const auto& mutation = MutationQueue_.front();
-        MutationQueueDataSize_ -= sizeof(mutation) + mutation->RecordData.Size();
+        MutationQueueDataSize_ -= GetMutationDataSize(mutation);
         MutationQueue_.pop_front();
 
         MutationQueueSummarySize_.Record(MutationQueue_.size());
@@ -771,7 +852,7 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
             YT_VERIFY(MutationQueue_.back()->SequenceNumber + 1 == mutation->SequenceNumber);
         }
 
-        MutationQueueDataSize_ += sizeof(mutation) + mutation->RecordData.Size();
+        MutationQueueDataSize_ += GetMutationDataSize(mutation);
         MutationQueue_.push_back(std::move(mutation));
     }
     auto lastSequenceNumber = NextLoggedSequenceNumber_ - 1;
@@ -892,7 +973,7 @@ void TFollowerCommitter::SetSequenceNumber(i64 number)
     SelfCommittedSequenceNumber_ = number;
 }
 
-void TFollowerCommitter::AcceptMutations(
+bool TFollowerCommitter::AcceptMutations(
     i64 startSequenceNumber,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -903,7 +984,7 @@ void TFollowerCommitter::AcceptMutations(
         recordsData.size());
 
     if (expectedSequenceNumber < startSequenceNumber) {
-        return;
+        return false;
     }
 
     auto firstMutationIndex = expectedSequenceNumber - startSequenceNumber;
@@ -918,6 +999,8 @@ void TFollowerCommitter::AcceptMutations(
         "Mutations accepted (FirstMutationIndex: %v, LastMutationIndex: %v)",
         firstMutationIndex,
         lastMutationIndex);
+
+    return true;
 }
 
 void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)

@@ -81,6 +81,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EAcceptMutationsMode,
+    (Slow)
+    (Fast)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Manages commits carried out by a leader.
 /*!
  *  \note Thread affinity: ControlThread
@@ -130,8 +137,13 @@ private:
 
     struct TPeerState
     {
-        i64 NextExpectedSequenceNumber = 0;
-        i64 LastLoggedSequenceNumber = 0;
+        i64 NextExpectedSequenceNumber = -1;
+        i64 LastLoggedSequenceNumber = -1;
+
+        int InFlightRequestCount = 0;
+        int InFlightMutationCount = 0;
+        i64 InFlightMutationDataSize = 0;
+        EAcceptMutationsMode Mode = EAcceptMutationsMode::Slow;
     };
     std::vector<TPeerState> PeerStates_;
 
@@ -172,6 +184,8 @@ private:
     void FlushMutations();
     void OnMutationsAcceptedByFollower(
         int followerId,
+        int mutationCount,
+        i64 mutationsDataSize,
         const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError);
     void MaybeFlushMutations();
 
@@ -215,7 +229,7 @@ public:
         NLogging::TLogger logger,
         NProfiling::TProfiler /*profiler*/);
 
-    void AcceptMutations(
+    bool AcceptMutations(
         i64 startSequenceNumber,
         const std::vector<TSharedRef>& recordsData);
 

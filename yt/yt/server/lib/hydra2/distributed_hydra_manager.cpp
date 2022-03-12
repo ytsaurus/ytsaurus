@@ -1156,7 +1156,7 @@ private:
             }
         }
 
-        epochContext->FollowerCommitter->AcceptMutations(
+        auto mutationsAccepted = epochContext->FollowerCommitter->AcceptMutations(
             startSequenceNumber,
             request->Attachments());
 
@@ -1170,10 +1170,12 @@ private:
         auto expectedSequenceNumber = epochContext->FollowerCommitter->GetExpectedSequenceNumber();
         response->set_logged_sequence_number(loggedSequenceNumber);
         response->set_expected_sequence_number(expectedSequenceNumber);
+        response->set_mutations_accepted(mutationsAccepted);
 
-        context->SetResponseInfo("LoggedSequenceNumber: %v, ExpectedSequenceNumber: %v",
+        context->SetResponseInfo("LoggedSequenceNumber: %v, ExpectedSequenceNumber: %v, MutationsAccepted: %v",
             loggedSequenceNumber,
-            expectedSequenceNumber);
+            expectedSequenceNumber,
+            mutationsAccepted);
         context->Reply();
     }
 
