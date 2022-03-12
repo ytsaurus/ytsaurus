@@ -947,8 +947,8 @@ private:
             AddTableReplica(tablet, descriptor);
         }
 
-        if (request->has_replication_card_id()) {
-            auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
+        if (request->has_replication_progress()) {
+            auto replicationCardId = tablet->GetReplicationCardId();
             auto progress = FromProto<TReplicationProgress>(request->replication_progress());
             YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
                 tablet->GetLoggingTag(),
@@ -956,7 +956,6 @@ private:
                 progress);
 
             tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
-            AddChaosAgent(tablet, replicationCardId);
         }
 
         const auto& lockManager = tablet->GetLockManager();
@@ -2646,9 +2645,8 @@ private:
             StartTableReplicaEpoch(tablet, &replicaInfo);
         }
 
-        if (tablet->GetChaosAgent()) {
-            tablet->GetChaosAgent()->Enable();
-            tablet->GetTablePuller()->Enable();
+        if (auto replicationCardId = tablet->GetReplicationCardId()) {
+            StartChaosReplicaEpoch(tablet, replicationCardId);
         }
 
         if (tablet->GetSettings().MountConfig->PrecacheChunkReplicasOnMount) {
@@ -2693,9 +2691,8 @@ private:
         tablet->SetInFlightUserMutationCount(0);
         tablet->SetInFlightReplicatorMutationCount(0);
 
-        if (tablet->GetChaosAgent()) {
-            tablet->GetChaosAgent()->Disable();
-            tablet->GetTablePuller()->Disable();
+        if (auto replicationCardId = tablet->GetReplicationCardId()) {
+            StopChaosReplicaEpoch(tablet);
         }
     }
 
@@ -2733,6 +2730,47 @@ private:
         replicaInfo->SetReplicator(nullptr);
     }
 
+    void AddChaosAgent(TTablet* tablet, TReplicationCardId replicationCardId)
+    {
+        if (tablet->GetChaosAgent()) {
+            return;
+        }
+
+        tablet->SetChaosAgent(CreateChaosAgent(
+            tablet,
+            Slot_,
+            replicationCardId,
+            Bootstrap_->GetMasterClient()->GetNativeConnection()));
+        tablet->SetTablePuller(CreateTablePuller(
+            Config_,
+            tablet,
+            Bootstrap_->GetMasterClient()->GetNativeConnection(),
+            Slot_,
+            Bootstrap_->GetTabletSnapshotStore(),
+            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
+            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication)));
+    }
+
+    void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)
+    {
+        if (!IsLeader()) { 
+            return;
+        }
+
+        AddChaosAgent(tablet, replicationCardId);
+        tablet->GetChaosAgent()->Enable();
+        tablet->GetTablePuller()->Enable();
+    }
+
+    void StopChaosReplicaEpoch(TTablet* tablet)
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        tablet->GetChaosAgent()->Disable();
+        tablet->GetTablePuller()->Disable();
+    }
 
     void SetBackingStore(TTablet* tablet, const IChunkStorePtr& store, const IDynamicStorePtr& backingStore)
     {
@@ -2775,6 +2813,7 @@ private:
                 .Item("in_flight_replicator_mutation_count").Value(tablet->GetInFlightReplicatorMutationCount())
                 .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())
                 .Item("pending_replicator_write_record_count").Value(tablet->GetPendingReplicatorWriteRecordCount())
+                .Item("upstream_replica_id").Value(tablet->GetUpstreamReplicaId())
                 .Item("replication_card").Value(tablet->ChaosData()->ReplicationCard)
                 .Item("replication_progress").Value(tablet->RuntimeData()->ReplicationProgress.Load())
                 .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())
@@ -3357,24 +3396,6 @@ private:
         request.set_mount_revision(tablet->GetMountRevision());
         replicaInfo.PopulateStatistics(request.mutable_statistics());
         PostMasterMessage(tablet->GetId(), request);
-    }
-
-
-    void AddChaosAgent(TTablet* tablet, TReplicationCardId replicationCardId)
-    {
-        tablet->SetChaosAgent(CreateChaosAgent(
-            tablet,
-            Slot_,
-            replicationCardId,
-            Bootstrap_->GetMasterClient()->GetNativeConnection()));
-        tablet->SetTablePuller(CreateTablePuller(
-            Config_,
-            tablet,
-            Bootstrap_->GetMasterClient()->GetNativeConnection(),
-            Slot_,
-            Bootstrap_->GetTabletSnapshotStore(),
-            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
-            Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication)));
     }
 
 

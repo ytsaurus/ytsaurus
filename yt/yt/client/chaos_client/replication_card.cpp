@@ -12,9 +12,9 @@
 
 namespace NYT::NChaosClient {
 
-using namespace NTransactionClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -37,6 +37,13 @@ TReplicationCardId ReplicationCardIdFromReplicaId(TReplicaId replicaId)
         HashFromId(replicaId) & 0xffff0000);
 }
 
+TReplicationCardId ReplicationCardIdFromUpstreamReplicaIdOrNull(TReplicaId upstreamReplicaId)
+{
+    return TypeFromId(upstreamReplicaId) == EObjectType::ChaosTableReplica
+        ? ReplicationCardIdFromReplicaId(upstreamReplicaId)
+        : TReplicationCardId();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosClient

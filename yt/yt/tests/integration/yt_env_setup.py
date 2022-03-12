@@ -16,6 +16,7 @@ from yt.environment.helpers import (  # noqa
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
     NODES_SERVICE,
+    CHAOS_NODES_SERVICE,
     MASTERS_SERVICE,
     QUEUE_AGENTS_SERVICE,
 )

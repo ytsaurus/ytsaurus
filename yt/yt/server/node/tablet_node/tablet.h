@@ -549,6 +549,8 @@ public:
     TTableReplicaInfo* FindReplicaInfo(TTableReplicaId id);
     TTableReplicaInfo* GetReplicaInfoOrThrow(TTableReplicaId id);
 
+    NChaosClient::TReplicationCardId GetReplicationCardId() const;
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
