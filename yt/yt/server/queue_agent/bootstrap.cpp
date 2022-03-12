@@ -214,6 +214,19 @@ void TBootstrap::DoRun()
 
 void TBootstrap::UpdateCypressNode()
 {
+    while (true) {
+        try {
+            GuardedUpdateCypressNode();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Error updating cypress node");
+            continue;
+        }
+        return;
+    }
+}
+
+void TBootstrap::GuardedUpdateCypressNode()
+{
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     auto instancePath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_));
