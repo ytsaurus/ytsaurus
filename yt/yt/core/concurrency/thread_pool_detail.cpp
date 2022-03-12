@@ -133,6 +133,8 @@ void TThreadPoolBase::Resize()
     for (const auto& thread : threadsToStop) {
         thread->Stop();
     }
+
+    DoStart();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
