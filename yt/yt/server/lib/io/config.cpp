@@ -37,7 +37,7 @@ TCongestionDetectorConfig::TCongestionDetectorConfig()
         .GreaterThanOrEqual(512)
         .Default(16_KB);
 
-    RegisterParameter("max_inflight_probes_count", MaxInflightProbesCount)
+    RegisterParameter("max_in_flight_probe_count", MaxInFlightProbeCount)
         .Default(1000);
 
     RegisterParameter("probe_deadline", ProbeDeadline)
@@ -46,7 +46,7 @@ TCongestionDetectorConfig::TCongestionDetectorConfig()
     RegisterParameter("overload_threshold", OverloadThreshold)
         .InRange(0, 100)
         .Default(25);
-    
+
     RegisterParameter("heavy_overload_threshold", HeavyOverloadThreshold)
         .InRange(0, 100)
         .Default(50);
@@ -68,11 +68,11 @@ TGentleLoaderConfig::TGentleLoaderConfig()
 {
     RegisterParameter("congestion_detector", CongestionDetector)
         .DefaultNew();
-    
+
     RegisterParameter("read_to_write_ratio", ReadToWriteRatio)
         .InRange(0, 100)
         .Default(75);
-    
+
     RegisterParameter("segment_size", SegmentSize)
         .GreaterThan(0)
         .Default(10);
