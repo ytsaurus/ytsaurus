@@ -252,6 +252,7 @@ public:
 
     std::optional<TString> FindPeerAddress(TCellId cellId, TPeerId peerId) override
     {
+        auto guard = ReaderGuard(SpinLock_);
         auto it = CellIdToEntry_.find(cellId);
         if (!it) {
             return {};
