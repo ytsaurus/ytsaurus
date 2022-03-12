@@ -141,6 +141,10 @@ TNodeShard::TNodeShard(
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
     , Logger(NodeShardLogger.WithTag("NodeShardId: %v", Id_))
+    , RemoveOutdatedScheduleJobEntryExecutor_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TNodeShard::RemoveOutdatedScheduleJobEntries, MakeWeak(this)),
+        Config_->ScheduleJobEntryCheckPeriod))
     , SubmitJobsToStrategyExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
@@ -1354,25 +1358,6 @@ TFuture<TControllerScheduleJobResultPtr> TNodeShard::BeginScheduleJob(
     entry.OperationIdToJobIdsIterator = OperationIdToJobIterators_.emplace(operationId, pair.first);
     entry.StartTime = GetCpuInstant();
 
-    TDelayedExecutor::Submit(
-        BIND([this, this_ = MakeWeak(this), jobId, operationId] {
-            if (!this_.Lock()) {
-                return;
-            }
-            auto it = JobIdToScheduleEntry_.find(jobId);
-            if (it == std::cend(JobIdToScheduleEntry_)) {
-                return;
-            }
-
-            auto& entry = it->second;
-            YT_VERIFY(operationId == entry.OperationId);
-
-            OperationIdToJobIterators_.erase(entry.OperationIdToJobIdsIterator);
-            JobIdToScheduleEntry_.erase(it);
-        })
-        .Via(GetInvoker()),
-        Config_->ScheduleJobEntryRemovalTimeout);
-
     return entry.Promise.ToFuture();
 }
 
@@ -1423,6 +1408,29 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
 
     OperationIdToJobIterators_.erase(entry.OperationIdToJobIdsIterator);
     JobIdToScheduleEntry_.erase(it);
+}
+
+void TNodeShard::RemoveOutdatedScheduleJobEntries()
+{
+    std::vector<TJobId> jobIdsToRemove;
+    auto now = TInstant::Now();
+    for (const auto& [jobId, entry] : JobIdToScheduleEntry_) {
+        if (CpuInstantToInstant(entry.StartTime) + Config_->ScheduleJobEntryRemovalTimeout < now) {
+            jobIdsToRemove.push_back(jobId);
+        }
+    }
+
+    for (auto jobId : jobIdsToRemove) {
+        auto it = JobIdToScheduleEntry_.find(jobId);
+        if (it == std::cend(JobIdToScheduleEntry_)) {
+            return;
+        }
+
+        auto& entry = it->second;
+
+        OperationIdToJobIterators_.erase(entry.OperationIdToJobIdsIterator);
+        JobIdToScheduleEntry_.erase(it);
+    }
 }
 
 int TNodeShard::ExtractJobReporterWriteFailuresCount()

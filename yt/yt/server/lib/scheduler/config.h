@@ -853,6 +853,7 @@ public:
     bool EnableHeavyRuntimeParameters;
 
     TDuration ScheduleJobEntryRemovalTimeout;
+    TDuration ScheduleJobEntryCheckPeriod;
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
 

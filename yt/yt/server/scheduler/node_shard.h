@@ -195,6 +195,7 @@ public:
         TJobId jobId);
     void EndScheduleJob(
         const NProto::TScheduleJobResponse& response);
+    void RemoveOutdatedScheduleJobEntries();
 
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
@@ -286,6 +287,8 @@ private:
     // iterators not to be invalidated.
     THashMap<TJobId, TScheduleJobEntry> JobIdToScheduleEntry_;
     THashMultiMap<TOperationId, THashMap<TJobId, TScheduleJobEntry>::iterator> OperationIdToJobIterators_;
+
+    NConcurrency::TPeriodicExecutorPtr RemoveOutdatedScheduleJobEntryExecutor_;
 
     NConcurrency::TPeriodicExecutorPtr SubmitJobsToStrategyExecutor_;
 
