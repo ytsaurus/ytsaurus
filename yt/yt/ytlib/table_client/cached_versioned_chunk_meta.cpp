@@ -20,13 +20,14 @@ namespace NYT::NTableClient {
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
 
-using NYT::FromProto;
-using NChunkClient::TChunkReaderStatistics;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
+    bool prepareColumnarMeta,
+    const IMemoryUsageTrackerPtr& memoryTracker,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta)
     : TColumnarChunkMeta(chunkMeta)
+    , ColumnarMetaPrepared_(prepareColumnarMeta && ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
 {
     if (ChunkType_ != EChunkType::Table) {
         THROW_ERROR_EXCEPTION("Incorrect chunk type: actual %Qlv, expected %Qlv",
@@ -49,11 +50,33 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(const NChunkClient::NProto:
     if (auto optionalHunkChunkMetasExt = FindProtoExtension<THunkChunkMetasExt>(chunkMeta.extensions())) {
         HunkChunkMetasExt_ = std::move(*optionalHunkChunkMetasExt);
     }
+
+    if (ColumnarMetaPrepared_) {
+        GetPreparedChunkMeta();
+        ClearColumnMeta();
+    }
+
+    if (memoryTracker) {
+        MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
+            memoryTracker,
+            GetMemoryUsage());
+    }
 }
 
-TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta)
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
+    bool prepareColumnarMeta,
+    const IMemoryUsageTrackerPtr& memoryTracker,
+    const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta)
 {
-    return New<TCachedVersionedChunkMeta>(*chunkMeta);
+    return New<TCachedVersionedChunkMeta>(
+        prepareColumnarMeta,
+        memoryTracker,
+        *chunkMeta);
+}
+
+bool TCachedVersionedChunkMeta::IsColumnarMetaPrepared() const
+{
+    return ColumnarMetaPrepared_;
 }
 
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
@@ -82,27 +105,9 @@ TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> TCachedVersionedChunkMeta::Ge
     return PreparedMeta_.Acquire();
 }
 
-void TCachedVersionedChunkMeta::PrepareColumnarMeta()
-{
-    GetPreparedChunkMeta();
-    ClearColumnMeta();
-
-    if (MemoryTrackerGuard_) {
-        MemoryTrackerGuard_.SetSize(GetMemoryUsage());
-    }
-}
-
 int TCachedVersionedChunkMeta::GetChunkKeyColumnCount() const
 {
     return GetChunkSchema()->GetKeyColumnCount();
-}
-
-
-void TCachedVersionedChunkMeta::TrackMemory(const IMemoryUsageTrackerPtr& memoryTracker)
-{
-    MemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
-        memoryTracker,
-        GetMemoryUsage());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

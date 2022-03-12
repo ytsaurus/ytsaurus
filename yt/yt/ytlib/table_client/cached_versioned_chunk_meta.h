@@ -28,18 +28,27 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkRefsExt, HunkChunkRefsExt);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::NProto::THunkChunkMetasExt, HunkChunkMetasExt);
 
-    explicit TCachedVersionedChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    static TCachedVersionedChunkMetaPtr Create(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+    static TCachedVersionedChunkMetaPtr Create(
+        bool preparedColumnarMeta,
+        const IMemoryUsageTrackerPtr& memoryTracker,
+        const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
+
+    bool IsColumnarMetaPrepared() const;
 
     i64 GetMemoryUsage() const override;
 
     TIntrusivePtr<NNewTableClient::TPreparedChunkMeta> GetPreparedChunkMeta();
-    void PrepareColumnarMeta();
 
     int GetChunkKeyColumnCount() const;
-    void TrackMemory(const IMemoryUsageTrackerPtr& memoryTracker);
 
 private:
+    TCachedVersionedChunkMeta(
+        bool prepareColumnarMeta,
+        const IMemoryUsageTrackerPtr& memoryTracker,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+    const bool ColumnarMetaPrepared_;
+
     TMemoryUsageTrackerGuard MemoryTrackerGuard_;
 
     TAtomicPtr<NNewTableClient::TPreparedChunkMeta> PreparedMeta_;

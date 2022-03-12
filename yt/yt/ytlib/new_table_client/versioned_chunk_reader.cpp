@@ -556,11 +556,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         readerStatistics = New<TReaderStatistics>();
     }
 
-    TWallTimer BuildReadWindowsTimer;
+    TWallTimer buildReadWindowsTimer;
     auto preparedChunkMeta = chunkMeta->GetPreparedChunkMeta();
-
     auto windowsList = BuildReadWindows(readItems, chunkMeta, tableSchema->GetKeyColumnCount());
-    readerStatistics->BuildReadWindowsTime = BuildReadWindowsTimer.GetElapsedTime();
+    readerStatistics->BuildReadWindowsTime = buildReadWindowsTimer.GetElapsedTime();
 
     auto valuesIdMapping = chunkColumnMapping
         ? chunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter)
@@ -569,7 +568,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     TWallTimer createColumnBlockHoldersTimer;
     auto groupIds = GetGroupsIds(*preparedChunkMeta, chunkMeta->GetChunkKeyColumnCount(), valuesIdMapping);
-
     auto groupBlockHolders = CreateGroupBlockHolders(*preparedChunkMeta, groupIds);
     readerStatistics->CreateColumnBlockHoldersTime = createColumnBlockHoldersTimer.GetElapsedTime();
 

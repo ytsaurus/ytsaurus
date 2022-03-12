@@ -824,8 +824,8 @@ TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
 {
     {
-        auto guard = WriterGuard(VersionedChunkMetaLock_);
-        auto oldCachedWeakVersionedChunkMeta = std::move(CachedWeakVersionedChunkMeta_);
+        auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
+        auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
         // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
         guard.Release();
     }
@@ -854,36 +854,38 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
 
     // Fast lane.
     {
-        auto guard = ReaderGuard(VersionedChunkMetaLock_);
-        if (auto chunkMeta = CachedWeakVersionedChunkMeta_.Lock()) {
-            ChunkMetaManager_->Touch(chunkMeta);
-            return chunkMeta->Meta();
+        auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
+        if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
+            const auto& meta = entry->Meta();
+            if (!prepareColumnarMeta || meta->IsColumnarMetaPrepared()) {
+                ChunkMetaManager_->Touch(entry);
+                return meta;
+            }
         }
     }
 
     // Slow lane.
     NProfiling::TWallTimer metaWaitTimer;
 
-    auto chunkMetaFuture = ChunkMetaManager_->GetMeta(
+    auto entryFuture = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
         chunkReadOptions,
         prepareColumnarMeta);
-
-    auto chunkMeta = WaitFor(chunkMetaFuture)
+    auto entry = WaitFor(entryFuture)
         .ValueOrThrow();
 
     chunkReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
 
     {
-        auto guard = WriterGuard(VersionedChunkMetaLock_);
-        auto oldCachedWeakVersionedChunkMeta = std::move(CachedWeakVersionedChunkMeta_);
-        CachedWeakVersionedChunkMeta_ = chunkMeta;
+        auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);
+        auto oldEntry = std::move(WeakCachedVersionedChunkMetaEntry_);
+        WeakCachedVersionedChunkMetaEntry_ = entry;
         // Prevent destroying oldCachedWeakVersionedChunkMeta under spinlock.
         guard.Release();
     }
 
-    return chunkMeta->Meta();
+    return entry->Meta();
 }
 
 const std::vector<THunkChunkRef>& TChunkStoreBase::HunkChunkRefs() const

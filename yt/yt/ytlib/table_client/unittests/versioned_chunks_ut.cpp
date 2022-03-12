@@ -191,8 +191,11 @@ protected:
 
         WriteManyRows();
 
-        auto chunkMeta = MemoryReader->GetMeta(/* chunkReadOptions */ {})
-            .Apply(BIND(&TCachedVersionedChunkMeta::Create))
+        auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
+            .Apply(BIND(
+                &TCachedVersionedChunkMeta::Create,
+                /*prepareColumnarMeta*/ false,
+                /*memoryTracker*/ nullptr))
             .Get()
             .ValueOrThrow();
 
@@ -420,8 +423,11 @@ protected:
             memoryWriter->GetChunkMeta(),
             memoryWriter->GetBlocks());
 
-        auto chunkMeta = memoryReader->GetMeta(/* chunkReadOptions */ {})
-            .Apply(BIND(&TCachedVersionedChunkMeta::Create))
+        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
+            .Apply(BIND(
+                &TCachedVersionedChunkMeta::Create,
+                /*prepareColumnarMeta*/ false,
+                /*memoryTracker*/ nullptr))
             .Get()
             .ValueOrThrow();
 

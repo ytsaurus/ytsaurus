@@ -1179,7 +1179,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             rpsThrottler);
 
         auto asyncVersionedChunkMeta = remoteReader->GetMeta(chunkReadOptions)
-            .Apply(BIND(&TCachedVersionedChunkMeta::Create));
+            .Apply(BIND(
+                &TCachedVersionedChunkMeta::Create,
+                /*prepareColumnarMeta*/ false,
+                /*memoryTracker*/ nullptr));
 
         auto versionedChunkMeta = WaitFor(asyncVersionedChunkMeta)
             .ValueOrThrow();

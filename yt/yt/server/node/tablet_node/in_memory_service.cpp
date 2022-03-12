@@ -249,7 +249,10 @@ private:
 
                 auto meta = New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta(index)));
 
-                auto versionedChunkMeta = NTableClient::TCachedVersionedChunkMeta::Create(meta);
+                auto versionedChunkMeta = NTableClient::TCachedVersionedChunkMeta::Create(
+                    /*prepareColumnarMeta*/ false,
+                    /*memoryTracker*/ nullptr,
+                    meta);
 
                 auto asyncResult = BIND(&CreateInMemoryChunkData)
                     .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())

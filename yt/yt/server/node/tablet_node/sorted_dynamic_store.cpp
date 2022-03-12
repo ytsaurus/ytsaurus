@@ -2036,21 +2036,24 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             std::move(chunkMeta),
             TBlock::Wrap(blocks));
 
-        auto asyncCachedMeta = chunkReader->GetMeta(/* chunkReadOptions */ {})
-            .Apply(BIND(&TCachedVersionedChunkMeta::Create));
+        auto metaMemoryTracker = MemoryTracker_
+            ? MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta)
+            : nullptr;
 
-        auto cachedMeta = WaitFor(asyncCachedMeta)
+        auto cachedMetaFuture = chunkReader->GetMeta(/*chunkReadOptions*/ {})
+            .Apply(BIND(
+                &TCachedVersionedChunkMeta::Create,
+                /*prepareColumnarMeta*/ false,
+                metaMemoryTracker));
+        auto cachedMeta = WaitFor(cachedMetaFuture)
             .ValueOrThrow();
-
-        if (MemoryTracker_) {
-            cachedMeta->TrackMemory(MemoryTracker_->WithCategory(EMemoryCategory::VersionedChunkMeta));
-        }
 
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
 
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = Schema_;
+
         auto tableReaderConfig = New<TTabletStoreReaderConfig>();
 
         auto tableReader = CreateVersionedChunkReader(
@@ -2058,7 +2061,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkReader,
             std::move(chunkState),
             std::move(cachedMeta),
-            /* chunkReadOptions */ {},
+            /*chunkReadOptions*/ {},
             MinKey(),
             MaxKey(),
             TColumnFilter(),
