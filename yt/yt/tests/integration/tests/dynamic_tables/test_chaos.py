@@ -1,12 +1,19 @@
 from test_dynamic_tables import DynamicTablesBase
 
+from yt_env_setup import (
+    Restarter,
+    NODES_SERVICE,
+    CHAOS_NODES_SERVICE,
+)
+
 from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver,
     get, set, ls, create, exists, remove, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table,
-    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows, build_snapshot, wait_for_cells,
+    insert_rows, delete_rows, lookup_rows, select_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
+    build_snapshot, wait_for_cells, wait_for_chaos_cell,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp)
 
@@ -1214,6 +1221,39 @@ class TestChaos(ChaosTestBase):
         resume_coordinator(coordinator_cell_id)
         assert not _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended")
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
+
+    @authors("savrus")
+    def test_nodes_restart(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        with Restarter(self.Env, CHAOS_NODES_SERVICE):
+            pass
+
+        wait_for_chaos_cell(cell_id, self.get_cluster_names())
+        for driver in self._get_drivers():
+            cell_ids = get("//sys/tablet_cell_bundles/default/@tablet_cell_ids", driver=driver)
+            wait_for_cells(cell_ids, driver=driver)
+
+        assert lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values0
+        self._sync_replication_era(card_id, replicas)
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 1}], driver=remote_driver1) == values1)
 
 
 ##################################################################

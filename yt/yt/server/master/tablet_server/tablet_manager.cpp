@@ -3823,7 +3823,6 @@ private:
                             : allTablets[tabletIndex + 1]->GetPivotKey();
                     }
 
-                    ToProto(req.mutable_replication_card_id(), table->GetReplicationCardId());
                     ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
                 }
 

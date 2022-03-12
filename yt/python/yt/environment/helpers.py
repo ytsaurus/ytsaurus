@@ -365,6 +365,7 @@ def emergency_exit_within_tests(test_environment, process, call_arguments):
 SCHEDULERS_SERVICE = "schedulers"
 CONTROLLER_AGENTS_SERVICE = "controller_agents"
 NODES_SERVICE = "nodes"
+CHAOS_NODES_SERVICE = "chaos_nodes"
 # TODO(ignat): migrate to new naming.
 MASTER_CELL_SERVICE = "masters"
 MASTERS_SERVICE = "masters"
@@ -385,6 +386,7 @@ class Restarter(object):
             SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
             CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
             NODES_SERVICE: self.yt_instance.start_nodes,
+            CHAOS_NODES_SERVICE: self.yt_instance.start_chaos_nodes,
             MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(start_secondary_master_cells=True, set_config=False, sync=sync),
             MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches,
             QUEUE_AGENTS_SERVICE: self.yt_instance.start_queue_agents,
@@ -393,6 +395,7 @@ class Restarter(object):
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
             CONTROLLER_AGENTS_SERVICE: lambda: self.yt_instance.kill_controller_agents(*self.kill_args, **self.kill_kwargs),
             NODES_SERVICE: lambda: self.yt_instance.kill_nodes(*self.kill_args, **self.kill_kwargs),
+            CHAOS_NODES_SERVICE: lambda: self.yt_instance.kill_chaos_nodes(*self.kill_args, **self.kill_kwargs),
             MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs),
             MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs),
             QUEUE_AGENTS_SERVICE: lambda: self.yt_instance.kill_queue_agents(*self.kill_args, **self.kill_kwargs),

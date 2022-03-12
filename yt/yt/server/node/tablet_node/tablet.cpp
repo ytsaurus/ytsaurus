@@ -30,6 +30,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/chaos_client/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -53,6 +55,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDistributedThrottler;
@@ -578,6 +581,11 @@ void TTablet::SetStructuredLogger(IPerTabletStructuredLoggerPtr storeManager)
 const TLockManagerPtr& TTablet::GetLockManager() const
 {
     return LockManager_;
+}
+
+TReplicationCardId TTablet::GetReplicationCardId() const
+{
+    return ReplicationCardIdFromUpstreamReplicaIdOrNull(UpstreamReplicaId_);
 }
 
 void TTablet::Save(TSaveContext& context) const
