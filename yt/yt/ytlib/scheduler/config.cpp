@@ -1548,7 +1548,9 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
                 intermediateStreamCount = spec->Mapper->OutputStreams.size();
             }
         } else {
-            if (spec->Reducer->EnableInputTableIndex || spec->MergeJobIO->ControlAttributes->EnableTableIndex) {
+            if (spec->Reducer->EnableInputTableIndex.value_or(false) ||
+                spec->MergeJobIO->ControlAttributes->EnableTableIndex)
+            {
                 intermediateStreamCount = spec->InputTablePaths.size();
             }
         }
