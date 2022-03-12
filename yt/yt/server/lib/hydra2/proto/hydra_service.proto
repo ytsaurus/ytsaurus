@@ -103,6 +103,7 @@ message TRspAcceptMutations
         required uint64 checksum = 3;
     }
 
+    required bool mutations_accepted = 4;
     required int64 expected_sequence_number = 1;
     required int64 logged_sequence_number = 2;
 

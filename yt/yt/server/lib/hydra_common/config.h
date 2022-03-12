@@ -310,6 +310,15 @@ public:
     //! Used for testing purposes only.
     std::optional<double> InvariantsCheckProbability;
 
+    //! Maximum number of in-flight accept mutations request in fast mode.
+    int MaxInFlightAcceptMutationsRequestCount;
+
+    //! Maximum number of in-flight mutations in fast mode.
+    int MaxInFlightMutationCount;
+
+    //! Maximum in-flight mutations data size in fast mode.
+    i64 MaxInFlightMutationDataSize;
+
     TDistributedHydraManagerConfig();
 };
 

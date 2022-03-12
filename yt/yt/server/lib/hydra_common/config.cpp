@@ -253,6 +253,18 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
     RegisterParameter("invariants_check_probability", InvariantsCheckProbability)
         .Default();
 
+    RegisterParameter("max_in_flight_accept_mutations_request_count", MaxInFlightAcceptMutationsRequestCount)
+        .GreaterThan(0)
+        .Default(10);
+
+    RegisterParameter("max_in_flight_mutations_count", MaxInFlightMutationCount)
+        .GreaterThan(0)
+        .Default(100000);
+
+    RegisterParameter("max_in_flight_mutation_data_size", MaxInFlightMutationDataSize)
+        .GreaterThan(0)
+        .Default(2_GB);
+
     RegisterPostprocessor([&] {
         if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
