@@ -425,7 +425,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto* compressionCodec = NCompression::GetCodec(compressionCodecId);
     auto erasureCodecId = FromProto<NErasure::ECodec>(miscExt.erasure_codec());
 
-    auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(meta);
+    auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(
+        /*prepareColumnarMeta*/ false,
+        /*memoryTracker*/ nullptr,
+        meta);
 
     auto blockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
 

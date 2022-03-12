@@ -629,8 +629,11 @@ protected:
         auto options = New<TChunkReaderOptions>();
         options->DynamicTable = true;
 
-        auto asyncCachedMeta = MemoryReader_->GetMeta(/* chunkReadOptions */ {})
-            .Apply(BIND(&TCachedVersionedChunkMeta::Create));
+        auto asyncCachedMeta = MemoryReader_->GetMeta(/*chunkReadOptions*/ {})
+            .Apply(BIND(
+                &TCachedVersionedChunkMeta::Create,
+                /*prepareColumnarMeta*/ false,
+                /*memoryTracker*/ nullptr));
 
         auto chunkMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();

@@ -269,8 +269,8 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant LastCompactionTimestamp_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, VersionedChunkMetaLock_);
-    TWeakPtr<TVersionedChunkMetaCacheEntry> CachedWeakVersionedChunkMeta_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, WeakCachedVersionedChunkMetaEntryLock_);
+    TWeakPtr<TVersionedChunkMetaCacheEntry> WeakCachedVersionedChunkMetaEntry_;
 
     // Cached for fast retrieval from ChunkMeta_.
     NChunkClient::NProto::TMiscExt MiscExt_;
