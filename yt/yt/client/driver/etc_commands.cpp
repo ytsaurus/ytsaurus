@@ -245,52 +245,56 @@ public:
 
     TFuture<TYsonString> Run()
     {
-        auto driver = Context_->GetDriver();
-        Descriptor_ = driver->GetCommandDescriptorOrThrow(Request_->Command);
+        try {
+            auto driver = Context_->GetDriver();
+            Descriptor_ = driver->GetCommandDescriptorOrThrow(Request_->Command);
 
-        if (Descriptor_.InputType != EDataType::Null &&
-            Descriptor_.InputType != EDataType::Structured)
-        {
-            THROW_ERROR_EXCEPTION("Command %Qv cannot be part of a batch since it has inappropriate input type %Qlv",
-                Request_->Command,
-                Descriptor_.InputType);
-        }
-
-        if (Descriptor_.OutputType != EDataType::Null &&
-            Descriptor_.OutputType != EDataType::Structured)
-        {
-            THROW_ERROR_EXCEPTION("Command %Qv cannot be part of a batch since it has inappropriate output type %Qlv",
-                Request_->Command,
-                Descriptor_.OutputType);
-        }
-
-        TDriverRequest driverRequest;
-        driverRequest.Id = Context_->Request().Id;
-        driverRequest.CommandName = Request_->Command;
-        auto parameters = IAttributeDictionary::FromMap(Request_->Parameters);
-        if (Descriptor_.InputType == EDataType::Structured) {
-            if (!Request_->Input) {
-                THROW_ERROR_EXCEPTION("Command %Qv requires input",
-                    Descriptor_.CommandName);
+            if (Descriptor_.InputType != EDataType::Null &&
+                Descriptor_.InputType != EDataType::Structured)
+            {
+                THROW_ERROR_EXCEPTION("Command %Qv cannot be part of a batch since it has inappropriate input type %Qlv",
+                    Request_->Command,
+                    Descriptor_.InputType);
             }
-            Input_ = ConvertToYsonString(Request_->Input).ToString();
-            parameters->Set("input_format", TFormat(EFormatType::Yson));
-            driverRequest.InputStream = AsyncInput_;
-        }
-        if (Descriptor_.OutputType == EDataType::Structured) {
-            parameters->Set("output_format", TFormat(EFormatType::Yson));
-            driverRequest.OutputStream = AsyncOutput_;
-        }
-        if (Descriptor_.Volatile) {
-            parameters->Set("mutation_id", MutationId_);
-            parameters->Set("retry", Retry_);
-        }
-        driverRequest.Parameters = parameters->ToMap();
-        driverRequest.AuthenticatedUser = Context_->Request().AuthenticatedUser;
-        driverRequest.LoggingTags = Format("SubrequestIndex: %v", RequestIndex_);
 
-        return driver->Execute(driverRequest).Apply(
-            BIND(&TRequestExecutor::OnResponse, MakeStrong(this)));
+            if (Descriptor_.OutputType != EDataType::Null &&
+                Descriptor_.OutputType != EDataType::Structured)
+            {
+                THROW_ERROR_EXCEPTION("Command %Qv cannot be part of a batch since it has inappropriate output type %Qlv",
+                    Request_->Command,
+                    Descriptor_.OutputType);
+            }
+
+            TDriverRequest driverRequest;
+            driverRequest.Id = Context_->Request().Id;
+            driverRequest.CommandName = Request_->Command;
+            auto parameters = IAttributeDictionary::FromMap(Request_->Parameters);
+            if (Descriptor_.InputType == EDataType::Structured) {
+                if (!Request_->Input) {
+                    THROW_ERROR_EXCEPTION("Command %Qv requires input",
+                        Descriptor_.CommandName);
+                }
+                Input_ = ConvertToYsonString(Request_->Input).ToString();
+                parameters->Set("input_format", TFormat(EFormatType::Yson));
+                driverRequest.InputStream = AsyncInput_;
+            }
+            if (Descriptor_.OutputType == EDataType::Structured) {
+                parameters->Set("output_format", TFormat(EFormatType::Yson));
+                driverRequest.OutputStream = AsyncOutput_;
+            }
+            if (Descriptor_.Volatile) {
+                parameters->Set("mutation_id", MutationId_);
+                parameters->Set("retry", Retry_);
+            }
+            driverRequest.Parameters = parameters->ToMap();
+            driverRequest.AuthenticatedUser = Context_->Request().AuthenticatedUser;
+            driverRequest.LoggingTags = Format("SubrequestIndex: %v", RequestIndex_);
+
+            return driver->Execute(driverRequest).Apply(
+                BIND(&TRequestExecutor::OnResponse, MakeStrong(this)));
+        } catch (const std::exception& ex) {
+            return MakeFuture<TYsonString>(ex);
+        }
     }
 
 private:
