@@ -857,7 +857,7 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
         auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
         if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
             const auto& meta = entry->Meta();
-            if (!prepareColumnarMeta || meta->IsColumnarMetaPrepared()) {
+            if (prepareColumnarMeta || !meta->IsColumnarMetaPrepared()) {
                 ChunkMetaManager_->Touch(entry);
                 return meta;
             }
