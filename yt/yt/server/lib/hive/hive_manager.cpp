@@ -914,10 +914,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        // COMPAT(babenko): last_outcoming_message_id is now required
-        auto lastOutcomingMessageId = rsp->has_last_outcoming_message_id()
-            ? std::make_optional(rsp->last_outcoming_message_id())
-            : std::nullopt;
+        auto lastOutcomingMessageId = rsp->last_outcoming_message_id();
 
         YT_LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
@@ -1263,10 +1260,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        // COMPAT(babenko): next_persistent_incoming_message_id is now required
-        auto nextPersistentIncomingMessageId = rsp->has_next_persistent_incoming_message_id()
-            ? std::make_optional(rsp->next_persistent_incoming_message_id())
-            : std::nullopt;
+        auto nextPersistentIncomingMessageId = rsp->next_persistent_incoming_message_id();
         auto nextTransientIncomingMessageId = rsp->next_transient_incoming_message_id();
         YT_LOG_DEBUG("Outcoming reliable messages posted (SrcCellId: %v, DstCellId: %v, "
             "NextPersistentIncomingMessageId: %v, NextTransientIncomingMessageId: %v)",
@@ -1275,7 +1269,7 @@ private:
             nextPersistentIncomingMessageId,
             nextTransientIncomingMessageId);
 
-        if (nextPersistentIncomingMessageId && !HandlePersistentIncomingMessages(mailbox, *nextPersistentIncomingMessageId)) {
+        if (!HandlePersistentIncomingMessages(mailbox, nextPersistentIncomingMessageId)) {
             return;
         }
 
@@ -1557,10 +1551,7 @@ private:
 
     bool ValidateSnapshotVersion(int version) override
     {
-        return
-            version == 3 ||
-            version == 4 ||
-            version == 5;
+        return version == 5;
     }
 
     int GetCurrentSnapshotVersion() override
@@ -1600,10 +1591,7 @@ private:
     void LoadValues(TLoadContext& context)
     {
         MailboxMap_.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 4) {
-            Load(context, RemovedCellIds_);
-        }
+        Load(context, RemovedCellIds_);
 
         {
             auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
