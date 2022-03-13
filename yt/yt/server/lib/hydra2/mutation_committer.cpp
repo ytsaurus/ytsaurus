@@ -1110,10 +1110,6 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
 {
     YT_LOG_INFO("Preparing changelog (Version: %v)", version);
 
-    if (!Options_.WriteChangelogsAtFollowers) {
-        return;
-    }
-
     auto changelogId = version.SegmentId;
     if (Changelog_) {
         YT_VERIFY(Changelog_->GetId() < changelogId);
@@ -1158,7 +1154,9 @@ void TFollowerCommitter::LogMutations()
             if (!recordsData.empty()) {
                 break;
             }
-            PrepareNextChangelog(version);
+            if (Options_.WriteChangelogsAtFollowers) {
+                PrepareNextChangelog(version);
+            }
         }
 
         auto mutation = std::move(AcceptedMutations_.front());
