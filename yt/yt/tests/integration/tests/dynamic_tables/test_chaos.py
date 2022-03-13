@@ -611,7 +611,7 @@ class TestChaos(ChaosTestBase):
         build_snapshot(cell_id=cell_id)
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
         set("//sys/cluster_nodes/{}/@banned".format(peer), True)
-        wait_for_cells([cell_id])
+        wait_for_cells([cell_id], decommissioned_addresses=[peer])
 
         orchid = get("#{0}/orchid".format(tablet_id))
         assert orchid["replication_progress"] == progress

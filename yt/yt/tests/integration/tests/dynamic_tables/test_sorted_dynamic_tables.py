@@ -1096,7 +1096,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
         set("//sys/cluster_nodes/{}/@banned".format(peer), True)
 
-        wait_for_cells([cell_id])
+        wait_for_cells([cell_id], decommissioned_addresses=[peer])
 
         assert list(lookup_rows("//tmp/t", [{"key": 0}])) == [{"key": 0, "value": "0"}]
         assert list(lookup_rows("//tmp/t", [{"key": 1}])) == [{"key": 1, "value": "1"}]

@@ -359,7 +359,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         wait(check_config_version)
 
-        wait_for_cells(cell_ids=[cell_id])
+        wait_for_cells([cell_id])
 
         def check_insert():
             try:
