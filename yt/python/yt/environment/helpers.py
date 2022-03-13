@@ -366,8 +366,6 @@ SCHEDULERS_SERVICE = "schedulers"
 CONTROLLER_AGENTS_SERVICE = "controller_agents"
 NODES_SERVICE = "nodes"
 CHAOS_NODES_SERVICE = "chaos_nodes"
-# TODO(ignat): migrate to new naming.
-MASTER_CELL_SERVICE = "masters"
 MASTERS_SERVICE = "masters"
 MASTER_CACHES_SERVICE = "master_caches"
 QUEUE_AGENTS_SERVICE = "queue_agents"
