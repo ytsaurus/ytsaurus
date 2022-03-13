@@ -912,12 +912,18 @@ def _build_rpc_driver_config(master_connection_configs,
                              http_proxy_url,
                              yt_config):
     config = default_config.get_driver_config()
+
     config["connection_type"] = "rpc"
+
+    config["dynamic_channel_pool"] = {
+        "soft_backoff_time": 100,
+        "hard_backoff_time": 100
+    }
 
     if http_proxy_url is not None:
         config["cluster_url"] = http_proxy_url
     else:
-        config["addresses"] = rpc_proxy_addresses
+        config["proxy_addresses"] = rpc_proxy_addresses
 
     return config
 
