@@ -149,8 +149,7 @@ private:
             }
 
             if (!tabletSnapshot->TabletChaosData->ReplicationCard) {
-                THROW_ERROR_EXCEPTION("No replication card")
-                    << HardErrorAttribute;
+                THROW_ERROR_EXCEPTION("No replication card");
             }
 
             const auto& tableProfiler = tabletSnapshot->TableProfiler;
