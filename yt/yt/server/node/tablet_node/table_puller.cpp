@@ -164,6 +164,7 @@ private:
             if (auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load(); writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
+                tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
                 return;
             }
 
@@ -173,12 +174,14 @@ private:
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
             auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
             if (!queueReplicaInfo) {
-                return;
+                THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from");
             }
 
             auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplicaInfo) {
-                return;
+                THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
+                    << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
+                    << HardErrorAttribute;
             }
 
             const auto& clusterName = queueReplicaInfo->ClusterName;
@@ -229,6 +232,7 @@ private:
             // Update progress even if no rows pulled.
             if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
                 YT_VERIFY(resultRows.empty());
+                tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
                 return;
             }
 
@@ -279,6 +283,8 @@ private:
                 YT_LOG_DEBUG("Pull rows write transaction committed (TransactionId: %v)",
                     localTransaction->GetId());
             }
+
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
 
             counters->RowCount.Increment(rowCount);
             counters->DataWeight.Increment(dataWeight);
