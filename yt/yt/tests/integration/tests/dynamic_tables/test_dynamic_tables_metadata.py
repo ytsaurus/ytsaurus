@@ -212,7 +212,7 @@ class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBa
         rpc_proxy = ls("//sys/rpc_proxies")[0]
 
         rpc_driver_config = deepcopy(self.Env.configs["rpc_driver"])
-        rpc_driver_config["addresses"] = [rpc_proxy]
+        rpc_driver_config["proxy_addresses"] = [rpc_proxy]
         rpc_driver_config["api_version"] = 3
         rpc_driver = Driver(config=rpc_driver_config)
 
