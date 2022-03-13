@@ -21,6 +21,7 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/async_batcher.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -50,6 +51,10 @@ using NYT::ToProto;
 using NYT::FromProto;
 
 using NHiveClient::NProto::TEncapsulatedMessage;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto ReadOnlyCheckPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -327,8 +332,10 @@ private:
 
     THashSet<TCellId> RemovedCellIds_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CellToIdToBatcherLock_);
-    THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CellToIdToSyncBatcherLock_);
+    THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToSyncBatcher_;
+
+    TPeriodicExecutorPtr ReadOnlyCheckExecutor_;
 
     TTimeCounter SyncPostingTimeCounter_;
     TTimeCounter AsyncPostingTimeCounter_;
@@ -771,18 +778,22 @@ private:
             mailbox->GetCellId());
     }
 
-    void ResetMailboxes()
+    void CancelSyncBatchers(const TError& error)
     {
-        decltype(CellToIdToBatcher_) cellToIdToBatcher;
+        decltype(CellToIdToSyncBatcher_) cellToIdToBatcher;
         {
-            auto guard = WriterGuard(CellToIdToBatcherLock_);
-            std::swap(cellToIdToBatcher, CellToIdToBatcher_);
+            auto guard = WriterGuard(CellToIdToSyncBatcherLock_);
+            std::swap(cellToIdToBatcher, CellToIdToSyncBatcher_);
         }
 
-        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
         for (const auto& [cellId, batcher] : cellToIdToBatcher) {
             batcher->Cancel(error);
         }
+    }
+
+    void ResetMailboxes()
+    {
+        CancelSyncBatchers(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
 
         for (auto [id, mailbox] : MailboxMap_) {
             SetMailboxDisconnected(mailbox);
@@ -791,6 +802,8 @@ private:
             mailbox->SetCachedChannel(nullptr);
             mailbox->SetPostBatchingCookie(nullptr);
         }
+
+        ReadOnlyCheckExecutor_.Reset();
     }
 
     void PrepareLeaderMailboxes()
@@ -824,6 +837,12 @@ private:
             YT_VERIFY(!mailbox->GetConnected());
             SendPeriodicPing(mailbox);
         }
+
+        ReadOnlyCheckExecutor_ = New<TPeriodicExecutor>(
+            EpochAutomatonInvoker_,
+            BIND(&TImpl::OnReadOnlyCheck, MakeWeak(this)),
+            ReadOnlyCheckPeriod);
+        ReadOnlyCheckExecutor_->Start();
     }
 
     void OnPeriodicPingTick(TCellId cellId)
@@ -912,9 +931,9 @@ private:
     TIntrusivePtr<TAsyncBatcher<void>> GetOrCreateSyncBatcher(TCellId cellId)
     {
         {
-            auto readerGuard = ReaderGuard(CellToIdToBatcherLock_);
-            auto it = CellToIdToBatcher_.find(cellId);
-            if (it != CellToIdToBatcher_.end()) {
+            auto readerGuard = ReaderGuard(CellToIdToSyncBatcherLock_);
+            auto it = CellToIdToSyncBatcher_.find(cellId);
+            if (it != CellToIdToSyncBatcher_.end()) {
                 return it->second;
             }
         }
@@ -924,8 +943,8 @@ private:
             Config_->SyncDelay);
 
         {
-            auto writerGuard = WriterGuard(CellToIdToBatcherLock_);
-            auto it = CellToIdToBatcher_.emplace(cellId, std::move(batcher)).first;
+            auto writerGuard = WriterGuard(CellToIdToSyncBatcherLock_);
+            auto it = CellToIdToSyncBatcher_.emplace(cellId, std::move(batcher)).first;
             return it->second;
         }
     }
@@ -1482,6 +1501,29 @@ private:
         THiveMutationGuard hiveMutationGuard;
 
         static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
+    }
+
+
+    void OnReadOnlyCheck()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (!HydraManager_->GetReadOnly()) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Hydra is read-only; canceling all synchronization requests");
+
+        auto error = TError(NHydra::EErrorCode::ReadOnly, "Cannot synchronize with remote instance since Hydra is read-only");
+
+        CancelSyncBatchers(error);
+
+        for (auto [_, mailbox] : MailboxMap_) {
+            auto requests = std::exchange(mailbox->SyncRequests(), {});
+            for (const auto& [_, promise] : requests) {
+                promise.Set(error);
+            }
+        }
     }
 
 
