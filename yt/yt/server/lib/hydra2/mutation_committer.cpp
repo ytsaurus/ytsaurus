@@ -605,7 +605,7 @@ void TLeaderCommitter::DrainQueue()
 
 void TLeaderCommitter::MaybeCheckpoint()
 {
-    if (AqcuiringChangelog_ || LastSnapshotInfo_) {
+    if (AcquiringChangelog_ || LastSnapshotInfo_) {
         return;
     }
 
@@ -626,9 +626,9 @@ void TLeaderCommitter::MaybeCheckpoint()
 
 void TLeaderCommitter::Checkpoint()
 {
-    YT_VERIFY(!AqcuiringChangelog_);
+    YT_VERIFY(!AcquiringChangelog_);
 
-    AqcuiringChangelog_ = true;
+    AcquiringChangelog_ = true;
     RunChangelogAcquisition(Config_, EpochContext_, NextLoggedVersion_.SegmentId + 1, std::nullopt).Subscribe(
         BIND(&TLeaderCommitter::OnChangelogAcquired, MakeStrong(this))
             .Via(EpochContext_->EpochControlInvoker));
@@ -688,7 +688,7 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOn
     auto result = waitForCompletion
         ? LastSnapshotInfo_->Promise.ToFuture()
         : MakeFuture(LastSnapshotInfo_->SnapshotId);
-    if (!AqcuiringChangelog_) {
+    if (!AcquiringChangelog_) {
         Checkpoint();
     }
     return result;
@@ -738,8 +738,6 @@ void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemo
 
 void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 {
-    AqcuiringChangelog_ = false;
-
     if (!error.IsOK()) {
         if (LastSnapshotInfo_) {
             LastSnapshotInfo_->Promise.TrySet(error);
@@ -748,6 +746,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
         YT_LOG_ERROR(error);
         LoggingFailed_.Fire(TError("Error acquiring changelog")
             << error);
+        AcquiringChangelog_ = false;
         return;
     }
 
@@ -755,8 +754,16 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     YT_VERIFY(Changelog_);
     YT_VERIFY(changelogId == Changelog_->GetId() + 1);
 
-    auto changelog = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId))
-        .ValueOrThrow();
+    auto changelogFuture = WaitFor(EpochContext_->ChangelogStore->OpenChangelog(changelogId));
+    if (!changelogFuture.IsOK()) {
+        LoggingFailed_.Fire(TError("Error opening changelog")
+            << TErrorAttribute("changelog_id", changelogId)
+            << changelogFuture);
+        AcquiringChangelog_ = false;
+        return;
+    }
+
+    auto changelog = changelogFuture.ValueOrThrow();
 
     if (!LastSnapshotInfo_) {
         LastSnapshotInfo_ = TShapshotInfo{
@@ -782,6 +789,8 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     NextLoggedVersion_ = NextLoggedVersion_.Rotate();
     Changelog_ = changelog;
     YT_VERIFY(Changelog_->GetRecordCount() == 0);
+
+    AcquiringChangelog_ = false;
 
     CloseChangelog(oldChangelog);
 
