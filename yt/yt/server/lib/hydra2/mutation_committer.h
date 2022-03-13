@@ -156,7 +156,7 @@ private:
 
     bool ReadOnly_ = false;
 
-    bool AqcuiringChangelog_ = false;
+    bool AcquiringChangelog_ = false;
 
     struct TShapshotInfo
     {
