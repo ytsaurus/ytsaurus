@@ -968,18 +968,19 @@ TFollowerCommitter::TFollowerCommitter(
 
 i64 TFollowerCommitter::GetLoggedSequenceNumber() const
 {
-    return LoggedSequenceNumber_;
+    return LastLoggedSequenceNumber_;
 }
 
 void TFollowerCommitter::SetSequenceNumber(i64 number)
 {
-    LoggedSequenceNumber_ = number;
     YT_VERIFY(LoggedMutations_.empty());
+    LastLoggedSequenceNumber_ = number;
 
-    AcceptedSequenceNumber_ = number;
     YT_VERIFY(AcceptedMutations_.empty());
+    LastAcceptedSequenceNumber_ = number;
 
-    SelfCommittedSequenceNumber_ = number;
+    YT_VERIFY(CommittedSequenceNumber_ == -1);
+    CommittedSequenceNumber_ = number;
 }
 
 bool TFollowerCommitter::AcceptMutations(
@@ -1036,13 +1037,13 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
             MutationHeader_.term(),
             recordData));
 
-    ++AcceptedSequenceNumber_;
-    YT_VERIFY(AcceptedSequenceNumber_ == MutationHeader_.sequence_number());
+    ++LastAcceptedSequenceNumber_;
+    YT_VERIFY(LastAcceptedSequenceNumber_ == MutationHeader_.sequence_number());
 }
 
 i64 TFollowerCommitter::GetExpectedSequenceNumber() const
 {
-    return AcceptedSequenceNumber_ + 1;
+    return LastAcceptedSequenceNumber_ + 1;
 }
 
 void TFollowerCommitter::RegisterNextChangelog(int id, IChangelogPtr changelog)
@@ -1180,7 +1181,7 @@ void TFollowerCommitter::LogMutations()
 
     if (!Changelog_) {
         YT_VERIFY(!Options_.WriteChangelogsAtFollowers);
-        LoggedSequenceNumber_ = lastSequenceNumber;
+        LastLoggedSequenceNumber_ = lastSequenceNumber;
         LoggingMutations_ = false;
         return;
     }
@@ -1206,12 +1207,12 @@ void TFollowerCommitter::OnMutationsLogged(
         return;
     }
 
-    LoggedSequenceNumber_ = std::max(LoggedSequenceNumber_, lastSequenceNumber);
+    LastLoggedSequenceNumber_ = std::max(LastLoggedSequenceNumber_, lastSequenceNumber);
 
-    YT_LOG_DEBUG("Mutations logged at follower (SequenceNumbers: %v-%v, LoggedSequnceNumber: %v)",
+    YT_LOG_DEBUG("Mutations logged at follower (SequenceNumbers: %v-%v, LoggedSequenceNumber: %v)",
         firstSequenceNumber,
         lastSequenceNumber,
-        LoggedSequenceNumber_);
+        LastLoggedSequenceNumber_);
 
     LoggingMutations_ = false;
 }
@@ -1220,19 +1221,17 @@ TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMu
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (committedSequenceNumber <= SelfCommittedSequenceNumber_) {
-        return {};
-    }
-    auto oldSelfCommittedSequenceNumber = std::exchange(SelfCommittedSequenceNumber_, committedSequenceNumber);
-
-    if (LoggedMutations_.empty()) {
-        return {};
+    if (committedSequenceNumber > CommittedSequenceNumber_) {
+        YT_LOG_DEBUG("Committed sequence number promoted (CommittedSequenceNumber: %v -> %v)",
+            CommittedSequenceNumber_,
+            committedSequenceNumber);
+        CommittedSequenceNumber_ = committedSequenceNumber;
     }
 
     std::vector<TPendingMutationPtr> mutations;
     while (!LoggedMutations_.empty()) {
         auto&& mutation = LoggedMutations_.front();
-        if (mutation->SequenceNumber > SelfCommittedSequenceNumber_) {
+        if (mutation->SequenceNumber > CommittedSequenceNumber_) {
             break;
         }
 
@@ -1242,14 +1241,16 @@ TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMu
         LoggedMutations_.pop();
     }
 
+    if (mutations.empty()) {
+        return {};
+    }
+
     TCommitMutationsResult result{
         .FirstSequenceNumber = mutations.front()->SequenceNumber,
         .LastSequenceNumber = mutations.back()->SequenceNumber
     };
 
-    YT_LOG_DEBUG("Committing mutations at follower (SelfCommittedSequenceNumber: %v -> %v, ScheduledSequenceNumbers: %v-%v)",
-        oldSelfCommittedSequenceNumber,
-        SelfCommittedSequenceNumber_,
+    YT_LOG_DEBUG("Committing mutations at follower (SequenceNumbers: %v-%v)",
         result.FirstSequenceNumber,
         result.LastSequenceNumber);
 

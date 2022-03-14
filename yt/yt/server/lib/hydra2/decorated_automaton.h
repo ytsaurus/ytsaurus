@@ -282,12 +282,12 @@ private:
     TInstant Timestamp_;
 
     int NextSnapshotId_ = -1;
-    // SequenceNumber <= SnapshotSequenceNumber
-    i64 SnapshotSequenceNumber_ = -1;
+    // SequenceNumber_ <= NextSnapshotSequenceNumber_
+    i64 NextSnapshotSequenceNumber_ = -1;
     TPromise<NHydra::TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
-    std::atomic<int> LastSuccessfulSnapshotId_ = -1;
+    std::atomic<int> LastSuccessfulSnapshotId_ = NHydra::InvalidSegmentId;
 
     NProfiling::TEventTimer BatchCommitTimer_;
     NProfiling::TTimeGauge SnapshotLoadTime_;

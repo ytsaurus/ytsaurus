@@ -938,17 +938,18 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(int snapshotId
 
     // We are already building this snapshot.
     if (NextSnapshotId_ == snapshotId) {
-        YT_LOG_INFO("We are already building this snapshot (SnapshotId: %v)", NextSnapshotId_);
+        YT_LOG_INFO("Snapshot is already being built (SnapshotId: %v)",
+            NextSnapshotId_);
         return SnapshotParamsPromise_;
     }
 
     YT_VERIFY(NextSnapshotId_ < snapshotId);
 
-    YT_LOG_INFO("Started building snapshot (SnapshotId: %v, SequenceNumber: %v)",
+    YT_LOG_INFO("Will build snapshot (SnapshotId: %v, SequenceNumber: %v)",
         snapshotId,
         sequenceNumber);
 
-    SnapshotSequenceNumber_ = sequenceNumber;
+    NextSnapshotSequenceNumber_ = sequenceNumber;
     NextSnapshotId_ = snapshotId;
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
@@ -1218,9 +1219,13 @@ void TDecoratedAutomaton::UpdateSnapshotBuildDeadline()
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 {
-    if (GetSequenceNumber() != SnapshotSequenceNumber_) {
+    if (GetSequenceNumber() != NextSnapshotSequenceNumber_) {
         return;
     }
+
+    YT_LOG_INFO("Building snapshot (SnapshotId: %v, SequenceNumber: %v)",
+        NextSnapshotId_,
+        NextSnapshotSequenceNumber_);
 
     auto builder =
         // XXX(babenko): ASAN + fork = possible deadlock; cf. https://st.yandex-team.ru/DEVTOOLS-5425
@@ -1235,7 +1240,7 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
     auto buildResult = builder->Run();
     buildResult.Subscribe(
         BIND(&TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo, MakeWeak(this))
-        .Via(AutomatonInvoker_));
+            .Via(AutomatonInvoker_));
 
     SnapshotParamsPromise_.SetFrom(buildResult);
 }

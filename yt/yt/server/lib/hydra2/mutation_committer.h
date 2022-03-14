@@ -21,6 +21,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/mpsc_queue.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/core/profiling/profiler.h>
 
@@ -259,14 +260,14 @@ public:
 
 private:
     // Accepted, but not logged.
-    std::queue<TPendingMutationPtr> AcceptedMutations_;
-    i64 AcceptedSequenceNumber_ = 0;
+    TRingQueue<TPendingMutationPtr> AcceptedMutations_;
+    i64 LastAcceptedSequenceNumber_ = 0;
 
     // Logged, but not committed.
-    std::queue<TPendingMutationPtr> LoggedMutations_;
-    i64 LoggedSequenceNumber_ = 0;
+    TRingQueue<TPendingMutationPtr> LoggedMutations_;
+    i64 LastLoggedSequenceNumber_ = 0;
 
-    i64 SelfCommittedSequenceNumber_ = -1;
+    i64 CommittedSequenceNumber_ = -1;
 
     bool LoggingMutations_ = false;
 
