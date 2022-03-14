@@ -260,9 +260,7 @@ void TLegacyMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     auto clusterNodeHeartbeat = Bootstrap_->GetMasterConnector()->GetHeartbeatRequest();
     FillClusterNodeHeartbeatPart(request.Get(), clusterNodeHeartbeat);
 
-    YT_LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",
-        request->statistics().total_stored_chunk_count(),
-        request->statistics().total_cached_chunk_count(),
+    YT_LOG_INFO("Full node heartbeat sent to master (%v)",
         request->statistics());
 
     auto rspOrError = WaitFor(request->Invoke());
