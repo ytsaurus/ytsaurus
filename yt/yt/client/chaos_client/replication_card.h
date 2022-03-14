@@ -118,6 +118,7 @@ TReplicationProgress ExtractReplicationProgress(
     NTableClient::TLegacyKey upper);
 TReplicationProgress AdvanceReplicationProgress(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
 TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
+void CanonizeReplicationProgress(TReplicationProgress* progress);
 
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress);
 NTransactionClient::TTimestamp GetReplicationProgressTimestampForKey(const TReplicationProgress& progress, NTableClient::TUnversionedRow key);

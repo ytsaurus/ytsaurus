@@ -377,6 +377,20 @@ TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgr
     return result;
 }
 
+void CanonizeReplicationProgress(TReplicationProgress* progress)
+{
+    int current = 0;
+    for (int index = 1; index < std::ssize(progress->Segments); ++index) {
+        if (progress->Segments[current].Timestamp != progress->Segments[index].Timestamp) {
+            ++current;
+            if (current != index) {
+                progress->Segments[current] = std::move(progress->Segments[index]);
+            }
+        }
+    }
+    progress->Segments.resize(current + 1);
+}
+
 TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress)
 {
     auto minTimestamp = MaxTimestamp;
