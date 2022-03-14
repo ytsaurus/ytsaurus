@@ -719,6 +719,42 @@ class TestChaos(ChaosTestBase):
             insert_rows("//tmp/t", [rows[i]])
         wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
+    @authors("savrus")
+    def test_resharded_queue_pull(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+
+        reshard_table("//tmp/q0", [[], [1]], driver=get_driver(cluster="remote_0"))
+
+        for replica in replicas:
+            sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+        self._sync_replication_era(card_id, replicas)
+
+        def _pull_rows(replica_index, timestamp):
+            rows = pull_rows(
+                replicas[replica_index]["replica_path"],
+                replication_progress={"segments": [{"lower_key": [], "timestamp": timestamp}], "upper_key": ["#<Max>"]},
+                upstream_replica_id=replica_ids[replica_index],
+                driver=get_driver(cluster=replicas[replica_index]["cluster_name"]))
+            return [{"key": row["key"], "value": str(row["value"][0])} for row in rows]
+
+        values0 = [{"key": i, "value": str(i)} for i in range(2)]
+        insert_rows("//tmp/t", values0)
+        wait(lambda: _pull_rows(1, 0) == values0)
+        wait(lambda: _pull_rows(2, 0) == values0)
+
+        timestamp = generate_timestamp()
+        values1 = [{"key": i, "value": str(i+10)} for i in range(2)]
+        insert_rows("//tmp/t", values1)
+        wait(lambda: _pull_rows(1, timestamp) == values1)
+        wait(lambda: _pull_rows(2, timestamp) == values1)
+
     @authors("babenko")
     def test_chaos_replicated_table_requires_valid_card_id(self):
         with pytest.raises(YtError):

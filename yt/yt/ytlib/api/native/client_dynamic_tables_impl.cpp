@@ -2242,7 +2242,7 @@ TPullRowsResult TClient::DoPullRows(
         THROW_ERROR_EXCEPTION("Invalid replication progress: no segments");
     }
     if (segments.size() > 1 && options.OrderRowsByTimestamp) {
-        THROW_ERROR_EXCEPTION("Invalid replication progress: more than one segment while ordering by timestam requested");
+        THROW_ERROR_EXCEPTION("Invalid replication progress: more than one segment while ordering by timestamp requested");
     }
 
     YT_LOG_DEBUG("Pulling rows (OrderedByTimestamp: %llx, UpperTimestamp: %llx, Progress: %v StartRowIndexes: %v)",
@@ -2348,6 +2348,7 @@ TPullRowsResult TClient::DoPullRows(
         });
     }
 
+    CanonizeReplicationProgress(&combinedResult.ReplicationProgress);
     combinedResult.ReplicationProgress.UpperKey = options.ReplicationProgress.UpperKey;
     combinedResult.Rowset = CreateRowset(
         schema,
