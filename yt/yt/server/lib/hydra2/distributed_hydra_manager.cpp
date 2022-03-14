@@ -1867,8 +1867,6 @@ private:
                 .Run())
                 .ThrowOnError();
 
-            SystemLockGuard_.Release();
-
             ControlLeaderRecoveryComplete_.Fire();
 
             YT_LOG_INFO("Committing initial heartbeat mutation");
@@ -1876,18 +1874,16 @@ private:
                 .ThrowOnError();
             YT_LOG_INFO("Initial heartbeat mutation committed");
 
-            LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
 
-            epochContext->HeartbeatMutationCommitExecutor->Start();
-
-            YT_LOG_INFO("Leader recovery completed");
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderActiveAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
                 .Run())
                 .ThrowOnError();
+
+            epochContext->HeartbeatMutationCommitExecutor->Start();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
@@ -1899,13 +1895,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        YT_LOG_INFO("Leader recovery completed");
+
         DecoratedAutomaton_->OnLeaderRecoveryComplete();
+
         AutomatonLeaderRecoveryComplete_.Fire();
     }
 
     void OnLeaderActiveAutomaton()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        YT_LOG_INFO("Leader active");
+
+        LeaderRecovered_ = true;
+
+        SystemLockGuard_.Release();
 
         LeaderActive_.Fire();
     }
