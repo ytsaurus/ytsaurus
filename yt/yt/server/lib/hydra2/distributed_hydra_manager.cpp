@@ -1117,11 +1117,11 @@ private:
             if (snapshotId < SnapshotId_) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
-                    "Received a snapshot request with a snapshot id %v while last snasphot id %v is greater",
+                    "Received a snapshot request with a snapshot id %v while last snapshot id %v is greater",
                     snapshotId,
                     SnapshotId_);
             } else if (snapshotId == SnapshotId_) {
-                YT_LOG_DEBUG("Received a redunant snasphot request, ignoring (SnapshotId: %v)",
+                YT_LOG_DEBUG("Received a redundant snapshot request, ignoring (SnapshotId: %v)",
                     SnapshotId_);
             } else {
                 auto readOnly = snapshotRequest.read_only();
@@ -1129,7 +1129,7 @@ private:
                 SetReadOnly(readOnly);
 
                 SnapshotId_ = snapshotRequest.snapshot_id();
-                YT_LOG_INFO("Received a new snasphot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
+                YT_LOG_INFO("Received a new snapshot request (SnapshotId: %v, SequenceNumber: %v, ReadOnly: %v)",
                     SnapshotId_,
                     snapshotSequenceNumber,
                     readOnly);
@@ -1144,14 +1144,13 @@ private:
 
             if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
                 auto* snapshotResponse = response->mutable_snapshot_response();
-                const auto& valueOrError = SnapshotFuture_.Get();
+                const auto& snapshotParamsOrError = SnapshotFuture_.Get();
                 // TODO(aleksandra-zh): error is actually useful.
-                snapshotResponse->set_ok(valueOrError.IsOK());
-                if (valueOrError.IsOK()) {
-                    auto value = valueOrError.Value();
-
-                    snapshotResponse->set_snapshot_id(value.SnapshotId);
-                    snapshotResponse->set_checksum(value.Checksum);
+                snapshotResponse->set_ok(snapshotParamsOrError.IsOK());
+                if (snapshotParamsOrError.IsOK()) {
+                    const auto& snapshotParams = snapshotParamsOrError.Value();
+                    snapshotResponse->set_snapshot_id(snapshotParams.SnapshotId);
+                    snapshotResponse->set_checksum(snapshotParams.Checksum);
                 }
             }
         }
@@ -1168,6 +1167,7 @@ private:
         // LoggedSequenceNumber in committer should already be initialized.
         auto loggedSequenceNumber = epochContext->FollowerCommitter->GetLoggedSequenceNumber();
         auto expectedSequenceNumber = epochContext->FollowerCommitter->GetExpectedSequenceNumber();
+
         response->set_logged_sequence_number(loggedSequenceNumber);
         response->set_expected_sequence_number(expectedSequenceNumber);
         response->set_mutations_accepted(mutationsAccepted);
