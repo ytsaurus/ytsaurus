@@ -2814,7 +2814,7 @@ private:
                 .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())
                 .Item("pending_replicator_write_record_count").Value(tablet->GetPendingReplicatorWriteRecordCount())
                 .Item("upstream_replica_id").Value(tablet->GetUpstreamReplicaId())
-                .Item("replication_card").Value(tablet->ChaosData()->ReplicationCard)
+                .Item("replication_card").Value(tablet->RuntimeData()->ReplicationCard.Load())
                 .Item("replication_progress").Value(tablet->RuntimeData()->ReplicationProgress.Load())
                 .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())
                 .Do([tablet] (auto fluent) {

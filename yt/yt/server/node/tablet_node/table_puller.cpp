@@ -148,7 +148,8 @@ private:
                     << HardErrorAttribute;
             }
 
-            if (!tabletSnapshot->TabletChaosData->ReplicationCard) {
+            auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Load();
+            if (!replicationCard) {
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
@@ -169,7 +170,6 @@ private:
 
             // NB: There can be uncommitted sync transactions from previous era but they should be already in prepared state and will be committed anyway.
 
-            auto replicationCard = tabletSnapshot->TabletChaosData->ReplicationCard;
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
             auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
             if (!queueReplicaInfo) {
