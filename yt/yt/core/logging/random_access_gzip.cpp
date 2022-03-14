@@ -33,9 +33,9 @@ constexpr int ExtraFlag = 1 << 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRandomAccessGZipFile::TRandomAccessGZipFile(TFile* file, size_t compressionLevel, size_t /*blockSize*/)
+TRandomAccessGZipFile::TRandomAccessGZipFile(TFile file, size_t compressionLevel, size_t /*blockSize*/)
     : CompressionLevel_(compressionLevel)
-    , File_(file)
+    , File_(std::move(file))
 {
     Repair();
     Reset();
@@ -43,7 +43,7 @@ TRandomAccessGZipFile::TRandomAccessGZipFile(TFile* file, size_t compressionLeve
 
 void TRandomAccessGZipFile::Repair()
 {
-    auto fileSize = File_->GetLength();
+    auto fileSize = File_.GetLength();
     if (fileSize == 0) {
         return;
     }
@@ -51,20 +51,20 @@ void TRandomAccessGZipFile::Repair()
     while (OutputPosition_ != fileSize) {
         TGZipExtendedHeader header;
         if (fileSize - OutputPosition_ < static_cast<int>(sizeof(header))) {
-            File_->Resize(OutputPosition_);
+            File_.Resize(OutputPosition_);
             return;
         }
 
-        File_->Pread(&header, sizeof(header), OutputPosition_);
+        File_.Pread(&header, sizeof(header), OutputPosition_);
         // Wrong magic.
         if (header.FixedHeader.Id[0] != 0x1f || header.FixedHeader.Id[1] != 0x8b) {
-            File_->Resize(OutputPosition_);
+            File_.Resize(OutputPosition_);
             return;
         }
 
         // Block is not fully flushed.
         if (OutputPosition_ + header.SmuggledBlockSize > fileSize || header.SmuggledBlockSize == 0) {
-            File_->Resize(OutputPosition_);
+            File_.Resize(OutputPosition_);
             return;
         }
 
@@ -103,7 +103,7 @@ void TRandomAccessGZipFile::DoFlush()
 
     memcpy(buffer.Data(), &header, sizeof(header));
 
-    File_->Pwrite(buffer.Data(), buffer.Size(), OutputPosition_);
+    File_.Pwrite(buffer.Data(), buffer.Size(), OutputPosition_);
     OutputPosition_ += buffer.Size();
     Reset();
 }

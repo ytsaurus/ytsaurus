@@ -2,7 +2,9 @@
 #include "private.h"
 #include "log.h"
 #include "random_access_gzip.h"
-#include "appendable_zstd.h"
+#include "stream_output.h"
+#include "compression.h"
+#include "zstd_compression.h"
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
@@ -232,11 +234,13 @@ TFileLogWriter::TFileLogWriter(
     std::unique_ptr<ILogFormatter> formatter,
     TString writerName,
     TString fileName,
+    IInvokerPtr compressionInvoker,
     bool enableCompression,
     ECompressionMethod compressionMethod,
     int compressionLevel)
     : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
+    , CompressionInvoker_(std::move(compressionInvoker))
     , EnableCompression_(enableCompression)
     , CompressionMethod_(compressionMethod)
     , CompressionLevel_(compressionLevel)
@@ -251,7 +255,7 @@ IOutputStream* TFileLogWriter::GetOutputStream() const noexcept
     if (Y_UNLIKELY(Disabled_.load(std::memory_order_acquire))) {
         return nullptr;
     }
-    return OutputStream_.get();
+    return OutputStream_.Get();
 }
 
 void TFileLogWriter::OnException(const std::exception& ex)
@@ -309,13 +313,15 @@ void TFileLogWriter::Open()
         File_.reset(new TFile(FileName_, openMode));
 
         if (!EnableCompression_) {
-            auto output = std::make_unique<TFixedBufferFileOutput>(*File_, BufferSize);
-            output->SetFinishPropagateMode(true);
-            OutputStream_ = std::move(output);
+            OutputStream_ = New<TFixedBufferFileOutput>(*File_, BufferSize);
         } else if (CompressionMethod_ == ECompressionMethod::Zstd) {
-            OutputStream_.reset(new TAppendableZstdFile(File_.get(), CompressionLevel_, true));
+            OutputStream_ = New<TAppendableCompressedFile>(
+                *File_,
+                CreateZstdCompressionCodec(CompressionLevel_),
+                CompressionInvoker_,
+                /*writeTruncateMessage*/ true);
         } else {
-            OutputStream_.reset(new TRandomAccessGZipFile(File_.get(), CompressionLevel_));
+            OutputStream_ = New<TRandomAccessGZipFile>(*File_, CompressionLevel_);
         }
 
         // Emit a delimiter for ease of navigation.
@@ -341,7 +347,7 @@ void TFileLogWriter::Close()
     try {
         if (OutputStream_) {
             OutputStream_->Finish();
-            OutputStream_.reset();
+            OutputStream_.Reset();
         }
 
         if (File_) {

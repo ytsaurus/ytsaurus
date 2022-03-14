@@ -142,6 +142,7 @@ public:
         std::unique_ptr<ILogFormatter> formatter,
         TString writerName,
         TString fileName,
+        IInvokerPtr compressionInvoker,
         bool enableCompression = false,
         ECompressionMethod compressionMethod = ECompressionMethod::Gzip,
         int compressionLevel = 6);
@@ -156,6 +157,7 @@ protected:
 
 private:
     const TString FileName_;
+    const IInvokerPtr CompressionInvoker_;
     const bool EnableCompression_;
     const ECompressionMethod CompressionMethod_;
     const int CompressionLevel_;
@@ -163,7 +165,7 @@ private:
     std::atomic<bool> Disabled_ = false;
 
     std::unique_ptr<TFile> File_;
-    std::unique_ptr<IOutputStream> OutputStream_;
+    IStreamLogOutputPtr OutputStream_;
 
     void Open();
     void Close();

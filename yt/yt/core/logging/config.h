@@ -96,6 +96,8 @@ public:
 
     bool AbortOnAlert;
 
+    int CompressionThreadCount;
+
     TLogManagerConfig();
 
     TLogManagerConfigPtr ApplyDynamic(const TLogManagerDynamicConfigPtr& dynamicConfig) const;

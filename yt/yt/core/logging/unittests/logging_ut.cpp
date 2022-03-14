@@ -2,11 +2,12 @@
 #include "yt/yt/core/misc/string_builder.h"
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/logging/appendable_zstd.h>
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/writer.h>
 #include <yt/yt/core/logging/random_access_gzip.h>
+#include <yt/yt/core/logging/compression.h>
+#include <yt/yt/core/logging/zstd_compression.h>
 
 #include <yt/yt/core/json/json_parser.h>
 
@@ -144,6 +145,7 @@ protected:
             std::make_unique<TPlainTextLogFormatter>(),
             "test_writer",
             logFile.Name(),
+            GetCurrentInvoker(),
             /* enableCompression */ true,
             method,
             compressionLevel);
@@ -220,6 +222,7 @@ TEST_F(TLoggingTest, FileWriter)
         std::make_unique<TPlainTextLogFormatter>(),
         "test_writer",
         logFile.Name(),
+        GetCurrentInvoker(),
         /* enableCompression */ false);
     WritePlainTextEvent(writer.Get());
 
@@ -361,7 +364,8 @@ TEST_F(TLoggingTest, StructuredLogging)
         auto writer = New<TFileLogWriter>(
             std::make_unique<TStructuredLogFormatter>(format, THashMap<TString, INodePtr>{}),
             "test_writer",
-            logFile.Name());
+            logFile.Name(),
+            GetCurrentInvoker());
         WriteEvent(writer.Get(), event);
         TLogManager::Get()->Synchronize();
 
@@ -406,7 +410,8 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
             /*enableControlMessages*/ true,
             jsonFormat),
         "test_writer",
-        logFile.Name());
+        logFile.Name(),
+        GetCurrentInvoker());
     WriteEvent(writer.Get(), event);
     TLogManager::Get()->Synchronize();
 
@@ -436,23 +441,32 @@ protected:
         return {GenerateLogFileName() + ".zst"};
     }
 
+    TAppendableCompressedFilePtr CreateAppendableZstdFile(TFile rawFile, bool writeTruncateMessage)
+    {
+        return New<TAppendableCompressedFile>(
+            std::move(rawFile),
+            CreateZstdCompressionCodec(),
+            GetCurrentInvoker(),
+            writeTruncateMessage);
+    }
+
     void WriteTestFile(const TString& filename, i64 addBytes, bool writeTruncateMessage)
     {
         {
             TFile rawFile(filename, OpenAlways|RdWr|CloseOnExec);
-            TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, writeTruncateMessage);
-            file << "foo\n";
-            file.Flush();
-            file << "bar\n";
-            file.Finish();
+            auto file = CreateAppendableZstdFile(rawFile, writeTruncateMessage);
+            *file << "foo\n";
+            file->Flush();
+            *file << "bar\n";
+            file->Finish();
 
             rawFile.Resize(rawFile.GetLength() + addBytes);
         }
         {
             TFile rawFile(filename, OpenAlways|RdWr|CloseOnExec);
-            TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, writeTruncateMessage);
-            file << "zog\n";
-            file.Flush();
+            auto file = CreateAppendableZstdFile(rawFile, writeTruncateMessage);
+            *file << "zog\n";
+            file->Flush();
         }
     }
 
@@ -482,9 +496,9 @@ TEST_F(TAppendableZstdFileTest, WriteMultipleFramesPerFlush)
 
     {
         TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
-        TAppendableZstdFile file(&rawFile, DefaultZstdCompressionLevel, true);
-        file.Write(data.data(), data.size());
-        file.Finish();
+        auto file = CreateAppendableZstdFile(rawFile, true);
+        file->Write(data.data(), data.size());
+        file->Finish();
     }
 
     TUnbufferedFileInput file(logFile.Name());
@@ -524,17 +538,17 @@ TEST(TRandomAccessGZipTest, Write)
 
     {
         TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
-        TRandomAccessGZipFile file(&rawFile);
-        file << "foo\n";
-        file.Flush();
-        file << "bar\n";
-        file.Finish();
+        auto file = New<TRandomAccessGZipFile>(rawFile);
+        *file << "foo\n";
+        file->Flush();
+        *file << "bar\n";
+        file->Finish();
     }
     {
         TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
-        TRandomAccessGZipFile file(&rawFile);
-        file << "zog\n";
-        file.Finish();
+        auto file = New<TRandomAccessGZipFile>(rawFile);
+        *file << "zog\n";
+        file->Finish();
     }
 
     auto input = TUnbufferedFileInput(logFile.Name());
@@ -548,11 +562,11 @@ TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
 
     {
         TFile rawFile(logFile.Name(), OpenAlways|RdWr|CloseOnExec);
-        TRandomAccessGZipFile file(&rawFile);
-        file << "foo\n";
-        file.Flush();
-        file << "bar\n";
-        file.Finish();
+        auto file = New<TRandomAccessGZipFile>(rawFile);
+        *file << "foo\n";
+        file->Flush();
+        *file << "bar\n";
+        file->Finish();
     }
 
     i64 fullSize;
@@ -564,7 +578,7 @@ TEST(TRandomAccessGZipTest, RepairIncompleteBlocks)
 
     {
         TFile rawFile(logFile.Name(), OpenAlways | RdWr | CloseOnExec);
-        TRandomAccessGZipFile file(&rawFile);
+        auto file = New<TRandomAccessGZipFile>(rawFile);
     }
 
     {
