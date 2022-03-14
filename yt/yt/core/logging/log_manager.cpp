@@ -9,6 +9,7 @@
 #include <yt/yt/core/concurrency/scheduler_thread.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/invoker_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/hash.h>
@@ -380,6 +381,10 @@ public:
             EventQueue_,
             BIND(&TImpl::CheckSpace, MakeStrong(this)),
             std::nullopt))
+        , CompressionThreadPool_(New<TThreadPool>(
+            /*threadCount*/ 1,
+            /*threadNamePrefix*/ "LogCompress",
+            /*startThreads*/ false))
     {
         try {
             if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
@@ -719,6 +724,7 @@ private:
         FlushExecutor_->Start();
         WatchExecutor_->Start();
         CheckSpaceExecutor_->Start();
+        CompressionThreadPool_->EnsureStarted();
     }
 
     const std::vector<ILogWriterPtr>& GetWriters(const TLogEvent& event)
@@ -823,6 +829,8 @@ private:
             // hold the spinlock anymore.
         }
 
+        CompressionThreadPool_->Configure(Config_->CompressionThreadCount);
+
         if (RequestSuppressionEnabled_) {
             SuppressedRequestIdSet_.Reconfigure((Config_->RequestSuppressionTimeout + DequeuePeriod) * 2);
         } else {
@@ -865,6 +873,7 @@ private:
                         std::move(formatter),
                         name,
                         writerConfig->FileName,
+                        CompressionThreadPool_->GetInvoker(),
                         writerConfig->EnableCompression,
                         writerConfig->CompressionMethod,
                         writerConfig->CompressionLevel);
@@ -1367,6 +1376,8 @@ private:
     const TPeriodicExecutorPtr FlushExecutor_;
     const TPeriodicExecutorPtr WatchExecutor_;
     const TPeriodicExecutorPtr CheckSpaceExecutor_;
+
+    TThreadPoolPtr CompressionThreadPool_ = nullptr;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;

@@ -35,9 +35,10 @@ DECLARE_REFCOUNTED_CLASS(TFormatterConfig)
 DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
 DECLARE_REFCOUNTED_STRUCT(ILogWriter)
+DECLARE_REFCOUNTED_STRUCT(IStreamLogOutput)
+DECLARE_REFCOUNTED_STRUCT(ILogCompressionCodec)
 
 class TLogManager;
-class TRandomAccessGZipFile;
 
 ////////////////////////////////////////////////////////////////////////////////
 

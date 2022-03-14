@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stream_output.h"
+
 #include <memory>
 
 #include <util/generic/buffer.h>
@@ -15,15 +17,15 @@ namespace NLogging {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRandomAccessGZipFile
-    : public IOutputStream
+    : public IStreamLogOutput
 {
 public:
-    explicit TRandomAccessGZipFile(TFile* file, size_t compressionLevel = 6, size_t blockSize = 256_KB);
+    explicit TRandomAccessGZipFile(TFile file, size_t compressionLevel = 6, size_t blockSize = 256_KB);
 
 private:
     const size_t CompressionLevel_;
 
-    TFile* const File_;
+    TFile File_;
 
     i64 OutputPosition_ = 0;
 
@@ -37,6 +39,9 @@ private:
     void Repair();
     void Reset();
 };
+
+DECLARE_REFCOUNTED_TYPE(TRandomAccessGZipFile)
+DEFINE_REFCOUNTED_TYPE(TRandomAccessGZipFile)
 
 ////////////////////////////////////////////////////////////////////////////////
 

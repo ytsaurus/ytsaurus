@@ -1181,7 +1181,8 @@ def init_logging(path, name,
                  log_compression_method="gzip",
                  enable_structured_logging=False,
                  log_errors_to_stderr=False,
-                 abort_on_alert=None):
+                 abort_on_alert=None,
+                 compression_thread_count=None):
     if enable_log_compression and log_compression_method == "zstd":
         suffix = ".zst"
         compression_options = {
@@ -1200,9 +1201,12 @@ def init_logging(path, name,
 
     if abort_on_alert is None:
         abort_on_alert = True
+    if compression_thread_count is None:
+        compression_thread_count = 4
 
     config = {
         "abort_on_alert": abort_on_alert,
+        "compression_thread_count": compression_thread_count,
         "rules": [
             {"min_level": "info", "writers": ["info"]},
         ],

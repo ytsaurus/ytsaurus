@@ -160,6 +160,9 @@ TLogManagerConfig::TLogManagerConfig()
     RegisterParameter("abort_on_alert", AbortOnAlert)
         .Default(false);
 
+    RegisterParameter("compression_thread_count", CompressionThreadCount)
+        .Default(1);
+
     RegisterPostprocessor([&] () {
         for (const auto& [ruleIndex, rule] : Enumerate(Rules)) {
             for (const TString& writer : rule->Writers) {
