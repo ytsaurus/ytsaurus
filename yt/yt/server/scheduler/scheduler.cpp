@@ -3541,8 +3541,6 @@ private:
             YT_VERIFY(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
 
-            SubmitOperationToCleaner(operation, operationProgress);
-
             // Second flush: ensure that state is changed to Completed.
             {
                 auto asyncResult = MasterConnector_->FlushOperationNode(operation);
@@ -3558,7 +3556,10 @@ private:
         operation->SetUnregistering();
 
         // Switch to regular control invoker.
+        // No recurrent complete is possible after this point.
         SwitchTo(operation->GetControlInvoker());
+
+        SubmitOperationToCleaner(operation, operationProgress);
 
         // Notify controller that it is going to be disposed (failure is intentionally ignored).
         {
@@ -3856,6 +3857,12 @@ private:
                 return;
             }
         }
+
+        operation->SetUnregistering();
+
+        // Switch to regular control invoker.
+        // No recurrent terminate is possible after this point.
+        SwitchTo(operation->GetControlInvoker());
 
         SubmitOperationToCleaner(operation, operationProgress);
 
