@@ -101,7 +101,6 @@ struct TChaosTabletData
     : public TRefCounted
 {
     int ReplicationRound = 0;
-    NChaosClient::TReplicationCardPtr ReplicationCard;
     THashMap<TTabletId, i64> CurrentReplicationRowIndexes;
 };
 
@@ -146,6 +145,7 @@ struct TRuntimeTabletData
     std::atomic<ETabletWriteMode> WriteMode = ETabletWriteMode::Direct;
     std::atomic<NChaosClient::TReplicationEra> ReplicationEra = NChaosClient::InvalidReplicationEra;
     TAtomicObject<TRefCountedReplicationProgressPtr> ReplicationProgress;
+    TAtomicObject<NChaosClient::TReplicationCardPtr> ReplicationCard;
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
     TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> Errors;
 };

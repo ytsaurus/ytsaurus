@@ -109,7 +109,7 @@ private:
                     }
                 })).ValueOrThrow();
 
-            Tablet_->ChaosData()->ReplicationCard = ReplicationCard_;
+            Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
 
             YT_LOG_DEBUG("Tablet replication card updated (ReplicationCard: %v)",
                 *ReplicationCard_);

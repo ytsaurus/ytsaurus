@@ -188,7 +188,7 @@ private:
             return;
         }
 
-        const auto& replicationCard = tablet->ChaosData()->ReplicationCard;
+        auto replicationCard = tablet->RuntimeData()->ReplicationCard.Load();
 
         if (!replicationCard) {
             return;
