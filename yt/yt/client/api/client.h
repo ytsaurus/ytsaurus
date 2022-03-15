@@ -233,6 +233,7 @@ struct TAlterTableOptions
     std::optional<bool> Dynamic;
     std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
     std::optional<NTableClient::ETableSchemaModification> SchemaModification;
+    std::optional<NChaosClient::TReplicationProgress> ReplicationProgress;
 };
 
 struct TTrimTableOptions

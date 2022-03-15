@@ -156,6 +156,9 @@ public:
         NTableServer::TTableNode* originatingNode,
         NTableServer::TTableNode* branchedNode);
 
+    NChaosClient::TReplicationProgress GatherReplicationProgress(const NTableServer::TTableNode* table);
+    void ScatterReplicationProgress(NTableServer::TTableNode* table, NChaosClient::TReplicationProgress progress);
+
     void OnNodeStorageParametersUpdated(NChunkServer::TChunkOwnerBase* node);
 
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);

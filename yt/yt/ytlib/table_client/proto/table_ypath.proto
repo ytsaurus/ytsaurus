@@ -1,8 +1,9 @@
 package NYT.NTableClient.NProto;
 
-import "yt_proto/yt/core/misc/proto/guid.proto";
-import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt/ytlib/hive/proto/cell_directory.proto";
+import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,6 +146,7 @@ message TReqAlter
     optional bool dynamic = 2;
     optional NYT.NProto.TGuid upstream_replica_id = 3;
     optional int32 schema_modification = 4; // ETableSchemaModification
+    optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 5;
 }
 
 message TRspAlter

@@ -1420,6 +1420,7 @@ message TReqAlterTable
     optional bool dynamic = 3;
     optional NYT.NProto.TGuid upstream_replica_id = 4;
     optional ETableSchemaModification schema_modification = 5;
+    optional NYT.NChaosClient.NProto.TReplicationProgress replication_progress = 6;
 
     optional TTransactionalOptions transactional_options = 100;
     optional TMutatingOptions mutating_options = 103;

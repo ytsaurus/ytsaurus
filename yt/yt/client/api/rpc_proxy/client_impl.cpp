@@ -11,7 +11,7 @@
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
@@ -455,6 +455,9 @@ TFuture<void> TClient::AlterTable(
     }
     if (options.SchemaModification) {
         req->set_schema_modification(static_cast<NProto::ETableSchemaModification>(*options.SchemaModification));
+    }
+    if (options.ReplicationProgress) {
+        ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
     }
 
     ToProto(req->mutable_mutating_options(), options);

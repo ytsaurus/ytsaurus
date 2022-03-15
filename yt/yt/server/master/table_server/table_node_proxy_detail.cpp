@@ -66,24 +66,24 @@
 namespace NYT::NTableServer {
 
 using namespace NApi;
+using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
+using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NQueueClient;
 using namespace NRpc;
 using namespace NSecurityServer;
-using namespace NChaosClient;
-using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NTabletServer;
 using namespace NTabletNode;
+using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
-using namespace NQueueClient;
 
 using NChunkClient::TLegacyReadLimit;
 
@@ -264,6 +264,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && trunkTable->GetReplicationCardId()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationProgress)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TableChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
@@ -719,6 +723,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             }
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetReplicationCardId());
+            return true;
+
+        case EInternedAttributeKey::ReplicationProgress:
+            if (!isDynamic || isExternal) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(tabletManager->GatherReplicationProgress(trunkTable));
             return true;
 
         case EInternedAttributeKey::EnableTabletBalancer:
@@ -1725,8 +1737,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     {
         NTableClient::TTableSchemaPtr Schema;
         std::optional<bool> Dynamic;
-        std::optional<NTabletClient::TTableReplicaId> UpstreamReplicaId;
-        std::optional<NTableClient::ETableSchemaModification> SchemaModification;
+        std::optional<TTableReplicaId> UpstreamReplicaId;
+        std::optional<ETableSchemaModification> SchemaModification;
+        std::optional<TReplicationProgress> ReplicationProgress;
     } options;
 
     if (request->has_schema()) {
@@ -1741,12 +1754,16 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (request->has_schema_modification()) {
         options.SchemaModification = FromProto<ETableSchemaModification>(request->schema_modification());
     }
+    if (request->has_replication_progress()) {
+        options.ReplicationProgress = FromProto<TReplicationProgress>(request->replication_progress());
+    }
 
-    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v",
+    context->SetRequestInfo("Schema: %v, Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v",
         options.Schema,
         options.Dynamic,
         options.UpstreamReplicaId,
-        options.SchemaModification);
+        options.SchemaModification,
+        options.ReplicationProgress);
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& tableManager = Bootstrap_->GetTableManager();
@@ -1819,6 +1836,20 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             }
         }
 
+        if (options.ReplicationProgress) {
+            if (!dynamic) {
+                THROW_ERROR_EXCEPTION("Replication progress can only be set for dynamic tables");
+            }
+            if (table->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Replication progress cannot be set for replicated tables");
+            }
+            if (!table->GetReplicationCardId()) {
+                THROW_ERROR_EXCEPTION("Replication progress can only be set for tables bound for chaos replication");
+            }
+
+            table->ValidateAllTabletsUnmounted("Cannot change replication progress");
+        }
+
         ValidateTableSchemaUpdate(
             *table->GetSchema()->AsTableSchema(),
             *schema,
@@ -1867,6 +1898,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     if (options.UpstreamReplicaId) {
         table->SetUpstreamReplicaId(*options.UpstreamReplicaId);
+    }
+
+    if (options.ReplicationProgress) {
+        tabletManager->ScatterReplicationProgress(table, *options.ReplicationProgress);
     }
 
     if (table->IsExternal()) {
