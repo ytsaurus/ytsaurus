@@ -1287,8 +1287,86 @@ class TestJobsIOTracking(TestJobsIOTrackingBase):
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
 
     @authors("gepardo")
+    def test_table_artifacts(self):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        create("table", "//tmp/table_aux")
+        write_table("//tmp/table_in", table_data)
+        write_table("//tmp/table_aux", [{"x": 1}])
+        write_table("<append=%true>//tmp/table_aux", [{"x": 2}])
+        raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        assert len(get("//tmp/table_aux/@chunk_ids")) == 2
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = yt_commands.map(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="cat",
+            file="<format=json>//tmp/table_aux",
+            spec={
+                "mapper": {"copy_files": True}
+            }
+        )
+        raw_events, _ = self.wait_for_events(raw_count=7, from_barrier=from_barrier)
+
+        event_counts = defaultdict(int)
+
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "map"
+            assert "job_id" in event
+            assert event["job_type@"] == "map"
+            assert event["task_name@"] == "map"
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            assert event["user@"] in ["root", "job:root"]
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+
+            if "job_io_kind@" in event:
+                workload = event["job_io_kind@"]
+                assert workload in ["artifact_copy", "artifact_download"]
+                assert event["object_path"] in ["//tmp/table_aux", "<cached_data_source>"]
+            else:
+                assert event["data_node_method@"] in ["FinishChunk", "GetBlockSet", "GetBlockRange"]
+                if event["data_node_method@"] == "FinishChunk":
+                    assert event["object_path"] == "//tmp/table_out"
+                else:
+                    assert event["object_path"] == "//tmp/table_in"
+                workload = "job"
+
+            descriptor = (workload, event["direction@"])
+            event_counts[descriptor] += 1
+
+        expected_event_counts = {
+            ("artifact_download", "read"): 2,
+            ("artifact_download", "write"): 1,
+            ("artifact_copy", "read"): 1,
+            ("artifact_copy", "write"): 1,
+            ("job", "read"): 1,
+            ("job", "write"): 1,
+        }
+
+        assert sorted(event_counts.items()) == sorted(expected_event_counts.items())
+
+        assert read_table("//tmp/table_out") == table_data
+
+    @authors("gepardo")
     @pytest.mark.parametrize("chunk_count", [1, 2])
-    def test_file_artifacts(self, chunk_count):
+    @pytest.mark.parametrize("strategy", ["link", "copy", "bypass"])
+    def test_file_artifacts(self, chunk_count, strategy):
         table_data = [
             {"id": 1, "name": "cat"},
             {"id": 1, "name": "python"},
@@ -1312,17 +1390,30 @@ class TestJobsIOTracking(TestJobsIOTrackingBase):
 
         assert len(get("//tmp/script.sh/@chunk_ids")) == chunk_count
 
+        raw_count = {
+            "link": 3 + chunk_count,
+            "copy": 5 + chunk_count,
+            "bypass": 3 + chunk_count,
+        }[strategy]
+
         from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        spec = {}
+        file = yson.YsonString(b"//tmp/script.sh")
+        if strategy == "copy":
+            spec.setdefault("mapper", {})["copy_files"] = True
+        elif strategy == "bypass":
+            file.attributes["bypass_artifact_cache"] = True
         op = yt_commands.map(
             in_="//tmp/table_in",
             out="//tmp/table_out",
             command="sh script.sh",
-            file="//tmp/script.sh",
+            file=file,
+            spec=spec,
         )
-        raw_events, _ = self.wait_for_events(raw_count=2 + chunk_count, from_barrier=from_barrier)
+        raw_events, _ = self.wait_for_events(raw_count=raw_count, from_barrier=from_barrier)
 
-        read_paths = []
-        write_paths = []
+        event_counts = defaultdict(int)
+
         for event in raw_events:
             assert event["pool_tree@"] == "default"
             assert event["operation_id"] == op.id
@@ -1335,14 +1426,67 @@ class TestJobsIOTracking(TestJobsIOTrackingBase):
             assert event["user@"] in ["root", "job:root"]
             assert "object_id" in event
             assert event["account@"] == "tmp"
-            if event["data_node_method@"] == "FinishChunk":
-                write_paths.append(event["object_path"])
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_paths.append(event["object_path"])
+
+            if "job_io_kind@" in event:
+                workload = event["job_io_kind@"]
+                assert workload in ["artifact_copy", "artifact_download", "artifact_bypass_cache"]
+                assert event["object_path"] == "//tmp/script.sh"
             else:
-                assert False
-        assert sorted(read_paths) == ["//tmp/script.sh"] * chunk_count + ["//tmp/table_in"]
-        assert sorted(write_paths) == ["//tmp/table_out"]
+                assert event["data_node_method@"] in ["FinishChunk", "GetBlockSet", "GetBlockRange"]
+                if event["data_node_method@"] == "FinishChunk":
+                    assert event["object_path"] == "//tmp/table_out"
+                else:
+                    assert event["object_path"] == "//tmp/table_in"
+                workload = "job"
+
+            descriptor = (workload, event["direction@"])
+            event_counts[descriptor] += 1
+
+            if descriptor in [
+                ("artifact_download", "write"),
+                ("artifact_copy", "read"),
+            ]:
+                assert "medium@" in event
+                assert "disk_family@" in event
+                assert event["location_id@"].find("cache") != -1
+            elif descriptor in [
+                ("artifact_download", "read"),
+                ("artifact_bypass_cache", "read"),
+                ("job", "read"),
+                ("job", "write")
+            ]:
+                assert "medium@" in event
+                assert "disk_family@" in event
+                assert event["location_id@"].find("cache") == -1
+            else:
+                assert "medium@" not in event
+                assert "disk_family@" not in event
+                assert "location_id@" not in event
+
+        expected_event_counts = {
+            "link": {
+                ("artifact_download", "read"): chunk_count,
+                ("artifact_download", "write"): 1,
+                ("job", "read"): 1,
+                ("job", "write"): 1,
+            },
+            "copy": {
+                ("artifact_download", "read"): chunk_count,
+                ("artifact_download", "write"): 1,
+                ("artifact_copy", "read"): 1,
+                ("artifact_copy", "write"): 1,
+                ("job", "read"): 1,
+                ("job", "write"): 1,
+            },
+            "bypass": {
+                ("artifact_bypass_cache", "read"): chunk_count,
+                ("artifact_bypass_cache", "write"): 1,
+                ("job", "read"): 1,
+                ("job", "write"): 1,
+            }
+        }
+
+        assert sorted(event_counts.items()) == sorted(expected_event_counts[strategy].items())
 
         assert read_table("//tmp/table_out") == table_data
 

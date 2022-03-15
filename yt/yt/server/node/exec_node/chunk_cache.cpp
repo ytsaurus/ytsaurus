@@ -21,6 +21,7 @@
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
+#include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -49,6 +50,8 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -379,6 +382,13 @@ public:
         bool* fetchedFromCache = nullptr)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        auto traceContext = CreateTraceContextFromCurrent("ChunkCache");
+        TTraceContextGuard guard(traceContext);
+        auto baggage = traceContext->UnpackOrCreateBaggage();
+        AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, "artifact_download");
+        AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(key.data_source()));
+        traceContext->PackBaggage(std::move(baggage));
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
             artifactDownloadOptions,
@@ -928,7 +938,7 @@ private:
 
             auto artifactCacheReaderConfig = GetArtifactCacheReaderConfig();
 
-            TTraceContextPtr traceContext(CreateTraceContextFromCurrent("ChunkReader"));
+            auto traceContext = CreateTraceContextFromCurrent("ChunkReader");
             TTraceContextGuard guard(traceContext);
 
             PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
@@ -1027,6 +1037,22 @@ private:
 
             WaitFor(checkedChunkWriter->Close(deferredChunkMeta))
                 .ThrowOnError();
+
+            if (Bootstrap_->GetIOTracker()->IsEnabled()) {
+                Bootstrap_->GetIOTracker()->Enqueue(
+                    TIOCounters{
+                        .Bytes = checkedChunkWriter->GetChunkInfo().disk_space(),
+                        .IORequests = 1,
+                    },
+                    /*tags*/ {
+                        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+                        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+                        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+                        {FormatIOTag(EAggregateIOTag::Direction), "write"},
+                        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        {FormatIOTag(ERawIOTag::ChunkId), ToString(chunkId)},
+                    });
+            }
 
             YT_LOG_INFO("Chunk is downloaded into cache");
 
@@ -1268,11 +1294,32 @@ private:
         TUnbufferedFileOutput fileOutput(*tempDataFile);
         TErrorInterceptingOutput checkedOutput(location, &fileOutput);
 
+        auto traceContext = CreateTraceContextFromCurrent("ChunkCache");
+        TTraceContextGuard guard(traceContext);
+
+        PackBaggageFromDataSource(traceContext, FromProto<NChunkClient::TDataSource>(key.data_source()));
+
         try {
             producer(&checkedOutput);
         } catch (const std::exception& ex) {
             location->Unlock(chunkId);
             throw;
+        }
+
+        if (Bootstrap_->GetIOTracker()->IsEnabled()) {
+            Bootstrap_->GetIOTracker()->Enqueue(
+                TIOCounters{
+                    .Bytes = tempDataFile->GetLength(),
+                    .IORequests = 1,
+                },
+                /*tags*/ {
+                    {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+                    {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+                    {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+                    {FormatIOTag(EAggregateIOTag::Direction), "write"},
+                    {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                    {FormatIOTag(ERawIOTag::ChunkId), ToString(chunkId)},
+                });
         }
 
         location->DisableOnError(BIND([&] {

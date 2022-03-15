@@ -126,7 +126,8 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TFile& destinationFile) override
+        const TFile& destinationFile,
+        const NDataNode::TChunkLocationPtr& sourceLocation) override
     {
         return RunPrepareAction<void>([&] {
                 return Location_->MakeSandboxCopy(
@@ -135,7 +136,8 @@ public:
                     artifactName,
                     sandboxKind,
                     sourcePath,
-                    destinationFile);
+                    destinationFile,
+                    sourceLocation);
             });
     }
 
