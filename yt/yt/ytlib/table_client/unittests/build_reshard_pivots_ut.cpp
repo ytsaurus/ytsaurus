@@ -42,7 +42,8 @@ public:
             /*keyColumnCount*/ 1,
             tabletCount,
             accuracy,
-            expectedTabletSize);
+            expectedTabletSize,
+            MaxKey());
 
         TabletCount_ = tabletCount;
         Accuracy_ = accuracy;
