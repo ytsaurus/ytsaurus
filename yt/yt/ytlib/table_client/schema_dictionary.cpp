@@ -3,7 +3,8 @@
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/farm_hash.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 namespace NYT::NTableClient {
 

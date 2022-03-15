@@ -18,11 +18,12 @@
 #include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/profiler.h>
 
-#include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/syncmap/map.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 namespace NYT::NTabletNode {
 

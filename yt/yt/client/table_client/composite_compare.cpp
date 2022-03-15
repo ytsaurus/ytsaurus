@@ -1,8 +1,9 @@
 #include "composite_compare.h"
 
 #include <yt/yt/core/yson/pull_parser.h>
-#include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/library/numeric/util.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 #include <util/stream/mem.h>
 
