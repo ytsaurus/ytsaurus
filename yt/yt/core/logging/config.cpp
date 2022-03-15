@@ -200,6 +200,7 @@ TLogManagerConfigPtr TLogManagerConfig::ApplyDynamic(const TLogManagerDynamicCon
     mergedConfig->EnableAnchorProfiling = dynamicConfig->EnableAnchorProfiling.value_or(EnableAnchorProfiling);
     mergedConfig->MinLoggedMessageRateToProfile = dynamicConfig->MinLoggedMessageRateToProfile.value_or(MinLoggedMessageRateToProfile);
     mergedConfig->AbortOnAlert = dynamicConfig->AbortOnAlert.value_or(AbortOnAlert);
+    mergedConfig->CompressionThreadCount = dynamicConfig->CompressionThreadCount.value_or(CompressionThreadCount);
     mergedConfig->Postprocess();
     return mergedConfig;
 }
@@ -423,6 +424,9 @@ TLogManagerDynamicConfig::TLogManagerDynamicConfig()
         .Optional();
 
     RegisterParameter("abort_on_alert", AbortOnAlert)
+        .Optional();
+
+    RegisterParameter("compression_thread_count", CompressionThreadCount)
         .Optional();
 }
 
