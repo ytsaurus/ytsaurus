@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -45,11 +47,22 @@ import ru.yandex.yt.ytclient.wire.VersionedRowset;
  */
 @NonNullFields
 @NonNullApi
-public class MultiYtClient implements ImmutableTransactionalClient {
+public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
     final MultiExecutor executor;
 
     private MultiYtClient(Builder builder) {
         executor = new MultiExecutor(builder);
+    }
+
+    @Override
+    public void close() {
+        for (MultiExecutor.YtClientEntry entry : executor.clients) {
+            try {
+                entry.client.close();
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }
     }
 
     /**
@@ -120,7 +133,7 @@ public class MultiYtClient implements ImmutableTransactionalClient {
             final BaseYtClient client;
             Duration initialPenalty = Duration.ZERO;
 
-            Builder(BaseYtClient client) {
+            public Builder(BaseYtClient client) {
                 this.client = client;
             }
 
@@ -128,12 +141,12 @@ public class MultiYtClient implements ImmutableTransactionalClient {
              * Set initial penalty for this client.
              * @return self
              */
-            Builder setInitialPenalty(Duration initialPenalty) {
+            public Builder setInitialPenalty(Duration initialPenalty) {
                 this.initialPenalty = initialPenalty;
                 return this;
             }
 
-            YtClientOptions build() {
+            public YtClientOptions build() {
                 return new YtClientOptions(this);
             }
         }

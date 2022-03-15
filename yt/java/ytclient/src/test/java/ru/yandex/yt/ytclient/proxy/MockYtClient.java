@@ -37,13 +37,17 @@ import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public class MockYtClient implements TransactionalClient, BaseYtClient {
-    private Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();
+    private final Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();
     private Map<String, Long> timesCalled = new HashMap<>();
-    private YtCluster cluster;
-    private ScheduledExecutorService executor = new NioEventLoopGroup(1);
+    private final YtCluster cluster;
+    private final ScheduledExecutorService executor = new NioEventLoopGroup(1);
 
     public MockYtClient(String clusterName) {
         this.cluster = new YtCluster(YtCluster.normalizeName(clusterName));
+    }
+
+    @Override
+    public void close() {
     }
 
     public void mockMethod(String methodName, Callable<CompletableFuture<?>> callback) {
@@ -58,7 +62,7 @@ public class MockYtClient implements TransactionalClient, BaseYtClient {
 
     public long getTimesCalled(String methodName) {
         synchronized (this) {
-            return timesCalled.getOrDefault(methodName, Long.valueOf(0));
+            return timesCalled.getOrDefault(methodName, 0L);
         }
     }
 
