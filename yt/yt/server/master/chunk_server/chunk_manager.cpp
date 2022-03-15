@@ -3459,7 +3459,16 @@ private:
         TRspExecuteBatch::TConfirmChunkSubresponse* subresponse)
     {
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
-        auto replicas = FromProto<TChunkReplicaWithMediumList>(subrequest->replicas());
+        TChunkReplicaWithMediumList replicas;
+
+        if (subrequest->replicas_size() != 0) {
+            replicas.reserve(subrequest->replicas_size());
+            for (const auto& protoReplica : subrequest->replicas()) {
+                replicas.push_back(FromProto<TChunkReplicaWithMedium>(protoReplica.replica()));
+            }
+        } else {
+            replicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
+        }
 
         auto* chunk = GetChunkOrThrow(chunkId);
 

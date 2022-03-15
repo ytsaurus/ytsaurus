@@ -107,7 +107,7 @@ public:
         return UnderlyingWriter_->GetDataStatistics();
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
         return UnderlyingWriter_->GetWrittenChunkReplicas();
     }

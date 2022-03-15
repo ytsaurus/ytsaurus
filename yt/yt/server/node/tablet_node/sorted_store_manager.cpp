@@ -873,11 +873,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
 
             if (mountConfig->RegisterChunkReplicasOnStoresUpdate) {
+                const auto& writtenReplicas = hunkChunkWriter->GetWrittenChunkReplicas();
+                TChunkReplicaWithMediumList replicas;
+                replicas.reserve(writtenReplicas.size());
+                for (auto replica : writtenReplicas) {
+                    replicas.push_back(replica);
+                }
                 TabletContext_
                     ->GetChunkReplicaCache()
                     ->RegisterReplicas(
                         hunkChunkWriter->GetChunkId(),
-                        hunkChunkWriter->GetWrittenChunkReplicas());
+                        replicas);
             }
         }
         return result;

@@ -276,12 +276,19 @@ private:
             .ThrowOnError();
 
         if (HunkChunkPayloadWriter_->HasHunks() && TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
+            TChunkReplicaWithMediumList legacyReplicas;
+            const auto& writtenReplicas = HunkChunkWriter_->GetWrittenChunkReplicas();
+            legacyReplicas.reserve(writtenReplicas.size());
+            for (auto replica : writtenReplicas) {
+                legacyReplicas.push_back(replica);
+            }
             Bootstrap_
                 ->GetMasterConnection()
                 ->GetChunkReplicaCache()
                 ->RegisterReplicas(
                     HunkChunkWriter_->GetChunkId(),
-                    HunkChunkWriter_->GetWrittenChunkReplicas());
+                    legacyReplicas);
         }
     }
 

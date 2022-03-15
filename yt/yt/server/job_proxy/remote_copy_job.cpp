@@ -675,19 +675,18 @@ private:
         NChunkClient::TSessionId outputSessionId)
     {
         TChunkInfo chunkInfo;
-        TChunkReplicaWithMediumList writtenReplicas;
+        TChunkReplicaWithLocationList writtenReplicas;
 
         i64 diskSpace = 0;
         for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
             auto replicas = writers[index]->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
-            auto replica = TChunkReplicaWithMedium(
+            writtenReplicas.emplace_back(
                 replicas.front().GetNodeId(),
                 index,
-                replicas.front().GetMediumIndex());
-
-            writtenReplicas.push_back(replica);
+                replicas.front().GetMediumIndex(),
+                replicas.front().GetChunkLocationUuid());
         }
 
         chunkInfo.set_disk_space(diskSpace);
@@ -766,14 +765,14 @@ private:
         WaitFor(writer->Close(chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
-        TChunkReplicaWithMediumList writtenReplicas = writer->GetWrittenChunkReplicas();
+        auto writtenReplicas = writer->GetWrittenChunkReplicas();
         ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
     }
 
     void ConfirmChunkReplicas(
         NChunkClient::TSessionId outputSessionId,
         const TChunkInfo& chunkInfo,
-        const TChunkReplicaWithMediumList& writtenReplicas,
+        const TChunkReplicaWithLocationList& writtenReplicas,
         const TRefCountedChunkMetaPtr& inputChunkMeta)
     {
         YT_LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId.ChunkId);
@@ -802,7 +801,21 @@ private:
         ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
         *req->mutable_chunk_info() = chunkInfo;
         *req->mutable_chunk_meta() = masterChunkMeta;
-        NYT::ToProto(req->mutable_replicas(), writtenReplicas);
+        ToProto(req->mutable_legacy_replicas(), writtenReplicas);
+
+        req->set_location_uuids_supported(true);
+
+        bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const TChunkReplicaWithLocation& replica) {
+            return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
+        });
+
+        if (useLocationUuids) {
+            for (const auto& replica : writtenReplicas) {
+                auto* replicaInfo = req->add_replicas();
+                replicaInfo->set_replica(ToProto<ui64>(replica));
+                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
+            }
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(

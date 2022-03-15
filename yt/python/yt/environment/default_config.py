@@ -60,6 +60,10 @@ b"""
         chunk_seal_backoff_time = 1000;
     };
 
+    chunk_service = {
+        enable_alert_on_chunk_confirmation_without_location_uuid = %true;
+    };
+
     node_tracker = {
         master_cache_manager = {
             update_period = 1000;

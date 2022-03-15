@@ -292,18 +292,17 @@ public:
         return CodecId_;
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
-        TChunkReplicaWithMediumList result;
+        TChunkReplicaWithLocationList result;
         for (int i = 0; i < std::ssize(Writers_); ++i) {
             auto replicas = Writers_[i]->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
-            auto replica = TChunkReplicaWithMedium(
-                replicas.front().GetNodeId(),
+            result.emplace_back(
+                replicas[0].GetNodeId(),
                 i,
-                replicas.front().GetMediumIndex());
-
-            result.push_back(replica);
+                replicas[0].GetMediumIndex(),
+                replicas[0].GetChunkLocationUuid());
         }
         return result;
     }

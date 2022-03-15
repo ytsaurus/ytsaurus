@@ -471,9 +471,13 @@ TDynamicChunkServiceConfig::TDynamicChunkServiceConfig()
 {
     RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
         .Default(true);
+    
+    RegisterParameter(
+        "enable_alert_on_chunk_confirmation_without_location_uuid",
+        EnableAlertOnChunkConfirmationWithoutLocationUuid)
+        .Default(false)
+        .DontSerializeDefault();
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 

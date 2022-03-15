@@ -57,6 +57,7 @@ using namespace NObjectClient;
 using NProto::TChunkMeta;
 using NProto::TChunkInfo;
 using NProto::TDataStatistics;
+using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,6 +82,7 @@ struct TNode
     const TNodeDescriptor Descriptor;
     const TChunkReplicaWithMedium ChunkReplica;
     const IChannelPtr Channel;
+    const TChunkLocationUuid TargetLocationUuid;
 
     TError Error;
     TPeriodicExecutorPtr PingExecutor;
@@ -92,11 +94,13 @@ struct TNode
         int index,
         TNodeDescriptor descriptor,
         TChunkReplicaWithMedium chunkReplica,
-        IChannelPtr channel)
+        IChannelPtr channel,
+        TChunkLocationUuid targetLocationUuid)
         : Index(index)
         , Descriptor(std::move(descriptor))
         , ChunkReplica(chunkReplica)
         , Channel(std::move(channel))
+        , TargetLocationUuid(targetLocationUuid)
     { }
 
     bool IsAlive() const
@@ -291,14 +295,14 @@ public:
         YT_ABORT();
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TChunkReplicaWithMediumList chunkReplicas;
+        TChunkReplicaWithLocationList chunkReplicas;
         for (const auto& node : Nodes_) {
             if (node->IsAlive() && node->Finished) {
-                chunkReplicas.push_back(node->ChunkReplica);
+                chunkReplicas.emplace_back(node->ChunkReplica, node->TargetLocationUuid);
             }
         }
         return chunkReplicas;
@@ -757,6 +761,11 @@ private:
                 addressWithNetwork);
             return;
         }
+        
+        const auto& rsp = rspOrError.Value();
+        auto targetLocationUuid = rsp->has_location_uuid()
+            ? FromProto<TChunkLocationUuid>(rsp->location_uuid())
+            : InvalidChunkLocationUuid;
 
         YT_LOG_DEBUG("Write session started (Address: %v)", addressWithNetwork);
 
@@ -764,7 +773,8 @@ private:
             Nodes_.size(),
             nodeDescriptor,
             target,
-            channel);
+            channel,
+            targetLocationUuid);
 
         node->PingExecutor = New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),

@@ -239,9 +239,20 @@ message TReqExecuteBatch
 
     message TConfirmChunkSubrequest
     {
+        message TReplicaInfo
+        {
+            required fixed64 replica = 1;
+            required NYT.NProto.TGuid location_uuid = 2;
+        }
+
         reserved 2;
         required NYT.NProto.TGuid chunk_id = 1;
-        repeated fixed64 replicas = 6;
+        // COMPAT(kvk1920)
+        repeated fixed64 legacy_replicas = 6;
+        // COMPAT(kvk1920)
+        optional bool location_uuids_supported = 7 [default = false];
+        repeated TReplicaInfo replicas = 9;
+
         required TChunkMeta chunk_meta = 3;
         required TChunkInfo chunk_info = 4;
         optional bool request_statistics = 5 [default = false];
