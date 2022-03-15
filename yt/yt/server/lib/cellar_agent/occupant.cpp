@@ -50,15 +50,17 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/election/cell_manager.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/transaction_client/remote_cluster_timestamp_provider.h>
+
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
-
-#include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/client/security_client/public.h>
 
@@ -82,18 +84,19 @@
 
 namespace NYT::NCellarAgent {
 
+using namespace NApi;
+using namespace NCellarNodeTrackerClient::NProto;
 using namespace NConcurrency;
-using namespace NRpc;
-using namespace NYTree;
-using namespace NYson;
 using namespace NElection;
-using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
+using namespace NHydra;
 using namespace NObjectClient;
-using namespace NApi;
+using namespace NRpc;
 using namespace NTabletClient;
-using namespace NCellarNodeTrackerClient::NProto;
+using namespace NTransactionClient;
+using namespace NYTree;
+using namespace NYson;
 
 using NHydra::EPeerState;
 
@@ -217,6 +220,11 @@ public:
     const THiveManagerPtr& GetHiveManager() const override
     {
         return HiveManager_;
+    }
+
+    const ITimestampProviderPtr& GetTimestampProvider() const override
+    {
+        return TimestampProvider_;
     }
 
     const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
@@ -455,6 +463,11 @@ public:
                 hydraManager,
                 Automaton_);
 
+            auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
+                ? Options_->ClockClusterTag
+                : connection->GetClusterTag();
+            ConfigureTimestampProvider(clockClusterTag);
+
             occupier->Configure(hydraManager);
 
             std::vector<ITransactionParticipantProviderPtr> providers;
@@ -468,10 +481,6 @@ public:
                 };
             }
 
-            auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
-                ? Options_->ClockClusterTag
-                : connection->GetClusterTag();
-
             TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
                 occupier->GetOccupierAutomatonInvoker(),
@@ -482,7 +491,7 @@ public:
                 occupier->GetOccupierTransactionManager(),
                 GetCellId(),
                 clockClusterTag,
-                connection->GetTimestampProvider(),
+                GetTimestampProvider(),
                 std::move(providers));
 
             occupier->Initialize();
@@ -631,6 +640,8 @@ private:
 
     THiveManagerPtr HiveManager_;
 
+    ITimestampProviderPtr TimestampProvider_;
+
     ITransactionSupervisorPtr TransactionSupervisor_;
 
     TCompositeAutomatonPtr Automaton_;
@@ -763,6 +774,17 @@ private:
 
         // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
         Bootstrap_->ScheduleCellarHeartbeat(/*immediately*/ true);
+    }
+
+    void ConfigureTimestampProvider(TCellTag clockClusterTag)
+    {
+        const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
+
+        YT_LOG_INFO("Configure cell timestamp provider (ClockClusterTag: %v, ClusterTag: %v)",
+            clockClusterTag,
+            connection->GetClusterTag());
+
+        TimestampProvider_ = CreateRemoteClusterTimestampProvider(connection, clockClusterTag, Logger);
     }
 
     NLogging::TLogger GetLogger() const

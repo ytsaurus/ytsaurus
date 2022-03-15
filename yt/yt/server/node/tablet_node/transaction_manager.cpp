@@ -516,7 +516,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return PreparedTransactions_.empty()
-            ? GetClockLatestTimestamp()
+            ? Host_->GetLatestTimestamp()
             : PreparedTransactions_.begin()->first;
     }
 
@@ -1095,29 +1095,6 @@ private:
         }
 
         THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
-    }
-
-    TTimestamp GetClockLatestTimestamp() const
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (ClockClusterTag_ != InvalidCellTag) {
-            auto connection = FindRemoteConnection(NativeConnection_, ClockClusterTag_);
-            if (!connection) {
-                YT_LOG_ALERT("Clock cluster is not known (ClockClusterTag: %v)",
-                    ClockClusterTag_);
-                return MinTimestamp;
-            }
-
-            YT_LOG_DEBUG("Generating timestamp from specified clock (ClockClusterTag: %v)",
-                ClockClusterTag_);
-
-            return connection->GetTimestampProvider()->GetLatestTimestamp();
-        }
-
-        YT_LOG_DEBUG("Generating timestamp from local clock");
-
-        return Host_->GetLatestTimestamp();
     }
 
     void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag)

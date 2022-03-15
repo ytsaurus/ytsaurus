@@ -323,8 +323,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_
-            ->GetMasterConnection()
+        return Occupant_
             ->GetTimestampProvider()
             ->GetLatestTimestamp();
     }
