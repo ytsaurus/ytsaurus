@@ -1583,10 +1583,12 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         range.LowerLimit() = TReadLimit(keyBound);
     }
 
+    auto nextPivot = MaxKey();
     if (options.LastTabletIndex && options.LastTabletIndex < std::ssize(tableInfo->Tablets) - 1) {
         auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(*options.LastTabletIndex + 1);
         auto keyBound = tabletInfo->GetLowerKeyBound();
         range.UpperLimit() = TReadLimit(keyBound).Invert();
+        nextPivot = tabletInfo->PivotKey;
     }
 
     auto prepareFetchRequest = [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int /*tableIndex*/) {
@@ -1620,6 +1622,12 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
 
     YT_LOG_DEBUG("Chunk specs fetched");
 
+    if (chunkSpecFetcher->ChunkSpecs().empty() && tabletCount > 1) {
+        THROW_ERROR_EXCEPTION("Empty table cannot be resharded to more than one tablet")
+            << TErrorAttribute("path", path)
+            << TErrorAttribute("tablet_count", tabletCount);
+    }
+
     i64 chunksDataWeight = 0;
     THashSet<TChunkId> chunkIds;
     for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
@@ -1649,7 +1657,8 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         keyColumnCount,
         tabletCount,
         accuracy,
-        expectedTabletSize);
+        expectedTabletSize,
+        nextPivot);
 
     chunkIds.clear();
     i64 unlimitedChunksDataWeight = 0;
@@ -1736,7 +1745,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         auto chunkSliceFetcher = CreateChunkSliceFetcher(
             Connection_->GetConfig()->ChunkSliceFetcher,
             Connection_->GetNodeDirectory(),
-            Connection_->GetInvoker(),
+            CreateSerializedInvoker(Connection_->GetInvoker()),
             /*chunkScraper*/ nullptr,
             MakeStrong(this),
             rowBuffer,

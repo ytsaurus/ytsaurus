@@ -17,11 +17,13 @@ TReshardPivotKeysBuilder::TReshardPivotKeysBuilder(
     int keyColumnCount,
     int tabletCount,
     double accuracy,
-    i64 expectedTabletSize)
+    i64 expectedTabletSize,
+    TLegacyOwningKey nextPivot)
     : ExpectedTabletSize_(expectedTabletSize)
     , KeyColumnCount_(keyColumnCount)
     , TabletCount_(tabletCount)
     , Accuracy_(accuracy)
+    , NextPivot_(nextPivot)
     , Pivots_(tabletCount)
     , SliceBoundaryKeyCompare_(
         [comparator = std::move(comparator)]
@@ -178,7 +180,7 @@ void TReshardPivotKeysBuilder::ComputeSlicedChunksPivotKeys()
                 UpdateCurrentChunksAndSizes(boundaryIt, boundaryEnd);
                 continue;
             } else {
-                YT_VERIFY(State_.CurrentStartedChunksSize > UpperPivotZone(tabletIndex));
+                YT_VERIFY(State_.CurrentFinishedChunksSize > UpperPivotZone(tabletIndex));
 
                 if (Pivots_[tabletIndex].Key) {
                     ++tabletIndex;
@@ -191,6 +193,11 @@ void TReshardPivotKeysBuilder::ComputeSlicedChunksPivotKeys()
             ++boundaryIt;
             UpdateCurrentChunksAndSizes(boundaryIt, boundaryEnd);
             continue;
+        }
+
+        if (!IsKeyLowerThanNextPivot(boundaryIt, tabletIndex)) {
+            ++boundaryIt;
+            UpdateCurrentChunksAndSizes(boundaryIt, boundaryEnd);
         }
 
         if (Pivots_[tabletIndex].TabletSize) {
@@ -311,7 +318,18 @@ bool TReshardPivotKeysBuilder::IsKeyGreaterThanPreviousPivot(
     TBoundaryKeyIterator boundaryKey,
     i64 tabletIndex) const
 {
-    return CompareRows(Pivots_[tabletIndex - 1].Key, boundaryKey->GetKeyBound().Prefix) != 0;
+    return CompareRows(Pivots_[tabletIndex - 1].Key, boundaryKey->GetKeyBound().Prefix) < 0;
+}
+
+bool TReshardPivotKeysBuilder::IsKeyLowerThanNextPivot(
+    TBoundaryKeyIterator boundaryKey,
+    i64 tabletIndex) const
+{
+    if (tabletIndex + 1 == TabletCount_) {
+        return CompareRows(NextPivot_, boundaryKey->GetKeyBound().Prefix) > 0;
+    }
+    return !Pivots_[tabletIndex + 1].Key ||
+        CompareRows(Pivots_[tabletIndex + 1].Key, boundaryKey->GetKeyBound().Prefix) > 0;
 }
 
 TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChunksToSplit(

@@ -23,7 +23,8 @@ public:
         int keyColumnCount,
         int tabletCount,
         double accuracy,
-        i64 expectedTabletSize);
+        i64 expectedTabletSize,
+        TLegacyOwningKey nextPivot);
 
     void AddChunk(const NYT::NChunkClient::NProto::TChunkSpec& chunkSpec);
     void AddChunk(const NChunkClient::TWeightedInputChunkPtr& chunk);
@@ -60,6 +61,7 @@ private:
     const int KeyColumnCount_;
     const int TabletCount_;
     const double Accuracy_;
+    const TLegacyOwningKey NextPivot_;
     std::vector<TPivot> Pivots_;
     std::function<bool(const TSliceBoundaryKey&, const TSliceBoundaryKey&)> SliceBoundaryKeyCompare_;
 
@@ -83,6 +85,7 @@ private:
 
     bool CanSplitHere(TBoundaryKeyIterator boundaryKey, i64 tabletIndex) const;
     bool IsKeyGreaterThanPreviousPivot(TBoundaryKeyIterator boundaryKey, i64 tabletIndex) const;
+    bool IsKeyLowerThanNextPivot(TBoundaryKeyIterator boundaryKey, i64 tabletIndex) const;
 
     TBoundaryKeyIterator AddChunksToSplit(TBoundaryKeyIterator begin, i64 previousTabletIndex);
 

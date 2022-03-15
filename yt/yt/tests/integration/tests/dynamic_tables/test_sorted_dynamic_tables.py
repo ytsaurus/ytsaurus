@@ -2334,6 +2334,21 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
 
 class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
     @authors("alexelexa")
+    def test_reshard_with_slicing_empty(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        tablet_count = 3
+        with pytest.raises(YtError):
+            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
+        with pytest.raises(YtError):
+            sync_reshard_table(
+                "//tmp/t",
+                tablet_count,
+                enable_slicing=True,
+                first_tablet_index=0,
+                last_tablet_index=0)
+
+    @authors("alexelexa")
     @pytest.mark.parametrize(
         "first_tablet_index,last_tablet_index",
         [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4), (None, None)])
@@ -2343,8 +2358,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
         set("//tmp/t/@chunk_writer", {"block_size": 1})
 
         def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=None, last_tablet_index=None):
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True,
-                               first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            sync_reshard_table(
+                "//tmp/t",
+                tablet_count,
+                enable_slicing=True,
+                first_tablet_index=first_tablet_index,
+                last_tablet_index=last_tablet_index)
             assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
 
         sync_mount_table("//tmp/t")
@@ -2383,8 +2402,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
 
         def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index, last_tablet_index):
             sync_unmount_table("//tmp/t")
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True,
-                               first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            sync_reshard_table(
+                "//tmp/t",
+                tablet_count,
+                enable_slicing=True,
+                first_tablet_index=first_tablet_index,
+                last_tablet_index=last_tablet_index)
             sync_compact_table("//tmp/t")
             assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
 
@@ -2406,8 +2429,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
         def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=None,
                               last_tablet_index=None, with_compaction=True):
             sync_unmount_table("//tmp/t")
-            sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True,
-                               first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+            sync_reshard_table(
+                "//tmp/t",
+                tablet_count,
+                enable_slicing=True,
+                first_tablet_index=first_tablet_index,
+                last_tablet_index=last_tablet_index)
             if with_compaction:
                 sync_compact_table("//tmp/t")
             assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
