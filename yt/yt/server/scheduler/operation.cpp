@@ -35,6 +35,8 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int MaxAnnotationValueLength = 32;
+
 static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +140,7 @@ TOperation::TOperation(
     TOperationSpecBasePtr spec,
     THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
     TYsonString specString,
+    TYsonString trimmedAnnotations,
     std::vector<TString> vanillaTaskNames,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParameters,
@@ -169,6 +172,7 @@ TOperation::TOperation(
     , StartTime_(startTime)
     , AuthenticatedUser_(authenticatedUser)
     , SpecString_(specString)
+    , TrimmedAnnotations_(std::move(trimmedAnnotations))
     , VanillaTaskNames_(std::move(vanillaTaskNames))
     , CustomSpecPerTree_(std::move(customSpecPerTree))
     , CodicilData_(MakeOperationCodicilString(Id_))
@@ -234,6 +238,11 @@ TStrategyOperationSpecPtr TOperation::GetStrategySpecForTree(const TString& tree
 const TYsonString& TOperation::GetSpecString() const
 {
     return SpecString_;
+}
+
+const TYsonString& TOperation::GetTrimmedAnnotations() const
+{
+    return TrimmedAnnotations_;
 }
 
 const std::vector<TString>& TOperation::GetTaskNames() const
@@ -528,6 +537,32 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonString TrimAnnotations(const IMapNodePtr& annotationsNode)
+{
+    return BuildYsonStringFluently()
+        .DoMapFor(annotationsNode->GetChildren(), [&] (TFluentMap fluent, const auto& pair) {
+            const auto& [key, child] = pair;
+            switch (child->GetType())  {
+                case ENodeType::String: {
+                    auto trimmedString = child->AsString()->GetValue();
+                    if (std::ssize(trimmedString) > MaxAnnotationValueLength) {
+                        trimmedString = Format("%v...<message truncated>", trimmedString.substr(0, MaxAnnotationValueLength));
+                    }
+                    fluent.Item(key).Value(trimmedString);
+                    break;
+                }
+                case ENodeType::Int64:
+                case ENodeType::Uint64:
+                case ENodeType::Double:
+                case ENodeType::Boolean:
+                    fluent.Item(key).Value(child);
+                    break;
+                default:  // Ignore nested annotations.
+                    break;
+            }
+        });
+}
+
 void ParseSpec(
     IMapNodePtr specNode,
     INodePtr specTemplate,
@@ -577,6 +612,10 @@ void ParseSpec(
 
     specNode->RemoveChild("secure_vault");
     preprocessedSpec->SpecString = ConvertToYsonString(specNode);
+
+    if (auto annotationsNode = specNode->FindChild("annotations")) {
+        preprocessedSpec->TrimmedAnnotations = TrimAnnotations(annotationsNode->AsMap());
+    }
 
     auto strategySpec = static_cast<TStrategyOperationSpecPtr>(preprocessedSpec->Spec);
     for (const auto& [treeId, optionPerPoolTree] : strategySpec->SchedulingOptionsPerPoolTree) {

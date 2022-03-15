@@ -2029,7 +2029,15 @@ class TestEventLog(YTEnvSetup):
     NUM_CONTROLLER_AGENTS = 1
     USE_PORTO = True
 
-    DELTA_SCHEDULER_CONFIG = {"scheduler": {"event_log": {"flush_period": 1000}}}
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "event_log": {
+                "flush_period": 1000,
+            },
+            "accumulated_usage_log_period": 1000,
+            "accumulated_resource_usage_update_period": 100,
+        }
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"event_log": {"flush_period": 1000}}}
 
@@ -2250,6 +2258,75 @@ class TestEventLog(YTEnvSetup):
 
         wait(lambda: check_events([3, 1]))
 
+    @authors("ignat")
+    def test_accumulated_usage(self):
+        create_pool("test_pool", pool_tree="default")
+
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
+
+        op = run_test_vanilla("sleep 5.2", pool="test_pool", track=True)
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        to_barrier = write_log_barrier(scheduler_address)
+
+        structured_log = read_structured_log(scheduler_log_file, from_barrier=from_barrier, to_barrier=to_barrier,
+                                             row_filter=lambda e: "event_type" in e)
+
+        found_accumulated_usage_event_with_op = False
+        accumulated_usage = 0.0
+        for event in structured_log:
+            if event["event_type"] == "accumulated_usage_info":
+                assert event["tree_id"] == "default"
+                assert "pools" in event
+                assert "test_pool" in event["pools"]
+                assert event["pools"]["test_pool"]["parent"] == "<Root>"
+
+                assert "operations" in event
+                if op.id in event["operations"]:
+                    found_accumulated_usage_event_with_op = True
+                    assert event["operations"][op.id]["pool"] == "test_pool"
+                    assert event["operations"][op.id]["user"] == "root"
+                    assert event["operations"][op.id]["operation_type"] == "vanilla"
+                    accumulated_usage += event["operations"][op.id]["accumulated_resource_usage"]["cpu"]
+
+            if event["event_type"] == "operation_completed":
+                assert event["operation_id"] == op.id
+                accumulated_usage += event["accumulated_resource_usage_per_tree"]["default"]["cpu"]
+
+        assert accumulated_usage >= 5.0
+
+        assert found_accumulated_usage_event_with_op
+
+    @authors("ignat")
+    def test_trimmed_annotations(self):
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
+
+        op = run_test_vanilla(
+            "sleep 1",
+            pool="test_pool",
+            spec={
+                "annotations": {
+                    "tag": "my_value",
+                    "long_key": "x" * 200,
+                    "nested_tag": {"key": "value"},
+                }
+            },
+            track=True)
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        to_barrier = write_log_barrier(scheduler_address)
+
+        structured_log = read_structured_log(scheduler_log_file, from_barrier=from_barrier, to_barrier=to_barrier,
+                                             row_filter=lambda e: "event_type" in e)
+
+        for event in structured_log:
+            if event["event_type"] == "operation_completed":
+                assert event["operation_id"] == op.id
+                assert event["trimmed_annotations"]["tag"] == "my_value"
+                assert len(event["trimmed_annotations"]["long_key"]) < 100
+                assert "nested_tag" not in event["trimmed_annotations"]
 
 ##################################################################
 

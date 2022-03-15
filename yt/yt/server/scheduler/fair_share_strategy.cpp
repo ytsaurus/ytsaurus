@@ -59,11 +59,6 @@ public:
         , FeasibleInvokers(std::move(feasibleInvokers))
         , Logger(StrategyLogger)
     {
-        FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetFairShareLoggingInvoker(),
-            BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
-            Config->FairShareLogPeriod);
-
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
             Host->GetFairShareProfilingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
@@ -73,6 +68,16 @@ public:
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
+
+        FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
+            Host->GetFairShareLoggingInvoker(),
+            BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
+            Config->FairShareLogPeriod);
+        
+        AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
+            Host->GetFairShareLoggingInvoker(),
+            BIND(&TFairShareStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
+            Config->AccumulatedUsageLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
@@ -109,8 +114,9 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         FairShareProfilingExecutor_->Start();
-        FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
+        FairShareLoggingExecutor_->Start();
+        AccumulatedUsageLoggingExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
@@ -121,8 +127,9 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         FairShareProfilingExecutor_->Stop();
-        FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
+        FairShareLoggingExecutor_->Stop();
+        AccumulatedUsageLoggingExecutor_->Stop();
         MinNeededJobResourcesUpdateExecutor_->Stop();
         ResourceMeteringExecutor_->Stop();
         ResourceUsageUpdateExecutor_->Stop();
@@ -163,6 +170,18 @@ public:
     void OnFairShareLogging()
     {
         OnFairShareLoggingAt(TInstant::Now());
+    }
+
+    void OnLogAccumulatedUsage()
+    {
+        VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
+
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [_, tree] : idToTree) {
+            tree->LogAccumulatedUsage();
+        }
     }
 
     TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
@@ -511,6 +530,7 @@ public:
         FairShareProfilingExecutor_->SetPeriod(Config->FairShareProfilingPeriod);
         FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
+        AccumulatedUsageLoggingExecutor_->SetPeriod(Config->AccumulatedUsageLogPeriod);
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config->ResourceUsageSnapshotUpdatePeriod);
@@ -522,6 +542,7 @@ public:
 
         const auto& operationState = GetOperationState(operation->GetId());
         const auto& pools = operationState->TreeIdToPoolNameMap();
+        auto accumulatedUsagePerTree = ExtractAccumulatedUsageForLogging(operation->GetId());
 
         fluent
             .DoIf(DefaultTreeId_.operator bool(), [&] (TFluentMap fluent) {
@@ -530,7 +551,8 @@ public:
                     fluent
                         .Item("pool").Value(it->second.GetPool());
                 }
-            });
+            })
+            .Item("accumulated_resource_usage_per_tree").Value(accumulatedUsagePerTree);
     }
 
     void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) override
@@ -900,6 +922,16 @@ public:
         }
     }
 
+    THashMap<TString, TResourceVolume> ExtractAccumulatedUsageForLogging(TOperationId operationId)
+    {
+        THashMap<TString, TResourceVolume> treeIdToUsage;
+        const auto& state = GetOperationState(operationId);
+        for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
+            treeIdToUsage.emplace(treeId, GetTree(treeId)->ExtractAccumulatedUsageForLogging(operationId));
+        }
+        return treeIdToUsage;
+    }
+
     void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
@@ -1230,6 +1262,7 @@ private:
     TPeriodicExecutorPtr FairShareProfilingExecutor_;
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
+    TPeriodicExecutorPtr AccumulatedUsageLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;

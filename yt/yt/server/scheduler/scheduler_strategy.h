@@ -45,6 +45,7 @@ struct ISchedulerStrategyHost
     virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
 
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) = 0;
+    virtual NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant now) = 0;
 
     virtual void Disconnect(const TError& error) = 0;
 
@@ -323,7 +324,6 @@ struct ISchedulerStrategy
 
     //! Called periodically to log essential for simulator tree state.
     virtual void OnFairShareEssentialLoggingAt(TInstant now) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

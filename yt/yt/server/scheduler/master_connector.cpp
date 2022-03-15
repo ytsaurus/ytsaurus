@@ -1238,6 +1238,7 @@ private:
                 spec,
                 std::move(preprocessedSpec.CustomSpecPerTree),
                 std::move(preprocessedSpec.SpecString),
+                std::move(preprocessedSpec.TrimmedAnnotations),
                 std::move(preprocessedSpec.VanillaTaskNames),
                 secureVault,
                 runtimeParameters,

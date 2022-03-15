@@ -28,6 +28,7 @@ DEFINE_ENUM(ELogEventType,
     (NodesInfo)
     (PoolsInfo)
     (RuntimeParametersInfo)
+    (AccumulatedUsageInfo)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,7 +85,9 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
     GetOrCrash(PoolNameToProfilingEntry_, element->GetId()).RemoveTime = TInstant::Now();
 }
 
-void TFairShareTreeProfileManager::ProfileElements(const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TFairShareTreeProfileManager::ProfileElements(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -100,7 +102,7 @@ void TFairShareTreeProfileManager::ProfileElements(const TFairShareTreeSnapshotP
 
     CleanupPoolProfilingEntries();
 
-    ProfileOperations(treeSnapshot);
+    ProfileOperations(treeSnapshot, operationIdToAccumulatedResourceUsage);
     ProfilePools(treeSnapshot);
 }
 
@@ -398,7 +400,9 @@ void TFairShareTreeProfileManager::ProfileElement(
     }
 }
 
-void TFairShareTreeProfileManager::ProfileOperations(const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TFairShareTreeProfileManager::ProfileOperations(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage)
 {
     VERIFY_INVOKER_AFFINITY(ProfilingInvoker_);
 
@@ -412,6 +416,12 @@ void TFairShareTreeProfileManager::ProfileOperations(const TFairShareTreeSnapsho
             &buffer,
             element,
             treeSnapshot->TreeConfig());
+        {
+            auto it = operationIdToAccumulatedResourceUsage.find(operationId);
+            if (it != operationIdToAccumulatedResourceUsage.end()) {
+                ProfileResourceVolume(&buffer, it->second, "/accumulated_resource_usage", EMetricType::Counter);
+            }
+        }
         GetOrCrash(OperationIdToProfilingEntry_, operationId).BufferedProducer->Update(std::move(buffer));
     }
 }

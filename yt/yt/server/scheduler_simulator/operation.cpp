@@ -97,6 +97,11 @@ const NYson::TYsonString& TOperation::GetSpecString() const
     return SpecString_;
 }
 
+const NYson::TYsonString& TOperation::GetTrimmedAnnotations() const
+{
+    return TrimmedAnnotations_;
+}
+
 NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
 {
     return RuntimeParameters_;
