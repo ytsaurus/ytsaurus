@@ -138,23 +138,25 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (ArtifactCacheIn)
     //! Controls outcoming bandwidth used by Artifact Cache downloads.
     (ArtifactCacheOut)
-    //! Controls outcoming location bandwidth used by Skynet sharing.
+    //! Controls outcoming bandwidth used by Skynet sharing.
     (SkynetOut)
-    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    //! Controls incoming bandwidth used by tablet compaction and partitioning.
     (TabletCompactionAndPartitioningIn)
-    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    //! Controls outcoming bandwidth used by tablet compaction and partitioning.
     (TabletCompactionAndPartitioningOut)
-    //! Controls incoming location bandwidth used by tablet journals.
+    //! Controls incoming bandwidth used by tablet journals.
     (TabletLoggingIn)
-    //! Controls outcoming location bandwidth used by tablet preload.
+    //! Controls outcoming bandwidth used by tablet preload.
     (TabletPreloadOut)
-    //! Controls outcoming location bandwidth used by tablet recovery.
+    //! Controls outcoming bandwidth used by tablet recovery.
     (TabletRecoveryOut)
-    //! Controls incoming location bandwidth used by tablet snapshots.
+    //! Controls incoming bandwidth used by tablet snapshots.
     (TabletSnapshotIn)
-    //! Controls incoming location bandwidth used by tablet store flush.
+    //! Controls incoming bandwidth used by tablet store flush.
     (TabletStoreFlushIn)
-    //! Controls outcoming location bandwidth used by tablet replication.
+    //! Controls outcoming bandwidth used by tablet store flush.
+    (TabletStoreFlushOut)
+    //! Controls outcoming bandwidth used by tablet replication.
     (TabletReplicationOut)
     //! Controls incoming bandwidth consumed by local jobs.
     (JobIn)

@@ -372,7 +372,7 @@ public:
         TChunkStorePtr chunkStore,
         TChunkContextPtr chunkContext,
         IChunkStoreHostPtr chunkStoreHost);
-    
+
     ~TStoreLocation();
 
     //! Returns the location's config.
@@ -396,7 +396,7 @@ public:
     //! Removes a chunk permanently or moves it to the trash.
     void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
-    //! Returns various IO related statistics. 
+    //! Returns various IO related statistics.
     TIOStatistics GetIOStatistics();
 
 private:
