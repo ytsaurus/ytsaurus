@@ -50,24 +50,6 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashSet<EDataNodeThrottlerKind> DataNodeNetworkThrottlers = {
-    EDataNodeThrottlerKind::TotalIn,
-    EDataNodeThrottlerKind::TotalOut,
-    EDataNodeThrottlerKind::ReplicationIn,
-    EDataNodeThrottlerKind::ReplicationOut,
-    EDataNodeThrottlerKind::RepairIn,
-    EDataNodeThrottlerKind::RepairOut,
-    EDataNodeThrottlerKind::MergeIn,
-    EDataNodeThrottlerKind::MergeOut,
-    EDataNodeThrottlerKind::AutotomyIn,
-    EDataNodeThrottlerKind::AutotomyOut,
-    EDataNodeThrottlerKind::ArtifactCacheIn,
-    EDataNodeThrottlerKind::ArtifactCacheOut,
-    EDataNodeThrottlerKind::JobIn,
-    EDataNodeThrottlerKind::JobOut,
-    EDataNodeThrottlerKind::P2POut
-};
-
 // COMPAT(gritukan): Throttlers that were moved out of Data Node during node split.
 static const THashSet<EDataNodeThrottlerKind> DataNodeCompatThrottlers = {
     // Cluster Node throttlers.
@@ -155,6 +137,7 @@ public:
                 EDataNodeThrottlerKind::TabletRecoveryOut,
                 EDataNodeThrottlerKind::TabletReplicationOut,
                 EDataNodeThrottlerKind::JobOut,
+                EDataNodeThrottlerKind::TabletStoreFlushOut,
             }) {
                 Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
             }
@@ -164,10 +147,8 @@ public:
                     continue;
                 }
 
-                const auto& initialThrottlerConfig = GetConfig()->DataNode->Throttlers[kind];
-                auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
-                    ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
-                    : initialThrottlerConfig;
+                const auto& throttlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(
+                    GetConfig()->DataNode->Throttlers[kind]);
                 LegacyRawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
                     std::move(throttlerConfig),
                     ToString(kind),
@@ -199,6 +180,7 @@ public:
                 EDataNodeThrottlerKind::TabletRecoveryOut,
                 EDataNodeThrottlerKind::TabletReplicationOut,
                 EDataNodeThrottlerKind::JobOut,
+                EDataNodeThrottlerKind::TabletStoreFlushOut,
             };
 
             for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
@@ -367,7 +349,8 @@ public:
             {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
             {EWorkloadCategory::SystemTabletPreload,         EDataNodeThrottlerKind::TabletPreloadOut},
             {EWorkloadCategory::SystemTabletRecovery,        EDataNodeThrottlerKind::TabletRecoveryOut},
-            {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut}
+            {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut},
+            {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushOut}
         };
         auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
         return it == WorkloadCategoryToThrottlerKind.end()
@@ -460,13 +443,11 @@ private:
                     continue;
                 }
 
-                const auto& initialThrottlerConfig = newConfig->DataNode->Throttlers[kind]
+                const auto& throttlerConfig = newConfig->DataNode->Throttlers[kind]
                     ? newConfig->DataNode->Throttlers[kind]
                     : GetConfig()->DataNode->Throttlers[kind];
-                auto throttlerConfig = DataNodeNetworkThrottlers.contains(kind)
-                    ? ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig)
-                    : initialThrottlerConfig;
-                LegacyRawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
+                auto patchedThrottlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(throttlerConfig);
+                LegacyRawThrottlers_[kind]->Reconfigure(std::move(patchedThrottlerConfig));
             }
         }
 
