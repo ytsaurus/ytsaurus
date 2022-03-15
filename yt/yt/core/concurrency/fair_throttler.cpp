@@ -4,6 +4,8 @@
 
 #include "private.h"
 
+#include <util/random/shuffle.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,6 +17,12 @@ TFairThrottlerConfig::TFairThrottlerConfig()
     RegisterParameter("distribution_period", DistributionPeriod)
         .Default(TDuration::MilliSeconds(100))
         .GreaterThan(TDuration::Zero());
+
+    RegisterParameter("bucket_accumulation_ticks", BucketAccumulationTicks)
+        .Default(5);
+
+    RegisterParameter("global_accumulation_ticks", GlobalAccumulationTicks)
+        .Default(5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +39,12 @@ TFairThrottlerBucketConfig::TFairThrottlerBucketConfig()
 
     RegisterParameter("relative_limit", RelativeLimit)
         .Default();
+
+    RegisterParameter("guarantee", Guarantee)
+        .Default();
+
+    RegisterParameter("relative_guaratee", RelativeGuarantee)
+        .Default();
 }
 
 std::optional<i64> TFairThrottlerBucketConfig::GetLimit(i64 totalLimit)
@@ -41,6 +55,19 @@ std::optional<i64> TFairThrottlerBucketConfig::GetLimit(i64 totalLimit)
 
     if (RelativeLimit) {
         return totalLimit * *RelativeLimit;
+    }
+
+    return {};
+}
+
+std::optional<i64> TFairThrottlerBucketConfig::GetGuarantee(i64 totalLimit)
+{
+    if (Guarantee) {
+        return Guarantee;
+    }
+
+    if (RelativeGuarantee) {
+        return totalLimit * *RelativeGuarantee;
     }
 
     return {};
@@ -74,17 +101,77 @@ DEFINE_REFCOUNTED_TYPE(TBucketThrottleRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLeakyCounter
+{
+    TLeakyCounter(int windowSize)
+        : Window(windowSize)
+    { }
+
+    std::atomic<i64> Value = 0;    
+
+    std::vector<i64> Window;
+    int WindowPosition = 0;
+
+    i64 Increment(i64 delta)
+    {
+        auto maxValue = std::accumulate(Window.begin(), Window.end(), 0) - Window[WindowPosition];
+        
+        auto currentValue = Value.load();
+        do {
+            if (currentValue <= maxValue) {
+                break;
+            }
+        } while (!Value.compare_exchange_strong(currentValue, maxValue));
+
+        Window[WindowPosition] = delta;
+
+        WindowPosition++;
+        if (WindowPosition >= std::ssize(Window)) {
+            WindowPosition = 0;
+        }
+
+        Value += delta;
+        return std::max(currentValue - maxValue, 0L);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSharedBucket final
+{
+    TSharedBucket(int windowSize)
+        : Limit(windowSize)
+    { }
+
+    TLeakyCounter Limit;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSharedBucket)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBucketThrottler
     : public IThroughputThrottler
 {
 public:
-    TBucketThrottler(const NProfiling::TProfiler& profiler, TDuration distributionPeriod)
-        : Value_(profiler.Counter("/value"))
+    TBucketThrottler(
+        const NLogging::TLogger& logger,
+        const NProfiling::TProfiler& profiler,
+        const TSharedBucketPtr& sharedBucket,
+        TFairThrottlerConfigPtr config)
+        : Logger(logger)
+        , SharedBucket_(sharedBucket)
+        , Value_(profiler.Counter("/value"))
         , WaitTime_(profiler.Timer("/wait_time"))
-        , DistributionPeriod_(distributionPeriod)
+        , Quota_(config->BucketAccumulationTicks)
+        , DistributionPeriod_(config->DistributionPeriod)
     {
         profiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
             return GetQueueTotalCount();
+        });
+
+        profiler.AddFuncGauge("/quota", MakeStrong(this), [this] {
+            return Quota_.Value.load();
         });
 
         profiler.AddFuncGauge("/throttled", MakeStrong(this), [this] {
@@ -104,6 +191,8 @@ public:
         request->Promise.OnCanceled(BIND(&TBucketThrottleRequest::Cancel, MakeWeak(request)));
         request->Promise.ToFuture().Subscribe(BIND(&TBucketThrottler::OnRequestComplete, MakeWeak(this), count));
 
+        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
+
         auto guard = Guard(Lock_);
         Queue_.push_back(request);
         return request->Promise.ToFuture();
@@ -113,49 +202,55 @@ public:
     {
         YT_VERIFY(count >= 0);
 
-        auto available = Quota_.load();
-        while (true) {
-            if (count > available) {
-                return false;
-            }
+        auto available = Quota_.Value.load();
+        auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value.load();
 
-            if (Quota_.compare_exchange_weak(available, available - count)) {
-                Value_.Increment(count);
-                return true;
-            }
+        if (count > available + globalAvailable) {
+            return false;
         }
+
+        auto globalConsumed = std::min(count - available, globalAvailable);
+        Quota_.Value -= count - globalConsumed;
+        SharedBucket_->Limit.Value -= globalConsumed;
+
+        Value_.Increment(count);
+        Usage_ += count;
+
+        return true;
     }
 
     i64 TryAcquireAvailable(i64 count) override
     {
         YT_VERIFY(count >= 0);
 
-        auto available = Quota_.load();
-        while (true) {
-            if (available < 0) {
-                return 0;
-            }
+        auto available = Quota_.Value.load();
+        auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value.load();
 
-            if (available < count) {
-                if (Quota_.compare_exchange_weak(available, 0)) {
-                    Value_.Increment(available);
-                    return available;
-                }
-            } else {
-                if (Quota_.compare_exchange_weak(available, available - count)) {
-                    Value_.Increment(count);
-                    return count;
-                }
-            }
-        }
+        auto consumed = std::min(count, available + globalAvailable);
+
+        auto globalConsumed = std::min(consumed - available, globalAvailable);
+        Quota_.Value -= count - globalConsumed;
+        SharedBucket_->Limit.Value -= globalConsumed;
+
+        Value_.Increment(consumed);
+        Usage_ += consumed;
+
+        return consumed;
     }
 
     void Acquire(i64 count) override
     {
         YT_VERIFY(count >= 0);
 
-        Quota_ -= count;
+        auto available = Quota_.Value.load();
+        auto globalAvailable = IsLimited() ? 0 : SharedBucket_->Limit.Value.load();
+
+        auto globalConsumed = std::min(count - available, globalAvailable);
+        Quota_.Value -= count - globalConsumed;
+        SharedBucket_->Limit.Value -= globalConsumed;
+
         Value_.Increment(count);
+        Usage_ += count;
     }
 
     bool IsOverdraft() override
@@ -165,7 +260,7 @@ public:
 
     i64 GetQueueTotalCount() const override
     {
-        return Max(-Quota_.load(), 0l) + QueueSize_.load();
+        return Max(-Quota_.Value.load(), 0l) + QueueSize_.load();
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
@@ -186,41 +281,30 @@ public:
 
     struct TBucketState
     {
-        i64 Limit; // Limit on current iteration.
-        i64 Remaining; // Remaining quota on current iteration.
+        i64 Usage; // Quota usage on current iteration.
+        i64 Quota;
         i64 Overdraft; // Unpaid overdraft from previous iterations.
         i64 QueueSize; // Total size of all queued requests.
     };
 
-    TBucketState Drain()
+    TBucketState Peek()
     {
-        auto quota = Quota_.exchange(0);
-        if (quota < 0) {
-            Quota_ += quota;
-        }
+        auto quota = Quota_.Value.load();
 
         return TBucketState{
-            .Limit = LastLimit_.load(),
-            .Remaining = Max(quota, 0l),
+            .Usage = Usage_.exchange(0),
+            .Quota = quota,
             .Overdraft = Max(-quota, 0l),
             .QueueSize = QueueSize_.load(),
         };
     }
 
-    void Refill(i64 redistributedQuota, i64 nextOptimisticLimit)
+    i64 SatisfyRequests(i64 quota)
     {
-        LastLimit_ = nextOptimisticLimit;
-
-        auto available = Max(redistributedQuota + nextOptimisticLimit, 0l);
-        if (available == 0) {
-            Quota_ += redistributedQuota + nextOptimisticLimit;
-            return;
-        }
-
         std::vector<TBucketThrottleRequestPtr> readyList;
 
-        auto guard = Guard(Lock_);
-        auto satisfyRequests = [&] (i64 quota) {
+        {
+            auto guard = Guard(Lock_);
             while (!Queue_.empty()) {
                 auto request = Queue_.front();
                 if (request->Cancelled.load()) {
@@ -236,27 +320,30 @@ public:
                 } else {
                     request->Pending -= quota;
                     request->Reserved += quota;
-                    return 0l;
+                    quota = 0;
+                    break;
                 }
             }
-
-            return quota;
-        };
-
-        if (redistributedQuota > 0) {
-            satisfyRequests(redistributedQuota);
         }
-
-        Quota_ += satisfyRequests(nextOptimisticLimit);
-        guard.Release();
 
         auto now = NProfiling::GetCpuInstant();
         for (const auto& request : readyList) {
             auto waitTime = NProfiling::CpuDurationToDuration(now - request->StartTime);
+
             WaitTime_.Record(waitTime);
             Value_.Increment(request->Pending + request->Reserved);
+            Usage_ += request->Pending + request->Reserved;
+
             request->Promise.TrySet();
         }
+
+        return quota;
+    }
+
+    i64 Refill(i64 quota)
+    {
+        LastLimit_ = quota;
+        return Quota_.Increment(SatisfyRequests(quota));
     }
 
     void SetDistributionPeriod(TDuration distributionPeriod)
@@ -264,19 +351,35 @@ public:
         DistributionPeriod_.store(distributionPeriod);
     }
 
+    void SetLimited(bool limited)
+    {
+        Limited_ = limited;
+    }
+
+    bool IsLimited()
+    {
+        return Limited_.load();
+    }
+
 private:
+    NLogging::TLogger Logger;
+
+    TSharedBucketPtr SharedBucket_;
+
     NProfiling::TCounter Value_;
     NProfiling::TEventTimer WaitTime_;
 
+    TLeakyCounter Quota_;
     std::atomic<i64> LastLimit_ = 0;
-    std::atomic<i64> Quota_ = {};
-    std::atomic<i64> QueueSize_ = {};
+    std::atomic<i64> QueueSize_ = 0;
+    std::atomic<i64> Usage_ = 0;
+
+    std::atomic<bool> Limited_ = {false};
 
     std::atomic<TDuration> DistributionPeriod_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::deque<TBucketThrottleRequestPtr> Queue_;
-
 
     void OnRequestComplete(i64 count, const TError& /*error*/)
     {
@@ -294,9 +397,14 @@ TFairThrottler::TFairThrottler(
     NProfiling::TProfiler profiler)
     : Logger(std::move(logger))
     , Profiler_(std::move(profiler))
+    , SharedBucket_(New<TSharedBucket>(config->GlobalAccumulationTicks))
     , Config_(std::move(config))
 {
     ScheduleLimitUpdate(TInstant::Now());
+
+    profiler.AddFuncGauge("/shared_quota", MakeStrong(this), [this] {
+        return SharedBucket_->Limit.Value.load();
+    });
 }
 
 IThroughputThrottlerPtr TFairThrottler::CreateBucketThrottler(
@@ -310,12 +418,21 @@ IThroughputThrottlerPtr TFairThrottler::CreateBucketThrottler(
     auto guard = Guard(Lock_);
 
     if (auto it = Buckets_.find(name); it != Buckets_.end()) {
+        it->second.Throttler->SetLimited(config->Limit || config->RelativeLimit);
+
         it->second.Config = std::move(config);
         it->second.Throttler->SetDistributionPeriod(Config_->DistributionPeriod);
         return it->second.Throttler;
     }
 
-    auto throttler = New<TBucketThrottler>(Profiler_.WithTag("bucket", name), Config_->DistributionPeriod);
+    auto throttler = New<TBucketThrottler>(
+        Logger.WithTag("Bucket: %v", name),
+        Profiler_.WithTag("bucket", name),
+        SharedBucket_,
+        Config_);
+
+    throttler->SetLimited(config->Limit || config->RelativeLimit);
+
     Buckets_[name] = TBucket{
         .Config = std::move(config),
         .Throttler = throttler,
@@ -358,7 +475,7 @@ void TFairThrottler::DoUpdateLimits()
     THashMap<TString, i64> bucketDemands;
 
     for (const auto& [name, bucket] : Buckets_) {
-        auto state = bucket.Throttler->Drain();
+        auto state = bucket.Throttler->Peek();
 
         weights.push_back(bucket.Config->Weight);
 
@@ -368,71 +485,83 @@ void TFairThrottler::DoUpdateLimits()
             limits.emplace_back();
         }
 
-        demands.push_back(state.Limit - state.Remaining + state.QueueSize + state.Overdraft);
+        auto guarantee = bucket.Config->GetGuarantee(Config_->TotalLimit);
+        auto demand = state.Usage + state.Overdraft + state.QueueSize;
+        if (guarantee && *guarantee > demand) {
+            demand = *guarantee;
+        }
+
+        demands.push_back(demand);
+        
         bucketDemands[name] = demands.back();
         states.push_back(state);
     }
 
     auto tickLimit = Config_->TotalLimit * Config_->DistributionPeriod.SecondsFloat();
-    auto fairLimits = ComputeFairDistribution(tickLimit, weights, demands, limits);
+    auto tickIncome = ComputeFairDistribution(tickLimit, weights, demands, limits);
 
-    auto freeQuota = tickLimit - std::accumulate(fairLimits.begin(), fairLimits.end(), 0l);
-
-    std::vector<std::optional<i64>> remainingLimits;
-    remainingLimits.reserve(Buckets_.size());
-
-    std::vector<i64> fakeDemands;
-    fakeDemands.reserve(Buckets_.size());
-
-    for (int i = 0; i < std::ssize(weights); ++i) {
-        fakeDemands.push_back(freeQuota);
+    // Distribute remaining quota according to weights and limits.
+    auto freeQuota = tickLimit - std::accumulate(tickIncome.begin(), tickIncome.end(), 0l);
+    for (int i = 0; i < std::ssize(tickIncome); i++) {
+        demands[i] = freeQuota;
 
         if (limits[i]) {
-            remainingLimits.push_back(*limits[i] - fairLimits[i]);
-        } else {
-            remainingLimits.emplace_back();
+            (*limits[i]) -= tickIncome[i];
         }
     }
-
-    auto freeQuotaLimits = ComputeFairDistribution(freeQuota, weights, fakeDemands, remainingLimits);
-
-    i64 unfairUsage = 0;
-    i64 blockedUsage = 0;
+    auto freeIncome = ComputeFairDistribution(freeQuota, weights, demands, limits);
 
     THashMap<TString, i64> bucketUsage;
-    THashMap<TString, i64> bucketLimits;
+    THashMap<TString, i64> bucketIncome;
+    THashMap<TString, i64> bucketQuota;
 
+    i64 leakedQuota = 0;
     int i = 0;
     for (const auto& [name, bucket] : Buckets_) {
         auto state = states[i];
-        auto usage = state.Limit - state.Remaining;
+        auto newLimit = tickIncome[i] + freeIncome[i];
 
-        unfairUsage += Max(usage - fairLimits[i], 0l);
+        bucketUsage[name] = state.Usage;
+        bucketQuota[name] = state.Quota;
+        bucketIncome[name] = newLimit;
 
-        auto redistributedQuota = fairLimits[i] - usage;
-        blockedUsage += redistributedQuota;
-
-        bucketUsage[name] = usage;
-
-        auto newLimit = fairLimits[i] + freeQuotaLimits[i];
-        bucketLimits[name] = newLimit;
-
-        bucket.Throttler->Refill(redistributedQuota, newLimit);
+        leakedQuota += bucket.Throttler->Refill(newLimit);
 
         ++i;
     }
 
-    UnfairBytes_.Increment(unfairUsage);
-    BlockedBytes_.Increment(blockedUsage);
+    i64 droppedQuota = SharedBucket_->Limit.Increment(leakedQuota);
 
-    YT_LOG_DEBUG("Fair throttler tick (TickLimit: %v, FreeQuota: %v, BlockedUsage: %v, UnfairUsage: %v, BucketUsage: %v, BucketLimits: %v, BucketDemands: %v)",
+    std::vector<TBucketThrottlerPtr> throttlers;
+    for (const auto& [name, bucket] : Buckets_) {
+        throttlers.push_back(bucket.Throttler);
+    }
+    Shuffle(throttlers.begin(), throttlers.end());
+
+    for (const auto& throttler : throttlers) {
+        auto limit = SharedBucket_->Limit.Value.load();
+        if (limit <= 0) {
+            break;
+        }
+
+        if (throttler->IsLimited()) {
+            continue;
+        }
+
+        SharedBucket_->Limit.Value -= limit - throttler->SatisfyRequests(limit);
+    }
+
+    YT_LOG_DEBUG("Fair throttler tick (TickLimit: %v, FreeQuota: %v, SharedBucket: %v, DroppedQuota: %v)",
         tickLimit, // How many bytes was distributed?
         freeQuota, // How many bytes was left unconsumed?
-        blockedUsage, // How many requests blocked for DistributionPeriod?
-        unfairUsage, // How many bytes was consumed above fairLimits?
+        SharedBucket_->Limit.Value.load(),
+        droppedQuota); // Bucket demands during this iteration.
+
+    YT_LOG_DEBUG("Fair throttler tick details (BucketIncome: %v, BucketUsage: %v, BucketDemands: %v, BucketQuota: %v)",
+        bucketIncome, // Bucket quotas for the next iteration.
         bucketUsage, // Real bucket usage.
-        bucketLimits, // Bucket limits for the next iteration.
-        bucketDemands); // Bucket demands during this iteration.
+        bucketDemands,
+        bucketQuota); // Bucket demands during this iteration.
 }
 
 void TFairThrottler::UpdateLimits(TInstant at)
