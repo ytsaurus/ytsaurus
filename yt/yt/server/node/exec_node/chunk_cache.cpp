@@ -219,7 +219,7 @@ public:
         return Underlying_->GetChunkInfo();
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
         return Underlying_->GetWrittenChunkReplicas();
     }

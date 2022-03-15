@@ -462,6 +462,7 @@ class TDynamicChunkServiceConfig
 {
 public:
     bool EnableMutationBoomerangs;
+    bool EnableAlertOnChunkConfirmationWithoutLocationUuid;
 
     TDynamicChunkServiceConfig();
 };

@@ -2116,7 +2116,7 @@ private:
         YT_LOG_DEBUG("Confirming tail chunk (ChunkId: %v)",
             TailChunkId_);
 
-        TChunkReplicaWithMediumList writtenReplicas;
+        TChunkReplicaWithLocationList writtenReplicas;
         for (const auto& writer : succeededWriters) {
             auto replicas = writer.ChunkWriter->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
@@ -2124,11 +2124,11 @@ private:
             int replicaIndex = IsErasure()
                 ? writer.Index
                 : GenericChunkReplicaIndex;
-            writtenReplicas.push_back(TChunkReplicaWithMedium{
+            writtenReplicas.emplace_back(
                 replica.GetNodeId(),
                 replicaIndex,
-                replica.GetMediumIndex()
-            });
+                replica.GetMediumIndex(),
+                replica.GetChunkLocationUuid());
         }
 
         const auto& client = Bootstrap_->GetMasterClient();
@@ -2143,12 +2143,26 @@ private:
         auto* req = batchReq->add_confirm_chunk_subrequests();
         ToProto(req->mutable_chunk_id(), TailChunkId_);
         req->mutable_chunk_info();
-        ToProto(req->mutable_replicas(), writtenReplicas);
+        ToProto(req->mutable_legacy_replicas(), writtenReplicas);
         auto* meta = req->mutable_chunk_meta();
         meta->set_type(ToProto<int>(EChunkType::Journal));
         meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
         TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);
+
+        req->set_location_uuids_supported(true);
+
+        bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [](const auto& replica) {
+            return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
+        });
+
+        if (useLocationUuids) {
+            for (const auto& replica : writtenReplicas) {
+                auto* replicaInfo = req->add_replicas();
+                replicaInfo->set_replica(ToProto<ui64>(replica));
+                ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
+            }
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(

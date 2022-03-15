@@ -126,18 +126,19 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
-        TChunkReplicaWithMediumList replicas;
+        TChunkReplicaWithLocationList replicas;
         replicas.reserve(Writers_.size());
         for (int index = 0; index < std::ssize(Writers_); ++index) {
             auto partReplicas = Writers_[index]->GetWrittenChunkReplicas();
             YT_VERIFY(std::size(partReplicas) == 1);
             auto replica = partReplicas.front();
-            replica = TChunkReplicaWithMedium(
+            replica = TChunkReplicaWithLocation(
                 replica.GetNodeId(),
                 /*replicaIndex*/ index,
-                replica.GetMediumIndex());
+                replica.GetMediumIndex(),
+                replica.GetChunkLocationUuid());
             replicas.push_back(replica);
         }
 

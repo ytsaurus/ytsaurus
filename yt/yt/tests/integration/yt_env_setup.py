@@ -1047,6 +1047,8 @@ class YTEnvSetup(object):
             "enable_conditional_preemption": True,
         }
 
+        dynamic_master_config.setdefault("chunk_service", {})
+
         for response in yt_commands.execute_batch(
             [
                 yt_commands.make_batch_request(

@@ -49,6 +49,27 @@ TString ToString(TChunkReplicaWithMedium replica);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(kvk1920): Remove GetMediumIndex().
+class TChunkReplicaWithLocation
+    : public TChunkReplicaWithMedium
+{
+public:
+    TChunkReplicaWithLocation();
+    TChunkReplicaWithLocation(TChunkReplicaWithMedium replica, TChunkLocationUuid locationUuid);
+    TChunkReplicaWithLocation(
+        NNodeTrackerClient::TNodeId nodeId,
+        int replicaIndex,
+        int mediumIndex,
+        TChunkLocationUuid locationUuid);
+    
+    TChunkLocationUuid GetChunkLocationUuid() const;
+
+private:
+    TChunkLocationUuid ChunkLocationUuid_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReplica
 {
 public:

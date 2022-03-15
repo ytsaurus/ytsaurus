@@ -252,8 +252,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
-        Y_UNUSED(response);
-
         auto sessionId = FromProto<TSessionId>(request->session_id());
 
         TSessionOptions options;
@@ -274,6 +272,7 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
+        ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
         context->ReplyFrom(session->Start());
     }
 

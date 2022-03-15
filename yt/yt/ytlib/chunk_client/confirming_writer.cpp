@@ -152,7 +152,7 @@ public:
         return DataStatistics_;
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
         YT_VERIFY(UnderlyingWriter_);
         return UnderlyingWriter_->GetWrittenChunkReplicas();
@@ -320,7 +320,15 @@ private:
         *req->mutable_chunk_meta() = *ChunkMeta_;
         FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         req->set_request_statistics(true);
-        ToProto(req->mutable_replicas(), replicas);
+        ToProto(req->mutable_legacy_replicas(), replicas);
+
+        req->set_location_uuids_supported(true);
+
+        for (const auto& replica : replicas) {
+            auto* replicaInfo = req->add_replicas();
+            replicaInfo->set_replica(ToProto<ui64>(replica));
+            ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
+        }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(

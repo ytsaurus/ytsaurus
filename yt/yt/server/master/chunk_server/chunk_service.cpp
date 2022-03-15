@@ -1,5 +1,6 @@
 #include "chunk_service.h"
 #include "private.h"
+#include "config.h"
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "helpers.h"
@@ -460,6 +461,13 @@ private:
         // TODO(shakurov): use mutation idempotizer when handling these
         // mutations and comply with config->EnableMutationBoomerangs.
         const auto enableMutationBoomerangs = false;
+
+        // COMPAT(kvk1920)
+        if (config->EnableAlertOnChunkConfirmationWithoutLocationUuid) {
+            for (const auto& subrequest : request->confirm_chunk_subrequests()) {
+                YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(), "Chunk confirmation request without location uuids is received");
+            }
+        }
 
         auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
             !suppressUpstreamSync,

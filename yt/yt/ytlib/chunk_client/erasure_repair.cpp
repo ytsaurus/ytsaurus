@@ -714,7 +714,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TChunkReplicaWithMediumList GetWrittenChunkReplicas() const override
+    TChunkReplicaWithLocationList GetWrittenChunkReplicas() const override
     {
         YT_UNIMPLEMENTED();
     }

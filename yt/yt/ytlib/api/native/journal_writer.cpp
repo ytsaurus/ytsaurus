@@ -290,6 +290,7 @@ private:
             TPeriodicExecutorPtr PingExecutor;
 
             bool Started = false;
+            TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
 
             i64 FirstPendingBlockIndex = 0;
             i64 FirstPendingRowIndex = -1;
@@ -810,10 +811,26 @@ private:
                 batchReq->set_suppress_upstream_sync(true);
 
                 YT_VERIFY(!replicas.empty());
+                YT_VERIFY(session->Nodes.size() == replicas.size());
                 auto* req = batchReq->add_confirm_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
-                ToProto(req->mutable_replicas(), replicas);
+                ToProto(req->mutable_legacy_replicas(), replicas);
+
+                req->set_location_uuids_supported(true);
+
+                bool useLocationUuids = std::all_of(session->Nodes.begin(), session->Nodes.end(), [] (const auto& node) {
+                    return node->TargetLocationUuid != InvalidChunkLocationUuid;
+                });
+
+                if (useLocationUuids) {
+                    for (int i = 0; i < std::ssize(replicas); ++i) {
+                        auto* replicaInfo = req->add_replicas();
+                        replicaInfo->set_replica(ToProto<ui64>(replicas[i]));
+                        ToProto(replicaInfo->mutable_location_uuid(), session->Nodes[i]->TargetLocationUuid);
+                    }
+                }
+
                 auto* meta = req->mutable_chunk_meta();
                 meta->set_type(ToProto<int>(EChunkType::Journal));
                 meta->set_format(ToProto<int>(EChunkFormat::JournalDefault));
@@ -1351,6 +1368,9 @@ private:
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Chunk session started at node (Address: %v)",
                     node->Descriptor.GetDefaultAddress());
+                if (rspOrError.Value()->has_location_uuid()) {
+                    node->TargetLocationUuid = FromProto<TChunkLocationUuid>(rspOrError.Value()->location_uuid());
+                }
                 node->Started = true;
                 if (CurrentChunkSession_ == session) {
                     MaybeFlushBlocks(CurrentChunkSession_, node);

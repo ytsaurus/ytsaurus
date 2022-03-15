@@ -58,7 +58,7 @@ struct IChunkWriter
      *  Can only be called when the writer is successfully closed.
      *  Not every writer implements this method.
      */
-    virtual TChunkReplicaWithMediumList GetWrittenChunkReplicas() const = 0;
+    virtual TChunkReplicaWithLocationList GetWrittenChunkReplicas() const = 0;
 
     //! Returns the id of the chunk being written.
     /*!

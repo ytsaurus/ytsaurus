@@ -72,6 +72,36 @@ Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 value)
     replica->Value = value;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation()
+    : TChunkReplicaWithMedium()
+    , ChunkLocationUuid_(InvalidChunkLocationUuid)
+{ }
+
+Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation(
+    TChunkReplicaWithMedium replica, 
+    TChunkLocationUuid locationUuid)
+    : TChunkReplicaWithMedium(replica)
+    , ChunkLocationUuid_(locationUuid)
+{ }
+
+Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation(
+    NNodeTrackerClient::TNodeId nodeId,
+    int replicaIndex,
+    int mediumIndex,
+    TChunkLocationUuid locationUuid)
+    : TChunkReplicaWithMedium(nodeId, replicaIndex, mediumIndex)
+    , ChunkLocationUuid_(locationUuid)
+{ }
+
+Y_FORCE_INLINE TChunkLocationUuid TChunkReplicaWithLocation::GetChunkLocationUuid() const
+{
+    return ChunkLocationUuid_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_FORCE_INLINE TChunkReplica::TChunkReplica()
     : TChunkReplica(NNodeTrackerClient::InvalidNodeId)
 { }

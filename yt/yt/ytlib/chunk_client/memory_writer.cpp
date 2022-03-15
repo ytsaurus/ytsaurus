@@ -85,7 +85,7 @@ const TDataStatistics& TMemoryWriter::GetDataStatistics() const
     YT_UNIMPLEMENTED();
 }
 
-TChunkReplicaWithMediumList TMemoryWriter::GetWrittenChunkReplicas() const
+TChunkReplicaWithLocationList TMemoryWriter::GetWrittenChunkReplicas() const
 {
     YT_UNIMPLEMENTED();
 }
