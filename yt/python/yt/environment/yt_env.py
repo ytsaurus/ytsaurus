@@ -634,6 +634,9 @@ class YTInstance(object):
     def kill_http_proxies(self, indexes=None):
         self.kill_service("proxy", indexes=indexes)
 
+    def kill_rpc_proxies(self, indexes=None):
+        self.kill_service("rpc_proxy", indexes=indexes)
+
     def kill_masters_at_cells(self, indexes=None, cell_indexes=None):
         if cell_indexes is None:
             cell_indexes = [0]
