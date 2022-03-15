@@ -14,6 +14,7 @@ namespace {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,6 +165,183 @@ INSTANTIATE_TEST_SUITE_P(
             "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=0}];upper_key=[<type=max>#]}",
             "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=1}];upper_key=[<type=max>#]}",
             false)
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGatherReplicationProgressTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        std::vector<const char*>,
+        const char*>>
+{ };
+
+TEST_P(TGatherReplicationProgressTest, Simple)
+{
+    const auto& params = GetParam();
+    const auto& serializedProgresses = std::get<0>(params);
+    const auto& expected = ConvertTo<TReplicationProgress>(TYsonStringBuf(std::get<1>(params)));
+    
+    std::vector<TReplicationProgress> progresses;
+    std::vector<TUnversionedRow> pivotKeys;
+    for (const auto& serialized : serializedProgresses) {
+        progresses.push_back(ConvertTo<TReplicationProgress>(TYsonStringBuf(serialized)));
+        pivotKeys.push_back(progresses.back().Segments.front().LowerKey);
+    }
+
+    auto result = GatherReplicationProgress(progresses, pivotKeys, progresses.back().UpperKey.Get());
+
+    EXPECT_TRUE(IsReplicationProgressEqual(result, expected))
+        << "progresses: " << Format("%v", std::get<0>(params)) << std::endl
+        << "expected: " << std::get<1>(params) << std::endl
+        << "actual: " << ConvertToYsonString(result, EYsonFormat::Text).AsStringBuf() << std::endl;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TGatherReplicationProgressTest,
+    TGatherReplicationProgressTest,
+    ::testing::Values(
+        std::make_tuple(
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[1];timestamp=1}];upper_key=[2]}"
+            },
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=1}];upper_key=[2]}"),
+        std::make_tuple(
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[0];timestamp=0}];upper_key=[2]}"
+            },
+            "{segments=[{lower_key=[];timestamp=0}];upper_key=[2]}"),
+        std::make_tuple(
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[1];timestamp=1}];upper_key=[2]}",
+                "{segments=[{lower_key=[2];timestamp=1}];upper_key=[3]}"
+            },
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=1}];upper_key=[3]}"),
+        std::make_tuple(
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[1];timestamp=0}];upper_key=[2]}",
+                "{segments=[{lower_key=[2];timestamp=1}];upper_key=[3]}"
+            },
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[2];timestamp=1}];upper_key=[3]}")
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TScatterReplicationProgressTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*,
+        const char*,
+        const char*,
+        std::vector<const char*>>>
+{ };
+
+TEST_P(TScatterReplicationProgressTest, Simple)
+{
+    const auto& params = GetParam();
+    const auto& progress = ConvertTo<TReplicationProgress>(TYsonStringBuf(std::get<0>(params)));
+    const auto& owningPivotKeys = ConvertTo<std::vector<TUnversionedOwningRow>>(TYsonStringBuf(std::get<1>(params)));
+    const auto& upperKey = ConvertTo<TUnversionedOwningRow>(TYsonStringBuf(std::get<2>(params)));
+    const auto& serializedExpected = std::get<3>(params);
+
+    std::vector<TUnversionedRow> pivotKeys;
+    for (const auto& row : owningPivotKeys) {
+        pivotKeys.push_back(row.Get());
+    }
+
+    std::vector<TReplicationProgress> expected;
+    for (const auto& serialized : serializedExpected) {
+        expected.push_back(ConvertTo<TReplicationProgress>(TYsonStringBuf(serialized)));
+    }
+
+    auto result = ScatterReplicationProgress(progress, pivotKeys, upperKey.Get());
+    bool allEqual = true;
+    if (expected.size() != result.size()) {
+        allEqual = false;
+    } else {
+        for (int index = 0; index < std::ssize(expected); ++index) {
+            if (!IsReplicationProgressEqual(result[index], expected[index])) {
+                allEqual = false;
+                break;
+            }
+        }
+    }
+
+    EXPECT_TRUE(allEqual)
+        << "progresses: " << std::get<0>(params) << std::endl
+        << "pivot keys: " << std::get<1>(params) << std::endl
+        << "upper key: " << std::get<2>(params) << std::endl
+        << "expected: " << Format("%v", expected) << std::endl
+        << "actual: " << Format("%v", result) << std::endl;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TScatterReplicationProgressTest,
+    TScatterReplicationProgressTest,
+    ::testing::Values(
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0}];upper_key=[<type=max>#]}",
+            "[[]; [1]]",
+            "[<type=max>#]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[1];timestamp=0}];upper_key=[<type=max>#]}"
+            }),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0}];upper_key=[<type=max>#]}",
+            "[[]; [1]]",
+            "[2]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[1];timestamp=0}];upper_key=[2]}"
+            }),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=1}];upper_key=[2]}",
+            "[[]; [1]]",
+            "[2]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[];timestamp=0}];upper_key=[1]}",
+                "{segments=[{lower_key=[1];timestamp=1}];upper_key=[2]}"
+            }),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[2];timestamp=1};{lower_key=[4];timestamp=0}];upper_key=[6]}",
+            "[[1]; [3]]",
+            "[5]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[1];timestamp=0};{lower_key=[2];timestamp=1}];upper_key=[3]}",
+                "{segments=[{lower_key=[3];timestamp=1};{lower_key=[4];timestamp=0}];upper_key=[5]}",
+            }),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[2];timestamp=1};{lower_key=[4];timestamp=0}];upper_key=[6]}",
+            "[[1]; [4]]",
+            "[6]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[1];timestamp=0};{lower_key=[2];timestamp=1}];upper_key=[4]}",
+                "{segments=[{lower_key=[4];timestamp=0}];upper_key=[6]}"
+            }),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[2];timestamp=1};{lower_key=[4];timestamp=0}];upper_key=[6]}",
+            "[[3]; [4]]",
+            "[5]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[3];timestamp=1}];upper_key=[4]}",
+                "{segments=[{lower_key=[4];timestamp=0}];upper_key=[5]}"
+            }),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[2];timestamp=1};{lower_key=[4];timestamp=0}];upper_key=[6]}",
+            "[[1]; [2]; [3]; [4]; [5]]",
+            "[6]",
+            std::vector<const char*>{
+                "{segments=[{lower_key=[1];timestamp=0}];upper_key=[2]}",
+                "{segments=[{lower_key=[2];timestamp=1}];upper_key=[3]}",
+                "{segments=[{lower_key=[3];timestamp=1}];upper_key=[4]}",
+                "{segments=[{lower_key=[4];timestamp=0}];upper_key=[5]}",
+                "{segments=[{lower_key=[5];timestamp=0}];upper_key=[6]}"
+            })
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

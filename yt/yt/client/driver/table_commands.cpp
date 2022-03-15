@@ -599,6 +599,8 @@ TAlterTableCommand::TAlterTableCommand()
         .Optional();
     RegisterParameter("schema_modification", Options.SchemaModification)
         .Optional();
+    RegisterParameter("replication_progress", Options.ReplicationProgress)
+        .Optional();
 }
 
 void TAlterTableCommand::DoExecute(ICommandContextPtr context)

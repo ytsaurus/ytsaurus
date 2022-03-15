@@ -307,6 +307,21 @@ bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, c
     return true;
 }
 
+bool IsReplicationProgressEqual(const TReplicationProgress& progress, const TReplicationProgress& other)
+{
+    if (progress.Segments.size() != other.Segments.size() || progress.UpperKey != other.UpperKey) {
+        return false;
+    }
+    for (int index = 0; index < std::ssize(progress.Segments); ++index) {
+        const auto& segment = progress.Segments[index];
+        const auto& otherSegment = other.Segments[index];
+        if (segment.LowerKey != otherSegment.LowerKey || segment.Timestamp != otherSegment.Timestamp) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, TTimestamp timestamp)
 {
     for (const auto& segment : progress.Segments) {
@@ -437,6 +452,91 @@ TTimestamp GetReplicationProgressMinTimestamp(
         minTimestamp = std::min(it->Timestamp, minTimestamp);
     }
     return minTimestamp;
+}
+
+TReplicationProgress GatherReplicationProgress(
+    std::vector<TReplicationProgress> progresses,
+    const std::vector<TUnversionedRow>& pivotKeys,
+    TUnversionedRow upperKey)
+{
+    YT_VERIFY(progresses.size() == pivotKeys.size());
+    YT_VERIFY(!pivotKeys.empty() && pivotKeys.back() < upperKey);
+
+    TReplicationProgress progress;
+    for (int index = 0; index < std::ssize(progresses); ++index) {
+        auto& segments = progresses[index].Segments;
+        auto lowerKey = pivotKeys[index];
+        if (segments.empty()) {
+            progress.Segments.push_back({TUnversionedOwningRow(lowerKey), MinTimestamp});
+        } else {
+            YT_VERIFY(lowerKey == segments[0].LowerKey);
+            progress.Segments.insert(
+                progress.Segments.end(),
+                std::make_move_iterator(segments.begin()),
+                std::make_move_iterator(segments.end()));
+        }
+    }
+
+    YT_VERIFY(upperKey > progress.Segments.back().LowerKey);
+    progress.UpperKey = TUnversionedOwningRow(upperKey);
+    CanonizeReplicationProgress(&progress);
+    return progress;
+}
+
+std::vector<TReplicationProgress> ScatterReplicationProgress(
+    TReplicationProgress progress,
+    const std::vector<TUnversionedRow>& pivotKeys,
+    TUnversionedRow upperKey)
+{
+    YT_VERIFY(!pivotKeys.empty() && !progress.Segments.empty());
+    YT_VERIFY(pivotKeys[0] >= progress.Segments[0].LowerKey);
+    YT_VERIFY(progress.UpperKey.Get() >= upperKey);
+    YT_VERIFY(pivotKeys.back() < upperKey);
+
+    std::vector<TReplicationProgress> result;
+    auto& segments = progress.Segments;
+    int segmentIndex = 0;
+    int pivotIndex = 0;
+    auto previousTimestamp = MaxTimestamp;
+
+    while (pivotIndex < std::ssize(pivotKeys)) {
+        auto& pivotKey = pivotKeys[pivotIndex];
+        auto cmpResult = segmentIndex < std::ssize(segments)
+            ? CompareRows(pivotKey, segments[segmentIndex].LowerKey.Get())
+            : -1;
+
+        if (cmpResult <= 0) {
+            if (!result.empty()) {
+                result.back().UpperKey = TUnversionedOwningRow(pivotKey);
+            }
+
+            result.emplace_back();
+            YT_VERIFY(cmpResult == 0 || segmentIndex > 0);
+            auto timestamp = cmpResult == 0
+                ? segments[segmentIndex].Timestamp
+                : previousTimestamp;
+            result.back().Segments.push_back({TUnversionedOwningRow(pivotKey), timestamp});
+
+            ++pivotIndex;
+            if (cmpResult == 0) {
+                previousTimestamp = segments[segmentIndex].Timestamp;
+                ++segmentIndex;
+            }
+        } else {
+            previousTimestamp = segments[segmentIndex].Timestamp;
+            if (!result.empty()) {
+                result.back().Segments.push_back(std::move(segments[segmentIndex]));
+            }
+            ++segmentIndex;
+        }
+    }
+
+    for (; segmentIndex < std::ssize(segments) && segments[segmentIndex].LowerKey < upperKey; ++segmentIndex) {
+        result.back().Segments.push_back(std::move(segments[segmentIndex]));
+    }
+
+    result.back().UpperKey = TUnversionedOwningRow(upperKey);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

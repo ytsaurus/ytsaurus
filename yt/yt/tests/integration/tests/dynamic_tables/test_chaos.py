@@ -226,7 +226,7 @@ class ChaosTestBase(DynamicTablesBase):
 
 class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 5
+    NUM_TEST_PARTITIONS = 6
 
     @authors("savrus")
     def test_virtual_maps(self):
@@ -1291,6 +1291,52 @@ class TestChaos(ChaosTestBase):
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 1}], driver=remote_driver1) == values1)
+
+    @authors("savrus")
+    def test_replication_progress_attribute(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/r"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        reshard_table("//tmp/t", [[], [1]])
+        reshard_table("//tmp/q", [[], [1]], driver=remote_driver0)
+        reshard_table("//tmp/r", [[], [1]], driver=remote_driver1)
+
+        def _sync_mount_tables(replicas):
+            for replica in replicas:
+                sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+            self._sync_replication_era(card_id, replicas)
+        _sync_mount_tables(replicas[:2])
+
+        def _insert_and_check(key, value):
+            rows = [{"key": key, "value": value}]
+            insert_rows("//tmp/t", rows)
+            wait(lambda: lookup_rows("//tmp/t", [{"key": key}]) == rows)
+
+        _insert_and_check(0, "0")
+        sync_unmount_table("//tmp/q", first_tablet_index=0, last_tablet_index=0, driver=remote_driver0)
+        _insert_and_check(1, "1")
+
+        sync_unmount_table("//tmp/t")
+        progress = get("//tmp/t/@replication_progress")
+        assert len(progress["segments"]) > 1
+        alter_table("//tmp/r", replication_progress=progress, driver=remote_driver1)
+        reshard_table("//tmp/t", [[], [2]])
+
+        _sync_mount_tables(replicas)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
+
+        _insert_and_check(2, "2")
+        assert lookup_rows("//tmp/r", [{"key": 2}], driver=remote_driver1) == [{"key": 2, "value": "2"}]
+        assert lookup_rows("//tmp/r", [{"key": i} for i in range(2)], driver=remote_driver1) == []
+        _insert_and_check(1, "3")
+        assert lookup_rows("//tmp/r", [{"key": 1}], driver=remote_driver1) == [{"key": 1, "value": "3"}]
 
 
 ##################################################################

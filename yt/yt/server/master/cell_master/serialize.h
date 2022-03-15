@@ -113,6 +113,7 @@ DEFINE_ENUM(EMasterReign,
     ((StripedErasureChunks)                                         (1945))  // gritukan
     ((DropReplicationCardIdFromMountReq)                            (1946))  // savrus
     ((MulticellChaos)                                               (1947))  // savrus
+    ((AlterTableReplicationProgress)                                (1948))  // savrus
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1950))  // ifsmirnov
     // 22.2 starts here.

@@ -1690,6 +1690,43 @@ public:
         }
     }
 
+    TReplicationProgress GatherReplicationProgress(const TTableNode* table)
+    {
+        if (table->IsExternal()) {
+            return {};
+        }
+
+        std::vector<TReplicationProgress> progresses;
+        std::vector<TLegacyKey> pivotKeys;
+        for (auto* tablet : table->Tablets()) {
+            progresses.push_back(tablet->ReplicationProgress());
+            pivotKeys.push_back(tablet->GetPivotKey().Get());
+        }
+
+        return NChaosClient::GatherReplicationProgress(std::move(progresses), pivotKeys, MaxKey().Get());
+    }
+
+    void ScatterReplicationProgress(NTableServer::TTableNode* table, TReplicationProgress progress)
+    {
+        if (table->IsExternal()) {
+            return;
+        }
+
+        std::vector<TLegacyKey> pivotKeys;
+        for (auto* tablet : table->Tablets()) {
+            pivotKeys.push_back(tablet->GetPivotKey().Get());
+        }
+
+        auto newProgresses = NChaosClient::ScatterReplicationProgress(
+            std::move(progress),
+            pivotKeys,
+            MaxKey().Get());
+
+        for (int index = 0; index < std::ssize(table->Tablets()); ++index) {
+            auto* tablet = table->Tablets()[index];
+            tablet->ReplicationProgress() = std::move(newProgresses[index]);
+        }
+    }
 
     TGuid GenerateTabletBalancerCorrelationId() const
     {
@@ -4236,6 +4273,46 @@ private:
             }
         }
 
+        // Copy replication progress.
+        if (table->IsPhysicallySorted()) {
+            std::vector<TReplicationProgress> progresses;
+            std::vector<TLegacyKey> pivotKeys;
+            bool nonEmpty = false;
+
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tablet = tablets[index];
+                if (!tablet->ReplicationProgress().Segments.empty()) {
+                    nonEmpty = true;
+                }
+                progresses.push_back(std::move(tablet->ReplicationProgress()));
+                pivotKeys.push_back(tablet->GetPivotKey().Get());
+            }
+
+            if (nonEmpty) {
+                auto upperKey = lastTabletIndex + 1 < std::ssize(tablets)
+                    ? tablets[lastTabletIndex + 1]->GetPivotKey().Get()
+                    : MaxKey().Get();
+                auto progress = NChaosClient::GatherReplicationProgress(
+                    std::move(progresses),
+                    pivotKeys,
+                    upperKey);
+                pivotKeys.clear();
+                for (int index = 0; index < std::ssize(newTablets); ++index) {
+                    auto* tablet = newTablets[index];
+                    pivotKeys.push_back(tablet->GetPivotKey().Get());
+                }
+
+                auto newProgresses = NChaosClient::ScatterReplicationProgress(
+                    std::move(progress),
+                    pivotKeys,
+                    upperKey);
+                for (int index = 0; index < std::ssize(newTablets); ++index) {
+                    auto* tablet = newTablets[index];
+                    tablet->ReplicationProgress() = std::move(newProgresses[index]);
+                }
+            }
+        }
+
         std::vector<TLegacyOwningKey> oldPivotKeys;
 
         // Drop old tablets.
@@ -4254,52 +4331,6 @@ private:
                 oldPivotKeys.push_back(tablets[lastTabletIndex + 1]->GetPivotKey());
             } else {
                 oldPivotKeys.push_back(MaxKey());
-            }
-        }
-
-        // Copy replication progress.
-        if (table->IsPhysicallySorted() && table->GetReplicationCardId()) {
-            TReplicationProgress progress;
-            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* tablet = tablets[index];
-                const auto& segments = tablet->ReplicationProgress().Segments;
-                if (segments.empty()) {
-                    progress.Segments.push_back({tablet->GetPivotKey(), MinTimestamp});
-                } else {
-                    progress.Segments.insert(progress.Segments.end(), segments.begin(), segments.end());
-                }
-            }
-
-            auto lastPivotKey = lastTabletIndex + 1 < std::ssize(tablets)
-                ? tablets[lastTabletIndex + 1]->GetPivotKey()
-                : MaxKey();
-
-            int segmentIndex = 0;
-            for (int index = 0; index < std::ssize(newTablets); ++index) {
-                auto& segments = newTablets[index]->ReplicationProgress().Segments;
-
-                auto pivotKey = newTablets[index]->GetPivotKey().Get();
-                const auto& nextPivotKey = index + 1 < std::ssize(newTablets)
-                    ? newTablets[index + 1]->GetPivotKey()
-                    : lastPivotKey;
-
-                newTablets[index]->ReplicationProgress().UpperKey = nextPivotKey;
-
-                auto lowerKey = progress.Segments[segmentIndex].LowerKey;
-                YT_VERIFY(lowerKey <= pivotKey);
-
-                for (; segmentIndex < std::ssize(progress.Segments) && progress.Segments[segmentIndex].LowerKey < nextPivotKey; ++segmentIndex) {
-                    segments.push_back(progress.Segments[segmentIndex]);
-                }
-
-                YT_VERIFY(!segments.empty());
-                if (segments[0].LowerKey < pivotKey) {
-                    segments[0].LowerKey = newTablets[index]->GetPivotKey();
-                }
-
-                if (segmentIndex == std::ssize(progress.Segments) || progress.Segments[segmentIndex].LowerKey > nextPivotKey) {
-                    --segmentIndex;
-                }
             }
         }
 
@@ -7740,6 +7771,16 @@ void TTabletManager::DestroyTabletAction(TTabletAction* action)
 void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTableNode* branchedNode)
 {
     Impl_->MergeTable(originatingNode, branchedNode);
+}
+
+TReplicationProgress TTabletManager::GatherReplicationProgress(const TTableNode* table)
+{
+    return Impl_->GatherReplicationProgress(table);
+}
+
+void TTabletManager::ScatterReplicationProgress(TTableNode* table, TReplicationProgress progress)
+{
+    Impl_->ScatterReplicationProgress(table, std::move(progress));
 }
 
 void TTabletManager::OnNodeStorageParametersUpdated(TChunkOwnerBase* node)

@@ -2478,7 +2478,7 @@ def wait_for_tablet_state(path, state, **kwargs):
                 for x in get(path + "/@tablets", driver=driver)[first_tablet_index:last_tablet_index + 1]
             )
         )
-        wait(lambda: get(path + "/@tablet_state") != "transient")
+        wait(lambda: get(path + "/@tablet_state", driver=driver) != "transient")
 
 
 def sync_mount_table(path, freeze=False, **kwargs):

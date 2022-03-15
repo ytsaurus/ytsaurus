@@ -83,25 +83,26 @@
 
 namespace NYT::NRpcProxy {
 
-using namespace NApi;
 using namespace NApi::NRpcProxy;
+using namespace NApi;
 using namespace NArrow;
-using namespace NYson;
-using namespace NYTree;
-using namespace NConcurrency;
-using namespace NRpc;
-using namespace NCompression;
 using namespace NAuth;
+using namespace NChaosClient;
+using namespace NCompression;
+using namespace NConcurrency;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NRpc;
+using namespace NScheduler;
+using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NObjectClient;
-using namespace NSecurityClient;
-using namespace NScheduler;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYPath;
-using namespace NProfiling;
-using namespace NLogging;
-using namespace NTracing;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -2213,6 +2214,9 @@ private:
         }
         if (request->has_schema_modification()) {
             options.SchemaModification = CheckedEnumCast<ETableSchemaModification>(request->schema_modification());
+        }
+        if (request->has_replication_progress()) {
+            options.ReplicationProgress = FromProto<TReplicationProgress>(request->replication_progress());
         }
 
         context->SetRequestInfo("Path: %v",

@@ -1867,6 +1867,9 @@ void TClient::DoAlterTable(
     if (options.SchemaModification) {
         req->set_schema_modification(static_cast<int>(*options.SchemaModification));
     }
+    if (options.ReplicationProgress) {
+        ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
+    }
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     WaitFor(proxy->Execute(req))

@@ -109,6 +109,7 @@ bool IsReplicaReallySync(NTabletClient::ETableReplicaMode mode, NTabletClient::E
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update);
 
+bool IsReplicationProgressEqual(const TReplicationProgress& progress, const TReplicationProgress& other);
 bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, const TReplicationProgress& other);
 bool IsReplicationProgressGreaterOrEqual(const TReplicationProgress& progress, NTransactionClient::TTimestamp timestamp);
 
@@ -126,6 +127,15 @@ NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(
     const TReplicationProgress& progress,
     NTableClient::TLegacyKey lower,
     NTableClient::TLegacyKey upper);
+
+TReplicationProgress GatherReplicationProgress(
+    std::vector<TReplicationProgress> progresses,
+    const std::vector<NTableClient::TUnversionedRow>& pivotKeys,
+    NTableClient::TUnversionedRow upperKey);
+std::vector<TReplicationProgress> ScatterReplicationProgress(
+    TReplicationProgress progress,
+    const std::vector<NTableClient::TUnversionedRow>& pivotKeys,
+    NTableClient::TUnversionedRow upperKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 
