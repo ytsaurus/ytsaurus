@@ -143,6 +143,8 @@ public:
 
     std::optional<bool> AbortOnAlert;
 
+    std::optional<int> CompressionThreadCount;
+
     TLogManagerDynamicConfig();
 };
 
