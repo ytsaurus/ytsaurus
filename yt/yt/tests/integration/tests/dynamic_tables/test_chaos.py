@@ -1330,6 +1330,14 @@ class TestChaosRpcProxy(TestChaos):
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
 
+
+##################################################################
+
+
+class TestChaosMulticell(TestChaos):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
 ##################################################################
 
 
