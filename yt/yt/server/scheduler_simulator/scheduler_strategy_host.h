@@ -42,6 +42,7 @@ public:
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
 
     NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
+    NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant now) override;
 
     NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) const override;
     NScheduler::TJobResources GetResourceUsage(const NScheduler::TSchedulingTagFilter& filter) const override;

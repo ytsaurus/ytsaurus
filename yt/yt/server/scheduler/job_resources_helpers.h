@@ -33,7 +33,8 @@ void ProfileResourceVector(
 void ProfileResourceVolume(
     NProfiling::ISensorWriter* writer,
     const TResourceVolume& volume,
-    const TString& prefix);
+    const TString& prefix,
+    NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
 
 ////////////////////////////////////////////////////////////////////////////////
 

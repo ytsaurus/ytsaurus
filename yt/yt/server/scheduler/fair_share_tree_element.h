@@ -992,11 +992,15 @@ protected:
     // Fixed in preupdate, used in postupdate.
     std::optional<EUnschedulableReason> UnschedulableReason_;
 
-    IOperationStrategyHost* const Operation_;
+    IOperationStrategyHost* const OperationHost_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
     // Used only in trunk version.
     TString UserName_;
+
+    // Used for accumulated usage logging.
+    EOperationType Type_;
+    NYson::TYsonString TrimmedAnnotations_;
 
     // Used only for profiling.
     int SlotIndex_ = UndefinedSlotIndex;
@@ -1195,6 +1199,7 @@ public:
     TSchedulerElementPtr Clone(TSchedulerCompositeElement* clonedParent) override;
 
     TString GetId() const override;
+    TOperationId GetOperationId() const;
 
     TString GetLoggingString() const override;
     bool AreDetailedLogsEnabled() const final;
@@ -1215,6 +1220,8 @@ public:
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     TString GetUserName() const;
+    EOperationType GetType() const;
+    const NYson::TYsonString& GetTrimmedAnnotations() const;
 
     void Disable(bool markAsNonAlive);
     void Enable();

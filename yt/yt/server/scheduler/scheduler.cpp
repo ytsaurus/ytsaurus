@@ -689,6 +689,7 @@ public:
             spec,
             std::move(preprocessedSpec.CustomSpecPerTree),
             std::move(preprocessedSpec.SpecString),
+            std::move(preprocessedSpec.TrimmedAnnotations),
             std::move(preprocessedSpec.VanillaTaskNames),
             secureVault,
             runtimeParameters,
@@ -1620,6 +1621,18 @@ public:
             &SchedulerEventLogger,
             GetFairShareEventLogConsumer(),
             ELogEventType::FairShareInfo,
+            now);
+    }
+    
+    // NB(eshcherbin): Separate method due to separate invoker.
+    TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant now) override
+    {
+        VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
+
+        return LogEventFluently(
+            &SchedulerStructuredLogger,
+            GetFairShareEventLogConsumer(),
+            ELogEventType::AccumulatedUsageInfo,
             now);
     }
 
@@ -3449,6 +3462,7 @@ private:
         fluent
             .Item("operation_id").Value(operation->GetId())
             .Item("operation_type").Value(operation->GetType())
+            .OptionalItem("trimmed_annotations", operation->GetTrimmedAnnotations())
             .Item("spec").Value(operation->GetSpecString())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }

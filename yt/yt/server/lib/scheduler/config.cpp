@@ -463,6 +463,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .InRange(TDuration::MilliSeconds(10), TDuration::Seconds(60))
         .Default(TDuration::MilliSeconds(1000));
 
+    registrar.Parameter("accumulated_usage_log_period", &TThis::AccumulatedUsageLogPeriod)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("min_needed_resources_update_period", &TThis::MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
 

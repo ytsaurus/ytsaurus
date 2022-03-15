@@ -78,6 +78,11 @@ TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
 {
     return LogEventFluently(GetEventLogger(), ELogEventType::FairShareInfo, now);
 }
+    
+TFluentLogEvent TSchedulerStrategyHost::LogAccumulatedUsageEventFluently(TInstant /*now*/)
+{
+    YT_UNIMPLEMENTED();
+}
 
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {

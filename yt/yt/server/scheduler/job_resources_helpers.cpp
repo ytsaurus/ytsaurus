@@ -59,11 +59,24 @@ void ProfileResourceVector(
 void ProfileResourceVolume(
     NProfiling::ISensorWriter* writer,
     const TResourceVolume& volume,
-    const TString& prefix)
+    const TString& prefix,
+    NProfiling::EMetricType metricType)
 {
-    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
+    switch (metricType) {
+        case NProfiling::EMetricType::Gauge:
+            #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<double>(volume.Get##Name()));
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+            break;
+        case NProfiling::EMetricType::Counter:
+            // NB: CPU value will be rounded down.
+            #define XX(name, Name) writer->AddCounter(prefix + "/" #name, static_cast<i64>(volume.Get##Name()));
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
+            break;
+        default:
+            YT_ABORT();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

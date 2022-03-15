@@ -39,6 +39,7 @@ public:
     NScheduler::TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const override;
 
     const NYson::TYsonString& GetSpecString() const override;
+    const NYson::TYsonString& GetTrimmedAnnotations() const override;
 
     NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
@@ -58,6 +59,7 @@ private:
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;
     const NYson::TYsonString SpecString_;
+    const NYson::TYsonString TrimmedAnnotations_;
     const TString AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParameters_;

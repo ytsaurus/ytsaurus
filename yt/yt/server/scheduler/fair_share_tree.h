@@ -84,10 +84,14 @@ struct IFairShareTree
 
     virtual void ProfileFairShare() const = 0;
     virtual void LogFairShareAt(TInstant now) const = 0;
+    virtual void LogAccumulatedUsage() const = 0;
     virtual void EssentialLogFairShareAt(TInstant now) const = 0;
 
     //! Updates accumulated resources usage information. Update current resource usages in snapshot.
     virtual void UpdateResourceUsages() = 0;
+    
+    // Extracts accumulated usage for operation.
+    virtual TResourceVolume ExtractAccumulatedUsageForLogging(TOperationId operationId) = 0;
 
     //! Updates fair share attributes of tree elements and saves it as tree snapshot.
     virtual TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;

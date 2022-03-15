@@ -87,6 +87,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant /*now*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
         TJobResources result;
@@ -328,7 +333,7 @@ public:
 
     EOperationType GetType() const override
     {
-        YT_ABORT();
+        return EOperationType::Vanilla;
     }
 
     EOperationState GetState() const override
@@ -388,6 +393,11 @@ public:
         YT_ABORT();
     }
 
+    const NYson::TYsonString& GetTrimmedAnnotations() const override
+    {
+        return TrimmedAnnotations_;
+    }
+
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
         YT_ABORT();
@@ -413,6 +423,7 @@ public:
 
 private:
     TInstant StartTime_;
+    NYson::TYsonString TrimmedAnnotations_;
     TOperationId Id_;
     TOperationControllerStrategyHostMockPtr Controller_;
 };

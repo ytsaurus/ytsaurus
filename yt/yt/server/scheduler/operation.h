@@ -139,6 +139,8 @@ struct IOperationStrategyHost
     virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const = 0;
 
     virtual const NYson::TYsonString& GetSpecString() const = 0;
+    
+    virtual const NYson::TYsonString& GetTrimmedAnnotations() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
@@ -290,6 +292,9 @@ public:
 
     //! Returns operation spec as a yson string.
     const NYson::TYsonString& GetSpecString() const override;
+    
+    //! Returns operation annotations used for structured logging.
+    const NYson::TYsonString& GetTrimmedAnnotations() const override;
 
     //! Returns names of operation tasks.
     //! Works for vanilla operations only.
@@ -388,6 +393,7 @@ public:
         TOperationSpecBasePtr spec,
         THashMap<TString, TStrategyOperationSpecPtr> customSpecPerTree,
         NYson::TYsonString specString,
+        NYson::TYsonString trimmedAnnotations,
         std::vector<TString> vanillaTaskNames,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParameters,
@@ -410,6 +416,7 @@ private:
     const TInstant StartTime_;
     const TString AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
+    const NYson::TYsonString TrimmedAnnotations_;
     const std::vector<TString> VanillaTaskNames_;
     const THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree_;
     const TString CodicilData_;
@@ -450,6 +457,7 @@ struct TPreprocessedSpec
 {
     TOperationSpecBasePtr Spec;
     NYson::TYsonString SpecString;
+    NYson::TYsonString TrimmedAnnotations;
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
     std::vector<TString> VanillaTaskNames;

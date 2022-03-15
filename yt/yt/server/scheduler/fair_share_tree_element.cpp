@@ -27,6 +27,7 @@ namespace NYT::NScheduler {
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
+using namespace NYson;
 using namespace NYTree;
 using namespace NProfiling;
 using namespace NControllerAgent;
@@ -1828,7 +1829,7 @@ const std::optional<TString>& TSchedulerPoolElement::GetUserName() const
 {
     return UserName_;
 }
-
+    
 TPoolConfigPtr TSchedulerPoolElement::GetConfig() const
 {
     return Config_;
@@ -2210,9 +2211,11 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
     TSchedulingTagFilter schedulingTagFilter)
     : OperationId_(operation->GetId())
     , UnschedulableReason_(operation->CheckUnschedulable())
-    , Operation_(operation)
+    , OperationHost_(operation)
     , ControllerConfig_(std::move(controllerConfig))
     , UserName_(operation->GetAuthenticatedUser())
+    , Type_(operation->GetType())
+    , TrimmedAnnotations_(operation->GetTrimmedAnnotations())
     , SchedulingTagFilter_(std::move(schedulingTagFilter))
 { }
 
@@ -2885,7 +2888,7 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     // Must be calculated after ResourceUsageAtUpdate_
     ResourceDemand_ = ComputeResourceDemand();
     Tentative_ = RuntimeParameters_->Tentative;
-    StartTime_ = Operation_->GetStartTime();
+    StartTime_ = OperationHost_->GetStartTime();
 
     // NB: It was moved from regular fair share update for performing split.
     // It can be performed in fair share thread as second step of preupdate.
@@ -3446,6 +3449,11 @@ TString TSchedulerOperationElement::GetId() const
     return ToString(OperationId_);
 }
 
+TOperationId TSchedulerOperationElement::GetOperationId() const
+{
+    return OperationId_;
+}
+
 std::optional<bool> TSchedulerOperationElement::IsAggressivePreemptionAllowed() const
 {
     if (IsGang() && !TreeConfig_->AllowAggressivePreemptionForGangOperations) {
@@ -3654,6 +3662,16 @@ TString TSchedulerOperationElement::GetUserName() const
     return UserName_;
 }
 
+EOperationType TSchedulerOperationElement::GetType() const
+{
+    return Type_;
+}
+
+const TYsonString& TSchedulerOperationElement::GetTrimmedAnnotations() const
+{
+    return TrimmedAnnotations_;
+}
+
 TResourceVector TSchedulerOperationElement::GetBestAllocationShare() const
 {
     return PersistentAttributes_.BestAllocationShare;
@@ -3718,7 +3736,7 @@ bool TSchedulerOperationElement::IsSchedulable() const
 
 std::optional<EUnschedulableReason> TSchedulerOperationElement::ComputeUnschedulableReason() const
 {
-    auto result = Operation_->CheckUnschedulable();
+    auto result = OperationHost_->CheckUnschedulable();
     if (!result && IsMaxScheduleJobCallsViolated()) {
         result = EUnschedulableReason::MaxScheduleJobCallsViolated;
     }
@@ -3862,7 +3880,7 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
 
 TJobResources TSchedulerOperationElement::ComputeResourceDemand() const
 {
-    auto maybeUnschedulableReason = Operation_->CheckUnschedulable();
+    auto maybeUnschedulableReason = OperationHost_->CheckUnschedulable();
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
         return ResourceUsageAtUpdate_;
     }
@@ -4018,7 +4036,7 @@ void TSchedulerOperationElement::MarkPendingBy(TSchedulerCompositeElement* viola
 void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(
     const TFairShareStrategySchedulingSegmentsConfigPtr& schedulingSegmentsConfig)
 {
-    auto maybeInitialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources();
+    auto maybeInitialMinNeededResources = OperationHost_->GetInitialAggregatedMinNeededResources();
     auto segment = Spec_->SchedulingSegment.value_or(
         TStrategySchedulingSegmentManager::GetSegmentForOperation(
             schedulingSegmentsConfig,

@@ -29,7 +29,9 @@ public:
     void UnregisterPool(const TSchedulerCompositeElementPtr& element);
 
     // Thread affinity: Profiler thread.
-    void ProfileElements(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void ProfileElements(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage);
 
     // Thread affinity: Profiler thread.
     void ApplyJobMetricsDelta(
@@ -108,7 +110,9 @@ private:
 
     void CleanupPoolProfilingEntries();
 
-    void ProfileOperations(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void ProfileOperations(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const THashMap<TOperationId, TResourceVolume>& operationIdToAccumulatedResourceUsage);
     void ProfilePools(const TFairShareTreeSnapshotPtr& treeSnapshot);
 
     void ProfilePool(
