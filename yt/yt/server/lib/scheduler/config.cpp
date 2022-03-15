@@ -598,8 +598,8 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_enqueued_operation_alert_event_count", &TThis::MaxEnqueuedOperationAlertEventCount)
         .Default(1000)
         .GreaterThanOrEqual(0);
-    registrar.Parameter("max_alert_event_count_per_operation", &TThis::MaxAlertEventCountPerOperation)
-        .Default(1000)
+    registrar.Parameter("max_alert_event_count_per_alert_type", &TThis::MaxAlertEventCountPerAlertType)
+        .Default(4)
         .GreaterThanOrEqual(0);
     registrar.Parameter("operation_alert_event_send_period", &TThis::OperationAlertEventSendPeriod)
         .Default(TDuration::Seconds(5));

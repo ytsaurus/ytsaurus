@@ -20,6 +20,8 @@ import pytest
 
 ##################################################################
 
+CLEANER_ORCHID = "//sys/scheduler/orchid/scheduler/operations_cleaner"
+
 
 def _lookup_ordered_by_id_row(op_id):
     id_hi, id_lo = uuid_to_parts(op_id)
@@ -125,19 +127,21 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
         assert "operation_id" not in alert_events[0]
         assert alert_events[0]["alert_type"] == "lost_input_chunks"
         assert alert_events[0]["error"]["code"] != 0
+        assert alert_events[0]["time"] == alert_events[0]["error"]["attributes"]["datetime"]
+
         assert alert_events[1]["alert_type"] == "lost_input_chunks"
         assert alert_events[1]["error"]["code"] == 0
 
     @authors("egor-gutrov")
     def test_events_limit_in_archive(self):
-        update_scheduler_config("operations_cleaner/max_alert_event_count_per_operation", 1)
+        update_scheduler_config("operations_cleaner/max_alert_event_count_per_alert_type", 1)
 
         alert_events = _run_op_with_input_chunks_alert(min_events=1)
         assert len(alert_events) == 1
         assert alert_events[0]["alert_type"] == "lost_input_chunks"
         assert alert_events[0]["error"]["code"] == 0
 
-        update_scheduler_config("operations_cleaner/max_alert_event_count_per_operation", 1000)
+        update_scheduler_config("operations_cleaner/max_alert_event_count_per_alert_type", 1000)
 
     @authors("egor-gutrov")
     def test_events_limit_on_scheduler(self):
@@ -147,6 +151,8 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
         assert len(alert_events) == 2
         assert alert_events[0]["alert_type"] == "lost_input_chunks"
         assert alert_events[0]["error"]["code"] != 0
+        assert alert_events[0]["time"] == alert_events[0]["error"]["attributes"]["datetime"]
+
         assert alert_events[1]["alert_type"] == "lost_input_chunks"
         assert alert_events[1]["error"]["code"] == 0
 
@@ -155,12 +161,10 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
 
         op = _run_op_with_input_chunks_alert(return_events=False)
         update_scheduler_config("operations_cleaner/operation_alert_event_send_period", 100)
-        _wait_for_alert_events(op, 1)
+        wait(lambda: get(CLEANER_ORCHID + "/enqueued_alert_events") == 0)
 
         alert_events = _lookup_ordered_by_id_row(op.id)["alert_events"]
-        assert len(alert_events) == 1
-        assert alert_events[0]["alert_type"] == "lost_input_chunks"
-        assert alert_events[0]["error"]["code"] == 0
+        assert len(alert_events) == 0
 
         update_scheduler_config("operations_cleaner/max_enqueued_operation_alert_event_count", 1000)
 
@@ -237,6 +241,8 @@ class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
         assert len(alert_events) == 2
         assert alert_events[0]["alert_type"] == "lost_input_chunks"
         assert alert_events[0]["error"]["code"] != 0
+        assert alert_events[0]["time"] == alert_events[0]["error"]["attributes"]["datetime"]
+
         assert alert_events[1]["alert_type"] == "lost_input_chunks"
         assert alert_events[1]["error"]["code"] == 0
 
@@ -256,6 +262,8 @@ class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
             assert len(alert_events) == 2
             assert alert_events[0]["alert_type"] == "lost_input_chunks"
             assert alert_events[0]["error"]["code"] != 0
+            assert alert_events[0]["time"] == alert_events[0]["error"]["attributes"]["datetime"]
+
             assert alert_events[1]["alert_type"] == "lost_input_chunks"
             assert alert_events[1]["error"]["code"] == 0
 
