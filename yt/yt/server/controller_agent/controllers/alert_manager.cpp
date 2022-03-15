@@ -42,6 +42,7 @@ public:
         AnalyzeJobsIOUsage();
         AnalyzeJobsCpuUsage();
         AnalyzeJobsGpuUsage();
+        AnalyzeGpuPowerUsageOnWindow();
         AnalyzeJobsDuration();
         AnalyzeOperationDuration();
         AnalyzeScheduleJobStatistics();
@@ -60,6 +61,22 @@ private:
 
     using TControllerQueueStatistics = TEnumIndexedVector<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
     TControllerQueueStatistics LastControllerQueueStatistics_;
+
+    struct TGpuPowerUsageRecord
+    {
+        TInstant Time;
+        i64 Value;
+
+        void Persist(const TStreamPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, Time);
+            Persist(context, Value);
+        }
+    };
+
+    THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TString>& usageStatistics,
@@ -546,6 +563,95 @@ private:
         }
     }
 
+    void AnalyzeGpuPowerUsageOnWindow()
+    {
+        const auto& config = Config_->LowGpuPowerUsageOnWindow;
+        const auto jobStates = {EJobState::Running, EJobState::Completed, EJobState::Failed, EJobState::Aborted};
+
+        auto& descriptorToRecords = AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
+        auto now = TInstant::Now();
+
+        std::vector<TError> errors;
+        for (const auto& task : Host_->GetTasks()) {
+            const auto& userJobSpecPtr = task->GetUserJobSpec();
+            if (!userJobSpecPtr) {
+                continue;
+            }
+
+            auto taskName = task->GetVertexDescriptor();
+
+            double limit = userJobSpecPtr->GpuLimit;
+            if (limit == 0) {
+                continue;
+            }
+
+            i64 totalExecutionTime = 0;
+            i64 jobCount = 0;
+            for (const auto& jobState : jobStates) {
+                const auto& aggregatedStatistics = (jobState == EJobState::Running)
+                    ? Host_->GetAggregatedRunningJobStatistics()
+                    : Host_->GetAggregatedFinishedJobStatistics();
+                auto summary = aggregatedStatistics
+                    .FindSummaryByJobStateAndType("/time/exec", jobState, taskName)
+                    .value_or(NYT::TSummary());
+                totalExecutionTime += summary.GetSum();
+                jobCount += summary.GetCount();
+            }
+
+            if (jobCount == 0 || totalExecutionTime == 0) {
+                continue;
+            }
+
+            i64 usage = 0;
+            for (const auto& jobState : jobStates) {
+                const auto& aggregatedStatistics = (jobState == EJobState::Running)
+                    ? Host_->GetAggregatedRunningJobStatistics()
+                    : Host_->GetAggregatedFinishedJobStatistics();
+                usage += aggregatedStatistics.GetSumByJobStateAndType("/user_job/gpu/power", jobState, taskName);
+            }
+
+            auto& records = descriptorToRecords[taskName];
+
+            // Generate alert and pop old records.
+            if (!records.empty()) {
+                auto frontRecord = records.front();
+                if (now - frontRecord.Time > config->WindowSize) {
+                    auto averageUsage = (usage - frontRecord.Value) / (now - frontRecord.Time).MilliSeconds();
+                    YT_LOG_DEBUG("Checking average GPU power on window (TaskName: %v, AverageUsage: %v, EffectiveWindowSize: %v)",
+                        taskName,
+                        usage - frontRecord.Value,
+                        now - frontRecord.Time);
+                    if (averageUsage < config->Threshold) {
+                        auto error = TError(
+                                "Jobs of task %Qlv have average GPU power less than %v Watts during last %v minutes",
+                                taskName,
+                                config->Threshold,
+                                config->WindowSize.Minutes())
+                            << TErrorAttribute("average_usage", averageUsage)
+                            << TErrorAttribute("threshold", config->Threshold)
+                            << TErrorAttribute("task_name", taskName);
+                        errors.push_back(error);
+                    }
+                }
+
+                if (now - frontRecord.Time > config->WindowSize + 2 * config->RecordPeriod) {
+                    records.pop_front();
+                }
+            }
+
+            if (records.empty() || now - records.back().Time > config->RecordPeriod) {
+                records.push_back(TGpuPowerUsageRecord{now, usage});
+            }
+        }
+
+        TError error;
+        if (!errors.empty()) {
+            error = TError("Average GPU power is too low on window") << errors;
+        }
+
+        Host_->SetOperationAlert(EOperationAlertType::LowGpuPowerOnWindow, error);
+    }
+
     void AnalyzeJobsDuration()
     {
         auto operationType = Host_->GetOperationType();
@@ -704,8 +810,10 @@ private:
         using NYT::Persist;
 
         Persist(context, Host_);
-        // Persist(context, Config_);
         Persist(context, Logger);
+        if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::LowGpuPowerUsageOnWindow) {
+            Persist(context, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_);
+        }
 
         if (context.IsLoad()) {
             Config_ = Host_->GetConfig()->AlertManager;

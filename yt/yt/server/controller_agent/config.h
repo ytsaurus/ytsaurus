@@ -77,6 +77,28 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLowGpuPowerUsageOnWindowConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    // Size of window to analyze.
+    TDuration WindowSize;
+    
+    // Period of making cumulative usage records.
+    TDuration RecordPeriod;
+    
+    // Power threshold in Watts.
+    double Threshold;
+    
+    REGISTER_YSON_STRUCT(TLowGpuPowerUsageOnWindowConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLowGpuPowerUsageOnWindowConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAlertManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -163,6 +185,8 @@ public:
     double LowGpuUsageAlertGpuPowerThreshold;
     std::vector<TString> LowGpuUsageAlertStatistics;
     std::vector<NJobTrackerClient::EJobState> LowGpuUsageAlertJobStates;
+
+    TLowGpuPowerUsageOnWindowConfigPtr LowGpuPowerUsageOnWindow;
 
     // High queue average wait time alert is triggered
     // if queues with average wait time above this threshold are found.

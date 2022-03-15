@@ -71,6 +71,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((LegacyLivePreviewSuppressed)                 (18))
     ((LowGpuUsage)                                 (19))
     ((LowGpuPower)                                 (29))
+    ((LowGpuPowerOnWindow)                         (32))
     ((HighQueueAverageWaitTime)                    (20))
     ((AutoMergeDisabled)                           (21))
     ((InvalidatedJobsFound)                        (23))

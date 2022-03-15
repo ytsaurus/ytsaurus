@@ -21,6 +21,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AlertManager)                         (300805))
     ((MaxClipTimestamp)                     (300806))
     ((StripedErasureChunks)                 (300807))
+    ((LowGpuPowerUsageOnWindow)             (300808))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

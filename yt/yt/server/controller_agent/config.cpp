@@ -26,6 +26,18 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
 }
 
+void TLowGpuPowerUsageOnWindowConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("window_size", &TThis::WindowSize)
+        .Default(TDuration::Minutes(60));
+
+    registrar.Parameter("record_period", &TThis::RecordPeriod)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("threshold", &TThis::Threshold)
+        .Default(100.0);
+}
+
 void TAlertManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("period", &TThis::Period)
@@ -160,6 +172,9 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
             EJobState::Completed,
             EJobState::Running,
         });
+
+    registrar.Parameter("low_gpu_power_usage_on_window", &TThis::LowGpuPowerUsageOnWindow)
+        .DefaultNew();
 
     registrar.Parameter("queue_average_wait_time_threshold", &TThis::QueueAverageWaitTimeThreshold)
         .Default(TDuration::Minutes(1));
