@@ -19,6 +19,7 @@ from yt.environment.helpers import (  # noqa
     CHAOS_NODES_SERVICE,
     MASTERS_SERVICE,
     QUEUE_AGENTS_SERVICE,
+    RPC_PROXIES_SERVICE,
 )
 
 from yt.test_helpers import wait, WaitFailed

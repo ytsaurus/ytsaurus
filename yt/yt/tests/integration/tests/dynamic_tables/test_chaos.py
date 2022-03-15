@@ -4,6 +4,7 @@ from yt_env_setup import (
     Restarter,
     NODES_SERVICE,
     CHAOS_NODES_SERVICE,
+    RPC_PROXIES_SERVICE,
 )
 
 from yt_commands import (
@@ -1311,8 +1312,8 @@ class TestChaosRpcProxy(TestChaos):
         ]
         self._create_chaos_tables(cell_id, replicas)
 
-        self.Env.kill_service("rpc_proxy")
-        self.Env.start_rpc_proxy()
+        with Restarter(self.Env, RPC_PROXIES_SERVICE):
+            pass
 
         def _check():
             try:

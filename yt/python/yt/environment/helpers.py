@@ -369,6 +369,7 @@ CHAOS_NODES_SERVICE = "chaos_nodes"
 MASTERS_SERVICE = "masters"
 MASTER_CACHES_SERVICE = "master_caches"
 QUEUE_AGENTS_SERVICE = "queue_agents"
+RPC_PROXIES_SERVICE = "rpc_proxies"
 
 class Restarter(object):
     def __init__(self, yt_instance, components, sync=True, *args, **kwargs):
@@ -388,6 +389,7 @@ class Restarter(object):
             MASTERS_SERVICE: lambda sync: self.yt_instance.start_all_masters(start_secondary_master_cells=True, set_config=False, sync=sync),
             MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches,
             QUEUE_AGENTS_SERVICE: self.yt_instance.start_queue_agents,
+            RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
@@ -397,6 +399,7 @@ class Restarter(object):
             MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs),
             MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs),
             QUEUE_AGENTS_SERVICE: lambda: self.yt_instance.kill_queue_agents(*self.kill_args, **self.kill_kwargs),
+            RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
         }
 
     def __enter__(self):
