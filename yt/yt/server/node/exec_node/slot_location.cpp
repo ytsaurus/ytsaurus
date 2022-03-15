@@ -13,9 +13,12 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
+
+#include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -23,6 +26,8 @@
 #include <yt/yt/ytlib/tools/proc.h>
 
 #include <yt/yt/ytlib/program/program.h>
+
+#include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -38,12 +43,16 @@
 
 #include <util/folder/path.h>
 
+#include <util/stream/length.h>
+
 namespace NYT::NExecNode {
 
 using namespace NConcurrency;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
+using namespace NIO;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -326,13 +335,30 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
     .Run();
 }
 
+static THashMap<TString, TString> BuildSandboxCopyTags(
+    const char* direction,
+    const NDataNode::TChunkLocationPtr& location)
+{
+    THashMap<TString, TString> result{
+        {FormatIOTag(EAggregateIOTag::Direction), direction},
+        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+    };
+    if (location) {
+        result[FormatIOTag(EAggregateIOTag::LocationId)] = location->GetId();
+        result[FormatIOTag(EAggregateIOTag::Medium)] = location->GetMediumName();
+        result[FormatIOTag(EAggregateIOTag::DiskFamily)] = location->GetDiskFamily();
+    }
+    return result;
+}
+
 TFuture<void> TSlotLocation::MakeSandboxCopy(
     TJobId jobId,
     int slotIndex,
     const TString& artifactName,
     ESandboxKind sandboxKind,
     const TString& sourcePath,
-    const TFile& destinationFile)
+    const TFile& destinationFile,
+    const NDataNode::TChunkLocationPtr& sourceLocation)
 {
     return DoMakeSandboxFile(
         jobId,
@@ -354,6 +380,26 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 sourceFile,
                 destinationFile,
                 Bootstrap_->GetConfig()->ExecNode->SlotManager->FileCopyChunkSize);
+
+            if (Bootstrap_->GetIOTracker()->IsEnabled()) {
+                TString fullArtifactPath = NFS::CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
+
+                Bootstrap_->GetIOTracker()->Enqueue(
+                    TIOCounters{
+                        .Bytes = sourceFile.GetLength(),
+                        .IORequests = 1,
+                    },
+                    /*tags*/ BuildSandboxCopyTags("read", sourceLocation));
+
+                if (!IsInsideTmpfs(fullArtifactPath)) {
+                    Bootstrap_->GetIOTracker()->Enqueue(
+                        TIOCounters{
+                            .Bytes = sourceFile.GetLength(),
+                            .IORequests = 1,
+                        },
+                        /*tags*/ BuildSandboxCopyTags("write", /*location*/ nullptr));
+                }
+            }
 
             YT_LOG_DEBUG(
                 "Finished copying file to sandbox "
@@ -444,7 +490,24 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                 destinationFile.GetName());
 
             TFileOutput stream(destinationFile);
-            producer(&stream);
+            TCountingOutput countingStream(&stream);
+            producer(&countingStream);
+
+            if (Bootstrap_->GetIOTracker()->IsEnabled()) {
+                TString fullArtifactPath = NFS::CombinePaths(GetSandboxPath(slotIndex, sandboxKind), artifactName);
+
+                if (!IsInsideTmpfs(fullArtifactPath)) {
+                    Bootstrap_->GetIOTracker()->Enqueue(
+                        TIOCounters{
+                            .Bytes = static_cast<i64>(countingStream.Counter()),
+                            .IORequests = 1,
+                        },
+                        /*tags*/ {
+                            {FormatIOTag(EAggregateIOTag::Direction), "write"},
+                            {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
+                        });
+                }
+            }
 
             YT_LOG_DEBUG(
                 "Finished building sandbox file "

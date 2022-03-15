@@ -30,6 +30,8 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 
+#include <yt/yt/ytlib/table_client/helpers.h>
+
 #include <yt/yt/ytlib/job_prober_client/public.h>
 #include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
@@ -46,6 +48,8 @@
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/producer.h>
@@ -347,6 +351,15 @@ void TJob::PrepareArtifact(
         const auto& artifact = Artifacts_[artifactIndex];
 
         YT_VERIFY(artifact.BypassArtifactCache || artifact.CopyFile);
+
+        auto traceContext = CreateTraceContextFromCurrent("ArtifactPrepare");
+        TTraceContextGuard guard(traceContext);
+        auto baggage = traceContext->UnpackOrCreateBaggage();
+        const char* jobIOKind = artifact.BypassArtifactCache ? "artifact_bypass_cache" : "artifact_copy";
+        AddTagToBaggage(baggage, EAggregateIOTag::JobIoKind, jobIOKind);
+        AddTagsFromDataSource(baggage, FromProto<NChunkClient::TDataSource>(artifact.Key.data_source()));
+        traceContext->PackBaggage(std::move(baggage));
+
         if (artifact.BypassArtifactCache) {
             YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
                 artifact.Name,
@@ -368,21 +381,20 @@ void TJob::PrepareArtifact(
         } else if (artifact.CopyFile) {
             YT_VERIFY(artifact.Chunk);
 
-            if (artifact.CopyFile) {
-                YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
-                    artifact.Name,
-                    artifact.Executable,
-                    artifact.SandboxKind,
-                    artifact.Key.GetCompressedDataSize());
+            YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v, CompressedDataSize: %v)",
+                artifact.Name,
+                artifact.Executable,
+                artifact.SandboxKind,
+                artifact.Key.GetCompressedDataSize());
 
-                ArtifactPrepareFutures_.push_back(
-                    Slot_->MakeCopy(
-                        Id_,
-                        artifact.Name,
-                        artifact.SandboxKind,
-                        artifact.Chunk->GetFileName(),
-                        pipe));
-            }
+            ArtifactPrepareFutures_.push_back(
+                Slot_->MakeCopy(
+                    Id_,
+                    artifact.Name,
+                    artifact.SandboxKind,
+                    artifact.Chunk->GetFileName(),
+                    pipe,
+                    artifact.Chunk->GetLocation()));
         }
     });
 }

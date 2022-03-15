@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <yt/yt/server/node/data_node/disk_location.h>
+#include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
 
@@ -48,7 +49,8 @@ public:
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TFile& destinationFile);
+        const TFile& destinationFile,
+        const NDataNode::TChunkLocationPtr& sourceLocation);
 
     TFuture<void> MakeSandboxLink(
         TJobId jobId,

@@ -184,6 +184,9 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSource& dataSource);
+void AddTagsFromDataSink(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSink& dataSink);
+
 void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource);
 void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSink& dataSink);
 

@@ -58,7 +58,8 @@ struct ISlot
         const TString& artifactName,
         ESandboxKind sandboxKind,
         const TString& sourcePath,
-        const TFile& destinationFile) = 0;
+        const TFile& destinationFile,
+        const NDataNode::TChunkLocationPtr& sourceLocation) = 0;
 
     virtual TFuture<void> MakeFile(
         TJobId jobId,

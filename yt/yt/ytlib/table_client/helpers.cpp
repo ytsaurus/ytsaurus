@@ -702,9 +702,8 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource)
+void AddTagsFromDataSource(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSource& dataSource)
 {
-    auto baggage = context->UnpackOrCreateBaggage();
     if (dataSource.GetPath()) {
         AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSource.GetPath());
     }
@@ -714,12 +713,10 @@ void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const 
     if (dataSource.GetAccount()) {
         AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSource.GetAccount());
     }
-    context->PackBaggage(baggage);
 }
 
-void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSink& dataSink)
+void AddTagsFromDataSink(const NYTree::IAttributeDictionaryPtr& baggage, const NChunkClient::TDataSink& dataSink)
 {
-    auto baggage = context->UnpackOrCreateBaggage();
     if (dataSink.GetPath()) {
         AddTagToBaggage(baggage, ERawIOTag::ObjectPath, *dataSink.GetPath());
     }
@@ -729,6 +726,19 @@ void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NC
     if (dataSink.GetAccount()) {
         AddTagToBaggage(baggage, EAggregateIOTag::Account, *dataSink.GetAccount());
     }
+}
+
+void PackBaggageFromDataSource(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSource& dataSource)
+{
+    auto baggage = context->UnpackOrCreateBaggage();
+    AddTagsFromDataSource(baggage, dataSource);
+    context->PackBaggage(baggage);
+}
+
+void PackBaggageFromDataSink(const NTracing::TTraceContextPtr& context, const NChunkClient::TDataSink& dataSink)
+{
+    auto baggage = context->UnpackOrCreateBaggage();
+    AddTagsFromDataSink(baggage, dataSink);
     context->PackBaggage(baggage);
 }
 
