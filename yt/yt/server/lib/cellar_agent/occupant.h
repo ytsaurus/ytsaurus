@@ -33,6 +33,7 @@ struct ICellarOccupant
     virtual const NRpc::TResponseKeeperPtr& GetResponseKeeper() const = 0;
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() const = 0;
     virtual const NHiveServer::THiveManagerPtr& GetHiveManager() const = 0;
+    virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
     virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const = 0;
     virtual NHiveServer::TMailbox* GetMasterMailbox() const = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) const = 0; 

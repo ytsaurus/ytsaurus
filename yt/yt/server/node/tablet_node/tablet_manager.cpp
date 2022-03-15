@@ -495,10 +495,7 @@ public:
 
     TTimestamp GetLatestTimestamp() const override
     {
-        return Bootstrap_
-            ->GetMasterConnection()
-            ->GetTimestampProvider()
-            ->GetLatestTimestamp();
+        return Slot_->GetLatestTimestamp();
     }
 
     // FindTablet and Tablets must override corresponding interface methods, so we inline

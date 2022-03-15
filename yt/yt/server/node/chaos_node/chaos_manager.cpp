@@ -829,7 +829,7 @@ private:
 
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
             if (!IsStableReplicaMode(replicaInfo.Mode) || !IsStableReplicaState(replicaInfo.State)) {
-                Bootstrap_->GetMasterConnection()->GetTimestampProvider()->GenerateTimestamps()
+                Slot_->GetTimestampProvider()->GenerateTimestamps()
                     .Subscribe(BIND(
                         &TChaosManager::OnNewReplicationEraTimestampGenerated,
                         MakeWeak(this),

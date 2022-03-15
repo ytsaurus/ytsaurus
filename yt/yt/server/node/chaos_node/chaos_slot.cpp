@@ -41,6 +41,7 @@ using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -147,6 +148,13 @@ public:
         return TransactionManager_;
     }
 
+    const ITimestampProviderPtr& GetTimestampProvider() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Occupant_->GetTimestampProvider();
+    }
+    
     const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
