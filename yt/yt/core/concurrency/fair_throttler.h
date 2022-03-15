@@ -13,6 +13,10 @@ struct TFairThrottlerConfig
 
     TDuration DistributionPeriod;
 
+    int BucketAccumulationTicks;
+
+    int GlobalAccumulationTicks;
+
     TFairThrottlerConfig();
 };
 
@@ -24,10 +28,14 @@ struct TFairThrottlerBucketConfig
     : public NYTree::TYsonSerializable
 {
     double Weight;
+
     std::optional<i64> Limit;
     std::optional<double> RelativeLimit;
-
     std::optional<i64> GetLimit(i64 totalLimit);
+
+    std::optional<i64> Guarantee;
+    std::optional<double> RelativeGuarantee;
+    std::optional<i64> GetGuarantee(i64 totalLimit);
 
     TFairThrottlerBucketConfig();
 };
@@ -36,18 +44,17 @@ DEFINE_REFCOUNTED_TYPE(TFairThrottlerBucketConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TSharedBucket)
+
 //! TFairThrottler manages a group of throttlers, distributing traffic according to fair share policy.
 /*!
  *  TFairThrottler distributes TotalLimit * DistributionPeriod bytes every DistributionPeriod.
  *
- *  At the beginning of the period, TFairThrottler distributes optimistic quota between buckets.
- *  Bucket throttler consume optimistic quota without blocking. When optimistic quota is exhausted,
- *  requests queue inside bucket.
+ *  At the beginning of the period, TFairThrottler distributes new quota between buckets. Buckets
+ *  accumulate quota for N ticks. After N ticks overflown quota is transferred into shared bucket.
+ *  Shared bucket accumulates quota for M ticks. Overflown quota from shared bucket is discarded.
  *
- *  At the end of the period, remaining quota is drained from idle buckets and distributed between
- *  busy buckets.
- *
- *  At last, optimistic quota for next iteration is computed.
+ *  Throttled requests may consume quota from both local bucket and shared bucket.
  */
 class TFairThrottler
     : public TRefCounted
@@ -76,9 +83,7 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
-    NProfiling::TCounter UnfairBytes_;
-    NProfiling::TCounter BlockedBytes_;
-
+    TSharedBucketPtr SharedBucket_;
 
     struct TBucket
     {
