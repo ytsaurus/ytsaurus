@@ -92,6 +92,8 @@ struct TOperationAlert
     NConcurrency::TDelayedExecutorCookie ResetCookie;
 };
 
+void Deserialize(TOperationAlert& event, NYTree::INodePtr node);
+
 using TOperationAlertMap = SmallDenseMap<
     EOperationAlertType,
     TOperationAlert,
@@ -399,7 +401,8 @@ public:
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
         const std::optional<TJobResources>& initialAggregatedMinNeededResources = {},
-        int registrationIndex = 0);
+        int registrationIndex = 0,
+        const THashMap<EOperationAlertType, TOperationAlert>& alerts = {});
 
 private:
     const TOperationId Id_;

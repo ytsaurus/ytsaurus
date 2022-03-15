@@ -1052,6 +1052,7 @@ private:
                 "banned",
                 "initial_aggregated_min_needed_resources",
                 "registration_index",
+                "alerts",
             };
             const int operationsCount = static_cast<int>(OperationIds_.size());
 
@@ -1250,7 +1251,8 @@ private:
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 attributes.Get<bool>("suspended", false),
                 attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"),
-                attributes.Get<int>("registration_index", 0));
+                attributes.Get<int>("registration_index", 0),
+                attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}));
 
 
             operation->SetShouldFlushAcl(true);

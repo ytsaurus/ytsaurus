@@ -123,6 +123,13 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Deserialize(TOperationAlert& alert, NYTree::INodePtr node)
+{
+    Deserialize(alert.Error, node);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperation::TOperation(
     TOperationId id,
     EOperationType type,
@@ -144,7 +151,8 @@ TOperation::TOperation(
     const std::vector<TOperationEvent>& events,
     bool suspended,
     const std::optional<TJobResources>& initialAggregatedMinNeededResources,
-    int registrationIndex)
+    int registrationIndex,
+    const THashMap<EOperationAlertType, TOperationAlert>& alerts)
     : MutationId_(mutationId)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
@@ -167,6 +175,7 @@ TOperation::TOperation(
     , ControlInvoker_(std::move(controlInvoker))
     , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
+    , Alerts_(alerts.begin(), alerts.end())
     , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
 {
     // COMPAT(gritukan)

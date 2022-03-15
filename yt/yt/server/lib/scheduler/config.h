@@ -552,8 +552,8 @@ public:
     //! Max enqueued alert event count stored on cleaner.
     int MaxEnqueuedOperationAlertEventCount;
 
-    //! Max alert events stored in archive per operation.
-    int MaxAlertEventCountPerOperation;
+    //! Max alert events stored in archive for each alert type (per operation).
+    int MaxAlertEventCountPerAlertType;
 
     //! How often to send enqueued operation alert events.
     TDuration OperationAlertEventSendPeriod;

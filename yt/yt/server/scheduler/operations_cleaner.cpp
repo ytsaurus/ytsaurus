@@ -196,6 +196,8 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
 
 namespace NDetail {
 
+using TAlertEventsMap = THashMap<EOperationAlertType, std::deque<TOperationAlertEvent>>;
+
 THashMap<TString, TString> GetPoolTreeToPool(const IMapNodePtr& runtimeParameters)
 {
     auto schedulingOptionsNode = runtimeParameters->FindChild("scheduling_options_per_pool_tree");
@@ -448,10 +450,48 @@ TUnversionedRow BuildOperationAliasesTableRow(
     return rowBuffer->CaptureRow(builder.GetRow());
 }
 
+void AddEventToAlertEventsMap(TAlertEventsMap* map, const TOperationAlertEvent& event, int maxAlertEventCountPerAlertType)
+{
+    auto& events = (*map)[event.AlertType];
+    if (event.Error.IsOK() && (events.empty() || events.back().Error.IsOK())) {
+        // If previous event is absent/OK, we lost information about current alert
+        // due to the archivation queue overflow or scheduler crash.
+        // We can do nothing here.
+        return;
+    }
+    if (!event.Error.IsOK() && !events.empty() && !events.back().Error.IsOK()) {
+        // Can happen if error message/user-defined error attributes changed or in case of scheduler crashes.
+        events.back().Error = event.Error;
+    } else {
+        events.push_back(event);
+    }
+    while (std::ssize(events) > maxAlertEventCountPerAlertType) {
+        events.pop_front();
+    }
+}
+
+TAlertEventsMap ConvertToAlertEventsMap(const std::vector<TOperationAlertEvent>& events)
+{
+    TAlertEventsMap result;
+    for (const auto& event : events) {
+        result[event.AlertType].push_back(event);
+    }
+    return result;
+}
+
+std::vector<TOperationAlertEvent> ConvertToAlertEvents(const TAlertEventsMap& map)
+{
+    std::vector<TOperationAlertEvent> result;
+    for (const auto& [_, events] : map) {
+        result.insert(result.end(), events.begin(), events.end());
+    }
+    return result;
+}
+
 void DoSendOperationAlerts(
     NNative::IClientPtr client,
     std::deque<TOperationAlertEvent> eventsToSend,
-    int maxAlertEventCountPerOperation)
+    int maxAlertEventCountPerAlertType)
 {
     YT_LOG_DEBUG("Writing operation alert events to archive (EventCount: %v)", eventsToSend.size());
 
@@ -475,7 +515,7 @@ void DoSendOperationAlerts(
     auto idLoIndex = columnFilter.GetPosition(tableIndex.IdLo);
     auto alertEventsIndex = columnFilter.GetPosition(tableIndex.AlertEvents);
 
-    THashMap<TOperationId, std::deque<TOperationAlertEvent>> idToAlertEvents;
+    THashMap<TOperationId, TAlertEventsMap> idToAlertEvents;
     for (auto row : rowset->GetRows()) {
         if (!row) {
             continue;
@@ -488,28 +528,25 @@ void DoSendOperationAlerts(
         if (eventsFromArchive) {
             idToAlertEvents.emplace(
                 operationId,
-                ConvertTo<std::deque<TOperationAlertEvent>>(*eventsFromArchive));
+                ConvertToAlertEventsMap(ConvertTo<std::vector<TOperationAlertEvent>>(*eventsFromArchive)));
         }
     }
     for (const auto& alertEvent : eventsToSend) {
         // Id can be absent in idToAlertEvents if row with such id is not created in archive yet.
         // In this case we want to create this row and initialize it with empty operation alert history.
-        auto& operationAlertEvents = idToAlertEvents[*alertEvent.OperationId];
-        operationAlertEvents.push_back(alertEvent);
-        while (std::ssize(operationAlertEvents) > maxAlertEventCountPerOperation) {
-            operationAlertEvents.pop_front();
-        }
+        YT_VERIFY(alertEvent.OperationId);
+        AddEventToAlertEventsMap(&idToAlertEvents[*alertEvent.OperationId], alertEvent, maxAlertEventCountPerAlertType);
     }
 
     auto rowBuffer = New<TRowBuffer>();
     std::vector<TUnversionedRow> rows;
     rows.reserve(idToAlertEvents.size());
 
-    for (const auto& [operationId, events] : idToAlertEvents) {
+    for (const auto& [operationId, eventsMap] : idToAlertEvents) {
         TUnversionedRowBuilder builder;
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[0], tableIndex.IdHi));
         builder.AddValue(MakeUnversionedUint64Value(operationId.Parts64[1], tableIndex.IdLo));
-        auto serializedEvents = ConvertToYsonString(events);
+        auto serializedEvents = ConvertToYsonString(ConvertToAlertEvents(eventsMap));
         builder.AddValue(MakeUnversionedAnyValue(serializedEvents.AsStringBuf(), tableIndex.AlertEvents));
 
         rows.push_back(rowBuffer->CaptureRow(builder.GetRow()));
@@ -710,7 +747,8 @@ public:
             .Item("enable_operation_archivation").Value(IsOperationArchivationEnabled())
             .Item("remove_pending").Value(RemovePending_.load())
             .Item("archive_pending").Value(ArchivePending_.load())
-            .Item("submitted").Value(Submitted_.load());
+            .Item("submitted").Value(Submitted_.load())
+            .Item("enqueued_alert_events").Value(EnqueuedAlertEvents_.load());
     }
 
     void EnqueueOperationAlertEvent(
@@ -723,7 +761,7 @@ public:
         OperationAlertEventQueue_.push_back({
             operationId,
             alertType,
-            TInstant::Now(),
+            alert.HasDatetime() ? alert.GetDatetime() : TInstant::Now(),
             alert});
         CheckAndTruncateAlertEvents();
     }
@@ -1544,8 +1582,8 @@ private:
             WaitFor(BIND([
                     client = Client_,
                     eventsToSend,
-                    maxAlertEventCountPerOperation = Config_->MaxAlertEventCountPerOperation] () mutable {
-                    NDetail::DoSendOperationAlerts(std::move(client), std::move(eventsToSend), maxAlertEventCountPerOperation);
+                    maxAlertEventCountPerAlertType = Config_->MaxAlertEventCountPerAlertType] () mutable {
+                    NDetail::DoSendOperationAlerts(std::move(client), std::move(eventsToSend), maxAlertEventCountPerAlertType);
                 })
                 .AsyncVia(Host_->GetBackgroundInvoker())
                 .Run())
