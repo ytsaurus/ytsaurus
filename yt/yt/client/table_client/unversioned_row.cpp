@@ -12,7 +12,6 @@
 
 #include <yt/yt/library/decimal/decimal.h>
 
-#include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/core/misc/hash.h>
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/range.h>
@@ -23,6 +22,8 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 #include <library/cpp/yt/coding/varint.h>
 

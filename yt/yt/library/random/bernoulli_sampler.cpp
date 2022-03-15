@@ -1,7 +1,8 @@
 #include "bernoulli_sampler.h"
 
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/farm_hash.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 namespace NYT {
 

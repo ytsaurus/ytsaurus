@@ -1,8 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/core/misc/hyperloglog.h>
 #include <yt/yt/core/misc/random.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 namespace NYT {
 namespace {

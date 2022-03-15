@@ -32,7 +32,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/yt/core/misc/farm_hash.h>
 #include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -40,6 +39,8 @@
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt_proto/yt/core/ytree/proto/ypath.pb.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
 
 #include <util/datetime/base.h>
 
