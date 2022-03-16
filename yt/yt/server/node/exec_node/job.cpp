@@ -995,6 +995,8 @@ void TJob::Fail()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
+        Abort(TError(NJobProxy::EErrorCode::JobNotRunning, "Failing job that is not running"));
+
         return;
     }
 
