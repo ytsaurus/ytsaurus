@@ -22,6 +22,7 @@
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
+#include <library/cpp/yt/stockpile/stockpile.h>
 
 #include <tcmalloc/malloc_extension.h>
 
@@ -355,6 +356,10 @@ void ConfigureAllocator(TAllocatorOptions options)
             YT_VERIFY(false);
         });
         backgroundThread.detach();
+
+        if (options.YTAllocStockpile) {
+            StockpileMemory(TStockpileOptions{});
+        }
     }
 
     NProfiling::EnableTCMallocProfiler();
