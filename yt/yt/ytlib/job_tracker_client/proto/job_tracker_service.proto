@@ -22,6 +22,9 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
     optional int32 job_reporter_write_failures_count = 9;
     optional bool job_reporter_queue_is_too_large = 10;
+
+    // COMPAT(pogorelov)
+    optional bool suports_waiting_jobs_fail = 11 [default = false];
 }
 
 message TControllerAgentDescriptor

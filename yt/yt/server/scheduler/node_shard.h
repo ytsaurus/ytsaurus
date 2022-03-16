@@ -373,7 +373,8 @@ private:
         const TExecNodePtr& node,
         const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus);
+        TJobStatus* jobStatus,
+        bool nodeSupportsWaitingJobFail);
 
     void UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs, TInstant now);
 

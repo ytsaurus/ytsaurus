@@ -1843,6 +1843,8 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
+    const bool nodeSupportsWaitingJobFail = request->suports_waiting_jobs_fail();
+
     // Used for debug logging.
     TJobStateToJobList ongoingJobsByJobState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
@@ -1866,7 +1868,8 @@ void TNodeShard::ProcessHeartbeatJobs(
             node,
             recentlyFinishedJobIdsToRemove,
             response,
-            &jobStatus);
+            &jobStatus,
+            nodeSupportsWaitingJobFail);
         if (job) {
             if (checkMissingJobs) {
                 job->SetFoundOnNode(true);
@@ -2019,7 +2022,8 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
-    TJobStatus* jobStatus)
+    TJobStatus* jobStatus,
+    const bool nodeSupportsWaitingJobFail)
 {
     auto jobId = FromProto<TJobId>(jobStatus->job_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
@@ -2170,16 +2174,6 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                     case EJobState::Running:
                         YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
                         OnJobRunning(job, jobStatus);
-                        if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
-                            YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
-                                CpuInstantToInstant(job->GetInterruptDeadline()));
-                            AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
-                        } else if (job->GetFailRequested()) {
-                            YT_LOG_DEBUG("Job fail requested");
-                            ToProto(response->add_jobs_to_fail(), jobId);
-                        } else if (job->GetInterruptReason() != EInterruptReason::None) {
-                            ToProto(response->add_jobs_to_interrupt(), jobId);
-                        }
                         break;
 
                     case EJobState::Waiting:
@@ -2188,6 +2182,19 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
                     default:
                         YT_ABORT();
+                }
+
+                if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
+                    YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
+                        CpuInstantToInstant(job->GetInterruptDeadline()));
+                    AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
+                } else if (job->GetFailRequested()) {
+                    if (state == EJobState::Running || nodeSupportsWaitingJobFail) { 
+                        YT_LOG_DEBUG("Job fail requested");
+                        ToProto(response->add_jobs_to_fail(), jobId);
+                    }
+                } else if (job->GetInterruptReason() != EInterruptReason::None) {
+                    ToProto(response->add_jobs_to_interrupt(), jobId);
                 }
             }
             break;
