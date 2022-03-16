@@ -1024,13 +1024,11 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             "scheduler/max_operation_scheduling_index",
             tags=tags)
 
-        print_debug("Start value of operation_scheduling_index_attempt_count", operation_scheduling_index_attempt_count.start_value)
-        print_debug("Start value of max_operation_scheduling_index", max_operation_scheduling_index.start_value)
-
         run_sleeping_vanilla()
 
-        wait(lambda: operation_scheduling_index_attempt_count.get_delta(verbose=True) == 1)
-        wait(lambda: max_operation_scheduling_index.get_delta(verbose=True) == 1)
+        # NB: we cannot check equality, since operations from previous tests may affect counter
+        wait(lambda: operation_scheduling_index_attempt_count.get_delta() >= 1)
+        wait(lambda: max_operation_scheduling_index.get_delta() >= 1)
 
     @authors("eshcherbin")
     def test_started_job_count_profiling(self):
