@@ -1049,7 +1049,8 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
                 }
             }
         })
-        assert _check() < 0.5
+        # TODO(akozhikhov): Check if overdraft instead.
+        assert _check() < 1
 
         update_nodes_dynamic_config({
             "out_throttlers": {
@@ -1058,7 +1059,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
                 }
             }
         })
-        assert _check() > 3
+        assert _check() > 1
 
 
 ################################################################################
