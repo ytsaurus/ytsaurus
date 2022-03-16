@@ -64,6 +64,7 @@ DEFINE_ENUM(EMasterReign,
     ((DoubleSnapshotDivergenceFix)                                  (1820))  // shakurov
     ((DontStoreChunkMetaWithDeadHunkChunks)                         (1821))  // babenko
     ((ValidateTabletContainsStoreInPrepareUpdateTabletStores)       (1822))  // ifsmirnov
+    ((NewLookupCacheOptions)                                        (1823))  // lukyan
     // 22.1 starts here.
     ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov
