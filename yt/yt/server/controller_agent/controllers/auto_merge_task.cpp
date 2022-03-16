@@ -289,7 +289,28 @@ EJobType TAutoMergeTask::GetJobType() const
 
 void TAutoMergeTask::AddJobTypeToJoblet(const TJobletPtr& joblet) const
 {
-    joblet->JobType = EnableShallowMerge_.load() ? EJobType::ShallowMerge : EJobType::UnorderedMerge;
+    bool enableShallowMerge = EnableShallowMerge_.load();
+
+    if (enableShallowMerge) {
+        YT_VERIFY(joblet->InputStripeList);
+        i64 dataWeight = joblet->InputStripeList->TotalDataWeight;
+        i64 chunkCount = joblet->InputStripeList->TotalChunkCount;
+        i64 dataWeightPerChunk = dataWeight / std::max<i64>(chunkCount, 1);
+        i64 minDataWeightPerChunk = TaskHost_->GetSpec()->AutoMerge->ShallowMergeMinDataWeightPerChunk;
+        if (dataWeightPerChunk <= minDataWeightPerChunk) {
+            YT_LOG_DEBUG(
+                "Falling back to deep merge due to low data weight per chunk "
+                "(JobId: %v, DataWeight: %v, ChunkCount: %v, DataWeightPerChunk: %v, ShallowMergeMinDataWeightPerChunk: %v)",
+                joblet->JobId,
+                dataWeight,
+                chunkCount,
+                dataWeightPerChunk,
+                minDataWeightPerChunk);
+            enableShallowMerge = false;
+        }
+    }
+
+    joblet->JobType = enableShallowMerge ? EJobType::ShallowMerge : EJobType::UnorderedMerge;
 }
 
 TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const

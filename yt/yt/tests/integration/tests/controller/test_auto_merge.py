@@ -9,7 +9,7 @@ from yt_commands import (
 
 from yt_type_helpers import normalize_schema, make_schema
 
-from yt.common import YtError
+from yt.common import YtError, update_inplace
 
 import yt.yson as yson
 
@@ -63,6 +63,22 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
             }
         },
     }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        for op_type in ["map", "reduce"]:
+            update_inplace(config, {
+                "controller_agent": {
+                    op_type + "_operation_options": {
+                        "spec_template": {
+                            "auto_merge": {
+                                "shallow_merge_min_data_weight_per_chunk": 0,
+                                "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
+                            },
+                        },
+                    },
+                },
+            })
 
     def _get_auto_merge_job_counts(self, operation):
         def none_to_zero(value):
@@ -200,7 +216,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                         "mode": "manual",
                         "max_intermediate_chunk_count": max_intermediate_chunk_count,
                         "chunk_count_per_merge_job": chunk_count_per_merge_job,
-                        "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                     },
                     "data_size_per_job": 1,
                 },
@@ -249,7 +264,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
                     "use_intermediate_data_account": True,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
@@ -285,7 +299,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                     "use_intermediate_data_account": True,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
@@ -325,7 +338,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                     "use_intermediate_data_account": True,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
@@ -390,7 +402,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
             },
@@ -425,7 +436,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "max_intermediate_chunk_count": 5,
                     "chunk_count_per_merge_job": 5,
                     "chunk_size_threshold": 100 * 1024,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -475,7 +485,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -509,7 +518,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -539,7 +547,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -579,7 +586,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -597,7 +603,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -627,7 +632,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
@@ -700,10 +704,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             out="<append=%true;schema_modification=unversioned_update>//tmp/t_out",
             command="cat",
             spec={
-                "auto_merge": {
-                    "mode": "relaxed",
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
-                },
+                "auto_merge": {"mode": "relaxed"},
                 "job_count": 2,
             },
         )
@@ -756,7 +757,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
                     "use_intermediate_data_account": True,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
@@ -797,7 +797,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -843,7 +842,6 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
                     "max_intermediate_chunk_count": 100,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
@@ -889,7 +887,6 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "data_size_per_job": 1,
                 "job_testing_options": {"throw_in_shallow_merge": True}
@@ -933,7 +930,6 @@ else:
                     "mode": "manual",
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                 },
                 "mapper": {
                     "input_format": "json",
@@ -967,7 +963,6 @@ else:
                     "mode": "manual",
                     "max_intermediate_chunk_count": 4,
                     "chunk_count_per_merge_job": 2,
-                    "enable_shallow_merge": self.ENABLE_SHALLOW_MERGE,
                     "max_block_count": 5,
                 },
                 "job_io": {
@@ -981,5 +976,49 @@ else:
         self._verify_shallow_merge_attempted(op)
 
         assert get("//tmp/t_out/@row_count") == 500
+        content = read_table("//tmp/t_out")
+        assert sorted_dicts(content) == sorted_dicts(data)
+
+    @authors("gepardo")
+    def test_too_small_chunks_for_shallow_merge(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        data = [{"a": i, "b": str(i * i)} for i in range(10)]
+        write_table("//tmp/t_in", data)
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "relaxed",
+                    "shallow_merge_min_data_weight_per_chunk": 10 ** 7,
+                },
+                "data_size_per_job": 1,
+            },
+        )
+        job_types = self._get_auto_merge_job_counts(op)
+        assert job_types["completed"]["deep"] > 0
+        assert job_types["completed"]["shallow"] == 0
+
+        content = read_table("//tmp/t_out")
+        assert sorted_dicts(content) == sorted_dicts(data)
+
+        op2 = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            command="cat",
+            spec={
+                "auto_merge": {
+                    "mode": "relaxed",
+                    "shallow_merge_min_data_weight_per_chunk": 0,
+                },
+                "data_size_per_job": 1,
+            },
+        )
+        self._verify_auto_merge_job_types(op2)
+
         content = read_table("//tmp/t_out")
         assert sorted_dicts(content) == sorted_dicts(data)

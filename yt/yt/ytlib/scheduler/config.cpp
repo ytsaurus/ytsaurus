@@ -278,6 +278,8 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_intermediate_data_account", &TThis::UseIntermediateDataAccount)
         .Default(false);
+    registrar.Parameter("shallow_merge_min_data_weight_per_chunk", &TThis::ShallowMergeMinDataWeightPerChunk)
+        .Default(64_KB);
 
     registrar.Postprocessor([] (TAutoMergeConfig* config) {
         if (config->Mode == EAutoMergeMode::Manual) {
