@@ -5,8 +5,10 @@ from yt.wrapper.format import YsonFormat
 
 from yt.common import YtResponseError
 
-from datetime import datetime
-import sys
+import logging
+
+
+logger = logging.getLogger("TestHelpers")
 
 
 # This class provides an interface for the Solomon exporter component which manages all the profiling data
@@ -78,8 +80,9 @@ class Profiler(object):
         if value is not None:
             value = postprocessor(value)
         if verbose:
-            print("{} of sensor \"{}\" with tags {}: {}"
-                  .format(verbose_value_name.capitalize(), name, tags, value), file=sys.stderr)
+            logger.info(
+                "{} of sensor \"{}\" with tags {}: {}"
+                .format(verbose_value_name.capitalize(), name, tags, value))
 
         return value
 
