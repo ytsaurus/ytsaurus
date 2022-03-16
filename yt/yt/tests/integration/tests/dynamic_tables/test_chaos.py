@@ -1224,7 +1224,10 @@ class TestChaos(ChaosTestBase):
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
 
-        assert(select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
+        if mode == "sync":
+            assert(select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
+        else:
+            wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
 
     @authors("savrus")
     def test_coordinator_suspension(self):
