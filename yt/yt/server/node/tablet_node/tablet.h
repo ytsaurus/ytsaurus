@@ -101,7 +101,7 @@ struct TChaosTabletData
     : public TRefCounted
 {
     std::atomic<int> ReplicationRound = 0;
-    THashMap<TTabletId, i64> CurrentReplicationRowIndexes;
+    TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosTabletData)

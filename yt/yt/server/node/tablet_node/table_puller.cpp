@@ -207,7 +207,7 @@ private:
                 TPullRowsOptions options;
                 options.TabletRowsPerRead = TabletRowsPerRead;
                 options.ReplicationProgress = *replicationProgress;
-                options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes;
+                options.StartReplicationRowIndexes = tabletSnapshot->TabletChaosData->CurrentReplicationRowIndexes.Load();
                 options.UpperTimestamp = upperTimestamp;
                 options.UpstreamReplicaId = queueReplicaId;
                 options.OrderRowsByTimestamp = selfReplicaInfo->ContentType == ETableReplicaContentType::Queue;
