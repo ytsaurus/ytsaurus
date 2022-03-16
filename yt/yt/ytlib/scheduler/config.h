@@ -492,7 +492,7 @@ class TTestingOperationOptions
 public:
     std::optional<TDuration> ControllerSchedulingDelay;
     EDelayType ControllerSchedulingDelayType;
-    
+
     std::optional<TDuration> ScheduleJobDelay;
     EDelayType ScheduleJobDelayType;
 
@@ -601,6 +601,10 @@ public:
     //! Maximum number of blocks allowed in the merged chunks. Useful only when EnableShallowMerge
     //! is set to true.
     std::optional<i64> MaxBlockCount;
+
+    //! Minimum data weight per chunk for shallow merge job. Useful only when EnableShallowMerge
+    //! is set to true.
+    i64 ShallowMergeMinDataWeightPerChunk;
 
     REGISTER_YSON_STRUCT(TAutoMergeConfig);
 
