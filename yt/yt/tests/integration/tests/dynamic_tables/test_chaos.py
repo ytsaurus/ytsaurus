@@ -226,7 +226,7 @@ class ChaosTestBase(DynamicTablesBase):
 
 class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 7
 
     @authors("savrus")
     def test_virtual_maps(self):

@@ -153,13 +153,14 @@ private:
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
-            const auto& tableProfiler = tabletSnapshot->TableProfiler;
-            auto* counters = tableProfiler->GetTablePullerCounters();
-            auto countError = Finally([counters, tableProfiler] {
-                if (std::uncaught_exception()) {
-                    counters->ErrorCount.Increment();
-                }
-            });
+            // There can be unserialized sync transactions from previous era or pull rows write transaction from previous iteration.
+            if (auto delayedLocklessRowCount = tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load();
+                delayedLocklessRowCount > 0)
+            {
+                YT_LOG_DEBUG("Will not pull rows since some transactions are not serialized yet (DelayedLocklessRowCount: %v)",
+                    delayedLocklessRowCount);
+                return;
+            }
 
             if (auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load(); writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
@@ -168,7 +169,13 @@ private:
                 return;
             }
 
-            // NB: There can be uncommitted sync transactions from previous era but they should be already in prepared state and will be committed anyway.
+            const auto& tableProfiler = tabletSnapshot->TableProfiler;
+            auto* counters = tableProfiler->GetTablePullerCounters();
+            auto countError = Finally([counters, tableProfiler] {
+                if (std::uncaught_exception()) {
+                    counters->ErrorCount.Increment();
+                }
+            });
 
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
             auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
@@ -185,7 +192,7 @@ private:
 
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
-            auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound;
+            auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound.load();
             TPullRowsResult result;
             {
                 TEventTimerGuard timerGuard(counters->PullRowsTime);

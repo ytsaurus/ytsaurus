@@ -143,6 +143,12 @@ public:
         const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
         const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
+    void RegisterTransactionActionHandlers(
+        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
+        const NHiveServer::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
+
     TTimestamp GetMinPrepareTimestamp();
     TTimestamp GetMinCommitTimestamp();
 

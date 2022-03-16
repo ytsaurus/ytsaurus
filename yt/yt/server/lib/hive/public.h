@@ -44,6 +44,8 @@ template <class TTransaction>
 using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const TString&)>;
 template <class TTransaction>
 using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const TString&)>;
+template <class TTransaction>
+using TTransactionSerializeActionHandler = TCallback<void(TTransaction*, const TString&)>;
 
 template <class TCallback>
 struct TTransactionActionHandlerDescriptor;
@@ -53,6 +55,8 @@ template <class TTransaction>
 using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionCommitActionHandler<TTransaction>>;
 template <class TTransaction>
 using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler<TTransaction>>;
+template <class TTransaction>
+using TTransactionSerializeActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionSerializeActionHandler<TTransaction>>;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionSupervisor)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)

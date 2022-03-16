@@ -22,6 +22,20 @@ void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
 }
 
 template <class TTransaction>
+void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
+    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
+    const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor)
+{
+    RegisterTransactionActionHandlers(
+        prepareActionDescriptor,
+        commitActionDescriptor,
+        abortActionDescriptor);
+    EmplaceOrCrash(SerializeActionHandlerMap_, serializeActionDescriptor.Type, serializeActionDescriptor.Handler);
+}
+
+template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransaction* transaction,
     bool persistent)
@@ -75,6 +89,22 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
             it->second.Run(transaction, action.Value);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
+                transaction->GetId(),
+                action.Type);
+        }
+    }
+}
+
+template <class TTransaction>
+void TTransactionManagerBase<TTransaction>::RunSerializeTransactionActions(TTransaction* transaction)
+{
+    for (const auto& action : transaction->Actions()) {
+        try {
+            if (auto it = SerializeActionHandlerMap_.find(action.Type)) {
+                it->second.Run(transaction, action.Value);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Serialize action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
                 action.Type);
         }
