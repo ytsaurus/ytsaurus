@@ -2150,7 +2150,7 @@ private:
             YT_VERIFY(currentReplicationRowIndexes.insert(std::make_pair(tabletId, endReplicationRowIndex)).second);
         }
 
-        tablet->ChaosData()->CurrentReplicationRowIndexes = std::move(currentReplicationRowIndexes);
+        tablet->ChaosData()->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
         tablet->ChaosData()->ReplicationRound = round + 1;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
@@ -2158,7 +2158,7 @@ private:
             tabletId,
             transaction->GetId(),
             static_cast<NChaosClient::TReplicationProgress>(*progress),
-            tablet->ChaosData()->CurrentReplicationRowIndexes,
+            currentReplicationRowIndexes,
             replicationRound + 1);
     }
 

@@ -644,7 +644,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, SchemaId_);
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Load());
     Save(context, ChaosData_->ReplicationRound);
-    Save(context, ChaosData_->CurrentReplicationRowIndexes);
+    Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
     Save(context, BackupCheckpointTimestamp_);
     Save(context, BackupStage_);
     Save(context, LastDiscardStoresRevision_);
@@ -772,7 +772,7 @@ void TTablet::Load(TLoadContext& context)
         TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
         RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
         Load(context, ChaosData_->ReplicationRound);
-        Load(context, ChaosData_->CurrentReplicationRowIndexes);
+        ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
     }
 
     // COMPAT(ifsmirnov)
