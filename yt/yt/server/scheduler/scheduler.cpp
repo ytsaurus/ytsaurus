@@ -2126,7 +2126,9 @@ private:
         } else if (operation->SetAlert(alertType, alert)) {
             OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
 
-            if (timeout) {
+            // NB: we don't want to recreate reset action if we already have one
+            // due to performance issues.
+            if (timeout && !operation->HasAlertResetCookie(alertType)) {
                 auto resetCallback = BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, TError(), std::nullopt)
                     .Via(operation->GetCancelableControlInvoker());
                 auto resetCookie = TDelayedExecutor::Submit(resetCallback, *timeout);

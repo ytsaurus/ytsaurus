@@ -421,7 +421,6 @@ bool TOperation::SetAlert(EOperationAlertType alertType, const TError& error)
     }
 
     alert.Error = error;
-    NConcurrency::TDelayedExecutor::CancelAndClear(alert.ResetCookie);
     ShouldFlush_ = true;
 
     return true;
@@ -444,6 +443,13 @@ void TOperation::SetAlertResetCookie(EOperationAlertType alertType, NConcurrency
     YT_VERIFY(it != Alerts_.end());
     YT_VERIFY(!it->second.ResetCookie);
     it->second.ResetCookie = cookie;
+}
+
+bool TOperation::HasAlertResetCookie(EOperationAlertType alertType) const
+{
+    auto it = Alerts_.find(alertType);
+    YT_VERIFY(it != Alerts_.end());
+    return static_cast<bool>(it->second.ResetCookie);
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

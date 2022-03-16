@@ -356,6 +356,7 @@ public:
     bool SetAlert(EOperationAlertType alertType, const TError& error);
     void ResetAlert(EOperationAlertType alertType);
     void SetAlertResetCookie(EOperationAlertType alertType, NConcurrency::TDelayedExecutorCookie cookie);
+    bool HasAlertResetCookie(EOperationAlertType alertType) const;
 
     //! Returns a control invoker corresponding to this operation.
     const IInvokerPtr& GetControlInvoker();
