@@ -4,13 +4,18 @@
 from __future__ import print_function
 
 import datetime
+import logging
 import os
-import sys
 import time
 import tempfile
 
+
+logger = logging.getLogger("TestHelpers")
+
+
 class TimeoutError(Exception):
     pass
+
 
 class JobEvents(object):
     """ EventsOnFs helps to exchange information between test code
@@ -143,7 +148,7 @@ class JobEvents(object):
                     will skip this breakpoint. """
         self._verify_breakpoint_created(breakpoint_name)
 
-        print("Releasing breakpoint {0}, job id {1}".format(breakpoint_name, job_id), file=sys.stderr)
+        logger.info("Releasing breakpoint {0}, job id {1}".format(breakpoint_name, job_id))
 
         if job_id is None:
             with open(self._get_breakpoint_filename(breakpoint_name, self.BREAKPOINT_ALL_RELEASED), "w"):
@@ -166,7 +171,7 @@ class JobEvents(object):
         self._breakpoints.add(breakpoint_name)
 
     def _verify_breakpoint_created(self, breakpoint_name):
-        if not breakpoint_name in self._breakpoints:
+        if breakpoint_name not in self._breakpoints:
             raise ValueError("Breakpoint `{0}' was never created (breakpoint is created when breakpoint_cmd is called)".format(breakpoint_name))
 
     def _get_breakpoint_filename(self, breakpoint_name, job_id):

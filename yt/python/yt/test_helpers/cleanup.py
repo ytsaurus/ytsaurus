@@ -1,8 +1,9 @@
-from __future__ import print_function
+from yt.common import YtError, wait
 
-from yt.common import YtError, wait, format_error
+import logging
 
-import sys
+
+logger = logging.getLogger("TestHelpers")
 
 
 def abort_transactions(list_action, abort_action):
@@ -32,8 +33,8 @@ def cleanup_operations(list_action, abort_action, remove_action, remove_operatio
     operations_from_orchid = []
     try:
         operations_from_orchid = list_action("//sys/scheduler/orchid/scheduler/operations")
-    except YtError as err:
-        print(format_error(err), file=sys.stderr)
+    except YtError:
+        logger.exception("Failed to fetch operations from orchid")
 
     for operation_id in operations_from_orchid:
         if not operation_id.startswith("*"):

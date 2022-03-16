@@ -53,7 +53,8 @@ except ImportError:
             result[item] = result.get(item, 0) + 1
         return result
 
-from yt.common import wait, WaitFailed
+from yt.common import wait, WaitFailed  # noqa
+
 
 # A simplified version of the same method of unittest.TestCase
 def _compute_items_difference(actual_seq, expected_seq):
@@ -70,16 +71,19 @@ def _compute_items_difference(actual_seq, expected_seq):
         unexpected = list(actual - expected)
     return [missing, unexpected]
 
+
 # A simplified version of the same method of unittest.TestCase
 def assert_items_equal(actual_seq, expected_seq):
     missing, unexpected = _compute_items_difference(actual_seq, expected_seq)
     assert not missing, "Expected, but missing:\n    %s" % repr(missing)
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
+
 # A checking counterpart of assert_items_equal.
 def are_items_equal(actual_seq, expected_seq):
     missing, unexpected = _compute_items_difference(actual_seq, expected_seq)
     return missing == [] and unexpected == []
+
 
 def are_almost_equal(lhs, rhs, decimal_places=None, relative_error=None):
     if lhs is None or rhs is None:
@@ -96,6 +100,7 @@ def are_almost_equal(lhs, rhs, decimal_places=None, relative_error=None):
         eps = 10**(-decimal_places)
         return abs(lhs - rhs) < eps
 
+
 # TODO(ignat): move it to arcadia_interop.
 def get_tmpfs_path():
     if yatest_common is not None and yatest_common.get_param("ram_drive_path") is not None:
@@ -104,6 +109,7 @@ def get_tmpfs_path():
             os.makedirs(path)
         return path
     return None
+
 
 def get_tests_sandbox(non_arcadia_path):
     path = os.environ.get("TESTS_SANDBOX")
