@@ -8,8 +8,7 @@
 #include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/yt/client/transaction_client/config.h>
-#include <yt/yt/client/transaction_client/timestamp_provider_base.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -26,30 +25,27 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteClusterTimestampProvider
-    : public TTimestampProviderBase
+    : public ITimestampProvider
 {
 public:
     TRemoteClusterTimestampProvider(
         IConnectionPtr nativeConnection,
         TCellTag clockClusterTag,
         NLogging::TLogger logger)
-        : TTimestampProviderBase(GetLatestTimestampUpdatePeriod(nativeConnection))
-        , NativeConnection_(std::move(nativeConnection))
+        : NativeConnection_(nativeConnection)
         , ClockClusterTag_(clockClusterTag)
         , Logger(std::move(logger))
     {
-
-        if (ClockClusterTag_ == NativeConnection_->GetClusterTag()) {
-            Underlying_.Store(NativeConnection_->GetTimestampProvider());
+        if (ClockClusterTag_ == nativeConnection->GetClusterTag()) {
+            Underlying_.Store(nativeConnection->GetTimestampProvider());
             return;
         }
 
-        NativeConnection_->GetClusterDirectorySynchronizer()->Sync()
+        nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Subscribe(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)));
     }
 
-protected:
-    TFuture<TTimestamp> DoGenerateTimestamps(int count) override
+    TFuture<TTimestamp> GenerateTimestamps(int count) override
     {
         if (auto underlying = Underlying_.Load()) {
             return underlying->GenerateTimestamps(count);
@@ -60,8 +56,17 @@ protected:
             ClockClusterTag_));
     }
 
+    TTimestamp GetLatestTimestamp() override
+    {
+        if (auto underlying = Underlying_.Load()) {
+            return underlying->GetLatestTimestamp();
+        }
+
+        return MinTimestamp;
+    }
+
 private:
-    const IConnectionPtr NativeConnection_;
+    const TWeakPtr<IConnection> NativeConnection_;
     const TCellTag ClockClusterTag_;
 
     const NLogging::TLogger Logger;
@@ -70,12 +75,19 @@ private:
 
     void InitializeUnderlying()
     {
-        if (auto connection = FindRemoteConnection(NativeConnection_, ClockClusterTag_)) {
+        auto nativeConnection = NativeConnection_.Lock();
+        if (!nativeConnection) {
+            YT_LOG_DEBUG("Cannot initialize timestamp provider: connection terminated (ClockClusterTag: %v)",
+                ClockClusterTag_);
+            return;
+        } 
+
+        if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
             Underlying_.Store(connection->GetTimestampProvider());
             return;
         }
 
-        auto retryTime = NativeConnection_->GetConfig()->ClusterDirectorySynchronizer->SyncPeriod;
+        auto retryTime = nativeConnection->GetConfig()->ClusterDirectorySynchronizer->SyncPeriod;
 
         YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known; retrying "
             "(ClockClusterTag: %v, RetryTime: %v)",
@@ -90,11 +102,6 @@ private:
     void OnClusterDirectorySync(const TError& /*error*/)
     {
         InitializeUnderlying();
-    }
-
-    static TDuration GetLatestTimestampUpdatePeriod(const IConnectionPtr& nativeConnection)
-    {
-        return GetTimestampProviderConfig(nativeConnection->GetConfig())->LatestTimestampUpdatePeriod;
     }
 };
 

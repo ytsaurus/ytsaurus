@@ -865,13 +865,4 @@ IConnectionPtr GetRemoteConnectionOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteTimestampProviderConfigPtr GetTimestampProviderConfig(const TConnectionConfigPtr& config)
-{
-    return config->TimestampProvider
-        ? config->TimestampProvider
-        : CreateRemoteTimestampProviderConfig(config->PrimaryMaster);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi::NNative
