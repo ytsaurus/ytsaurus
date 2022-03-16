@@ -13,7 +13,7 @@ from yt_commands import (
     ls, get, set, remove, exists, create_pool, create_pool_tree,
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
-    vanilla, run_test_vanilla, run_sleeping_vanilla,
+    vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config,
     update_controller_agent_config, update_pool_tree_config_option)
 
 from yt_scheduler_helpers import (
@@ -1393,6 +1393,48 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         assert self._get_operation_module(op1) == self._get_operation_module(op2) == self._get_operation_module(op4)
         assert self._get_operation_module(op1) != self._get_operation_module(op3)
+
+    @authors("eshcherbin")
+    def test_abort_jobs_in_wrong_module(self):
+        update_scheduler_config("running_jobs_update_period", 1000)
+
+        op = run_sleeping_vanilla(
+            job_count=3,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.3))
+
+        op_module = self._get_operation_module(op)
+
+        module_nodes_by_segment = defaultdict(list)
+        for node in ls("//sys/cluster_nodes"):
+            if self._get_node_module(node) != op_module:
+                continue
+            node_segment = get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), verbose=False)
+            module_nodes_by_segment[node_segment].append(node)
+
+        update_pool_tree_config_option("default", "nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
+
+        nodes_to_move = module_nodes_by_segment["default"][:2] + module_nodes_by_segment["large_gpu"][:1]
+        for node in nodes_to_move:
+            set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
+
+        update_pool_tree_config_option("default", "scheduling_segments/module_reconsideration_timeout", 3000)
+        wait(lambda: self._get_operation_module(op) != op_module)
+        wait(lambda: op.get_job_count("aborted") >= 3)
+
+        def check():
+            jobs = op.get_running_jobs()
+            if len(jobs) != 3:
+                return False
+            for _, job in jobs.items():
+                if self._get_node_module(job["address"]) == op_module:
+                    return False
+            return True
+        wait(check)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 3.0 / 7.0))
 
 
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):

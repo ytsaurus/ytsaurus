@@ -969,6 +969,10 @@ public:
 
                         if (shouldAbortJob) {
                             jobsToAbort->push_back(job.JobId);
+                            // NB(eshcherbin): We want the node shard to send us a job finished update,
+                            // this is why we have to postpone the job here. This is very ad-hoc, but I hope it'll
+                            // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
+                            jobsToPostpone.insert(job.JobId);
                         }
                     }
                     break;
