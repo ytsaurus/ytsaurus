@@ -228,7 +228,8 @@ public:
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareWritePulledRows, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitWritePulledRows, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, MakeStrong(this))));
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeWritePulledRows, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
@@ -2089,9 +2090,10 @@ private:
         auto round = request->replication_round();
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        if (tablet->ChaosData()->ReplicationRound != round) {
+        auto replicationRound = tablet->ChaosData()->ReplicationRound.load();
+        if (replicationRound != round) {
             THROW_ERROR_EXCEPTION("Replication round mismatch: expected %v, got %v",
-                tablet->ChaosData()->ReplicationRound,
+                replicationRound,
                 round);
         }
 
@@ -2110,7 +2112,33 @@ private:
             return;
         }
 
-        YT_VERIFY(tablet->ChaosData()->ReplicationRound == round);
+        if (transaction->IsSerializationNeeded()) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, NewReplicationRound: %v)",
+                tabletId,
+                transaction->GetId(),
+                round);
+            return;
+        }
+
+        FinalizeWritePulledRows(transaction, request, true);
+    }
+
+    void HydraSerializeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
+    {
+        FinalizeWritePulledRows(transaction, request, true);
+    }
+
+    void FinalizeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool inCommit)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto round = request->replication_round();
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto replicationRound = tablet->ChaosData()->ReplicationRound.load();
+        YT_VERIFY(replicationRound == round);
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         tablet->RuntimeData()->ReplicationProgress.Store(progress);
@@ -2125,12 +2153,13 @@ private:
         tablet->ChaosData()->CurrentReplicationRowIndexes = std::move(currentReplicationRowIndexes);
         tablet->ChaosData()->ReplicationRound = round + 1;
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows committed (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, NewReplicationRound: %v)",
+            inCommit ? "committed" : "serialized",
             tabletId,
             transaction->GetId(),
             static_cast<NChaosClient::TReplicationProgress>(*progress),
             tablet->ChaosData()->CurrentReplicationRowIndexes,
-            tablet->ChaosData()->ReplicationRound);
+            replicationRound + 1);
     }
 
     void HydraAbortWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)

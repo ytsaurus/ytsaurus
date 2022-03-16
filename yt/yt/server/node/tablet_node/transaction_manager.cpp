@@ -918,6 +918,9 @@ private:
 
                 transaction->SetState(ETransactionState::Serialized);
                 BeforeTransactionSerialized_.Fire(transaction);
+
+                // NB: Explicitly run serialize actoins before actual serializing.
+                RunSerializeTransactionActions(transaction);
                 TransactionSerialized_.Fire(transaction);
 
                 PersistentTransactionMap_.Remove(transactionId);
@@ -1196,6 +1199,19 @@ void TTransactionManager::RegisterTransactionActionHandlers(
         prepareActionDescriptor,
         commitActionDescriptor,
         abortActionDescriptor);
+}
+
+void TTransactionManager::RegisterTransactionActionHandlers(
+    const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+    const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+    const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
+    const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor)
+{
+    Impl_->RegisterTransactionActionHandlers(
+        prepareActionDescriptor,
+        commitActionDescriptor,
+        abortActionDescriptor,
+        serializeActionDescriptor);
 }
 
 TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(

@@ -21,16 +21,23 @@ public:
         const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
         const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
+    void RegisterTransactionActionHandlers(
+        const TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
+        const TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
+
 protected:
     THashMap<TString, TTransactionPrepareActionHandler<TTransaction>> PrepareActionHandlerMap_;
     THashMap<TString, TTransactionCommitActionHandler<TTransaction>> CommitActionHandlerMap_;
     THashMap<TString, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
+    THashMap<TString, TTransactionSerializeActionHandler<TTransaction>> SerializeActionHandlerMap_;
 
 
     void RunPrepareTransactionActions(TTransaction* transaction, bool persistent);
     void RunCommitTransactionActions(TTransaction* transaction);
     void RunAbortTransactionActions(TTransaction* transaction);
-
+    void RunSerializeTransactionActions(TTransaction* transaction);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
