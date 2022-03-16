@@ -118,6 +118,9 @@ TDynamicChunkMergerConfig::TDynamicChunkMergerConfig()
     RegisterParameter("max_running_job_count", MaxRunningJobCount)
         .GreaterThan(1)
         .Default(100000);
+
+    RegisterParameter("shallow_merge_validation_probability", ShallowMergeValidationProbability)
+        .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

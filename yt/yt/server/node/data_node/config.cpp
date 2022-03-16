@@ -411,6 +411,14 @@ TIOThroughputMeterConfig::TIOThroughputMeterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkMergerConfig::TChunkMergerConfig()
+{
+    RegisterParameter("fail_shallow_merge_validation", FailShallowMergeValidation)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDataNodeConfig::TDataNodeConfig()
 {
     RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -762,6 +770,12 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
     RegisterParameter("adaptive_chunk_repair_job", AdaptiveChunkRepairJob)
         .Optional();
 
+    RegisterParameter("io_throughput_meter", IOThroughputMeter)
+        .DefaultNew();
+
+    RegisterParameter("chunk_merger", ChunkMerger)
+        .DefaultNew();
+
     RegisterPostprocessor([&] {
         if (!AdaptiveChunkRepairJob) {
             AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();
@@ -769,8 +783,6 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
         }
     });
 
-    RegisterParameter("io_throughput_meter", IOThroughputMeter)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

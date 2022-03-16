@@ -29,6 +29,8 @@ public:
     int GetReplicaIndex() const;
     int GetMediumIndex() const;
 
+    TChunkReplica ToChunkReplica() const;
+
 private:
     /*!
      *  Bits:

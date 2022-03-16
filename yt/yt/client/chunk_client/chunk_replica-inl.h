@@ -62,6 +62,11 @@ Y_FORCE_INLINE int TChunkReplicaWithMedium::GetMediumIndex() const
     return Value >> 29;
 }
 
+Y_FORCE_INLINE TChunkReplica TChunkReplicaWithMedium::ToChunkReplica() const
+{
+    return TChunkReplica(GetNodeId(), GetReplicaIndex());
+}
+
 Y_FORCE_INLINE void ToProto(ui64* value, TChunkReplicaWithMedium replica)
 {
     *value = replica.Value;

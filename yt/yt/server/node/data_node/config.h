@@ -512,6 +512,20 @@ DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkMergerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Testing options.
+    bool FailShallowMergeValidation;
+
+    TChunkMergerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkMergerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -774,6 +788,8 @@ public:
     NChunkClient::TErasureReaderConfigPtr AdaptiveChunkRepairJob;
 
     TIOThroughputMeterConfigPtr IOThroughputMeter;
+
+    TChunkMergerConfigPtr ChunkMerger;
 
     TDataNodeDynamicConfig();
 };

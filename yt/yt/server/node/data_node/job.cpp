@@ -1296,8 +1296,8 @@ private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
     bool DeepMergeFallbackOccurred_ = false;
+    TError ShallowMergeValidationError_;
     NChunkClient::EChunkMergerMode MergeMode_;
-
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     TTableSchemaPtr Schema_;
@@ -1308,21 +1308,134 @@ private:
     int MaxHeavyColumns_;
     std::optional<i64> MaxBlockCount_;
 
-    struct TChunkInfo
+    struct TChunkReadContext
     {
         IChunkReaderPtr Reader;
         TDeferredChunkMetaPtr Meta;
         TChunkId ChunkId;
         int BlockCount;
         TClientChunkReadOptions Options;
+        TMergeChunkInfo MergeChunkInfo;
     };
-    std::vector<TChunkInfo> InputChunkInfos_;
+    std::vector<TChunkReadContext> InputChunkReadContexts_;
+
+    class TMergeChunkReader
+    {
+    public:
+        TMergeChunkReader(
+            IBootstrap* bootstrap,
+            std::vector<TChunkReadContext> contexts,
+            TTableSchemaPtr schema,
+            TNameTablePtr nameTable,
+            bool permuteRows)
+            : Bootstrap_(bootstrap)
+            , Contexts_(contexts)
+            , Schema_(std::move(schema))
+            , NameTable_(std::move(nameTable))
+            , PermuteRows_(permuteRows)
+        {
+            OpenReader();
+        }
+
+        std::optional<std::vector<TUnversionedRow>> ReadRows(const TRowBufferPtr& rowBuffer)
+        {
+            IUnversionedRowBatchPtr batch;
+            while (!batch) {
+                batch = WaitForRowBatch(ChunkReader_);
+                if (!batch) {
+                    ++CurrentChunkIndex_;
+                    if (CurrentChunkIndex_ == std::ssize(Contexts_)) {
+                        break;
+                    }
+                    OpenReader();
+                }
+            }
+
+            if (!batch) {
+                YT_VERIFY(CurrentChunkIndex_ = std::ssize(Contexts_));
+                return std::nullopt;
+            }
+
+            auto rows = batch->MaterializeRows();
+            if (!PermuteRows_) {
+                // Fast path.
+                return std::vector<TUnversionedRow>(rows.begin(), rows.end());
+            }
+
+            const auto& readerNameTable = ChunkReader_->GetNameTable();
+            auto readerTableSize = readerNameTable->GetSize();
+            TNameTableToSchemaIdMapping idMapping(readerTableSize);
+            const auto& names = readerNameTable->GetNames();
+            for (auto index = 0; index < readerTableSize; ++index) {
+                idMapping[index] = NameTable_->GetIdOrRegisterName(names[index]);
+            }
+
+            std::vector<TUnversionedRow> permutedRows;
+            permutedRows.reserve(rows.size());
+            for (auto row : rows) {
+                auto permutedRow = rowBuffer->CaptureAndPermuteRow(
+                    row,
+                    *Schema_,
+                    Schema_->GetColumnCount(),
+                    idMapping,
+                    nullptr);
+                permutedRows.push_back(permutedRow);
+            }
+
+            return permutedRows;
+        }
+
+    private:
+        IBootstrap* const Bootstrap_;
+        const std::vector<TChunkReadContext> Contexts_;
+        const TTableSchemaPtr Schema_;
+        const TNameTablePtr NameTable_;
+
+        const bool PermuteRows_;
+
+        int CurrentChunkIndex_ = 0;
+        ISchemalessChunkReaderPtr ChunkReader_;
+
+        void OpenReader()
+        {
+            const auto& context = Contexts_[CurrentChunkIndex_];
+            auto chunkState = New<TChunkState>(
+                Bootstrap_->GetBlockCache(),
+                GetChunkSpec(context.MergeChunkInfo),
+                /*chunkMeta*/ nullptr,
+                /*chunkTimestamp*/ NullTimestamp,
+                /*lookupHashTable*/ nullptr,
+                /*performanceCounters*/ nullptr,
+                /*keyComparer*/ TKeyComparer{},
+                /*virtualValueDirectory*/ nullptr,
+                /*tableSchema*/ nullptr);
+
+            ChunkReader_ = CreateSchemalessRangeChunkReader(
+                std::move(chunkState),
+                New<TColumnarChunkMeta>(*context.Meta),
+                NTableClient::TChunkReaderConfig::GetDefault(),
+                TChunkReaderOptions::GetDefault(),
+                context.Reader,
+                New<TNameTable>(),
+                context.Options,
+                /*keyColumns*/ {},
+                /*omittedInaccessibleColumns*/ {},
+                NTableClient::TColumnFilter(),
+                NChunkClient::TReadRange());
+        }
+    };
 
     void SetMergeJobResult()
     {
         auto* jobResultExt = Result_.MutableExtension(TMergeChunksJobResultExt::merge_chunks_job_result_ext);
         if (MergeMode_ == NChunkClient::EChunkMergerMode::Auto) {
             jobResultExt->set_deep_merge_fallback_occurred(DeepMergeFallbackOccurred_);
+        }
+        ToProto(jobResultExt->mutable_shallow_merge_validation_error(), ShallowMergeValidationError_);
+
+        if (!ShallowMergeValidationError_.IsOK()) {
+            YT_LOG_ALERT(ShallowMergeValidationError_, "Shallow merge validation failed");
+            THROW_ERROR ShallowMergeValidationError_;
         }
     }
 
@@ -1351,7 +1464,7 @@ private:
         MergeMode_ = CheckedEnumCast<NChunkClient::EChunkMergerMode>(chunkMergerWriterOptions.merge_mode());
         YT_LOG_DEBUG("Merge job started (Mode: %v)", MergeMode_);
 
-        PrepareInputChunkMetas();
+        PrepareInputChunkReadContexts();
         switch (MergeMode_) {
             case NChunkClient::EChunkMergerMode::Shallow:
                 MergeShallow();
@@ -1377,29 +1490,57 @@ private:
         SetMergeJobResult();
     }
 
-    void PrepareInputChunkMetas()
+    TChunkReadContext GetChunkReadContext(const TMergeChunkInfo& chunk)
     {
+        auto reader = CreateReader(chunk);
+        auto chunkId = FromProto<TChunkId>(chunk.id());
+
+        TWorkloadDescriptor workloadDescriptor;
+        workloadDescriptor.Category = EWorkloadCategory::SystemMerge;
+        workloadDescriptor.Annotations.push_back(Format("Merge chunk %v", chunkId));
+
+        TClientChunkReadOptions options;
+        options.WorkloadDescriptor = workloadDescriptor;
+
+        auto chunkMeta = GetChunkMeta(reader, options);
+        auto blocksExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
+
+        return TChunkReadContext{
+            .Reader = std::move(reader),
+            .Meta = std::move(chunkMeta),
+            .ChunkId = chunkId,
+            .BlockCount = blocksExt.data_blocks_size(),
+            .Options = options,
+            .MergeChunkInfo = chunk
+        };
+    }
+
+    TChunkReadContext GetChunkReadContext(const IMetaAggregatingWriterPtr& writer)
+    {
+        auto chunkMeta = writer->GetChunkMeta();
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+
+        TMergeChunkInfo chunkInfo;
+        ToProto(chunkInfo.mutable_id(), writer->GetChunkId());
+
+        TChunkReplicaList chunkReplicaList;
+        for (auto replica : writer->GetWrittenChunkReplicas()) {
+            chunkReplicaList.push_back(replica.ToChunkReplica());
+        }
+        ToProto(chunkInfo.mutable_source_replicas(), chunkReplicaList);
+
+        chunkInfo.set_row_count(miscExt.row_count());
+        chunkInfo.set_erasure_codec(miscExt.erasure_codec());
+
+        return GetChunkReadContext(chunkInfo);
+    }
+
+    void PrepareInputChunkReadContexts()
+    {
+        InputChunkReadContexts_.clear();
+        InputChunkReadContexts_.reserve(JobSpecExt_.input_chunks_size());
         for (const auto& chunk : JobSpecExt_.input_chunks()) {
-            auto reader = CreateReader(chunk);
-            auto chunkId = FromProto<TChunkId>(chunk.id());
-
-            TWorkloadDescriptor workloadDescriptor;
-            workloadDescriptor.Category = EWorkloadCategory::SystemMerge;
-            workloadDescriptor.Annotations.push_back(Format("Merge chunk %v", chunkId));
-
-            TClientChunkReadOptions options;
-            options.WorkloadDescriptor = workloadDescriptor;
-
-            auto chunkMeta = GetChunkMeta(reader, options);
-            auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
-
-            InputChunkInfos_.push_back({
-                .Reader = std::move(reader),
-                .Meta = std::move(chunkMeta),
-                .ChunkId = chunkId,
-                .BlockCount = blockMetaExt.data_blocks_size(),
-                .Options = options
-            });
+            InputChunkReadContexts_.push_back(GetChunkReadContext(chunk));
         }
     }
 
@@ -1426,19 +1567,19 @@ private:
             .ThrowOnError();
 
         int totalBlockCount = 0;
-        for (const auto& chunkInfo : InputChunkInfos_) {
-            writer->AbsorbMeta(chunkInfo.Meta, chunkInfo.ChunkId);
-            totalBlockCount += chunkInfo.BlockCount;
+        for (const auto& chunkReadContext : InputChunkReadContexts_) {
+            writer->AbsorbMeta(chunkReadContext.Meta, chunkReadContext.ChunkId);
+            totalBlockCount += chunkReadContext.BlockCount;
         }
 
-        for (const auto& chunkInfo : InputChunkInfos_) {
+        for (const auto& chunkReadContext : InputChunkReadContexts_) {
             int currentBlockCount = 0;
-            auto inputChunkBlockCount = chunkInfo.BlockCount;
+            auto inputChunkBlockCount = chunkReadContext.BlockCount;
             while (currentBlockCount < inputChunkBlockCount) {
                 std::vector<int> blockIndices(inputChunkBlockCount - currentBlockCount);
                 std::iota(blockIndices.begin(), blockIndices.end(), currentBlockCount);
-                auto asyncResult = chunkInfo.Reader->ReadBlocks(
-                    chunkInfo.Options,
+                auto asyncResult = chunkReadContext.Reader->ReadBlocks(
+                    chunkReadContext.Options,
                     blockIndices);
 
                 auto readResult = WaitFor(asyncResult);
@@ -1454,6 +1595,10 @@ private:
 
         WaitFor(writer->Close())
             .ThrowOnError();
+
+        if (JobSpecExt_.validate_shallow_merge()) {
+            ShallowMergeValidationError_ = ValidateShallowMerge(writer);
+        }
     }
 
     void MergeDeep()
@@ -1479,60 +1624,21 @@ private:
             /*dataSink*/ std::nullopt);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto writeNameTable = writer->GetNameTable();
+        auto writerNameTable = writer->GetNameTable();
 
-        for (int i = 0; i < ssize(InputChunkInfos_); ++i) {
-            auto chunkState = New<TChunkState>(
-                Bootstrap_->GetBlockCache(),
-                GetChunkSpec(JobSpecExt_.input_chunks()[i]),
-                /*chunkMeta*/ nullptr,
-                /*overrideTimestamp*/ NullTimestamp,
-                /*lookupHashTable*/ nullptr,
-                /*performanceCounters*/ nullptr,
-                /*keyComparer*/ TKeyComparer{},
-                /*virtualValueDirectory*/ nullptr,
-                /*tableSchema*/ nullptr);
+        TMergeChunkReader chunkReader(
+            Bootstrap_,
+            InputChunkReadContexts_,
+            Schema_,
+            writerNameTable,
+            /*permuteRows*/ true);
 
-            const auto& chunkInfo = InputChunkInfos_[i];
-
-            auto reader = CreateSchemalessRangeChunkReader(
-                std::move(chunkState),
-                New<TColumnarChunkMeta>(*chunkInfo.Meta),
-                NTableClient::TChunkReaderConfig::GetDefault(),
-                TChunkReaderOptions::GetDefault(),
-                chunkInfo.Reader,
-                New<TNameTable>(),
-                chunkInfo.Options,
-                /*keyColumns*/ {},
-                /*omittedInaccessibleColumns*/ {},
-                NTableClient::TColumnFilter(),
-                NChunkClient::TReadRange());
-
-            while (auto batch = WaitForRowBatch(reader)) {
-                auto rows = batch->MaterializeRows();
-
-                const auto& readerNameTable = reader->GetNameTable();
-                auto readerTableSize = readerNameTable->GetSize();
-                TNameTableToSchemaIdMapping idMapping(readerTableSize);
-                const auto& names = readerNameTable->GetNames();
-                for (auto i = 0; i < readerTableSize; ++i) {
-                    idMapping[i] = writeNameTable->GetIdOrRegisterName(names[i]);
-                }
-
-                std::vector<TUnversionedRow> permutedRows;
-                permutedRows.reserve(rows.size());
-                for (auto row : rows) {
-                    auto permutedRow = rowBuffer->CaptureAndPermuteRow(
-                        row,
-                        *Schema_,
-                        Schema_->GetColumnCount(),
-                        idMapping,
-                        nullptr);
-                    permutedRows.push_back(permutedRow);
-                }
-
-                writer->Write(MakeRange(permutedRows));
+        while (auto rows = chunkReader.ReadRows(rowBuffer)) {
+            if (!writer->Write(MakeRange(*rows))) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
             }
+            rowBuffer->Clear();
         }
 
         WaitFor(writer->Close())
@@ -1567,7 +1673,7 @@ private:
             std::move(targetReplicas));
     }
 
-    TChunkSpec GetChunkSpec(const NChunkClient::NProto::TMergeChunkInfo& chunk)
+    static TChunkSpec GetChunkSpec(const NChunkClient::NProto::TMergeChunkInfo& chunk)
     {
         TChunkSpec chunkSpec;
         chunkSpec.set_row_count_override(chunk.row_count());
@@ -1609,6 +1715,151 @@ private:
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->CopyFrom(*result.Value());
         return deferredChunkMeta;
+    }
+
+    TError ValidateShallowMerge(const IMetaAggregatingWriterPtr& writer)
+    {
+        YT_LOG_DEBUG("Validating shallow merge result");
+
+        if (GetDynamicConfig()->FailShallowMergeValidation) {
+            return TError("Testing error");
+        }
+
+        auto nameTable = TNameTable::FromSchema(*Schema_);
+
+        auto inputChunksRowBuffer = New<TRowBuffer>();
+        auto outputChunkRowBuffer = New<TRowBuffer>();
+
+        TRingQueue<TUnversionedRow> inputChunksRows;
+        TRingQueue<TUnversionedRow> outputChunkRows;
+
+        i64 inputChunksRowsRead = 0;
+        i64 outputChunkRowsRead = 0;
+
+        auto outputChunkReadContext = GetChunkReadContext(writer);
+        TMergeChunkReader outputChunkReader(
+            Bootstrap_,
+            {outputChunkReadContext},
+            Schema_,
+            nameTable,
+            /*permuteRows*/ false);
+
+        // NB: #InputChunkReadContexts_ could be already used during merge.
+        PrepareInputChunkReadContexts();
+        TMergeChunkReader inputChunksReader(
+            Bootstrap_,
+            InputChunkReadContexts_,
+            Schema_,
+            nameTable,
+            /*permuteRows*/ true);
+
+        i64 outputChunkRowCount = outputChunkReadContext.MergeChunkInfo.row_count();
+        i64 inputChunksRowCount = 0;
+        for (const auto& inputChunk : InputChunkReadContexts_) {
+            inputChunksRowCount += inputChunk.MergeChunkInfo.row_count();
+        }
+
+        if (inputChunksRowCount != outputChunkRowCount) {
+            return TError("Total number of rows in input chunks differs from number of rows in output chunk")
+                << TErrorAttribute("input_chunks_row_count", inputChunksRowCount)
+                << TErrorAttribute("output_chunk_row_count", outputChunkRowCount);
+        }
+
+        i64 rowIndex = 0;
+        while (true) {
+            auto fillBuffer = [&] (
+                TMergeChunkReader* reader,
+                TRingQueue<TUnversionedRow>* buffer,
+                const TRowBufferPtr& rowBuffer,
+                i64* rowCounter)
+            {
+                YT_VERIFY(buffer->empty());
+                rowBuffer->Clear();
+                auto rows = reader->ReadRows(rowBuffer);
+                if (!rows) {
+                    return true;
+                }
+
+                for (auto row : *rows) {
+                    buffer->push(row);
+                }
+                *rowCounter += rows->size();
+
+                return false;
+            };
+
+            auto inputExhausted = false;
+            if (inputChunksRows.empty()) {
+                inputExhausted = fillBuffer(
+                    &inputChunksReader,
+                    &inputChunksRows,
+                    inputChunksRowBuffer,
+                    &inputChunksRowsRead);
+            }
+
+            auto outputExhausted = false;
+            if (outputChunkRows.empty()) {
+                outputExhausted = fillBuffer(
+                    &outputChunkReader,
+                    &outputChunkRows,
+                    outputChunkRowBuffer,
+                    &outputChunkRowsRead);
+            }
+
+            if (inputChunksRowsRead > inputChunksRowCount) {
+                return TError("Actual number of rows in input chunks is greater than expected")
+                    << TErrorAttribute("rows_read", inputChunksRowsRead)
+                    << TErrorAttribute("expectd_rows", inputChunksRowCount);
+            } else if (inputExhausted && inputChunksRowsRead < inputChunksRowCount) {
+                return TError("Actual number of rows in input chunks is less than expected")
+                    << TErrorAttribute("rows_read", inputChunksRowsRead)
+                    << TErrorAttribute("expectd_rows", inputChunksRowCount);
+            }
+
+            if (outputChunkRowsRead > outputChunkRowCount) {
+                return TError("Actual number of rows in output chunk is greater than expected")
+                    << TErrorAttribute("rows_read", outputChunkRowsRead)
+                    << TErrorAttribute("expectd_rows", outputChunkRowCount);
+            } else if (outputExhausted && outputChunkRowsRead < outputChunkRowCount) {
+                return TError("Actual number of rows in output chunk is less than expected")
+                    << TErrorAttribute("rows_read", outputChunkRowsRead)
+                    << TErrorAttribute("expectd_rows", outputChunkRowCount);
+            }
+
+            if (inputExhausted && outputExhausted) {
+                YT_VERIFY(inputChunksRowsRead == inputChunksRowCount);
+                YT_VERIFY(outputChunkRowsRead == outputChunkRowCount);
+                YT_VERIFY(inputChunksRowCount == outputChunkRowCount);
+
+                YT_LOG_DEBUG("Shallow merge result validated (RowCount: %v)",
+                    inputChunksRowsRead);
+
+                return TError();
+            }
+
+            while (!inputChunksRows.empty() && !outputChunkRows.empty()) {
+                auto inputRow = inputChunksRows.front();
+                inputChunksRows.pop();
+
+                auto outputRow = outputChunkRows.front();
+                outputChunkRows.pop();
+
+                if (inputRow != outputRow) {
+                    return TError("Row differs in input and output chunks")
+                        << TErrorAttribute("row_index", rowIndex)
+                        << TErrorAttribute("input_row", inputRow)
+                        << TErrorAttribute("output_row", outputRow);
+                }
+
+                ++rowIndex;
+            }
+        }
+    }
+
+    const TChunkMergerConfigPtr& GetDynamicConfig() const
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        return dynamicConfigManager->GetConfig()->DataNode->ChunkMerger;
     }
 };
 

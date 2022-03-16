@@ -4,6 +4,7 @@ import "yt/ytlib/chunk_client/proto/chunk_service.proto";
 
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 
+import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
@@ -34,6 +35,8 @@ message TReplicateChunkJobSpecExt
     repeated fixed64 target_replicas = 6;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TRemoveChunkJobSpecExt
 {
     extend NJobTrackerClient.NProto.TJobSpec
@@ -57,6 +60,8 @@ message TRemoveChunkJobSpecExt
     // rather than failed.
     optional bool chunk_is_dead = 5;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TRepairChunkJobSpecExt
 {
@@ -91,6 +96,8 @@ message TRepairChunkJobSpecExt
     optional int64 row_count = 8;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TSealChunkJobSpecExt
 {
     extend NJobTrackerClient.NProto.TJobSpec
@@ -117,6 +124,8 @@ message TSealChunkJobSpecExt
     // No medium indexes are provided (hence fixed32).
     repeated fixed32 source_replicas = 5;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TMergeChunkInfo
 {
@@ -156,7 +165,22 @@ message TMergeChunksJobSpecExt
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
     required TChunkMergerWriterOptions chunk_merger_writer_options = 6;
     repeated fixed64 target_replicas = 7;
+    optional bool validate_shallow_merge = 8;
 }
+
+message TMergeChunksJobResultExt
+{
+    extend NJobTrackerClient.NProto.TJobResult
+    {
+        optional TMergeChunksJobResultExt merge_chunks_job_result_ext = 210;
+    }
+
+    optional bool deep_merge_fallback_occurred = 1;
+
+    optional NYT.NProto.TError shallow_merge_validation_error = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TAutotomizeChunkJobSpecExt
 {
@@ -198,13 +222,3 @@ message TAutotomizeChunkJobResultExt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TMergeChunksJobResultExt
-{
-    extend NJobTrackerClient.NProto.TJobResult
-    {
-        optional TMergeChunksJobResultExt merge_chunks_job_result_ext = 210;
-    }
-
-    optional bool deep_merge_fallback_occurred = 1;
-}
