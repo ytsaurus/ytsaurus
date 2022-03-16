@@ -115,6 +115,9 @@ public:
     int QueueSizeLimit;
     int MaxRunningJobCount;
 
+    //! Fraction (in percents) of shallow merge jobs for which validation is run.
+    int ShallowMergeValidationProbability;
+
     TDynamicChunkMergerConfig();
 };
 

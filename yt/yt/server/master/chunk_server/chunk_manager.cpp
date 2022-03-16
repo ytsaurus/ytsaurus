@@ -1491,10 +1491,8 @@ public:
 
                 auto jobType = job->GetType();
                 job->SetState(state);
-                if (state == EJobState::Completed) {
-                    job->Result() = jobStatus.result();
-                }
                 if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
+                    job->Result() = jobStatus.result();
                     job->Error() = jobError;
                 }
 

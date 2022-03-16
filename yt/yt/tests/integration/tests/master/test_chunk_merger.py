@@ -5,7 +5,7 @@ from yt_commands import (
     exists, concatenate,
     create_account, create_user, make_ace, insert_rows,
     alter_table, read_table, write_table, map, merge,
-    sync_create_cells, sync_mount_table,
+    sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
     start_transaction, abort_transaction, commit_transaction,
     sync_unmount_table, create_dynamic_table, wait_for_sys_config_sync,
     get_singular_chunk_id)
@@ -61,6 +61,7 @@ class TestChunkMerger(YTEnvSetup):
                 "create_chunks_period": 100,
                 "schedule_period": 100,
                 "session_finalization_period": 100,
+                "shallow_merge_validation_probability": 100,
             }
         }
     }
@@ -961,3 +962,55 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
 
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
+
+
+class TestShallowMergeValidation(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+
+    DELTA_NODE_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "chunk_merger": {
+                "max_chunk_count": 5,
+                "create_chunks_period": 100,
+                "schedule_period": 100,
+                "session_finalization_period": 100,
+                "shallow_merge_validation_probability": 100,
+            }
+        }
+    }
+
+    @authors("gritukan")
+    def test_validation_failed(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "chunk_merger": {
+                    "fail_shallow_merge_validation": True,
+                },
+            }
+        })
+
+        create("table", "//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+        set("//tmp/t/@chunk_merger_mode", "shallow")
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+
+        wait(lambda: not get("//sys/@config/chunk_manager/chunk_merger/enable"))

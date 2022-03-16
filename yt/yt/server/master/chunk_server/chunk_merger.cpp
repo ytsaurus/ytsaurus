@@ -96,12 +96,14 @@ TMergeJob::TMergeJob(
     TChunkIdWithIndexes chunkIdWithIndexes,
     TChunkVector inputChunks,
     TChunkMergerWriterOptions chunkMergerWriterOptions,
-    TNodePtrWithIndexesList targetReplicas)
+    TNodePtrWithIndexesList targetReplicas,
+    bool validateShallowMerge)
     : TJob(jobId, EJobType::MergeChunks, node, TMergeJob::GetResourceUsage(inputChunks), chunkIdWithIndexes)
     , TargetReplicas_(targetReplicas)
     , JobInfo_(std::move(jobInfo))
     , InputChunks_(std::move(inputChunks))
     , ChunkMergerWriterOptions_(std::move(chunkMergerWriterOptions))
+    , ValidateShallowMerge_(validateShallowMerge)
 { }
 
 void TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
@@ -132,6 +134,8 @@ void TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
     for (auto replica : TargetReplicas_) {
         jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
     }
+
+    jobSpecExt->set_validate_shallow_merge(ValidateShallowMerge_);
 }
 
 TNodeResources TMergeJob::GetResourceUsage(const TChunkVector& inputChunks)
@@ -1286,6 +1290,8 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
             chunkIdWithIndexes.MediumIndex);
     }
 
+    const auto& config = GetDynamicConfig();
+    auto validateShallowMerge = static_cast<int>(RandomNumber<ui32>() % 100) < config->ShallowMergeValidationProbability;
     auto job = New<TMergeJob>(
         jobInfo.JobId,
         jobInfo,
@@ -1293,15 +1299,18 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         chunkIdWithIndexes,
         std::move(inputChunks),
         std::move(chunkMergerWriterOptions),
-        std::move(targetReplicas));
+        std::move(targetReplicas),
+        validateShallowMerge);
     context->ScheduleJob(job);
 
-    YT_LOG_DEBUG("Merge job scheduled (JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v)",
+    YT_LOG_DEBUG("Merge job scheduled "
+        "(JobId: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, ValidateShallowMerge: %v)",
         job->GetJobId(),
         context->GetNode()->GetDefaultAddress(),
         jobInfo.NodeId,
         jobInfo.InputChunkIds,
-        jobInfo.OutputChunkId);
+        jobInfo.OutputChunkId,
+        validateShallowMerge);
 
     return true;
 }
@@ -1324,6 +1333,21 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
             "Chunks do not satisfy shallow merge criteria, will not try merging them again (JobId: %v)",
             job->GetJobId());
         result = EMergeSessionResult::PermanentFailure;
+    }
+
+    {
+        const auto& jobResult = job->Result();
+        const auto& jobResultExt = jobResult.GetExtension(NChunkClient::NProto::TMergeChunksJobResultExt::merge_chunks_job_result_ext);
+
+        TError error;
+        FromProto(&error, jobResultExt.shallow_merge_validation_error());
+        if (!error.IsOK()) {
+            YT_VERIFY(job->GetState() == EJobState::Failed);
+            YT_LOG_ALERT(error, "Shallow merge validation failed; disabling chunk merger (JobId: %v)",
+                job->GetJobId());
+            NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+                BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
+        }
     }
 
     FinalizeJob(
@@ -1387,6 +1411,32 @@ TChunkOwnerBase* TChunkMerger::FindChunkOwner(NCypressServer::TNodeId chunkOwner
         return nullptr;
     }
     return node->As<TChunkOwnerBase>();
+}
+
+void TChunkMerger::DisableChunkMerger()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    try {
+        GuardedDisableChunkMerger();
+    } catch (const std::exception& ex) {
+        YT_LOG_ALERT(ex, "Failed to disable chunk merger");
+    }
+}
+
+void TChunkMerger::GuardedDisableChunkMerger()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), EPeerKind::Leader);
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
+    auto req = TYPathProxy::Set("//sys/@config/chunk_manager/chunk_merger/enable");
+    req->set_value("\%false");
+    batchReq->AddRequest(req);
+    WaitFor(batchReq->Invoke())
+        .ThrowOnError();
 }
 
 void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)

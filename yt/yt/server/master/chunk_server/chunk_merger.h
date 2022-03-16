@@ -82,13 +82,15 @@ public:
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes,
         TChunkVector inputChunks,
         NChunkClient::NProto::TChunkMergerWriterOptions chunkMergerWriterOptions,
-        TNodePtrWithIndexesList targetReplicas);
+        TNodePtrWithIndexesList targetReplicas,
+        bool validateShallowMerge);
 
     void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     const TChunkVector InputChunks_;
     const NChunkClient::NProto::TChunkMergerWriterOptions ChunkMergerWriterOptions_;
+    const bool ValidateShallowMerge_;
 
     static NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(const TChunkVector& inputChunks);
 };
@@ -258,6 +260,9 @@ private:
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
 
     TChunkOwnerBase* FindChunkOwner(NCypressClient::TObjectId nodeId);
+
+    void DisableChunkMerger();
+    void GuardedDisableChunkMerger();
 
     void HydraCreateChunks(NProto::TReqCreateChunks* request);
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);
