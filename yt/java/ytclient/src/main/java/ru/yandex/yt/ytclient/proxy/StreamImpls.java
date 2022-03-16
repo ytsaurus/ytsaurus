@@ -842,7 +842,7 @@ class RetryingTableWriterImpl<T> implements TableWriter<T> {
                                         throw new RuntimeException("No serializer and objectClazz in WriteTable");
                                     }
                                     this.rowsSerializer = new TableRowsSerializer<>(MappedRowSerializer.forClass(
-                                            YTreeObjectSerializerFactory.forClass(objectClazz)
+                                            YTreeObjectSerializerFactory.forClass(objectClazz, result.schema)
                                     ));
                                 }
                                 return result;
