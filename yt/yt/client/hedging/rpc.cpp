@@ -29,11 +29,16 @@ TString ExpandClusterName(TString cluster)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
-{
+std::pair<TStringBuf, TStringBuf> ExtractClusterAndProxyRole(TStringBuf clusterUrl) {
     TStringBuf cluster;
     TStringBuf proxyRole;
     clusterUrl.Split('/', cluster, proxyRole);
+    return {cluster, proxyRole};
+}
+
+void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
+{
+    auto [cluster, proxyRole] = ExtractClusterAndProxyRole(clusterUrl);
     if (!proxyRole.empty()) {
         Y_ENSURE(config.GetProxyRole().empty(), "ProxyRole specified in both: config and url");
         config.SetProxyRole(ToString(proxyRole));

@@ -13,6 +13,9 @@ class TConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Helper function to extract ClusterName and ProxyRole from clusterUrl.
+std::pair<TStringBuf, TStringBuf> ExtractClusterAndProxyRole(TStringBuf clusterUrl);
+
 //! Helper function to properly set ClusterName and ProxyRole from clusterUrl.
 //  Expected that clusterUrl will be in format cluster[/proxyRole].
 void SetClusterUrl(TConfig& config, TStringBuf clusterUrl);

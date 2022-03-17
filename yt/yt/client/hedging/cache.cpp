@@ -10,14 +10,27 @@ namespace NYT::NClient::NHedging::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TConfig MakeClusterConfig(const TClustersConfig& clustersConfig, TStringBuf clusterUrl)
+{
+    auto [cluster, proxyRole] = ExtractClusterAndProxyRole(clusterUrl);
+    auto it = clustersConfig.GetClusterConfigs().find(cluster);
+    TConfig config = (it != clustersConfig.GetClusterConfigs().end()) ?
+        it->second : clustersConfig.GetDefaultConfig();
+    config.SetClusterName(ToString(cluster));
+    if (!proxyRole.empty()) {
+        config.SetProxyRole(ToString(proxyRole));
+    }
+    return config;
+}
+
 namespace {
 
 class TClientsCache
     : public IClientsCache
 {
 public:
-    TClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options)
-        : CommonConfig_(config)
+    TClientsCache(const TClustersConfig& config, const NYT::NApi::TClientOptions& options)
+        : ClustersConfig_(config)
         , Options_(options)
     {}
 
@@ -31,16 +44,14 @@ public:
             }
         }
 
-        TConfig config = CommonConfig_;
-        SetClusterUrl(config, clusterUrl);
-        auto client = CreateClient(config, Options_);
+        auto client = CreateClient(MakeClusterConfig(ClustersConfig_, clusterUrl), Options_);
 
         auto guard = WriterGuard(Lock_);
         return Clients_.try_emplace(clusterUrl, client).first->second;
     }
 
 private:
-    TConfig CommonConfig_;
+    TClustersConfig ClustersConfig_;
     NYT::NApi::TClientOptions Options_;
     NYT::NThreading::TReaderWriterSpinLock Lock_;
     THashMap<TString, NYT::NApi::IClientPtr> Clients_;
@@ -50,9 +61,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options)
+IClientsCachePtr CreateClientsCache(const TClustersConfig& config, const NYT::NApi::TClientOptions& options)
 {
     return NYT::New<TClientsCache>(config, options);
+}
+
+IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options)
+{
+    TClustersConfig clustersConfig;
+    *clustersConfig.MutableDefaultConfig() = config;
+    return CreateClientsCache(clustersConfig, options);
 }
 
 IClientsCachePtr CreateClientsCache(const TConfig& config)
@@ -62,7 +80,7 @@ IClientsCachePtr CreateClientsCache(const TConfig& config)
 
 IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options)
 {
-    return CreateClientsCache({}, options);
+    return CreateClientsCache(TClustersConfig{}, options);
 }
 
 IClientsCachePtr CreateClientsCache()

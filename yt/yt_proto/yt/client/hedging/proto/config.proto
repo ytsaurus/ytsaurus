@@ -21,6 +21,16 @@ message TConfig {
     optional uint32 RetryTimeout = 15;
 };
 
+message TClustersConfig {
+    // In DefaultConfig and ClusterConfigs field .ClusterName is ignored
+    // and field .ProxyRole can be overwritten with explicitly provided in cluster url one.
+
+    // DefaultConfig is used for clusters not mentioned in ClusterConfigs.
+    optional TConfig DefaultConfig = 1;
+    // Per-cluster configs.
+    map<string, TConfig> ClusterConfigs = 2;
+};
+
 message THedgingClientConfig {
     // all timeouts also in milliseconds
     message TClientOptions {
