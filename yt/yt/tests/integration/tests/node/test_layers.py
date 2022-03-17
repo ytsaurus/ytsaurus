@@ -339,3 +339,54 @@ class TestJobSetup(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == b"SETUP-OUTPUT\n"
+
+
+@authors("prime")
+class TestSquashfsLayers(TestLayers):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs": True,
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+
+        "data_node": {
+            "volume_manager": {
+                "convert_layers_to_squashfs": True,
+                "use_bundled_tar2squash": True,
+            }
+        },
+    }
+
+
+@authors("prime")
+class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs": True,
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+
+        "data_node": {
+            "volume_manager": {
+                "convert_layers_to_squashfs": True,
+                "use_bundled_tar2squash": True,
+
+                "regular_tmpfs_layer_cache": {
+                    "capacity": 10 * 1024 * 1024,
+                    "layers_update_period": 100,
+                },
+                "nirvana_tmpfs_layer_cache": {
+                    "capacity": 10 * 1024 * 1024,
+                    "layers_update_period": 100,
+                }
+            }
+        },
+    }

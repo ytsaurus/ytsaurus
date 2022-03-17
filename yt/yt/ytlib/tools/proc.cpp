@@ -46,7 +46,7 @@ void TKillAllByUidTool::operator()(int uid) const
 void TRemoveDirAsRootTool::operator()(const TString& path) const
 {
     // Child process
-    SafeSetUid(0);
+    TrySetUid(0);
     execl("/bin/rm", "/bin/rm", "-rf", path.c_str(), (void*)nullptr);
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %v: execl failed",
@@ -58,7 +58,7 @@ void TRemoveDirAsRootTool::operator()(const TString& path) const
 void TCreateDirectoryAsRootTool::operator()(const TString& path) const
 {
     // Child process
-    SafeSetUid(0);
+    TrySetUid(0);
     NFS::MakeDirRecursive(path);
 }
 
@@ -199,7 +199,7 @@ void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
 
 i64 TGetDirectorySizeAsRootTool::operator()(const TString& path) const
 {
-    SafeSetUid(0);
+    TrySetUid(0);
     return NFS::GetDirectorySize(path);
 }
 

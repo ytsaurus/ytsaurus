@@ -359,9 +359,10 @@ func NewWriter(w io.WriteSeeker, mkfsTime time.Time) (*Writer, error) {
 		writeInodeNumTo: make(map[string][]int64),
 	}
 	wr.Root = &Directory{
-		w:       wr,
-		name:    "", // root
-		modTime: mkfsTime,
+		w:        wr,
+		name:     "", // root
+		modTime:  mkfsTime,
+		xattrRef: invalidXattr,
 	}
 	return wr, nil
 }
@@ -373,6 +374,8 @@ type Directory struct {
 	modTime    time.Time
 	dirEntries []fullDirEntry
 	parent     *Directory
+
+	xattrRef uint32
 }
 
 func (d *Directory) path() string {
@@ -415,11 +418,30 @@ type File struct {
 // Directory creates a new directory with the specified name and modTime.
 func (d *Directory) Directory(name string, modTime time.Time) *Directory {
 	return &Directory{
-		w:       d.w,
-		name:    name,
-		modTime: modTime,
-		parent:  d,
+		w:        d.w,
+		name:     name,
+		modTime:  modTime,
+		parent:   d,
+		xattrRef: invalidXattr,
 	}
+}
+
+func (d *Directory) SetXattrs(xattrs []Xattr) {
+	d.xattrRef = d.w.addXattrs(xattrs)
+}
+
+func (w *Writer) addXattrs(xattrs []Xattr) uint32 {
+	xattrRef := uint32(len(w.xattrs))
+
+	w.xattrs = append(w.xattrs, xattrs[0]) // TODO: support multiple
+	size := len(xattrs[0].FullName) + len(xattrs[0].Value)
+	w.xattrIDs = append(w.xattrIDs, xattrID{
+		// Xattr is populated in writeXattrTables
+		Count: 1, // TODO: support multiple
+		Size:  uint32(size),
+	})
+
+	return xattrRef
 }
 
 func (w *Writer) NewFile(modTime time.Time, mode uint16, xattrs []Xattr) (*File, error) {
@@ -438,15 +460,9 @@ func (w *Writer) NewFile(modTime time.Time, mode uint16, xattrs []Xattr) (*File,
 
 	xattrRef := uint32(invalidXattr)
 	if len(xattrs) > 0 {
-		xattrRef = uint32(len(w.xattrs))
-		w.xattrs = append(w.xattrs, xattrs[0]) // TODO: support multiple
-		size := len(xattrs[0].FullName) + len(xattrs[0].Value)
-		w.xattrIDs = append(w.xattrIDs, xattrID{
-			// Xattr is populated in writeXattrTables
-			Count: 1, // TODO: support multiple
-			Size:  uint32(size),
-		})
+		xattrRef = w.addXattrs(xattrs)
 	}
+
 	return &File{
 		w:          w,
 		off:        off,
@@ -476,15 +492,9 @@ func (d *Directory) File(name string, modTime time.Time, mode uint16, xattrs []X
 
 	xattrRef := uint32(invalidXattr)
 	if len(xattrs) > 0 {
-		xattrRef = uint32(len(d.w.xattrs))
-		d.w.xattrs = append(d.w.xattrs, xattrs[0]) // TODO: support multiple
-		size := len(xattrs[0].FullName) + len(xattrs[0].Value)
-		d.w.xattrIDs = append(d.w.xattrIDs, xattrID{
-			// Xattr is populated in writeXattrTables
-			Count: 1, // TODO: support multiple
-			Size:  uint32(size),
-		})
+		xattrRef = d.w.addXattrs(xattrs)
 	}
+
 	return &File{
 		w:          d.w,
 		d:          d,
@@ -518,6 +528,7 @@ func (d *Directory) Symlink(oldname, newname string, modTime time.Time, mode os.
 	}); err != nil {
 		return err
 	}
+
 	if _, err := d.w.inodeBuf.Write([]byte(oldname)); err != nil {
 		return err
 	}
@@ -547,8 +558,8 @@ func (d *Directory) dev(typ uint16, name string, maj, min int, modTime time.Time
 			Mtime:       int32(modTime.Unix()),
 			InodeNumber: d.w.sb.Inodes + 1,
 		},
-		Nlink: 1, // TODO(later): when is this not 1?
-		Rdev:  uint32((maj << 8) & min),
+		Nlink: 1,
+		Rdev:  uint32((maj << 8) | (min & 0xff) | ((min & ^0xff) << 12)),
 	}); err != nil {
 		return err
 	}
@@ -674,7 +685,7 @@ func (d *Directory) Flush() error {
 	// within a dirInodeHeader or ldirInodeHeader
 	var parentInodeOffset int64
 
-	if len(d.dirEntries) > 256 || d.w.dirBuf.Len()-dirBufOffset > metadataBlockSize {
+	if len(d.dirEntries) > 256 || d.w.dirBuf.Len()-dirBufOffset > metadataBlockSize || d.xattrRef != invalidXattr {
 		parentInodeOffset = (2 + 2 + 2 + 2 + 4 + 4) + 4 + 4 + 4
 		if err := binary.Write(&d.w.inodeBuf, binary.LittleEndian, ldirInodeHeader{
 			inodeHeader: inodeHeader{
@@ -694,7 +705,7 @@ func (d *Directory) Flush() error {
 			ParentInode: d.w.sb.Inodes + 2, // invalid
 			Icount:      0,                 // no directory index
 			Offset:      uint16(dirBufOffset - dirBufStartBlock*metadataBlockSize),
-			Xattr:       invalidXattr,
+			Xattr:       d.xattrRef,
 		}); err != nil {
 			return err
 		}

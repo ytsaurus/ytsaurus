@@ -28,7 +28,14 @@ struct TArtifactDownloadOptions
     NChunkClient::TTrafficMeterPtr TrafficMeter;
 
     std::vector<TString> WorkloadDescriptorAnnotations;
+
+    typedef TCallback<void(NConcurrency::IAsyncZeroCopyInputStreamPtr, TString)>
+        TArtifactConverter;
+
+    TArtifactConverter Converter;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Manages chunks cached at Data Node.
 /*!

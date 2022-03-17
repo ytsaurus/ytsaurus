@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
+	"github.com/pkg/xattr"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -45,7 +46,7 @@ func runTest(t *testing.T, setup func(t *testing.T, dir string)) {
 	tarPath := filepath.Join(tmpDir, "test.tgz")
 	squashPath := filepath.Join(tmpDir, "image.squashfs")
 
-	tarCreate := exec.Command("tar", "-cvf", tarPath, ".")
+	tarCreate := exec.Command("tar", "--xattrs", "-cvf", tarPath, ".")
 	tarCreate.Dir = fsDir
 	tarCreate.Stderr = os.Stderr
 	require.NoError(t, tarCreate.Run())
@@ -109,6 +110,13 @@ func TestHardLink(t *testing.T) {
 
 func TestCharDevice(t *testing.T) {
 	runTest(t, func(t *testing.T, dir string) {
-		require.NoError(t, unix.Mknod(filepath.Join(dir, "dummy"), uint32(0666|os.ModeCharDevice), 0))
+		require.NoError(t, unix.Mknod(filepath.Join(dir, "chardev"), uint32(0666|unix.S_IFCHR), int(unix.Mkdev(0, 0))))
+	})
+}
+
+func TestXattrs(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "a"), 0777))
+		require.NoError(t, xattr.Set(filepath.Join(dir, "a"), "trusted.overlay.opaque", []byte("y")))
 	})
 }

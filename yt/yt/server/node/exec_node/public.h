@@ -38,6 +38,8 @@ struct TUserSandboxOptions
 extern const TString ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_CLASS(TChunkCache)
+DECLARE_REFCOUNTED_STRUCT(IVolumeArtifact)
+DECLARE_REFCOUNTED_CLASS(IVolumeChunkCache)
 
 DECLARE_REFCOUNTED_CLASS(TGpuManager)
 

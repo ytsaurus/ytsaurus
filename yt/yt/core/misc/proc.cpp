@@ -50,6 +50,10 @@
     #include <pthread.h>
 #endif
 
+#ifdef _linux_
+extern "C" int memfd_create(const char *name, unsigned flags);
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1400,4 +1404,24 @@ std::vector<TString> ListDisks()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TFile MemfdCreate(const TString& name)
+{
+#ifdef _linux_
+    int fd = memfd_create(name.c_str(), 0);
+    if (fd == -1) {
+        THROW_ERROR_EXCEPTION("Unable to create memfd")
+                << TError::FromSystem();
+    }
+
+    return TFile{fd};
+#else
+    Y_UNUSED(name);
+
+    THROW_ERROR_EXCEPTION("Not implemented");
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
