@@ -1264,6 +1264,12 @@ private:
     NProfiling::TTimeCounter TotalFailedJobTime_;
     NProfiling::TTimeCounter TotalAbortedJobTime_;
 
+    TStartedJobCounter StartedJobCounter_;
+    TAbortedJobCounter AbortedJobCounter_;
+    TAbortedJobByErrorCounter AbortedJobByErrorCounter_;
+    TFailedJobCounter FailedJobCounter_;
+    TCompletedJobCounter CompletedJobCounter_;
+
     void AccountExternalScheduleJobFailures() const;
 
     void InitializeOrchid();
@@ -1406,6 +1412,13 @@ private:
         bool needMerge);
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
+
+    void ProfileStartedJob(const TJoblet& joblet, const TStartedJobSummary& jobSummary);
+    void ProfileCompletedJob(const TJoblet& joblet, const TCompletedJobSummary& jobSummary);
+    void ProfileFailedJob(const TJoblet& joblet, const TFailedJobSummary& jobSummary);
+    template <class EErrorCodeType>
+    void ProfileAbortedJobByError(const TJoblet& joblet, const TAbortedJobSummary& jobSummary, EErrorCodeType errorCode);
+    void ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSummary& jobSummary);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

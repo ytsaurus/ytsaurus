@@ -1104,12 +1104,6 @@ private:
 
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
 
-    TStartedJobCounter StartedJobCounter_;
-    TAbortedJobCounter AbortedJobCounter_;
-    TAbortedJobByErrorCounter AbortedJobByErrorCounter_;
-    TFailedJobCounter FailedJobCounter_;
-    TCompletedJobCounter CompletedJobCounter_;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -1353,12 +1347,6 @@ private:
         JobEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleJobRequestsInbox_.reset();
-
-        StartedJobCounter_.clear();
-        AbortedJobCounter_.clear();
-        AbortedJobByErrorCounter_.clear();
-        FailedJobCounter_.clear();
-        CompletedJobCounter_.clear();
     }
 
     struct TPreparedHeartbeatRequest
@@ -1697,7 +1685,6 @@ private:
         JobEventsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_job_events(),
             [&] (auto* protoEvent) {
-                ProfileJobEvent(protoEvent);
                 auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
@@ -2050,131 +2037,6 @@ private:
     private:
         const TControllerAgent::TImpl* const ControllerAgent_;
     };
-
-
-    void ProfileJobEvent(const NScheduler::NProto::TSchedulerToAgentJobEvent* event)
-    {
-        const auto eventType = static_cast<ESchedulerToAgentJobEventType>(event->event_type());
-        switch (eventType) {
-            case ESchedulerToAgentJobEventType::Started:
-                ProfileStartedJob(event);
-                break;
-            case ESchedulerToAgentJobEventType::Completed:
-                ProfileCompletedJob(event);
-                break;
-            case ESchedulerToAgentJobEventType::Failed:
-                ProfileFailedJob(event);
-                break;
-            case ESchedulerToAgentJobEventType::Aborted:
-                ProfileAbortedJob(event);
-                break;
-            default:
-                break;
-        }
-    }
-
-    void ProfileStartedJob(const NScheduler::NProto::TSchedulerToAgentJobEvent* event)
-    {
-        const auto jobType = static_cast<EJobType>(event->status().job_type());
-        const auto& treeId = event->tree_id();
-
-        auto key = std::make_tuple(jobType, treeId);
-        auto it = StartedJobCounter_.find(key);
-        if (it == StartedJobCounter_.end()) {
-            it = StartedJobCounter_.emplace(
-                std::move(key),
-                ControllerAgentProfiler
-                    .WithTag("job_type", FormatEnum(jobType))
-                    .WithTag(ProfilingPoolTreeKey, treeId)
-                    .Counter("/jobs/started_job_count")).first;
-        }
-        it->second.Increment();
-    }
-
-    void ProfileCompletedJob(const NScheduler::NProto::TSchedulerToAgentJobEvent* event)
-    {
-        const auto jobType = static_cast<EJobType>(event->status().job_type());
-        const auto& treeId = event->tree_id();
-        const auto interruptReason = static_cast<EInterruptReason>(event->interrupt_reason());
-
-        auto key = std::make_tuple(jobType, interruptReason, treeId);
-        auto it = CompletedJobCounter_.find(key);
-        if (it == CompletedJobCounter_.end()) {
-            it = CompletedJobCounter_.emplace(
-                std::move(key),
-                ControllerAgentProfiler
-                    .WithTag("job_type", FormatEnum(jobType))
-                    .WithTag("interrupt_reason", FormatEnum(interruptReason))
-                    .WithTag(ProfilingPoolTreeKey, treeId)
-                    .Counter("/jobs/completed_job_count")).first;
-        }
-        it->second.Increment();
-    }
-
-    void ProfileFailedJob(const NScheduler::NProto::TSchedulerToAgentJobEvent* event)
-    {
-        const auto jobType = static_cast<EJobType>(event->status().job_type());
-        const auto& treeId = event->tree_id();
-
-        auto key = std::make_tuple(jobType, treeId);
-        auto it = FailedJobCounter_.find(key);
-        if (it == FailedJobCounter_.end()) {
-            it = FailedJobCounter_.emplace(
-                std::move(key),
-                ControllerAgentProfiler
-                    .WithTag("job_type", FormatEnum(jobType))
-                    .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
-                    .Counter("/jobs/failed_job_count")).first;
-        }
-        it->second.Increment();
-    }
-
-    template <class EErrorCodeType>
-    void ProfileAbortedJobByError(const TError& error, const EJobType jobType, const TString& treeId, EErrorCodeType errorCode)
-    {
-        if (!error.FindMatching(errorCode)) {
-            return;
-        }
-
-        auto key = std::make_tuple(jobType, static_cast<int>(errorCode), treeId);
-        auto it = AbortedJobByErrorCounter_.find(key);
-        if (it == AbortedJobByErrorCounter_.end()) {
-            it = AbortedJobByErrorCounter_.emplace(
-                std::move(key),
-                ControllerAgentProfiler
-                    .WithTag("job_type", FormatEnum(jobType))
-                    .WithTag("job_error", FormatEnum(errorCode))
-                    .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
-                    .Counter("/jobs/aborted_job_count_by_error")).first;
-        }
-        it->second.Increment();
-    }
-
-    void ProfileAbortedJob(const NScheduler::NProto::TSchedulerToAgentJobEvent* event)
-    {
-        const auto jobType = static_cast<EJobType>(event->status().job_type());
-        const auto& treeId = event->tree_id();
-        const auto abortReason = static_cast<EAbortReason>(event->abort_reason());
-        const auto error = FromProto<TError>(event->status().result().error());
-
-        {
-            auto key = std::make_tuple(jobType, abortReason, treeId);
-            auto it = AbortedJobCounter_.find(key);
-            if (it == AbortedJobCounter_.end()) {
-                it = AbortedJobCounter_.emplace(
-                    std::move(key),
-                    ControllerAgentProfiler
-                        .WithTag("job_type", FormatEnum(jobType))
-                        .WithTag("abort_reason", FormatEnum(abortReason))
-                        .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
-                        .Counter("/jobs/aborted_job_count")).first;
-            }
-            it->second.Increment();
-        }
-
-        ProfileAbortedJobByError(error, jobType, treeId, NRpc::EErrorCode::TransportError);
-        ProfileAbortedJobByError(error, jobType, treeId, NNet::EErrorCode::ResolveTimedOut);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
