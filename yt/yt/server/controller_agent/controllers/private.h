@@ -41,5 +41,13 @@ class TAggregatedJobStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TStartedJobCounter = THashMap<std::tuple<EJobType, TString>, NProfiling::TCounter>;
+using TAbortedJobCounter = THashMap<std::tuple<EJobType, EAbortReason, TString>, NProfiling::TCounter>;
+using TAbortedJobByErrorCounter = THashMap<std::tuple<EJobType, int, TString>, NProfiling::TCounter>;
+using TFailedJobCounter = THashMap<std::tuple<EJobType, TString>, NProfiling::TCounter>;
+using TCompletedJobCounter = THashMap<std::tuple<EJobType, EInterruptReason, TString>, NProfiling::TCounter>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 

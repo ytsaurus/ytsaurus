@@ -19,6 +19,7 @@
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/lib/scheduler/public.h>
 
 #include <yt/yt/server/lib/core_dump/helpers.h>
 
@@ -1845,6 +1846,120 @@ IYPathServicePtr TOperationControllerBase::BuildZombieOrchid()
     return orchid;
 }
 
+void TOperationControllerBase::ProfileStartedJob(
+    const TJoblet& joblet,
+    [[maybe_unused]] const TStartedJobSummary& jobSummary)
+{
+    const auto jobType = joblet.JobType;
+    const auto& treeId = joblet.TreeId;
+
+    auto key = std::make_tuple(jobType, treeId);
+    auto it = StartedJobCounter_.find(key);
+    if (it == StartedJobCounter_.end()) {
+        it = StartedJobCounter_.emplace(
+            std::move(key),
+            ControllerAgentProfiler
+                .WithTag("job_type", FormatEnum(jobType))
+                .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+                .Counter("/jobs/started_job_count")).first;
+    }
+    it->second.Increment();
+}
+
+void TOperationControllerBase::ProfileCompletedJob(const TJoblet& joblet, const TCompletedJobSummary& jobSummary)
+{
+    const auto interruptReason = jobSummary.InterruptReason;
+
+    const auto jobType = joblet.JobType;
+    const auto& treeId = joblet.TreeId;
+
+    auto key = std::make_tuple(jobType, interruptReason, treeId);
+    auto it = CompletedJobCounter_.find(key);
+    if (it == CompletedJobCounter_.end()) {
+        it = CompletedJobCounter_.emplace(
+            std::move(key),
+            ControllerAgentProfiler
+                .WithTag("job_type", FormatEnum(jobType))
+                .WithTag("interrupt_reason", FormatEnum(interruptReason))
+                .WithTag(ProfilingPoolTreeKey, treeId)
+                .Counter("/jobs/completed_job_count")).first;
+    }
+    it->second.Increment();
+}
+
+void TOperationControllerBase::ProfileFailedJob(const TJoblet& joblet, [[maybe_unused]] const TFailedJobSummary& jobSummary)
+{
+    const auto jobType = joblet.JobType;
+    const auto& treeId = joblet.TreeId;
+
+    auto key = std::make_tuple(jobType, treeId);
+    auto it = FailedJobCounter_.find(key);
+    if (it == FailedJobCounter_.end()) {
+        it = FailedJobCounter_.emplace(
+            std::move(key),
+            ControllerAgentProfiler
+                .WithTag("job_type", FormatEnum(jobType))
+                .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+                .Counter("/jobs/failed_job_count")).first;
+    }
+    it->second.Increment();
+}
+
+template <class EErrorCodeType>
+void TOperationControllerBase::ProfileAbortedJobByError(
+    const TJoblet& joblet,
+    const TAbortedJobSummary& jobSummary,
+    const EErrorCodeType errorCode)
+{
+    const auto jobType = joblet.JobType;
+    const auto& treeId = joblet.TreeId;
+
+    const auto error = FromProto<TError>(jobSummary.Result.error());
+
+    if (!error.FindMatching(errorCode)) {
+        return;
+    }
+
+    auto key = std::make_tuple(jobType, static_cast<int>(errorCode), treeId);
+    auto it = AbortedJobByErrorCounter_.find(key);
+    if (it == AbortedJobByErrorCounter_.end()) {
+        it = AbortedJobByErrorCounter_.emplace(
+            std::move(key),
+            ControllerAgentProfiler
+                .WithTag("job_type", FormatEnum(jobType))
+                .WithTag("job_error", FormatEnum(errorCode))
+                .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+                .Counter("/jobs/aborted_job_count_by_error")).first;
+    }
+    it->second.Increment();
+}
+
+void TOperationControllerBase::ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSummary& jobSummary)
+{
+    const auto jobType = joblet.JobType;
+    const auto& treeId = joblet.TreeId;
+
+    const auto abortReason = jobSummary.AbortReason;
+
+    {
+        auto key = std::make_tuple(jobType, abortReason, treeId);
+        auto it = AbortedJobCounter_.find(key);
+        if (it == AbortedJobCounter_.end()) {
+            it = AbortedJobCounter_.emplace(
+                std::move(key),
+                ControllerAgentProfiler
+                    .WithTag("job_type", FormatEnum(jobType))
+                    .WithTag("abort_reason", FormatEnum(abortReason))
+                    .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
+                    .Counter("/jobs/aborted_job_count")).first;
+        }
+        it->second.Increment();
+    }
+
+    ProfileAbortedJobByError(joblet, jobSummary, NRpc::EErrorCode::TransportError);
+    ProfileAbortedJobByError(joblet, jobSummary, NNet::EErrorCode::ResolveTimedOut);
+}
+
 std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescriptors()
 {
     auto streamDescriptors = GetStandardStreamDescriptors();
@@ -2802,6 +2917,10 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
     YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
 
     auto joblet = GetJoblet(jobId);
+
+    YT_VERIFY(jobSummary);
+    ProfileStartedJob(*joblet, *jobSummary);
+
     joblet->LastActivityTime = jobSummary->StartTime;
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
 
@@ -2902,6 +3021,8 @@ void TOperationControllerBase::ProcessJobFinishedResult(const TJobFinishedResult
 void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
+    YT_VERIFY(jobSummary);
 
     const auto jobId = jobSummary->Id;
     const auto abandoned = jobSummary->Abandoned;
@@ -3053,6 +3174,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             optionalRowCount = FindNumericValue(statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
         }
 
+        ProfileCompletedJob(*joblet, *jobSummary);
+
         OnJobFinished(std::move(jobSummary), /*retainJob*/ false);
 
         UnregisterJoblet(joblet);
@@ -3153,6 +3276,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         taskJobResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
 
         jobSummary->ReleaseFlags.ArchiveJobSpec = true;
+
+        ProfileFailedJob(*joblet, *jobSummary);
 
         OnJobFinished(std::move(jobSummary), /*retainJob*/ true);
 
@@ -3287,6 +3412,9 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
         bool retainJob = (abortReason == EAbortReason::UserRequest);
+
+        ProfileAbortedJob(*joblet, *jobSummary);
+
         OnJobFinished(std::move(jobSummary), retainJob);
 
         UnregisterJoblet(joblet);
