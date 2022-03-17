@@ -16,7 +16,7 @@ public:
     void Finalize() override;
 
     void Participate() override;
-    void Abandon(const TError& error) override;
+    TFuture<void> Abandon(const TError& error) override;
     void ReconfigureCell(TCellManagerPtr cellManager) override;
 
     NYson::TYsonProducer GetMonitoringProducer() override;

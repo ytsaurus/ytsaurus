@@ -1,5 +1,7 @@
 #include "election_manager_thunk.h"
 
+#include <yt/yt/core/actions/future.h>
+
 #include <yt/yt/core/yson/producer.h>
 
 namespace NYT::NElection {
@@ -21,9 +23,9 @@ void TElectionManagerThunk::Participate()
     Underlying_.Load()->Participate();
 }
 
-void TElectionManagerThunk::Abandon(const TError& error)
+TFuture<void> TElectionManagerThunk::Abandon(const TError& error)
 {
-    Underlying_.Load()->Abandon(error);
+    return Underlying_.Load()->Abandon(error);
 }
 
 void TElectionManagerThunk::ReconfigureCell(TCellManagerPtr cellManager)

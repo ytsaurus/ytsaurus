@@ -207,6 +207,8 @@ void TRecovery::DoRun()
         }
 
         ++changelogId;
+        WaitFor(changelog->Close())
+            .ThrowOnError();
     }
 
     auto automatonState = DecoratedAutomaton_->GetReachableState();
@@ -288,6 +290,8 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
                 YT_LOG_INFO("Changelog is empty, will not truncate (ChangelogId: %v)",
                     changelogIdToTruncate);
             }
+            WaitFor(changelogToTruncate->Close())
+                .ThrowOnError();
         }
 
         auto result = WaitFor(changelog->Truncate(adjustedRemoteRecordCount));

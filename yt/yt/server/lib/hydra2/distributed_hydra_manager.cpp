@@ -248,26 +248,24 @@ public:
         YT_LOG_INFO("Hydra instance is finalizing");
 
         auto error = TError("Hydra instance is finalizing");
+        return ElectionManager_->Abandon(error)
+            .Apply(BIND([=, this_ = MakeStrong(this)] {
+                CancelableContext_->Cancel(error);
 
-        CancelableContext_->Cancel(error);
+                if (ControlState_ != EPeerState::None) {
+                    RpcServer_->UnregisterService(HydraService_);
+                    RpcServer_->UnregisterService(InternalHydraService_);
+                }
 
-        ElectionManager_->Abandon(error);
+                StopEpoch();
 
-        if (ControlState_ != EPeerState::None) {
-            RpcServer_->UnregisterService(HydraService_);
-            RpcServer_->UnregisterService(InternalHydraService_);
-        }
+                ControlState_ = EPeerState::Stopped;
 
-        StopEpoch();
-
-        ControlState_ = EPeerState::Stopped;
-
-        LeaderRecovered_ = false;
-        FollowerRecovered_ = false;
-
-        return BIND(&TDistributedHydraManager::DoFinalize, MakeStrong(this))
-            .AsyncVia(AutomatonInvoker_)
-            .Run();
+                LeaderRecovered_ = false;
+                FollowerRecovered_ = false;
+            }).AsyncVia(ControlInvoker_))
+            .Apply(BIND(&TDistributedHydraManager::DoFinalize, MakeStrong(this))
+                .AsyncVia(AutomatonInvoker_));
     }
 
     IElectionCallbacksPtr GetElectionCallbacks() override
@@ -1550,7 +1548,8 @@ private:
         }
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
-        ElectionManager_->Abandon(error);
+        WaitFor(ElectionManager_->Abandon(error))
+            .ThrowOnError();
     }
 
     TElectionPriority GetSnapshotElectionPriority()
