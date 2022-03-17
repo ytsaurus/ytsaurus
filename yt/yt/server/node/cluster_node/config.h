@@ -369,6 +369,8 @@ class TClusterNodeDynamicConfig
     : public TSingletonsDynamicConfig
 {
 public:
+    static constexpr bool EnableHazard = true;
+
     //! Dynamic config annotation.
     TString ConfigAnnotation;
 

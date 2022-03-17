@@ -458,10 +458,26 @@ class TUserJobSensor
 {
 public:
     NProfiling::EMetricType Type;
+    EUserJobSensorSource Source;
+    // Path in statistics structure.
+    std::optional<TString> Path;
+    TString ProfilingName;
 
     TUserJobSensor()
     {
         RegisterParameter("type", Type);
+        RegisterParameter("source", Source)
+            .Default(EUserJobSensorSource::Statistics);
+        RegisterParameter("path", Path)
+            .Default();
+        RegisterParameter("profiling_name", ProfilingName);
+
+        RegisterPostprocessor([&] () {
+            if (Source == EUserJobSensorSource::Statistics && !Path) {
+                THROW_ERROR_EXCEPTION("Parameter \"path\" is required for sensor with %lv source",
+                    Source);
+            }
+        });
     }
 };
 
@@ -479,15 +495,32 @@ public:
     TUserJobMonitoringConfig()
     {
         RegisterParameter("sensors", Sensors)
-            .Default(GetDefaultSensors());
+            .Default();
     }
 
-private:
     static const THashMap<TString, TUserJobSensorPtr>& GetDefaultSensors();
 };
 
 DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringConfig)
 DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUserJobMonitoringDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<TString, TUserJobSensorPtr> Sensors;
+
+    TUserJobMonitoringDynamicConfig()
+    {
+        RegisterParameter("sensors", Sensors)
+            .Default();
+    }
+};
+
+DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -713,13 +746,15 @@ public:
     TVolumeManagerDynamicConfigPtr VolumeManager;
 
     NJobAgent::TJobControllerDynamicConfigPtr JobController;
-    
+
     NJobAgent::TJobReporterDynamicConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
     bool AbortOnJobsDisabled;
+
+    TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
 
     TExecNodeDynamicConfig()
     {
@@ -746,6 +781,9 @@ public:
 
         RegisterParameter("abort_on_jobs_disabled", AbortOnJobsDisabled)
             .Default(false);
+
+        RegisterParameter("user_job_monitoring", UserJobMonitoring)
+            .DefaultNew();
     }
 };
 

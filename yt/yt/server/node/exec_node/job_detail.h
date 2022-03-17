@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/containers/public.h>
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/server/lib/job_agent/job_report.h>
 #include <yt/yt/server/lib/job_agent/public.h>
 
@@ -193,6 +195,7 @@ private:
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector_;
 
     const TExecNodeConfigPtr Config_;
+    const TExecNodeDynamicConfigPtr DynamicConfig_;
     const IInvokerPtr Invoker_;
     const TInstant StartTime_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
@@ -205,6 +208,8 @@ private:
     const bool AbortJobIfAccountLimitExceeded_;
 
     const NLogging::TLogger Logger;
+
+    THashMap<TString, TUserJobSensorPtr> SupportedMonitoringSensors_;
 
     // Used to terminate artifacts downloading in case of cancelation.
     TFuture<void> ArtifactsFuture_ = VoidFuture;
@@ -409,10 +414,10 @@ private:
 
     bool NeedGpu();
 
-    bool IsSensorFromStatistics(const TString& sensorName);
+    void ProfileSensor(const TUserJobSensorPtr& sensor, NProfiling::ISensorWriter* writer, i64 value);
+    void ProfileSensor(const TString& sensorName, NProfiling::ISensorWriter* writer, i64 value);
 
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
-
     void CollectSensorsFromGpuInfo(NProfiling::ISensorWriter* writer);
 
     TFuture<TSharedRef> DumpSensors();

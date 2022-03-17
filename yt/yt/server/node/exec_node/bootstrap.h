@@ -43,6 +43,8 @@ struct IBootstrap
     virtual const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const = 0;
 
     virtual const TControllerAgentConnectorPoolPtr& GetControllerAgentConnectorPool() const = 0;
+
+    virtual NClusterNode::TClusterNodeDynamicConfigPtr GetDynamicConfig() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

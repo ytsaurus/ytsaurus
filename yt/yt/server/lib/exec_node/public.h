@@ -60,6 +60,11 @@ DEFINE_ENUM(EJobEnvironmentType,
     (Porto)
 );
 
+DEFINE_ENUM(EUserJobSensorSource,
+    (Gpu)
+    (Statistics)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames;

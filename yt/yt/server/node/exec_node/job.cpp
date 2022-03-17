@@ -125,6 +125,7 @@ TJob::TJob(
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(this))
     , Config_(Bootstrap_->GetConfig()->ExecNode)
+    , DynamicConfig_(Bootstrap_->GetDynamicConfig()->ExecNode)
     , Invoker_(Bootstrap_->GetJobInvoker())
     , StartTime_(TInstant::Now())
     , TrafficMeter_(New<TTrafficMeter>(
@@ -147,6 +148,14 @@ TJob::TJob(
     VERIFY_THREAD_AFFINITY(JobThread);
 
     PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
+
+    SupportedMonitoringSensors_ = TUserJobMonitoringConfig::GetDefaultSensors();
+    for (const auto& [sensorName, sensor] : Config_->UserJobMonitoring->Sensors) {
+        SupportedMonitoringSensors_[sensorName] = sensor;
+    }
+    for (const auto& [sensorName, sensor] : DynamicConfig_->UserJobMonitoring->Sensors) {
+        SupportedMonitoringSensors_[sensorName] = sensor;
+    }
 
     TrafficMeter_->Start();
 
@@ -1090,14 +1099,13 @@ void TJob::StartUserJobMonitoring()
     if (!monitoringConfig.enable()) {
         return;
     }
-    const auto& sensorsInConfig = Config_->UserJobMonitoring->Sensors;
     for (const auto& sensorName : monitoringConfig.sensor_names()) {
-        if (!sensorsInConfig.contains(sensorName)) {
+        if (!SupportedMonitoringSensors_.contains(sensorName)) {
             THROW_ERROR_EXCEPTION("Unknown user job sensor %Qv", sensorName);
         }
     }
     UserJobSensorProducer_ = New<TBufferedProducer>();
-    TProfiler("/user_job")
+    TProfiler("")
         .WithGlobal()
         .WithRequiredTag("job_descriptor", monitoringConfig.job_descriptor())
         .AddProducer("", UserJobSensorProducer_);
@@ -2480,9 +2488,23 @@ bool TJob::NeedGpu()
     return GetResourceUsage().gpu() > 0;
 }
 
-bool TJob::IsSensorFromStatistics(const TString& sensorName)
+void TJob::ProfileSensor(const TUserJobSensorPtr& sensor, ISensorWriter* writer, i64 value)
 {
-    return !sensorName.StartsWith("gpu/");
+    switch (sensor->Type) {
+        case EMetricType::Counter:
+            writer->AddCounter(sensor->ProfilingName, value);
+            return;
+        case EMetricType::Gauge:
+            writer->AddGauge(sensor->ProfilingName, value);
+            return;
+        default:
+            YT_ABORT();
+    }
+}
+
+void TJob::ProfileSensor(const TString& sensorName, ISensorWriter* writer, i64 value)
+{
+    ProfileSensor(GetOrCrash(SupportedMonitoringSensors_, sensorName), writer, value);
 }
 
 void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
@@ -2499,44 +2521,34 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
         return;
     }
 
-    const auto& sensors = Config_->UserJobMonitoring->Sensors;
     const auto& monitoringConfig = UserJobSpec_->monitoring_config();
     for (const auto& sensorName : monitoringConfig.sensor_names()) {
         // sensor must be present in config, the check was performed in constructor.
-        const auto& sensor = GetOrCrash(sensors, sensorName);
-        if (!IsSensorFromStatistics(sensorName)) {
+        const auto& sensor = GetOrCrash(SupportedMonitoringSensors_, sensorName);
+        if (sensor->Source != EUserJobSensorSource::Statistics) {
             continue;
         }
         INodePtr node;
         try {
-            node = FindNodeByYPath(statisticsNode, "/user_job/" + sensorName + "/sum");
+            node = FindNodeByYPath(statisticsNode, *(sensor->Path) + "/last");
             if (!node) {
-                YT_LOG_DEBUG("Statistics node not found (sensorName: %v)", sensorName);
+                YT_LOG_DEBUG("Statistics node not found (SensorName: %v, Path: %v)", sensorName, sensor->Path);
                 continue;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(TError(ex), "Error looking for statistics node (sensorName: %v)",
-                sensorName);
+            YT_LOG_DEBUG(TError(ex), "Error looking for statistics node (SensorName: %v, Path: %v)",
+                sensorName,
+                sensor->Path);
             continue;
         }
         if (node->GetType() != ENodeType::Int64) {
-            YT_LOG_DEBUG("Wrong type of sensor (sensorName: %v, ExpectedType: %v, ActualType: %v)",
+            YT_LOG_DEBUG("Wrong type of sensor (SensorName: %v, ExpectedType: %v, ActualType: %v)",
                 sensorName,
                 ENodeType::Int64,
                 node->GetType());
             continue;
         }
-        [&] {
-            switch (sensor->Type) {
-                case EMetricType::Counter:
-                    writer->AddCounter("/" + sensorName, node->GetValue<i64>());
-                    return;
-                case EMetricType::Gauge:
-                    writer->AddGauge("/" + sensorName, node->GetValue<i64>());
-                    return;
-            }
-            YT_ABORT();
-        }();
+        ProfileSensor(sensor, writer, node->GetValue<i64>());
     }
 }
 
@@ -2576,32 +2588,32 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
         TWithTagGuard tagGuard(writer, "gpu_slot", ToString(index));
 
         if (sensorNames.contains(UtilizationGpuName)) {
-            writer->AddGauge("/" + UtilizationGpuName, gpuInfo.UtilizationGpuRate);
+            ProfileSensor(UtilizationGpuName, writer, gpuInfo.UtilizationGpuRate);
         }
 
         if (sensorNames.contains(UtilizationMemoryName)) {
-            writer->AddGauge("/" + UtilizationMemoryName, gpuInfo.UtilizationMemoryRate);
+            ProfileSensor(UtilizationMemoryName, writer, gpuInfo.UtilizationMemoryRate);
         }
         if (sensorNames.contains(MemoryName)) {
-            writer->AddGauge("/" + MemoryName, gpuInfo.MemoryUsed);
+            ProfileSensor(MemoryName, writer, gpuInfo.MemoryUsed);
         }
 
         if (sensorNames.contains(UtilizationPowerName)) {
             auto utilizationPower = gpuInfo.PowerLimit == 0
                 ? 0
                 : gpuInfo.PowerDraw / gpuInfo.PowerLimit;
-            writer->AddGauge("/" + UtilizationPowerName, utilizationPower);
+            ProfileSensor(UtilizationPowerName, writer, utilizationPower);
         }
         if (sensorNames.contains(PowerName)) {
-            writer->AddGauge("/" + PowerName, gpuInfo.PowerDraw);
+            ProfileSensor(PowerName, writer, gpuInfo.PowerDraw);
         }
 
         if (sensorNames.contains(UtilizationClocksSmName)) {
             auto value = static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm;
-            writer->AddGauge("/" + UtilizationClocksSmName, value);
+            ProfileSensor(UtilizationClocksSmName, writer, value);
         }
         if (sensorNames.contains(ClocksSmName)) {
-            writer->AddGauge("/" + PowerName, gpuInfo.ClocksSm);
+            ProfileSensor(ClocksSmName, writer, gpuInfo.ClocksSm);
         }
     }
 }
