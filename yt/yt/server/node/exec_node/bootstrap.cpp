@@ -83,6 +83,8 @@ public:
 
         ChunkCache_ = New<TChunkCache>(GetConfig()->DataNode, this);
 
+        DynamicConfig_ = New<TClusterNodeDynamicConfig>();
+
         JobProxySolomonExporter_ = New<TSolomonExporter>(
             GetConfig()->ExecNode->JobProxySolomonExporter,
             TProfileManager::Get()->GetInvoker(),
@@ -230,6 +232,11 @@ public:
         return ControllerAgentConnectorPool_;
     }
 
+    TClusterNodeDynamicConfigPtr GetDynamicConfig() const override
+    {
+        return DynamicConfig_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -253,6 +260,8 @@ private:
     TEnumIndexedVector<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
 
     TControllerAgentConnectorPoolPtr ControllerAgentConnectorPool_;
+
+    TClusterNodeDynamicConfigPtr DynamicConfig_;
 
     void BuildJobProxyConfigTemplate()
     {
@@ -335,6 +344,8 @@ private:
         SchedulerConnector_->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         GetControllerAgentConnectorPool()->OnDynamicConfigChanged(oldConfig->ExecNode, newConfig->ExecNode);
         JobReporter_->OnDynamicConfigChanged(oldConfig->ExecNode->JobReporter, newConfig->ExecNode->JobReporter);
+
+        DynamicConfig_ = newConfig;
     }
 
     static EDataNodeThrottlerKind GetDataNodeThrottlerKind(EExecNodeThrottlerKind kind)

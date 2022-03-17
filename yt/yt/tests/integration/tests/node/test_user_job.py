@@ -2005,6 +2005,48 @@ class TestUserJobMonitoring(YTEnvSetup):
                 },
             )
 
+    @authors("ignat")
+    def test_dynamic_config(self):
+        update_nodes_dynamic_config(
+            {
+                "exec_agent": {
+                    "user_job_monitoring": {
+                        "sensors": {
+                            "my_memory_reserve": {
+                                "source": "statistics",
+                                "path": "/user_job/memory_reserve",
+                                "type": "gauge",
+                                "profiling_name": "/my_job/memory_reserve",
+                            }
+                        }
+                    }
+                }
+            })
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=1,
+            task_patch={
+                "monitoring": {
+                    "enable": True,
+                    "sensor_names": ["my_memory_reserve"],
+                },
+                "memory_limit": 1024 ** 3,
+                "memory_reserve_factor": 1.0,
+            },
+        )
+
+        job_id, = wait_breakpoint()
+
+        job_info = get_job(op.id, job_id)
+        node = job_info["address"]
+        descriptor = job_info["monitoring_descriptor"]
+
+        profiler = profiler_factory().at_node(node)
+        memory_reserve_gauge = profiler.gauge("my_job/memory_reserve", fixed_tags={"job_descriptor": descriptor})
+        wait(lambda: memory_reserve_gauge.get() is not None)
+        assert memory_reserve_gauge.get() >= 1024 ** 3
+
 
 ##################################################################
 
