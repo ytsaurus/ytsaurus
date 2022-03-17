@@ -24,7 +24,7 @@ void TCypressSynchronizerConfig::Register(TRegistrar registrar)
 
 void TQueueControllerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("loop_period", &TThis::LoopPeriod)
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
         .Default(TDuration::Seconds(1));
 }
 

@@ -31,11 +31,12 @@ struct TQueuePartitionSnapshot
 {
     TError Error;
 
+    // Fields below are not set if error is set.
     i64 LowerRowIndex = -1;
     i64 UpperRowIndex = -1;
     i64 AvailableRowCount = -1;
-    std::optional<TInstant> LastRowCommitTime;
-    std::optional<TDuration> CommitIdleTime;
+    TInstant LastRowCommitTime;
+    TDuration CommitIdleTime;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueuePartitionSnapshot);
@@ -63,18 +64,42 @@ DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EConsumerPartitionDisposition,
+    //! Sentinel value.
+    (None)
+    //! At the end of the window, i.e. unread row count == 0.
+    (UpToDate)
+    //! Inside the window but not at the end, i.e. 0 < unread row count <= available row count.
+    (PendingConsumption)
+    //! Past the window, i.e. unread row count > available row count.
+    (Expired)
+    //! Ahead of the window, i.e. "unread row count < 0" (unread row count is capped)
+    (Ahead)
+)
+
 //! Snapshot of a partition within consumer.
 struct TConsumerPartitionSnapshot
     : public TRefCounted
 {
+    // The field below is effectively the error of the corresponding queue partition.
+
     TError Error;
 
+    // Fields below are always set.
     i64 NextRowIndex = -1;
+    TInstant LastConsumeTime;
+    TDuration ConsumeIdleTime;
+
+    // Fields below are not set if error is set (as they depend on the unavailable information on the queue partition).
+
+    EConsumerPartitionDisposition Disposition = EConsumerPartitionDisposition::None;
+    //! Offset of the next row with respect to the upper row index in the partition.
+    //! May be negative if the consumer is ahead of the partition.
     i64 UnreadRowCount = -1;
+    //! If #Disposition == PendingConsumption, the commit timestamp of the next row to be read by the consumer;
+    //! std::nullopt otherwise.
     std::optional<TInstant> NextRowCommitTime;
-    std::optional<TDuration> ProcessingLag;
-    std::optional<TInstant> LastConsumeTime;
-    std::optional<TDuration> ConsumeIdleTime;
+    TDuration ProcessingLag;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerPartitionSnapshot);

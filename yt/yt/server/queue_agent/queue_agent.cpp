@@ -96,6 +96,8 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
+    YT_LOG_DEBUG("Executing orchid request (PollIndex: %v)", PollIndex_ - 1);
+
     // NB: without taking copy we may end up with invalidated iterators due to yielding.
     auto queuesCopy = Queues_;
     auto consumersCopy = Consumers_;
@@ -105,6 +107,7 @@ void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
             .Item("status").BeginMap()
                 .Item("error").Value(error)
             .EndMap()
+            .Item("pass_index").Value(0)
             .Item("partitions").BeginList().EndList();
     };
 
@@ -269,16 +272,16 @@ void TQueueAgent::Poll()
 
         freshConsumer.RowRevision = *row.RowRevision;
 
-        if (!row.Target) {
+        if (!row.TargetQueue) {
             freshConsumer.Error = TError("Consumer is missing target");
             continue;
         }
 
-        freshConsumer.Target = row.Target;
+        freshConsumer.Target = row.TargetQueue;
 
-        auto it = freshQueues.find(*row.Target);
+        auto it = freshQueues.find(*row.TargetQueue);
         if (it == freshQueues.end()) {
-            freshConsumer.Error = TError("Target queue %Qv is not registered", *row.Target);
+            freshConsumer.Error = TError("Target queue %Qv is not registered", *row.TargetQueue);
             continue;
         }
 
