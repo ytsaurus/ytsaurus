@@ -311,7 +311,7 @@ private:
 
             auto error = TError(rspOrError);
             for (const auto& promise : promises) {
-                promise.TrySet(std::move(error));
+                promise.TrySet(error);
             }
         }
     }
