@@ -9,12 +9,13 @@
 namespace NYT::NClient::NHedging::NRpc {
 
 class TConfig;
+class TClustersConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Cache of  clients per cluster.
 class IClientsCache
-    : public NYT::TRefCounted 
+    : public NYT::TRefCounted
 {
 public:
     virtual NYT::NApi::IClientPtr GetClient(TStringBuf clusterUrl) = 0;
@@ -24,6 +25,9 @@ DECLARE_REFCOUNTED_TYPE(IClientsCache);
 DEFINE_REFCOUNTED_TYPE(IClientsCache);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Creates clients cache which explicitly given config. Server name is always overwritten with requested.
+IClientsCachePtr CreateClientsCache(const TClustersConfig& config, const NYT::NApi::TClientOptions& options);
 
 //! Creates clients cache which shares same config (except server name).
 IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options);
@@ -36,6 +40,10 @@ IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options);
 
 //! Shortcut to create cache with default config.
 IClientsCachePtr CreateClientsCache();
+
+
+//! Helper function to create one cluster config from cluster url and clusters config
+TConfig MakeClusterConfig(const TClustersConfig& config, TStringBuf clusterUrl);
 
 ////////////////////////////////////////////////////////////////////////////////
 
