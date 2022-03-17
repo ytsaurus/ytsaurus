@@ -1,5 +1,3 @@
-#ifdef __linux__
-
 #include "porto_executor.h"
 #include "config.h"
 
@@ -28,6 +26,8 @@ using namespace NConcurrency;
 using Porto::EError;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
 
 static const NLogging::TLogger& Logger = ContainersLogger;
 static constexpr auto RetryInterval = TDuration::MilliSeconds(100);
@@ -669,7 +669,7 @@ private:
     {
         TVector<TString> containers_(containers.begin(), containers.end());
 
-        TMap<TString, ui64> result;
+        TMap<TString, uint64_t> result;
 
         ExecuteApiCall(
             [&] { return Api_->GetProcMetric(containers_, metric, result); },
@@ -905,6 +905,18 @@ IPortoExecutorPtr CreatePortoExecutor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NContainers
+#else
+
+IPortoExecutorPtr CreatePortoExecutor(
+    TPortoExecutorConfigPtr /* config */,
+    const TString& /* threadNameSuffix */,
+    const NProfiling::TProfiler& /* profiler */)
+{
+    THROW_ERROR_EXCEPTION("Porto executor is not available on this platform");
+}
 
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NContainers

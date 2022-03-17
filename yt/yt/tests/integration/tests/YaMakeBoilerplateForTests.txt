@@ -49,11 +49,6 @@ ELSE()
     )
 ENDIF()
 
-DATA(
-    sbr://2566238329 # Layers.
-    sbr://1703335903 # Rootfs.
-)
-
 COPY_FILE(
     yt/yt/tests/integration/tests/conftest.py conftest.py
 )
@@ -65,6 +60,11 @@ TEST_SRCS(
 DEPENDS(
     yt/yt/packages/tests_package
     yt/yt/tools/yt_sudo_fixup
+)
+
+DATA(
+    sbr://2566238329 # Layers.
+    sbr://1703335903 # Rootfs.
 )
 
 PY_NAMESPACE(.)

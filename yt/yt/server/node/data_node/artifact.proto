@@ -10,6 +10,7 @@ message TArtifactKey
     optional bytes format = 3;
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 6;
     required NYT.NChunkClient.NProto.TDataSource data_source = 7;
+    optional bool is_squashfs_image = 8 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

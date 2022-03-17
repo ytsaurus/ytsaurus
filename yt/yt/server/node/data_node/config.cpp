@@ -295,6 +295,15 @@ TVolumeManagerConfig::TVolumeManagerConfig()
     RegisterParameter("test_disk_quota", TestDiskQuota)
         .Default(false);
 
+    RegisterParameter("tar2squash_tool_path", Tar2SquashToolPath)
+        .Default("tar2squash");
+
+    RegisterParameter("use_bundled_tar2squash", UseBundledTar2Squash)
+        .Default(false);
+
+    RegisterParameter("convert_layers_to_squashfs", ConvertLayersToSquashfs)
+        .Default(false);
+
     RegisterParameter("regular_tmpfs_layer_cache", RegularTmpfsLayerCache)
         .Alias("tmpfs_layer_cache")
         .DefaultNew();

@@ -12,10 +12,19 @@ import (
 	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
 )
 
+func buildXattrs(h *tar.Header) []squashfs.Xattr {
+	var xattrs []squashfs.Xattr
+	for k, v := range h.Xattrs {
+		xattrs = append(xattrs, squashfs.XattrFromAttr(k, []byte(v)))
+	}
+	return xattrs
+}
+
 func Convert(out *squashfs.Writer, in *tar.Reader) error {
 	files := map[string]*squashfs.File{}
 	directories := map[string][]*tar.Header{}
 
+	var root *tar.Header
 	for {
 		h, err := in.Next()
 		if err == io.EOF {
@@ -25,7 +34,7 @@ func Convert(out *squashfs.Writer, in *tar.Reader) error {
 		}
 
 		if h.Typeflag == tar.TypeReg {
-			file, err := out.NewFile(h.ModTime, uint16(h.Mode), nil)
+			file, err := out.NewFile(h.ModTime, uint16(h.Mode), buildXattrs(h))
 			if err != nil {
 				return err
 			}
@@ -42,6 +51,7 @@ func Convert(out *squashfs.Writer, in *tar.Reader) error {
 		}
 
 		if path.Clean(h.Name) == "." {
+			root = h
 			continue
 		}
 
@@ -78,13 +88,25 @@ func Convert(out *squashfs.Writer, in *tar.Reader) error {
 
 			case tar.TypeDir:
 				subdir := dir.Directory(entryName, e.ModTime)
+				if len(e.Xattrs) != 0 {
+					subdir.SetXattrs(buildXattrs(e))
+				}
+
 				if err := flushDir(e.Name, subdir); err != nil {
 					return err
 				}
 
-			case tar.TypeBlock, tar.TypeChar:
-				// We ignore block and char devices. Porto will mount /dev for us.
-				continue
+			case tar.TypeBlock:
+				err := dir.BlockDevice(entryName, int(e.Devmajor), int(e.Devminor), e.ModTime, fs.FileMode(e.Mode))
+				if err != nil {
+					return err
+				}
+
+			case tar.TypeChar:
+				err := dir.CharDevice(entryName, int(e.Devmajor), int(e.Devminor), e.ModTime, fs.FileMode(e.Mode))
+				if err != nil {
+					return err
+				}
 
 			case tar.TypeFifo:
 				err := dir.Fifo(entryName, e.ModTime, fs.FileMode(e.Mode))
@@ -98,6 +120,10 @@ func Convert(out *squashfs.Writer, in *tar.Reader) error {
 		}
 
 		return dir.Flush()
+	}
+
+	if root != nil && len(root.Xattrs) != 0 {
+		out.Root.SetXattrs(buildXattrs(root))
 	}
 
 	if err := flushDir(".", out.Root); err != nil {

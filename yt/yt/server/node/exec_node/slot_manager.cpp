@@ -18,6 +18,7 @@
 #include <yt/yt/server/node/job_agent/job_controller.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -456,7 +457,11 @@ void TSlotManager::AsyncInitialize()
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
         auto volumeManagerOrError = WaitFor(CreatePortoVolumeManager(
-            Bootstrap_->GetConfig()->DataNode->VolumeManager,
+            Bootstrap_->GetConfig()->DataNode,
+            Bootstrap_->GetDynamicConfigManager(),
+            CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
+            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetMemoryUsageTracker()->WithCategory(NNodeTrackerClient::EMemoryCategory::TmpfsLayers),
             Bootstrap_));
         if (volumeManagerOrError.IsOK()) {
             RootVolumeManager_ = volumeManagerOrError.Value();

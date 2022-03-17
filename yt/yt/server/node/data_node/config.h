@@ -334,6 +334,12 @@ public:
 
     bool TestDiskQuota;
 
+    bool ConvertLayersToSquashfs;
+
+    //! Path to tar2squash binary.
+    TString Tar2SquashToolPath;
+    bool UseBundledTar2Squash;
+
     TTmpfsLayerCacheConfigPtr RegularTmpfsLayerCache;
     TTmpfsLayerCacheConfigPtr NirvanaTmpfsLayerCache;
 

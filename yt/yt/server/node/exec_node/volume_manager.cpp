@@ -1,25 +1,5 @@
 #include "volume_manager.h"
 
-#ifndef __linux__
-
-namespace NYT::NExecNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Just a stub for Mac-lovers.
-TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
-    NDataNode::TVolumeManagerConfigPtr /*config*/,
-    IBootstrap* /*bootstrap*/)
-{
-    THROW_ERROR_EXCEPTION("Volume manager is not supported");
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NExecNode
-
-#else
-
 #include "bootstrap.h"
 #include "chunk_cache.h"
 #include "helpers.h"
@@ -59,6 +39,8 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/client/formats/public.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -73,6 +55,12 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
+
+#include <yt/yt/core/net/connection.h>
+
+#include <yt/yt/library/process/process.h>
+
+#include <library/cpp/resource/resource.h>
 
 #include <util/system/fs.h>
 
@@ -96,6 +84,56 @@ static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString StorageSuffix = "storage";
 static const TString MountSuffix = "mount";
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVolumeArtifactAdapter
+    : public IVolumeArtifact
+{
+public:
+    TVolumeArtifactAdapter(IChunkPtr chunk)
+        : Chunk_(chunk)
+    { }
+
+    TString GetFileName() const override
+    {
+        return Chunk_->GetFileName();
+    }
+
+private:
+    IChunkPtr Chunk_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVolumeChunkCacheAdapter
+    : public IVolumeChunkCache
+{
+public:
+    TVolumeChunkCacheAdapter(TChunkCachePtr chunkCache)
+        : ChunkCache_(chunkCache)
+    { }
+
+    TFuture<IVolumeArtifactPtr> DownloadArtifact(
+        const NDataNode::TArtifactKey& key,
+        const TArtifactDownloadOptions& artifactDownloadOptions) override
+    {
+        auto artifact = ChunkCache_->DownloadArtifact(key, artifactDownloadOptions);
+        return artifact.Apply(BIND([] (IChunkPtr artifact) {
+            return IVolumeArtifactPtr(New<TVolumeArtifactAdapter>(artifact));
+        }));
+    }
+
+private:
+    TChunkCachePtr ChunkCache_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVolumeChunkCachePtr CreateVolumeChunkCacheAdapter(TChunkCachePtr chunkCache)
+{
+    return New<TVolumeChunkCacheAdapter>(chunkCache);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +171,6 @@ struct TVolumeMeta
     : public NDataNode::NProto::TVolumeMeta
 {
     TVolumeId Id;
-    TString StoragePath;
     TString MountPath;
 };
 
@@ -180,15 +217,15 @@ class TLayerLocation
 {
 public:
     TLayerLocation(
-        IBootstrap* bootstrap,
         TLayerLocationConfigPtr locationConfig,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
         TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
         const TString& id)
         : TDiskLocation(locationConfig, id, ExecNodeLogger)
-        , Bootstrap_(bootstrap)
         , Config_(locationConfig)
+        , DynamicConfig_(dynamicConfig)
         , VolumeExecutor_(std::move(volumeExecutor))
         , LayerExecutor_(std::move(layerExecutor))
         , LocationQueue_(New<TActionQueue>(id))
@@ -227,7 +264,14 @@ public:
 
     TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
     {
-        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag)
+        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag, false)
+            .AsyncVia(LocationQueue_->GetInvoker())
+            .Run();
+    }
+
+    TFuture<TLayerMeta> MountSquashfsLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
+    {
+        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag, true)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -239,9 +283,9 @@ public:
             .Run();
     }
 
-    void RemoveLayer(const TLayerId& layerId)
+    void RemoveLayer(const TLayerId& layerId, bool isSquashfsLayer)
     {
-        BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
+        BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId, isSquashfsLayer)
             .Via(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -253,10 +297,10 @@ public:
             .Run();
     }
 
-    void RemoveVolume(const TVolumeId& volumeId)
+    TFuture<void> RemoveVolume(const TVolumeId& volumeId)
     {
-        BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), volumeId)
-            .Via(LocationQueue_->GetInvoker())
+        return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), volumeId)
+            .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
 
@@ -278,7 +322,7 @@ public:
         }
 
         // Save the reason in a file and exit.
-        // Location will be disabled during the scan in the restart process.
+        // Location will be disabled during the scan in the restarted process.
         auto lockFilePath = NFS::CombinePaths(Config_->Path, DisabledLockFileName);
         try {
             TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
@@ -355,8 +399,8 @@ public:
     }
 
 private:
-    const IBootstrap* Bootstrap_;
     const TLayerLocationConfigPtr Config_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
     const IPortoExecutorPtr VolumeExecutor_;
     const IPortoExecutorPtr LayerExecutor_;
 
@@ -448,8 +492,7 @@ private:
             if (!fileIds.contains(id)) {
                 YT_LOG_DEBUG("Remove directory without a corresponding meta file (LayerName: %v)",
                     layerName);
-                auto async = Bootstrap_
-                    ->GetDynamicConfigManager()
+                auto async = DynamicConfig_
                     ->GetConfig()
                     ->ExecNode
                     ->VolumeManager
@@ -662,7 +705,7 @@ private:
             tag);
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
+    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag, bool squashfs)
     {
         ValidateEnabled();
 
@@ -690,30 +733,43 @@ private:
                 tag);
 
             auto layerDirectory = GetLayerPath(id);
+            i64 layerSize = 0;
 
-            try {
-                YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
-                    layerDirectory,
-                    tag);
+            if (squashfs) {
+                THashMap<TString, TString> properties;
+                properties["backend"] = "squash";
+                properties["layers"] = archivePath;
 
-                TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
-                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
+                layerSize = NFS::GetFileStatistics(archivePath).Size;
+
+                NFs::MakeDirectoryRecursive(layerDirectory);
+
+                WaitFor(VolumeExecutor_->CreateVolume(layerDirectory, properties))
+                    .ValueOrThrow();
+            } else {
+                try {
+                    YT_LOG_DEBUG("Unpack layer (Path: %v, Tag: %v)",
+                        layerDirectory,
+                        tag);
+
+                    TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
+                    WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
+                        .ThrowOnError();
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
+                        id,
+                        archivePath,
+                        tag);
+                    THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                        << ex;
+                }
+
+                layerSize = RunTool<TGetDirectorySizeAsRootTool>(layerDirectory);
+                YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
                     id,
-                    archivePath,
+                    layerSize,
                     tag);
-                THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
-                    << ex;
             }
-
-            auto layerSize = RunTool<TGetDirectorySizeAsRootTool>(layerDirectory);
-
-            YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
-                id,
-                layerSize,
-                tag);
 
             TLayerMeta layerMeta;
             layerMeta.Path = layerDirectory;
@@ -739,7 +795,7 @@ private:
         }
     }
 
-    void DoRemoveLayer(const TLayerId& layerId)
+    void DoRemoveLayer(const TLayerId& layerId, bool isSquashfsLayer)
     {
         ValidateEnabled();
 
@@ -747,16 +803,22 @@ private:
         auto layerMetaPath = GetLayerMetaPath(layerId);
 
         try {
-            YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v)",
+            YT_LOG_INFO("Removing layer (LayerId: %v, LayerPath: %v, IsSquashfs: %v)",
                 layerId,
-                layerPath);
-            auto async = Bootstrap_
-                ->GetDynamicConfigManager()
-                ->GetConfig()
-                ->ExecNode
-                ->VolumeManager
-                ->EnableAsyncLayerRemoval;
-            LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async);
+                layerPath,
+                isSquashfsLayer);
+
+            if (!isSquashfsLayer) {
+                auto async = DynamicConfig_
+                    ->GetConfig()
+                    ->ExecNode
+                    ->VolumeManager
+                    ->EnableAsyncLayerRemoval;
+                LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, async);
+            } else {
+                LayerExecutor_->UnlinkVolume(layerPath, "self");
+            }
+
             NFS::Remove(layerMetaPath);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove layer %v",
@@ -785,19 +847,17 @@ private:
         auto id = TVolumeId::Create();
         auto volumePath = GetVolumePath(id);
 
-        auto storagePath = NFS::CombinePaths(volumePath, StorageSuffix);
         auto mountPath = NFS::CombinePaths(volumePath, MountSuffix);
 
         try {
             YT_LOG_DEBUG("Creating volume (VolumeId: %v)",
                 id);
 
-            NFS::MakeDirRecursive(storagePath, 0755);
             NFS::MakeDirRecursive(mountPath, 0755);
 
             THashMap<TString, TString> properties;
             properties["backend"] = "overlay";
-            properties["storage"] = storagePath;
+            properties["place"] = PlacePath_;
 
             TStringBuilder builder;
             for (const auto& layer : layers) {
@@ -823,7 +883,6 @@ private:
                 volumeMeta.add_layer_paths(layer.Path);
             }
             ToProto(volumeMeta.mutable_id(), id);
-            volumeMeta.StoragePath = storagePath;
             volumeMeta.MountPath = mountPath;
             volumeMeta.Id = id;
 
@@ -887,7 +946,7 @@ private:
             YT_LOG_DEBUG("Volume unlinked (VolumeId: %v)",
                 volumeId);
 
-            RunTool<TRemoveDirAsRootTool>(volumePath);
+            NFS::RemoveRecursive(volumePath);
             NFS::Remove(volumeMetaPath);
 
             YT_LOG_INFO("Volume directory and meta removed (VolumeId: %v, VolumePath: %v, VolumeMetaPath: %v)",
@@ -968,7 +1027,8 @@ public:
         YT_LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v)",
             LayerMeta_.Id,
             LayerMeta_.Path);
-        Location_->RemoveLayer(LayerMeta_.Id);
+
+        Location_->RemoveLayer(LayerMeta_.Id, static_cast<bool>(UnderlyingArtifact_));
     }
 
     const TString& GetPath() const
@@ -986,9 +1046,15 @@ public:
         return LayerMeta_;
     }
 
+    void SetUnderlyingArtifact(IVolumeArtifactPtr chunk)
+    {
+        UnderlyingArtifact_ = std::move(chunk);
+    }
+
 private:
     const TLayerMeta LayerMeta_;
     const TLayerLocationPtr Location_;
+    IVolumeArtifactPtr UnderlyingArtifact_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
@@ -1009,10 +1075,16 @@ public:
     TTmpfsLayerCache(
         IBootstrap* const bootstrap,
         TTmpfsLayerCacheConfigPtr config,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+        IInvokerPtr controlInvoker,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         const TString& cacheName,
         IPortoExecutorPtr portoExecutor,
         TAbsorbLayerCallback absorbLayer)
         : Config_(std::move(config))
+        , DynamicConfig_(std::move(dynamicConfig))
+        , ControlInvoker_(std::move(controlInvoker))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , CacheName_(cacheName)
         , Bootstrap_(bootstrap)
         , PortoExecutor_(std::move(portoExecutor))
@@ -1044,9 +1116,12 @@ public:
 
         auto path = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), Format("%v_tmpfs_layers", CacheName_));
 
-        Bootstrap_->SubscribePopulateAlerts(BIND(
-            &TTmpfsLayerCache::PopulateTmpfsAlert,
-            MakeWeak(this)));
+        if (Bootstrap_) {
+            Bootstrap_->SubscribePopulateAlerts(BIND(
+                &TTmpfsLayerCache::PopulateTmpfsAlert,
+                MakeWeak(this)));
+        }
+
         {
             YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
             auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
@@ -1069,9 +1144,7 @@ public:
             WaitFor(PortoExecutor_->CreateVolume(path, volumeProperties))
                 .ThrowOnError();
 
-            Bootstrap_->GetMemoryUsageTracker()->Acquire(
-                NNodeTrackerClient::EMemoryCategory::TmpfsLayers,
-                Config_->Capacity);
+            MemoryUsageTracker_->Acquire(Config_->Capacity);
 
             auto locationConfig = New<TLayerLocationConfig>();
             locationConfig->Quota = Config_->Capacity;
@@ -1081,8 +1154,8 @@ public:
             locationConfig->LocationIsAbsolute = false;
 
             TmpfsLocation_ = New<TLayerLocation>(
-                Bootstrap_,
                 std::move(locationConfig),
+                DynamicConfig_,
                 nullptr,
                 PortoExecutor_,
                 PortoExecutor_,
@@ -1091,12 +1164,15 @@ public:
             WaitFor(TmpfsLocation_->Initialize())
                 .ThrowOnError();
 
-            LayerUpdateExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetControlInvoker(),
-                BIND(&TTmpfsLayerCache::UpdateLayers, MakeWeak(this)),
-                Config_->LayersUpdatePeriod);
+            if (Bootstrap_) {
+                LayerUpdateExecutor_ = New<TPeriodicExecutor>(
+                    ControlInvoker_,
+                    BIND(&TTmpfsLayerCache::UpdateLayers, MakeWeak(this)),
+                    Config_->LayersUpdatePeriod);
 
-            LayerUpdateExecutor_->Start();
+                LayerUpdateExecutor_->Start();
+            }
+
             result = Initialized_.ToFuture();
         } catch (const std::exception& ex) {
             auto error = TError("Failed to create %v tmpfs layer volume cache", CacheName_) << ex;
@@ -1123,6 +1199,9 @@ public:
 
 private:
     const TTmpfsLayerCacheConfigPtr Config_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const IInvokerPtr ControlInvoker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const TString CacheName_;
     IBootstrap* const Bootstrap_;
     IPortoExecutorPtr PortoExecutor_;
@@ -1356,8 +1435,12 @@ class TLayerCache
 public:
     TLayerCache(
         const TVolumeManagerConfigPtr& config,
+        const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfig,
         std::vector<TLayerLocationPtr> layerLocations,
         IPortoExecutorPtr tmpfsExecutor,
+        IVolumeChunkCachePtr chunkCache,
+        IInvokerPtr controlInvoker,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             TSlruCacheConfig::CreateWithCapacity(
@@ -1366,11 +1449,13 @@ public:
                 : 0),
             ExecNodeProfiler.WithPrefix("/layer_cache"))
         , Config_(config)
-        , Bootstrap_(bootstrap)
+        , DynamicConfig_(dynamicConfig)
+        , ChunkCache_(chunkCache)
+        , ControlInvoker_(controlInvoker)
         , LayerLocations_(std::move(layerLocations))
         , Semaphore_(New<TAsyncSemaphore>(config->LayerImportConcurrency))
         , ProfilingExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            ControlInvoker_,
             BIND(&TLayerCache::OnProfiling, MakeWeak(this)),
             ProfilingPeriod))
     {
@@ -1381,6 +1466,9 @@ public:
         RegularTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
             Config_->RegularTmpfsLayerCache,
+            DynamicConfig_,
+            ControlInvoker_,
+            memoryUsageTracker,
             "regular",
             tmpfsExecutor,
             absorbLayer);
@@ -1388,6 +1476,9 @@ public:
         NirvanaTmpfsLayerCache_ = New<TTmpfsLayerCache>(
             bootstrap,
             Config_->NirvanaTmpfsLayerCache,
+            DynamicConfig_,
+            ControlInvoker_,
+            memoryUsageTracker,
             "nirvana",
             tmpfsExecutor,
             absorbLayer);
@@ -1416,7 +1507,7 @@ public:
     }
 
     TFuture<TLayerPtr> PrepareLayer(
-        const TArtifactKey& artifactKey,
+        TArtifactKey artifactKey,
         const TArtifactDownloadOptions& downloadOptions,
         TGuid tag)
     {
@@ -1425,10 +1516,21 @@ public:
             return MakeFuture(layer);
         }
 
+        if (Config_->ConvertLayersToSquashfs) {
+            artifactKey.set_is_squashfs_image(true);
+        }
+
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
         if (cookie.IsActive()) {
-            DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr)
+            TFuture<TLayerPtr> asyncLayer;
+            if (Config_->ConvertLayersToSquashfs) {
+                asyncLayer = DownloadAndConvertLayer(artifactKey, downloadOptions, tag);
+            } else {
+                asyncLayer = DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr);
+            }
+
+            asyncLayer
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
                     if (!layerOrError.IsOK()) {
                         cookie_.Cancel(layerOrError);
@@ -1475,7 +1577,9 @@ public:
 
 private:
     const TVolumeManagerConfigPtr Config_;
-    IBootstrap* const Bootstrap_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const IVolumeChunkCachePtr ChunkCache_;
+    const IInvokerPtr ControlInvoker_;
     const std::vector<TLayerLocationPtr> LayerLocations_;
 
     TAsyncSemaphorePtr Semaphore_;
@@ -1516,21 +1620,130 @@ private:
             : findLayer(NirvanaTmpfsLayerCache_, "nirvana");
     }
 
+    TString GetTar2SquashPath() const
+    {
+        if (Config_->UseBundledTar2Squash) {
+            static TFile preparedTar2Squash = [] () {
+                auto file = MemfdCreate("tar2squash");
+                auto binary = NResource::Find("/tar2squash");
+                file.Write(binary.Data(), binary.Size());
+                return file;
+            }();
+
+            return Format("/proc/self/fd/%d", preparedTar2Squash.GetHandle());
+        } else if (Config_->Tar2SquashToolPath) {
+            return Config_->Tar2SquashToolPath;
+        } else {
+            THROW_ERROR_EXCEPTION("SquashFS conversion tool is not found");
+        }
+    }
+
+    void ConvertSquashfs(const IAsyncZeroCopyInputStreamPtr& input, TString outputFilename) const
+    {
+        auto converter = New<TSimpleProcess>(GetTar2SquashPath());
+        converter->AddArgument("--weak-sync");
+        converter->AddArgument(outputFilename);
+        converter->AddEnvVar("GOMAXPROCS=1");
+
+        auto converterInput = converter->GetStdInWriter();
+        auto converterErr = converter->GetStdErrReader();
+
+        auto done = converter->Spawn();
+
+        auto asyncFullStderr = BIND([converterErr] {
+            std::vector<TSharedRef> blobs;
+            while (true) {
+                auto blob = TSharedMutableRef::Allocate(64_KB);
+                auto n = WaitFor(converterErr->Read(blob))
+                    .ValueOrThrow();
+
+                if (n == 0) {
+                    break;
+                }
+
+                blobs.push_back(blob.Slice(0, n));
+            }
+
+            return MergeRefsToString(blobs);
+        })
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+
+        auto throwError = [&] (const auto& ex) {
+            auto fullStderr = WaitFor(asyncFullStderr)
+                .ValueOrThrow();
+
+            THROW_ERROR_EXCEPTION(NDataNode::EErrorCode::LayerUnpackingFailed, "Layer conversion failed")
+                << ex
+                << TErrorAttribute("tar2squash_error", fullStderr);
+        };
+
+        while (auto block = WaitFor(input->Read()).ValueOrThrow()) {
+            YT_LOG_DEBUG("Copying block");
+
+            try {
+                WaitFor(converterInput->Write(block))
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                throwError(ex);
+            }
+        }
+
+        try {
+            YT_LOG_DEBUG("Finishing");
+
+            WaitFor(converterInput->Close())
+                .ThrowOnError();
+
+            WaitFor(done)
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            throwError(ex);
+        }
+    }
+
+    TFuture<TLayerPtr> DownloadAndConvertLayer(
+        const TArtifactKey& artifactKey,
+        TArtifactDownloadOptions downloadOptions,
+        TGuid tag)
+    {
+        YT_LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactPath: %v)",
+            tag,
+            artifactKey.data_source().path());
+
+        downloadOptions.Converter = BIND(&TLayerCache::ConvertSquashfs, MakeStrong(this));
+
+        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
+            .Apply(
+                BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
+                    YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
+                        tag,
+                        artifactKey.data_source().path());
+
+                    auto location = this_->PickLocation();
+                    auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
+                        .ValueOrThrow();
+
+                    auto layer = New<TLayer>(layerMeta, artifactKey, location);
+                    layer->SetUnderlyingArtifact(artifactChunk);
+                    return layer;
+                })
+                .AsyncVia(GetCurrentInvoker()));
+    }
+
     TFuture<TLayerPtr> DownloadAndImportLayer(
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions,
         TGuid tag,
         TLayerLocationPtr targetLocation)
     {
-        auto& chunkCache = Bootstrap_->GetChunkCache();
-
         YT_LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactPath: %v, HasTargetLocation: %v)",
             tag,
             artifactKey.data_source().path(),
             static_cast<bool>(targetLocation));
 
-        return chunkCache->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const IChunkPtr& artifactChunk) {
+        return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
                  YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
                      tag,
                      artifactKey.data_source().path());
@@ -1555,7 +1768,7 @@ private:
                       // and then copy into in-memory.
 
                       auto finally = Finally(BIND([=] () {
-                          location->RemoveLayer(layerMeta.Id);
+                          location->RemoveLayer(layerMeta.Id, false);
                       }));
 
                       auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))
@@ -1636,7 +1849,17 @@ public:
         YT_LOG_INFO("Destroying volume (VolumeId: %v)",
             VolumeMeta_.Id);
 
-        Location_->RemoveVolume(VolumeMeta_.Id);
+        Remove();
+    }
+
+    TFuture<void> Remove() override
+    {
+        if (RemoveFuture_) {
+            return RemoveFuture_;            
+        }
+
+        RemoveFuture_ = Location_->RemoveVolume(VolumeMeta_.Id);
+        return RemoveFuture_;
     }
 
     const TString& GetPath() const override
@@ -1655,6 +1878,8 @@ private:
     const TLayerLocationPtr Location_;
 
     std::vector<TLayerPtr> Layers_;
+
+    TFuture<void> RemoveFuture_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TLayeredVolume)
@@ -1667,34 +1892,44 @@ class TPortoVolumeManager
 {
 public:
     TPortoVolumeManager(
-        TVolumeManagerConfigPtr config,
+        NDataNode::TDataNodeConfigPtr config,
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+        IVolumeChunkCachePtr chunkCache,
+        IInvokerPtr controlInvoker,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         IBootstrap* const bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
+        , DynamicConfig_(std::move(dynamicConfig))
+        , ChunkCache_(std::move(chunkCache))
+        , ControlInvoker_(std::move(controlInvoker))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 
     TFuture<void> Initialize()
     {
-        Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
+        if (Bootstrap_) {
+            Bootstrap_->SubscribePopulateAlerts(BIND(&TPortoVolumeManager::PopulateAlerts, MakeWeak(this)));
+        }
         // Create locations.
 
         std::vector<TFuture<void>> initLocationResults;
         std::vector<TLayerLocationPtr> locations;
-        for (int index = 0; index < std::ssize(Config_->LayerLocations); ++index) {
-            const auto& locationConfig = Config_->LayerLocations[index];
+        for (int index = 0; index < std::ssize(Config_->VolumeManager->LayerLocations); ++index) {
+            const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
             auto id = Format("layer%v", index);
 
             try {
                 auto location = New<TLayerLocation>(
-                    Bootstrap_,
                     locationConfig,
-                    Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
+                    DynamicConfig_,
+                    Config_->DiskHealthChecker,
                     CreatePortoExecutor(
-                        Config_->PortoExecutor,
+                        Config_->VolumeManager->PortoExecutor,
                         Format("volume%v", index),
                         ExecNodeProfiler.WithPrefix("/location_volumes/porto")),
                     CreatePortoExecutor(
-                        Config_->PortoExecutor,
+                        Config_->VolumeManager->PortoExecutor,
                         Format("layer%v", index),
                         ExecNodeProfiler.WithPrefix("/location_layers/porto")),
                     id);
@@ -1722,7 +1957,7 @@ public:
             if (error.IsOK()) {
                 Locations_.push_back(locations[index]);
             } else {
-                const auto& locationConfig = Config_->LayerLocations[index];
+                const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
                 auto wrappedError = TError("Layer location at %v is disabled", locationConfig->Path)
                     << error;
                 YT_LOG_WARNING(wrappedError);
@@ -1731,10 +1966,18 @@ public:
         }
 
         auto tmpfsExecutor = CreatePortoExecutor(
-            Config_->PortoExecutor,
+            Config_->VolumeManager->PortoExecutor,
             "tmpfs_layer",
             ExecNodeProfiler.WithPrefix("/tmpfs_layers/porto"));
-        LayerCache_ = New<TLayerCache>(Config_, Locations_, tmpfsExecutor, Bootstrap_);
+        LayerCache_ = New<TLayerCache>(
+            Config_->VolumeManager,
+            DynamicConfig_,
+            Locations_,
+            tmpfsExecutor,
+            ChunkCache_,
+            ControlInvoker_,
+            MemoryUsageTracker_,
+            Bootstrap_);
         return LayerCache_->Initialize();
     }
 
@@ -1768,9 +2011,20 @@ public:
         return LayerCache_->IsLayerCached(artifactKey);
     }
 
+    void ClearCaches() const override
+    {
+        for (const auto& layer : LayerCache_->GetAll()) {
+            LayerCache_->TryRemoveValue(layer);
+        }
+    }
+
 private:
     IBootstrap* const Bootstrap_;
-    const TVolumeManagerConfigPtr Config_;
+    const TDataNodeConfigPtr Config_;
+    const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfig_;
+    const IVolumeChunkCachePtr ChunkCache_;
+    const IInvokerPtr ControlInvoker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     std::vector<TLayerLocationPtr> Locations_;
 
@@ -1793,7 +2047,6 @@ private:
         TGuid tag,
         const TErrorOr<std::vector<TLayerPtr>>& errorOrLayers)
     {
-
         YT_LOG_DEBUG(errorOrLayers, "All layers prepared (Tag: %v)",
             tag);
 
@@ -1838,10 +2091,21 @@ DEFINE_REFCOUNTED_TYPE(TPortoVolumeManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
-    TVolumeManagerConfigPtr config,
+    TDataNodeConfigPtr config,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfig,
+    IVolumeChunkCachePtr chunkCache,
+    IInvokerPtr controlInvoker,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     IBootstrap* bootstrap)
 {
-    auto volumeManager = New<TPortoVolumeManager>(std::move(config), bootstrap);
+    auto volumeManager = New<TPortoVolumeManager>(
+        std::move(config),
+        std::move(dynamicConfig),
+        std::move(chunkCache),
+        std::move(controlInvoker),
+        std::move(memoryUsageTracker),
+        bootstrap);
+
     return volumeManager->Initialize().Apply(BIND([=] () {
         return static_cast<IVolumeManagerPtr>(volumeManager);
     }));
@@ -1850,5 +2114,3 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
-
-#endif

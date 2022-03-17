@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/tar"
+	"compress/gzip"
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -21,21 +23,38 @@ func doConvert(outputPath string) error {
 		return err
 	}
 
-	tr := tar.NewReader(os.Stdin)
+	gz, err := gzip.NewReader(os.Stdin)
+	if err != nil {
+		return err
+	}
+
+	tr := tar.NewReader(gz)
 	if err := tar2squash.Convert(w, tr); err != nil {
 		return err
+	}
+
+	if *flagWeakSync {
+		if err := weakSync(f); err != nil {
+			return err
+		}
 	}
 
 	return f.Close()
 }
 
+var (
+	flagWeakSync = flag.Bool("weak-sync", false, "")
+)
+
 func main() {
-	if len(os.Args) != 2 {
+	flag.Parse()
+
+	if len(flag.Args()) != 1 {
 		fmt.Fprintf(os.Stderr, "usage: tar2squash IMG\n")
 		os.Exit(1)
 	}
 
-	if err := doConvert(os.Args[1]); err != nil {
+	if err := doConvert(flag.Arg(0)); err != nil {
 		fmt.Fprintf(os.Stderr, "tar2squash: %v\n", err)
 		os.Exit(1)
 	}
