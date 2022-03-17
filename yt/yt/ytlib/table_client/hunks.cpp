@@ -22,6 +22,10 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
+#include <yt/yt/library/erasure/impl/codec.h>
+
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/variant.h>
@@ -910,15 +914,25 @@ public:
 
     TFuture<void> Close() override
     {
+        if (HunkChunkPayloadWriterChunkIndex_) {
+            HunkChunkPayloadWriter_->OnParentReaderFinished();
+
+            HunkChunkRefs_[*HunkChunkPayloadWriterChunkIndex_] = THunkChunkRef{
+                .ChunkId = HunkChunkPayloadWriter_->GetChunkId(),
+                .ErasureCodec = HunkChunkPayloadWriter_->GetErasureCodecId(),
+                .HunkCount = HunkCount_,
+                .TotalHunkLength = TotalHunkLength_
+            };
+
+            HunkChunkMetas_[*HunkChunkPayloadWriterChunkIndex_] = HunkChunkPayloadWriter_->GetHunkChunkMeta();
+        }
+
         Underlying_->GetMeta()->RegisterFinalizer(
             [
                 weakUnderlying = MakeWeak(Underlying_),
                 hunkChunkPayloadWriter = HunkChunkPayloadWriter_,
-                hunkChunkPayloadWriterChunkIndex = HunkChunkPayloadWriterChunkIndex_,
                 hunkChunkRefs = std::move(HunkChunkRefs_),
-                hunkChunkMetas = std::move(HunkChunkMetas_),
-                hunkCount = HunkCount_,
-                totalHunkLength = TotalHunkLength_
+                hunkChunkMetas = std::move(HunkChunkMetas_)
             ] (TDeferredChunkMeta* meta) mutable {
                 if (hunkChunkRefs.empty()) {
                     return;
@@ -926,25 +940,6 @@ public:
 
                 auto underlying = weakUnderlying.Lock();
                 YT_VERIFY(underlying);
-
-                if (hunkChunkPayloadWriterChunkIndex) {
-                    hunkChunkRefs[*hunkChunkPayloadWriterChunkIndex] = THunkChunkRef{
-                        .ChunkId = hunkChunkPayloadWriter->GetChunkId(),
-                        .ErasureCodec = hunkChunkPayloadWriter->GetErasureCodecId(),
-                        .HunkCount = hunkCount,
-                        .TotalHunkLength = totalHunkLength
-                    };
-
-                    THunkChunkMeta meta{
-                        .ChunkId = hunkChunkPayloadWriter->GetChunkId()
-                    };
-                    if (IsErasureChunkId(meta.ChunkId)) {
-                        const auto& chunkMeta = hunkChunkPayloadWriter->GetMeta();
-                        auto erasurePlacementExt = GetProtoExtension<NChunkClient::NProto::TStripedErasurePlacementExt>(chunkMeta->extensions());
-                        meta.BlockSizes = FromProto<std::vector<i64>>(erasurePlacementExt.block_sizes());
-                    }
-                    hunkChunkMetas[*hunkChunkPayloadWriterChunkIndex] = std::move(meta);
-                }
 
                 YT_LOG_DEBUG("Hunk chunk references written (StoreId: %v, HunkChunkRefs: %v)",
                     underlying->GetChunkId(),
@@ -959,8 +954,7 @@ public:
                 SetProtoExtension(meta->mutable_extensions(), hunkChunkMetasExt);
             });
 
-        auto openFuture = HunkChunkPayloadWriterChunkIndex_ ? HunkChunkPayloadWriter_->GetOpenFuture() : VoidFuture;
-        return openFuture.Apply(BIND(&IVersionedMultiChunkWriter::Close, Underlying_));
+        return Underlying_->Close();
     }
 
     i64 GetRowCount() const override
@@ -1735,84 +1729,76 @@ public:
         , Buffer_(TBufferTag())
     {
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
+
+        if (auto codecId = Underlying_->GetErasureCodecId(); codecId != NErasure::ECodec::None) {
+            DataPartCount_ = NErasure::GetCodec(codecId)->GetDataPartCount();
+        }
+    }
+
+    TFuture<void> Open() override
+    {
+        return Underlying_->Open();
     }
 
     std::tuple<int, i64, bool> WriteHunk(TRef payload) override
     {
-        if (!OpenFuture_) {
-            OpenFuture_ = Underlying_->Open();
-        }
+        auto guard = Guard(Lock_);
 
         auto [blockIndex, blockOffset, dataSize] = AppendPayloadToBuffer(payload);
 
         bool ready = true;
-        if (!OpenFuture_.IsSet()) {
-            ready = false;
-        } else if (std::ssize(Buffer_) >= Config_->DesiredBlockSize) {
+        if (std::ssize(Buffer_) >= Config_->DesiredBlockSize) {
             ready = FlushBuffer();
         }
 
         HunkCount_ += 1;
         TotalHunkLength_ += std::ssize(payload);
         TotalDataSize_ += dataSize;
+        HasHunks_ = true;
 
         return {blockIndex, blockOffset, ready};
     }
 
     bool HasHunks() const override
     {
-        return OpenFuture_.operator bool();
+        return HasHunks_;
     }
 
     TFuture<void> GetReadyEvent() override
     {
-        if (!OpenFuture_) {
-            return VoidFuture;
-        }
-        if (!OpenFuture_.IsSet()) {
-            return OpenFuture_;
-        }
         return Underlying_->GetReadyEvent();
-    }
-
-    TFuture<void> GetOpenFuture() override
-    {
-        YT_VERIFY(OpenFuture_);
-        return OpenFuture_;
     }
 
     TFuture<void> Close() override
     {
-        if (!OpenFuture_) {
-            return VoidFuture;
+        auto guard = Guard(Lock_);
+
+        FlushBuffer();
+
+        if (!HasHunks_) {
+            return Underlying_->Cancel();
         }
 
-        return OpenFuture_
-            .Apply(BIND([=, this_ = MakeStrong(this)] {
-                return FlushBuffer() ? VoidFuture : Underlying_->GetReadyEvent();
-            }))
-            .Apply(BIND([=, this_ = MakeStrong(this)] {
-                Meta_->set_type(ToProto<int>(EChunkType::Hunk));
-                Meta_->set_format(ToProto<int>(EChunkFormat::HunkDefault));
+        Meta_->set_type(ToProto<int>(EChunkType::Hunk));
+        Meta_->set_format(ToProto<int>(EChunkFormat::HunkDefault));
 
-                {
-                    NChunkClient::NProto::TMiscExt ext;
-                    ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
-                    ext.set_data_weight(TotalHunkLength_);
-                    ext.set_uncompressed_data_size(TotalDataSize_);
-                    ext.set_compressed_data_size(TotalDataSize_);
-                    SetProtoExtension(Meta_->mutable_extensions(), ext);
-                }
+        {
+            NChunkClient::NProto::TMiscExt ext;
+            ext.set_compression_codec(ToProto<int>(NCompression::ECodec::None));
+            ext.set_data_weight(TotalHunkLength_);
+            ext.set_uncompressed_data_size(TotalDataSize_);
+            ext.set_compressed_data_size(TotalDataSize_);
+            SetProtoExtension(Meta_->mutable_extensions(), ext);
+        }
 
-                {
-                    NTableClient::NProto::THunkChunkMiscExt ext;
-                    ext.set_hunk_count(HunkCount_);
-                    ext.set_total_hunk_length(TotalHunkLength_);
-                    SetProtoExtension(Meta_->mutable_extensions(), ext);
-                }
+        {
+            NTableClient::NProto::THunkChunkMiscExt ext;
+            ext.set_hunk_count(HunkCount_);
+            ext.set_total_hunk_length(TotalHunkLength_);
+            SetProtoExtension(Meta_->mutable_extensions(), ext);
+        }
 
-                return Underlying_->Close(Meta_);
-            }));
+        return Underlying_->Close(Meta_);
     }
 
     TDeferredChunkMetaPtr GetMeta() const override
@@ -1835,17 +1821,41 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
+    void OnParentReaderFinished() override
+    {
+        auto guard = Guard(Lock_);
+
+        FlushBuffer();
+    }
+
+    THunkChunkMeta GetHunkChunkMeta() const override
+    {
+        auto guard = Guard(Lock_);
+
+        return THunkChunkMeta{
+            .ChunkId = GetChunkId(),
+            .BlockSizes = BlockSizes_
+        };
+    }
+
 private:
     const THunkChunkPayloadWriterConfigPtr Config_;
     const IChunkWriterPtr Underlying_;
 
-    TFuture<void> OpenFuture_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+
+    int DataPartCount_ = 1;
 
     int BlockIndex_ = 0;
     i64 BlockOffset_ = 0;
+    i64 MaxHunkSizeInBlock_ = 0;
     i64 HunkCount_ = 0;
     i64 TotalHunkLength_ = 0;
     i64 TotalDataSize_ = 0;
+
+    bool HasHunks_ = false;
+
+    std::vector<i64> BlockSizes_;
 
     const TDeferredChunkMetaPtr Meta_ = New<TDeferredChunkMeta>();
 
@@ -1862,13 +1872,15 @@ private:
     char* BeginWriteToBuffer(i64 writeSize)
     {
         auto oldSize = Buffer_.Size();
-        Buffer_.Resize(oldSize + writeSize, false);
+        Buffer_.Resize(oldSize + writeSize, /*initializeStorage*/ false);
         return Buffer_.Begin() + oldSize;
     }
 
     //! Returns |(blockIndex, blockOffset, dataSize)|.
     std::tuple<int, i64, i64> AppendPayloadToBuffer(TRef payload)
     {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
         auto dataSize = sizeof(THunkPayloadHeader) + payload.Size();
         auto* ptr = BeginWriteToBuffer(dataSize);
 
@@ -1882,19 +1894,31 @@ private:
 
         auto offset = BlockOffset_;
         BlockOffset_ += dataSize;
+        MaxHunkSizeInBlock_ = std::max<i64>(MaxHunkSizeInBlock_, dataSize);
         return {BlockIndex_, offset, dataSize};
     }
 
     bool FlushBuffer()
     {
-        YT_VERIFY(OpenFuture_.IsSet());
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
         if (Buffer_.IsEmpty()) {
             return true;
         }
+
+        // If block size is at least maximum hunk size times data part count,
+        // each hunk is located in at most two parts which is good for reading.
+        auto minBlockSize = MaxHunkSizeInBlock_ * DataPartCount_;
+        if (std::ssize(Buffer_) < minBlockSize) {
+            Buffer_.Resize(minBlockSize);
+        }
         auto block = TSharedRef::MakeCopy<TBlockTag>(Buffer_.ToRef());
+
         Buffer_.Clear();
         ++BlockIndex_;
         BlockOffset_ = 0;
+        MaxHunkSizeInBlock_ = 0;
+        BlockSizes_.push_back(block.Size());
         return Underlying_->WriteBlock(TBlock(std::move(block)));
     }
 };

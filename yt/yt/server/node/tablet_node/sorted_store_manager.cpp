@@ -685,6 +685,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto hunkChunkWriterStatistics = CreateHunkChunkWriterStatistics(
             tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
+        if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
+            WaitFor(hunkChunkPayloadWriter->Open())
+                .ThrowOnError();
+        }
 
         auto storeWriter = CreateHunkEncodingVersionedWriter(
             CreateVersionedChunkWriter(
@@ -818,12 +822,12 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             return TStoreFlushResult();
         }
 
-        std::vector<TFuture<void>> closeFutures {
-            storeWriter->Close(),
-            hunkChunkPayloadWriter->Close()
-        };
-        WaitFor(AllSucceeded(std::move(closeFutures)))
+        WaitFor(storeWriter->Close())
             .ThrowOnError();
+        if (tabletSnapshot->PhysicalSchema->HasHunkColumns()) {
+            WaitFor(hunkChunkPayloadWriter->Close())
+                .ThrowOnError();
+        }
 
         std::vector<TChunkInfo> chunkInfos;
         chunkInfos.emplace_back(

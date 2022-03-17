@@ -377,6 +377,9 @@ IVersionedReaderPtr CreateHunkInliningVersionedReader(
 struct IHunkChunkPayloadWriter
     : public virtual TRefCounted
 {
+    //! Opens the writer. Must be the first call to the writer.
+    virtual TFuture<void> Open() = 0;
+
     //! Enqueues a given #payload for writing.
     //! Returns |(blockIndex, blockOffset, ready)| where #ready indicates if the caller must wait on
     //! #GetReadyEvent before proceeding any further.
@@ -388,12 +391,8 @@ struct IHunkChunkPayloadWriter
     //! See #WriteHunk.
     virtual TFuture<void> GetReadyEvent() = 0;
 
-    //! Returns the future that is set when the chunk becomes open.
-    //! At least one hunk must have been added via #WriteHunk prior to this call.
-    virtual TFuture<void> GetOpenFuture() = 0;
-
     //! Flushes and closes the writer (both this and the underlying one).
-    //! If no hunks were added via #WriteHunk, returns #VoidFuture.
+    //! If no hunks were added via #WriteHunk, underlying writer is cancelled.
     virtual TFuture<void> Close() = 0;
 
     //! Returns the chunk meta. The chunk must be already closed, see #Close.
@@ -407,6 +406,12 @@ struct IHunkChunkPayloadWriter
 
     //! Returns the chunk data statistics.
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
+
+    //! Called when chunk store writer closes.
+    virtual void OnParentReaderFinished() = 0;
+
+    //! Returns the hunk chunk meta.
+    virtual THunkChunkMeta GetHunkChunkMeta() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHunkChunkPayloadWriter)
