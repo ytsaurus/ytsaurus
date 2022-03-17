@@ -272,7 +272,10 @@ public:
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
             auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid);
-            if (timestampMid <= startReplicationTimestamp) {
+            if (!timestampMid) {
+                return {};
+            }
+            if (*timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
             } else {
                 rowIndexHi = rowIndexMid;
@@ -282,7 +285,11 @@ public:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            startTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex);
+            auto rowTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex);
+            if (!rowTimestamp) {
+                return {};
+            }
+            startTimestamp = *rowTimestamp;
             if (startTimestamp > startReplicationTimestamp) {
                 break;
             }
@@ -513,7 +520,7 @@ private:
         *result = replicationRow.ToTypeErasedRow();
     }
 
-    TTimestamp ReadLogRowTimestamp(
+    std::optional<TTimestamp> ReadLogRowTimestamp(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TClientChunkReadOptions& chunkReadOptions,
         i64 rowIndex)
@@ -536,10 +543,10 @@ private:
         while (true) {
             batch = reader->Read(readOptions);
             if (!batch) {
-                THROW_ERROR_EXCEPTION("Missing row %v in replication log of tablet %v",
-                    rowIndex,
-                    tabletSnapshot->TabletId)
-                    << HardErrorAttribute;
+                YT_LOG_DEBUG("Missing row in replication log (TabletId: %v, RowIndex: %v)",
+                    tabletSnapshot->TabletId,
+                    rowIndex);
+                return {};
             }
 
             if (batch->IsEmpty()) {
