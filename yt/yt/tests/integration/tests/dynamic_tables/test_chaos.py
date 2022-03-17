@@ -8,7 +8,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, execute_command, get_driver,
+    authors, print_debug, wait, execute_command, get_driver, create_user, make_ace, check_permission,
     get, set, ls, create, exists, remove, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table,
@@ -321,6 +321,13 @@ class TestChaos(ChaosTestBase):
 
         _, remote_driver0, _ = self._get_drivers()
         wait(lambda: not exists("#{0}/@peers/0/address".format(cell_id), driver=remote_driver0))
+
+    @authors("savrus")
+    def test_chaos_cell_update_acl(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        create_user("u")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@options/snapshot_acl", [make_ace("allow", "u", "read")])
+        assert check_permission("u", "read", "//sys/chaos_cells/{0}/0/snapshots".format(cell_id))["action"] == "allow"
 
     @authors("savrus")
     def test_replication_card(self):

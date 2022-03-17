@@ -329,23 +329,37 @@ public:
                 if (auto node = FindCellNode(cell->GetId())) {
                     TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
-                    auto cellNode = node->AsMap();
-                    try {
-                        {
-                            auto req = TCypressYPathProxy::Set("/snapshots/@acl");
-                            req->set_value(snapshotAcl);
-                            SyncExecuteVerb(cellNode, req);
+                    auto executeAclChange = [&] (const auto& node) {
+                        auto cellNode = node->AsMap();
+                        try {
+                            {
+                                auto req = TCypressYPathProxy::Set("/snapshots/@acl");
+                                req->set_value(snapshotAcl);
+                                SyncExecuteVerb(cellNode, req);
+                            }
+                            {
+                                auto req = TCypressYPathProxy::Set("/changelogs/@acl");
+                                req->set_value(changelogAcl);
+                                SyncExecuteVerb(cellNode, req);
+                            }
+                        } catch (const std::exception& ex) {
+                            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
+                                "Caught exception while changing ACL (CellarType: %v, Bundle: %v, CellId: %v)",
+                                cellBundle->GetCellarType(),
+                                cellBundle->GetName(),
+                                cell->GetId());
                         }
-                        {
-                            auto req = TCypressYPathProxy::Set("/changelogs/@acl");
-                            req->set_value(changelogAcl);
-                            SyncExecuteVerb(cellNode, req);
+                    };
+
+                    if (cell->IsIndependent()) {
+                        for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                            if (cell->IsAlienPeer(peerId)) {
+                                continue;
+                            }
+                            executeAclChange(node->FindChild(ToString(peerId)));
                         }
-                    } catch (const std::exception& ex) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
-                            "Caught exception while changing ACL (Bundle: %v, TabletCellId: %v)",
-                            cellBundle->GetName(),
-                            cell->GetId());
+                    } else {
+                        executeAclChange(node);
                     }
                 }
 
