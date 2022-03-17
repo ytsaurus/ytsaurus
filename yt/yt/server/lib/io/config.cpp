@@ -69,9 +69,13 @@ TGentleLoaderConfig::TGentleLoaderConfig()
     RegisterParameter("congestion_detector", CongestionDetector)
         .DefaultNew();
 
-    RegisterParameter("read_to_write_ratio", ReadToWriteRatio)
+    RegisterParameter("default_read_to_write_ratio", DefaultReadToWriteRatio)
         .InRange(0, 100)
         .Default(75);
+
+    RegisterParameter("adaptive_read_to_write_ratio_threshold", AdaptiveReadToWriteRatioThreshold)
+        .GreaterThan(0)
+        .Default(100_GB);
 
     RegisterParameter("segment_size", SegmentSize)
         .GreaterThan(0)

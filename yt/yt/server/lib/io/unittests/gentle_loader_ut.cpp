@@ -185,12 +185,12 @@ public:
 
     i64 GetTotalReadBytes() const override
     {
-        YT_UNIMPLEMENTED();
+        return 0;
     }
 
     i64 GetTotalWrittenBytes() const override
     {
-        YT_UNIMPLEMENTED();
+        return 0;
     }
 
     TFuture<void> RunRequest(TDuration latency, ui32 failingProbability = 0)
