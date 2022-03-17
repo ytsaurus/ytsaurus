@@ -237,6 +237,10 @@ private:
         HunkChunkPayloadWriter_ = CreateHunkChunkPayloadWriter(
             HunkWriterConfig_,
             HunkChunkWriter_);
+        if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {
+            WaitFor(HunkChunkPayloadWriter_->Open())
+                .ThrowOnError();
+        }
 
         auto blockCacheFuture = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
@@ -256,10 +260,12 @@ private:
 
     void Finalize()
     {
-        CloseFutures_.push_back(HunkChunkPayloadWriter_->Close());
-
         WaitFor(AllSucceeded(std::move(CloseFutures_)))
             .ThrowOnError();
+        if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {
+            WaitFor(HunkChunkPayloadWriter_->Close())
+                .ThrowOnError();
+        }
 
         std::vector<TChunkInfo> chunkInfos;
         for (const auto& writer : Writers_) {
