@@ -365,6 +365,8 @@ private:
                 WriterReadyEvents_[index] = writer->GetReadyEvent();
             }
 
+            UpdateWindowSize(-GetWriterMemoryUsage(block.Size()));
+
             auto* partInfo = PlacementExt_.mutable_part_infos(index);
             partInfo->add_segment_sizes(block.Size());
             partInfo->add_segment_checksums(block.GetOrComputeChecksum());
