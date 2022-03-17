@@ -457,6 +457,7 @@ public:
         , IOEngine_(std::move(engine))
         , RandomFileProvider_(std::move(fileProvider))
         , Invoker_(std::move(invoker))
+        , ReadToWriteRatio_(GetReadToWriteRatio(Config_, IOEngine_))
         , Started_(false)
     { }
 
@@ -490,6 +491,7 @@ private:
     const IIOEngineWorkloadModelPtr IOEngine_;
     const IRandomFileProviderPtr RandomFileProvider_;
     const IInvokerPtr Invoker_;
+    const ui8 ReadToWriteRatio_;
 
     std::atomic_bool Started_;
 
@@ -627,7 +629,7 @@ private:
         static const ui8 IOScale = 100;
 
         TFuture<TDuration> future;
-        if (Config_->ReadToWriteRatio > RandomNumber(IOScale)) {
+        if (ReadToWriteRatio_ > RandomNumber(IOScale)) {
             future = DoRandomRead(
                 IOEngine_,
                 RandomFileProvider_,
@@ -649,6 +651,19 @@ private:
         Results_.push_back(std::move(future));
         TDuration yieldTimeout = TDuration::Seconds(1) / congestionWindow;
         TDelayedExecutor::WaitForDuration(yieldTimeout);
+    }
+
+    static ui8 GetReadToWriteRatio(
+        const TGentleLoaderConfigPtr& config,
+        IIOEngineWorkloadModelPtr engine)
+    {
+        i64 totalBytes = engine->GetTotalReadBytes() + engine->GetTotalWrittenBytes();
+
+        if (config->AdaptiveReadToWriteRatioThreshold > totalBytes) {
+            return config->DefaultReadToWriteRatio;
+        }
+
+        return engine->GetTotalReadBytes() * 100 / totalBytes;
     }
 };
 

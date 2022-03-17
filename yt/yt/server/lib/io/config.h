@@ -96,8 +96,11 @@ struct TGentleLoaderConfig
     i32 MaxInFlightCount;
 
     // 100 means only reads, 0 - only writes.
-    // TODO(capone212): make optional and take current IOEngine values?
-    ui8 ReadToWriteRatio;
+    ui8 DefaultReadToWriteRatio;
+
+    // Use accumulated statistics to derive read/write ratio after
+    // this bytes count transmitted (read+written).
+    i64 AdaptiveReadToWriteRatioThreshold;
 
     // Window increments/decrements are done in terms of segments.
     // Measured in packets.
