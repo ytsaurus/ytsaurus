@@ -303,7 +303,7 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
         }
 
         if (auto targetCluster = findValue(targetClusterId), targetPath = findValue(targetPathId); targetCluster && targetPath) {
-            typedRow.Target = TCrossClusterReference{targetCluster->AsString(), targetPath->AsString()};
+            typedRow.TargetQueue = TCrossClusterReference{targetCluster->AsString(), targetPath->AsString()};
         }
 
         if (auto type = findValue(objectTypeId)) {
@@ -341,9 +341,9 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         if (row.Revision) {
             rowBuilder.AddValue(MakeUnversionedUint64Value(*row.Revision, nameTable->GetIdOrThrow("revision")));
         }
-        if (row.Target) {
-            rowBuilder.AddValue(MakeUnversionedStringValue(row.Target->Cluster, nameTable->GetIdOrThrow("target_cluster")));
-            rowBuilder.AddValue(MakeUnversionedStringValue(row.Target->Path, nameTable->GetIdOrThrow("target_path")));
+        if (row.TargetQueue) {
+            rowBuilder.AddValue(MakeUnversionedStringValue(row.TargetQueue->Cluster, nameTable->GetIdOrThrow("target_cluster")));
+            rowBuilder.AddValue(MakeUnversionedStringValue(row.TargetQueue->Path, nameTable->GetIdOrThrow("target_path")));
         }
         if (row.ObjectType) {
             rowBuilder.AddValue(MakeUnversionedStringValue(FormatEnum(*row.ObjectType), nameTable->GetIdOrThrow("object_type")));
@@ -369,7 +369,7 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"target", "revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer"};
+    return {"target_queue", "revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -377,12 +377,12 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
     std::optional<TRowRevision> rowRevision,
     const IAttributeDictionaryPtr& cypressAttributes)
 {
-    auto optionalTarget = cypressAttributes->Find<TString>("target");
-    auto target = (optionalTarget ? std::make_optional(TCrossClusterReference::FromString(*optionalTarget)) : std::nullopt);
+    auto optionalTargetQueue = cypressAttributes->Find<TString>("target_queue");
+    auto targetQueue = (optionalTargetQueue ? std::make_optional(TCrossClusterReference::FromString(*optionalTargetQueue)) : std::nullopt);
     return {
         .Consumer = consumer,
         .RowRevision = rowRevision,
-        .Target = target,
+        .TargetQueue = targetQueue,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("revision"),
         .ObjectType = cypressAttributes->Get<EObjectType>("type"),
         .TreatAsConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
@@ -398,7 +398,7 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
             .Item("consumer").Value(row.Consumer)
             .Item("row_revision").Value(row.RowRevision)
             .Item("revision").Value(row.Revision)
-            .Item("target").Value(row.Target)
+            .Item("target_queue").Value(row.TargetQueue)
             .Item("object_type").Value(row.ObjectType)
             .Item("treat_as_consumer").Value(row.TreatAsConsumer)
             .Item("schema").Value(row.Schema)

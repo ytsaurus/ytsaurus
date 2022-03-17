@@ -39,9 +39,9 @@ class TQueueControllerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Loop period. Defines the period of monitoring information exporting, automatic
+    //! Controller pass period. Defines the period of monitoring information exporting, automatic
     //! trimming and the maximum age of cached Orchid state.
-    TDuration LoopPeriod;
+    TDuration PassPeriod;
 
     REGISTER_YSON_STRUCT(TQueueControllerConfig)
 
@@ -86,7 +86,7 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    //! User for native client; defaults to queue-agent.
+    //! User for native clients in queue agent and cypress synchronizer.
     TString User;
 
     //! The path of directory containing queue agent state.

@@ -32,10 +32,18 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, TFluentAny fluent)
                     const auto& consumerSnapshot = pair.second;
                     Y_UNUSED(consumerSnapshot);
 
-                    fluent
-                        .Item(ToString(consumerRef)).BeginMap()
-                            // TODO(max42)
-                        .EndMap();
+                    if (consumerSnapshot->Error.IsOK()) {
+                        fluent
+                            .Item(ToString(consumerRef)).BeginMap()
+                                .Item("vital").Value(consumerSnapshot->Vital)
+                                .Item("owner").Value(consumerSnapshot->Owner)
+                            .EndMap();
+                    } else {
+                        fluent
+                            .Item(ToString(consumerRef)).BeginMap()
+                                .Item("error").Value(consumerSnapshot->Error)
+                            .EndMap();
+                    }
                 })
             .EndMap()
         .EndMap();
@@ -56,8 +64,8 @@ void BuildQueuePartitionYson(const TQueuePartitionSnapshotPtr& snapshot, TFluent
             .Item("lower_row_index").Value(snapshot->LowerRowIndex)
             .Item("upper_row_index").Value(snapshot->UpperRowIndex)
             .Item("available_row_count").Value(snapshot->AvailableRowCount)
-            .OptionalItem("last_row_commit_time", snapshot->LastRowCommitTime)
-            .OptionalItem("commit_idle_time", snapshot->CommitIdleTime)
+            .Item("last_row_commit_time").Value(snapshot->LastRowCommitTime)
+            .Item("commit_idle_time").Value(snapshot->CommitIdleTime)
         .EndMap();
 }
 
@@ -106,6 +114,8 @@ void BuildConsumerPartitionYson(const TConsumerPartitionSnapshotPtr& snapshot, T
         fluent
             .BeginMap()
                 .Item("error").Value(snapshot->Error)
+                .Item("next_row_index").Value(snapshot->NextRowIndex)
+                .Item("last_consume_time").Value(snapshot->LastConsumeTime)
             .EndMap();
         return;
     }
@@ -113,10 +123,11 @@ void BuildConsumerPartitionYson(const TConsumerPartitionSnapshotPtr& snapshot, T
     fluent
         .BeginMap()
             .Item("next_row_index").Value(snapshot->NextRowIndex)
+            .Item("last_consume_time").Value(snapshot->LastConsumeTime)
+            .Item("disposition").Value(snapshot->Disposition)
             .Item("unread_row_count").Value(snapshot->UnreadRowCount)
             .Item("next_row_commit_time").Value(snapshot->NextRowCommitTime)
             .Item("processing_lag").Value(snapshot->ProcessingLag)
-            .Item("last_consume_time").Value(snapshot->LastConsumeTime)
             .Item("consume_idle_time").Value(snapshot->ConsumeIdleTime)
         .EndMap();
 }

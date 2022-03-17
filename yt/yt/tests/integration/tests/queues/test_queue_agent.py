@@ -2,15 +2,20 @@ from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
-                         sync_unmount_table)
+                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug)
 
 from yt.common import YtError
 
 import copy
+import datetime
+import time
+import pytz
 
 from yt.yson import YsonUint64, YsonEntity
 
 import yt_error_codes
+
+from yt.wrapper.ypath import escape_ypath_literal
 
 ##################################################################
 
@@ -35,6 +40,11 @@ CONSUMER_TABLE_SCHEMA = [
     {"name": "treat_as_consumer", "type": "boolean"},
     {"name": "schema", "type": "any"},
     {"name": "vital", "type": "boolean"},
+]
+
+BIGRT_CONSUMER_TABLE_SCHEMA = [
+    {"name": "ShardId", "type": "uint64", "sort_order": "ascending"},
+    {"name": "Offset", "type": "uint64"},
 ]
 
 
@@ -87,21 +97,82 @@ class QueueAgentOrchid:
         self.wait_fresh_poll()
         return get(self.queue_agent_orchid_path() + "/queue_agent/consumers")
 
-    def get_queue_status(self, queue_id):
-        queues = self.get_queues()
-        assert queue_id in queues
-        return queues[queue_id]["status"]
+    def get_queue_pass_index(self, queue_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/queues/" +
+                   escape_ypath_literal(queue_ref) + "/pass_index")
 
-    def get_consumer_status(self, consumer_id):
-        consumers = self.get_consumers()
-        assert consumer_id in consumers
-        return consumers[consumer_id]["status"]
+    def get_consumer_pass_index(self, consumer_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/consumers/" +
+                   escape_ypath_literal(consumer_ref) + "/pass_index")
+
+    def wait_fresh_queue_pass(self, queue_ref):
+        pass_index = self.get_queue_pass_index(queue_ref)
+        wait(lambda: self.get_queue_pass_index(queue_ref) >= pass_index + 2)
+
+    def wait_fresh_consumer_pass(self, consumer_ref):
+        pass_index = self.get_consumer_pass_index(consumer_ref)
+        wait(lambda: self.get_consumer_pass_index(consumer_ref) >= pass_index + 2)
+
+    def get_queue_status(self, queue_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/queues/" +
+                   escape_ypath_literal(queue_ref) + "/status")
+
+    def get_queue_partitions(self, queue_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/queues/" +
+                   escape_ypath_literal(queue_ref) + "/partitions")
+
+    def get_consumer_status(self, consumer_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/consumers/" +
+                   escape_ypath_literal(consumer_ref) + "/status")
+
+    def get_consumer_partitions(self, consumer_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/consumers/" +
+                   escape_ypath_literal(consumer_ref) + "/partitions")
 
 
-class TestQueueAgent(YTEnvSetup):
-    NUM_QUEUE_AGENTS = 1
-
+class TestQueueAgentBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
+
+    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
+        sync_create_cells(1)
+        create("table", "//sys/queue_agents/queues", force=True, recursive=True,
+               attributes={"dynamic": True, "schema": queue_table_schema})
+        sync_mount_table("//sys/queue_agents/queues")
+        create("table", "//sys/queue_agents/consumers", force=True, recursive=True,
+               attributes={"dynamic": True, "schema": consumer_table_schema})
+        sync_mount_table("//sys/queue_agents/consumers")
+
+    def _drop_tables(self):
+        remove("//sys/queue_agents/queues", force=True)
+        remove("//sys/queue_agents/consumers", force=True)
+
+    def _create_queue(self, path, partition_count=1, enable_timestamp_column=True, **kwargs):
+        schema = [{"name": "data", "type": "string"}]
+        if enable_timestamp_column:
+            schema += [{"name": "$timestamp", "type": "uint64"}]
+        attributes = {
+            "dynamic": True,
+            "schema": schema,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes)
+        if partition_count != 1:
+            sync_reshard_table(path, partition_count)
+        sync_mount_table(path)
+
+    def _create_bigrt_consumer(self, path, target_queue, **kwargs):
+        attributes = {
+            "dynamic": True,
+            "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
+            "target_queue": target_queue,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes)
+        sync_mount_table(path)
+
+
+class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS = 1
 
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
@@ -120,23 +191,6 @@ class TestQueueAgent(YTEnvSetup):
             "enable": False,
         },
     }
-
-    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
-        sync_create_cells(1)
-        create("table",
-               "//sys/queue_agents/queues",
-               attributes={"dynamic": True, "schema": queue_table_schema},
-               force=True)
-        sync_mount_table("//sys/queue_agents/queues")
-        create("table",
-               "//sys/queue_agents/consumers",
-               attributes={"dynamic": True, "schema": consumer_table_schema},
-               force=True)
-        sync_mount_table("//sys/queue_agents/consumers")
-
-    def _drop_tables(self):
-        remove("//sys/queue_agents/queues", force=True)
-        remove("//sys/queue_agents/consumers", force=True)
 
     @authors("max42")
     def test_polling_loop(self):
@@ -280,7 +334,193 @@ class TestQueueAgent(YTEnvSetup):
         assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
 
 
-class TestMultipleAgents(YTEnvSetup):
+class TestQueueController(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS = 1
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": {
+            # Disable cache.
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0,
+            },
+        },
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "sync_period": 100,
+        },
+    }
+
+    def _timestamp_to_iso_str(self, ts):
+        unix_ts = ts >> 30
+        dt = datetime.datetime.fromtimestamp(unix_ts, tz=pytz.UTC)
+        return dt.isoformat().replace("+00:00", ".000000Z")
+
+    @authors("max42")
+    def test_queue_status(self):
+        self._prepare_tables()
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+
+        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
+        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+
+        orchid.wait_fresh_poll()
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        queue_status = orchid.get_queue_status("primary://tmp/q")
+        assert queue_status["family"] == "ordered_dynamic_table"
+        assert queue_status["partition_count"] == 2
+        # TODO(max42): support owner attribute.
+        assert queue_status["consumers"] == {"primary://tmp/c": {"vital": False, "owner": ""}}
+
+        def assert_partition(partition, lower_row_index, upper_row_index):
+            assert partition["lower_row_index"] == lower_row_index
+            assert partition["upper_row_index"] == upper_row_index
+            assert partition["available_row_count"] == upper_row_index - lower_row_index
+
+        null_time = "1970-01-01T00:00:00.000000Z"
+
+        queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
+        for partition in queue_partitions:
+            assert_partition(partition, 0, 0)
+            assert partition["last_row_commit_time"] == null_time
+
+        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}])
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
+        assert_partition(queue_partitions[0], 0, 1)
+        assert queue_partitions[0]["last_row_commit_time"] != null_time
+        assert_partition(queue_partitions[1], 0, 0)
+
+        trim_rows("//tmp/q", 0, 1)
+
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
+        assert_partition(queue_partitions[0], 1, 1)
+        assert queue_partitions[0]["last_row_commit_time"] != null_time
+        assert_partition(queue_partitions[1], 0, 0)
+
+    @authors("max42")
+    def test_consumer_status(self):
+        self._prepare_tables()
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+
+        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
+        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+
+        orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
+        time.sleep(1.5)
+        insert_rows("//tmp/q", [{"data": "foo", "$tablet_index": 0}, {"data": "bar", "$tablet_index": 1}])
+        timestamps = [row["ts"] for row in select_rows("[$timestamp] as ts from [//tmp/q]")]
+        timestamps = sorted(timestamps)
+        assert timestamps[0] == timestamps[1] and timestamps[2] == timestamps[3]
+        timestamps = [timestamps[0], timestamps[2]]
+        print_debug(self._timestamp_to_iso_str(timestamps[0]), self._timestamp_to_iso_str(timestamps[1]))
+
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        consumer_status = orchid.get_consumer_status("primary://tmp/c")
+        assert consumer_status["partition_count"] == 2
+        assert not consumer_status["vital"]
+        assert consumer_status["target_queue"] == "primary://tmp/q"
+        # TODO(max42): support owner attribute.
+        assert consumer_status["owner"] == ""
+
+        time.sleep(1.5)
+        insert_rows("//tmp/c", [{"ShardId": 0, "Offset": 0}])
+        time.sleep(1.5)
+        insert_rows("//tmp/c", [{"ShardId": 1, "Offset": 0}])
+
+        def assert_partition(partition, next_row_index):
+            assert partition["next_row_index"] == next_row_index
+            assert partition["unread_row_count"] == max(0, 2 - next_row_index)
+            assert partition["next_row_commit_time"] == (self._timestamp_to_iso_str(timestamps[next_row_index])
+                                                         if next_row_index < 2 else YsonEntity())
+            assert (partition["processing_lag"] > 0) == (next_row_index < 2)
+
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        assert_partition(consumer_partitions[0], 0)
+        assert_partition(consumer_partitions[1], 0)
+
+        insert_rows("//tmp/c", [{"ShardId": 0, "Offset": 1}])
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        assert_partition(consumer_partitions[0], 1)
+
+        insert_rows("//tmp/c", [{"ShardId": 1, "Offset": 2}])
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        assert_partition(consumer_partitions[1], 2)
+
+    @authors("max42")
+    def test_consumer_partition_disposition(self):
+        self._prepare_tables()
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+
+        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
+        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+
+        orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"data": "foo"}] * 3)
+        trim_rows("//tmp/q", 0, 1)
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        expected_dispositions = ["expired", "pending_consumption", "pending_consumption", "up_to_date", "ahead"]
+        for offset, expected_disposition in enumerate(expected_dispositions):
+            insert_rows("//tmp/c", [{"ShardId": 0, "Offset": offset}])
+            orchid.wait_fresh_consumer_pass("primary://tmp/c")
+            partition = orchid.get_consumer_partitions("primary://tmp/c")[0]
+            assert partition["disposition"] == expected_disposition
+            assert partition["unread_row_count"] == 3 - offset
+
+    @authors("max42")
+    def test_inconsistent_partitions_in_consumer_table(self):
+        self._prepare_tables()
+
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+
+        insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
+        insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+
+        orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"data": "foo"}] * 2)
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        insert_rows("//tmp/c", [{"ShardId": 1, "Offset": 1}, {"ShardId": 2**63 - 1, "Offset": 1},
+                                {"ShardId": 2**64 - 1, "Offset": 1}])
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+
+        partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        assert len(partitions) == 2
+        assert partitions[0]["next_row_index"] == 0
+
+
+class TestMultipleAgents(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 5
 
     USE_DYNAMIC_TABLES = True
@@ -365,7 +605,7 @@ class TestMultipleAgents(YTEnvSetup):
             validate_leader(leader, ignore_instances=[prev_leader])
 
 
-class TestMasterIntegration(YTEnvSetup):
+class TestMasterIntegration(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
     USE_DYNAMIC_TABLES = True
@@ -389,19 +629,6 @@ class TestMasterIntegration(YTEnvSetup):
             "lock_acquisition_period": 100,
         },
     }
-
-    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
-        sync_create_cells(1)
-        create("table",
-               "//sys/queue_agents/queues",
-               attributes={"dynamic": True, "schema": queue_table_schema},
-               force=True)
-        sync_mount_table("//sys/queue_agents/queues")
-        create("table",
-               "//sys/queue_agents/consumers",
-               attributes={"dynamic": True, "schema": consumer_table_schema},
-               force=True)
-        sync_mount_table("//sys/queue_agents/consumers")
 
     @authors("max42")
     def test_queue_attributes(self):
@@ -439,12 +666,8 @@ class TestMasterIntegration(YTEnvSetup):
 
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
-        # TODO: This table should have a correct schema at some point.
-        create("table",
-               "//tmp/c",
-               attributes={"dynamic": True,
-                           "schema": [{"name": "data", "type": "string", "sort_order": "ascending"},
-                                      {"name": "test", "type": "string"}]})
+        create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
+                                               "treat_as_consumer": True, "target_queue": "primary://tmp/q"})
         with raises_yt_error('Builtin attribute "vital_queue_consumer" cannot be set'):
             set("//tmp/c/@vital_queue_consumer", True)
         set("//tmp/c/@treat_as_queue_consumer", True)
@@ -458,16 +681,12 @@ class TestMasterIntegration(YTEnvSetup):
             get("//tmp/c/@queue_consumer_status")
 
         insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
-                      "target_cluster": "primary", "target_path": "//tmp/q"}])
+                    [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(0)}])
         insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567), "object_type": "table",
-                      "dynamic": True, "sorted": False}],
-                    update=True)
+                    [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567)}])
 
         # Wait for consumer status to become available.
-        # TODO: This will change into something reasonable in the future.
-        wait(lambda: get("//tmp/c/@queue_consumer_status/partition_count") == 0, ignore_exceptions=True)
+        wait(lambda: get("//tmp/c/@queue_consumer_status/partition_count") == 1, ignore_exceptions=True)
 
         # TODO: Check the queue_consumer_partitions attribute once the corresponding queue_controller code is written.
 
@@ -547,7 +766,7 @@ class CypressSynchronizerOrchid:
         return self.get_latest_poll_error()
 
 
-class TestCypressSynchronizer(YTEnvSetup):
+class TestCypressSynchronizer(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
     USE_DYNAMIC_TABLES = True
@@ -569,23 +788,6 @@ class TestCypressSynchronizer(YTEnvSetup):
             "sync_period": 1000
         }
     }
-
-    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
-        sync_create_cells(1)
-        create("table",
-               "//sys/queue_agents/queues",
-               attributes={"dynamic": True, "schema": queue_table_schema},
-               force=True)
-        sync_mount_table("//sys/queue_agents/queues")
-        create("table",
-               "//sys/queue_agents/consumers",
-               attributes={"dynamic": True, "schema": consumer_table_schema},
-               force=True)
-        sync_mount_table("//sys/queue_agents/consumers")
-
-    def _drop_tables(self):
-        remove("//sys/queue_agents/queues", force=True)
-        remove("//sys/queue_agents/consumers", force=True)
 
     def _get_queue_name(self, name):
         return "//tmp/q-{}".format(name)
@@ -717,7 +919,7 @@ class TestCypressSynchronizer(YTEnvSetup):
                 assert not consumer["vital"]
 
         set(c2 + "/@treat_as_queue_consumer", True)
-        set(c2 + "/@target", "a_cluster:a_path")
+        set(c2 + "/@target_queue", "a_cluster:a_path")
         set(c2 + "/@vital_queue_consumer", False)
         orchid.wait_fresh_poll()
 
@@ -738,7 +940,7 @@ class TestCypressSynchronizer(YTEnvSetup):
         assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
-        set(c2 + "/@target", "another_cluster:another_path")
+        set(c2 + "/@target_queue", "another_cluster:another_path")
         set(c2 + "/@vital_queue_consumer", True)
         orchid.wait_fresh_poll()
 

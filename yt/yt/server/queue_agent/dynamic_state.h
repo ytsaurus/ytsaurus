@@ -104,7 +104,7 @@ struct TConsumerTableRow
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
-    std::optional<TCrossClusterReference> Target;
+    std::optional<TCrossClusterReference> TargetQueue;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> TreatAsConsumer;

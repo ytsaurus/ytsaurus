@@ -68,12 +68,12 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         {.Cluster = "mamma", .Path = "mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{revision=43u; type=table; target=\"cluster:path\"; treat_as_queue_consumer=%true; "
+            "{revision=43u; type=table; target_queue=\"cluster:path\"; treat_as_queue_consumer=%true; "
             "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
-            .Target = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
+            .TargetQueue = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
             .TreatAsConsumer = true,
@@ -86,12 +86,12 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         {.Cluster ="mamma", .Path ="mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{revision=43u; type=table; target=\"cluster:path\"; "
+            "{revision=43u; type=table; target_queue=\"cluster:path\"; "
             "schema=[{name=a; type=int64; sort_order=ascending}]; }")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
-            .Target = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
+            .TargetQueue = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
             .TreatAsConsumer = false,
