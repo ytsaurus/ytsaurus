@@ -54,7 +54,7 @@ public:
     void Finalize() override;
 
     void Participate() override;
-    void Abandon(const TError& error) override;
+    TFuture<void> Abandon(const TError& error) override;
     void ReconfigureCell(TCellManagerPtr cellManager) override;
 
     TYsonProducer GetMonitoringProducer() override;
@@ -113,12 +113,12 @@ private:
     void ContinueVoting(TPeerId voteId, TEpochId voteEpochId);
     void StartVoting();
 
-    void StartLeading();
-    void StartFollowing(TPeerId leaderId, TEpochId epoch);
+    TFuture<void> StartLeading();
+    TFuture<void> StartFollowing(TPeerId leaderId, TEpochId epoch);
 
-    void StopLeading(const TError& error);
-    void StopFollowing(const TError& error);
-    void StopVoting(const TError& error);
+    TFuture<void> StopLeading(const TError& error);
+    TFuture<void> StopFollowing(const TError& error);
+    TFuture<void> StopVoting(const TError& error);
 
     void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
@@ -472,15 +472,13 @@ private:
 
         // Become a leader or a follower.
         if (candidateId == Owner_->CellManager_->GetSelfPeerId()) {
-            Owner_->EpochControlInvoker_->Invoke(BIND(
-                &TDistributedElectionManager::StartLeading,
-                Owner_));
+            BIND(&TDistributedElectionManager::StartLeading, Owner_)
+                .AsyncVia(Owner_->EpochControlInvoker_)
+                .Run();
         } else {
-            Owner_->EpochControlInvoker_->Invoke(BIND(
-                &TDistributedElectionManager::StartFollowing,
-                Owner_,
-                candidateId,
-                candidateStatus.VoteEpochId));
+            BIND(&TDistributedElectionManager::StartFollowing, Owner_)
+                .AsyncVia(Owner_->EpochControlInvoker_)
+                .Run(candidateId, candidateStatus.VoteEpochId);
         }
 
         return true;
@@ -641,25 +639,22 @@ void TDistributedElectionManager::Participate()
     }
 }
 
-void TDistributedElectionManager::Abandon(const TError& error)
+TFuture<void> TDistributedElectionManager::Abandon(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     switch (State_) {
         case EPeerState::Stopped:
-            break;
+            return VoidFuture;
 
         case EPeerState::Voting:
-            StopVoting(error);
-            break;
+            return StopVoting(error);
 
         case EPeerState::Leading:
-            StopLeading(error);
-            break;
+            return StopLeading(error);
 
         case EPeerState::Following:
-            StopFollowing(error);
-            break;
+            return StopFollowing(error);
 
         default:
             YT_ABORT();
@@ -830,7 +825,7 @@ void TDistributedElectionManager::StartVotingRound()
         Config_->VotingRoundPeriod);
 }
 
-void TDistributedElectionManager::StartLeading()
+TFuture<void> TDistributedElectionManager::StartLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -856,12 +851,12 @@ void TDistributedElectionManager::StartLeading()
     YT_LOG_INFO("Started leading (EpochId: %v)",
         EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStartLeading, ElectionCallbacks_)
+    return BIND(&IElectionCallbacks::OnStartLeading, ElectionCallbacks_)
         .AsyncVia(ControlInvoker_)
         .Run(EpochContext_);
 }
 
-void TDistributedElectionManager::StartFollowing(
+TFuture<void> TDistributedElectionManager::StartFollowing(
     TPeerId leaderId,
     TEpochId epochId)
 {
@@ -882,12 +877,12 @@ void TDistributedElectionManager::StartFollowing(
         EpochContext_->LeaderId,
         EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStartFollowing, ElectionCallbacks_)
+    return BIND(&IElectionCallbacks::OnStartFollowing, ElectionCallbacks_)
         .AsyncVia(ControlInvoker_)
         .Run(EpochContext_);
 }
 
-void TDistributedElectionManager::StopLeading(const TError& error)
+TFuture<void> TDistributedElectionManager::StopLeading(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Leading);
@@ -895,7 +890,7 @@ void TDistributedElectionManager::StopLeading(const TError& error)
     YT_LOG_INFO(error, "Stopped leading (EpochId: %v)",
         EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStopLeading, ElectionCallbacks_)
+    auto future = BIND(&IElectionCallbacks::OnStopLeading, ElectionCallbacks_)
         .AsyncVia(ControlInvoker_)
         .Run(error);
 
@@ -903,9 +898,10 @@ void TDistributedElectionManager::StopLeading(const TError& error)
     FollowerPinger_.Reset();
 
     Reset();
+    return future;
 }
 
-void TDistributedElectionManager::StopFollowing(const TError& error)
+TFuture<void> TDistributedElectionManager::StopFollowing(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Following);
@@ -914,14 +910,15 @@ void TDistributedElectionManager::StopFollowing(const TError& error)
         EpochContext_->LeaderId,
         EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStopFollowing, ElectionCallbacks_)
+    auto future = BIND(&IElectionCallbacks::OnStopFollowing, ElectionCallbacks_)
         .AsyncVia(ControlInvoker_)
         .Run(error);
 
     Reset();
+    return future;
 }
 
-void TDistributedElectionManager::StopVoting(const TError& error)
+TFuture<void> TDistributedElectionManager::StopVoting(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Voting);
@@ -929,11 +926,12 @@ void TDistributedElectionManager::StopVoting(const TError& error)
     YT_LOG_INFO(error, "Voting stopped (EpochId: %v)",
         EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStopVoting, ElectionCallbacks_)
+    auto future = BIND(&IElectionCallbacks::OnStopVoting, ElectionCallbacks_)
         .AsyncVia(ControlInvoker_)
         .Run(error);
 
     Reset();
+    return future;
 }
 
 void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId epochId)

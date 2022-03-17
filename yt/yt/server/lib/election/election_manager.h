@@ -80,7 +80,7 @@ struct IElectionManager
      *  The implementation ensures that all relevant stop-notifications
      *  will be issued via IElectionCallbacks.
      */
-    virtual void Abandon(const TError& error) = 0;
+    virtual TFuture<void> Abandon(const TError& error) = 0;
 
     //! Replaces the Cell Manager. Restarts the epoch.
     /*!
