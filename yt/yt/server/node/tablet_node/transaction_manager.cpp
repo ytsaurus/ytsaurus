@@ -336,7 +336,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag);
+        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag, /*canThrow*/ true);
 
         TTransaction* transaction;
         ETransactionState state;
@@ -423,7 +423,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag);
+        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag, /*canThrow*/ false);
 
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
@@ -1100,13 +1100,24 @@ private:
         THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
     }
 
-    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag)
+    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag, bool canThrow)
     {
+        if (IsMasterTransactionId(transactionId)) {
+            return;
+        }
+
         if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
             return;
         }
 
         if (ClockClusterTag_ != timestampClusterTag) {
+            if (Config_->RejectIncorrectClockClusterTag && canThrow) {
+                THROW_ERROR_EXCEPTION("Transaction timestamp is generated from unexpected clock")
+                    << TErrorAttribute("transaction_id", transactionId)
+                    << TErrorAttribute("timestamp_cluster_tag", timestampClusterTag)
+                    << TErrorAttribute("clock_cluster_tag", ClockClusterTag_);
+            }
+
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
                 transactionId,
                 timestampClusterTag,

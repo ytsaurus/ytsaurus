@@ -784,7 +784,9 @@ private:
             clockClusterTag,
             connection->GetClusterTag());
 
-        TimestampProvider_ = CreateRemoteClusterTimestampProvider(connection, clockClusterTag, Logger);
+        TimestampProvider_ = clockClusterTag == connection->GetClusterTag()
+            ? connection->GetTimestampProvider()
+            : CreateRemoteClusterTimestampProvider(connection, clockClusterTag, Logger);
     }
 
     NLogging::TLogger GetLogger() const

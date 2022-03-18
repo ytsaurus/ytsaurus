@@ -331,6 +331,8 @@ TTransactionManagerConfig::TTransactionManagerConfig()
         .Default(TDuration::MilliSeconds(100));
     RegisterParameter("max_aborted_transaction_pool_size", MaxAbortedTransactionPoolSize)
         .Default(1000);
+    RegisterParameter("reject_incorrect_clock_cluster_tag", RejectIncorrectClockClusterTag)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

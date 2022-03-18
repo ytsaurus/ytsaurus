@@ -297,6 +297,10 @@ public:
             THROW_ERROR_EXCEPTION("Cannot change peer independency since bundle has %v cell(s)",
                 cellBundle->Cells().size());
         }
+        if (newOptions->ClockClusterTag != currentOptions->ClockClusterTag && !cellBundle->Cells().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot change clock cluster tag since bundle has %v cell(s)",
+                cellBundle->Cells().size());
+        }
         if (cellBundle->GetType() == EObjectType::ChaosCellBundle) {
             if (!newOptions->IndependentPeers) {
                 THROW_ERROR_EXCEPTION("Chaos cells must always have independent peers");

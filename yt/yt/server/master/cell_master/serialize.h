@@ -116,8 +116,9 @@ DEFINE_ENUM(EMasterReign,
     ((MulticellChaos)                                               (1947))  // savrus
     ((AlterTableReplicationProgress)                                (1948))  // savrus
     ((ChaosCellSnapshotsAclUpdate)                                  (1949))  // savrus
+    ((RestrictClockClusterTagUpdate)                                (1950))  // savrus
     // 22.1 but cherry-picked later.
-    ((BackupOrdered)                                                (1950))  // ifsmirnov
+    ((BackupOrdered)                                                (1980))  // ifsmirnov
     // 22.2 starts here.
     ((LogicalDataWeight)                                            (2000))  // achulkov2
     ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko

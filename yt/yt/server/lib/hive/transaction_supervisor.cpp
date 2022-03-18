@@ -1757,7 +1757,7 @@ private:
                     YT_LOG_DEBUG("Generating commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
                         transactionId,
                         cellId);
-                    asyncTimestamp = timestampProvider->GenerateTimestamps(1);
+                    asyncTimestamp = TimestampProvider_->GenerateTimestamps(1);
                 }
                 asyncTimestamps.push_back(asyncTimestamp.Apply(BIND([=] (TTimestamp timestamp) {
                     return std::make_pair(cellTag, timestamp);

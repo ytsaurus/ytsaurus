@@ -9,13 +9,16 @@ namespace NYT::NTransactionClient {
 //! #EObjectType::Transaction or #EObjectType::NestedTransaction.
 bool IsMasterTransactionId(TTransactionId id);
 
-//! Checks if #id represents a valid tablet transaction that can be used
-//! for updating dynamic tables (atomic tablet, non-atomic tablet,
-//! or top-level master); throws if not.
+//! Checks if #id represents a valid transaction accepted by tablets:
+//! the type of #id must be either
+//! #EObjectType::Transaction, #EObjectType::AtomicTabletTransaction,
+//! or #EObjectType::NonAtomicTabletTransaction.
 void ValidateTabletTransactionId(TTransactionId id);
 
-//! Checks if #id represents a valid master transaction (either top-most or nested);
-//! throws if not.
+//! Checks if #id represents a valid transaction accepted by masters:
+//! the type of #id must be one of
+//! #EObjectType::Transaction, #EObjectType::NestedTransaction,
+//! #EObjectType::UploadTransaction, or #EObjectType::UploadNestedTransaction.
 void ValidateMasterTransactionId(TTransactionId id);
 
 //! Returns a range of instants containing a given timestamp.

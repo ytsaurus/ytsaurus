@@ -187,6 +187,7 @@ public:
     TDuration MaxTransactionTimeout;
     TDuration BarrierCheckPeriod;
     int MaxAbortedTransactionPoolSize;
+    bool RejectIncorrectClockClusterTag;
 
     TTransactionManagerConfig();
 };
