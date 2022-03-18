@@ -13,6 +13,7 @@ from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 
 import pytest
+import yt.yson as yson
 
 import time
 
@@ -154,6 +155,32 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         remove("//tmp/t")
 
         wait(lambda: not exists("#{}".format(store_chunk_id)) and not exists("#{}".format(hunk_chunk_id)))
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_flush_nulls_to_hunk_chunk(self, optimize_for, hunk_erasure_codec):
+        sync_create_cells(1)
+
+        SCHEMA_WITH_NULL = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+            {"name": "null_value", "type": "string", "max_inline_hunk_size": 20},
+        ]
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec=hunk_erasure_codec, schema=SCHEMA_WITH_NULL)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20, "null_value": yson.YsonEntity()} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        remove("//tmp/t")
 
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])

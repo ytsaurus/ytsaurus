@@ -445,6 +445,10 @@ void GlobalizeHunkValuesAndSetHunkFlag(
             continue;
         }
 
+        if (value.Type == EValueType::Null) {
+            continue;
+        }
+
         value.Flags |= EValueFlags::Hunk;
 
         DoGlobalizeHunkValue(

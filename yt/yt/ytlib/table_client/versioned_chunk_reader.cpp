@@ -963,7 +963,7 @@ public:
                 value->Timestamp = TimestampReader_->GetValueTimestamp(
                     currentRowIndex + index,
                     static_cast<ui32>(value->Timestamp));
-                if (ColumnHunkFlags_[value->Id]) {
+                if (ColumnHunkFlags_[value->Id] && value->Type != EValueType::Null) {
                     value->Flags |= EValueFlags::Hunk;
                 }
             }
@@ -1331,7 +1331,7 @@ public:
 
         for (auto* value = row.BeginValues(); value != row.EndValues(); ++value) {
             value->Timestamp = TimestampReader_->GetTimestamp(static_cast<ui32>(value->Timestamp));
-            if (ColumnHunkFlags_[value->Id]) {
+            if (ColumnHunkFlags_[value->Id] && value->Type != EValueType::Null) {
                 value->Flags |= EValueFlags::Hunk;
             }
         }
