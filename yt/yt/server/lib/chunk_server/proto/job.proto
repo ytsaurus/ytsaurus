@@ -94,6 +94,9 @@ message TRepairChunkJobSpecExt
 
     // Only given for erasure journals.
     optional int64 row_count = 8;
+
+    // Is repairable chunk a striped erasure chunk?
+    optional bool striped_erasure_chunk = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

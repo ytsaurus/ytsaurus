@@ -178,22 +178,6 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TErasureReaderConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enable_auto_repair", &TThis::EnableAutoRepair)
-        .Default(true);
-    registrar.Parameter("replication_reader_speed_limit_per_sec", &TThis::ReplicationReaderSpeedLimitPerSec)
-        .Default(5_MB);
-    registrar.Parameter("slow_reader_expiration_timeout", &TThis::SlowReaderExpirationTimeout)
-        .Default(TDuration::Minutes(2));
-    registrar.Parameter("replication_reader_timeout", &TThis::ReplicationReaderTimeout)
-        .Default(TDuration::Seconds(60));
-    registrar.Parameter("replication_reader_failure_timeout", &TThis::ReplicationReaderFailureTimeout)
-        .Default(TDuration::Minutes(10));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TBlockFetcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("window_size", &TThis::WindowSize)
@@ -211,6 +195,22 @@ void TBlockFetcherConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TErasureReaderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_auto_repair", &TThis::EnableAutoRepair)
+        .Default(true);
+    registrar.Parameter("replication_reader_speed_limit_per_sec", &TThis::ReplicationReaderSpeedLimitPerSec)
+        .Default(5_MB);
+    registrar.Parameter("slow_reader_expiration_timeout", &TThis::SlowReaderExpirationTimeout)
+        .Default(TDuration::Minutes(2));
+    registrar.Parameter("replication_reader_timeout", &TThis::ReplicationReaderTimeout)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("replication_reader_failure_timeout", &TThis::ReplicationReaderFailureTimeout)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -428,6 +428,17 @@ TChunkMergerConfig::TChunkMergerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkRepairJobDynamicConfig::TChunkRepairJobDynamicConfig()
+{
+    RegisterParameter("reader", Reader)
+        .Default();
+
+    RegisterParameter("window_size", WindowSize)
+        .Default(256_MBs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDataNodeConfig::TDataNodeConfig()
 {
     RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -785,10 +796,17 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
     RegisterParameter("chunk_merger", ChunkMerger)
         .DefaultNew();
 
+    RegisterParameter("chunk_repair_job", ChunkRepairJob)
+        .DefaultNew();
+
     RegisterPostprocessor([&] {
         if (!AdaptiveChunkRepairJob) {
             AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();
             AdaptiveChunkRepairJob->EnableAutoRepair = false;
+        }
+
+        if (!ChunkRepairJob->Reader) {
+            ChunkRepairJob->Reader = AdaptiveChunkRepairJob;
         }
     });
 

@@ -109,17 +109,19 @@ TBlockFetcher::TBlockFetcher(
         }
 
         auto currentBlockDescriptor = std::make_pair(currentBlock.ReaderIndex, currentBlock.BlockIndex);
-        // Contrary would mean that the same block was requested twice with different priorities.
-        YT_VERIFY(!BlockDescriptorToWindowIndex_.contains(currentBlockDescriptor));
-
-        BlockDescriptorToWindowIndex_[currentBlockDescriptor] = windowIndex;
-        Window_[windowIndex].RemainingFetches = rightIndex - leftIndex;
-        blockDescriptors.push_back(getBlockDescriptor(currentBlock));
-        totalBlockUncompressedSize += currentBlock.UncompressedDataSize;
-        if (windowIndex != leftIndex) {
-            BlockInfos_[windowIndex] = std::move(currentBlock); // Similar to std::unique.
+        if (BlockDescriptorToWindowIndex_.contains(currentBlockDescriptor)) {
+            auto windowIndex = GetOrCrash(BlockDescriptorToWindowIndex_, currentBlockDescriptor);
+            Window_[windowIndex].RemainingFetches += rightIndex - leftIndex;
+        } else {
+            BlockDescriptorToWindowIndex_[currentBlockDescriptor] = windowIndex;
+            Window_[windowIndex].RemainingFetches = rightIndex - leftIndex;
+            blockDescriptors.push_back(getBlockDescriptor(currentBlock));
+            totalBlockUncompressedSize += currentBlock.UncompressedDataSize;
+            if (windowIndex != leftIndex) {
+                BlockInfos_[windowIndex] = std::move(currentBlock);
+            }
+            ++windowIndex;
         }
-        ++windowIndex;
     }
     YT_VERIFY(windowIndex == windowSize);
 

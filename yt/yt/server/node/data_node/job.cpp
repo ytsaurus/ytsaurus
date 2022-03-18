@@ -28,6 +28,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -43,6 +44,7 @@
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
@@ -954,9 +956,12 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         const std::vector<IChunkWriterPtr>& writers)
     {
-        auto adaptiveRepairConfig = GetDynamicConfig();
+        auto adaptiveRepairConfig = GetDynamicConfig()->Reader;
 
-        if (adaptiveRepairConfig->EnableAutoRepair) {
+        auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
+
+        // TODO(gritukan): Implement adaptive repair for striped erasure.
+        if (adaptiveRepairConfig->EnableAutoRepair && !stripedErasure) {
             YT_LOG_INFO("Executing adaptive chunk repair (ReplicationReaderSpeedLimitPerSec: %v, "
                 "SlowReaderExpirationTimeout: %v, ReplicationReaderTimeout: %v, ReplicationReaderFailureTimeout: %v)",
                 adaptiveRepairConfig->ReplicationReaderSpeedLimitPerSec,
@@ -998,12 +1003,26 @@ private:
             readers.push_back(CreateReader(partIndex));
         }
 
-        return NChunkClient::RepairErasedParts(
-            codec,
-            erasedPartIndexes,
-            readers,
-            writers,
-            chunkReadOptions);
+        if (stripedErasure) {
+            auto windowSize = GetDynamicConfig()->WindowSize;
+            auto memoryManager = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(windowSize));
+
+            return NChunkClient::RepairErasedPartsStriped(
+                adaptiveRepairConfig,
+                codec,
+                std::move(readers),
+                std::move(writers),
+                std::move(memoryManager),
+                GetNullBlockCache(),
+                chunkReadOptions);
+        } else {
+            return NChunkClient::RepairErasedParts(
+                codec,
+                erasedPartIndexes,
+                readers,
+                writers,
+                chunkReadOptions);
+        }
     }
 
     void DoRun() override
@@ -1094,10 +1113,10 @@ private:
         }
     }
 
-    TErasureReaderConfigPtr GetDynamicConfig() const
+    TChunkRepairJobDynamicConfigPtr GetDynamicConfig() const
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        return dynamicConfigManager->GetConfig()->DataNode->AdaptiveChunkRepairJob;
+        return dynamicConfigManager->GetConfig()->DataNode->ChunkRepairJob;
     }
 };
 

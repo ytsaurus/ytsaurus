@@ -235,25 +235,6 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TErasureReaderConfig
-    : public TReplicationReaderConfig
-{
-public:
-    bool EnableAutoRepair;
-    double ReplicationReaderSpeedLimitPerSec;
-    TDuration SlowReaderExpirationTimeout;
-    TDuration ReplicationReaderTimeout;
-    TDuration ReplicationReaderFailureTimeout;
-
-    REGISTER_YSON_STRUCT(TErasureReaderConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TErasureReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBlockFetcherConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -273,6 +254,26 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TErasureReaderConfig
+    : public TReplicationReaderConfig
+    , public virtual TBlockFetcherConfig
+{
+public:
+    bool EnableAutoRepair;
+    double ReplicationReaderSpeedLimitPerSec;
+    TDuration SlowReaderExpirationTimeout;
+    TDuration ReplicationReaderTimeout;
+    TDuration ReplicationReaderFailureTimeout;
+
+    REGISTER_YSON_STRUCT(TErasureReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TErasureReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
