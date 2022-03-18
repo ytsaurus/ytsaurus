@@ -108,8 +108,15 @@ private:
         NRpc::IServiceContextPtr context,
         const TAsyncSemaphorePtr& semaphore)
     {
-        auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) {
-            Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+        auto timeBefore = NProfiling::GetInstant();
+        auto handler = BIND([mutation = std::move(mutation), context = std::move(context), timeBefore] (TAsyncSemaphoreGuard) {
+            auto requestTimeout = context->GetTimeout();
+            auto timeAfter = NProfiling::GetInstant();
+            if (requestTimeout && timeAfter >= timeBefore + *requestTimeout) {
+                context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took longer than request timeout"));
+            } else {
+                Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+            }
         });
 
         semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);

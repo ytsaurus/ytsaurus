@@ -74,6 +74,7 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/compact_vector.h>
 
@@ -2026,8 +2027,15 @@ private:
         NRpc::IServiceContextPtr context,
         const TAsyncSemaphorePtr& semaphore)
     {
-        auto handler = BIND([mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) mutable {
-            Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+        auto timeBefore = NProfiling::GetInstant();
+        auto handler = BIND([mutation = std::move(mutation), context = std::move(context), timeBefore] (TAsyncSemaphoreGuard) mutable {
+            auto requestTimeout = context->GetTimeout();
+            auto timeAfter = NProfiling::GetInstant();
+            if (requestTimeout && timeAfter >= timeBefore + *requestTimeout) {
+                context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took longer than request timeout"));
+            } else {
+                Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
+            }
 
             // Offload mutation destruction to another thread.
             NRpc::TDispatcher::Get()->GetHeavyInvoker()
