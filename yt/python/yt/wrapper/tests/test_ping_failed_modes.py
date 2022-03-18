@@ -7,6 +7,8 @@ from .helpers import set_config_option
 
 import yt.wrapper as yt
 
+from yt.packages.six import PY3
+
 from flaky import flaky
 
 import pytest
@@ -120,6 +122,9 @@ class TestPingFailedModes(object):
     @authors("marat-khalili")
     @flaky(max_runs=3)
     def test_send_signal(self):
+        # YT-16628: logging cannot properly handle signals that can lead to deadlock.
+        if not PY3:
+            pytest.skip()
         with set_config_option("ping_failed_mode", "send_signal"):
             with pytest.raises(yt.YtTransactionPingError):
                 reproduce_transaction_loss(expects_exception=True, must_interrupt_sleep=True)
