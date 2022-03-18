@@ -160,6 +160,8 @@ class ChaosTestBase(DynamicTablesBase):
 
         def _check():
             orchids = self._get_table_orchids(replica["replica_path"], driver=replica_driver)
+            if not any(orchid["replication_card"] for orchid in orchids):
+                return False
             if not all(_replica_checker(orchid["replication_card"]["replicas"][replica_id]) for orchid in orchids):
                 return False
             if len(builtins.set(orchid["replication_card"]["era"] for orchid in orchids)) > 1:
@@ -1172,6 +1174,46 @@ class TestChaos(ChaosTestBase):
         values1 = [{"key": 1, "value": "1"}]
         insert_rows("//tmp/t", values1)
         wait(lambda: select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values0 + values1)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("enabled", [True, False])
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_new_data_replica_with_progress_and_wo_catchup(self, mode, enabled):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": mode, "enabled": enabled, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:2])
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=False))
+        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:], mount_tables=False)
+
+        sync_unmount_table("//tmp/t")
+        replication_progress = get("//tmp/t/@replication_progress")
+        sync_mount_table("//tmp/t")
+        alter_table("//tmp/r", replication_progress=replication_progress, driver=remote_driver0)
+        sync_mount_table("//tmp/r", driver=remote_driver0)
+
+        if mode == "sync":
+            self._sync_replication_era(card_id, replicas)
+
+        if not enabled:
+            self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=True)
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+
+        if mode == "sync":
+            assert select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values1
+        else:
+            wait(lambda: select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values1)
 
     @authors("savrus")
     @pytest.mark.parametrize("catchup", [True, False])

@@ -930,13 +930,10 @@ private:
 
             if (updated) {
                 if (replicaInfo.History.empty()) {
-                    auto& replicationProgress = replicaInfo.ReplicationProgress;
-                    YT_VERIFY(replicationProgress.Segments.size() == 1);
-                    YT_VERIFY(replicationProgress.UpperKey == MaxKey());
-                    YT_VERIFY(replicationProgress.Segments[0].LowerKey == EmptyKey());
-                    YT_VERIFY(replicationProgress.Segments[0].Timestamp == MinTimestamp);
-
-                    replicationProgress.Segments[0].Timestamp = timestamp;
+                    replicaInfo.ReplicationProgress = TReplicationProgress{
+                        .Segments = {{EmptyKey(), timestamp}},
+                        .UpperKey = MaxKey()
+                    };
                 }
 
                 replicaInfo.History.push_back({newEra, timestamp, replicaInfo.Mode, replicaInfo.State});
@@ -1032,6 +1029,12 @@ private:
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
+
+        if (replicaInfo->History.empty()) {
+            THROW_ERROR_EXCEPTION("Replication progress update is prohibited because replica history has not been started yet")
+                << TErrorAttribute("replication_card_id", replicationCardId)
+                << TErrorAttribute("replica_id", replicaId);
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication progress (ReplicationCardId: %v, ReplicaId: %v, OldProgress: %v, NewProgress: %v)",
             replicationCardId,
