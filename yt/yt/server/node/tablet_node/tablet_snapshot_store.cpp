@@ -113,6 +113,14 @@ public:
                     NRpc::EErrorCode::Unavailable,
                     "Not an active leader");
             }
+
+            if (tabletSnapshot->Unregistered.load()) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::NoSuchTablet,
+                    "Tablet %v has been unregistered",
+                    tabletSnapshot->TabletId)
+                    << TErrorAttribute("tablet_id", tabletSnapshot->TabletId);
+            }
         }
     }
 
@@ -161,6 +169,8 @@ public:
             auto snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
                 guard.Release();
+
+                snapshot->Unregistered.store(true);
 
                 YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled (TabletId: %v, CellId: %v)",
                     tablet->GetId(),

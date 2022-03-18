@@ -252,6 +252,8 @@ struct TTabletSnapshot
 
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader;
 
+    std::atomic<bool> Unregistered = false;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TLegacyKey& lowerBound,
