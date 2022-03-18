@@ -1882,6 +1882,8 @@ class TestUserJobMonitoring(YTEnvSetup):
         job_id, = wait_breakpoint()
         release_breakpoint()
 
+        wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+
         expected_time = 10 * 1000  # 10 seconds.
         job_info = get_job(op.id, job_id)
         node = job_info["address"]

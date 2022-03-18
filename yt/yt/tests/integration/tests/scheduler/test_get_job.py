@@ -448,8 +448,8 @@ class TestGetJobMonitoring(_TestGetJobBase):
         job_id, = wait_breakpoint()
 
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
+
         job = get_job(op.id, job_id)
-        assert "monitoring_descriptor" in job
         descriptor = job["monitoring_descriptor"]
 
         wait(
