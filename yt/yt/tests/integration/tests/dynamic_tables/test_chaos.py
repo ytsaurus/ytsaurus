@@ -40,10 +40,14 @@ class ChaosTestBase(DynamicTablesBase):
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
-    def _create_chaos_cell_bundle(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
+    def _create_chaos_cell_bundle(self, name="c", peer_cluster_names=None, meta_cluster_names=[], clock_cluster_tag=None):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
-        return create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=meta_cluster_names)
+        return create_chaos_cell_bundle(
+            name,
+            peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            clock_cluster_tag=clock_cluster_tag)
 
     def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
         if peer_cluster_names is None:
@@ -52,11 +56,18 @@ class ChaosTestBase(DynamicTablesBase):
         sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names)
         return cell_id
 
-    def _sync_create_chaos_bundle_and_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
+    def _sync_create_chaos_bundle_and_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], clock_cluster_tag=None):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
-        self._create_chaos_cell_bundle(name=name, peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
-        return self._sync_create_chaos_cell(name=name, peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
+        self._create_chaos_cell_bundle(
+            name=name,
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            clock_cluster_tag=clock_cluster_tag)
+        return self._sync_create_chaos_cell(
+            name=name,
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names)
 
     def _list_chaos_nodes(self, driver=None):
         nodes = ls("//sys/cluster_nodes", attributes=["state", "flavors"], driver=driver)
@@ -1430,21 +1441,53 @@ class TestChaosClock(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 1
     USE_PRIMARY_CLOCKS = False
 
-    @authors("savrus")
-    def test_queue_with_different_clock(self):
-        primary_cell_tag = get("//sys/@primary_cell_tag")
-        drivers = self._get_drivers()
-        for driver in drivers[1:]:
-            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "transaction_manager": {
+                "reject_incorrect_clock_cluster_tag": True
+            }
+        }
+    }
 
+    def _create_single_peer_chaos_cell(self, clock_cluster_tag=None):
         cluster_names = self.get_cluster_names()
         peer_cluster_names = cluster_names[:1]
         meta_cluster_names = cluster_names[1:]
+        cell_id = self._sync_create_chaos_bundle_and_cell(
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            clock_cluster_tag=clock_cluster_tag)
+        return cell_id
 
-        cell_id = self._sync_create_chaos_bundle_and_cell(peer_cluster_names=peer_cluster_names, meta_cluster_names=meta_cluster_names)
+    @authors("savrus")
+    def test_invalid_clock(self):
+        drivers = self._get_drivers()
+        for driver in drivers:
+            clock_cluster_tag = get("//sys/@primary_cell_tag", driver=driver)
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag, driver=driver)
 
+        cell_id = self._create_single_peer_chaos_cell()
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+
+        with pytest.raises(YtError, match="Transaction timestamp is generated from unexpected clock"):
+            insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+    @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize("primary", [True, False])
+    def test_different_clock(self, primary, mode):
+        drivers = self._get_drivers()
+        clock_cluster_tag = get("//sys/@primary_cell_tag", driver=drivers[0 if primary else 1])
+        for driver in drivers:
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag, driver=driver)
+
+        cell_id = self._create_single_peer_chaos_cell(clock_cluster_tag=clock_cluster_tag)
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
@@ -1459,3 +1502,7 @@ class TestChaosClock(ChaosTestBase):
             if iteration < total_iterations - 1:
                 mode = ["sync", "async"][iteration % 2]
                 self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=mode)
+
+        # Check that master transactions are working.
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/q", driver=drivers[1])

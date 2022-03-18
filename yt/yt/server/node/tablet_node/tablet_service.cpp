@@ -26,6 +26,8 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>

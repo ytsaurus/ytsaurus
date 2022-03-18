@@ -45,18 +45,6 @@ TTimestamp TimestampFromTransactionId(TTransactionId id);
 //! Computes atomicity level for a given transaction.
 EAtomicity AtomicityFromTransactionId(TTransactionId id);
 
-//! Checks if #id represents a valid transaction accepted by tablets:
-//! the type of #id must be either
-//! #EObjectType::Transaction, #EObjectType::AtomicTabletTransaction,
-//! or #EObjectType::NonAtomicTabletTransaction.
-void ValidateTabletTransactionId(TTransactionId id);
-
-//! Checks if #id represents a valid transaction accepted by masters:
-//! the type of #id must be one of
-//! #EObjectType::Transaction, #EObjectType::NestedTransaction,
-//! #EObjectType::UploadTransaction, or #EObjectType::UploadNestedTransaction.
-void ValidateMasterTransactionId(TTransactionId id);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient
