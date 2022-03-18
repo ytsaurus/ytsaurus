@@ -532,6 +532,21 @@ DEFINE_REFCOUNTED_TYPE(TChunkMergerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkRepairJobDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NChunkClient::TErasureReaderConfigPtr Reader;
+
+    i64 WindowSize;
+
+    TChunkRepairJobDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkRepairJobDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -791,11 +806,14 @@ public:
 
     TDuration IOStatisticsUpdateTimeout;
 
+    // COMPAT(gritukan, capone212)
     NChunkClient::TErasureReaderConfigPtr AdaptiveChunkRepairJob;
 
     TIOThroughputMeterConfigPtr IOThroughputMeter;
 
     TChunkMergerConfigPtr ChunkMerger;
+
+    TChunkRepairJobDynamicConfigPtr ChunkRepairJob;
 
     TDataNodeDynamicConfig();
 };

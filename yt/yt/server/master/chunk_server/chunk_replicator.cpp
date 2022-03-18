@@ -253,6 +253,8 @@ public:
         builder.Add(sourceReplicas);
         ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
 
+        jobSpecExt->set_striped_erasure_chunk(Chunk_->GetStripedErasure());
+
         for (auto replica : TargetReplicas_) {
             jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
             builder.Add(replica);

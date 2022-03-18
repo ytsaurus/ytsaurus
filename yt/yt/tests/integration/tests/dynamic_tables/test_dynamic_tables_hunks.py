@@ -3,7 +3,7 @@ from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, wait, create, exists, get, set, set_banned_flag, insert_rows, remove, select_rows,
+    authors, wait, create, exists, get, set, ls, set_banned_flag, insert_rows, remove, select_rows,
     lookup_rows, delete_rows, remount_table,
     alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
@@ -25,7 +25,7 @@ import builtins
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 7
 
-    NUM_NODES = 10
+    NUM_NODES = 15
 
     NUM_SCHEDULERS = 1
 
@@ -222,6 +222,50 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             lookup_rows("//tmp/t", keys)
         set_ban_for_parts([0, 1, 2, 4], False)
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("available", [False, True])
+    def test_repair_erasure_hunk_chunk(self, optimize_for, available):
+        self._separate_tablet_and_data_nodes()
+
+        sync_create_cells(1)[0]
+        self._create_table(optimize_for=optimize_for, hunk_erasure_codec="isa_reed_solomon_6_3")
+
+        sync_mount_table("//tmp/t")
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        hunk_chunk_ids = self._get_hunk_chunk_ids("//tmp/t")
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = hunk_chunk_ids[0]
+
+        def set_ban_for_parts(part_indicies, banned_flag):
+            chunk_replicas = get("#{}/@stored_replicas".format(hunk_chunk_id))
+
+            nodes_to_ban = []
+            for part_index in part_indicies:
+                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+                nodes_to_ban += nodes
+
+            set_banned_flag(banned_flag, nodes_to_ban)
+
+        if available:
+            set_ban_for_parts([0, 1, 4], True)
+            time.sleep(1)
+            wait(lambda: len(ls("//sys/data_missing_chunks")) == 0)
+            wait(lambda: len(ls("//sys/parity_missing_chunks")) == 0)
+            assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+        else:
+            set_ban_for_parts([0, 1, 2, 8], True)
+            time.sleep(2)
+            assert hunk_chunk_id in ls("//sys/data_missing_chunks")
+            assert hunk_chunk_id in ls("//sys/parity_missing_chunks")
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
