@@ -320,7 +320,7 @@ func TestACLUpdate(t *testing.T) {
 		{
 			Action:      "allow",
 			Subjects:    []string{"admins"},
-			Permissions: []string{"read", "manage"},
+			Permissions: []string{"read", "administer", "manage"},
 		},
 		{
 			Action:      "allow",
