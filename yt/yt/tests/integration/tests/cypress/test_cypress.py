@@ -47,6 +47,20 @@ def _set_sys_config(path, value):
         remove("//sys/@config" + path)
 
 
+class TestCypressRootCreationTime(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_CELLS = 1
+    NUM_NODES = 0
+
+    @authors("kvk1920")
+    def test_root_creation_time(self):
+        creation_time = get("//@creation_time")
+        tx = start_transaction()
+        create("map_node", "//a", tx=tx)
+        commit_transaction(tx)
+        assert creation_time == get("//@creation_time")
+
+
 class TestCypress(YTEnvSetup):
     NUM_TEST_PARTITIONS = 7
 

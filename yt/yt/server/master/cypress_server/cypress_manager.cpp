@@ -3316,7 +3316,7 @@ private:
             // (We don't have any mutation context at hand to provide a synchronized timestamp.)
             // Later on, Cypress is initialized and filled with nodes.
             // At this point we set the root's creation time.
-            if (trunkNode == RootNode_ && !transaction->GetParent()) {
+            if (trunkNode == RootNode_ && !transaction->GetParent() && trunkNode->GetCreationTime() == TInstant::Zero()) {
                 originatingNode->SetCreationTime(originatingNode->GetModificationTime());
             }
         } else {
