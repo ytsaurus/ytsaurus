@@ -9,6 +9,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NQueueAgent {
 
@@ -25,13 +26,90 @@ using namespace NHiveClient;
 
 static const auto& Logger = QueueAgentLogger;
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void BuildErrorYson(TError error, TFluentMap fluent)
+{
+    fluent
+        .Item("status").BeginMap()
+            .Item("error").Value(error)
+        .EndMap()
+        .Item("pass_index").Value(0)
+        .Item("partitions").BeginList().EndList();
+}
+
+template <class TValue>
+class TCollectionBoundService
+    : public TVirtualMapBase
+{
+public:
+    using TCollection = THashMap<TCrossClusterReference, TValue>;
+    using TProducerCallback = TCallback<void(const TCrossClusterReference&, const TValue&, IYsonConsumer*)>;
+
+    explicit TCollectionBoundService(
+        const TCollection& collection,
+        TProducerCallback producer,
+        IInvokerPtr invoker)
+        : Collection_(collection)
+        , Producer_(std::move(producer))
+        , Invoker_(std::move(invoker))
+    {
+        SetOpaque(false);
+    }
+
+    i64 GetSize() const override
+    {
+        return std::ssize(Collection_);
+    }
+
+    std::vector<TString> GetKeys(i64 limit) const override
+    {
+        std::vector<TString> keys;
+        keys.reserve(std::min(std::ssize(Collection_), limit));
+        for (const auto& [key, value] : Collection_) {
+            keys.push_back(ToString(key));
+            if (std::ssize(keys) == limit) {
+                break;
+            }
+        }
+        return keys;
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        auto objectRef = TCrossClusterReference::FromString(key);
+        auto buildQueueYsonCallback = BIND(&TCollectionBoundService::BuildYson, MakeStrong(this), objectRef);
+        return IYPathService::FromProducer(buildQueueYsonCallback)->Via(Invoker_);
+    }
+
+private:
+    // Neither the queue agent nor the ypath services are supposed to be destroyed, so references are fine.
+    const TCollection& Collection_;
+    TProducerCallback Producer_;
+    IInvokerPtr Invoker_;
+
+    void BuildYson(const TCrossClusterReference& objectRef, IYsonConsumer* ysonConsumer) const
+    {
+        auto it = Collection_.find(objectRef);
+        if (it == Collection_.end()) {
+            THROW_ERROR_EXCEPTION("Object %v is missing", objectRef);
+        }
+        // NB: This object should not be used after context switches.
+        const auto& object = it->second;
+        Producer_.Run(objectRef, object, ysonConsumer);
+    }
+};
+
+} // namespace
+
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState)
-    : OrchidService_(IYPathService::FromProducer(BIND(&TQueueAgent::BuildOrchid, MakeWeak(this)))->Via(controlInvoker))
-    , Config_(std::move(config))
+    : Config_(std::move(config))
     , ClientDirectory_(std::move(clientDirectory))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
@@ -40,7 +118,18 @@ TQueueAgent::TQueueAgent(
         ControlInvoker_,
         BIND(&TQueueAgent::Poll, MakeWeak(this)),
         Config_->PollPeriod))
-{ }
+{
+    QueueObjectServiceNode_ = CreateVirtualNode(
+        New<TCollectionBoundService<TQueue>>(
+            Queues_,
+            BIND(&TQueueAgent::BuildQueueYson, MakeWeak(this)),
+            ControlInvoker_));
+    ConsumerObjectServiceNode_ = CreateVirtualNode(
+        New<TCollectionBoundService<TConsumer>>(
+            Consumers_,
+            BIND(&TQueueAgent::BuildConsumerYson, MakeWeak(this)),
+            ControlInvoker_));
+}
 
 void TQueueAgent::Start()
 {
@@ -92,81 +181,27 @@ void TQueueAgent::DoStop()
     YT_LOG_INFO("Queue agent stopped");
 }
 
-void TQueueAgent::BuildOrchid(IYsonConsumer* consumer) const
+IMapNodePtr TQueueAgent::GetOrchidNode() const
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_DEBUG("Executing orchid request (PollIndex: %v)", PollIndex_ - 1);
 
-    // NB: without taking copy we may end up with invalidated iterators due to yielding.
-    auto queuesCopy = Queues_;
-    auto consumersCopy = Consumers_;
-
-    auto buildErrorYson = [&] (TError error, TFluentMap fluent) {
-        fluent
-            .Item("status").BeginMap()
-                .Item("error").Value(error)
-            .EndMap()
-            .Item("pass_index").Value(0)
-            .Item("partitions").BeginList().EndList();
+    auto virtualScalarNode = [] (auto callable) {
+        return CreateVirtualNode(IYPathService::FromProducer(BIND([callable] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer).Value(callable());
+        })));
     };
 
-    BuildYsonFluently(consumer).BeginMap()
-        .Item("active").Value(Active_.load())
-        .Item("queues").DoMapFor(queuesCopy, [&] (TFluentMap fluent, auto pair) {
-            auto queueRef = pair.first;
-            auto queue = pair.second;
-            fluent
-                .Item(ToString(queueRef)).BeginMap()
-                    .Item("row_revision").Value(queue.RowRevision)
-                    .Do([&] (TFluentMap fluent) {
-                        if (!queue.Error.IsOK()) {
-                            buildErrorYson(queue.Error, fluent);
-                            return;
-                        }
+    auto node = GetEphemeralNodeFactory()->CreateMap();
+    node->AddChild("active", virtualScalarNode([&] { return Active_.load(); }));
+    node->AddChild("poll_instant", virtualScalarNode([&] { return PollInstant_; }));
+    node->AddChild("poll_index", virtualScalarNode([&] { return PollIndex_; }));
+    node->AddChild("latest_poll_error", virtualScalarNode([&] { return LatestPollError_; }));
+    node->AddChild("queues", QueueObjectServiceNode_);
+    node->AddChild("consumers", ConsumerObjectServiceNode_);
 
-                        YT_VERIFY(queue.Controller);
-
-                        auto error = WaitFor(
-                            BIND(&IQueueController::BuildOrchid, queue.Controller, fluent)
-                                .AsyncVia(queue.Controller->GetInvoker())
-                                .Run());
-                        YT_VERIFY(error.IsOK());
-                    })
-                .EndMap();
-        })
-        .Item("consumers").DoMapFor(consumersCopy, [&] (TFluentMap fluent, auto pair) {
-            auto consumerRef = pair.first;
-            auto consumer = pair.second;
-
-            fluent
-                .Item(ToString(consumerRef)).BeginMap()
-                    .Item("row_revision").Value(consumer.RowRevision)
-                    .Do([&] (TFluentMap fluent) {
-                        if (!consumer.Error.IsOK()) {
-                            buildErrorYson(consumer.Error, fluent);
-                            return;
-                        }
-                        YT_VERIFY(consumer.Target);
-                        auto queue = GetOrCrash(queuesCopy, *consumer.Target);
-                        if (!queue.Error.IsOK()) {
-                            buildErrorYson(TError("Target queue %Qv is in error state", consumer.Target) << queue.Error, fluent);
-                            return;
-                        }
-                        YT_VERIFY(queue.Controller);
-
-                        auto error = WaitFor(
-                            BIND(&IQueueController::BuildConsumerOrchid, queue.Controller, consumerRef, fluent)
-                                .AsyncVia(queue.Controller->GetInvoker())
-                                .Run());
-                        YT_VERIFY(error.IsOK());
-                    })
-                .EndMap();
-        })
-        .Item("poll_instant").Value(PollInstant_)
-        .Item("poll_index").Value(PollIndex_)
-        .Item("latest_poll_error").Value(LatestPollError_)
-    .EndMap();
+    return node;
 }
 
 void TQueueAgent::Poll()
@@ -363,6 +398,53 @@ void TQueueAgent::Poll()
             queue.Controller->Start();
         }
     }
+}
+
+void TQueueAgent::BuildQueueYson(const TCrossClusterReference& /*queueRef*/, const TQueue& queue, IYsonConsumer* ysonConsumer)
+{
+    BuildYsonFluently(ysonConsumer).BeginMap()
+        .Item("row_revision").Value(queue.RowRevision)
+        .Do([&] (TFluentMap fluent) {
+            if (!queue.Error.IsOK()) {
+                BuildErrorYson(queue.Error, fluent);
+                return;
+            }
+
+            YT_VERIFY(queue.Controller);
+
+            auto error = WaitFor(
+                BIND(&IQueueController::BuildOrchid, queue.Controller, fluent)
+                    .AsyncVia(queue.Controller->GetInvoker())
+                    .Run());
+            YT_VERIFY(error.IsOK());
+        })
+        .EndMap();
+}
+
+void TQueueAgent::BuildConsumerYson(const TCrossClusterReference& consumerRef, const TConsumer& consumer, IYsonConsumer* ysonConsumer)
+{
+    BuildYsonFluently(ysonConsumer).BeginMap()
+        .Item("row_revision").Value(consumer.RowRevision)
+        .Do([&] (TFluentMap fluent) {
+            if (!consumer.Error.IsOK()) {
+                BuildErrorYson(consumer.Error, fluent);
+                return;
+            }
+            YT_VERIFY(consumer.Target);
+            auto queue = GetOrCrash(Queues_, *consumer.Target);
+            if (!queue.Error.IsOK()) {
+                BuildErrorYson(TError("Target queue %Qv is in error state", consumer.Target) << queue.Error, fluent);
+                return;
+            }
+            YT_VERIFY(queue.Controller);
+
+            auto error = WaitFor(
+                BIND(&IQueueController::BuildConsumerOrchid, queue.Controller, consumerRef, fluent)
+                    .AsyncVia(queue.Controller->GetInvoker())
+                    .Run());
+            YT_VERIFY(error.IsOK());
+        })
+        .EndMap();
 }
 
 void TQueueAgent::TQueue::Reset()

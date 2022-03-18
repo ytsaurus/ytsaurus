@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,9 +16,6 @@ namespace NYT::NQueueAgent {
 class TQueueAgent
     : public TRefCounted
 {
-public:
-    DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, OrchidService);
-
 public:
     TQueueAgent(
         TQueueAgentConfigPtr config,
@@ -27,6 +26,8 @@ public:
     void Start();
 
     void Stop();
+
+    NYTree::IMapNodePtr GetOrchidNode() const;
 
 private:
     const TQueueAgentConfigPtr Config_;
@@ -84,7 +85,10 @@ private:
     //! Index of a current poll iteration.
     i64 PollIndex_ = 0;
 
-    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
+    void BuildQueueYson(const TCrossClusterReference& /*queueRef*/, const TQueue& queue, NYson::IYsonConsumer* ysonConsumer);
+    NYTree::INodePtr QueueObjectServiceNode_;
+    void BuildConsumerYson(const TCrossClusterReference& consumerRef, const TConsumer& consumer, NYson::IYsonConsumer* ysonConsumer);
+    NYTree::INodePtr ConsumerObjectServiceNode_;
 
     //! One iteration of state polling and queue/consumer in-memory state updating.
     void Poll();

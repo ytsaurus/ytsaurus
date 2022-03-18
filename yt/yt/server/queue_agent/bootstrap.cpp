@@ -169,7 +169,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/queue_agent",
-        CreateVirtualNode(QueueAgent_->GetOrchidService()));
+        QueueAgent_->GetOrchidNode());
     SetNodeByYPath(
         orchidRoot,
         "/cypress_synchronizer",

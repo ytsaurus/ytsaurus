@@ -651,9 +651,15 @@ class TestMasterIntegration(TestQueueAgentBase):
         wait(lambda: get("//tmp/q/@queue_status/partition_count") == 1, ignore_exceptions=True)
 
         # Check the zeroth partition.
-        partitions = get("//tmp/q/@queue_partitions")
-        assert len(partitions) == 1
-        assert partitions[0]["available_row_count"] == 0
+
+        def check_partition():
+            partitions = get("//tmp/q/@queue_partitions")
+            if len(partitions) == 1:
+                assert partitions[0]["available_row_count"] == 0
+                return True
+            return False
+
+        wait(check_partition)
 
         # Check that queue attributes are opaque.
         full_attributes = get("//tmp/q/@")
