@@ -413,13 +413,13 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
         value->Flags |= EValueFlags::Aggregate;
     }
 
-    if (ColumnHunkFlags_[chunkSchemaId]) {
-        value->Flags |= EValueFlags::Hunk;
-    }
-
     if (Y_UNLIKELY(ValueNullFlags_[valueIndex])) {
         value->Type = EValueType::Null;
         return;
+    }
+
+    if (ColumnHunkFlags_[chunkSchemaId]) {
+        value->Flags |= EValueFlags::Hunk;
     }
 
     auto type = ColumnTypes_[chunkSchemaId];

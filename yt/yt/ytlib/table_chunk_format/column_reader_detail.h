@@ -660,9 +660,7 @@ public:
         : Data_(data)
         , Meta_(meta)
         , Aggregate_(columnSchema.Aggregate().has_value())
-        , BaseFlags_(columnSchema.MaxInlineHunkSize()
-            ? NTableClient::EValueFlags::Hunk
-            : NTableClient::EValueFlags::None)
+        , HunkColumnFlag_(static_cast<bool>(columnSchema.MaxInlineHunkSize()))
         , ColumnId_(columnId)
         , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
         , ValueExtractor_(data, meta, Aggregate_)
@@ -672,7 +670,7 @@ protected:
     const TRef Data_;
     const NProto::TSegmentMeta& Meta_;
     const bool Aggregate_;
-    const NTableClient::EValueFlags BaseFlags_;
+    const bool HunkColumnFlag_;
     const int ColumnId_;
 
     const i64 SegmentStartRowIndex_;
@@ -706,12 +704,7 @@ protected:
             row.SetValueCount(row.GetValueCount() + 1);
             value->Timestamp = timestampIndex;
 
-
-            auto flags = BaseFlags_;
-            if (ValueExtractor_.GetAggregate(valueIndex)) {
-                flags |= NTableClient::EValueFlags::Aggregate;
-            }
-            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
+            DoExtractValue(value, valueIndex);
 
             if (!produceAllVersions && !Aggregate_) {
                 break;
@@ -731,12 +724,22 @@ protected:
 
             value->Timestamp = ValueExtractor_.GetTimestampIndex(valueIndex);
 
-            auto flags = BaseFlags_;
-            if (ValueExtractor_.GetAggregate(valueIndex)) {
-                flags |= NTableClient::EValueFlags::Aggregate;
-            }
+            DoExtractValue(value, valueIndex);
+        }
+    }
 
-            ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
+    void DoExtractValue(
+        NTableClient::TVersionedValue* value,
+        ui32 valueIndex)
+    {
+        auto flags = NTableClient::EValueFlags::None;
+        if (ValueExtractor_.GetAggregate(valueIndex)) {
+            flags |= NTableClient::EValueFlags::Aggregate;
+        }
+        ValueExtractor_.ExtractValue(value, valueIndex, ColumnId_, flags);
+
+        if (value->Type != NTableClient::EValueType::Null && HunkColumnFlag_) {
+            value->Flags |= NTableClient::EValueFlags::Hunk;
         }
     }
 };
