@@ -111,7 +111,7 @@ func TestSmartRead(t *testing.T) {
 		t.Run("ErrorInjection", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := httpclient.WithRoundTripper(env.Ctx, &readTruncatingRoundTripper{n: 100})
+			ctx := httpclient.WithRoundTripper(env.Ctx, &readTruncatingRoundTripper{n: 1000})
 			ctx, cancel := context.WithTimeout(ctx, time.Minute)
 			defer cancel()
 
@@ -159,7 +159,7 @@ func TestSmartRead(t *testing.T) {
 		t.Run("ReadRanges", func(t *testing.T) {
 			t.Parallel()
 
-			ctx := httpclient.WithRoundTripper(env.Ctx, &readTruncatingRoundTripper{n: 100})
+			ctx := httpclient.WithRoundTripper(env.Ctx, &readTruncatingRoundTripper{n: 1000})
 			ctx, cancel := context.WithTimeout(ctx, time.Minute)
 			defer cancel()
 
