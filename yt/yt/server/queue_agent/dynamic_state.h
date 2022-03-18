@@ -25,7 +25,7 @@ struct TCrossClusterReference
 
     bool operator ==(const TCrossClusterReference& other) const;
 
-    static TCrossClusterReference FromString(const TString& path);
+    static TCrossClusterReference FromString(TStringBuf path);
 };
 
 TString ToString(const TCrossClusterReference& queueRef);

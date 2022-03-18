@@ -36,7 +36,7 @@ bool TCrossClusterReference::operator==(const TCrossClusterReference& other) con
     return Cluster == other.Cluster && Path == other.Path;
 }
 
-TCrossClusterReference TCrossClusterReference::FromString(const TString& path)
+TCrossClusterReference TCrossClusterReference::FromString(TStringBuf path)
 {
     TCrossClusterReference result;
     if (!StringSplitter(path).Split(':').Limit(2).TryCollectInto(&result.Cluster, &result.Path)) {
