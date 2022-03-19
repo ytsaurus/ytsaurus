@@ -17,30 +17,10 @@ import yt_error_codes
 
 from yt.wrapper.ypath import escape_ypath_literal
 
+import yt.environment.init_queue_agent_state as init_queue_agent_state
+
 ##################################################################
 
-QUEUE_TABLE_SCHEMA = [
-    {"name": "cluster", "type": "string", "sort_order": "ascending"},
-    {"name": "path", "type": "string", "sort_order": "ascending"},
-    {"name": "row_revision", "type": "uint64"},
-    {"name": "revision", "type": "uint64"},
-    {"name": "object_type", "type": "string"},
-    {"name": "dynamic", "type": "boolean"},
-    {"name": "sorted", "type": "boolean"},
-]
-
-CONSUMER_TABLE_SCHEMA = [
-    {"name": "cluster", "type": "string", "sort_order": "ascending"},
-    {"name": "path", "type": "string", "sort_order": "ascending"},
-    {"name": "row_revision", "type": "uint64"},
-    {"name": "revision", "type": "uint64"},
-    {"name": "target_cluster", "type": "string"},
-    {"name": "target_path", "type": "string"},
-    {"name": "object_type", "type": "string"},
-    {"name": "treat_as_consumer", "type": "boolean"},
-    {"name": "schema", "type": "any"},
-    {"name": "vital", "type": "boolean"},
-]
 
 BIGRT_CONSUMER_TABLE_SCHEMA = [
     {"name": "ShardId", "type": "uint64", "sort_order": "ascending"},
@@ -133,13 +113,15 @@ class QueueAgentOrchid:
 class TestQueueAgentBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
-    def _prepare_tables(self, queue_table_schema=QUEUE_TABLE_SCHEMA, consumer_table_schema=CONSUMER_TABLE_SCHEMA):
+    def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None):
         sync_create_cells(1)
-        create("table", "//sys/queue_agents/queues", force=True, recursive=True,
-               attributes={"dynamic": True, "schema": queue_table_schema})
+        remove("//sys/queue_agents/queues", force=True)
+        remove("//sys/queue_agents/consumers", force=True)
+        init_queue_agent_state.create_tables(
+            self.Env.create_native_client(),
+            queue_table_schema=queue_table_schema,
+            consumer_table_schema=consumer_table_schema)
         sync_mount_table("//sys/queue_agents/queues")
-        create("table", "//sys/queue_agents/consumers", force=True, recursive=True,
-               attributes={"dynamic": True, "schema": consumer_table_schema})
         sync_mount_table("//sys/queue_agents/consumers")
 
     def _drop_tables(self):
@@ -200,7 +182,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.ResolveErrorCode)
 
-        wrong_schema = copy.deepcopy(QUEUE_TABLE_SCHEMA)
+        wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
         wrong_schema[-1]["type"] = "int64"
         self._prepare_tables(queue_table_schema=wrong_schema)
 
@@ -848,12 +830,12 @@ class TestCypressSynchronizer(TestQueueAgentBase):
     def _check_queue_count_and_column_counts(self, queues, size):
         assert len(queues) == size
         column_counts = [len(row) for row in queues]
-        assert column_counts == [len(QUEUE_TABLE_SCHEMA)] * size
+        assert column_counts == [len(init_queue_agent_state.QUEUE_TABLE_SCHEMA)] * size
 
     def _check_consumer_count_and_column_counts(self, consumers, size):
         assert len(consumers) == size
         column_counts = [len(row) for row in consumers]
-        assert column_counts == [len(CONSUMER_TABLE_SCHEMA)] * size
+        assert column_counts == [len(init_queue_agent_state.CONSUMER_TABLE_SCHEMA)] * size
 
     def _get_queues_and_check_invariants(self, expected_count=None):
         queues = select_rows("* from [//sys/queue_agents/queues]")
