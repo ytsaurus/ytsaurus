@@ -1601,7 +1601,7 @@ void TTablet::ConfigureRowCache()
         if (!RowCache_) {
             RowCache_ = New<TRowCache>(
                 lookupCacheCapacity,
-                TabletNodeProfiler.WithTag("table_path", TablePath_),
+                TabletNodeProfiler.WithTag("table_path", TablePath_).WithPrefix("/row_cache"),
                 Context_
                     ->GetMemoryUsageTracker()
                     ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
