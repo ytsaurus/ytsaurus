@@ -638,6 +638,7 @@ void TTablet::CopyFrom(const TTablet& other)
     TrimmedRowCount_ = other.TrimmedRowCount_;
     EdenStoreIds_ = other.EdenStoreIds_;
     BackupCutoffDescriptor_ = other.BackupCutoffDescriptor_;
+    ReplicationProgress_ = other.ReplicationProgress_;
 }
 
 void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
