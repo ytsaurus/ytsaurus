@@ -165,6 +165,8 @@ class YTInstance(object):
             if ytserver_all_path is None:
                 ytserver_all_path = os.environ.get("YTSERVER_ALL_PATH")
             if ytserver_all_path is not None:
+                # Replace path with realpath in order to support specifying a relative path.
+                ytserver_all_path = os.path.realpath(ytserver_all_path)
                 if not os.path.exists(ytserver_all_path):
                     raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
                 makedirp(self.bin_path)
@@ -182,11 +184,14 @@ class YTInstance(object):
 
         with push_front_env_path(self.bin_path):
             self._binary_to_version = _get_yt_versions(custom_paths=self.custom_paths)
+        
+        if "ytserver-master" not in self._binary_to_version:
+            raise YtError("Failed to find YT binaries; specify ytserver-all path using "
+                          "ytserver_all_path keyword in Python/--ytserver-all-path argument of yt_local/$YTSERVER_ALL_PATH, or "
+                          "put ytserver-* binaries into $PATH")
+
         abi_versions = set(imap(lambda v: v.abi, self._binary_to_version.values()))
         self.abi_version = abi_versions.pop()
-
-        if "ytserver-master" not in self._binary_to_version:
-            raise YtError("Failed to find YT binaries (ytserver-*) in $PATH. Make sure that YT is installed.")
 
         self._lock = RLock()
 
