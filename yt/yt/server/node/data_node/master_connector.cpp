@@ -411,7 +411,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return GetChunksDelta(cellTag)->NextHeartbeatBarrier.Load();
+        return GetChunksDelta(cellTag)->NextHeartbeatBarrier.Load().ToFuture().ToUncancelable();
     }
 
     void ScheduleHeartbeat(bool immediately) override
