@@ -74,7 +74,7 @@ TRowCache::TRowCache(
     const NProfiling::TProfiler& profiler,
     IMemoryUsageTrackerPtr memoryTracker)
     : MemoryTracker_(New<TTRowCacheMemoryTracker>(std::move(memoryTracker)))
-    , Allocator_(profiler, MemoryTracker_)
+    , Allocator_(profiler.WithPrefix("/slab_allocator"), MemoryTracker_)
     , Cache_(elementCount)
 { }
 
