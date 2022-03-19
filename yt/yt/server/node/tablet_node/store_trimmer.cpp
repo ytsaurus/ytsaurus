@@ -194,7 +194,11 @@ private:
             return;
         }
 
-        auto selfMinTimestamp = NullTimestamp;
+        i64 remainingRowCount = tablet->GetTotalRowCount() - tablet->GetTrimmedRowCount();
+        if (remainingRowCount == 0) {
+            return;
+        }
+
         auto minTimestamp = MaxTimestamp;
         auto lower = tablet->GetPivotKey().Get();
         auto upper = tablet->GetNextPivotKey().Get();
@@ -204,23 +208,16 @@ private:
                 replica.ReplicationProgress,
                 lower,
                 upper);
-
-            if (replicaId == tablet->GetUpstreamReplicaId()) {
-                selfMinTimestamp = replicaMinTimestamp;
-            } else {
-                minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
-            }
+            minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
         }
 
-        if (selfMinTimestamp > minTimestamp) {
-            Bootstrap_->GetTableReplicatorPoolInvoker()->Invoke(BIND(
-                &TStoreTrimmer::FindReplicationLogTrimRowIndex,
-                MakeWeak(this),
-                tablet->GetId(),
-                tablet->GetEpochAutomatonInvoker(),
-                minTimestamp,
-                slot));
-        }
+        Bootstrap_->GetTableReplicatorPoolInvoker()->Invoke(BIND(
+            &TStoreTrimmer::FindReplicationLogTrimRowIndex,
+            MakeWeak(this),
+            tablet->GetId(),
+            tablet->GetEpochAutomatonInvoker(),
+            minTimestamp,
+            slot));
     }
 
     void FindReplicationLogTrimRowIndex(

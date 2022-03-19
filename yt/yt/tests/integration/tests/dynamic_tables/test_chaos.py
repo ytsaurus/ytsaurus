@@ -9,7 +9,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     authors, print_debug, wait, execute_command, get_driver, create_user, make_ace, check_permission,
-    get, set, ls, create, exists, remove, start_transaction, commit_transaction,
+    get, set, ls, create, exists, remove, copy, start_transaction, commit_transaction,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     suspend_coordinator, resume_coordinator, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows,
@@ -25,6 +25,7 @@ import yt.yson as yson
 
 import pytest
 import time
+from copy import deepcopy
 
 import builtins
 
@@ -96,24 +97,29 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_check)
         return get("#{0}/@".format(card_id))
 
-    def _create_chaos_table_replica(self, replica, replication_card_id=None, table_path=None, catchup=True, replication_progress=None):
+    def _create_chaos_table_replica(self, replica, **kwargs):
         attributes = {
-            "content_type": replica["content_type"],
-            "mode": replica["mode"],
             "enabled": replica.get("enabled", False)
         }
-        if replication_card_id is not None:
-            attributes["replication_card_id"] = replication_card_id
-        if table_path is not None:
-            attributes["table_path"] = table_path
-        if catchup is False:
-            attributes["catchup"] = catchup
-        if replication_progress is not None:
-            attributes["replication_progress"] = replication_progress
+        for key in ["content_type", "mode", "replication_card_id", "table_path", "catchup", "replication_progress"]:
+            if key in replica:
+                attributes[key] = replica[key]
+            if kwargs.get(key, None) is not None:
+                attributes[key] = kwargs[key]
         return create_chaos_table_replica(replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
     def _create_chaos_table_replicas(self, replication_card_id, replicas):
         return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id) for replica in replicas]
+
+    def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
+        for replica, replica_id in zip(replicas, replica_ids):
+            path = replica["replica_path"]
+            driver = get_driver(cluster=replica["cluster_name"])
+            alter_table(path, upstream_replica_id=replica_id, driver=driver)
+            if create_tablet_cells:
+                sync_create_cells(1, driver=driver)
+            if mount_tables:
+                sync_mount_table(path, driver=driver)
 
     def _create_replica_tables(self, replication_card_id, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         for replica, replica_id in zip(replicas, replica_ids):
@@ -121,11 +127,7 @@ class ChaosTestBase(DynamicTablesBase):
             driver = get_driver(cluster=replica["cluster_name"])
             create_table = self._create_queue_table if replica["content_type"] == "queue" else self._create_sorted_table
             create_table(path, driver=driver, upstream_replica_id=replica_id)
-            alter_table(path, upstream_replica_id=replica_id, driver=driver)
-            if create_tablet_cells:
-                sync_create_cells(1, driver=driver)
-            if mount_tables:
-                sync_mount_table(path, driver=driver)
+        self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 
     def _sync_replication_era(self, card_id, replicas):
         repliation_card = self._sync_replication_card(card_id)
@@ -135,10 +137,11 @@ class ChaosTestBase(DynamicTablesBase):
             check_write = replica["mode"] == "sync" and replica["enabled"]
             self._wait_for_era(path, era=repliation_card["era"], check_write=check_write, driver=driver)
 
-    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_tablet_cells=True, mount_tables=True):
+    def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True):
         card_id = create_replication_card(chaos_cell_id=cell_id)
         replica_ids = self._create_chaos_table_replicas(card_id, replicas)
-        self._create_replica_tables(card_id, replicas, replica_ids, create_tablet_cells, mount_tables)
+        if create_replica_tables:
+            self._create_replica_tables(card_id, replicas, replica_ids, create_tablet_cells, mount_tables)
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
@@ -1400,6 +1403,63 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows("//tmp/r", [{"key": i} for i in range(2)], driver=remote_driver1) == []
         _insert_and_check(1, "3")
         assert lookup_rows("//tmp/r", [{"key": 1}], driver=remote_driver1) == [{"key": 1, "value": "3"}]
+
+    @authors("savrus")
+    def test_copy_chaos_tables(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values0)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values0)
+
+        wait(lambda: get("//tmp/q0/@tablets/0/trimmed_row_count", driver=remote_driver0) == 1)
+        wait(lambda: get("//tmp/q1/@tablets/0/trimmed_row_count", driver=remote_driver0) == 1)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/q0", driver=remote_driver0)
+
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values1)
+
+        sync_unmount_table("//tmp/q1", driver=remote_driver0)
+        sync_unmount_table("//tmp/r", driver=remote_driver1)
+
+        copy_replicas = []
+        for replica in replicas:
+            driver = get_driver(cluster=replica["cluster_name"])
+            copy_replica = deepcopy(replica)
+            copy_replica["replica_path"] = replica["replica_path"] + "-copy"
+            replication_progress = get("{0}/@replication_progress".format(replica["replica_path"]), driver=driver)
+            copy_replica["replication_progress"] = replication_progress
+            copy_replicas.append(copy_replica)
+            copy(replica["replica_path"], copy_replica["replica_path"], driver=driver)
+
+        copy_card_id, copy_replica_ids = self._create_chaos_tables(
+            cell_id,
+            copy_replicas,
+            create_replica_tables=False,
+            create_tablet_cells=False,
+            mount_tables=False,
+            sync_replication_era=False)
+        self._prepare_replica_tables(copy_replicas, copy_replica_ids)
+        self._sync_replication_era(copy_card_id, copy_replicas)
+
+        assert lookup_rows("//tmp/t-copy", [{"key": 0}]) == values0
+        wait(lambda: lookup_rows("//tmp/t-copy", [{"key": 1}]) == values1)
+
+        values2 = [{"key": 2, "value": "2"}]
+        insert_rows("//tmp/t-copy", values2)
+        assert lookup_rows("//tmp/r-copy", [{"key": 2}], driver=remote_driver1) == values2
+        wait(lambda: lookup_rows("//tmp/t-copy", [{"key": 2}]) == values2)
 
 
 ##################################################################
