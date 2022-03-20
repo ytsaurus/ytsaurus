@@ -280,8 +280,9 @@ template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Reconfigure(const TSlruCacheDynamicConfigPtr& config)
 {
     i64 capacity = config->Capacity.value_or(Config_->Capacity);
-    i64 shardCapacity = std::max<i64>(1, Config_->Capacity / Config_->ShardCount);
+    i64 shardCapacity = std::max<i64>(1, capacity / Config_->ShardCount);
     double youngerSizeFraction = config->YoungerSizeFraction.value_or(Config_->YoungerSizeFraction);
+
     Capacity_.store(capacity);
 
     if (!config->EnableGhostCaches) {

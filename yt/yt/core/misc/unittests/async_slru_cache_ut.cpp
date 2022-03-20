@@ -878,6 +878,30 @@ TEST(TAsyncSlruGhostCacheTest, Disable)
     }
 }
 
+TEST(TAsyncSlruGhostCacheTest, ReconfigureTrim)
+{
+    constexpr int cacheSize = 100;
+    auto config = CreateCacheConfig(cacheSize);
+    auto cache = New<TSimpleSlruCache>(std::move(config), TProfiler{"/cache"});
+
+    for (int i = 0; i < cacheSize; ++i) {
+        auto cookie = cache->BeginInsert(i);
+        EXPECT_TRUE(cookie.IsActive());
+        cookie.EndInsert(New<TSimpleCachedValue>(i, i));
+    }
+
+    EXPECT_EQ(cacheSize, cache->GetSize());
+    EXPECT_EQ(cacheSize, cache->GetCapacity());
+
+    const int newCacheSize = 30;
+    auto dynamicConfig = New<TSlruCacheDynamicConfig>();
+    dynamicConfig->Capacity = newCacheSize;
+    cache->Reconfigure(dynamicConfig);
+
+    EXPECT_EQ(newCacheSize, cache->GetSize());
+    EXPECT_EQ(newCacheSize, cache->GetCapacity());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EStressOperation,
