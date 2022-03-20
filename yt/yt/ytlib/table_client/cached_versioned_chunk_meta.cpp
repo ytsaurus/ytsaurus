@@ -82,6 +82,8 @@ bool TCachedVersionedChunkMeta::IsColumnarMetaPrepared() const
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
     return TColumnarChunkMeta::GetMemoryUsage()
+        + HunkChunkRefsExt().SpaceUsedLong()
+        + HunkChunkMetasExt().SpaceUsedLong()
         + PreparedMetaSize_;
 }
 
