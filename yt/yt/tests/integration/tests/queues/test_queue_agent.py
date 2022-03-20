@@ -652,6 +652,10 @@ class TestMasterIntegration(TestQueueAgentBase):
 
         assert get("//tmp/c/@queue_agent_stage") == "production"
 
+        # Check that queue_agent_stage is writable.
+        set("//tmp/c/@queue_agent_stage", "testing")
+        set("//tmp/c/@queue_agent_stage", "production")
+
         # Before consumer is registered, queue agent backed attributes would throw resolution error.
         with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             get("//tmp/c/@queue_consumer_status")

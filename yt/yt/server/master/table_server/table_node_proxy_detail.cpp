@@ -1487,7 +1487,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::QueueAgentStage: {
             ValidateNoTransaction();
 
-            if (!table->IsQueue()) {
+            if (!table->IsQueue() && !table->IsConsumer()) {
                 break;
             }
 
