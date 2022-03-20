@@ -242,7 +242,7 @@ class ChaosTestBase(DynamicTablesBase):
 
 class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 7
+    NUM_TEST_PARTITIONS = 8
 
     @authors("savrus")
     def test_virtual_maps(self):
@@ -414,7 +414,8 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
@@ -453,12 +454,13 @@ class TestChaos(ChaosTestBase):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
-            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
         reshard_table("//tmp/q", [[], [1], [2], [3], [4]])
         sync_mount_table("//tmp/q")
-        self._sync_replication_era(card_id, replicas)
+        self._sync_replication_era(card_id, replicas[:1])
 
         for i in (1, 2, 0, 4, 3):
             insert_rows("//tmp/q", [{"key": i, "value": str(i)}])
