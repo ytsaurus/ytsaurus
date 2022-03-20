@@ -179,7 +179,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
-            ConvertTo<INodePtr>(Config_));
+            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
         SetNodeByYPath(
             OrchidRoot_,
             "/cell_balancer",

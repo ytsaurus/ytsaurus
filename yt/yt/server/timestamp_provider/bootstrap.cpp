@@ -29,6 +29,8 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 
+#include <yt/yt/core/ytree/virtual.h>
+
 namespace NYT::NTimestampProvider {
 
 using namespace NAdmin;
@@ -119,7 +121,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
-            ConvertTo<INodePtr>(Config_));
+            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
         SetBuildAttributes(
             OrchidRoot_,
             "timestamp_provider");
