@@ -289,7 +289,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode_);
+        CreateVirtualNode(ConfigNode_));
     SetBuildAttributes(
         orchidRoot,
         "clock");

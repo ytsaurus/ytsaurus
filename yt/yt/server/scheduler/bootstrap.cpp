@@ -154,7 +154,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode_);
+        CreateVirtualNode(ConfigNode_));
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",

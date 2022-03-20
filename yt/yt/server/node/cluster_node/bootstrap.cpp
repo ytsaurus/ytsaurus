@@ -1082,7 +1082,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
-            ConfigNode_);
+            CreateVirtualNode(ConfigNode_));
         SetNodeByYPath(
             OrchidRoot_,
             "/job_controller",

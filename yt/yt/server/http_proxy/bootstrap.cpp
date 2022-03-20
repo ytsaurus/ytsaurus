@@ -104,7 +104,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode_);
+        CreateVirtualNode(ConfigNode_));
     SetBuildAttributes(
         orchidRoot,
         "http_proxy");

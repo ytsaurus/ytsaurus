@@ -168,7 +168,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode_);
+        CreateVirtualNode(ConfigNode_));
     SetNodeByYPath(
         orchidRoot,
         "/dynamic_config_manager",

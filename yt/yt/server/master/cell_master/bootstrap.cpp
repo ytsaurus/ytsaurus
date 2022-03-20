@@ -988,7 +988,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConvertTo<INodePtr>(Config_));
+        CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
     SetNodeByYPath(
         orchidRoot,
         "/chunk_manager",
