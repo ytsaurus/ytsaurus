@@ -1314,12 +1314,18 @@ private:
         }
 
         ++TotalBackendResponseCount_;
-        bool lastResponse = (TotalBackendResponseCount_ == TotalBackendReadRequestCount_);
 
         HandleFragments(plan, rspOrError);
 
-        if (lastResponse) {
-            OnFailed();
+        auto isLastResponse = [&] {
+            return TotalBackendResponseCount_ == TotalBackendReadRequestCount_;
+        };
+
+        if (isLastResponse()) {
+            NextRound(/*isHedged*/ false);
+            if (isLastResponse()) {
+                OnFailed();
+            }
         }
     }
 
