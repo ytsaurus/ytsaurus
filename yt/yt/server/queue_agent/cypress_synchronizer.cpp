@@ -117,9 +117,9 @@ public:
             auto modifiedObjects = ListModifiedObjectsByCluster(objectMaps);
             auto updatedAttributes = FetchAttributes(modifiedObjects);
             WriteRows(updatedAttributes);
+            PollError_ = TError();
         } catch (const std::exception& ex) {
-            LatestPollError_ = TError(ex)
-                << TErrorAttribute("poll_index", PollIndex_);
+            PollError_ = TError(ex);
             YT_LOG_ERROR(ex, "Error performing sync round");
         }
         YT_LOG_DEBUG("Sync round finished (PollIndex: %v)", PollIndex_);
@@ -133,8 +133,8 @@ private:
     const TPeriodicExecutorPtr SyncExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    //! Latest non-trivial poll iteration error.
-    TError LatestPollError_ = TError() << TErrorAttribute("poll_index", -1);
+    //! Current poll iteration error.
+    TError PollError_;
     //! Current poll iteration instant.
     TInstant PollInstant_ = TInstant::Zero();
     //! Index of the current poll iteration.
@@ -376,7 +376,7 @@ private:
         BuildYsonFluently(consumer).BeginMap()
             .Item("poll_instant").Value(PollInstant_)
             .Item("poll_index").Value(PollIndex_)
-            .Item("latest_poll_error").Value(LatestPollError_)
+            .Item("poll_error").Value(PollError_)
         .EndMap();
     }
 };

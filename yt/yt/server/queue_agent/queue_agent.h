@@ -78,8 +78,8 @@ private:
     using TConsumerMap = THashMap<TCrossClusterReference, TConsumer>;
     TConsumerMap Consumers_;
 
-    //! Latest non-trivial poll iteration error.
-    TError LatestPollError_ = TError() << TErrorAttribute("poll_index", -1);
+    //! Current poll error if any.
+    TError PollError_;
     //! Current poll iteration instant.
     TInstant PollInstant_ = TInstant::Zero();
     //! Index of a current poll iteration.
