@@ -78,7 +78,6 @@ bool TContext::TryPrepare()
         TryParseUser() &&
         TryInitFormatManager() &&
         TryGetDescriptor() &&
-        TryCheckMethod() &&
         TryCheckAvailability() &&
         TryRedirectHeavyRequests() &&
         TryGetHeaderFormat() &&
@@ -239,30 +238,6 @@ bool TContext::TryGetDescriptor()
 
     if (!Descriptor_) {
         DispatchNotFound(Format("Command %Qv is not registered", DriverRequest_.CommandName));
-        return false;
-    }
-
-    return true;
-}
-
-bool TContext::TryCheckMethod()
-{
-    EMethod expectedMethod;
-    if (Descriptor_->InputType != NFormats::EDataType::Null) {
-        expectedMethod = EMethod::Put;
-    } else if (Descriptor_->Volatile) {
-        expectedMethod = EMethod::Post;
-    } else {
-        expectedMethod = EMethod::Get;
-    }
-
-    if (Request_->GetMethod() != expectedMethod) {
-        Response_->SetStatus(EStatusCode::MethodNotAllowed);
-        Response_->GetHeaders()->Set("Allow", TString(ToHttpString(expectedMethod)));
-        ReplyError(TError{Format("Command %Qv must be executed with %Qv HTTP method",
-            Descriptor_->CommandName,
-            ToHttpString(expectedMethod))});
-
         return false;
     }
 

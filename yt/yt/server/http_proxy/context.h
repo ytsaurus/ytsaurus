@@ -41,7 +41,6 @@ public:
     bool TryParseUser();
     bool TryInitFormatManager();
     bool TryGetDescriptor();
-    bool TryCheckMethod();
     bool TryCheckAvailability();
     bool TryRedirectHeavyRequests();
     bool TryGetHeaderFormat();
