@@ -370,7 +370,8 @@ private:
     //!    only changed to Destroyed. To distinguish between Ready for Resurrection and Destroying, one may use
     //!    DangerousGetPtr() on the pointer from ValueMap. If it returned null, then the state is Destroying.
     //! 5. Destroyed. The value and its corresponding item are freed and are not present anywhere.
-    class TShard : public TAsyncSlruCacheListManager<TItem, TShard>
+    class TShard
+        : public TAsyncSlruCacheListManager<TItem, TShard>
     {
     public:
         YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock);
