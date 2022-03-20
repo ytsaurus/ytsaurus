@@ -40,34 +40,20 @@ class QueueAgentOrchid:
     def queue_agent_orchid_path(self):
         return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
 
-    def get_error_poll_index(self):
-        return get(self.queue_agent_orchid_path() + "/queue_agent/latest_poll_error/attributes/poll_index")
-
     def get_poll_index(self):
         return get(self.queue_agent_orchid_path() + "/queue_agent/poll_index")
 
-    def get_latest_poll_error(self):
-        return YtError.from_dict(get(self.queue_agent_orchid_path() + "/queue_agent/latest_poll_error"))
-
-    def wait_fresh_poll_error(self):
-        poll_index = self.get_poll_index()
-        wait(lambda: self.get_error_poll_index() >= poll_index + 2)
-
-    def get_fresh_poll_error(self):
-        self.wait_fresh_poll_error()
-        return self.get_latest_poll_error()
+    def get_poll_error(self):
+        return YtError.from_dict(get(self.queue_agent_orchid_path() + "/queue_agent/poll_error"))
 
     def wait_fresh_poll(self):
         poll_index = self.get_poll_index()
         wait(lambda: self.get_poll_index() >= poll_index + 2)
 
     def validate_no_poll_error(self):
-        poll_index = self.get_poll_index()
-        self.wait_fresh_poll()
-        if self.get_error_poll_index() <= poll_index:
-            return
-        else:
-            raise self.get_latest_poll_error()
+        error = self.get_poll_error()
+        if error.code != 0:
+            raise error
 
     def get_queues(self):
         self.wait_fresh_poll()
@@ -180,16 +166,18 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         self._drop_tables()
 
-        assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.ResolveErrorCode)
+        orchid.wait_fresh_poll()
+        assert_yt_error(orchid.get_poll_error(), yt_error_codes.ResolveErrorCode)
 
         wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
         wrong_schema[-1]["type"] = "int64"
         self._prepare_tables(queue_table_schema=wrong_schema)
 
-        assert_yt_error(orchid.get_fresh_poll_error(), "Row range schema is incompatible with queue table row schema")
+        orchid.wait_fresh_poll()
+        assert_yt_error(orchid.get_poll_error(), "Row range schema is incompatible with queue table row schema")
 
         self._prepare_tables()
-
+        orchid.wait_fresh_poll()
         orchid.validate_no_poll_error()
 
     @authors("max42")
@@ -739,19 +727,8 @@ class CypressSynchronizerOrchid:
         poll_index = self.get_poll_index()
         wait(lambda: self.get_poll_index() >= poll_index + 2)
 
-    def get_error_poll_index(self):
-        return get(self.queue_agent_orchid_path() + "/cypress_synchronizer/latest_poll_error/attributes/poll_index")
-
-    def get_latest_poll_error(self):
-        return YtError.from_dict(get(self.queue_agent_orchid_path() + "/cypress_synchronizer/latest_poll_error"))
-
-    def wait_fresh_poll_error(self):
-        poll_index = self.get_poll_index()
-        wait(lambda: self.get_error_poll_index() >= poll_index + 2)
-
-    def get_fresh_poll_error(self):
-        self.wait_fresh_poll_error()
-        return self.get_latest_poll_error()
+    def get_poll_error(self):
+        return YtError.from_dict(get(self.queue_agent_orchid_path() + "/cypress_synchronizer/poll_error"))
 
 
 class TestCypressSynchronizer(TestQueueAgentBase):
@@ -925,7 +902,8 @@ class TestCypressSynchronizer(TestQueueAgentBase):
                 assert not consumer["vital"]
 
         sync_unmount_table("//sys/queue_agents/queues")
-        assert_yt_error(orchid.get_fresh_poll_error(), yt_error_codes.TabletNotMounted)
+        orchid.wait_fresh_poll()
+        assert_yt_error(orchid.get_poll_error(), yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
         set(c2 + "/@target_queue", "another_cluster:another_path")

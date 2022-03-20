@@ -197,7 +197,7 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     node->AddChild("active", virtualScalarNode([&] { return Active_.load(); }));
     node->AddChild("poll_instant", virtualScalarNode([&] { return PollInstant_; }));
     node->AddChild("poll_index", virtualScalarNode([&] { return PollIndex_; }));
-    node->AddChild("latest_poll_error", virtualScalarNode([&] { return LatestPollError_; }));
+    node->AddChild("poll_error", virtualScalarNode([&] { return PollError_; }));
     node->AddChild("queues", QueueObjectServiceNode_);
     node->AddChild("consumers", ConsumerObjectServiceNode_);
 
@@ -228,8 +228,7 @@ void TQueueAgent::Poll()
     std::vector<TFuture<void>> futures{asyncQueueRows.AsVoid(), asyncConsumerRows.AsVoid()};
 
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
-        LatestPollError_ = error
-            << TErrorAttribute("poll_index", PollIndex_);
+        PollError_ = error;
         YT_LOG_ERROR(error, "Error polling queue state");
         return;
     }
@@ -398,6 +397,8 @@ void TQueueAgent::Poll()
             queue.Controller->Start();
         }
     }
+
+    PollError_ = TError();
 }
 
 void TQueueAgent::BuildQueueYson(const TCrossClusterReference& /*queueRef*/, const TQueue& queue, IYsonConsumer* ysonConsumer)
