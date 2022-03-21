@@ -89,6 +89,7 @@ void AdjustReadRange(
 {
     constexpr i64 SkynetPartSize = 4_MB;
 
+    httpRange.second += 1;
     if (httpRange.first >= httpRange.second) {
         THROW_ERROR_EXCEPTION("Invalid http range")
             << TErrorAttribute("http_range", httpRange);
