@@ -132,6 +132,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("network_addresses", &TThis::NetworkAddresses)
         .Default();
 
+    registrar.Parameter("abort_on_uncaught_exception", &TThis::AbortOnUncaughtException)
+        .Default(false);
+
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
@@ -181,6 +184,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("upload_debug_artifact_chunks", &TThis::UploadDebugArtifactChunks)
         .Default(true);
+
+    registrar.Parameter("abort_on_uncaught_exception", &TThis::AbortOnUncaughtException)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

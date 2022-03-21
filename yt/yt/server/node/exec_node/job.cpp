@@ -1900,6 +1900,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->UsePortoKillForSignalling = proxyDynamicConfig->UsePortoKillForSignalling;
         proxyConfig->ForceIdleCpuPolicy = proxyDynamicConfig->ForceIdleCpuPolicy;
         proxyConfig->UploadDebugArtifactChunks = proxyDynamicConfig->UploadDebugArtifactChunks;
+        proxyConfig->AbortOnUncaughtException = proxyDynamicConfig->AbortOnUncaughtException;
     }
 
     return proxyConfig;

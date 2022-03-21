@@ -153,7 +153,8 @@ private:
     void SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment);
     IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
-    NJobTrackerClient::NProto::TJobResult DoRun();
+    void DoRun();
+    NJobTrackerClient::NProto::TJobResult RunJob();
 
     void SendHeartbeat();
     void OnHeartbeatResponse(const TError& error);
