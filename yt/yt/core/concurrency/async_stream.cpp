@@ -605,19 +605,22 @@ private:
         TSharedRef data;
         bool hasData = NotifyAndFetchNext(error, &data);
         while (hasData) {
-            TFuture<void> result;
-            if (data) {
-                result = UnderlyingStream_->Write(data);
-            } else {
-                result = UnderlyingStream_->Close();
+            if (error.IsOK()) {
+                TFuture<void> result;
+                if (data) {
+                    result = UnderlyingStream_->Write(data);
+                } else {
+                    result = UnderlyingStream_->Close();
+                }
+                auto mayWriteResult = result.TryGet();
+                if (!mayWriteResult || !mayWriteResult->IsOK()) {
+                    result.Subscribe(
+                        BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
+                    break;
+                }
             }
-            auto mayWriteResult = result.TryGet();
-            if (!mayWriteResult || !mayWriteResult->IsOK()) {
-                result.Subscribe(
-                    BIND(&TZeroCopyOutputStreamAdapter::OnWritten, MakeStrong(this)));
-                break;
-            }
-            hasData = NotifyAndFetchNext(TError(), &data);
+
+            hasData = NotifyAndFetchNext(error, &data);
         }
     }
 
