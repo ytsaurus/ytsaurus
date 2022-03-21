@@ -543,18 +543,15 @@ class TestSkynetIntegration(YTEnvSetup):
                 lower_row_index=0,
                 upper_row_index=4,
                 start_part_index=0,
-                http_range=http_range
+                http_range=(http_range[0], http_range[1]-1)
             )
 
         for http_range in [
-            (0, 0),
             (4*1024*1024 - 1, 4*1024*1024 - 1),
-            (0, len(file) + 1),
-            (-1, 0),
             (100000000, 100000000),
             (42, 41),
         ]:
-            try:
+            with pytest.raises(Exception):
                 self.get_skynet_part(
                     node,
                     info["nodes"],
@@ -562,7 +559,5 @@ class TestSkynetIntegration(YTEnvSetup):
                     lower_row_index=0,
                     upper_row_index=4,
                     start_part_index=0,
-                    http_range=http_range
+                    http_range=(http_range[0], http_range[1]-1)
                 )
-            except:
-                pass
