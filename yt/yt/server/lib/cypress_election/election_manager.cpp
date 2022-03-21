@@ -36,10 +36,14 @@ public:
         , Client_(std::move(client))
         , Invoker_(CreateSerializedInvoker(std::move(invoker)))
         , Logger(CypressElectionLogger.WithTag("GroupName: %v, Path: %v", Options_->GroupName, Config_->LockPath))
-        , LockAquisitionExecutor_(New<TPeriodicExecutor>(
+        , LockAcquisitionExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TCypressElectionManager::TryAcquireLock, MakeWeak(this)),
             Config_->LockAcquisitionPeriod))
+        , LeaderTransactionAttributeCacheExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TCypressElectionManager::UpdateCachedLeaderTransactionAttributes, MakeWeak(this)),
+            Config_->LeaderCacheUpdatePeriod))
     { }
 
     void Start() override
@@ -48,7 +52,12 @@ public:
 
         YT_LOG_DEBUG("Starting cypress election manager");
 
-        LockAquisitionExecutor_->Start();
+        IsActive_ = true;
+
+        LockAcquisitionExecutor_->Start();
+        if (Options_->TransactionAttributes) {
+            LeaderTransactionAttributeCacheExecutor_->Start();
+        }
     }
 
     TFuture<void> Stop() override
@@ -60,6 +69,13 @@ public:
         return BIND(&TCypressElectionManager::DoStop, MakeWeak(this))
             .AsyncVia(Invoker_)
             .Run();
+    }
+
+    bool IsActive() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IsActive_;
     }
 
     TFuture<void> StopLeading() override
@@ -87,6 +103,17 @@ public:
         return GetPrerequisiteTransactionId() != NullTransactionId;
     }
 
+    IAttributeDictionaryPtr GetCachedLeaderTransactionAttributes() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (IsLeader()) {
+            return Options_->TransactionAttributes;
+        }
+
+        return CachedLeaderTransactionAttributes_.Load();
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(), LeadingStarted);
     DEFINE_SIGNAL_OVERRIDE(void(), LeadingEnded);
 
@@ -97,7 +124,7 @@ private:
     const IInvokerPtr Invoker_;
     const TLogger Logger;
 
-    const TPeriodicExecutorPtr LockAquisitionExecutor_;
+    const TPeriodicExecutorPtr LockAcquisitionExecutor_;
 
     TObjectId LockNodeId_ = NullObjectId;
 
@@ -105,6 +132,42 @@ private:
 
     ITransactionPtr Transaction_;
     TObjectId LockId_ = NullObjectId;
+
+    const TPeriodicExecutorPtr LeaderTransactionAttributeCacheExecutor_;
+    TAtomicObject<IAttributeDictionaryPtr> CachedLeaderTransactionAttributes_;
+
+    std::atomic<bool> IsActive_ = false;
+
+    void UpdateCachedLeaderTransactionAttributes()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        try {
+            GuardedUpdateCachedLeaderTransactionAttributes();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Leader transaction attribute cache update iteration failed");
+        }
+    }
+
+    void GuardedUpdateCachedLeaderTransactionAttributes()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        auto locksYson = WaitFor(Client_->GetNode(Config_->LockPath + "/@locks"))
+            .ValueOrThrow();
+        auto locks = ConvertTo<std::vector<IMapNodePtr>>(locksYson);
+        for (const auto& lock : locks) {
+            if (ConvertTo<ELockState>(lock->GetChildOrThrow("state")) == ELockState::Acquired) {
+                auto transactionId = ConvertTo<TTransactionId>(lock->GetChildOrThrow("transaction_id"));
+                YT_VERIFY(Options_->TransactionAttributes);
+                TGetNodeOptions options{.Attributes = Options_->TransactionAttributes->ListKeys()};
+                auto responseYson = WaitFor(Client_->GetNode(FromObjectId(transactionId) + "/@", options))
+                    .ValueOrThrow();
+                CachedLeaderTransactionAttributes_.Store(ConvertToAttributes(responseYson));
+                break;
+            }
+        }
+    }
 
     void TryAcquireLock()
     {
@@ -293,10 +356,16 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        WaitFor(LockAquisitionExecutor_->Stop())
+        if (Options_->TransactionAttributes) {
+            WaitFor(LeaderTransactionAttributeCacheExecutor_->Stop())
+                .ThrowOnError();
+        }    
+        WaitFor(LockAcquisitionExecutor_->Stop())
             .ThrowOnError();
 
         Reset();
+
+        IsActive_ = false;
 
         YT_LOG_DEBUG("Election manager stopped");
     }
@@ -323,7 +392,7 @@ private:
                 TForbidContextSwitchGuard guard;
                 LeadingEnded_.Fire();
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Unexpected error occured during leading end");
+                YT_LOG_ALERT(ex, "Unexpected error occurred during leading end");
             }
         }
 

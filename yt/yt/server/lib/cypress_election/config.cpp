@@ -15,6 +15,8 @@ TCypressElectionManagerConfig::TCypressElectionManagerConfig()
         .Default(TDuration::Seconds(15));
     RegisterParameter("lock_acquisition_period", LockAcquisitionPeriod)
         .Default(TDuration::Seconds(15));
+    RegisterParameter("leader_cache_update_period", LeaderCacheUpdatePeriod)
+        .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
