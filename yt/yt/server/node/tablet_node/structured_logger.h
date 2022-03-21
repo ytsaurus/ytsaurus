@@ -76,18 +76,18 @@ struct IPerTabletStructuredLogger
     //! Thread affinity: any.
     virtual TTabletId GetTabletId() const = 0;
 
-    //! Toggle actual logging.
+    //! Toggles actual logging.
     //! Thread affinity: any.
     virtual void SetEnabled(bool enabled) = 0;
 
-    //! Log arbitrary event fluently.
+    //! Logs arbitrary event fluently.
     //! Thread affinity: any.
     virtual NLogging::TOneShotFluentLogEvent LogEvent(TStringBuf eventType) = 0;
 
-    //! Log all tablet meta.
+    //! Logs all tablet meta.
     virtual void OnFullHeartbeat() = 0;
 
-    //! Log fluent tablet meta like dynamic store sizes.
+    //! Logs fluent tablet meta like dynamic store sizes.
     virtual void OnIncrementalHeartbeat() = 0;
 
     virtual void OnStoreRotated(
@@ -103,7 +103,6 @@ struct IPerTabletStructuredLogger
         const std::vector<TStoreId>& removedStoreIds,
         NTabletClient::ETabletStoresUpdateReason updateReason,
         TTransactionId transactionId) = 0;
-
     virtual void OnTabletStoresUpdateCommitted(
         const std::vector<IStorePtr>& addedStores,
         const std::vector<TStoreId>& removedStoreIds,

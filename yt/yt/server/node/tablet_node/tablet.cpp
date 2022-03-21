@@ -578,6 +578,13 @@ void TTablet::SetStructuredLogger(IPerTabletStructuredLoggerPtr storeManager)
     StructuredLogger_ = std::move(storeManager);
 }
 
+void TTablet::ReconfigureStructuredLogger()
+{
+    if (StructuredLogger_) {
+        StructuredLogger_->SetEnabled(Settings_.MountConfig->EnableStructuredLogger);
+    }
+}
+
 const TLockManagerPtr& TTablet::GetLockManager() const
 {
     return LockManager_;
@@ -886,8 +893,6 @@ void TTablet::AsyncLoad(TLoadContext& context)
             }
         }
     }
-
-    ReconfigureThrottlers();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const
@@ -1378,6 +1383,17 @@ TTimestamp TTablet::GetUnflushedTimestamp() const
     return RuntimeData_->UnflushedTimestamp;
 }
 
+void TTablet::Reconfigure(const ITabletSlotPtr& slot)
+{
+    ReconfigureLocalThrottlers();
+    ReconfigureDistributedThrottlers(slot);
+    ReconfigureChunkFragmentReader(slot);
+    ReconfigureProfiling();
+    ReconfigureStructuredLogger();
+    ReconfigureRowCache(slot);
+    InvalidateChunkReaders();
+}
+
 void TTablet::StartEpoch(const ITabletSlotPtr& slot)
 {
     CancelableContext_ = New<TCancelableContext>();
@@ -1395,9 +1411,7 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
         partition->StartEpoch();
     }
 
-    if (slot) {
-        ChunkFragmentReader_ = slot->CreateChunkFragmentReader(this);
-    }
+    ReconfigureRowCache(slot);
 }
 
 void TTablet::StopEpoch()
@@ -1416,7 +1430,7 @@ void TTablet::StopEpoch()
         partition->StopEpoch();
     }
 
-    ChunkFragmentReader_.Reset();
+    RowCache_.Reset();
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
@@ -1568,13 +1582,13 @@ void TTablet::Initialize()
     StoresUpdateCommitSemaphore_ = New<NConcurrency::TAsyncSemaphore>(1);
 
     FlushThrottler_ = CreateReconfigurableThroughputThrottler(
-        Settings_.MountConfig->FlushThrottler,
+        New<TThroughputThrottlerConfig>(),
         Logger);
     CompactionThrottler_ = CreateReconfigurableThroughputThrottler(
-        Settings_.MountConfig->CompactionThrottler,
+        New<TThroughputThrottlerConfig>(),
         Logger);
     PartitioningThrottler_ = CreateReconfigurableThroughputThrottler(
-        Settings_.MountConfig->PartitioningThrottler,
+        New<TThroughputThrottlerConfig>(),
         Logger);
 
     LoggingTag_ = Format("TabletId: %v, TableId: %v, TablePath: %v",
@@ -1583,8 +1597,12 @@ void TTablet::Initialize()
         TablePath_);
 }
 
-void TTablet::ConfigureRowCache()
+void TTablet::ReconfigureRowCache(const ITabletSlotPtr& slot)
 {
+    if (!slot || !slot->GetHydraManager()->IsLeader()) {
+        return;
+    }
+
     i64 lookupCacheCapacity = Settings_.MountConfig->LookupCacheRowsPerTablet;
     double lookupCacheRowsRatio = Settings_.MountConfig->LookupCacheRowsRatio;
 
@@ -1597,28 +1615,33 @@ void TTablet::ConfigureRowCache()
         lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
     }
 
-    if (lookupCacheCapacity > 0) {
-        if (!RowCache_) {
-            RowCache_ = New<TRowCache>(
-                lookupCacheCapacity,
-                TabletNodeProfiler.WithTag("table_path", TablePath_).WithPrefix("/row_cache"),
-                Context_
-                    ->GetMemoryUsageTracker()
-                    ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
-        } else {
-            RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
-        }
-    } else if (RowCache_) {
+    if (lookupCacheCapacity == 0) {
         RowCache_.Reset();
+        return;
+    }
+
+    if (!RowCache_) {
+        RowCache_ = New<TRowCache>(
+            lookupCacheCapacity,
+            TabletNodeProfiler.WithTag("table_path", TablePath_).WithPrefix("/row_cache"),
+            Context_
+                ->GetMemoryUsageTracker()
+                ->WithCategory(NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
+    }
+
+    RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
+}
+
+void TTablet::InvalidateChunkReaders()
+{
+    for (const auto& [_, store] : StoreIdMap_) {
+        if (store->IsChunk()) {
+            store->AsChunk()->InvalidateCachedReaders(Settings_);
+        }
     }
 }
 
-void TTablet::ResetRowCache()
-{
-    RowCache_.Reset();
-}
-
-void TTablet::FillProfilerTags()
+void TTablet::ReconfigureProfiling()
 {
     TableProfiler_ = CreateTableProfiler(
         Settings_.MountConfig->ProfilingMode,
@@ -1631,17 +1654,25 @@ void TTablet::FillProfilerTags()
         SchemaId_,
         PhysicalSchema_);
     TabletCounters_ = TableProfiler_->GetTabletCounters();
+
+    UpdateReplicaCounters();
 }
 
-void TTablet::ReconfigureThrottlers()
+void TTablet::ReconfigureLocalThrottlers()
 {
     FlushThrottler_->Reconfigure(Settings_.MountConfig->FlushThrottler);
     CompactionThrottler_->Reconfigure(Settings_.MountConfig->CompactionThrottler);
     PartitioningThrottler_->Reconfigure(Settings_.MountConfig->PartitioningThrottler);
 }
 
-void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManagerPtr& throttlerManager)
+void TTablet::ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot)
 {
+    if (!slot) {
+        return;
+    }
+
+    const auto& throttlerManager = slot->GetDistributedThrottlerManager();
+
     auto getThrottlerConfig = [&] (const TString& key) {
         auto it = Settings_.MountConfig->Throttlers.find(key);
         return it != Settings_.MountConfig->Throttlers.end()
@@ -1701,6 +1732,15 @@ void TTablet::ReconfigureDistributedThrottlers(const IDistributedThrottlerManage
             EDistributedThrottlerMode::Adaptive,
             WriteThrottlerRpcTimeout,
             /* admitUnlimitedThrottler */ false);
+}
+
+void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)
+{
+    if (!slot) {
+        return;
+    }
+
+    ChunkFragmentReader_ = slot->CreateChunkFragmentReader(this);
 }
 
 const TString& TTablet::GetLoggingTag() const
@@ -2076,5 +2116,7 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
             .EndAttributes()
             .Value(options.HunkReaderConfig);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

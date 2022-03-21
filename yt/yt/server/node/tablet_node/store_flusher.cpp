@@ -210,7 +210,6 @@ private:
         }
 
         const auto& rowCache = tablet->GetRowCache();
-
         if (!rowCache || rowCache->GetReallocatingItems() || !rowCache->GetAllocator()->IsReallocationNeeded()) {
             return;
         }

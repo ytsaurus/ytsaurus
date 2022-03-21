@@ -49,7 +49,10 @@ struct ITabletSlot
     virtual NHydra::ISimpleHydraManagerPtr GetSimpleHydraManager() = 0;
 
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() = 0;
+
     virtual const TTransactionManagerPtr& GetTransactionManager() = 0;
+
+    virtual const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() = 0;
 
     // These methods are thread-safe.
     // They may return null invoker (see #GetNullInvoker) if the invoker of the requested type is not available.
