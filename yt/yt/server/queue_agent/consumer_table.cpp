@@ -102,9 +102,10 @@ private:
             const auto& offsetValue = row[1];
             YT_VERIFY(offsetValue.Type == EValueType::Uint64);
 
+            // NB: in BigRT offsets encode the last read row, while we operate with the first unread row.
             result.emplace_back(TPartitionInfo{
                 .PartitionIndex = static_cast<i64>(shardIdValue.Data.Uint64),
-                .NextRowIndex = static_cast<i64>(offsetValue.Data.Uint64),
+                .NextRowIndex = static_cast<i64>(offsetValue.Data.Uint64) + 1,
             });
         }
 
