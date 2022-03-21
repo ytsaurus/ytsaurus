@@ -193,7 +193,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
             for (int j = 0; j < 5; ++j) {
                 // To make sure that usage rate is synchronized.
                 WaitFor(throttlers[i]->Throttle(1)).ThrowOnError();
-                Sleep(TDuration::MilliSeconds(50));
+                Sleep(TDuration::MilliSeconds(60));
                 WaitFor(throttlers[i]->Throttle(30)).ThrowOnError();
             }
         })
