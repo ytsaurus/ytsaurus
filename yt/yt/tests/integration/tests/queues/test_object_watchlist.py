@@ -150,7 +150,7 @@ class TestQueueAgentObjectRevisions(YTEnvSetup):
         copy("//tmp/q1", "//tmp/q2")
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/q2")
 
-        # Copying doesn't carry over the treat_as_consumer flag.
+        # Copying doesn't carry over the treat_as_queue_consumer flag.
         copy("//tmp/c1", "//tmp/c2")
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/c1")
 
@@ -197,7 +197,7 @@ class TestQueueAgentObjectRevisions(YTEnvSetup):
         QueueAgentHelpers.assert_registered_queues_are()
 
     @authors("achulkov2")
-    def test_treat_as_consumer_modifications(self):
+    def test_treat_as_queue_consumer_modifications(self):
         create("table",
                "//tmp/c1",
                attributes={"dynamic": True,

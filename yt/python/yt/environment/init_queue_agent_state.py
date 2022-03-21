@@ -16,9 +16,10 @@ CONSUMER_TABLE_SCHEMA = [
     {"name": "target_cluster", "type": "string"},
     {"name": "target_path", "type": "string"},
     {"name": "object_type", "type": "string"},
-    {"name": "treat_as_consumer", "type": "boolean"},
+    {"name": "treat_as_queue_consumer", "type": "boolean"},
     {"name": "schema", "type": "any"},
     {"name": "vital", "type": "boolean"},
+    {"name": "owner", "type": "string"},
 ]
 
 

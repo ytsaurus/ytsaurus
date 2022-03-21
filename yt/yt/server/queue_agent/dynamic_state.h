@@ -107,9 +107,10 @@ struct TConsumerTableRow
     std::optional<TCrossClusterReference> TargetQueue;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
-    std::optional<bool> TreatAsConsumer;
+    std::optional<bool> TreatAsQueueConsumer;
     std::optional<NTableClient::TTableSchema> Schema;
     std::optional<bool> Vital;
+    std::optional<TString> Owner;
 
     static std::vector<TConsumerTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
