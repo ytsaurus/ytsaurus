@@ -2,7 +2,6 @@
 #include "private.h"
 #include "automaton.h"
 #include "bootstrap.h"
-#include "distributed_throttler_manager.h"
 #include "sorted_chunk_store.h"
 #include "ordered_chunk_store.h"
 #include "sorted_dynamic_store.h"
@@ -158,8 +157,6 @@ public:
         , Config_(config)
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
-        , DistributedThrottlerManager_(
-            CreateDistributedThrottlerManager(Bootstrap_, Slot_->GetCellId()))
         , DecommissionCheckExecutor_(New<TPeriodicExecutor>(
             Slot_->GetAutomatonInvoker(),
             BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
@@ -312,7 +309,7 @@ public:
                 statistics.PreloadErrors.push_back(error);
             }
 
-            if (auto rowCache = tablet->GetRowCache()) {
+            if (const auto& rowCache = tablet->GetRowCache()) {
                 statistics.RowCache.Usage = rowCache->GetUsedBytesCount();
             }
         }
@@ -679,8 +676,6 @@ private:
     THashSet<IDynamicStorePtr> OrphanedStores_;
     THashMap<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
-    const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
-
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
 
     const IYPathServicePtr OrchidService_;
@@ -766,16 +761,13 @@ private:
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
         for (auto [tabletId, tablet] : TabletMap_) {
-            tablet->SetStructuredLogger(
-                Bootstrap_->GetStructuredLogger()->CreateLogger(tablet));
-            auto storeManager = CreateStoreManager(tablet);
-            tablet->SetStoreManager(storeManager);
-            tablet->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
-            tablet->FillProfilerTags();
-            tablet->UpdateReplicaCounters();
+            InitializeTablet(tablet);
+
+            tablet->Reconfigure(Slot_);
+
             Bootstrap_->GetStructuredLogger()->OnHeartbeatRequest(
                 Slot_->GetTabletManager(),
-                true /*initial*/);
+                /*initial*/ true);
         }
     }
 
@@ -900,20 +892,19 @@ private:
             retainedTimestamp,
             cumulativeDataWeight);
 
-        tabletHolder->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
-        tabletHolder->FillProfilerTags();
-        tabletHolder->SetStructuredLogger(
-            Bootstrap_->GetStructuredLogger()->CreateLogger(tabletHolder.get()));
+        InitializeTablet(tabletHolder.get());
+
+        tabletHolder->Reconfigure(Slot_);
+
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         if (tablet->IsPhysicallyOrdered()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
         }
 
-        auto storeManager = CreateStoreManager(tablet);
-        tablet->SetStoreManager(storeManager);
         PopulateDynamicStoreIdPool(tablet, request);
 
+        const auto& storeManager = tablet->GetStoreManager();
         storeManager->Mount(
             MakeRange(request->stores()),
             MakeRange(request->hunk_chunks()),
@@ -948,7 +939,7 @@ private:
         if (request->has_replication_progress()) {
             auto replicationCardId = tablet->GetReplicationCardId();
             auto progress = FromProto<TReplicationProgress>(request->replication_progress());
-            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
                 tablet->GetLoggingTag(),
                 replicationCardId,
                 progress);
@@ -1025,7 +1016,7 @@ private:
 
             tablet->SetState(ETabletState::UnmountWaitingForLocks);
 
-            YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (%v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Waiting for all tablet locks to be released (%v)",
                 tablet->GetLoggingTag());
 
             CheckIfTabletFullyUnlocked(tablet);
@@ -1041,15 +1032,11 @@ private:
         }
 
         auto settings = DeserializeTableSettings(request, tabletId);
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(settings);
 
-        tablet->ReconfigureThrottlers();
-        tablet->ReconfigureDistributedThrottlers(DistributedThrottlerManager_);
-        tablet->FillProfilerTags();
-        tablet->UpdateReplicaCounters();
-        tablet->GetStructuredLogger()->SetEnabled(settings.MountConfig->EnableStructuredLogger);
+        tablet->Reconfigure(Slot_);
+
         UpdateTabletSnapshot(tablet);
 
         if (!IsRecovery()) {
@@ -1084,7 +1071,7 @@ private:
 
         tablet->SetState(ETabletState::FreezeWaitingForLocks);
 
-        YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (%v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Waiting for all tablet locks to be released (%v)",
             tablet->GetLoggingTag());
 
         CheckIfTabletFullyUnlocked(tablet);
@@ -1256,7 +1243,7 @@ private:
             return;
         }
 
-        auto requestedState = ETabletState(request->state());
+        auto requestedState = FromProto<ETabletState>(request->state());
 
         switch (requestedState) {
             case ETabletState::FreezeFlushing: {
@@ -1277,7 +1264,7 @@ private:
                 const auto& storeManager = tablet->GetStoreManager();
                 storeManager->Rotate(false, EStoreRotationReason::None);
 
-                YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet stores to be flushed (%v, NewState: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Waiting for all tablet stores to be flushed (%v, NewState: %v)",
                     tablet->GetLoggingTag(),
                     requestedState);
 
@@ -2659,6 +2646,15 @@ private:
         Slot_->PostMasterMessage(tabletId, message);
     }
 
+    void InitializeTablet(TTablet* tablet)
+    {
+        auto structuredLogger = Bootstrap_->GetStructuredLogger()->CreateLogger(tablet);
+        tablet->SetStructuredLogger(structuredLogger);
+
+        auto storeManager = CreateStoreManager(tablet);
+        tablet->SetStoreManager(storeManager);
+    }
+
     void StartTabletEpoch(TTablet* tablet)
     {
         const auto& storeManager = tablet->GetStoreManager();
@@ -2779,7 +2775,7 @@ private:
 
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)
     {
-        if (!IsLeader()) { 
+        if (!IsLeader()) {
             return;
         }
 

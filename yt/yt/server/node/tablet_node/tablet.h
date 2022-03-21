@@ -590,6 +590,8 @@ public:
 
     TTimestamp GetUnflushedTimestamp() const;
 
+    void Reconfigure(const ITabletSlotPtr& slot);
+
     void StartEpoch(const ITabletSlotPtr& slot);
     void StopEpoch();
 
@@ -609,14 +611,7 @@ public:
     i64 Unlock();
     i64 GetTabletLockCount() const;
 
-    void FillProfilerTags();
     void UpdateReplicaCounters();
-
-    void ConfigureRowCache();
-    void ResetRowCache();
-
-    void ReconfigureThrottlers();
-    void ReconfigureDistributedThrottlers(const IDistributedThrottlerManagerPtr& throttlerManager);
 
     const TString& GetLoggingTag() const;
 
@@ -701,10 +696,20 @@ private:
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
     int ComputeDynamicStoreCount() const;
+
+    void ReconfigureLocalThrottlers();
+    void ReconfigureDistributedThrottlers(const ITabletSlotPtr& slot);
+    void ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot);
+    void ReconfigureStructuredLogger();
+    void ReconfigureProfiling();
+    void ReconfigureRowCache(const ITabletSlotPtr& slot);
+    void InvalidateChunkReaders();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

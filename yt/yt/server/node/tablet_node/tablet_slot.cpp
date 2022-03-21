@@ -14,6 +14,7 @@
 #include "transaction_manager.h"
 #include "tablet_snapshot_store.h"
 #include "hint_manager.h"
+#include "distributed_throttler_manager.h"
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -250,6 +251,11 @@ public:
         return TransactionManager_;
     }
 
+    const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() override
+    {
+        return DistributedThrottlerManager_;
+    }
+
     ITransactionManagerPtr GetOccupierTransactionManager() override
     {
         return GetTransactionManager();
@@ -355,6 +361,10 @@ public:
                 Bootstrap_->GetTransactionTrackerInvoker(),
                 Logger));
 
+        DistributedThrottlerManager_ = CreateDistributedThrottlerManager(
+            Bootstrap_,
+            GetCellId());
+
         Logger = GetLogger();
 
         TabletCellWriteManager_ = CreateTabletCellWriteManager(
@@ -405,6 +415,7 @@ public:
         TabletManager_.Reset();
 
         TransactionManager_.Reset();
+        DistributedThrottlerManager_.Reset();
         TabletCellWriteManager_.Reset();
 
         if (TabletService_) {
@@ -494,6 +505,8 @@ private:
     ITabletCellWriteManagerPtr TabletCellWriteManager_;
 
     TTransactionManagerPtr TransactionManager_;
+
+    IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
 
     ITransactionSupervisorPtr TransactionSupervisor_;
 

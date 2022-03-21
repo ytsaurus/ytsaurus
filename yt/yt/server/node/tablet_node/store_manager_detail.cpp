@@ -89,10 +89,6 @@ void TStoreManagerBase::StartEpoch(ITabletSlotPtr slot)
 {
     Tablet_->StartEpoch(slot);
 
-    if (IsLeader()) {
-        Tablet_->ConfigureRowCache();
-    }
-
     InitializeRotation();
 
     UpdateInMemoryMode();
@@ -129,8 +125,6 @@ void TStoreManagerBase::StopEpoch()
     }
 
     Tablet_->PreloadStoreIds().clear();
-
-    Tablet_->ResetRowCache();
 }
 
 void TStoreManagerBase::InitializeRotation()
@@ -498,10 +492,6 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
     InvalidateCachedChunkReaders();
 
     UpdateInMemoryMode();
-
-    if (IsLeader()) {
-        Tablet_->ConfigureRowCache();
-    }
 }
 
 void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
