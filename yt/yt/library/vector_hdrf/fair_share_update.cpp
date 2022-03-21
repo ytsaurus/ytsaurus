@@ -48,6 +48,36 @@ void TSchedulableAttributes::SetFairShare(const TResourceVector& fairShare)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TResourceVector AdjustProposedIntegralShare(
+    const TResourceVector& limitsShare,
+    const TResourceVector& strongGuaranteeShare,
+    TResourceVector proposedIntegralShare)
+{
+    auto guaranteeShare = strongGuaranteeShare + proposedIntegralShare;
+    if (!Dominates(limitsShare, guaranteeShare)) {
+        YT_VERIFY(Dominates(limitsShare + TResourceVector::SmallEpsilon(), guaranteeShare));
+        YT_VERIFY(Dominates(limitsShare, strongGuaranteeShare));
+
+        proposedIntegralShare = limitsShare - strongGuaranteeShare;
+        for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+            constexpr int MaxAdjustmentIterationCount = 32;
+
+            // NB(eshcherbin): Always should be no more than a single iteration, but to remove my paranoia I've bounded iteration count.
+            int iterationCount = 0;
+            while (limitsShare[resource] < strongGuaranteeShare[resource] + proposedIntegralShare[resource] &&
+                iterationCount < MaxAdjustmentIterationCount)
+            {
+                proposedIntegralShare[resource] = std::nextafter(proposedIntegralShare[resource], 0.0);
+                ++iterationCount;
+            }
+        }
+    }
+
+    return proposedIntegralShare;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue)
 {
     if (config.UserSlots) {
@@ -1261,6 +1291,11 @@ void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
             GetHierarchicalAvailableLimitsShare(burstPool));
         YT_VERIFY(Dominates(proposedIntegralShare, TResourceVector::Zero()));
 
+        proposedIntegralShare = AdjustProposedIntegralShare(
+            burstPool->Attributes().LimitsShare,
+            burstPool->Attributes().StrongGuaranteeShare,
+            proposedIntegralShare);
+
         burstPool->Attributes().ProposedIntegralShare = proposedIntegralShare;
         burstPool->PrepareFairShareFunctions(Context_);
         burstPool->Attributes().ProposedIntegralShare = TResourceVector::Zero();
@@ -1434,7 +1469,16 @@ void TFairShareUpdateExecutor::IncreaseHierarchicalIntegralShare(TElement* eleme
 {
     auto* current = element;
     while (current) {
-        current->Attributes().ProposedIntegralShare += delta;
+        // We allow guarantee share overcommit at root, because some part of strong guarantees can be reused as a relaxed integral share.
+        auto increasedProposedIntegralShare = current->Attributes().ProposedIntegralShare + delta;
+        if (!current->IsRoot()) {
+            increasedProposedIntegralShare = AdjustProposedIntegralShare(
+                current->Attributes().LimitsShare,
+                current->Attributes().StrongGuaranteeShare,
+                increasedProposedIntegralShare);
+        }
+
+        current->Attributes().ProposedIntegralShare = increasedProposedIntegralShare;
         current = current->GetParentElement();
     }
 }

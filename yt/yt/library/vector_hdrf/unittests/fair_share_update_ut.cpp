@@ -626,6 +626,106 @@ TEST_F(TFairShareUpdateTest, TestLimitsLowerThanStrongGuarantee)
     }
 }
 
+TEST_F(TFairShareUpdateTest, TestProposedIntegralSharePrecisionError)
+{
+    // This test is based on real circumstances, nothing below is random or weird.
+    // It works, and this is the most important thing. Enjoy.
+    // See: YT-16653.
+    TJobResources totalResourceLimits;
+    totalResourceLimits.SetUserSlots(2404350);
+    totalResourceLimits.SetCpu(285040.54);
+    totalResourceLimits.SetMemory(1139022499379170);
+    totalResourceLimits.SetNetwork(534300);
+    totalResourceLimits.SetGpu(0);
+
+    auto rootElement = CreateTestRootElement();
+    auto integralRootPool = CreateSimplePool("integralRoot", /*strongGuaranteeCpu*/ 473159.00);
+    auto burstPool = CreateIntegralPool(
+        "burstPool",
+        EIntegralGuaranteeType::Burst,
+        /*flowCpu*/ 525.0,
+        /*burstCpu*/ 3150.0,
+        /*strongGuaranteeCpu*/ 0.0);
+    auto firstRelaxedPool = CreateIntegralPool(
+        "firstRelaxedPool",
+        EIntegralGuaranteeType::Relaxed,
+        /*flowCpu*/ 3500.0,
+        /*burstCpu*/ {},
+        /*strongGuaranteeCpu*/ 5158.0);
+
+    auto secondRelaxedPool = CreateIntegralPool(
+        "secondRelaxedPool",
+        EIntegralGuaranteeType::Relaxed,
+        // This is the only random value in this test.
+        /*flowCpu*/ 117.0);
+
+    // We need these two additional pools for correct guarantee adjustments.
+    auto normalPool = CreateSimplePool("normalPool", /*strongGuaranteeCpu*/ 23071.0);
+    auto fakeBurstPool = CreateIntegralPool(
+        "fakeBurstPool",
+        EIntegralGuaranteeType::Burst,
+        /*flowCpu*/ 0.0,
+        /*burstCpu*/ 11700.0);
+
+    integralRootPool->AttachParent(rootElement.Get());
+    burstPool->AttachParent(integralRootPool.Get());
+    firstRelaxedPool->AttachParent(integralRootPool.Get());
+    secondRelaxedPool->AttachParent(integralRootPool.Get());
+    normalPool->AttachParent(rootElement.Get());
+    fakeBurstPool->AttachParent(rootElement.Get());
+
+    integralRootPool->SetResourceLimits(CreateCpuResourceLimits(50000.00));
+
+    // Don't think we need exact amounts, because any large enough accumulated volume should work.
+    TResourceVolume burstPoolAccumulatedVolume;
+    burstPoolAccumulatedVolume.SetUserSlots(413098315.744941);
+    burstPoolAccumulatedVolume.SetCpu(45360000.00);
+    burstPoolAccumulatedVolume.SetMemory(2.1341920521797664e+17);
+    burstPoolAccumulatedVolume.SetNetwork(91794223.939665511);
+    burstPoolAccumulatedVolume.SetGpu(0);
+    burstPool->InitAccumulatedResourceVolume(burstPoolAccumulatedVolume);
+
+    TResourceVolume relaxedPoolAccumulatedVolume;
+    relaxedPoolAccumulatedVolume.SetUserSlots(2541466175.1648531);
+    relaxedPoolAccumulatedVolume.SetCpu(302400000.00);
+    relaxedPoolAccumulatedVolume.SetMemory(1.3032554324247532e+18);
+    relaxedPoolAccumulatedVolume.SetNetwork(564751061.14774621);
+    relaxedPoolAccumulatedVolume.SetGpu(0);
+    firstRelaxedPool->InitAccumulatedResourceVolume(relaxedPoolAccumulatedVolume);
+
+    // Yes, we do need these 12 operations.
+    // If we simply create a single operation with the total demand of 506 CPU, fair share wouldn't be the same.
+    // Again, user slots and memory are unnecessary, but why not.
+    std::vector<double> burstOperationCpuDemands = {60, 30, 14, 18, 60, 60, 140, 18, 18, 28, 18, 42};
+    std::vector<int> burstOperationUserSlotDemands = {2, 1, 1, 2, 2, 2, 2, 5, 2, 2, 2, 2};
+    std::vector<i64> burstOperationMemoryDemands = {3813532248, 1823451694, 1570583626, 2972646113, 382413122943, 3813532249, 11268640098, 2972646107, 2972646122, 3141167254, 2972646125, 3090478642};
+    std::vector<TOperationElementMockPtr> burstOperations;
+    for (int index = 0; index < std::ssize(burstOperationCpuDemands); ++index) {
+        TJobResources operationDemand;
+        operationDemand.SetUserSlots(burstOperationUserSlotDemands[index]);
+        operationDemand.SetCpu(burstOperationCpuDemands[index]);
+        operationDemand.SetMemory(burstOperationMemoryDemands[index]);
+        operationDemand.SetNetwork(0);
+        operationDemand.SetGpu(0);
+        burstOperations.push_back(CreateOperation(operationDemand, burstPool.Get()));
+    }
+
+    TJobResources relaxedOperationDemand;
+    relaxedOperationDemand.SetUserSlots(101836);
+    relaxedOperationDemand.SetCpu(99835.63);
+    relaxedOperationDemand.SetMemory(99376091257090);
+    relaxedOperationDemand.SetNetwork(0);
+    relaxedOperationDemand.SetGpu(0);
+    auto relaxedOperation = CreateOperation(relaxedOperationDemand, firstRelaxedPool.Get());
+
+    {
+        DoFairShareUpdate(totalResourceLimits, rootElement);
+
+        const auto& attributes = integralRootPool->Attributes();
+        EXPECT_TRUE(Dominates(attributes.LimitsShare, attributes.GetGuaranteeShare()));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NVectorHdrf

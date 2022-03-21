@@ -89,6 +89,17 @@ struct TSchedulableAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Adjusts |proposedIntegralShare| so that the total guarantee share does not exceed limits share.
+//! If |strongGuaranteeShare| + |proposedIntegralShare| <= |limitShare|, returns |proposedIntegralShare|.
+//! Otherwise (due to a precision error), slightly decreases components of |proposedIntegralShare| until the inequality holds
+//! and returns the resulting vector.
+TResourceVector AdjustProposedIntegralShare(
+    const TResourceVector& limitsShare,
+    const TResourceVector& strongGuaranteeShare,
+    TResourceVector proposedIntegralShare);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue);
 
 ////////////////////////////////////////////////////////////////////////////////
