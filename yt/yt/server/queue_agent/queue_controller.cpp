@@ -286,8 +286,7 @@ private:
 
         consumerSnapshot->TargetQueue = QueueRef_;
         consumerSnapshot->Vital = consumerSnapshot->Row.Vital.value_or(false);
-        // TODO(max42): extend model.
-        // snapshot->Owner = snapshot->Row.Owner;
+        consumerSnapshot->Owner = *consumerSnapshot->Row.Owner;
 
         try {
             UpdateConsumerSnapshot(consumerRef, consumerSnapshot);

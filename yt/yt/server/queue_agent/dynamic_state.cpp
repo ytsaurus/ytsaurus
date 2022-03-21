@@ -89,7 +89,6 @@ TFuture<TTransactionCommitResult> TTableBase<TRow>::Insert(std::vector<TRow> row
     }));
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TQueueTableDescriptor
@@ -251,9 +250,10 @@ TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector
     TColumnSchema("target_cluster", EValueType::String),
     TColumnSchema("target_path", EValueType::String),
     TColumnSchema("object_type", EValueType::String),
-    TColumnSchema("treat_as_consumer", EValueType::Boolean),
+    TColumnSchema("treat_as_queue_consumer", EValueType::Boolean),
     TColumnSchema("schema", EValueType::Any),
     TColumnSchema("vital", EValueType::Boolean),
+    TColumnSchema("owner", EValueType::String),
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,9 +280,10 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
     auto targetClusterId = nameTable->FindId("target_cluster");
     auto targetPathId = nameTable->FindId("target_path");
     auto objectTypeId = nameTable->FindId("object_type");
-    auto treatAsConsumerId = nameTable->FindId("treat_as_consumer");
+    auto treatAsQueueConsumerId = nameTable->FindId("treat_as_queue_consumer");
     auto schemaId = nameTable->FindId("schema");
     auto vitalId = nameTable->FindId("vital");
+    auto ownerId = nameTable->FindId("owner");
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
@@ -310,8 +311,8 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
             // TODO(max42): possible exception here is not handled well.
             typedRow.ObjectType = ParseEnum<EObjectType>(type->AsStringBuf());
         }
-        if (auto treatAsConsumer = findValue(treatAsConsumerId)) {
-            typedRow.TreatAsConsumer = treatAsConsumer->Data.Boolean;
+        if (auto treatAsQueueConsumer = findValue(treatAsQueueConsumerId)) {
+            typedRow.TreatAsQueueConsumer = treatAsQueueConsumer->Data.Boolean;
         }
         if (auto schema = findValue(schemaId)) {
             auto workaroundVector = ConvertTo<std::vector<TTableSchema>>(TYsonStringBuf(schema->AsStringBuf()));
@@ -320,6 +321,9 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
         }
         if (auto vital = findValue(vitalId)) {
             typedRow.Vital = vital->Data.Boolean;
+        }
+        if (auto owner = findValue(ownerId)) {
+            typedRow.Owner = owner->AsString();
         }
     }
 
@@ -348,8 +352,8 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         if (row.ObjectType) {
             rowBuilder.AddValue(MakeUnversionedStringValue(FormatEnum(*row.ObjectType), nameTable->GetIdOrThrow("object_type")));
         }
-        if (row.TreatAsConsumer) {
-            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.TreatAsConsumer, nameTable->GetIdOrThrow("treat_as_consumer")));
+        if (row.TreatAsQueueConsumer) {
+            rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.TreatAsQueueConsumer, nameTable->GetIdOrThrow("treat_as_queue_consumer")));
         }
         TYsonString schemaYson;
         if (row.Schema) {
@@ -360,6 +364,9 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         if (row.Vital) {
             rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Vital, nameTable->GetIdOrThrow("vital")));
         }
+        if (row.Owner) {
+            rowBuilder.AddValue(MakeUnversionedStringValue(*row.Owner, nameTable->GetIdOrThrow("owner")));
+        }
 
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
@@ -369,7 +376,7 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"target_queue", "revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer"};
+    return {"target_queue", "revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer", "owner"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -385,9 +392,10 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .TargetQueue = targetQueue,
         .Revision = cypressAttributes->Get<NHydra::TRevision>("revision"),
         .ObjectType = cypressAttributes->Get<EObjectType>("type"),
-        .TreatAsConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
+        .TreatAsQueueConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
         .Vital = cypressAttributes->Get<bool>("vital_queue_consumer", false),
+        .Owner = cypressAttributes->Get<TString>("owner", ""),
     };
 }
 
@@ -400,9 +408,10 @@ void Serialize(const TConsumerTableRow& row, IYsonConsumer* consumer)
             .Item("revision").Value(row.Revision)
             .Item("target_queue").Value(row.TargetQueue)
             .Item("object_type").Value(row.ObjectType)
-            .Item("treat_as_consumer").Value(row.TreatAsConsumer)
+            .Item("treat_as_queue_consumer").Value(row.TreatAsQueueConsumer)
             .Item("schema").Value(row.Schema)
             .Item("vital").Value(row.Vital)
+            .Item("owner").Value(row.Owner)
         .EndMap();
 }
 

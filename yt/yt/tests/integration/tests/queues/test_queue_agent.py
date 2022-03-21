@@ -284,7 +284,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         # Unregistered target queue.
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": "//tmp/c", "row_revision": YsonUint64(2345),
-                      "target_cluster": "primary", "target_path": "//tmp/q", "treat_as_consumer": True}],
+                      "target_cluster": "primary", "target_path": "//tmp/q", "treat_as_queue_consumer": True}],
                     update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_consumer_status("primary://tmp/c")
@@ -348,8 +348,7 @@ class TestQueueController(TestQueueAgentBase):
         queue_status = orchid.get_queue_status("primary://tmp/q")
         assert queue_status["family"] == "ordered_dynamic_table"
         assert queue_status["partition_count"] == 2
-        # TODO(max42): support owner attribute.
-        assert queue_status["consumers"] == {"primary://tmp/c": {"vital": False, "owner": ""}}
+        assert queue_status["consumers"] == {"primary://tmp/c": {"vital": False, "owner": "root"}}
 
         def assert_partition(partition, lower_row_index, upper_row_index):
             assert partition["lower_row_index"] == lower_row_index
@@ -408,8 +407,7 @@ class TestQueueController(TestQueueAgentBase):
         assert consumer_status["partition_count"] == 2
         assert not consumer_status["vital"]
         assert consumer_status["target_queue"] == "primary://tmp/q"
-        # TODO(max42): support owner attribute.
-        assert consumer_status["owner"] == ""
+        assert consumer_status["owner"] == "root"
 
         time.sleep(1.5)
         insert_rows("//tmp/c", [{"ShardId": 0, "Offset": 0}])
@@ -643,7 +641,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
         create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
-                                               "treat_as_consumer": True, "target_queue": "primary://tmp/q"})
+                                               "target_queue": "primary://tmp/q"})
         with raises_yt_error('Builtin attribute "vital_queue_consumer" cannot be set'):
             set("//tmp/c/@vital_queue_consumer", True)
         set("//tmp/c/@treat_as_queue_consumer", True)
@@ -832,7 +830,7 @@ class TestCypressSynchronizer(TestQueueAgentBase):
             self._check_consumer_count_and_column_counts(consumers, expected_count)
         for consumer in consumers:
             assert consumer["revision"] == get(consumer["path"] + "/@revision")
-            assert consumer["treat_as_consumer"] == get(consumer["path"] + "/@treat_as_queue_consumer")
+            assert consumer["treat_as_queue_consumer"] == get(consumer["path"] + "/@treat_as_queue_consumer")
             # Enclosing into a list is a workaround for storing YSON with top-level attributes.
             assert consumer["schema"] == [get(consumer["path"] + "/@schema")]
             assert consumer["vital"] == get(

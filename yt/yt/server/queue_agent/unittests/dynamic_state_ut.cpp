@@ -69,16 +69,17 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         15,
         ConvertToAttributes(TYsonStringBuf(
             "{revision=43u; type=table; target_queue=\"cluster:path\"; treat_as_queue_consumer=%true; "
-            "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true}")),
+            "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true; owner=nosokhvost}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
             .TargetQueue = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
-            .TreatAsConsumer = true,
+            .TreatAsQueueConsumer = true,
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
             .Vital = true,
+            .Owner = "nosokhvost",
         });
 
     // Check with optional fields absent.
@@ -87,16 +88,17 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         15,
         ConvertToAttributes(TYsonStringBuf(
             "{revision=43u; type=table; target_queue=\"cluster:path\"; "
-            "schema=[{name=a; type=int64; sort_order=ascending}]; }")),
+            "schema=[{name=a; type=int64; sort_order=ascending}]; owner=hydra}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
             .TargetQueue = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
-            .TreatAsConsumer = false,
+            .TreatAsQueueConsumer = false,
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
             .Vital = false,
+            .Owner = "hydra",
         });
 }
 
