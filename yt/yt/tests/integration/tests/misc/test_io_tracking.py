@@ -1233,62 +1233,6 @@ class TestJobsIOTracking(TestJobsIOTrackingBase):
         assert sorted_dicts(list(output_data)) == sorted_dicts(list(table_data))
 
     @authors("gepardo")
-    def test_map_reduce(self):
-        table_data = [
-            {"id": 1, "name": "cat"},
-            {"id": 1, "name": "python"},
-            {"id": 2, "name": "dog"},
-            {"id": 2, "name": "rattlesnake"},
-        ]
-
-        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        create("table", "//tmp/table_in")
-        create("table", "//tmp/table_out")
-        write_table("//tmp/table_in", table_data)
-        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
-        assert raw_events[0]["data_node_method@"] == "FinishChunk"
-
-        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        op = map_reduce(
-            in_="//tmp/table_in",
-            out="//tmp/table_out",
-            mapper_command="cat",
-            reducer_command="cat",
-            reduce_by="id",
-        )
-        raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
-
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "map_reduce"
-            assert "job_id" in event
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
-        assert {event["job_type@"] for event in raw_events} == {"partition_map", "partition_reduce"}
-        assert {event["task_name@"] for event in raw_events} == {"partition_map(0)", "partition_reduce"}
-
-        read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
-        write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
-        assert len(read_events) == 2
-        assert len(write_events) == 2
-
-        if read_events[0]["object_path"] != "//tmp/table_in":
-            read_events[0], read_events[1] = read_events[1], read_events[0]
-
-        assert read_events[0]["object_path"] == "//tmp/table_in"
-        assert "object_id" in read_events[0]
-        assert read_events[0]["account@"] == "tmp"
-
-        assert read_events[1]["object_path"] == "<intermediate_0>"
-        assert read_events[1]["account@"] == "intermediate"
-
-        # TODO(gepardo): Add table tags to output tables and check them here.
-
-        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
-
-    @authors("gepardo")
     def test_table_artifacts(self):
         table_data = [
             {"id": 1, "name": "cat"},
@@ -1491,6 +1435,347 @@ class TestJobsIOTracking(TestJobsIOTrackingBase):
         assert sorted(event_counts.items()) == sorted(expected_event_counts[strategy].items())
 
         assert read_table("//tmp/table_out") == table_data
+
+
+class TestMapReduceJobsIOTracking(TestJobsIOTrackingBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "use_new_sorted_pool": False,
+                },
+            },
+        },
+    }
+
+    def _gather_events(self, raw_events, op, task_to_kind, kind_to_job):
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == "map_reduce"
+            assert "job_id" in event
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            assert event["user@"] == "job:root"
+
+        paths = {}
+        for event in raw_events:
+            assert event["data_node_method@"] in ["GetBlockSet", "FinishChunk"]
+            direction = "read" if event["data_node_method@"] == "GetBlockSet" else "write"
+
+            kind = task_to_kind[event["task_name@"]]
+            assert event["job_type@"] == kind_to_job[kind]
+            if kind not in paths:
+                paths[kind] = {"read": [], "write": []}
+
+            path = event["object_path"]
+            if path.find("intermediate") == -1:
+                assert "object_id" in event
+                assert event["account@"] == "tmp"
+            else:
+                assert "object_id" not in event
+                assert event["account@"] == "intermediate"
+
+            paths[kind][direction].append(path)
+
+        return paths
+
+    @authors("gepardo")
+    def test_map_reduce_simple(self):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = map_reduce(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_by="id",
+        )
+        raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, {
+            "partition_map(0)": "map",
+            "partition_reduce": "reduce",
+        }, {
+            "map": "partition_map",
+            "reduce": "partition_reduce",
+        })
+
+        assert paths["map"]["read"] == ["//tmp/table_in"]
+        assert paths["map"]["write"] == ["<intermediate_0>"]
+        assert paths["reduce"]["read"] == ["<intermediate_0>"]
+        assert paths["reduce"]["write"] == ["//tmp/table_out"]
+
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
+
+    @authors("gepardo")
+    def test_map_reduce_multiple_output(self):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out_map1")
+        create("table", "//tmp/table_out_map2")
+        create("table", "//tmp/table_out")
+        for row in table_data:
+            write_table("<append=%true>//tmp/table_in", [row])
+        raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        mapper = """
+echo "{a=$YT_JOB_INDEX}" 1>&4
+[ $YT_JOB_INDEX == 1 ] && echo "{b=$YT_JOB_INDEX}" 1>&7
+cat
+"""
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = map_reduce(
+            in_="//tmp/table_in",
+            out=["//tmp/table_out_map1", "//tmp/table_out_map2", "//tmp/table_out"],
+            mapper_command=mapper,
+            reducer_command="cat",
+            reduce_by="id",
+            spec={
+                "mapper_output_table_count": 2,
+                "map_job_count": 4,
+            }
+        )
+        raw_events, _ = self.wait_for_events(raw_count=18, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, {
+            "partition_map(0)": "map",
+            "partition_reduce": "reduce",
+        }, {
+            "map": "partition_map",
+            "reduce": "partition_reduce",
+        })
+
+        assert paths["map"]["read"] == ["//tmp/table_in"] * 4
+        assert sorted(paths["map"]["write"]) == \
+            ["//tmp/table_out_map1"] * 4 + ["//tmp/table_out_map2"] + ["<intermediate_0>"] * 4
+        assert paths["reduce"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["reduce"]["write"] == ["//tmp/table_out"]
+
+        assert sorted_dicts(read_table("//tmp/table_out_map1")) == [{"a": i} for i in range(4)]
+        assert sorted_dicts(read_table("//tmp/table_out_map2")) == [{"b": 1}]
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
+
+    @authors("gepardo")
+    def test_map_reduce_no_map(self):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = map_reduce(
+            in_="//tmp/table_in",
+            out=["//tmp/table_out"],
+            reducer_command="cat",
+            reduce_by="id",
+        )
+        raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, {
+            "partition(0)": "partition",
+            "partition_reduce": "reduce",
+        }, {
+            "partition": "partition",
+            "reduce": "partition_reduce",
+        })
+
+        assert paths["partition"]["read"] == ["//tmp/table_in"]
+        assert paths["partition"]["write"] == ["<intermediate_0>"]
+        assert paths["reduce"]["read"] == ["<intermediate_0>"]
+        assert paths["reduce"]["write"] == ["//tmp/table_out"]
+
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
+
+    @authors("gepardo")
+    def test_map_reduce_combiners(self):
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        for row in table_data:
+            write_table("<append=%true>//tmp/table_in", [row])
+        raw_events, _ = self.wait_for_events(raw_count=4, from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = map_reduce(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_combiner_command="cat",
+            reduce_by="id",
+            spec={
+                "force_reduce_combiners": True,
+                "map_job_count": 4,
+            }
+        )
+        raw_events, _ = self.wait_for_events(raw_count=15, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, {
+            "partition_map(0)": "map",
+            "reduce_combiner": "combine",
+            "sorted_reduce": "reduce",
+        }, {
+            "map": "partition_map",
+            "combine": "reduce_combiner",
+            "reduce": "sorted_reduce",
+        })
+
+        assert paths["map"]["read"] == ["//tmp/table_in"] * 4
+        assert paths["map"]["write"] == ["<intermediate_0>"] * 4
+        assert paths["combine"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["combine"]["write"] == ["<intermediate_0>"]
+        assert paths["reduce"]["read"] == ["<intermediate_0>"]
+        assert paths["reduce"]["write"] == ["//tmp/table_out"]
+
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
+
+    @authors("gepardo")
+    def test_map_reduce_partition(self):
+        table_data = [
+            {"key": x, "value": x**2}
+            for x in range(8)
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        for row in table_data:
+            write_table("<append=%true>//tmp/table_in", [row])
+        raw_events, _ = self.wait_for_events(raw_count=len(table_data), from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = map_reduce(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_by="key",
+            spec={
+                "map_job_count": 1,
+                "max_partition_factor": 2,
+                "partition_count": 8,
+                "data_weight_per_reduce_job": 1,
+            }
+        )
+        raw_events, _ = self.wait_for_events(raw_count=31, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, {
+            "partition_map(0)": "map",
+            "partition(1)": "part1",
+            "partition(2)": "part2",
+            "partition_reduce": "reduce",
+        }, {
+            "map": "partition_map",
+            "part1": "partition",
+            "part2": "partition",
+            "reduce": "partition_reduce",
+        })
+
+        assert paths["map"]["read"] == ["//tmp/table_in"] * 8
+        assert paths["map"]["write"] == ["<intermediate_0>"]
+        assert paths["part1"]["read"] == ["<intermediate_0>"] * 2
+        assert paths["part1"]["write"] == ["<intermediate_0>"] * 2
+        assert paths["part2"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["part2"]["write"] == ["<intermediate_0>"] * 4
+        assert paths["reduce"]["read"] == ["<intermediate_0>"] * 5
+        assert paths["reduce"]["write"] == ["//tmp/table_out"] * 5
+
+        assert sorted_dicts(read_table("//tmp/table_out")) == table_data
+
+    @authors("gepardo")
+    def test_map_reduce_intermediate(self):
+        table_data = [
+            {"key": x, "value": x**2}
+            for x in range(8)
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        for row in table_data:
+            write_table("<append=%true>//tmp/table_in", [row])
+        raw_events, _ = self.wait_for_events(raw_count=len(table_data), from_barrier=from_barrier)
+        for event in raw_events:
+            assert event["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = map_reduce(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            mapper_command="cat",
+            reducer_command="cat",
+            reduce_by="key",
+            spec={
+                "map_job_count": 4,
+                "partition_count": 1,
+                "data_size_per_sort_job": 1,
+            }
+        )
+        raw_events, _ = self.wait_for_events(raw_count=28, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, {
+            "partition_map(0)": "map",
+            "intermediate_sort": "intermediate",
+            "sorted_reduce": "reduce",
+        }, {
+            "map": "partition_map",
+            "intermediate": "intermediate_sort",
+            "reduce": "sorted_reduce",
+        })
+
+        assert paths["map"]["read"] == ["//tmp/table_in"] * 8
+        assert paths["map"]["write"] == ["<intermediate_0>"] * 4
+        assert paths["intermediate"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["intermediate"]["write"] == ["<intermediate_0>"] * 4
+        assert paths["reduce"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["reduce"]["write"] == ["//tmp/table_out"] * 4
+
+        assert sorted_dicts(read_table("//tmp/table_out")) == table_data
 
 
 class TestSortJobsIOTracking(TestJobsIOTrackingBase):

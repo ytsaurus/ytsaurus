@@ -4329,6 +4329,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildDataSourceDirectoryFromInputTables(InputTables_));
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryForMapper());
 
             if (Spec->InputQuery) {
                 WriteInputQueryToJobSpec(schedulerJobSpecExt);
@@ -4359,6 +4362,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).ToString());
 
@@ -4383,6 +4389,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
 
             if (Spec->HasNontrivialReduceCombiner()) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -4415,6 +4424,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryForReducer());
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).ToString());
 
@@ -4440,6 +4452,9 @@ private:
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
+            SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
+                schedulerJobSpecExt->mutable_extensions(),
+                BuildDataSinkDirectoryForReducer());
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).ToString());
 
@@ -4703,6 +4718,25 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
+    }
+
+private:
+    TDataSinkDirectoryPtr BuildDataSinkDirectoryForMapper()
+    {
+        auto dataSinkDirectory = New<TDataSinkDirectory>();
+        auto mapperOutputTableCount = static_cast<size_t>(Spec->MapperOutputTableCount);
+        dataSinkDirectory->DataSinks().reserve(1 + mapperOutputTableCount);
+        dataSinkDirectory->DataSinks().emplace_back(BuildIntermediateDataSink(GetSpec()->IntermediateDataAccount));
+        for (size_t index = 0; index < mapperOutputTableCount; ++index) {
+            dataSinkDirectory->DataSinks().emplace_back(BuildDataSinkFromOutputTable(OutputTables_[index]));
+        }
+        return dataSinkDirectory;
+    }
+
+    TDataSinkDirectoryPtr BuildDataSinkDirectoryForReducer()
+    {
+        return BuildDataSinkDirectoryFromOutputTables(
+            std::vector<TOutputTablePtr>(OutputTables_.begin() + Spec->MapperOutputTableCount, OutputTables_.end()));
     }
 };
 
