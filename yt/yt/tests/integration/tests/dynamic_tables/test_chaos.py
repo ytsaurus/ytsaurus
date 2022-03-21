@@ -422,7 +422,10 @@ class TestChaos(ChaosTestBase):
         def _pull_rows(progress_timestamp):
             return pull_rows(
                 "//tmp/q",
-                replication_progress={"segments": [{"lower_key": [], "timestamp": progress_timestamp}], "upper_key": ["#<Max>"]},
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": progress_timestamp}],
+                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                },
                 upstream_replica_id=replica_ids[0])
 
         def _sync_pull_rows(progress_timestamp):
@@ -468,7 +471,10 @@ class TestChaos(ChaosTestBase):
         def _pull_rows():
             return pull_rows(
                 "//tmp/q",
-                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                },
                 upstream_replica_id=replica_ids[0],
                 order_rows_by_timestamp=True)
 
@@ -482,6 +488,60 @@ class TestChaos(ChaosTestBase):
 
         for i in range(len(timestamps) - 1):
             assert timestamps[i] < timestamps[i+1], "Write timestamp order mismatch for positions {0} and {1}: {2} > {3}".format(i, i+1, timestamps[i], timestamps[i+1])
+
+    @authors("savrus")
+    def test_advanced_pull_rows(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+        reshard_table("//tmp/q", [[], [1], [2]])
+        sync_mount_table("//tmp/q")
+        self._sync_replication_era(card_id, replicas[:1])
+
+        for i in (0, 1, 2):
+            insert_rows("//tmp/q", [{"key": i, "value": str(i)}])
+
+        sync_unmount_table("//tmp/q")
+        set("//tmp/q/@enable_replication_progress_advance_to_barrier", False)
+        sync_mount_table("//tmp/q")
+
+        timestamp = generate_timestamp()
+        replication_progress = {
+            "segments": [
+                {"lower_key": [0], "timestamp": timestamp},
+                {"lower_key": [1], "timestamp": 0},
+                {"lower_key": [2], "timestamp": timestamp},
+            ],
+            "upper_key": [yson.to_yson_type(None, attributes={"type": b"max"})]
+        }
+
+        def _pull_rows(response_parameters=None):
+            return pull_rows(
+                "//tmp/q",
+                replication_progress=replication_progress,
+                upstream_replica_id=replica_ids[0],
+                response_parameters=response_parameters)
+        wait(lambda: len(_pull_rows()) == 1)
+
+        response_parameters={}
+        rows = _pull_rows(response_parameters)
+        print_debug(response_parameters)
+
+        row = rows[0]
+        assert row["key"] == 1
+        assert str(row["value"][0]) == "1"
+        assert len(row.attributes["write_timestamps"]) == 1
+        assert row.attributes["write_timestamps"][0] > 0
+
+        progress = response_parameters["replication_progress"]
+        assert progress["segments"][0] == replication_progress["segments"][0]
+        assert progress["segments"][2] == replication_progress["segments"][2]
+        assert str(progress["upper_key"]) == str(replication_progress["upper_key"])
+        assert progress["segments"][1]["timestamp"] > row.attributes["write_timestamps"][0]
 
     @authors("savrus")
     def test_delete_rows_replication(self):
@@ -1462,6 +1522,50 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t-copy", values2)
         assert lookup_rows("//tmp/r-copy", [{"key": 2}], driver=remote_driver1) == values2
         wait(lambda: lookup_rows("//tmp/t-copy", [{"key": 2}]) == values2)
+
+    @authors("savrus")
+    def test_lagging_queue(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        reshard_table("//tmp/q0", [[], [1]], driver=remote_driver0)
+        reshard_table("//tmp/q1", [[], [1]], driver=remote_driver1)
+
+        for replica in replicas:
+            sync_mount_table(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))
+        self._sync_replication_era(card_id, replicas)
+
+        sync_unmount_table("//tmp/q1", driver=remote_driver1)
+
+        timestamp = generate_timestamp()
+        def _get_card_progress_timestamp():
+            segments = get("#{0}/@replicas/{1}/replication_progress/segments".format(card_id, replica_ids[0]))
+            return min(segment["timestamp"] for segment in segments)
+        wait(lambda: _get_card_progress_timestamp() > timestamp)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/q1", first_tablet_index=0, last_tablet_index=0, driver=remote_driver1)
+
+        values0 = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/q0", values0, driver=remote_driver0)
+        sync_unmount_table("//tmp/q0", driver=remote_driver0)
+
+        set("//tmp/q1/@enable_replication_progress_advance_to_barrier", False, driver=remote_driver1)
+        sync_mount_table("//tmp/q1", driver=remote_driver1)
+        sync_mount_table("//tmp/t")
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values0)
+
+        sync_mount_table("//tmp/q0", driver=remote_driver0)
+        values1 = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/q0", values1, driver=remote_driver0)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}]) == values1)
 
 
 ##################################################################

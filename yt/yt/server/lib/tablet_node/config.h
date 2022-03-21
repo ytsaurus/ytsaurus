@@ -173,6 +173,8 @@ public:
     bool PrecacheChunkReplicasOnMount;
     bool RegisterChunkReplicasOnStoresUpdate;
 
+    bool EnableReplicationProgressAdvanceToBarrier;
+
     TTableMountConfig();
 };
 

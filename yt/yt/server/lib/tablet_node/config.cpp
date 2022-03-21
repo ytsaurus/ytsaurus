@@ -292,6 +292,9 @@ TTableMountConfig::TTableMountConfig()
     RegisterParameter("register_chunk_replicas_on_stores_update", RegisterChunkReplicasOnStoresUpdate)
         .Default(false);
 
+    RegisterParameter("enable_replication_progress_advance_to_barrier", EnableReplicationProgressAdvanceToBarrier)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");

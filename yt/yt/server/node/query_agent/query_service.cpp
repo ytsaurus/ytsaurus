@@ -902,9 +902,7 @@ private:
                         GetReplicationProgressMinTimestamp(*replicationProgress));
                 }
 
-                TReplicationProgress endProgress;
-                endProgress.UpperKey = progress.UpperKey;
-                endProgress.Segments.push_back({progress.Segments[0].LowerKey, maxTimestamp});
+                auto endProgress = AdvanceReplicationProgress(progress, maxTimestamp);
 
                 // TODO(savrus, akozhikhov): Use Finally here to track failed requests.
                 auto counters = tabletSnapshot->TableProfiler->GetPullRowsCounters(GetCurrentProfilingUser());

@@ -262,6 +262,10 @@ private:
             }
         }
 
+        if (!MountConfig_->EnableReplicationProgressAdvanceToBarrier) {
+            return;
+        }
+
         auto barrierTimestamp = Slot_->GetRuntimeData()->BarrierTimestamp.load();
         if (writeMode == ETabletWriteMode::Direct &&
             !IsReplicationProgressGreaterOrEqual(*progress, barrierTimestamp))
