@@ -34,6 +34,8 @@ struct ICypressElectionManager
     //! If instance is a leader prior to this call
     //! leading is stopped.
     virtual TFuture<void> Stop() = 0;
+    //! Return whether this instance is participating in leader election.
+    virtual bool IsActive() const = 0;
 
     //! Immediately stops leading.
     virtual TFuture<void> StopLeading() = 0;
@@ -42,7 +44,13 @@ struct ICypressElectionManager
     //! If instance is not leader now, returns |NullTransactionId|.
     virtual NTransactionClient::TTransactionId GetPrerequisiteTransactionId() const = 0;
 
+    //! Return whether this instance is currently leading.
+    //! NB: Might be stale.
     virtual bool IsLeader() const = 0;
+    //! Return the attributes of the leader's transaction.
+    //! NB: Might be stale.
+    //! NB: Can return null when the instance is just starting up and has no information yet.
+    virtual NYTree::IAttributeDictionaryPtr GetCachedLeaderTransactionAttributes() const = 0;
 
     //! Fired when instance became leader.
     //! NB: Signal handler should not throw or make context switches.

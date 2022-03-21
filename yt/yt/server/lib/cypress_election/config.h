@@ -16,6 +16,7 @@ struct TCypressElectionManagerConfig
     TDuration TransactionTimeout;
     TDuration TransactionPingPeriod;
     TDuration LockAcquisitionPeriod;
+    TDuration LeaderCacheUpdatePeriod;
 
     TCypressElectionManagerConfig();
 };
