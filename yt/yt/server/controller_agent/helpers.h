@@ -67,6 +67,8 @@ NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     const TString& intermediateAccount,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas = {});
 
+NChunkClient::TDataSink BuildIntermediateDataSink(const TString& intermediateAccount);
+
 NChunkClient::TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(
     const TString& intermediateAccount);
 

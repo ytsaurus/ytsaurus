@@ -189,12 +189,18 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     return dataSourceDirectory;
 }
 
+TDataSink BuildIntermediateDataSink(const TString& intermediateAccount)
+{
+    TDataSink dataSink;
+    dataSink.SetPath(GetIntermediatePath(0));
+    dataSink.SetAccount(intermediateAccount);
+    return dataSink;
+}
+
 TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const TString& intermediateAccount)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
-    auto& dataSink = dataSinkDirectory->DataSinks().emplace_back();
-    dataSink.SetPath(GetIntermediatePath(0));
-    dataSink.SetAccount(intermediateAccount);
+    dataSinkDirectory->DataSinks().push_back(BuildIntermediateDataSink(intermediateAccount));
     return dataSinkDirectory;
 }
 
