@@ -330,6 +330,14 @@ class TestQueueController(TestQueueAgentBase):
         dt = datetime.datetime.fromtimestamp(unix_ts, tz=pytz.UTC)
         return dt.isoformat().replace("+00:00", ".000000Z")
 
+    def _advance_bigrt_consumer(self, path, tablet_index, next_row_index):
+        # Keep in mind that in BigRT offset points to the last read row rather than first unread row.
+        # Initial status is represented as a missing row.
+        if next_row_index == 0:
+            delete_rows(path, [{"ShardId": tablet_index}])
+        else:
+            insert_rows(path, [{"ShardId": tablet_index, "Offset": next_row_index - 1}])
+
     @authors("max42")
     def test_queue_status(self):
         self._prepare_tables()
@@ -410,9 +418,9 @@ class TestQueueController(TestQueueAgentBase):
         assert consumer_status["owner"] == "root"
 
         time.sleep(1.5)
-        insert_rows("//tmp/c", [{"ShardId": 0, "Offset": 0}])
+        self._advance_bigrt_consumer("//tmp/c", 0, 0)
         time.sleep(1.5)
-        insert_rows("//tmp/c", [{"ShardId": 1, "Offset": 0}])
+        self._advance_bigrt_consumer("//tmp/c", 1, 0)
 
         def assert_partition(partition, next_row_index):
             assert partition["next_row_index"] == next_row_index
@@ -426,12 +434,12 @@ class TestQueueController(TestQueueAgentBase):
         assert_partition(consumer_partitions[0], 0)
         assert_partition(consumer_partitions[1], 0)
 
-        insert_rows("//tmp/c", [{"ShardId": 0, "Offset": 1}])
+        self._advance_bigrt_consumer("//tmp/c", 0, 1)
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
         consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
         assert_partition(consumer_partitions[0], 1)
 
-        insert_rows("//tmp/c", [{"ShardId": 1, "Offset": 2}])
+        self._advance_bigrt_consumer("//tmp/c", 1, 2)
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
         consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
         assert_partition(consumer_partitions[1], 2)
@@ -456,7 +464,7 @@ class TestQueueController(TestQueueAgentBase):
 
         expected_dispositions = ["expired", "pending_consumption", "pending_consumption", "up_to_date", "ahead"]
         for offset, expected_disposition in enumerate(expected_dispositions):
-            insert_rows("//tmp/c", [{"ShardId": 0, "Offset": offset}])
+            self._advance_bigrt_consumer("//tmp/c", 0, offset)
             orchid.wait_fresh_consumer_pass("primary://tmp/c")
             partition = orchid.get_consumer_partitions("primary://tmp/c")[0]
             assert partition["disposition"] == expected_disposition
@@ -479,8 +487,10 @@ class TestQueueController(TestQueueAgentBase):
         insert_rows("//tmp/q", [{"data": "foo"}] * 2)
         orchid.wait_fresh_queue_pass("primary://tmp/q")
 
-        insert_rows("//tmp/c", [{"ShardId": 1, "Offset": 1}, {"ShardId": 2**63 - 1, "Offset": 1},
-                                {"ShardId": 2**64 - 1, "Offset": 1}])
+        self._advance_bigrt_consumer("//tmp/c", 1, 1)
+        self._advance_bigrt_consumer("//tmp/c", 2**63 - 1, 1)
+        self._advance_bigrt_consumer("//tmp/c", 2**64 - 1, 1)
+
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
 
         partitions = orchid.get_consumer_partitions("primary://tmp/c")
