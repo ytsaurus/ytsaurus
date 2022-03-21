@@ -366,10 +366,10 @@ void TJobProxy::RetrieveJobSpec()
     }
 }
 
-void TJobProxy::Run()
+void TJobProxy::DoRun()
 {
     auto startTime = Now();
-    auto resultOrError = WaitFor(BIND(&TJobProxy::DoRun, MakeStrong(this))
+    auto resultOrError = WaitFor(BIND(&TJobProxy::RunJob, MakeStrong(this))
         .AsyncVia(JobThread_->GetInvoker())
         .Run());
     auto finishTime = Now();
@@ -415,6 +415,19 @@ void TJobProxy::Run()
         finishTime);
 
     Finalize();
+}
+
+void TJobProxy::Run()
+{
+    try {
+        DoRun();
+    } catch (const std::exception& ex) {
+        if (Config_->AbortOnUncaughtException) {
+            YT_LOG_FATAL(ex, "Abort on uncaught exception");
+        } else {
+            throw;
+        }
+    }
 }
 
 IJobPtr TJobProxy::CreateBuiltinJob()
@@ -488,7 +501,7 @@ IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
     return JobProxyEnvironment_.Load();
 }
 
-TJobResult TJobProxy::DoRun()
+TJobResult TJobProxy::RunJob()
 {
     RootSpan_ = TTraceContext::NewRoot("Job");
     RootSpan_->SetRecorded();

@@ -196,6 +196,8 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
+    bool AbortOnUncaughtException;
+
     TCoreWatcherConfigPtr CoreWatcher;
 
     bool TestPollJobShell;
@@ -241,6 +243,8 @@ public:
     bool ForceIdleCpuPolicy;
 
     bool UploadDebugArtifactChunks;
+
+    bool AbortOnUncaughtException;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
