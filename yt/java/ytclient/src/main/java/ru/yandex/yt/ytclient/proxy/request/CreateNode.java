@@ -34,6 +34,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
     private boolean recursive = false;
     private boolean force = false;
     private boolean ignoreExisting = false;
+    private boolean lockExisting = false;
     private final Map<String, YTreeNode> attributes = new HashMap<>();
 
     public CreateNode(CreateNode other) {
@@ -42,6 +43,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         recursive = other.recursive;
         force = other.force;
         ignoreExisting = other.ignoreExisting;
+        lockExisting = other.lockExisting;
         attributes.putAll(other.attributes);
     }
 
@@ -100,6 +102,15 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         return this;
     }
 
+    public boolean isLockExisting() {
+        return lockExisting;
+    }
+
+    public CreateNode setLockExisting(boolean lockExisting) {
+        this.lockExisting = lockExisting;
+        return this;
+    }
+
     public Map<String, YTreeNode> getAttributes() {
         return Collections.unmodifiableMap(attributes);
     }
@@ -132,7 +143,8 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
                 .setType(type.value())
                 .setRecursive(recursive)
                 .setForce(force)
-                .setIgnoreExisting(ignoreExisting);
+                .setIgnoreExisting(ignoreExisting)
+                .setLockExisting(lockExisting);
 
         if (transactionalOptions != null) {
             builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
@@ -163,6 +175,7 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
                 .key("type").value(type.toCypressNodeType().value())
                 .when(recursive, b -> b.key("recursive").value(recursive))
                 .when(ignoreExisting, b -> b.key("ignore_existing").value(ignoreExisting))
+                .when(lockExisting, b -> b.key("lock_existing").value(lockExisting))
                 .when(force, b -> b.key("force").value(true))
                 .when(!attributes.isEmpty(), b -> b.key("attributes").value(attributes));
     }
@@ -176,6 +189,9 @@ public class CreateNode extends MutatePath<CreateNode> implements HighLevelReque
         }
         if (ignoreExisting) {
             sb.append("IgnoreExisting: true; ");
+        }
+        if (lockExisting) {
+            sb.append("LockExisting: true; ");
         }
         if (force) {
             sb.append("Force: true; ");
