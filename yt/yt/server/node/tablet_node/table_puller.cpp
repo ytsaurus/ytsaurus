@@ -54,6 +54,72 @@ static const int TabletRowsPerRead = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBannedReplicaTracker
+{
+public:
+    explicit TBannedReplicaTracker(NLogging::TLogger logger)
+        : Logger(std::move(logger))
+    { }
+
+    bool IsReplicaBanned(TReplicaId replicaId)
+    {
+        auto it = BannedReplicas_.find(replicaId);
+        bool result = it != BannedReplicas_.end() && it->second > 0;
+
+        YT_LOG_INFO("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
+            replicaId,
+            result);
+        
+        return result;
+    }
+
+    void BanReplica(TReplicaId replicaId)
+    {
+        BannedReplicas_[replicaId] = std::ssize(BannedReplicas_);
+
+        YT_LOG_DEBUG("Banned replica tracker has banned replica (ReplicaId: %v, ReplicasSize: %v)",
+            replicaId,
+            BannedReplicas_.size());
+    }
+
+    void SyncReplicas(const TReplicationCardPtr replicationCard)
+    {
+        auto replicaIds = GetKeys(BannedReplicas_);
+        for (auto replicaId : replicaIds) {
+            if (!replicationCard->Replicas.contains(replicaId)) {
+                EraseOrCrash(BannedReplicas_, replicaId);
+            }
+        }
+
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+            if (!BannedReplicas_.contains(replicaId) &&
+                replicaInfo.ContentType == ETableReplicaContentType::Queue &&
+                replicaInfo.State == ETableReplicaState::Enabled)
+            {
+                InsertOrCrash(BannedReplicas_, std::make_pair(replicaId, 0));
+            }
+        }
+
+        DecreaseCounters();
+    }
+
+private:
+    const NLogging::TLogger Logger;
+
+    THashMap<TReplicaId, int> BannedReplicas_;
+
+    void DecreaseCounters()
+    {
+        for (auto& [_, counter] : BannedReplicas_) {
+            if (counter > 0) {
+                --counter;
+            }
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablePuller
     : public ITablePuller
 {
@@ -85,6 +151,7 @@ public:
             std::move(nodeInThrottler),
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
         }))
+        , BannedReplicaTracker_(Logger)
     { }
 
     void Enable() override
@@ -126,6 +193,8 @@ private:
     const IThroughputThrottlerPtr NodeInThrottler_;
     const IThroughputThrottlerPtr Throttler_;
 
+    TBannedReplicaTracker BannedReplicaTracker_;
+
     TFuture<void> FiberFuture_;
 
     void FiberMain()
@@ -153,6 +222,8 @@ private:
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
+            BannedReplicaTracker_.SyncReplicas(replicationCard);
+
             // There can be unserialized sync transactions from previous era or pull rows write transaction from previous iteration.
             if (auto delayedLocklessRowCount = tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load();
                 delayedLocklessRowCount > 0)
@@ -169,19 +240,12 @@ private:
                 return;
             }
 
-            const auto& tableProfiler = tabletSnapshot->TableProfiler;
-            auto* counters = tableProfiler->GetTablePullerCounters();
-            auto countError = Finally([counters, tableProfiler] {
-                if (std::uncaught_exception()) {
-                    counters->ErrorCount.Increment();
-                }
-            });
-
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
             auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
             if (!queueReplicaInfo) {
                 THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from");
             }
+            YT_VERIFY(queueReplicaId);
 
             auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplicaInfo) {
@@ -189,6 +253,15 @@ private:
                     << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
                     << HardErrorAttribute;
             }
+
+            const auto& tableProfiler = tabletSnapshot->TableProfiler;
+            auto* counters = tableProfiler->GetTablePullerCounters();
+            auto finally = Finally([this, queueReplicaId=queueReplicaId, tableProfiler, counters] {
+                if (std::uncaught_exception()) {
+                    BannedReplicaTracker_.BanReplica(queueReplicaId);
+                    counters->ErrorCount.Increment();
+                }
+            });
 
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
@@ -322,6 +395,10 @@ private:
 
         auto findFreshQueueReplica = [&] (TTimestamp oldestTimestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
+                    continue;
+                }
+
                 if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
                     replicaInfo.State == ETableReplicaState::Enabled &&
                     !IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress) &&
@@ -335,6 +412,10 @@ private:
 
         auto findSyncQueueReplica = [&] (auto* selfReplicaInfo, auto timestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
+                    continue;
+                }
+
                 if (replicaInfo.ContentType != ETableReplicaContentType::Queue || replicaInfo.State != ETableReplicaState::Enabled) {
                     continue;
                 }

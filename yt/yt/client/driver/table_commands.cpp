@@ -24,6 +24,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NDriver {
 
 using namespace NApi;
@@ -914,10 +916,20 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
     auto pullResult = WaitFor(pullRowsFuture)
         .ValueOrThrow();
 
+    ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
+        BuildYsonMapFragmentFluently(consumer)
+            .Item("replication_progress").Value(pullResult.ReplicationProgress);
+    });
+
     auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);
     writer->Write(pullResult.Rowset->GetRows());
     WaitFor(writer->Close())
         .ThrowOnError();
+}
+
+bool TPullRowsCommand::HasResponseParameters() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

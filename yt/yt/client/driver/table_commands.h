@@ -306,6 +306,7 @@ private:
     NYPath::TRichYPath Path;
 
     virtual void DoExecute(ICommandContextPtr context) override;
+    bool HasResponseParameters() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
