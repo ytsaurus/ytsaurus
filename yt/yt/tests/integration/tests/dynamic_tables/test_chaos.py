@@ -541,7 +541,7 @@ class TestChaos(ChaosTestBase):
         assert progress["segments"][0] == replication_progress["segments"][0]
         assert progress["segments"][2] == replication_progress["segments"][2]
         assert str(progress["upper_key"]) == str(replication_progress["upper_key"])
-        assert progress["segments"][1]["timestamp"] > row.attributes["write_timestamps"][0]
+        assert progress["segments"][1]["timestamp"] >= row.attributes["write_timestamps"][0]
 
     @authors("savrus")
     def test_delete_rows_replication(self):
