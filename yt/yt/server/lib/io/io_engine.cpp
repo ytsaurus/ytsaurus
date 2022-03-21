@@ -747,6 +747,10 @@ private:
     const TPoolDesctriptor UserInteractivePool_;
 };
 
+DEFINE_ENUM(EFlushRangeAfterWrite,
+    (Disable)
+    (Enable)
+);
 
 template <typename TThreadPool, typename TRequestSlicer>
 class TThreadPoolIOEngine
@@ -760,6 +764,7 @@ public:
         TConfigPtr config,
         TString locationId,
         TProfiler profiler,
+        EFlushRangeAfterWrite flushRangeAfterWrite,
         NLogging::TLogger logger)
         : TIOEngineBase(
             config,
@@ -767,6 +772,7 @@ public:
             std::move(profiler),
             std::move(logger))
         , Config_(std::move(config))
+        , FlushRangeAfterWrite_(flushRangeAfterWrite)
         , ThreadPool_(Config_, LocationId_, Logger)
         , RequestSlicer_(Config_->DesiredRequestSize, Config_->MinRequestSize)
     { }
@@ -856,6 +862,7 @@ public:
 
 private:
     const TConfigPtr Config_;
+    const EFlushRangeAfterWrite FlushRangeAfterWrite_;
     TThreadPool ThreadPool_;
     TRequestSlicer RequestSlicer_;
 
@@ -968,7 +975,8 @@ private:
         TWallTimer timer)
     {
         auto writtenBytes = DoWriteImpl(request, timer);
-        if (request.Flush && writtenBytes) {
+
+        if (FlushRangeAfterWrite_ == EFlushRangeAfterWrite::Enable && request.Flush && writtenBytes) {
             YT_VERIFY(writtenBytes > 0);
             DoFlushFileRange(TFlushFileRangeRequest{
                 .Handle = request.Handle,
@@ -2274,6 +2282,7 @@ IIOEnginePtr CreateIOEngine(
                 std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
+                EFlushRangeAfterWrite::Disable,
                 std::move(logger));
 #ifdef _linux_
         case EIOEngineType::Uring:
@@ -2288,6 +2297,7 @@ IIOEnginePtr CreateIOEngine(
                 std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
+                EFlushRangeAfterWrite::Enable,
                 std::move(logger));
         default:
             THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv",
