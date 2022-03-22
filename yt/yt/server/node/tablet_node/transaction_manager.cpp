@@ -336,7 +336,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag, /*canThrow*/ true);
+        ValidateTimestampClusterTag(
+            transactionId,
+            prepareTimestampClusterTag,
+            prepareTimestamp,
+            /*canThrow*/ true);
 
         TTransaction* transaction;
         ETransactionState state;
@@ -423,9 +427,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag, /*canThrow*/ false);
-
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+
+        ValidateTimestampClusterTag(
+            transactionId,
+            commitTimestampClusterTag,
+            transaction->GetPrepareTimestamp(),
+            /*canThrow*/ false);
 
         // Make a copy, transaction may die.
         auto identity = transaction->AuthenticationIdentity();
@@ -1100,10 +1108,19 @@ private:
         THROW_ERROR_EXCEPTION("Tablet cell is decommissioned");
     }
 
-    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag, bool canThrow)
+    void ValidateTimestampClusterTag(
+        TTransactionId transactionId,
+        TClusterTag timestampClusterTag,
+        TTimestamp prepareTimestamp,
+        bool canThrow)
     {
-        if (IsMasterTransactionId(transactionId)) {
+        if (prepareTimestamp == NullTimestamp) {
             return;
+        }
+
+        // COMPAT(savrus) Remove as soon as deployed on ada and socrates.
+        if (IsMasterTransactionId(transactionId)) {
+            canThrow = false;
         }
 
         if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
