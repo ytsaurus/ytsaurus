@@ -324,12 +324,6 @@ TMasterConnectorConfig::TMasterConnectorConfig()
         .Default();
     RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
-        .Default();
-    RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
-        .Default();
-    RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -340,10 +334,16 @@ TMasterConnectorDynamicConfig::TMasterConnectorDynamicConfig()
         .Default();
     RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
         .Default();
+    RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
     RegisterParameter("job_heartbeat_period", JobHeartbeatPeriod)
         .Default();
     RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
         .Default();
+    RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
     RegisterParameter("max_chunk_events_per_incremental_heartbeat", MaxChunkEventsPerIncrementalHeartbeat)
         .Default(1000000);
     RegisterParameter("enable_profiling", EnableProfiling)
@@ -693,15 +693,6 @@ TDataNodeConfig::TDataNodeConfig()
         if (!MasterConnector->JobHeartbeatPeriod) {
             // This is not a mistake!
             MasterConnector->JobHeartbeatPeriod = IncrementalHeartbeatPeriod;
-        }
-        if (!MasterConnector->FullHeartbeatTimeout) {
-            MasterConnector->FullHeartbeatTimeout = FullHeartbeatTimeout;
-        }
-        if (!MasterConnector->IncrementalHeartbeatTimeout) {
-            MasterConnector->IncrementalHeartbeatTimeout = IncrementalHeartbeatTimeout;
-        }
-        if (!MasterConnector->JobHeartbeatTimeout) {
-            MasterConnector->JobHeartbeatTimeout = JobHeartbeatTimeout;
         }
     });
 }

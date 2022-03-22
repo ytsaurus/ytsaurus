@@ -492,6 +492,9 @@ public:
     //! Splay for tablet node heartbeats.
     std::optional<TDuration> HeartbeatPeriodSplay;
 
+    //! Timeout of the tablet node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
     TMasterConnectorDynamicConfig();
 };
 

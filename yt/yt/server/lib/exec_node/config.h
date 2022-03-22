@@ -435,17 +435,12 @@ public:
     //! Splay for exec node heartbeats.
     TDuration HeartbeatPeriodSplay;
 
-    //! Timeout of the exec node heartbeat RPC request.
-    TDuration HeartbeatTimeout;
-
     TMasterConnectorConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
-            .Default(TDuration::Seconds(60));
     }
 };
 
@@ -688,12 +683,17 @@ public:
     //! Splay for exec node heartbeats.
     std::optional<TDuration> HeartbeatPeriodSplay;
 
+    //! Timeout of the exec node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
     TMasterConnectorDynamicConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default();
         RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
             .Default();
+        RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+            .Default(TDuration::Seconds(60));
     }
 };
 

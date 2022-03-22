@@ -670,7 +670,7 @@ private:
             TJobTrackerServiceProxy proxy(channel);
 
             auto req = proxy.Heartbeat();
-            req->SetTimeout(Config_->JobHeartbeatTimeout);
+            req->SetTimeout(GetDynamicConfig()->JobHeartbeatTimeout);
 
             const auto& jobController = Bootstrap_->GetJobController();
             YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(cellTag, EObjectType::MasterJob, req))
@@ -757,7 +757,7 @@ private:
 
         auto req = proxy.FullHeartbeat();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
-        req->SetTimeout(*Config_->FullHeartbeatTimeout);
+        req->SetTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
         static_cast<TReqFullHeartbeat&>(*req) = GetFullHeartbeatRequest(cellTag);
 
@@ -794,7 +794,7 @@ private:
 
         auto req = proxy.IncrementalHeartbeat();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
-        req->SetTimeout(*Config_->IncrementalHeartbeatTimeout);
+        req->SetTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
         static_cast<TReqIncrementalHeartbeat&>(*req) = GetIncrementalHeartbeatRequest(cellTag);
 
@@ -1053,6 +1053,13 @@ private:
 
         const auto& mediumUpdater = Bootstrap_->GetMediumUpdater();
         mediumUpdater->UpdateLocationMedia(response.medium_overrides());
+    }
+
+    TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector;
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
