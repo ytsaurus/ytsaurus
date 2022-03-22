@@ -100,6 +100,8 @@ private:
         const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 
+    TMasterConnectorDynamicConfigPtr GetDynamicConfig() const;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 

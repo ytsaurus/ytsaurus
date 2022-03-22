@@ -22,9 +22,6 @@ public:
     //! Splay for cellar node heartbeats.
     TDuration HeartbeatPeriodSplay;
 
-    //! Timeout of the cellar node heartbeat RPC request.
-    TDuration HeartbeatTimeout;
-
     REGISTER_YSON_STRUCT(TMasterConnectorConfig);
 
     static void Register(TRegistrar registrar);
@@ -43,6 +40,9 @@ public:
 
     //! Splay for cellar node heartbeats.
     std::optional<TDuration> HeartbeatPeriodSplay;
+
+    //! Timeout of the cellar node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
 
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 

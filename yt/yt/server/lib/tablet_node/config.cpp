@@ -577,6 +577,8 @@ TMasterConnectorDynamicConfig::TMasterConnectorDynamicConfig()
         .Default();
     RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
         .Default();
+    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

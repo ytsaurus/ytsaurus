@@ -155,7 +155,7 @@ private:
         TTabletNodeTrackerServiceProxy proxy(masterChannel);
 
         auto req = proxy.Heartbeat();
-        req->SetTimeout(Config_->HeartbeatTimeout);
+        req->SetTimeout(GetDynamicConfig()->HeartbeatTimeout);
 
         static_cast<TReqHeartbeat&>(*req) = GetHeartbeatRequest(cellTag);
 
@@ -283,6 +283,13 @@ private:
                 }
             }
         }
+    }
+
+    TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->MasterConnector;
     }
 };
 

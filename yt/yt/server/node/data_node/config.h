@@ -381,15 +381,6 @@ public:
     //! Splay for job heartbeats.
     TDuration JobHeartbeatPeriodSplay;
 
-    //! Timeout for incremental data node heartbeat RPC request.
-    std::optional<TDuration> IncrementalHeartbeatTimeout;
-
-    //! Timeout for full data node heartbeat RPC request.
-    std::optional<TDuration> FullHeartbeatTimeout;
-
-    //! Timeout for job heartbeat RPC request.
-    std::optional<TDuration> JobHeartbeatTimeout;
-
     TMasterConnectorConfig();
 };
 
@@ -407,11 +398,20 @@ public:
     //! Splay for data node heartbeats.
     std::optional<TDuration> IncrementalHeartbeatPeriodSplay;
 
+    //! Timeout for incremental data node heartbeat RPC request.
+    TDuration IncrementalHeartbeatTimeout;
+
+    //! Timeout for full data node heartbeat.
+    TDuration FullHeartbeatTimeout;
+
     //! Period between consequent job heartbeats to a given cell.
     std::optional<TDuration> JobHeartbeatPeriod;
 
     //! Splay for job heartbeats.
     std::optional<TDuration> JobHeartbeatPeriodSplay;
+
+    //! Timeout for job heartbeat RPC request.
+    TDuration JobHeartbeatTimeout;
 
     //! Maximum number of chunk events per incremental heartbeat.
     i64 MaxChunkEventsPerIncrementalHeartbeat;

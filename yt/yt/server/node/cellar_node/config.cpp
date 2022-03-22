@@ -10,8 +10,6 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
-        .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +20,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
         .Default();
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

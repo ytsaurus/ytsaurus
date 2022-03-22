@@ -234,7 +234,7 @@ void TLegacyMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     auto request = proxy.FullHeartbeat();
     request->SetRequestCodec(NCompression::ECodec::Lz4);
-    request->SetTimeout(Config_->FullHeartbeatTimeout);
+    request->SetTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
     YT_VERIFY(Bootstrap_->IsConnected());
     request->set_node_id(Bootstrap_->GetNodeId());
@@ -328,7 +328,7 @@ void TLegacyMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto request = proxy.IncrementalHeartbeat();
     request->SetRequestCodec(NCompression::ECodec::Lz4);
-    request->SetTimeout(Config_->IncrementalHeartbeatTimeout);
+    request->SetTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
     YT_VERIFY(masterConnector->IsConnected());
     request->set_node_id(masterConnector->GetNodeId());
@@ -434,6 +434,13 @@ void TLegacyMasterConnector::OnDynamicConfigChanged(
 
     IncrementalHeartbeatPeriod_ = newNodeConfig->MasterConnector->IncrementalHeartbeatPeriod.value_or(Config_->IncrementalHeartbeatPeriod);
     IncrementalHeartbeatPeriodSplay_ = newNodeConfig->MasterConnector->IncrementalHeartbeatPeriodSplay.value_or(Config_->IncrementalHeartbeatPeriodSplay);
+}
+
+TMasterConnectorDynamicConfigPtr TLegacyMasterConnector::GetDynamicConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->MasterConnector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
