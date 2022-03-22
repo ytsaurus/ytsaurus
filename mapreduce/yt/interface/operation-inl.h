@@ -842,23 +842,23 @@ inline TString YtRegistryTypeName(const TString& name) {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_MAPPER(...) \
-static NYT::TMapperRegistrator<__VA_ARGS__> \
+static const NYT::TMapperRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()).data());
 
 #define REGISTER_NAMED_MAPPER(name, ...) \
-static NYT::TMapperRegistrator<__VA_ARGS__> \
+static const NYT::TMapperRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_REDUCER(...) \
-static NYT::TReducerRegistrator<__VA_ARGS__> \
+static const NYT::TReducerRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(NYT::YtRegistryTypeName(TypeName<__VA_ARGS__>()).data());
 
 #define REGISTER_NAMED_REDUCER(name, ...) \
-static NYT::TReducerRegistrator<__VA_ARGS__> \
+static const NYT::TReducerRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_NAMED_RAW_JOB(name, ...) \
-static NYT::TRawJobRegistrator<__VA_ARGS__> \
+static const NYT::TRawJobRegistrator<__VA_ARGS__> \
 Y_GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 #define REGISTER_RAW_JOB(...) \
