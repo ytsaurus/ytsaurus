@@ -21,6 +21,7 @@
 #include "table_schema_cache.h"
 #include "ytree_integration.h"
 #include "chunk_detail.h"
+#include "location.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -460,6 +461,16 @@ private:
         P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
+
+        for (auto location : ChunkStore_->Locations()) {
+            auto node = newConfig->DataNode->MediumIOEngineConfig[location->GetMediumName()];
+
+            if (node) {
+                location->GetIOEngine()->Reconfigure(node);
+            } else {
+                location->GetIOEngine()->Reconfigure(GetEphemeralNodeFactory()->CreateMap());
+            }
+        }
     }
 };
 

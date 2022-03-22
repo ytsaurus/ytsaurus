@@ -141,6 +141,8 @@ struct IIOEngine
 
     virtual bool IsSick() const = 0;
 
+    virtual void Reconfigure(const NYTree::INodePtr& dynamicIOConfig) = 0;
+
     virtual const IInvokerPtr& GetAuxPoolInvoker() = 0;
 
     virtual i64 GetTotalReadBytes() const = 0;
