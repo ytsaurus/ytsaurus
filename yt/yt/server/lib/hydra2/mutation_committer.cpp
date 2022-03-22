@@ -262,6 +262,11 @@ void TLeaderCommitter::Stop()
         mutation->LocalCommitPromise.TrySet(error);
     }
 
+    TMutationDraft mutationDraft;
+    while (MutationDraftQueue_->TryDequeue(&mutationDraft)) {
+        mutationDraft.Promise.TrySet(error);
+    }
+
     CloseChangelog(Changelog_);
 
     MutationQueue_.clear();
