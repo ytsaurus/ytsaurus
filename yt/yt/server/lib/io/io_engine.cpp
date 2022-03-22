@@ -607,6 +607,10 @@ private:
             return Sick_.load();
         });
 
+        Profiler.AddFuncGauge("/alive", MakeStrong(this), [] {
+            return 1;
+        });
+
         Profiler.AddFuncGauge("/sick_events", MakeStrong(this), [this] {
             return SicknessCounter_.load();
         });
