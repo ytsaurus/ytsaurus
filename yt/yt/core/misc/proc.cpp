@@ -5,6 +5,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/common.h>
+#include <yt/yt/core/misc/enum.h>
+#include <yt/yt/core/misc/error_code.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/string.h>
 
@@ -59,6 +61,15 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static inline const NLogging::TLogger Logger("Proc");
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString LinuxErrorCodeFormatter(int code)
+{
+    return TEnumTraits<ELinuxErrorCode>::ToString(static_cast<ELinuxErrorCode>(code));
+}
+
+YT_DEFINE_ERROR_CODE_RANGE(4200, 4399, "NYT::ELinuxErrorCode", LinuxErrorCodeFormatter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

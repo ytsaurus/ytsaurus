@@ -60,6 +60,26 @@ YT_DEFINE_ERROR_ENUM(
     ((Kukarek) (-2007))
 );
 
+TString TestErrorCodeFormatter(int code)
+{
+    return Format("formatted%v", code);
+}
+
+YT_DEFINE_ERROR_CODE_RANGE(-4399, -4200, "NYT::Test", TestErrorCodeFormatter);
+
+DEFINE_ENUM(EDifferentTestErrorCode,
+    ((ErrorNumberOne)   (-10000))
+    ((ErrorNumberTwo)   (-10001))
+    ((ErrorNumberThree) (-10002))
+);
+
+TString DifferentTestErrorCodeFormatter(int code)
+{
+    return TEnumTraits<EDifferentTestErrorCode>::ToString(static_cast<EDifferentTestErrorCode>(code));
+}
+
+YT_DEFINE_ERROR_CODE_RANGE(-10005, -10000, "NYT::DifferentTest", DifferentTestErrorCodeFormatter);
+
 TEST(TErrorCodeRegistryTest, Basic)
 {
     EXPECT_EQ(
@@ -74,6 +94,15 @@ TEST(TErrorCodeRegistryTest, Basic)
     EXPECT_EQ(
         TErrorCodeRegistry::Get()->Get(-5),
         (TErrorCodeRegistry::TErrorCodeInfo{"", "Global1"}));
+    EXPECT_EQ(
+        TErrorCodeRegistry::Get()->Get(-4300),
+        (TErrorCodeRegistry::TErrorCodeInfo{"NYT::Test", "formatted-4300"}));
+    EXPECT_EQ(
+        TErrorCodeRegistry::Get()->Get(-10002),
+        (TErrorCodeRegistry::TErrorCodeInfo{"NYT::DifferentTest", "ErrorNumberThree"}));
+    EXPECT_EQ(
+        TErrorCodeRegistry::Get()->Get(-10005),
+        (TErrorCodeRegistry::TErrorCodeInfo{"NYT::DifferentTest", "EDifferentTestErrorCode(-10005)"}));
     EXPECT_EQ(
         TErrorCodeRegistry::Get()->Get(-111),
         (TErrorCodeRegistry::TErrorCodeInfo{"NUnknown", "ErrorCode-111"}));

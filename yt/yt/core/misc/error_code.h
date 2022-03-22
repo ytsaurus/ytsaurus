@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yt/yt/core/misc/defines.h>
 #include <yt/yt/core/misc/enum.h>
 
 #include <library/cpp/yt/misc/port.h>
@@ -18,24 +19,50 @@ public:
     struct TErrorCodeInfo
     {
         TString Namespace;
+        //! Human-readable error code name.
         TString Name;
 
         bool operator==(const TErrorCodeInfo& rhs) const;
     };
 
+    struct TErrorCodeRangeInfo
+    {
+        int From;
+        int To;
+        TString Namespace;
+        std::function<TString(int code)> Formatter;
+
+        TErrorCodeInfo Get(int code) const;
+        bool Intersects(const TErrorCodeRangeInfo& other) const;
+        bool Contains(int value) const;
+    };
+
+    //! Retrieves info from registered codes and code ranges.
     TErrorCodeInfo Get(int code) const;
 
-    THashMap<int, TErrorCodeInfo> GetAll() const;
+    //! Retrieves information about registered codes.
+    THashMap<int, TErrorCodeInfo> GetAllErrorCodes() const;
 
+    //! Retrieves information about registered code ranges.
+    std::vector<TErrorCodeRangeInfo> GetAllErrorCodeRanges() const;
+
+    //! Registers a single error code.
     void RegisterErrorCode(int code, const TErrorCodeInfo& errorCodeInfo);
+
+    //! Registers a range of error codes given a human-readable code to name formatter.
+    void RegisterErrorCodeRange(int from, int to, TString namespaceName, std::function<TString(int code)> formatter);
 
     static TString ParseNamespace(const std::type_info& errorCodeEnumTypeInfo);
 
 private:
     THashMap<int, TErrorCodeInfo> CodeToInfo_;
+    std::vector<TErrorCodeRangeInfo> ErrorCodeRanges_;
+
+    void CheckCodesAgainstRanges() const;
 };
 
 TString ToString(const TErrorCodeRegistry::TErrorCodeInfo& errorCodeInfo);
+TString ToString(const TErrorCodeRegistry::TErrorCodeRangeInfo& errorCodeInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +74,15 @@ TString ToString(const TErrorCodeRegistry::TErrorCodeInfo& errorCodeInfo);
                 static_cast<int>(errorCode), \
                 {::NYT::TErrorCodeRegistry::ParseNamespace(typeid(EErrorCode)), ToString(errorCode)}); \
         } \
+        return nullptr; \
+    } ()
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! NB: This macro should only by used in cpp files.
+#define YT_DEFINE_ERROR_CODE_RANGE(from, to, namespaceName, formatter) \
+    ATTRIBUTE_USED static const void* CONCAT(RegisterErrorCodeRange, __LINE__) = [] { \
+        ::NYT::TErrorCodeRegistry::Get()->RegisterErrorCodeRange(from, to, namespaceName, formatter); \
         return nullptr; \
     } ()
 
