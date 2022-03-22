@@ -799,6 +799,9 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
     RegisterParameter("chunk_repair_job", ChunkRepairJob)
         .DefaultNew();
 
+    RegisterParameter("medium_io_engine_config", MediumIOEngineConfig)
+        .Default();
+
     RegisterPostprocessor([&] {
         if (!AdaptiveChunkRepairJob) {
             AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();

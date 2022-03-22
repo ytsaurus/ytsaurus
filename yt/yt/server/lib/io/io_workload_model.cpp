@@ -354,6 +354,11 @@ public:
         return Underlying_->GetTotalWrittenBytes();
     }
 
+    void Reconfigure(const NYTree::INodePtr& config) override
+    {
+        Underlying_->Reconfigure(config);
+    }
+
 private:
     const IIOEnginePtr Underlying_;
     const NLogging::TLogger Logger;

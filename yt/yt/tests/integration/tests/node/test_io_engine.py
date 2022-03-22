@@ -7,11 +7,11 @@ import pytest
 import platform
 import os.path
 
-from yt_commands import (authors, wait, read_table, ls, create, write_table, set)
+from yt_commands import (authors, wait, read_table, ls, create, write_table, set, update_nodes_dynamic_config)
 
 
 @authors("capone212")
-class TestIoEngineThreadPoolStats(YTEnvSetup):
+class TestIoEngine(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 0
@@ -59,6 +59,34 @@ class TestIoEngineThreadPoolStats(YTEnvSetup):
         # we should recieve read stats from at least one node
         wait(lambda: any(self.check_node_sensors(node_sensor) for node_sensor in read_sensors))
 
+    @authors("prime")
+    def test_dynamic_sick_detector(self):
+        create("table", "//tmp/sick")
+        write_table("//tmp/sick", [{"a": i} for i in range(100)])
+
+        def get_sick_count():
+            return sum(
+                profiler_factory().at_node(node).gauge(name="location/sick", fixed_tags={"location_type": "store"}).get()
+                for node in ls("//sys/cluster_nodes")
+            )
+
+        assert get_sick_count() == 0
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "medium_io_engine_config": {
+                    "default": {
+                        "sick_write_time_threshold": 0,
+                        "sick_write_time_window": 0,
+                        "sickness_expiration_timeout": 1000000,
+                    }
+                }
+            }
+        })
+
+        write_table("//tmp/sick", [{"a": i} for i in range(100)])
+        wait(lambda: get_sick_count() > 0)
+
 
 def parse_version(vstring):
     pattern = r'^(\d+)\.(\d+)\.(\d+).*'
@@ -90,5 +118,5 @@ def is_uring_disabled():
 @authors("capone212")
 @pytest.mark.skip("YT-15905 io_uring is broken in CI")
 @pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
-class TestIoEngineUringStats(TestIoEngineThreadPoolStats):
+class TestIoEngineUringStats(TestIoEngine):
     NODE_IO_ENGINE_TYPE = "uring"

@@ -203,6 +203,11 @@ public:
         }).AsyncVia(Invoker_).Run();
     }
 
+    void Reconfigure(const NYTree::INodePtr& config) override
+    {
+        Y_UNUSED(config);
+    }
+
 private:
     const TIOEngineMockConfig Config_;
     const TThreadPoolPtr ThreadPool_;

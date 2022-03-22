@@ -14,6 +14,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -183,6 +184,7 @@ public:
     int WriteThreadCount;
 
     bool EnablePwritev;
+    bool FlushAfterWrite;
 
     // Request size in bytes.
     i64 DesiredRequestSize;
@@ -203,6 +205,8 @@ public:
 
         RegisterParameter("enable_pwritev", EnablePwritev)
             .Default(true);
+        RegisterParameter("flush_after_write", FlushAfterWrite)
+            .Default(false);
 
         RegisterParameter("desired_request_size", DesiredRequestSize)
             .GreaterThanOrEqual(4_KB)
@@ -467,9 +471,10 @@ protected:
         : LocationId_(std::move(locationId))
         , Logger(std::move(logger))
         , Profiler(std::move(profiler))
-        , Config_(std::move(config))
-        , AuxThreadPool_(New<TThreadPool>(Config_->AuxThreadCount, Format("IOA:%v", LocationId_)))
-        , FsyncThreadPool_(New<TThreadPool>(Config_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
+        , StaticConfig_(std::move(config))
+        , Config_(StaticConfig_)
+        , AuxThreadPool_(New<TThreadPool>(StaticConfig_->AuxThreadCount, Format("IOA:%v", LocationId_)))
+        , FsyncThreadPool_(New<TThreadPool>(StaticConfig_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
         , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker()))
         , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker()))
     {
@@ -508,7 +513,7 @@ protected:
             if (request.Size) {
                 request.Handle->Resize(*request.Size);
             }
-            if (request.Flush && Config_->EnableSync) {
+            if (request.Flush && StaticConfig_->EnableSync) {
                 request.Handle->Flush();
             }
             request.Handle->Close();
@@ -538,13 +543,14 @@ protected:
 
     void AddWriteWaitTimeSample(TDuration duration)
     {
-        if (Config_->SickWriteTimeThreshold && Config_->SickWriteTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
-            if (duration > *Config_->SickWriteTimeThreshold) {
+        auto config = Config_.Load();
+        if (config->SickWriteTimeThreshold && config->SickWriteTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
+            if (duration > *config->SickWriteTimeThreshold) {
                 auto now = GetInstant();
                 auto guard = Guard(WriteWaitLock_);
                 if (!SickWriteWaitStart_) {
                     SickWriteWaitStart_ = now;
-                } else if (now - *SickWriteWaitStart_ > *Config_->SickWriteTimeWindow) {
+                } else if (now - *SickWriteWaitStart_ > *config->SickWriteTimeWindow) {
                     auto error = TError("Write is too slow")
                         << TErrorAttribute("sick_write_wait_start", *SickWriteWaitStart_);
                     guard.Release();
@@ -559,13 +565,14 @@ protected:
 
     void AddReadWaitTimeSample(TDuration duration)
     {
-        if (Config_->SickReadTimeThreshold && Config_->SickReadTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
-            if (duration > *Config_->SickReadTimeThreshold) {
+        auto config = Config_.Load();
+        if (config->SickReadTimeThreshold && config->SickReadTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
+            if (duration > *config->SickReadTimeThreshold) {
                 auto now = GetInstant();
                 auto guard = Guard(ReadWaitLock_);
                 if (!SickReadWaitStart_) {
                     SickReadWaitStart_ = now;
-                } else if (now - *SickReadWaitStart_ > *Config_->SickReadTimeWindow) {
+                } else if (now - *SickReadWaitStart_ > *config->SickReadTimeWindow) {
                     auto error = TError("Read is too slow")
                         << TErrorAttribute("sick_read_wait_start", *SickReadWaitStart_);
                     guard.Release();
@@ -578,8 +585,21 @@ protected:
         }
     }
 
+    void Reconfigure(const NYTree::INodePtr& node) override
+    {
+        auto realConfig = NYTree::UpdateYsonSerializable(StaticConfig_, node);
+
+        AuxThreadPool_->Configure(realConfig->AuxThreadCount);
+        FsyncThreadPool_->Configure(realConfig->FsyncThreadCount);
+
+        Config_.Store(realConfig);
+
+        DoReconfigure(node);
+    }
+
 private:
-    const TConfigPtr Config_;
+    const TConfigPtr StaticConfig_;
+    TAtomicObject<TConfigPtr> Config_;
 
     const TThreadPoolPtr AuxThreadPool_;
     const TThreadPoolPtr FsyncThreadPool_;
@@ -611,7 +631,7 @@ private:
             return 1;
         });
 
-        Profiler.AddFuncGauge("/sick_events", MakeStrong(this), [this] {
+        Profiler.AddFuncCounter("/sick_events", MakeStrong(this), [this] {
             return SicknessCounter_.load();
         });
 
@@ -636,12 +656,19 @@ private:
 
     void SetSickFlag(const TError& error)
     {
+        auto config = Config_.Load();
+
+        if (!config->SicknessExpirationTimeout) {
+            return;
+        }
+
         bool expected = false;
         if (Sick_.compare_exchange_strong(expected, true)) {
             ++SicknessCounter_;
+
             TDelayedExecutor::Submit(
                 BIND(&TIOEngineBase::ResetSickFlag, MakeStrong(this)),
-                *Config_->SicknessExpirationTimeout);
+                *config->SicknessExpirationTimeout);
 
             YT_LOG_WARNING(error, "Sick flag set");
         }
@@ -663,6 +690,8 @@ private:
 
         YT_LOG_WARNING("Sick flag reset");
     }
+
+    virtual void DoReconfigure(const NYTree::INodePtr& node) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -671,9 +700,9 @@ class TFixedPriorityExecutor
 {
 public:
     TFixedPriorityExecutor(
-            TIntrusivePtr<TThreadPoolIOEngineConfig> config,
-            const TString& locationId,
-            NLogging::TLogger)
+        const TThreadPoolIOEngineConfigPtr& config,
+        const TString& locationId,
+        NLogging::TLogger /* logger */)
         : ReadThreadPool_(New<TThreadPool>(config->ReadThreadCount, Format("IOR:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
@@ -690,6 +719,12 @@ public:
         return CreateFixedPriorityInvoker(WriteInvoker_, GetBasicPriority(category));
     }
 
+    void Reconfigure(const TThreadPoolIOEngineConfigPtr& config)
+    {
+        ReadThreadPool_->Configure(config->ReadThreadCount);
+        WriteThreadPool_->Configure(config->WriteThreadCount);
+    }
+
 private:
     const TThreadPoolPtr ReadThreadPool_;
     const TThreadPoolPtr WriteThreadPool_;
@@ -701,9 +736,9 @@ class TFairShareThreadPool
 {
 public:
     TFairShareThreadPool(
-            TIntrusivePtr<TThreadPoolIOEngineConfig> config,
-            const TString& locationId,
-            NLogging::TLogger logger)
+        TIntrusivePtr<TThreadPoolIOEngineConfig> config,
+        const TString& locationId,
+        NLogging::TLogger logger)
         : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(config->ReadThreadCount, Format("FSH:%v", locationId)))
         , WriteThreadPool_(New<TThreadPool>(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
@@ -724,6 +759,12 @@ public:
     IInvokerPtr GetWriteInvoker(EWorkloadCategory category, TIOEngineBase::TSessionId)
     {
         return CreateFixedPriorityInvoker(WriteInvoker_, GetBasicPriority(category));
+    }
+
+    void Reconfigure(const TThreadPoolIOEngineConfigPtr& config)
+    {
+        ReadThreadPool_->Configure(config->ReadThreadCount);
+        WriteThreadPool_->Configure(config->WriteThreadCount);
     }
 
 private:
@@ -751,11 +792,6 @@ private:
     const TPoolDesctriptor UserInteractivePool_;
 };
 
-DEFINE_ENUM(EFlushRangeAfterWrite,
-    (Disable)
-    (Enable)
-);
-
 template <typename TThreadPool, typename TRequestSlicer>
 class TThreadPoolIOEngine
     : public TIOEngineBase
@@ -768,17 +804,16 @@ public:
         TConfigPtr config,
         TString locationId,
         TProfiler profiler,
-        EFlushRangeAfterWrite flushRangeAfterWrite,
         NLogging::TLogger logger)
         : TIOEngineBase(
             config,
             std::move(locationId),
             std::move(profiler),
             std::move(logger))
-        , Config_(std::move(config))
-        , FlushRangeAfterWrite_(flushRangeAfterWrite)
-        , ThreadPool_(Config_, LocationId_, Logger)
-        , RequestSlicer_(Config_->DesiredRequestSize, Config_->MinRequestSize)
+        , StaticConfig_(std::move(config))
+        , Config_(StaticConfig_)
+        , ThreadPool_(StaticConfig_, LocationId_, Logger)
+        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
     { }
 
     TFuture<TReadResponse> Read(
@@ -865,8 +900,9 @@ public:
     }
 
 private:
-    const TConfigPtr Config_;
-    const EFlushRangeAfterWrite FlushRangeAfterWrite_;
+    const TConfigPtr StaticConfig_;
+    TAtomicObject<TConfigPtr> Config_;
+
     TThreadPool ThreadPool_;
     TRequestSlicer RequestSlicer_;
 
@@ -930,7 +966,7 @@ private:
 
         NFS::ExpectIOErrors([&] {
             while (toReadRemaining > 0) {
-                auto toRead = static_cast<ui32>(Min(toReadRemaining, Config_->MaxBytesPerRead));
+                auto toRead = static_cast<ui32>(Min(toReadRemaining, Config_.Load()->MaxBytesPerRead));
 
                 i64 reallyRead;
                 {
@@ -959,8 +995,8 @@ private:
                 }
 
                 Sensors_->RegisterReadBytes(reallyRead);
-                if (Config_->SimulatedMaxBytesPerRead) {
-                    reallyRead = Min(reallyRead, *Config_->SimulatedMaxBytesPerRead);
+                if (StaticConfig_->SimulatedMaxBytesPerRead) {
+                    reallyRead = Min(reallyRead, *StaticConfig_->SimulatedMaxBytesPerRead);
                 }
 
                 fileOffset += reallyRead;
@@ -980,7 +1016,8 @@ private:
     {
         auto writtenBytes = DoWriteImpl(request, timer);
 
-        if (FlushRangeAfterWrite_ == EFlushRangeAfterWrite::Enable && request.Flush && writtenBytes) {
+        auto config = Config_.Load();
+        if (config->FlushAfterWrite && request.Flush && writtenBytes) {
             YT_VERIFY(writtenBytes > 0);
             DoFlushFileRange(TFlushFileRangeRequest{
                 .Handle = request.Handle,
@@ -1006,6 +1043,7 @@ private:
             int bufferIndex = 0;
             i64 bufferOffset = 0; // within current buffer
 
+            auto config = Config_.Load();
             while (toWriteRemaining > 0) {
                 auto isPwritevSupported = [&] {
 #ifdef _linux_
@@ -1022,7 +1060,7 @@ private:
                     i64 toWrite = 0;
                     while (bufferIndex + iovCount < std::ssize(request.Buffers) &&
                            iovCount < std::ssize(iov) &&
-                           toWrite < Config_->MaxBytesPerWrite)
+                           toWrite < config->MaxBytesPerWrite)
                     {
                         const auto& buffer = request.Buffers[bufferIndex + iovCount];
                         auto& iovPart = iov[iovCount];
@@ -1034,8 +1072,8 @@ private:
                             iovPart.iov_base = static_cast<char*>(iovPart.iov_base) + bufferOffset;
                             iovPart.iov_len -= bufferOffset;
                         }
-                        if (toWrite + static_cast<i64>(iovPart.iov_len) > Config_->MaxBytesPerWrite) {
-                            iovPart.iov_len = Config_->MaxBytesPerWrite - toWrite;
+                        if (toWrite + static_cast<i64>(iovPart.iov_len) > config->MaxBytesPerWrite) {
+                            iovPart.iov_len = config->MaxBytesPerWrite - toWrite;
                         }
                         toWrite += iovPart.iov_len;
                         ++iovCount;
@@ -1053,8 +1091,8 @@ private:
                     }
 
                     Sensors_->RegisterWrittenBytes(reallyWritten);
-                    if (Config_->SimulatedMaxBytesPerWrite) {
-                        reallyWritten = Min(reallyWritten, *Config_->SimulatedMaxBytesPerWrite);
+                    if (StaticConfig_->SimulatedMaxBytesPerWrite) {
+                        reallyWritten = Min(reallyWritten, *StaticConfig_->SimulatedMaxBytesPerWrite);
                     }
 
                     while (reallyWritten > 0) {
@@ -1076,7 +1114,7 @@ private:
 
                 auto pwrite = [&] {
                     const auto& buffer = request.Buffers[bufferIndex];
-                    auto toWrite = static_cast<ui32>(Min(toWriteRemaining, Config_->MaxBytesPerWrite, static_cast<i64>(buffer.Size()) - bufferOffset));
+                    auto toWrite = static_cast<ui32>(Min(toWriteRemaining, config->MaxBytesPerWrite, static_cast<i64>(buffer.Size()) - bufferOffset));
 
                     i32 reallyWritten;
                     {
@@ -1099,7 +1137,7 @@ private:
                     }
                 };
 
-                if (Config_->EnablePwritev && isPwritevSupported()) {
+                if (config->EnablePwritev && isPwritevSupported()) {
                     pwritev();
                 } else {
                     pwrite();
@@ -1112,7 +1150,7 @@ private:
 
     void DoFlushFile(const TFlushFileRequest& request)
     {
-        if (!Config_->EnableSync) {
+        if (!StaticConfig_->EnableSync) {
             return;
         }
 
@@ -1151,7 +1189,7 @@ private:
 
     void DoFlushFileRange(const TFlushFileRangeRequest& request)
     {
-        if (!Config_->EnableSync) {
+        if (!StaticConfig_->EnableSync) {
             return;
         }
 
@@ -1174,6 +1212,14 @@ private:
 
 #endif
 
+    }
+
+    void DoReconfigure(const NYTree::INodePtr& node) override
+    {
+        auto config = UpdateYsonSerializable(StaticConfig_, node);
+
+        ThreadPool_.Reconfigure(config);
+        Config_.Store(config);
     }
 };
 
@@ -2248,6 +2294,11 @@ private:
         ThreadPool_->SubmitRequest(std::move(request));
         return future;
     }
+
+    void DoReconfigure(const NYTree::INodePtr& node) override
+    {
+        Y_UNUSED(node);
+    }
 };
 
 #endif
@@ -2286,7 +2337,6 @@ IIOEnginePtr CreateIOEngine(
                 std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
-                EFlushRangeAfterWrite::Disable,
                 std::move(logger));
 #ifdef _linux_
         case EIOEngineType::Uring:
@@ -2301,7 +2351,6 @@ IIOEnginePtr CreateIOEngine(
                 std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
-                EFlushRangeAfterWrite::Enable,
                 std::move(logger));
         default:
             THROW_ERROR_EXCEPTION("Unknown IO engine %Qlv",

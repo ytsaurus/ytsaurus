@@ -815,6 +815,8 @@ public:
 
     TChunkRepairJobDynamicConfigPtr ChunkRepairJob;
 
+    THashMap<TString, NYTree::INodePtr> MediumIOEngineConfig;
+
     TDataNodeDynamicConfig();
 };
 
