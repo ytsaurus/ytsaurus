@@ -206,6 +206,8 @@ public:
     i64 GetRandomSeed() const;
     int GetLastMutationTerm() const;
 
+    i64 GetReliablyAppliedSequenceNumber() const;
+
     TReachableState GetReachableState() const;
 
     TInstant GetSnapshotBuildDeadline() const;
@@ -278,6 +280,8 @@ private:
     std::atomic<i64> SequenceNumber_;
     std::atomic<ui64> StateHash_;
     std::atomic<int> LastMutationTerm_ = NHydra::InvalidTerm;
+
+    std::atomic<i64> ReliablyAppliedSequenceNumber_;
 
     TInstant Timestamp_;
 

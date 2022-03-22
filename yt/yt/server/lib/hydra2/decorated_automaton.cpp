@@ -794,6 +794,7 @@ void TDecoratedAutomaton::LoadSnapshot(
         AutomatonVersion_ = TVersion();
         RandomSeed_ = 0;
         SequenceNumber_ = 0;
+        ReliablyAppliedSequenceNumber_ = 0;
         StateHash_ = 0;
         Timestamp_ = {};
         {
@@ -833,6 +834,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     AutomatonVersion_ = version;
     RandomSeed_ = randomSeed;
     SequenceNumber_ = sequenceNumber;
+    ReliablyAppliedSequenceNumber_ = sequenceNumber;
     StateHash_ = stateHash;
     Timestamp_ = timestamp;
     // This protects us from building a snapshot with the same id twice.
@@ -984,6 +986,8 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
     auto commitPromise = mutation->LocalCommitPromise;
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
+        YT_VERIFY(ReliablyAppliedSequenceNumber_.load() < mutation->SequenceNumber);
+        ReliablyAppliedSequenceNumber_ = mutation->SequenceNumber;
         DoApplyMutation(&mutationContext, mutation->Version, mutation->Term);
     }
 
@@ -1113,6 +1117,13 @@ int TDecoratedAutomaton::GetLastMutationTerm() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return LastMutationTerm_.load();
+}
+
+i64 TDecoratedAutomaton::GetReliablyAppliedSequenceNumber() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ReliablyAppliedSequenceNumber_.load();
 }
 
 TReachableState TDecoratedAutomaton::GetReachableState() const
