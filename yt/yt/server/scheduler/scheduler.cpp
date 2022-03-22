@@ -192,7 +192,7 @@ public:
 
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
-        OperationsCleaner_->SubscribeOperationsArchived(BIND(&TImpl::OnOperationsArchived, MakeWeak(this)));
+        OperationsCleaner_->SubscribeOperationsRemovedFromCypress(BIND(&TImpl::OnOperationsRemovedFromCypress, MakeWeak(this)));
 
         ServiceAddress_ = BuildServiceAddress(
             GetLocalHostName(),
@@ -4346,9 +4346,9 @@ private:
         YT_LOG_DEBUG("Finished scanning transient operation queue");
     }
 
-    void OnOperationsArchived(const std::vector<TArchiveOperationRequest>& archivedOperationRequests)
+    void OnOperationsRemovedFromCypress(const std::vector<TArchiveOperationRequest>& removedOperationRequests)
     {
-        for (const auto& request : archivedOperationRequests) {
+        for (const auto& request : removedOperationRequests) {
             if (request.Alias) {
                 // NB: some other operation could have already used this alias (and even be removed after they completed),
                 // so we check if it is still assigned to an operation id we expect.
