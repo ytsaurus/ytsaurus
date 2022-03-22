@@ -1700,17 +1700,20 @@ class TestChaosClock(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
-        total_iterations = 10
-        for iteration in range(total_iterations):
-            rows = [{"key": 1, "value": str(iteration)}]
-            keys = [{"key": 1}]
-            insert_rows("//tmp/t", rows)
-            wait(lambda: lookup_rows("//tmp/t", keys) == rows)
+        def _run_iterations():
+            total_iterations = 10
+            for iteration in range(total_iterations):
+                rows = [{"key": 1, "value": str(iteration)}]
+                keys = [{"key": 1}]
+                insert_rows("//tmp/t", rows)
+                wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
-            if iteration < total_iterations - 1:
-                mode = ["sync", "async"][iteration % 2]
-                self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=mode)
+                if iteration < total_iterations - 1:
+                    mode = ["sync", "async"][iteration % 2]
+                    self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode=mode)
+        _run_iterations()
 
         # Check that master transactions are working.
-        sync_unmount_table("//tmp/t")
-        sync_unmount_table("//tmp/q", driver=drivers[1])
+        sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/q", driver=drivers[1])
+        _run_iterations()

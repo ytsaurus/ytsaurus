@@ -3508,7 +3508,11 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
-            WaitFor(transaction->Commit())
+            TTransactionCommitOptions commitOptions{
+                .GeneratePrepareTimestamp = false
+            }; 
+
+            WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Tablet stores update transaction committed (%v, TransactionId: %v)",
