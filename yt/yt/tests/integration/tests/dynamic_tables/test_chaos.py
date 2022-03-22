@@ -847,6 +847,29 @@ class TestChaos(ChaosTestBase):
             create("chaos_replicated_table", "//tmp/crt")
             create("chaos_replicated_table", "//tmp/crt", attributes={"replication_card_id": "1-2-3-4"})
 
+    @authors("savrus")
+    def test_chaos_replicated_table_requires_bundle_use(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        create_user("u")
+
+        def _create(path, card_id=None):
+            attributes = {"chaos_cell_bundle": "c"}
+            if card_id:
+                attributes["replication_card_id"] = card_id
+            create("chaos_replicated_table", path, authenticated_user="u", attributes=attributes)
+
+        with pytest.raises(YtError):
+            _create("//tmp/crt", card_id)
+
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+        with pytest.raises(YtError):
+            _create("//tmp/crt")
+
+        set("//sys/chaos_cell_bundles/c/@acl/end", make_ace("allow", "u", "use"))
+        _create("//tmp/crt", card_id)
+        _create("//tmp/crt2")
+
     @authors("babenko")
     def test_chaos_replicated_table_with_explicit_card_id(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
