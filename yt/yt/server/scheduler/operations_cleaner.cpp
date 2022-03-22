@@ -573,7 +573,7 @@ class TOperationsCleaner::TImpl
     : public TRefCounted
 {
 public:
-    DEFINE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsArchived);
+    DEFINE_SIGNAL(void(const std::vector<TArchiveOperationRequest>&), OperationsRemovedFromCypress);
 
     TImpl(
         TOperationsCleanerConfigPtr config,
@@ -1257,7 +1257,6 @@ private:
                 }
             }
 
-            ProcessCleanedOperation(batch);
             for (auto operationId : batch) {
                 EnqueueForRemoval(operationId);
             }
@@ -1409,7 +1408,7 @@ private:
         RemovedOperationCounter_.Increment(removedOperationIds.size());
         RemoveOperationErrorCounter_.Increment(failedOperationIds.size());
 
-        ProcessCleanedOperation(removedOperationIds);
+        ProcessRemovedOperations(removedOperationIds);
 
         for (auto operationId : failedOperationIds) {
             RemoveBatcher_->Enqueue(operationId);
@@ -1552,19 +1551,19 @@ private:
         return GetOrCrash(OperationMap_, operationId);
     }
 
-    void ProcessCleanedOperation(const std::vector<TOperationId>& cleanedOperationIds)
+    void ProcessRemovedOperations(const std::vector<TOperationId>& removedOperationIds)
     {
-        std::vector<TArchiveOperationRequest> archivedOperationRequests;
-        archivedOperationRequests.reserve(cleanedOperationIds.size());
-        for (const auto& operationId : cleanedOperationIds) {
+        std::vector<TArchiveOperationRequest> removedOperationRequests;
+        removedOperationRequests.reserve(removedOperationIds.size());
+        for (const auto& operationId : removedOperationIds) {
             auto it = OperationMap_.find(operationId);
             if (it != OperationMap_.end()) {
-                archivedOperationRequests.emplace_back(std::move(it->second));
+                removedOperationRequests.emplace_back(std::move(it->second));
                 OperationMap_.erase(it);
             }
         }
 
-        OperationsArchived_.Fire(archivedOperationRequests);
+        OperationsRemovedFromCypress_.Fire(removedOperationRequests);
     }
 
     void SendOperationAlerts()
@@ -1676,7 +1675,7 @@ void TOperationsCleaner::EnqueueOperationAlertEvent(
     Impl_->EnqueueOperationAlertEvent(operationId, alertType, alert);
 }
 
-DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequest>& requests), OperationsArchived, *Impl_);
+DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequest>& requests), OperationsRemovedFromCypress, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
