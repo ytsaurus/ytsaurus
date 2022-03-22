@@ -45,9 +45,20 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
-            .DoMapFor(TErrorCodeRegistry::Get()->GetAll(), [] (TFluentMap fluent, const auto& pair) {
+            .DoMapFor(TErrorCodeRegistry::Get()->GetAllErrorCodes(), [] (TFluentMap fluent, const auto& pair) {
                 fluent
                     .Item(ToString(pair.first)).Value(ToString(pair.second));
+            }));
+    SyncYPathSet(
+        orchidRoot,
+        "/error_code_ranges",
+        BuildYsonStringFluently()
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .DoMapFor(TErrorCodeRegistry::Get()->GetAllErrorCodeRanges(), [] (TFluentMap fluent, const TErrorCodeRegistry::TErrorCodeRangeInfo& range) {
+                fluent
+                    .Item(ToString(range)).Value(range.Namespace);
             }));
 }
 

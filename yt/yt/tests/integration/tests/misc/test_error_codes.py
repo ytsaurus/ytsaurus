@@ -17,6 +17,11 @@ class TestErrorCodes(YTEnvSetup):
         assert get("//sys/scheduler/orchid/error_codes/116") == "NYT::NRpc::EErrorCode::TransientFailure"
 
     @authors("achulkov2")
+    def test_error_code_ranges(self):
+        assert get("//sys/scheduler/orchid/error_code_ranges/12000-13999") == "NYT::NContainers::EPortoErrorCode"
+
+    @authors("achulkov2")
     def test_attribute_is_opaque(self):
         full_attributes = get("//sys/scheduler/orchid")
         assert full_attributes["error_codes"] == YsonEntity()
+        assert full_attributes["error_code_ranges"] == YsonEntity()

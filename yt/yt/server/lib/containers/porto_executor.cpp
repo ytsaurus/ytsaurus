@@ -34,6 +34,15 @@ static constexpr auto RetryInterval = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString PortoErrorCodeFormatter(int code)
+{
+    return TEnumTraits<EPortoErrorCode>::ToString(static_cast<EPortoErrorCode>(code));
+}
+
+YT_DEFINE_ERROR_CODE_RANGE(12000, 13999, "NYT::NContainers::EPortoErrorCode", PortoErrorCodeFormatter);
+
+////////////////////////////////////////////////////////////////////////////////
+
 EPortoErrorCode ConvertPortoErrorCode(EError portoError)
 {
     return static_cast<EPortoErrorCode>(PortoErrorCodeBase + portoError);

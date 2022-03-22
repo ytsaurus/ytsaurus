@@ -38,12 +38,22 @@ TErrorCodeRegistry::TErrorCodeInfo TErrorCodeRegistry::Get(int code) const
     if (it != CodeToInfo_.end()) {
         return it->second;
     }
+    for (const auto& range : ErrorCodeRanges_) {
+        if (range.Contains(code)) {
+            return range.Get(code);
+        }
+    }
     return {"NUnknown", Format("ErrorCode%v", code)};
 }
 
-THashMap<int, TErrorCodeRegistry::TErrorCodeInfo> TErrorCodeRegistry::GetAll() const
+THashMap<int, TErrorCodeRegistry::TErrorCodeInfo> TErrorCodeRegistry::GetAllErrorCodes() const
 {
     return CodeToInfo_;
+}
+
+std::vector<TErrorCodeRegistry::TErrorCodeRangeInfo> TErrorCodeRegistry::GetAllErrorCodeRanges() const
+{
+    return ErrorCodeRanges_;
 }
 
 void TErrorCodeRegistry::RegisterErrorCode(int code, const TErrorCodeInfo& errorCodeInfo)
@@ -59,6 +69,55 @@ void TErrorCodeRegistry::RegisterErrorCode(int code, const TErrorCodeInfo& error
             code,
             CodeToInfo_[code],
             errorCodeInfo);
+    }
+}
+
+TErrorCodeRegistry::TErrorCodeInfo TErrorCodeRegistry::TErrorCodeRangeInfo::Get(int code) const
+{
+    return {Namespace, Formatter(code)};
+}
+
+bool TErrorCodeRegistry::TErrorCodeRangeInfo::Intersects(const TErrorCodeRangeInfo& other) const
+{
+    return std::max(From, other.From) <= std::min(To, other.To);
+}
+
+bool TErrorCodeRegistry::TErrorCodeRangeInfo::Contains(int value) const
+{
+    return From <= value && value <= To;
+}
+
+void TErrorCodeRegistry::RegisterErrorCodeRange(int from, int to, TString namespaceName, std::function<TString(int)> formatter)
+{
+    YT_VERIFY(from <= to);
+
+    TErrorCodeRangeInfo newRange{from, to, std::move(namespaceName), std::move(formatter)};
+    auto Logger = GetLogger();
+    for (const auto& range : ErrorCodeRanges_) {
+        YT_LOG_FATAL_IF(
+            range.Intersects(newRange),
+            "Intersecting error code ranges registered (FirstRange: %v, SecondRange: %v)",
+            range,
+            newRange);
+    }
+    ErrorCodeRanges_.push_back(std::move(newRange));
+    CheckCodesAgainstRanges();
+}
+
+void TErrorCodeRegistry::CheckCodesAgainstRanges() const
+{
+    auto Logger = GetLogger();
+    for (const auto& [code, info] : CodeToInfo_) {
+        for (const auto& range : ErrorCodeRanges_) {
+            YT_LOG_FATAL_IF(
+                range.Contains(code),
+                "Error code range contains another registered code "
+                "(Range: %v, Code: %v, RangeCodeInfo: %v, StandaloneCodeInfo: %v)",
+                range,
+                code,
+                range.Get(code),
+                info);
+        }
     }
 }
 
@@ -84,6 +143,11 @@ TString ToString(const TErrorCodeRegistry::TErrorCodeInfo& errorCodeInfo)
         return Format("EErrorCode::%v", errorCodeInfo.Name);
     }
     return Format("%v::EErrorCode::%v", errorCodeInfo.Namespace, errorCodeInfo.Name);
+}
+
+TString ToString(const TErrorCodeRegistry::TErrorCodeRangeInfo& errorCodeRangeInfo)
+{
+    return Format("%v-%v", errorCodeRangeInfo.From, errorCodeRangeInfo.To);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
