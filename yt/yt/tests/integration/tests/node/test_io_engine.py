@@ -74,7 +74,7 @@ class TestIoEngine(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "medium_io_engine_config": {
+                "medium_io_config": {
                     "default": {
                         "sick_write_time_threshold": 0,
                         "sick_write_time_window": 0,

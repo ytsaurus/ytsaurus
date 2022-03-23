@@ -463,7 +463,7 @@ private:
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
 
         for (auto location : ChunkStore_->Locations()) {
-            auto node = newConfig->DataNode->MediumIOEngineConfig[location->GetMediumName()];
+            auto node = newConfig->DataNode->MediumIOConfig[location->GetMediumName()];
 
             if (node) {
                 location->GetIOEngine()->Reconfigure(node);
