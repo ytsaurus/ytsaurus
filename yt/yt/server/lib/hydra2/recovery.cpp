@@ -65,7 +65,7 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
-void TRecovery::DoRun()
+TRecoveryResult TRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -163,7 +163,7 @@ void TRecovery::DoRun()
     // Shortcut for observer startup.
     // XXX(babenko)
     if (TargetState_ == TReachableState() && !IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
-        return;
+        return RecoveryResult_;
     }
 
     YT_LOG_INFO("Replaying changelogs (TargetState: %v, ChangelogIds: %v-%v)",
@@ -217,6 +217,8 @@ void TRecovery::DoRun()
             automatonState,
             TargetState_);
     }
+
+    return RecoveryResult_;
 }
 
 void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
@@ -324,6 +326,10 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
         changelogRecordCount,
         targetSequenceNumber);
 
+    ++RecoveryResult_.ChangelogCount;
+    RecoveryResult_.MutationCount += changelogRecordCount;
+    RecoveryResult_.TotalChangelogSize += changelog->GetDataSize();
+
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
     if (automatonVersion.SegmentId == changelog->GetId()) {
@@ -376,10 +382,11 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
     YT_LOG_INFO("Changelog replayed (AutomatonSequenceNumber: %v, TargetSequenceNumber: %v)",
         automatonSequenceNumber,
         targetSequenceNumber);
+
     return true;
 }
 
-TFuture<void> TRecovery::Run()
+TFuture<TRecoveryResult> TRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

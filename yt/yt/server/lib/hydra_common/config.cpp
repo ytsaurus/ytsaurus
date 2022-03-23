@@ -265,6 +265,18 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
         .GreaterThan(0)
         .Default(2_GB);
 
+    RegisterParameter("max_changelogs_for_recovery", MaxChangelogsForRecovery)
+        .GreaterThan(0)
+        .Default(20);
+
+    RegisterParameter("max_changelog_mutation_count_for_recovery", MaxChangelogMutationCountForRecovery)
+        .GreaterThan(0)
+        .Default(20'000'000);
+
+    RegisterParameter("max_total_changelog_size_for_recovery", MaxTotalChangelogSizeForRecovery)
+        .GreaterThan(0)
+        .Default(20_GB);
+
     RegisterPostprocessor([&] {
         if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");

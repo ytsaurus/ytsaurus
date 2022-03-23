@@ -1092,7 +1092,7 @@ private:
         }
 
         // We can not verify term before CheckForInitialPing because term may change on initial ping.
-        // However, we should verify our term is not greater then leader's before CheckForInitialPing to
+        // However, we should verify our term is not greater than leader's before CheckForInitialPing to
         // prevent term changing to a lower value.
         if (term > epochContext->Term) {
             YT_LOG_INFO("Received accept mutations with a greater term (CurrentTerm: %v, NewTerm: %v)",
@@ -1724,10 +1724,8 @@ private:
         auto newChangelogId = changelogId + 1;
         auto newTerm = term + 1;
 
-        if (Options_.WriteChangelogsAtFollowers) {
-            WaitFor(ChangelogStore_->SetTerm(newTerm))
-                .ThrowOnError();
-        }
+        WaitFor(ChangelogStore_->SetTerm(newTerm))
+            .ThrowOnError();
         ControlEpochContext_->Term = newTerm;
 
         // TODO(aleksandra-zh): What kind of barrier should I have here (if any)?
@@ -1829,8 +1827,8 @@ private:
                 epochContext->ReachableState,
                 true,
                 Logger);
-            WaitFor(epochContext->Recovery->Run())
-                .ThrowOnError();
+            auto recoveryResult = WaitFor(epochContext->Recovery->Run())
+                .ValueOrThrow();
 
             if (Config_->DisableLeaderLeaseGraceDelay) {
                 YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
@@ -1859,7 +1857,8 @@ private:
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
-            epochContext->LeaderCommitter->Start();
+            const auto& leaderCommitter = epochContext->LeaderCommitter;
+            leaderCommitter->Start();
 
             WaitFor(BIND(&TDistributedHydraManager::OnLeaderRecoveryCompleteAutomaton, MakeWeak(this))
                 .AsyncVia(epochContext->EpochSystemAutomatonInvoker)
@@ -1883,6 +1882,23 @@ private:
                 .ThrowOnError();
 
             epochContext->HeartbeatMutationCommitExecutor->Start();
+
+            if (recoveryResult.ChangelogCount >= Config_->MaxChangelogsForRecovery
+                || recoveryResult.MutationCount >= Config_->MaxChangelogMutationCountForRecovery
+                || recoveryResult.TotalChangelogSize >= Config_->MaxTotalChangelogSizeForRecovery)
+            {
+                YT_LOG_INFO("Tail changelogs limits violated, force building snapshot "
+                    "(ChangelogCount: %v, MutationCount: %v, TotalChangelogSize: %v)",
+                    recoveryResult.ChangelogCount,
+                    recoveryResult.MutationCount,
+                    recoveryResult.TotalChangelogSize);
+                // If committer cannot build snapshot, then snapshot is already being built and it is ok.
+                if (leaderCommitter->CanBuildSnapshot()) {
+                    leaderCommitter->BuildSnapshot(
+                        /*waitForSnapshotCompletion*/ false,
+                        /*setReadOnly*/ false);
+                }
+            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
