@@ -238,7 +238,7 @@ public:
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
-        , TreeScheduler_(New<TFairShareTreeJobScheduler>(Logger, TreeProfiler_))
+        , TreeScheduler_(New<TFairShareTreeJobScheduler>(treeId, StrategyHost_, Config_, TreeProfiler_))
         , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
@@ -291,7 +291,7 @@ public:
         RootElement_->UpdateTreeConfig(Config_);
         ResourceTree_->UpdateConfig(Config_);
 
-        UpdateSsdPriorityPreemptionMedia();
+        TreeScheduler_->UpdateConfig(Config_);
 
         if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
             auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);
@@ -301,35 +301,6 @@ public:
         YT_LOG_INFO("Tree has updated with new config");
 
         return true;
-    }
-
-    void UpdateSsdPriorityPreemptionMedia()
-    {
-        THashSet<int> media;
-        std::vector<TString> unknownNames;
-        for (const auto& mediumName : Config_->SsdPriorityPreemption->MediumNames) {
-            if (auto mediumIndex = StrategyHost_->FindMediumIndexByName(mediumName)) {
-                media.insert(*mediumIndex);
-            } else {
-                unknownNames.push_back(mediumName);
-            }
-        }
-
-        if (unknownNames.empty()) {
-            if (SsdPriorityPreemptionMedia_ != media) {
-                YT_LOG_INFO("Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: %v, NewSsdPriorityPreemptionMedia: %v)",
-                    SsdPriorityPreemptionMedia_,
-                    media);
-
-                SsdPriorityPreemptionMedia_.emplace(std::move(media));
-
-                StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, TError());
-            }
-        } else {
-            auto error = TError("Config contains unknown SSD priority preemption media")
-                << TErrorAttribute("unknown_medium_names", std::move(unknownNames));
-            StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, error);
-        }
     }
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
@@ -919,7 +890,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return TreeSnapshot_
-            ? TreeSnapshot_->SchedulingSegmentsState()
+            ? TreeSnapshot_->SchedulingSnapshot()->SchedulingSegmentsState()
             : TTreeSchedulingSegmentsState{};
     }
 
@@ -1236,10 +1207,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
-    TCachedJobPreemptionStatuses PersistentCachedJobPreemptionStatuses_;
-
-    std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
-
     TSchedulerRootElementPtr RootElement_;
 
     class TOperationsByPoolOrchidService
@@ -1363,35 +1330,20 @@ private:
 
         ResourceTree_->PerformPostponedActions();
 
+        auto totalResourceLimits = StrategyHost_->GetResourceLimits(Config_->NodesFilter);
         TFairShareUpdateContext updateContext(
-            /* totalResourceLimits */ StrategyHost_->GetResourceLimits(Config_->NodesFilter),
+            totalResourceLimits,
             Config_->MainResource,
             Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
             Config_->IntegralGuarantees->SmoothPeriod,
             now,
             LastFairShareUpdateTime_);
 
-        THashMap<TSchedulingSegmentModule, TJobResources> resourceLimitsPerModule;
-        if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
-            for (const auto& schedulingSegmentModule : Config_->SchedulingSegments->GetModules()) {
-                auto moduleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
-                    schedulingSegmentModule,
-                    Config_->SchedulingSegments->ModuleType);
-                auto tagFilter = GetNodesFilter() & TSchedulingTagFilter(MakeBooleanFormula(moduleTag));
-                resourceLimitsPerModule[schedulingSegmentModule] = StrategyHost_->GetResourceLimits(tagFilter);
-            }
-        }
-
-        TManageTreeSchedulingSegmentsContext manageSegmentsContext{
-            .TreeConfig = Config_,
-            .TotalResourceLimits = updateContext.TotalResourceLimits,
-            .ResourceLimitsPerModule = std::move(resourceLimitsPerModule),
-        };
-
         TFairSharePostUpdateContext fairSharePostUpdateContext{
+            .TreeConfig = Config_,
             .Now = updateContext.Now,
-            .CachedJobPreemptionStatuses = PersistentCachedJobPreemptionStatuses_,
         };
+        auto jobSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(totalResourceLimits);
 
         auto rootElement = RootElement_->Clone();
         {
@@ -1408,7 +1360,8 @@ private:
                     TFairShareUpdateExecutor updateExecutor(rootElement, &updateContext);
                     updateExecutor.Run();
 
-                    rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
+                    rootElement->PostUpdate(&fairSharePostUpdateContext);
+                    TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &jobSchedulerPostUpdateContext);
                 }
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
@@ -1445,14 +1398,6 @@ private:
             }
         }
         RootElement_->PersistentAttributes() = rootElement->PersistentAttributes();
-        PersistentCachedJobPreemptionStatuses_ = fairSharePostUpdateContext.CachedJobPreemptionStatuses;
-
-        // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
-        // in the registration pipeline is done before medium directory sync. That's why we do the initial update
-        // during the first fair share update.
-        if (!SsdPriorityPreemptionMedia_) {
-            UpdateSsdPriorityPreemptionMedia();
-        }
 
         rootElement->MarkImmutable();
 
@@ -1461,22 +1406,21 @@ private:
         const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
         const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
 
+        auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(rootElement, &jobSchedulerPostUpdateContext);
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             treeSnapshotId,
             std::move(rootElement),
             std::move(fairSharePostUpdateContext.EnabledOperationIdToElement),
             std::move(fairSharePostUpdateContext.DisabledOperationIdToElement),
             std::move(fairSharePostUpdateContext.PoolNameToElement),
-            fairSharePostUpdateContext.CachedJobPreemptionStatuses,
             Config_,
             ControllerConfig_,
-            std::move(manageSegmentsContext.SchedulingSegmentsState),
             resourceUsage,
             resourceLimits,
-            *SsdPriorityPreemptionMedia_);
+            std::move(treeSchedulingSnapshot));
 
         if (Config_->EnableResourceUsageSnapshot) {
-            treeSnapshot->UpdateDynamicAttributesSnapshot(ResourceUsageSnapshot_.Acquire());
+            TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, ResourceUsageSnapshot_.Acquire());
         }
 
         YT_LOG_DEBUG("Fair share tree snapshot created (TreeSnapshotId: %v)", treeSnapshotId);
@@ -2318,7 +2262,7 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        return treeSnapshot->CachedJobPreemptionStatuses();
+        return treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses();
     }
 
     void ProfileFairShare() const override
@@ -2460,8 +2404,8 @@ private:
             YT_LOG_DEBUG("Updating resources usage snapshot");
         }
 
-        SetResourceUsageSnapshot(resourceUsageSnapshot);
-        treeSnapshot->UpdateDynamicAttributesSnapshot(resourceUsageSnapshot);
+        TreeScheduler_->OnResourceUsageSnapshotUpdate(treeSnapshot, resourceUsageSnapshot);
+        SetResourceUsageSnapshot(std::move(resourceUsageSnapshot));
     }
 
     TResourceVolume ExtractAccumulatedUsageForLogging(TOperationId operationId) override

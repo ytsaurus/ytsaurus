@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
+#include <yt/yt/core/misc/atomic_ptr.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,11 +24,50 @@ using TPreemptiveScheduleJobsStageList = TCompactVector<TPreemptiveScheduleJobsS
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFairShareTreeSchedulingSnapshot
+    : public TRefCounted
+{
+    DEFINE_BYREF_RO_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia);
+    DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses);
+    DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState);
+
+public:
+    TFairShareTreeSchedulingSnapshot(
+        TSchedulerRootElementPtr rootElement,
+        THashSet<int> ssdPriorityPreemptionMedia,
+        TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
+        TTreeSchedulingSegmentsState schedulingSegmentsState);
+
+private:
+    TSchedulerRootElementPtr RootElement_;
+    TAtomicPtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
+
+    TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
+    void UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot);
+
+    friend class TFairShareTreeJobScheduler;
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareTreeSchedulingSnapshot);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobSchedulerPostUpdateContext
+{
+    TManageTreeSchedulingSegmentsContext ManageSchedulingSegmentsContext;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareTreeJobScheduler
     : public TRefCounted
 {
 public:
-    TFairShareTreeJobScheduler(NLogging::TLogger logger, TFairShareTreeProfileManagerPtr treeProfiler);
+    TFairShareTreeJobScheduler(
+        TString treeId,
+        ISchedulerStrategyHost* strategyHost,
+        TFairShareStrategyTreeConfigPtr config,
+        TFairShareTreeProfileManagerPtr treeProfiler);
 
     void ScheduleJobs(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot);
 
@@ -38,8 +79,22 @@ public:
     void UnregisterSchedulingTagFilter(int index);
     void UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
+    TJobSchedulerPostUpdateContext CreatePostUpdateContext(const TJobResources& totalResourceLimits);
+    void PostUpdate(
+        TFairSharePostUpdateContext* fairSharePostUpdateContext,
+        TJobSchedulerPostUpdateContext* postUpdateContext);
+    TFairShareTreeSchedulingSnapshotPtr CreateSchedulingSnapshot(TSchedulerRootElementPtr rootElement, TJobSchedulerPostUpdateContext* postUpdateContext);
+
+    void UpdateConfig(TFairShareStrategyTreeConfigPtr config);
+
+    void OnResourceUsageSnapshotUpdate(const TFairShareTreeSnapshotPtr& treeSnapshot, const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const;
+
 private:
+    const TString TreeId_;
     const NLogging::TLogger Logger;
+    ISchedulerStrategyHost* const StrategyHost_;
+
+    TFairShareStrategyTreeConfigPtr Config_;
 
     TFairShareTreeProfileManagerPtr TreeProfiler_;
 
@@ -64,6 +119,10 @@ private:
     NProfiling::TCounter ScheduleJobsDeadlineReachedCounter_;
 
     std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
+
+    TCachedJobPreemptionStatuses CachedJobPreemptionStatuses_;
+
+    std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -124,6 +183,11 @@ private:
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const ISchedulingContextPtr& schedulingContext,
         EJobPreemptionReason preemptionReason) const;
+
+    void UpdateSsdPriorityPreemptionMedia();
+
+    void UpdateCachedJobPreemptionStatuses(TFairSharePostUpdateContext* context);
+    void ManageSchedulingSegments(TFairSharePostUpdateContext* postUpdateContext, TManageTreeSchedulingSegmentsContext* manageSegmentsContext) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeJobScheduler)
