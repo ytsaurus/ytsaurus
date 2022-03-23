@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "config.h"
-#include "schemaful_node.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -42,7 +41,6 @@ struct TDynamicTableLock
 
 class TTableNode
     : public NChunkServer::TChunkOwnerBase
-    , public ISchemafulNode
 {
 private:
     using TTabletStateIndexedVector = TEnumIndexedVector<
@@ -214,9 +212,8 @@ public:
     NTransactionClient::TTimestamp GetCurrentUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
 
-    TMasterTableSchema* GetSchema() const override;
-    void SetSchema(TMasterTableSchema* schema) override;
-    NSecurityServer::TAccount* GetAccount() const override;
+    TMasterTableSchema* GetSchema() const;
+    void SetSchema(TMasterTableSchema* schema);
 
     void UpdateExpectedTabletState(NTabletClient::ETabletState state);
 

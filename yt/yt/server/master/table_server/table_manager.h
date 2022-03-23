@@ -58,7 +58,7 @@ public:
      */
     TMasterTableSchema* GetOrCreateMasterTableSchema(
         const NTableClient::TTableSchema& schema,
-        ISchemafulNode* schemaHolder);
+        TTableNode* schemaHolder);
 
     //! Same as above but associates resulting schema with a transaction instead
     //! of a table.
@@ -83,8 +83,8 @@ public:
     // COMPAT(shakurov)
     TMasterTableSchema* GetOrCreateEmptyMasterTableSchema();
 
-    void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema);
-    void ResetTableSchema(ISchemafulNode* table);
+    void SetTableSchema(TTableNode* table, TMasterTableSchema* schema);
+    void ResetTableSchema(TTableNode* table);
 
     //! Table collocation management.
     TTableCollocation* CreateTableCollocation(

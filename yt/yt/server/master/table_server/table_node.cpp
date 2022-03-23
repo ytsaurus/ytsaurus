@@ -322,11 +322,6 @@ bool TTableNode::IsUniqueKeys() const
     return GetSchema()->AsTableSchema()->IsUniqueKeys();
 }
 
-TAccount* TTableNode::GetAccount() const
-{
-    return TCypressNode::GetAccount();
-}
-
 bool TTableNode::IsReplicated() const
 {
     return GetType() == EObjectType::ReplicatedTable;

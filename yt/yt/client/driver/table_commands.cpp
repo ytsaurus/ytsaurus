@@ -641,8 +641,6 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("enable_statistics", EnableStatistics)
         .Optional();
-    RegisterParameter("replica_consistency", Options.ReplicaConsistency)
-        .Optional();
 }
 
 bool TSelectRowsCommand::HasResponseParameters() const
@@ -797,8 +795,6 @@ TLookupRowsCommand::TLookupRowsCommand()
     RegisterParameter("use_lookup_cache", Options.UseLookupCache)
         .Optional();
     RegisterParameter("cached_sync_replicas_timeout", Options.CachedSyncReplicasTimeout)
-        .Optional();
-    RegisterParameter("replica_consistency", Options.ReplicaConsistency)
         .Optional();
 }
 
