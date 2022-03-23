@@ -24,11 +24,9 @@ class TFairShareTreeSnapshot
     DEFINE_BYREF_RO_PROPERTY(TNonOwningPoolElementMap, PoolMap);
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyTreeConfigPtr, TreeConfig);
     DEFINE_BYREF_RO_PROPERTY(TFairShareStrategyOperationControllerConfigPtr, ControllerConfig)
-    DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState);
-    DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia);
+    DEFINE_BYREF_RO_PROPERTY(TFairShareTreeSchedulingSnapshotPtr, SchedulingSnapshot);
 
 public:
     TFairShareTreeSnapshot(
@@ -37,25 +35,15 @@ public:
         TNonOwningOperationElementMap enabledOperationIdToElement,
         TNonOwningOperationElementMap disabledOperationIdToElement,
         TNonOwningPoolElementMap poolNameToElement,
-        const TCachedJobPreemptionStatuses& cachedJobPreemptionStatuses,
         TFairShareStrategyTreeConfigPtr treeConfig,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-        TTreeSchedulingSegmentsState schedulingSegmentsState,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
-        THashSet<int> ssdPriorityPreemptionMedia);
+        TFairShareTreeSchedulingSnapshotPtr schedulingSnapshot);
 
     TSchedulerPoolElement* FindPool(const TString& poolName) const;
     TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
     TSchedulerOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
-
-    TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
-    void SetDynamicAttributesListSnapshot(TDynamicAttributesListSnapshotPtr value);
-
-    void UpdateDynamicAttributesSnapshot(const TResourceUsageSnapshotPtr& resourceUsageSnapshot);
-
-private:
-    TAtomicPtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshot)

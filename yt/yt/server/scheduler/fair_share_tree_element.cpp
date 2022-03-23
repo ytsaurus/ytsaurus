@@ -1503,22 +1503,6 @@ bool TSchedulerCompositeElement::IsEmpty() const
     return EnabledChildren_.empty() && DisabledChildren_.empty();
 }
 
-void TSchedulerCompositeElement::CollectOperationSchedulingSegmentContexts(
-    THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const
-{
-    for (const auto& child : EnabledChildren_) {
-        child->CollectOperationSchedulingSegmentContexts(operationContexts);
-    }
-}
-
-void TSchedulerCompositeElement::ApplyOperationSchedulingSegmentChanges(
-    const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts)
-{
-    for (const auto& child : EnabledChildren_) {
-        child->ApplyOperationSchedulingSegmentChanges(operationContexts);
-    }
-}
-
 void TSchedulerCompositeElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const
 {
     for (const auto& child : EnabledChildren_) {
@@ -4117,31 +4101,6 @@ void TSchedulerOperationElement::CountOperationsByPreemptionPriority(TScheduleJo
     ++context->OperationCountByPreemptionPriority()[context->GetOperationPreemptionPriority(this)];
 }
 
-void TSchedulerOperationElement::CollectOperationSchedulingSegmentContexts(
-    THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const
-{
-    YT_VERIFY(operationContexts->emplace(
-        OperationId_,
-        TOperationSchedulingSegmentContext{
-            .ResourceDemand = ResourceDemand_,
-            .ResourceUsage = ResourceUsageAtUpdate_,
-            .DemandShare = Attributes_.DemandShare,
-            .FairShare = Attributes_.FairShare.Total,
-            .Segment = SchedulingSegment(),
-            .Module = PersistentAttributes_.SchedulingSegmentModule,
-            .SpecifiedModules = SpecifiedSchedulingSegmentModules(),
-            .FailingToScheduleAtModuleSince = PersistentAttributes_.FailingToScheduleAtModuleSince,
-        }).second);
-}
-
-void TSchedulerOperationElement::ApplyOperationSchedulingSegmentChanges(
-    const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts)
-{
-    const auto& context = GetOrCrash(operationContexts, OperationId_);
-    PersistentAttributes_.SchedulingSegmentModule = context.Module;
-    PersistentAttributes_.FailingToScheduleAtModuleSince = context.FailingToScheduleAtModuleSince;
-}
-
 void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const
 {
     elements->push_back(ResourceTreeElement_);
@@ -4195,12 +4154,7 @@ void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* cont
 /// 1. Publish the computed fair share to the shared resource tree and update the operations' preemptable job lists.
 ///
 /// 2. Update dynamic attributes based on the calculated fair share (for orchid).
-///
-/// 3. Manage scheduling segments.
-///    We build the tree's scheduling segment state and assign eligible operations in module-aware segments to modules.
-void TSchedulerRootElement::PostUpdate(
-    TFairSharePostUpdateContext* postUpdateContext,
-	TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
+void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateContext)
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
 
@@ -4221,12 +4175,7 @@ void TSchedulerRootElement::PostUpdate(
 
     BuildSchedulableIndices(&dynamicAttributesList, &childHeapMap);
 
-    ManageSchedulingSegments(manageSegmentsContext);
-
     BuildElementMapping(postUpdateContext);
-
-    // NB(eshcherbin): This method should be called after |BuildElementMapping|.
-    UpdateCachedJobPreemptionStatusesIfNecessary(postUpdateContext);
 }
 
 const TSchedulingTagFilter& TSchedulerRootElement::GetSchedulingTagFilter() const
@@ -4449,42 +4398,6 @@ void TSchedulerRootElement::BuildSchedulableIndices(TDynamicAttributesList* dyna
             current = parent;
         }
     }
-}
-
-void TSchedulerRootElement::ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext)
-{
-    auto mode = manageSegmentsContext->TreeConfig->SchedulingSegments->Mode;
-    if (mode != ESegmentedSchedulingMode::Disabled) {
-        CollectOperationSchedulingSegmentContexts(&(manageSegmentsContext->Operations));
-    }
-
-    TStrategySchedulingSegmentManager::ManageSegmentsInTree(manageSegmentsContext, TreeId_);
-
-    if (mode != ESegmentedSchedulingMode::Disabled) {
-        ApplyOperationSchedulingSegmentChanges(manageSegmentsContext->Operations);
-    }
-}
-
-void TSchedulerRootElement::UpdateCachedJobPreemptionStatusesIfNecessary(TFairSharePostUpdateContext* context) const
-{
-    if (context->Now < context->CachedJobPreemptionStatuses.UpdateTime + TreeConfig_->CachedJobPreemptionStatusesUpdatePeriod) {
-        return;
-    }
-
-    auto jobPreemptionStatuses = New<TRefCountedJobPreemptionStatusMapPerOperation>();
-    auto collectJobPreemptionStatuses = [&] (const auto& operationMap) {
-        for (auto [operationId, operationElement] : operationMap) {
-            YT_VERIFY(jobPreemptionStatuses->emplace(operationId, operationElement->GetJobPreemptionStatusMap()).second);
-        }
-    };
-
-    collectJobPreemptionStatuses(context->EnabledOperationIdToElement);
-    collectJobPreemptionStatuses(context->DisabledOperationIdToElement);
-
-    context->CachedJobPreemptionStatuses = {
-        .Value = std::move(jobPreemptionStatuses),
-        .UpdateTime = context->Now,
-    };
 }
 
 double TSchedulerRootElement::GetSpecifiedBurstRatio() const

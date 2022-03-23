@@ -162,9 +162,8 @@ using TDynamicAttributesListSnapshotPtr = TIntrusivePtr<TDynamicAttributesListSn
 
 struct TFairSharePostUpdateContext
 {
+    const TFairShareStrategyTreeConfigPtr& TreeConfig;
     const TInstant Now;
-
-    TCachedJobPreemptionStatuses CachedJobPreemptionStatuses;
 
     TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 
@@ -385,6 +384,10 @@ public:
     // This field used as both in fair share update and in schedule jobs.
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
 
+    // These fields calculated in preupdate and used for update.
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
+
     // These fields are set in post update and used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
     DEFINE_BYVAL_RO_PROPERTY(TDuration, EffectiveFairShareStarvationTimeout);
@@ -408,8 +411,6 @@ protected:
     TFairShareStrategyTreeConfigPtr TreeConfig_;
 
     // These fields calculated in preupdate and used for update.
-    TJobResources ResourceDemand_;
-    TJobResources ResourceUsageAtUpdate_;
     TJobResources ResourceLimits_;
     TJobResources SchedulingTagFilterResourceLimits_;
 
@@ -617,12 +618,6 @@ protected:
 
     virtual void BuildElementMapping(TFairSharePostUpdateContext* context) = 0;
 
-    // Manage operation segments.
-    virtual void CollectOperationSchedulingSegmentContexts(
-        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const = 0;
-    virtual void ApplyOperationSchedulingSegmentChanges(
-        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) = 0;
-
     //! Schedule jobs methods.
     bool CheckDemand(const TJobResources& delta);
     TJobResources GetLocalAvailableResourceLimits(const TScheduleJobsContext& context) const;
@@ -801,11 +796,6 @@ protected:
     void UpdateSchedulableAttributesFromDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
         TChildHeapMap* childHeapMap) override;
-
-    void CollectOperationSchedulingSegmentContexts(
-        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
-    void ApplyOperationSchedulingSegmentChanges(
-        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
 
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
@@ -1338,11 +1328,6 @@ protected:
     bool IsSchedulable() const override;
     int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
-    void CollectOperationSchedulingSegmentContexts(
-        THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
-    void ApplyOperationSchedulingSegmentChanges(
-        const THashMap<TOperationId, TOperationSchedulingSegmentContext>& operationContexts) override;
-
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
 private:
@@ -1472,9 +1457,7 @@ public:
     double GetSpecifiedResourceFlowRatio() const override;
 
     //! Post update methods.
-    void PostUpdate(
-        TFairSharePostUpdateContext* postUpdateContext,
-        TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
+    void PostUpdate(TFairSharePostUpdateContext* postUpdateContext);
 
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
@@ -1510,8 +1493,6 @@ private:
     THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     // Post fair share update methods.
-    void ManageSchedulingSegments(TManageTreeSchedulingSegmentsContext* manageSegmentsContext);
-    void UpdateCachedJobPreemptionStatusesIfNecessary(TFairSharePostUpdateContext* context) const;
     void BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap);
 
     bool CanAcceptFreeVolume() const override;

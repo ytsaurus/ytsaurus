@@ -678,17 +678,15 @@ protected:
         bool checkForStarvation = false)
     {
 		NVectorHdrf::TFairShareUpdateContext context(
-            /* totalResourceLimits */ strategyHost->GetResourceLimits(TreeConfig_->NodesFilter),
+            /*totalResourceLimits*/ strategyHost->GetResourceLimits(TreeConfig_->NodesFilter),
             TreeConfig_->MainResource,
             TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
             TreeConfig_->IntegralGuarantees->SmoothPeriod,
             now,
             previousUpdateTime);
 
-        TFairSharePostUpdateContext fairSharePostUpdateContext;
-        TManageTreeSchedulingSegmentsContext manageSegmentsContext{
+        TFairSharePostUpdateContext fairSharePostUpdateContext{
             .TreeConfig = TreeConfig_,
-            .TotalResourceLimits = context.TotalResourceLimits,
         };
 
         rootElement->PreUpdate(&context);
@@ -696,7 +694,7 @@ protected:
 		NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
 		updateExecutor.Run();
 
-		rootElement->PostUpdate(&fairSharePostUpdateContext, &manageSegmentsContext);
+		rootElement->PostUpdate(&fairSharePostUpdateContext);
 
 		if (checkForStarvation) {
             rootElement->UpdateStarvationAttributes(now, /*enablePoolStarvation*/ true);

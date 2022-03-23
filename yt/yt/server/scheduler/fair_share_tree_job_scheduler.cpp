@@ -7,8 +7,49 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(NLogging::TLogger logger, TFairShareTreeProfileManagerPtr treeProfiler)
-    : Logger(std::move(logger))
+TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
+    TSchedulerRootElementPtr rootElement,
+    THashSet<int> ssdPriorityPreemptionMedia,
+    TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
+    TTreeSchedulingSegmentsState schedulingSegmentsState)
+    : SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
+    , CachedJobPreemptionStatuses_(std::move(cachedJobPreemptionStatuses))
+    , SchedulingSegmentsState_(std::move(schedulingSegmentsState))
+    , RootElement_(std::move(rootElement))
+{ }
+
+TDynamicAttributesListSnapshotPtr TFairShareTreeSchedulingSnapshot::GetDynamicAttributesListSnapshot() const
+{
+    return DynamicAttributesListSnapshot_.Acquire();
+}
+
+void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesSnapshot(
+    const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
+{
+    if (!resourceUsageSnapshot) {
+        DynamicAttributesListSnapshot_.Release();
+        return;
+    }
+
+    auto attributesSnapshot = New<TDynamicAttributesListSnapshot>();
+    attributesSnapshot->Value.InitializeResourceUsage(
+        RootElement_.Get(),
+        resourceUsageSnapshot,
+        NProfiling::GetCpuInstant());
+    DynamicAttributesListSnapshot_.Store(std::move(attributesSnapshot));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
+    TString treeId,
+    ISchedulerStrategyHost* strategyHost,
+    TFairShareStrategyTreeConfigPtr config,
+    TFairShareTreeProfileManagerPtr treeProfiler)
+    : TreeId_(std::move(treeId))
+    , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
+    , StrategyHost_(strategyHost)
+    , Config_(std::move(config))
     , TreeProfiler_(std::move(treeProfiler))
     , CumulativeScheduleJobsTime_(TreeProfiler_->GetProfiler().TimeCounter("/cumulative_schedule_jobs_time"))
     , ScheduleJobsDeadlineReachedCounter_(TreeProfiler_->GetProfiler().Counter("/schedule_jobs_deadline_reached"))
@@ -32,7 +73,6 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         LastSchedulingInformationLoggedTime_ = now;
     }
 
-    // TODO(eshcherbin): Use TAtomicObject.
     std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters;
     {
         auto guard = ReaderGuard(RegisteredSchedulingTagFiltersLock_);
@@ -49,7 +89,7 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
     context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
 
     if (config->EnableResourceUsageSnapshot) {
-        if (auto snapshot = treeSnapshot->GetDynamicAttributesListSnapshot()) {
+        if (auto snapshot = treeSnapshot->SchedulingSnapshot()->GetDynamicAttributesListSnapshot()) {
             YT_LOG_DEBUG_IF(enableSchedulingInfoLogging, "Using dynamic attributes snapshot for job scheduling");
             context.DynamicAttributesListSnapshot() = std::move(snapshot);
         }
@@ -93,7 +133,7 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         bool shouldAttemptSsdPriorityPreemption = ssdPriorityPreemptionConfig->Enable &&
             schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
         context.SetSsdPriorityPreemptionEnabled(shouldAttemptSsdPriorityPreemption);
-        context.SsdPriorityPreemptionMedia() = treeSnapshot->SsdPriorityPreemptionMedia();
+        context.SsdPriorityPreemptionMedia() = treeSnapshot->SchedulingSnapshot()->SsdPriorityPreemptionMedia();
         context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
         context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
 
@@ -203,6 +243,78 @@ void TFairShareTreeJobScheduler::UnregisterSchedulingTagFilter(const TScheduling
         FreeSchedulingTagFilterIndexes_.push_back(it->second.Index);
         SchedulingTagFilterToIndexAndCount_.erase(it);
     }
+}
+
+TJobSchedulerPostUpdateContext TFairShareTreeJobScheduler::CreatePostUpdateContext(const TJobResources& totalResourceLimits)
+{
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+
+    THashMap<TSchedulingSegmentModule, TJobResources> resourceLimitsPerModule;
+    if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
+        for (const auto& schedulingSegmentModule : Config_->SchedulingSegments->GetModules()) {
+            auto moduleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
+                schedulingSegmentModule,
+                Config_->SchedulingSegments->ModuleType);
+            auto tagFilter = Config_->NodesFilter & TSchedulingTagFilter(MakeBooleanFormula(moduleTag));
+            resourceLimitsPerModule[schedulingSegmentModule] = StrategyHost_->GetResourceLimits(tagFilter);
+        }
+    }
+
+    return TJobSchedulerPostUpdateContext {
+        .ManageSchedulingSegmentsContext = TManageTreeSchedulingSegmentsContext{
+            .TreeConfig = Config_,
+            .TotalResourceLimits = totalResourceLimits,
+            .ResourceLimitsPerModule = std::move(resourceLimitsPerModule),
+        }
+    };
+}
+
+void TFairShareTreeJobScheduler::PostUpdate(
+    TFairSharePostUpdateContext* fairSharePostUpdateContext,
+    TJobSchedulerPostUpdateContext* postUpdateContext)
+{
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
+
+    auto cachedJobPreemptionStatusesUpdateDeadline =
+        CachedJobPreemptionStatuses_.UpdateTime + fairSharePostUpdateContext->TreeConfig->CachedJobPreemptionStatusesUpdatePeriod;
+    if (fairSharePostUpdateContext->Now > cachedJobPreemptionStatusesUpdateDeadline) {
+        UpdateCachedJobPreemptionStatuses(fairSharePostUpdateContext);
+    }
+
+    ManageSchedulingSegments(fairSharePostUpdateContext, &postUpdateContext->ManageSchedulingSegmentsContext);
+}
+
+TFairShareTreeSchedulingSnapshotPtr TFairShareTreeJobScheduler::CreateSchedulingSnapshot(
+    TSchedulerRootElementPtr rootElement,
+    TJobSchedulerPostUpdateContext* postUpdateContext)
+{
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+
+    // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
+    // in the registration pipeline is done before medium directory sync. That's why we do the initial update
+    // during the first fair share update.
+    if (!SsdPriorityPreemptionMedia_) {
+        UpdateSsdPriorityPreemptionMedia();
+    }
+
+    return New<TFairShareTreeSchedulingSnapshot>(
+        std::move(rootElement),
+        SsdPriorityPreemptionMedia_.value_or(THashSet<int>()),
+        CachedJobPreemptionStatuses_,
+        std::move(postUpdateContext->ManageSchedulingSegmentsContext.SchedulingSegmentsState));
+}
+
+void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
+{
+    Config_ = std::move(config);
+    UpdateSsdPriorityPreemptionMedia();
+}
+
+void TFairShareTreeJobScheduler::OnResourceUsageSnapshotUpdate(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const TResourceUsageSnapshotPtr& resourceUsageSnapshot) const
+{
+    treeSnapshot->SchedulingSnapshot()->UpdateDynamicAttributesSnapshot(resourceUsageSnapshot);
 }
 
 void TFairShareTreeJobScheduler::InitSchedulingStages()
@@ -746,6 +858,87 @@ void TFairShareTreeJobScheduler::PreemptJob(
     job->ResourceUsage() = {};
 
     schedulingContext->PreemptJob(job, treeConfig->JobInterruptTimeout, preemptionReason);
+}
+
+void TFairShareTreeJobScheduler::UpdateSsdPriorityPreemptionMedia()
+{
+    THashSet<int> media;
+    std::vector<TString> unknownNames;
+    for (const auto& mediumName : Config_->SsdPriorityPreemption->MediumNames) {
+        if (auto mediumIndex = StrategyHost_->FindMediumIndexByName(mediumName)) {
+            media.insert(*mediumIndex);
+        } else {
+            unknownNames.push_back(mediumName);
+        }
+    }
+
+    if (unknownNames.empty()) {
+        if (SsdPriorityPreemptionMedia_ != media) {
+            YT_LOG_INFO("Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: %v, NewSsdPriorityPreemptionMedia: %v)",
+                SsdPriorityPreemptionMedia_,
+                media);
+
+            SsdPriorityPreemptionMedia_.emplace(std::move(media));
+
+            StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, TError());
+        }
+    } else {
+        auto error = TError("Config contains unknown SSD priority preemption media")
+            << TErrorAttribute("unknown_medium_names", std::move(unknownNames));
+        StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, error);
+    }
+}
+
+void TFairShareTreeJobScheduler::UpdateCachedJobPreemptionStatuses(TFairSharePostUpdateContext* context)
+{
+    auto jobPreemptionStatuses = New<TRefCountedJobPreemptionStatusMapPerOperation>();
+    auto collectJobPreemptionStatuses = [&] (const auto& operationMap) {
+        for (auto [operationId, operationElement] : operationMap) {
+            EmplaceOrCrash(*jobPreemptionStatuses, operationId, operationElement->GetJobPreemptionStatusMap());
+        }
+    };
+
+    collectJobPreemptionStatuses(context->EnabledOperationIdToElement);
+    collectJobPreemptionStatuses(context->DisabledOperationIdToElement);
+
+    CachedJobPreemptionStatuses_ = TCachedJobPreemptionStatuses{
+        .Value = std::move(jobPreemptionStatuses),
+        .UpdateTime = context->Now,
+    };
+}
+
+void TFairShareTreeJobScheduler::ManageSchedulingSegments(
+    TFairSharePostUpdateContext* postUpdateContext,
+    TManageTreeSchedulingSegmentsContext* manageSegmentsContext) const
+{
+    auto mode = manageSegmentsContext->TreeConfig->SchedulingSegments->Mode;
+    if (mode != ESegmentedSchedulingMode::Disabled) {
+        for (const auto& [_, operationElement] : postUpdateContext->EnabledOperationIdToElement) {
+            EmplaceOrCrash(
+                manageSegmentsContext->Operations,
+                operationElement->GetOperationId(),
+                TOperationSchedulingSegmentContext{
+                    .ResourceDemand = operationElement->ResourceDemand(),
+                    .ResourceUsage = operationElement->ResourceUsageAtUpdate(),
+                    .DemandShare = operationElement->Attributes().DemandShare,
+                    .FairShare = operationElement->Attributes().FairShare.Total,
+                    .Segment = operationElement->SchedulingSegment(),
+                    .Module = operationElement->PersistentAttributes().SchedulingSegmentModule,
+                    .SpecifiedModules = operationElement->SpecifiedSchedulingSegmentModules(),
+                    .FailingToScheduleAtModuleSince = operationElement->PersistentAttributes().FailingToScheduleAtModuleSince,
+                });
+        }
+    }
+
+    TStrategySchedulingSegmentManager::ManageSegmentsInTree(manageSegmentsContext, TreeId_);
+
+    if (mode != ESegmentedSchedulingMode::Disabled) {
+        for (const auto& [_, operationElement] : postUpdateContext->EnabledOperationIdToElement) {
+            const auto& operationContext = GetOrCrash(manageSegmentsContext->Operations, operationElement->GetOperationId());
+            operationElement->PersistentAttributes().SchedulingSegmentModule = operationContext.Module;
+            operationElement->PersistentAttributes().FailingToScheduleAtModuleSince = operationContext.FailingToScheduleAtModuleSince;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
