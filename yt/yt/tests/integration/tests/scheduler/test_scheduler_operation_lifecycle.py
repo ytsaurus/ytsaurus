@@ -13,7 +13,7 @@ from yt_commands import (
     start_transaction, abort_transaction,
     read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
-    abort_job, get_job, get_job_fail_context,
+    abort_job, get_job, get_job_fail_context, list_jobs,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, sorted_dicts)
 
@@ -355,10 +355,11 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op.get_state() == "failed")
         wait(lambda: op.list_jobs())
 
-        jobs = op.list_jobs()
+        jobs = list_jobs(op.id)["jobs"]
 
-        for job_id in jobs:
-            assert len(get_job_fail_context(op.id, job_id)) > 0
+        for job in jobs:
+            if job["state"] == "failed":
+                assert len(get_job_fail_context(op.id, job["id"])) > 0
 
     # Test is flaky by the next reason: schedule job may fail by some reason (chunk list demand is not met, et.c)
     # and in this case we can successfully schedule job for the next operation in queue.
