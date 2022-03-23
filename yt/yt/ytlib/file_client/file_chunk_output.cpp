@@ -114,7 +114,7 @@ void TFileChunkOutput::EnsureOpen()
         cellTag,
         TransactionId_,
         NullChunkListId,
-        New<TNodeDirectory>(),
+        Client_->GetNativeConnection()->GetNodeDirectory(),
         Client_,
         /*localHostName*/ TString(), // Locality is not important for files.
         GetNullBlockCache(),

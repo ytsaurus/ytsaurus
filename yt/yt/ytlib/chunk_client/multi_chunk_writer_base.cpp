@@ -17,6 +17,8 @@
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -61,7 +63,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
-    , NodeDirectory_(New<TNodeDirectory>())
+    , NodeDirectory_(client->GetNativeConnection()->GetNodeDirectory())
     , TrafficMeter_(trafficMeter)
 {
     YT_VERIFY(Config_);

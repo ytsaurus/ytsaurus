@@ -181,7 +181,7 @@ private:
             userObject.Account = attributes->Get<TString>("account");
         }
 
-        auto nodeDirectory = New<TNodeDirectory>();
+        auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
 
         bool emptyRead = Options_.Length && *Options_.Length == 0;
