@@ -44,7 +44,7 @@ void THunkChunkPayloadWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("desired_block_size", &TThis::DesiredBlockSize)
         .GreaterThan(0)
-        .Default(1_MBs);
+        .Default(16_MBs);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
