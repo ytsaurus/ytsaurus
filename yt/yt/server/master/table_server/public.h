@@ -19,6 +19,7 @@ DECLARE_ENTITY_TYPE(TTableCollocation, TTableCollocationId, NObjectClient::TDire
 
 class TTableNode;
 class TReplicatedTableNode;
+struct ISchemafulNode;
 
 template <class TImpl>
 class TTableNodeTypeHandlerBase;

@@ -849,7 +849,7 @@ private:
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         bool allKeys,
-        const TGetInSyncReplicasOptions& options);
+        NTransactionClient::TTimestamp userTimestamp = NTransactionClient::NullTimestamp);
 
     //
     // Chaos

@@ -9,7 +9,8 @@ from yt_commands import (
     lookup_rows, alter_table, write_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
     get_account_disk_space, create_dynamic_table, build_snapshot,
-    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_medium)
+    build_master_snapshots, clear_metadata_caches, create_pool_tree, create_pool, move, create_medium,
+    create_chaos_cell_bundle, sync_create_chaos_cell, generate_chaos_cell_id)
 
 from yt.common import YtError
 from yt_type_helpers import make_schema, normalize_schema
@@ -227,6 +228,27 @@ def check_dynamic_tables():
     assert lookup_rows("//tmp/table_dynamic", keys) == rows
 
 
+def check_chaos_replicated_table():
+    create_chaos_cell_bundle(name="chaos_bundle", peer_cluster_names=["primary"])
+    cell_id = generate_chaos_cell_id()
+    sync_create_chaos_cell("chaos_bundle", cell_id, ["primary"])
+    set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+    create("chaos_replicated_table", "//tmp/crt", attributes={
+        "chaos_cell_bundle": "chaos_bundle",
+        "schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ],
+    })
+
+    yield
+
+    clear_metadata_caches()
+    wait_for_cells()
+    assert len(get("//tmp/crt/@schema")) == 2
+
+
 def check_security_tags():
     for i in range(10):
         create(
@@ -430,6 +452,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_schema,
     check_forked_schema,
     check_dynamic_tables,
+    check_chaos_replicated_table,
     check_security_tags,
     check_master_memory,
     check_hierarchical_accounts,
@@ -456,6 +479,8 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_chunk_locations)
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    NUM_MASTER_CACHES = 1
+    NUM_CHAOS_NODES = 1
     USE_DYNAMIC_TABLES = True
 
     @authors("ermolovd")
@@ -488,6 +513,8 @@ class TestMasterSnapshots(YTEnvSetup):
 class TestAllMastersSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
+    NUM_MASTER_CACHES = 1
+    NUM_CHAOS_NODES = 1
     USE_DYNAMIC_TABLES = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
@@ -498,6 +525,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
             check_schema,
             check_forked_schema,
             check_dynamic_tables,
+            check_chaos_replicated_table,
             check_security_tags,
             check_master_memory,
             check_hierarchical_accounts,

@@ -749,6 +749,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
     req->set_enable_partial_result(options.EnablePartialResult);
+    req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
     if (options.UseLookupCache) {
         req->set_use_lookup_cache(*options.UseLookupCache);
     }
@@ -787,6 +788,7 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     }
     req->set_timestamp(options.Timestamp);
     req->set_keep_missing_rows(options.KeepMissingRows);
+    req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
     if (options.UseLookupCache) {
         req->set_use_lookup_cache(*options.UseLookupCache);
     }
@@ -840,6 +842,7 @@ TFuture<std::vector<IUnversionedRowsetPtr>> TClientBase::MultiLookup(
         req->Attachments().insert(req->Attachments().end(), rowset.begin(), rowset.end());
     }
 
+    req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
     req->set_timestamp(options.Timestamp);
     req->set_retention_timestamp(options.RetentionTimestamp);
     req->set_multiplexing_band(static_cast<NProto::EMultiplexingBand>(options.MultiplexingBand));
@@ -915,6 +918,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     req->set_enable_code_cache(options.EnableCodeCache);
     req->set_memory_limit_per_node(options.MemoryLimitPerNode);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
+    req->set_replica_consistency(static_cast<NProto::EReplicaConsistency>(options.ReplicaConsistency));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspSelectRowsPtr& rsp) {
         TSelectRowsResult result;
