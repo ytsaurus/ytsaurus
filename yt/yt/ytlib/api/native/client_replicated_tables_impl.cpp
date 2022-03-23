@@ -26,7 +26,6 @@ using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYPath;
-using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,7 +184,7 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
     const TNameTablePtr& nameTable,
     const TSharedRange<TLegacyKey>& keys,
     bool allKeys,
-    TTimestamp userTimestamp)
+    const TGetInSyncReplicasOptions& options)
 {
     auto evaluatedKeys = PermuteAndEvaluateKeys(tableInfo, nameTable, keys);
     std::vector<TTableReplicaId> replicaIds;
@@ -194,9 +193,9 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
         if (auto item = replica.History.back(); IsReplicaReallySync(item.Mode, item.State) && timestmap >= item.Timestamp) {
             return true;
         }
-        if (userTimestamp >= MinTimestamp &&
-            userTimestamp <= MaxTimestamp &&
-            timestmap >= userTimestamp)
+        if (options.Timestamp >= MinTimestamp &&
+            options.Timestamp <= MaxTimestamp &&
+            timestmap >= options.Timestamp)
         {
             return true;
         }
@@ -275,7 +274,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
         replicaIds = getAllReplicaIds();
     } else {
         replicaIds = isChaos
-            ? GetChaosTableInSyncReplicas(tableInfo, replicationCard, nameTable, keys, allKeys, options.Timestamp)
+            ? GetChaosTableInSyncReplicas(tableInfo, replicationCard, nameTable, keys, allKeys, options)
             : GetRepliatedTableInSyncReplicas(tableInfo, nameTable, keys, allKeys, options);
     }
 
@@ -335,10 +334,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
         if (tableInfo->IsReplicationLog()) {
             THROW_ERROR_EXCEPTION("Replication log table is not supported for this type of query");
         }
-        if (tableInfo->IsReplicated() ||
-            tableInfo->IsChaosReplicated() ||
-            (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync))
-        {
+        if (tableInfo->IsReplicated()) {
             someReplicated = true;
         } else {
             someNotReplicated = true;
@@ -353,36 +349,12 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
         return std::nullopt;
     }
 
-    auto pickInSyncReplicas = [&] (const TTableMountInfoPtr& tableInfo) {
-        if (!tableInfo->ReplicationCardId) {
-            return PickInSyncReplicas(Connection_, tableInfo, options);
-        }
-
-        TTableReplicaInfoPtrList inSyncReplicas;
-        auto replicationCard = GetSyncReplicationCard(tableInfo);
-        auto replicaIds = GetChaosTableInSyncReplicas(
-            tableInfo,
-            replicationCard,
-            /*nameTable*/ nullptr,
-            /*keys*/ {},
-            /*allKeys*/ true);
-
-        for (auto replicaId : replicaIds) {
-            const auto& replica = GetOrCrash(replicationCard->Replicas, replicaId);
-            auto replicaInfo = New<TTableReplicaInfo>();
-            replicaInfo->ReplicaId = replicaId;
-            replicaInfo->ClusterName = replica.ClusterName;
-            replicaInfo->ReplicaPath = replica.ReplicaPath;
-            replicaInfo->Mode = replica.Mode;
-            inSyncReplicas.push_back(std::move(replicaInfo));
-        }
-
-        return MakeFuture(std::move(inSyncReplicas));
-    };
-
     std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
     for (size_t tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
-        asyncCandidates.push_back(pickInSyncReplicas(tableInfos[tableIndex]));
+        asyncCandidates.push_back(PickInSyncReplicas(
+            Connection_,
+            tableInfos[tableIndex],
+            options));
     }
 
     auto candidates = WaitFor(AllSucceeded(asyncCandidates))

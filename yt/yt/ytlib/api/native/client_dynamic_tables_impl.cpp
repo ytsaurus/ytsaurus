@@ -466,13 +466,11 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
     TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
         const TReplicaFallbackInfo& replicaFallbackInfo)
     {
-        auto unresolveOptions = options;    
-        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;    
         return replicaFallbackInfo.Client->LookupRows(
             replicaFallbackInfo.Path,
             nameTable,
             keys,
-            unresolveOptions);
+            options);
     };
 
     return CallAndRetryIfMetadataCacheIsInconsistent(
@@ -523,8 +521,6 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
     TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
         const TReplicaFallbackInfo& replicaFallbackInfo)
     {
-        auto unresolveOptions = options;    
-        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;    
         return replicaFallbackInfo.Client->VersionedLookupRows(
             replicaFallbackInfo.Path,
             nameTable,
@@ -577,8 +573,6 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
                 TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
                     const TReplicaFallbackInfo& replicaFallbackInfo)
                 {
-                    auto unresolveOptions = lookupRowsOptions;    
-                    unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;    
                     return replicaFallbackInfo.Client->LookupRows(
                         replicaFallbackInfo.Path,
                         subrequest.NameTable,
@@ -691,48 +685,21 @@ TRowset TClient::DoLookupRowsOnce(
         sortedKeys.emplace_back(capturedKey, index);
     }
 
-    if (tableInfo->IsReplicated() ||
-        tableInfo->IsChaosReplicated() ||
-        (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync))
-    {
-        auto pickInSyncReplicas = [&] {
-            TTableReplicaInfoPtrList inSyncReplicas;
-            if (tableInfo->ReplicationCardId) {
-                auto replicationCard = GetSyncReplicationCard(tableInfo);
-                auto replicaIds = GetChaosTableInSyncReplicas(
-                    tableInfo,
-                    replicationCard,
-                    nameTable,
-                    MakeSharedRange(keys),
-                    false);
+    if (tableInfo->IsReplicated()) {
+        auto inSyncReplicasFuture = PickInSyncReplicas(
+            Connection_,
+            tableInfo,
+            options,
+            sortedKeys);
 
-                for (auto replicaId : replicaIds) {
-                    const auto& replica = GetOrCrash(replicationCard->Replicas, replicaId);
-                    auto replicaInfo = New<TTableReplicaInfo>();
-                    replicaInfo->ReplicaId = replicaId;
-                    replicaInfo->ClusterName = replica.ClusterName;
-                    replicaInfo->ReplicaPath = replica.ReplicaPath;
-                    replicaInfo->Mode = replica.Mode;
-                    inSyncReplicas.push_back(std::move(replicaInfo));
-                }
-            } else {
-                auto inSyncReplicasFuture = PickInSyncReplicas(
-                    Connection_,
-                    tableInfo,
-                    options,
-                    sortedKeys);
+        TTableReplicaInfoPtrList inSyncReplicas;
+        if (auto inSyncReplicasOrError = inSyncReplicasFuture.TryGet()) {
+            inSyncReplicas = inSyncReplicasOrError->ValueOrThrow();
+        } else {
+            inSyncReplicas = WaitFor(inSyncReplicasFuture)
+                .ValueOrThrow();
+        }
 
-                if (auto inSyncReplicasOrError = inSyncReplicasFuture.TryGet()) {
-                    inSyncReplicas = inSyncReplicasOrError->ValueOrThrow();
-                } else {
-                    inSyncReplicas = WaitFor(inSyncReplicasFuture)
-                        .ValueOrThrow();
-                }
-            }
-            return inSyncReplicas;
-        };
-
-        auto inSyncReplicas = pickInSyncReplicas();
         if (inSyncReplicas.empty()) {
             THROW_ERROR_EXCEPTION("No in-sync replicas found for table %v",
                 tableInfo->Path);
@@ -742,6 +709,7 @@ TRowset TClient::DoLookupRowsOnce(
         return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
             .ValueOrThrow();
     } else if (tableInfo->IsReplicationLog()) {
+        // TODO(savrus) Add after YT-16090
         THROW_ERROR_EXCEPTION("Lookup from queue replica is not supported");
     }
 
@@ -1042,11 +1010,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
     auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
     if (optionalClusterName) {
-        auto unresolveOptions = options;
-        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
         auto replicaClient = GetOrCreateReplicaClient(*optionalClusterName);
         auto updatedQueryString = NAst::FormatQuery(*astQuery);
-        auto asyncResult = replicaClient->SelectRows(updatedQueryString, unresolveOptions);
+        auto asyncResult = replicaClient->SelectRows(updatedQueryString, options);
         return WaitFor(asyncResult)
             .ValueOrThrow();
     }

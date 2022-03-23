@@ -115,7 +115,6 @@ struct TTableMountInfo
     bool IsSorted() const;
     bool IsOrdered() const;
     bool IsReplicated() const;
-    bool IsChaosReplicated() const;
     bool IsReplicationLog() const;
     bool IsPhysicallyLog() const;
     bool IsChaosReplica() const;

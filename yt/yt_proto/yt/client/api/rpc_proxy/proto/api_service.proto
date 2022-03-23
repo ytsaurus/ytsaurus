@@ -55,12 +55,6 @@ enum ETableReplicaMode
     TRM_SYNC_TO_SYNC = 3;
 }
 
-enum EReplicaConsistency
-{
-    RRM_NONE = 0;
-    RRM_SYNC = 1;
-}
-
 enum EMasterReadKind
 {
     MRK_LEADER = 0;
@@ -410,7 +404,6 @@ message TReqLookupRows
     optional bool use_lookup_cache = 9 [default = false];
 
     optional TTabletReadOptions tablet_read_options = 106;
-    optional EReplicaConsistency replica_consistency = 11;
 
     optional EMultiplexingBand multiplexing_band = 8;
 
@@ -451,7 +444,6 @@ message TReqVersionedLookupRows
     optional bool use_lookup_cache = 9 [default = false];
 
     optional TTabletReadOptions tablet_read_options = 106;
-    optional EReplicaConsistency replica_consistency = 10;
 
     optional EMultiplexingBand multiplexing_band = 8;
 
@@ -489,7 +481,6 @@ message TReqMultiLookup
     optional uint64 timestamp = 2 [default = 0x3fffffffffffff01];
     optional uint64 retention_timestamp = 5 [default = 0];
     optional TTabletReadOptions tablet_read_options = 3;
-    optional EReplicaConsistency replica_consistency = 6;
     optional EMultiplexingBand multiplexing_band = 4;
 }
 
@@ -546,7 +537,6 @@ message TReqSelectRows
     optional string udf_registry_path = 13;
     optional uint64 memory_limit_per_node = 14;
     optional string execution_pool = 15;
-    optional EReplicaConsistency replica_consistency = 17;
 
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }

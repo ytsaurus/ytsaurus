@@ -72,8 +72,6 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 5
-    NUM_MASTER_CACHES = 1
-    NUM_CHAOS_NODES = 1
     USE_DYNAMIC_TABLES = True
 
     DELTA_MASTER_CONFIG = {

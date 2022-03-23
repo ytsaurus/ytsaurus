@@ -524,8 +524,6 @@ struct TTabletReadOptionsBase
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 
     NTransactionClient::TTimestamp RetentionTimestamp = NTransactionClient::NullTimestamp;
-
-    EReplicaConsistency ReplicaConsistency = EReplicaConsistency::None;
 };
 
 struct TTabletReadOptions

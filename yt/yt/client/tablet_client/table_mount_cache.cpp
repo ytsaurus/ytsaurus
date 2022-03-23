@@ -33,11 +33,6 @@ bool TTableMountInfo::IsReplicated() const
     return TypeFromId(TableId) == EObjectType::ReplicatedTable;
 }
 
-bool TTableMountInfo::IsChaosReplicated() const
-{
-    return TypeFromId(TableId) == EObjectType::ChaosReplicatedTable;
-}
-
 bool TTableMountInfo::IsReplicationLog() const
 {
     return TypeFromId(TableId) == EObjectType::ReplicationLogTable;
