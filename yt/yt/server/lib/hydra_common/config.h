@@ -319,6 +319,18 @@ public:
     //! Maximum in-flight mutations data size in fast mode.
     i64 MaxInFlightMutationDataSize;
 
+    //! If the number of changelogs after last snapshot exceeds this value, force build snapshot
+    //! after recovery is complete.
+    int MaxChangelogsForRecovery;
+
+    //! If the number of mutations in all changelogs after last snapshot exceeds this value, force build snapshot
+    //! after recovery is complete.
+    i64 MaxChangelogMutationCountForRecovery;
+
+    //! If data size of all changelogs after last snapshot exceeds this value, force build snapshot
+    //! after recovery is complete.
+    i64 MaxTotalChangelogSizeForRecovery;
+
     TDistributedHydraManagerConfig();
 };
 
