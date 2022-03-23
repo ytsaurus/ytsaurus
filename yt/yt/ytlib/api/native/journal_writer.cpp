@@ -148,6 +148,7 @@ private:
             , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
                 Path_,
                 Options_.TransactionId))
+            , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         {
             if (Config_->MaxBatchRowCount > options.ReplicaLagLimit) {
                 THROW_ERROR_EXCEPTION("\"max_batch_row_count\" cannot be greater than \"replica_lag_limit\"")
@@ -232,6 +233,8 @@ private:
         const NLogging::TLogger Logger;
 
         const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+
+        const TNodeDirectoryPtr NodeDirectory_;
 
         struct TBatch
             : public TRefCounted
@@ -318,8 +321,6 @@ private:
 
         using TNodePtr = TIntrusivePtr<TNode>;
         using TNodeWeakPtr = TWeakPtr<TNode>;
-
-        const TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
         using EChunkSessionState = EJournalWriterChunkSessionState;
 

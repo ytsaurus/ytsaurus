@@ -20,6 +20,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/monitoring/http_integration.h>
 #include <yt/yt/ytlib/monitoring/monitoring_manager.h>
 
@@ -131,6 +133,8 @@ void TBootstrap::DoRun()
     NativeConnection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         std::move(connectionOptions));
+
+    NativeConnection_->GetNodeDirectorySynchronizer()->Start();
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);

@@ -652,7 +652,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);
 
-        auto nodeDirectory = New<TNodeDirectory>();
+        auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
 
         auto storeChunkWriter = CreateConfirmingWriter(
             storeWriterConfig,

@@ -283,7 +283,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             CellTagFromId(tabletSnapshot->TabletId),
             transaction->GetId(),
             NullChunkListId,
-            New<TNodeDirectory>(),
+            Client_->GetNativeConnection()->GetNodeDirectory(),
             Client_,
             TabletContext_->GetLocalHostName(),
             blockCache,

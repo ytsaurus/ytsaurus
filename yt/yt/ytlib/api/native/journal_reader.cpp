@@ -62,6 +62,7 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
+        , NodeDirectory_(client->GetNativeConnection()->GetNodeDirectory())
         , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
             Path_,
             Options_.TransactionId))
@@ -91,12 +92,12 @@ private:
     const TYPath Path_;
     const TJournalReaderOptions Options_;
     const TJournalReaderConfigPtr Config_;
+    const TNodeDirectoryPtr NodeDirectory_;
 
     const NLogging::TLogger Logger;
 
     NApi::ITransactionPtr Transaction_;
 
-    const TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
 
     IInvokerPtr ReaderInvoker_;

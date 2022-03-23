@@ -24,6 +24,7 @@
 #include <yt/yt/server/lib/lsm/tablet.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/fetcher.h>
@@ -540,7 +541,7 @@ private:
 
         auto* tablet = partition->GetTablet();
 
-        auto nodeDirectory = New<TNodeDirectory>();
+        auto nodeDirectory = Bootstrap_->GetMasterConnection()->GetNodeDirectory();
 
         auto chunkScraper = CreateFetcherChunkScraper(
             Config_->ChunkScraper,
