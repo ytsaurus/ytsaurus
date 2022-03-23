@@ -247,9 +247,12 @@ private:
 
             guard.Release();
 
-            readyEvent.Set();
+            readyEvent.TrySet();
         } else if (!wasFull && isFull) {
-            ReadyEvent_ = NewPromise<void>();
+            YT_VERIFY(ReadyEvent_.IsSet());
+            if (ReadyEvent_.Get().IsOK()) {
+                ReadyEvent_ = NewPromise<void>();
+            }
         }
 
         return !isFull;
@@ -259,10 +262,14 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
-        CurrentGroupSize_ += block.Size();
-        CurrentGroup_.push_back(std::move(block));
+        try {
+            CurrentGroupSize_ += block.Size();
+            CurrentGroup_.push_back(std::move(block));
 
-        MaybeFlushCurrentGroup();
+            MaybeFlushCurrentGroup();
+        } catch (const std::exception& ex) {
+            OnFailed(ex);
+        }
     }
 
     void MaybeFlushCurrentGroup()
@@ -430,6 +437,9 @@ private:
 
         FillChunkMeta(chunkMeta);
 
+        YT_VERIFY(ReadyEvent_.IsSet());
+        ReadyEvent_.Get().ThrowOnError();
+
         std::vector<TFuture<void>> futures;
         futures.reserve(Writers_.size());
         for (const auto& writer : Writers_) {
@@ -461,6 +471,19 @@ private:
         chunkMeta->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
 
         chunkMeta->Finalize();
+    }
+
+    void OnFailed(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = Guard(ReadyEventLock_);
+
+        if (ReadyEvent_.IsSet()) {
+            ReadyEvent_ = NewPromise<void>();
+        }
+
+        ReadyEvent_.Set(error);
     }
 };
 
