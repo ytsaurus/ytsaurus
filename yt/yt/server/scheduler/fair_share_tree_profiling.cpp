@@ -38,7 +38,6 @@ TFairShareTreeProfileManager::TFairShareTreeProfileManager(
     , ProfilingInvoker_(profilingInvoker)
     , PoolCountGauge_(Profiler_.Gauge("/pools/pool_count"))
     , TotalElementCountGauge_(Profiler_.Gauge("/pools/total_element_count"))
-    , SchedulableElementCountGauge_(Profiler_.Gauge("/pools/schedulable_element_count"))
     , DistributedResourcesBufferedProducer_(New<TBufferedProducer>())
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -93,7 +92,6 @@ void TFairShareTreeProfileManager::ProfileElements(
 
     PoolCountGauge_.Update(treeSnapshot->PoolMap().size());
     TotalElementCountGauge_.Update(treeSnapshot->RootElement()->GetTreeSize());
-    SchedulableElementCountGauge_.Update(treeSnapshot->RootElement()->GetSchedulableElementCount());
 
     ProfileDistributedResources(treeSnapshot);
 
@@ -442,6 +440,7 @@ void TFairShareTreeProfileManager::ProfilePool(
     buffer.AddGauge("/max_running_operation_count", element->GetMaxRunningOperationCount());
     buffer.AddGauge("/running_operation_count", element->RunningOperationCount());
     buffer.AddGauge("/total_operation_count", element->OperationCount());
+    buffer.AddGauge("/schedulable_element_count", element->SchedulableElementCount());
 
     ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
     ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");

@@ -609,7 +609,7 @@ protected:
         TChildHeapMap* childHeapMap);
 
     virtual bool IsSchedulable() const = 0;
-    virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) = 0;
+    virtual int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) = 0;
 
     // Enumerates elements of the tree using inorder traversal. Returns first unused index.
     virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter);
@@ -659,6 +659,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
+    
+    // Used for profiling in snapshotted version.
+    DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);
 
 protected:
     // Used in fair share update.
@@ -789,7 +792,7 @@ protected:
 
     //! Post fair share update methods.
     bool IsSchedulable() const override;
-    void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
+    int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
 
@@ -1333,7 +1336,7 @@ protected:
     void CheckForStarvation(TInstant now) override;
 
     bool IsSchedulable() const override;
-    void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
+    int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     void CollectOperationSchedulingSegmentContexts(
         THashMap<TOperationId, TOperationSchedulingSegmentContext>* operationContexts) const override;
@@ -1418,7 +1421,6 @@ class TSchedulerRootElementFixedState
 public:
     // TODO(ignat): move it to TFairShareTreeSnapshot.
     DEFINE_BYVAL_RO_PROPERTY(int, TreeSize);
-    DEFINE_BYVAL_RO_PROPERTY(int, SchedulableElementCount);
 };
 
 class TSchedulerRootElement

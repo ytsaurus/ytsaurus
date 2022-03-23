@@ -90,7 +90,6 @@ private:
 
     NProfiling::TGauge PoolCountGauge_;
     NProfiling::TGauge TotalElementCountGauge_;
-    NProfiling::TGauge SchedulableElementCountGauge_;
 
     THashMap<TString, TJobMetrics> JobMetricsMap_;
     THashMap<std::optional<EJobSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
