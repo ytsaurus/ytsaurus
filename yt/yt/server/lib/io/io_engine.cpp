@@ -965,8 +965,10 @@ private:
             readWaitTime);
 
         NFS::ExpectIOErrors([&] {
+            auto config = Config_.Load();
+
             while (toReadRemaining > 0) {
-                auto toRead = static_cast<ui32>(Min(toReadRemaining, Config_.Load()->MaxBytesPerRead));
+                auto toRead = static_cast<ui32>(Min(toReadRemaining, config->MaxBytesPerRead));
 
                 i64 reallyRead;
                 {
