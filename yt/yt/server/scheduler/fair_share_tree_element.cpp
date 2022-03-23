@@ -88,7 +88,7 @@ void TDynamicAttributesList::InitializeResourceUsage(
     const TResourceUsageSnapshotPtr& resourceUsageSnapshot,
     NProfiling::TCpuInstant now)
 {
-    Value_.resize(rootElement->GetSchedulableElementCount());
+    Value_.resize(rootElement->SchedulableElementCount());
     rootElement->FillResourceUsageInDynamicAttributes(this, resourceUsageSnapshot);
     for (auto& attributes : Value_) {
         attributes.ResourceUsageUpdateTime = now;
@@ -1209,17 +1209,20 @@ void TSchedulerCompositeElement::PublishFairShareAndUpdatePreemptionSettings()
     }
 }
 
-void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
+int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
     Attributes_.UnschedulableOperationsResourceUsage = TJobResources();
     SchedulableChildren_.clear();
+    SchedulableElementCount_ = 0;
     for (const auto& child : EnabledChildren_) {
-        child->BuildSchedulableChildrenLists(context);
+        SchedulableElementCount_ += child->BuildSchedulableChildrenLists(context);
         Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
         if (child->IsSchedulable()) {
             SchedulableChildren_.push_back(child);
+            ++SchedulableElementCount_;
         }
     }
+    return SchedulableElementCount_;
 }
 
 void TSchedulerCompositeElement::UpdateSchedulableAttributesFromDynamicAttributes(
@@ -2918,12 +2921,14 @@ void TSchedulerOperationElement::PublishFairShareAndUpdatePreemptionSettings()
     UpdatePreemptionAttributes();
 }
 
-void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
+int TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
     if (!IsSchedulable()) {
         ++context->UnschedulableReasons[*UnschedulableReason_];
         Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
+        return 1;
     }
+    return 0;
 }
 
 void TSchedulerOperationElement::UpdatePreemptionAttributes()

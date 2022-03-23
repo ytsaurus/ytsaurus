@@ -1420,7 +1420,7 @@ private:
             "Fair share tree update finished "
             "(TreeSize: %v, SchedulableElementCount: %v, UnschedulableReasons: %v)",
             rootElement->GetTreeSize(),
-            rootElement->GetSchedulableElementCount(),
+            rootElement->SchedulableElementCount(),
             fairSharePostUpdateContext.UnschedulableReasons);
 
         TError error;
