@@ -119,6 +119,7 @@ DEFINE_ENUM(EMasterReign,
     ((RestrictClockClusterTagUpdate)                                (1950))  // savrus
     ((CopyTabletReplicationProgress)                                (1951))  // savrus
     ((EnableReplicationProgressAdvanceToBarrier)                    (1952))  // savrus
+    ((ChaosReplicatedTableSchema)                                   (1953))  // savrus
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
     // 22.2 starts here.

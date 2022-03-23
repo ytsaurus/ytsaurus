@@ -26,6 +26,7 @@ import yt.yson as yson
 import pytest
 import time
 from copy import deepcopy
+from itertools import zip_longest
 
 import builtins
 
@@ -108,8 +109,8 @@ class ChaosTestBase(DynamicTablesBase):
                 attributes[key] = kwargs[key]
         return create_chaos_table_replica(replica["cluster_name"], replica["replica_path"], attributes=attributes)
 
-    def _create_chaos_table_replicas(self, replication_card_id, replicas):
-        return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id) for replica in replicas]
+    def _create_chaos_table_replicas(self, replicas, replication_card_id=None, table_path=None):
+        return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id, table_path=table_path) for replica in replicas]
 
     def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         for replica, replica_id in zip(replicas, replica_ids):
@@ -121,7 +122,7 @@ class ChaosTestBase(DynamicTablesBase):
             if mount_tables:
                 sync_mount_table(path, driver=driver)
 
-    def _create_replica_tables(self, replication_card_id, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
+    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
@@ -139,9 +140,9 @@ class ChaosTestBase(DynamicTablesBase):
 
     def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True):
         card_id = create_replication_card(chaos_cell_id=cell_id)
-        replica_ids = self._create_chaos_table_replicas(card_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
         if create_replica_tables:
-            self._create_replica_tables(card_id, replicas, replica_ids, create_tablet_cells, mount_tables)
+            self._create_replica_tables(replicas, replica_ids, create_tablet_cells, mount_tables)
         if sync_replication_era:
             self._sync_replication_era(card_id, replicas)
         return card_id, replica_ids
@@ -355,7 +356,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "replica_path": "//tmp/r0"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "replica_path": "//tmp/r1"}
         ]
-        replica_ids = self._create_chaos_table_replicas(card_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
 
         card = get("#{0}/@".format(card_id))
         card_replicas = [{key: r[key] for key in list(replicas[0].keys())} for r in card["replicas"].values()]
@@ -887,7 +888,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
         ]
-        replica_ids = self._create_chaos_table_replicas(card_id, replicas)
+        replica_ids = self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
         assert len(replica_ids) == 2
 
         wait(lambda: get("#{0}/@era".format(card_id)) == 1)
@@ -1137,6 +1138,58 @@ class TestChaos(ChaosTestBase):
         assert attributes["cluster_name"] == "remote_0"
 
     @authors("savrus")
+    def test_chaos_table_data_access(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids)
+
+        card_id = get("//tmp/crt/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/crt", values)
+
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 0}]) == values)
+        assert select_rows("* from [//tmp/crt]") == values
+
+    @authors("savrus")
+    def test_chaos_table_alter(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+            {"name": "new_value", "type": "string"},
+        ])
+        alter_table("//tmp/crt", schema=schema)
+        assert get("//tmp/crt/@dynamic")
+
+        actual_schema = get("//tmp/crt/@schema")
+        assert actual_schema.attributes["unique_keys"]
+        for column, actual_column in zip_longest(schema, actual_schema):
+            for name, value in column.items():
+                assert actual_column[name] == value
+
+    @authors("savrus")
     @pytest.mark.parametrize("disable_data", [True, False])
     def test_trim_replica_history_items(self, disable_data):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -1230,7 +1283,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values0)
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=False))
-        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        self._create_replica_tables(replicas[2:], replica_ids[2:])
         self._sync_replication_era(card_id, replicas)
 
         values1 = [{"key": 1, "value": "1"}]
@@ -1255,7 +1308,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values0)
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=True))
-        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        self._create_replica_tables(replicas[2:], replica_ids[2:])
         if mode == "sync":
             self._sync_replication_era(card_id, replicas)
 
@@ -1281,7 +1334,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values0)
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=False))
-        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:], mount_tables=False)
+        self._create_replica_tables(replicas[2:], replica_ids[2:], mount_tables=False)
 
         sync_unmount_table("//tmp/t")
         replication_progress = get("//tmp/t/@replication_progress")
@@ -1319,7 +1372,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values0)
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, catchup=catchup))
-        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        self._create_replica_tables(replicas[2:], replica_ids[2:])
         self._sync_replication_era(card_id, replicas)
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=False)
@@ -1362,7 +1415,7 @@ class TestChaos(ChaosTestBase):
         print_debug("Creating new replica with progress:", replication_progress)
 
         replica_ids.append(self._create_chaos_table_replica(replicas[2], replication_card_id=card_id, replication_progress=replication_progress))
-        self._create_replica_tables(card_id, replicas[2:], replica_ids[2:])
+        self._create_replica_tables(replicas[2:], replica_ids[2:])
         if mode == "sync":
             self._sync_replication_era(card_id, replicas)
 
@@ -1590,6 +1643,25 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/q0", values1, driver=remote_driver0)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 1}]) == values1)
 
+    @authors("savrus")
+    def test_replica_data_access(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        keys = [{"key": 0}]
+        insert_rows("//tmp/t", values)
+        assert lookup_rows("//tmp/t", keys, replica_consistency="sync") == values
+        assert select_rows("* from [//tmp/t]", replica_consistency="sync") == values
+        assert lookup_rows("//tmp/t", keys) == []
+        assert select_rows("* from [//tmp/t]") == []
+
 
 ##################################################################
 
@@ -1657,7 +1729,7 @@ class TestChaosMetaCluster(ChaosTestBase):
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "replica_path": "//tmp/r1"},
             {"cluster_name": "remote_2", "content_type": "data", "mode": "async", "replica_path": "//tmp/r2"}
         ]
-        self._create_chaos_table_replicas(card_id, replicas)
+        self._create_chaos_table_replicas(replicas, replication_card_id=card_id)
 
         card = get("#{0}/@".format(card_id))
         assert card["type"] == "replication_card"
