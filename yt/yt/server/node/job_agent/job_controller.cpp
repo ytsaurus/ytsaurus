@@ -211,8 +211,6 @@ private:
 
     TErrorOr<TYsonString> CachedJobProxyBuildInfo_;
 
-    std::atomic<bool> SendJobResultExtensionToScheduler_{true};
-
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     void OnDynamicConfigChanged(
@@ -333,8 +331,6 @@ private:
     TDuration GetMemoryOverdraftTimeout() const;
     TDuration GetCpuOverdraftTimeout() const;
     TDuration GetRecentlyRemovedJobsStoreTimeout() const;
-
-    bool ShouldSendJobResultExtensionToScheduler() const noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -371,7 +367,6 @@ TJobController::TImpl::TImpl(
 
 void TJobController::TImpl::Initialize()
 {
-    SendJobResultExtensionToScheduler_.store(Config_->SendJobResultExtensionToScheduler, std::memory_order_relaxed);
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
@@ -1570,10 +1565,6 @@ void TJobController::TImpl::OnDynamicConfigChanged(
     JobProxyBuildInfoUpdater_->SetPeriod(
         jobControllerConfig->JobProxyBuildInfoUpdatePeriod.value_or(
             Config_->JobProxyBuildInfoUpdatePeriod));
-    SendJobResultExtensionToScheduler_.store(
-        jobControllerConfig->SendJobResultExtensionToScheduler.value_or(
-            Config_->SendJobResultExtensionToScheduler),
-        std::memory_order_relaxed);
 }
 
 void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
@@ -1851,11 +1842,6 @@ TDuration TJobController::TImpl::GetRecentlyRemovedJobsStoreTimeout() const
         : Config_->RecentlyRemovedJobsStoreTimeout;
 }
 
-bool TJobController::TImpl::ShouldSendJobResultExtensionToScheduler() const noexcept
-{
-    return SendJobResultExtensionToScheduler_.load(std::memory_order_relaxed);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobController(
@@ -2021,11 +2007,6 @@ TErrorOr<TControllerAgentDescriptor> TJobController::TJobHeartbeatProcessorBase:
     const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const
 {
     return JobController_->Impl_->TryParseControllerAgentDescriptor(proto);
-}
-
-bool TJobController::TJobHeartbeatProcessorBase::ShouldSendJobResultExtensionToScheduler() const noexcept
-{
-    return JobController_->Impl_->ShouldSendJobResultExtensionToScheduler();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

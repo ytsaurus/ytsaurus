@@ -28,9 +28,7 @@ void MergeJobSummaries(
     YT_VERIFY(schedulerJobSummary.Id == nodeJobSummary.Id);
 
     schedulerJobSummary.StatisticsYson = std::move(nodeJobSummary.StatisticsYson);
-    if (nodeJobSummary.Result.HasExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext)) {
-        schedulerJobSummary.Result = std::move(nodeJobSummary.Result);
-    }
+    schedulerJobSummary.Result = std::move(nodeJobSummary.Result);
 }
 
 } // namespace

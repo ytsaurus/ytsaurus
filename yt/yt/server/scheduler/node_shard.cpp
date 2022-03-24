@@ -2443,30 +2443,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
         job->GetState() == EJobState::None)
     {
         // The value of status may be nullptr on abandoned jobs.
-        if (status) {
-            const auto& result = status->result();
-
-            if (result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
-                bool restartNeeded = false;
-
-                const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                if (schedulerResultExt.has_restart_needed()) {
-                    restartNeeded = schedulerResultExt.restart_needed();
-                } else {
-                    restartNeeded = schedulerResultExt.unread_chunk_specs_size() > 0;
-                }
-
-                if (restartNeeded) {
-                    if (job->IsRevived()) {
-                        // NB: We lose the original interrupt reason during the revival,
-                        // so we set it to Unknown.
-                        job->SetInterruptReason(EInterruptReason::Unknown);
-                    }
-                } else {
-                    job->SetInterruptReason(EInterruptReason::None);
-                }
-            }
-        } else {
+        if (!status) {
             job->SetInterruptReason(EInterruptReason::None);
         }
 

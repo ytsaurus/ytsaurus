@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import (
-    ls, exists, get, set, raises_yt_error, authors, print_debug, build_master_snapshots, create, start_transaction,
+    ls, exists, get, authors, print_debug, build_master_snapshots, create, start_transaction,
     commit_transaction)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
@@ -14,26 +14,6 @@ import yatest.common
 import builtins
 
 ##################################################################
-
-
-def check_cluster_connection_simple():
-    set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
-
-    yield
-
-    assert get("//sys/@cluster_connection") == {"default_input_row_limit": "abacaba"}
-    with raises_yt_error("Cannot parse"):
-        set("//sys/@cluster_connection", {"default_input_row_limit": "abacaba"})
-
-
-def check_cluster_name_simple():
-    set("//sys/@cluster_name", "a" * 130)
-
-    yield
-
-    assert get("//sys/@cluster_name") == "a" * 130
-    with raises_yt_error("too long"):
-        set("//sys/@cluster_name", "a" * 130)
 
 
 def check_chunk_locations():
@@ -92,7 +72,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     }
 
     ARTIFACT_COMPONENTS = {
-        "21_3": ["master"],
+        "22_1": ["master"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
 
@@ -108,8 +88,6 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     @authors("gritukan", "kvk1920")
     def test(self):
         CHECKER_LIST = [
-            check_cluster_connection_simple,
-            check_cluster_name_simple,
             check_chunk_locations,
             check_queue_list
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
