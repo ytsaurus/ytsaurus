@@ -148,12 +148,6 @@ public:
         , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
         , Config_(std::move(config))
         , Options_(std::move(options))
-        , EncodingChunkWriter_(New<TEncodingChunkWriter>(
-            Config_,
-            Options_,
-            std::move(chunkWriter),
-            std::move(blockCache),
-            Logger))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
@@ -164,6 +158,17 @@ public:
         if (dataSink) {
             PackBaggageFromDataSink(TraceContext_, *dataSink);
         }
+
+        // NB(gepardo). TEncodingChunkWriter writes the blocks into the underlying writer in a callback.
+        // We need the callback to capture the baggage, so we create EncodingChunkWriter_ here under trace
+        // context, not in the initialization list above.
+        TCurrentTraceContextGuard traceGuard(TraceContext_);
+        EncodingChunkWriter_ = New<TEncodingChunkWriter>(
+            Config_,
+            Options_,
+            std::move(chunkWriter),
+            std::move(blockCache),
+            Logger);
     }
 
     TFuture<void> Close() override
@@ -253,7 +258,7 @@ protected:
     i64 DataWeight_ = 0;
     i64 DataWeightSinceLastBlockFlush_ = 0;
 
-    const TEncodingChunkWriterPtr EncodingChunkWriter_;
+    TEncodingChunkWriterPtr EncodingChunkWriter_;
     TLegacyOwningKey LastKey_;
 
     NProto::TDataBlockMetaExt BlockMetaExt_;
