@@ -14,11 +14,12 @@ class TestErrorCodes(YTEnvSetup):
 
     @authors("achulkov2")
     def test_basic_error_codes(self):
-        assert get("//sys/scheduler/orchid/error_codes/116") == "NYT::NRpc::EErrorCode::TransientFailure"
+        assert get("//sys/scheduler/orchid/error_codes/116/cpp_literal") == "NYT::NRpc::EErrorCode::TransientFailure"
 
     @authors("achulkov2")
     def test_error_code_ranges(self):
-        assert get("//sys/scheduler/orchid/error_code_ranges/12000-13999") == "NYT::NContainers::EPortoErrorCode"
+        assert get("//sys/scheduler/orchid/error_code_ranges/12000-13999/cpp_enum") \
+               == "NYT::NContainers::EPortoErrorCode"
 
     @authors("achulkov2")
     def test_attribute_is_opaque(self):
