@@ -728,10 +728,6 @@ private:
                 file.Flock(LOCK_EX);
             }
 
-            YT_LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v)",
-                id,
-                tag);
-
             auto layerDirectory = GetLayerPath(id);
             i64 layerSize = 0;
 
@@ -742,6 +738,8 @@ private:
 
                 layerSize = NFS::GetFileStatistics(archivePath).Size;
 
+                YT_LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v, Path: %v)",
+                    id, tag, layerDirectory);
                 NFs::MakeDirectoryRecursive(layerDirectory);
 
                 WaitFor(VolumeExecutor_->CreateVolume(layerDirectory, properties))
@@ -1516,15 +1514,17 @@ public:
             return MakeFuture(layer);
         }
 
-        if (Config_->ConvertLayersToSquashfs) {
+        if (downloadOptions.ConvertLayerToSquashFS) {
+            artifactKey.set_is_squashfs_image(*downloadOptions.ConvertLayerToSquashFS);
+        } else if (Config_->ConvertLayersToSquashfs) {
             artifactKey.set_is_squashfs_image(true);
         }
-
+        
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
         if (cookie.IsActive()) {
             TFuture<TLayerPtr> asyncLayer;
-            if (Config_->ConvertLayersToSquashfs) {
+            if (artifactKey.is_squashfs_image()) {
                 asyncLayer = DownloadAndConvertLayer(artifactKey, downloadOptions, tag);
             } else {
                 asyncLayer = DownloadAndImportLayer(artifactKey, downloadOptions, tag, nullptr);

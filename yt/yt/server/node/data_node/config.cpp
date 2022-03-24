@@ -299,7 +299,7 @@ TVolumeManagerConfig::TVolumeManagerConfig()
         .Default("tar2squash");
 
     RegisterParameter("use_bundled_tar2squash", UseBundledTar2Squash)
-        .Default(false);
+        .Default(true);
 
     RegisterParameter("convert_layers_to_squashfs", ConvertLayersToSquashfs)
         .Default(false);

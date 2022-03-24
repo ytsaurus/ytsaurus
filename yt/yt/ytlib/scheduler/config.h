@@ -897,6 +897,9 @@ public:
 
     NYTree::IMapNodePtr JobTestingOptions;
 
+    //! Use SquashFS for layer storage.
+    std::optional<bool> EnableSquashFS;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

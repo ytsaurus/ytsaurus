@@ -9033,6 +9033,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->Monitoring->Enable) {
         ToProto(jobSpec->mutable_monitoring_config()->mutable_sensor_names(), jobSpecConfig->Monitoring->SensorNames);
     }
+
+    if (Spec_->EnableSquashFS) {
+        jobSpec->set_enable_squashfs(*Spec_->EnableSquashFS);
+    }
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const

@@ -2045,10 +2045,16 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
         Format("AuthenticatedUser: %v", SchedulerJobSpecExt_->authenticated_user()),
     };
 
-    return TArtifactDownloadOptions{
+    auto options = TArtifactDownloadOptions{
         .NodeDirectory = Bootstrap_->GetNodeDirectory(),
-        .TrafficMeter = TrafficMeter_
+        .TrafficMeter = TrafficMeter_,
     };
+
+    if (UserJobSpec_->has_enable_squashfs()) {
+        options.ConvertLayerToSquashFS = UserJobSpec_->enable_squashfs();
+    }
+
+    return options;
 }
 
 // Start async artifacts download.

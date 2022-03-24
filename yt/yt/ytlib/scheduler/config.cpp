@@ -637,6 +637,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("job_testing_options", &TThis::JobTestingOptions)
         .Default();
 
+    registrar.Parameter("enable_squashfs", &TThis::EnableSquashFS)
+        .Default();
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
