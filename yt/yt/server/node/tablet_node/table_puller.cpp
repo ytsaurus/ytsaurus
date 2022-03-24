@@ -308,6 +308,25 @@ private:
                 progress,
                 endReplicationRowIndexes);
 
+            // TODO(savrus) Remove this sanity check when pull rows is mature enough.
+            for (auto row : resultRows) {
+                YT_VERIFY(row.GetWriteTimestampCount() + row.GetDeleteTimestampCount() == 1);
+                auto rowTimestamp = row.GetWriteTimestampCount() > 0
+                    ? row.BeginWriteTimestamps()[0]
+                    : row.BeginDeleteTimestamps()[0];
+                auto progressTimestamp = FindReplicationProgressTimestampForKey(
+                    *replicationProgress,
+                    row.BeginKeys(),
+                    row.EndKeys());
+                if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
+                    YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %llx, ProgressTimestamp: %llx, Row: %v, Progress: %v)",
+                        rowTimestamp,
+                        progressTimestamp,
+                        row,
+                        static_cast<TReplicationProgress>(*replicationProgress));
+                }
+            }
+
             // Update progress even if no rows pulled.
             if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
                 YT_VERIFY(resultRows.empty());

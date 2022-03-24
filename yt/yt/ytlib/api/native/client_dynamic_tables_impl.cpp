@@ -2263,41 +2263,30 @@ TPullRowsResult TClient::DoPullRows(
         options.ReplicationProgress,
         options.StartReplicationRowIndexes);
 
-    auto startIndex = tableInfo->GetTabletIndexForKey(segments[0].LowerKey.Get());
-    std::vector<TTabletPullRowsSession::TTabletRequest> requests;
-    requests.emplace_back();
-    requests.back().TabletIndex = startIndex;
-    requests.back().Progress.Segments.push_back(segments[0]);
+    int startIndex = tableInfo->GetTabletIndexForKey(segments[0].LowerKey.Get());
+    std::vector<TUnversionedRow> pivotKeys{segments[0].LowerKey.Get()};
 
-    for (int index = 0; index < std::ssize(segments); ++index) {
-        const auto& nextKey = index == std::ssize(segments) - 1
-            ? options.ReplicationProgress.UpperKey
-            : segments[index + 1].LowerKey;
-
-        while (startIndex < std::ssize(tableInfo->Tablets) - 1 && tableInfo->Tablets[startIndex + 1]->PivotKey < nextKey) {
-            ++startIndex;
-            const auto& tabletInfo = tableInfo->Tablets[startIndex];
-            const auto& pivotKey = tabletInfo->PivotKey;
-            requests.back().Progress.UpperKey = pivotKey;
-            requests.push_back({});
-            requests.back().TabletIndex = startIndex;
-            requests.back().Progress.Segments.push_back({pivotKey, segments[index].Timestamp});
-        }
-
-        if (index < std::ssize(segments) - 1) {
-            if (startIndex < std::ssize(tableInfo->Tablets) - 1 && tableInfo->Tablets[startIndex + 1]->PivotKey > nextKey) {
-                requests.back().Progress.Segments.push_back(segments[index + 1]);
-            }
-        } else {
-            requests.back().Progress.UpperKey = nextKey;
-        }
+    for (int index = startIndex + 1; index < std::ssize(tableInfo->Tablets) && tableInfo->Tablets[index]->PivotKey < options.ReplicationProgress.UpperKey; ++index) {
+        pivotKeys.push_back(tableInfo->Tablets[index]->PivotKey.Get());
     }
+    auto progresses = ScatterReplicationProgress(options.ReplicationProgress, pivotKeys, options.ReplicationProgress.UpperKey.Get());
+    YT_VERIFY(progresses.size() == pivotKeys.size());
 
-    for (auto& request : requests) {
-        const auto& tabletInfo = tableInfo->Tablets[request.TabletIndex];
+    auto getStartReplicationRowIndex = [&] (int tabletIndex) -> std::optional<i64> {
+        const auto& tabletInfo = tableInfo->Tablets[tabletIndex];
         if (auto it = options.StartReplicationRowIndexes.find(tabletInfo->TabletId)) {
-            request.StartReplicationRowIndex = it->second;
+            return it->second;
         }
+        return {};
+    };
+
+    std::vector<TTabletPullRowsSession::TTabletRequest> requests;
+    for (int index = startIndex; index < std::ssize(tableInfo->Tablets) && tableInfo->Tablets[index]->PivotKey < options.ReplicationProgress.UpperKey; ++index) {
+        requests.push_back({
+            .TabletIndex = index,
+            .StartReplicationRowIndex = getStartReplicationRowIndex(index),
+            .Progress = std::move(progresses[index - startIndex])
+        });
     }
 
     struct TPullRowsOutputBufferTag { };

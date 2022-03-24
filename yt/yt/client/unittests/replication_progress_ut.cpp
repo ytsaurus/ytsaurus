@@ -346,5 +346,65 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReplicationProgressTimestampForKeyTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*,
+        const char*,
+        std::optional<TTimestamp>>>
+{ };
+
+TEST_P(TReplicationProgressTimestampForKeyTest, Simple)
+{
+    const auto& params = GetParam();
+    const auto& progress = ConvertTo<TReplicationProgress>(TYsonStringBuf(std::get<0>(params)));
+    const auto& key = ConvertTo<TUnversionedOwningRow>(TYsonStringBuf(std::get<1>(params)));
+    const auto& expected = std::get<2>(params);
+
+    auto result = FindReplicationProgressTimestampForKey(progress, key.Begin(), key.End());
+
+    EXPECT_EQ(result, expected)
+        << "progresses: " << std::get<0>(params) << std::endl
+        << "key: " << std::get<1>(params) << std::endl
+        << "expected: " << Format("%v", expected) << std::endl
+        << "actual: " << Format("%v", result) << std::endl;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TReplicationProgressTimestampForKeyTest,
+    TReplicationProgressTimestampForKeyTest,
+    ::testing::Values(
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=1}];upper_key=[<type=max>#]}",
+            "[1]",
+            1),
+        std::make_tuple(
+            "{segments=[{lower_key=[1];timestamp=1}];upper_key=[<type=max>#]}",
+            "[]",
+            std::nullopt),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=1}];upper_key=[1]}",
+            "[1]",
+            std::nullopt),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=1}];upper_key=[1]}",
+            "[2]",
+            std::nullopt),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=1}];upper_key=[<type=max>#]}",
+            "[1]",
+            1),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=0};{lower_key=[1];timestamp=1};{lower_key=[2];timestamp=2};];upper_key=[<type=max>#]}",
+            "[1]",
+            1),
+        std::make_tuple(
+            "{segments=[{lower_key=[];timestamp=1};{lower_key=[2];timestamp=2};];upper_key=[<type=max>#]}",
+            "[1]",
+            1)
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NChaosClient

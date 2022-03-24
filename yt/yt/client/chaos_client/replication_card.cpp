@@ -415,20 +415,38 @@ TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progre
     return minTimestamp;
 }
 
-TTimestamp GetReplicationProgressTimestampForKey(
+std::optional<TTimestamp> FindReplicationProgressTimestampForKey(
     const TReplicationProgress& progress,
-    TUnversionedRow key)
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end)
 {
+    if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), begin, end) <= 0 ||
+        CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), begin, end) > 0)
+    {
+        return {};
+    }
+
     auto it = std::upper_bound(
         progress.Segments.begin(),
         progress.Segments.end(),
-        key,
-        [] (const auto& lhs, const auto& rhs) {
-            return CompareRows(lhs, rhs.LowerKey) < 0;
+        begin,
+        [&] (const auto& /*begin*/, const auto& segment) {
+           return CompareRows(begin, end, segment.LowerKey.Begin(), segment.LowerKey.End()) < 0;
         });
+    YT_VERIFY(it > progress.Segments.begin());
 
-    YT_VERIFY(it != progress.Segments.begin());
     return (it - 1)->Timestamp;
+}
+
+TTimestamp GetReplicationProgressTimestampForKeyOrThrow(
+    const TReplicationProgress& progress,
+    TUnversionedRow key)
+{
+    auto timestamp = FindReplicationProgressTimestampForKey(progress, key.Begin(), key.End());
+    if (!timestamp) {
+        THROW_ERROR_EXCEPTION("Key %v is out or replication progress range", key);
+    }
+    return *timestamp;
 }
 
 TTimestamp GetReplicationProgressMinTimestamp(

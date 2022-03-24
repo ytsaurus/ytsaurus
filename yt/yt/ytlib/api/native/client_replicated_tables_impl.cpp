@@ -210,7 +210,7 @@ std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
             }
         } else {
             for (auto key : evaluatedKeys) {
-                auto timestmap = GetReplicationProgressTimestampForKey(replica.ReplicationProgress, key);
+                auto timestmap = GetReplicationProgressTimestampForKeyOrThrow(replica.ReplicationProgress, key);
                 if (!isTimestampInSync(replica, timestmap)) {
                     return false;
                 }
