@@ -6,6 +6,10 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/yson/public.h>
+
+#include <yt/yt/core/ytree/public.h>
+
 namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,8 +30,11 @@ public:
     void Start();
     void Stop();
 
+    NYTree::IYPathServicePtr GetOrchidService();
+
 private:
     void DoUpdateLimits();
+    void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
 
     const IInstancePtr Instance_;
     const IInvokerPtr Invoker_;
@@ -35,7 +42,7 @@ private:
 
     std::optional<double> CpuLimit_;
     std::optional<i64> MemoryLimit_;
-
+    std::optional<i64> MemoryUsage_;
     bool Running_ = false;
 };
 
