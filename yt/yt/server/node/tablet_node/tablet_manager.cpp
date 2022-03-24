@@ -2103,7 +2103,7 @@ private:
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, NewReplicationRound: %v)",
                 tabletId,
                 transaction->GetId(),
-                round);
+                round + 1);
             return;
         }
 

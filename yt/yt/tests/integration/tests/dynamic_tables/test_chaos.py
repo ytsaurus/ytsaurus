@@ -490,7 +490,8 @@ class TestChaos(ChaosTestBase):
             assert timestamps[i] < timestamps[i+1], "Write timestamp order mismatch for positions {0} and {1}: {2} > {3}".format(i, i+1, timestamps[i], timestamps[i+1])
 
     @authors("savrus")
-    def test_advanced_pull_rows(self):
+    @pytest.mark.parametrize("reshard", [True, False])
+    def test_advanced_pull_rows(self, reshard):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
@@ -498,7 +499,8 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False)
-        reshard_table("//tmp/q", [[], [1], [2]])
+        if reshard:
+            reshard_table("//tmp/q", [[], [1], [2]])
         sync_mount_table("//tmp/q")
         self._sync_replication_era(card_id, replicas[:1])
 

@@ -1628,29 +1628,11 @@ private:
 
                 auto row = TVersionedRow(replicationRow);
 
-                // Check that row fits into requested row range.
-                if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), row.BeginKeys(), row.EndKeys()) <= 0 ||
-                    CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0)
+                // Check that row fits into replication progress key range and has greater timestamp than progress.
+                if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.BeginKeys(), row.EndKeys());
+                    !progressTimestamp || timestamp <= *progressTimestamp)
                 {
                     continue;
-                }
-
-                // Check that row fits into requested timestamp range.
-                {
-                    auto it = std::upper_bound(
-                        progress.Segments.begin(),
-                        progress.Segments.end(),
-                        row,
-                        [] (const auto& row, const auto& segment) {
-                           return CompareRows(segment.LowerKey.Begin(), segment.LowerKey.End(), row.BeginKeys(), row.EndKeys()) > 0;
-                        });
-                    --it;
-
-                    YT_VERIFY(it >= progress.Segments.begin());
-
-                    if (timestamp <= it->Timestamp) {
-                        continue;
-                    }
                 }
 
                 if (timestamp != prevTimestamp) {

@@ -122,16 +122,28 @@ TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgr
 void CanonizeReplicationProgress(TReplicationProgress* progress);
 
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress);
-NTransactionClient::TTimestamp GetReplicationProgressTimestampForKey(const TReplicationProgress& progress, NTableClient::TUnversionedRow key);
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(
     const TReplicationProgress& progress,
     NTableClient::TLegacyKey lower,
     NTableClient::TLegacyKey upper);
 
+std::optional<NTransactionClient::TTimestamp> FindReplicationProgressTimestampForKey(
+    const TReplicationProgress& progress,
+    const NTableClient::TUnversionedValue* begin,
+    const NTableClient::TUnversionedValue* end);
+NTransactionClient::TTimestamp GetReplicationProgressTimestampForKeyOrThrow(
+    const TReplicationProgress& progress,
+    NTableClient::TUnversionedRow key);
+
+// Gathers replication progresses into a single one.
+// Pivot key should match first segment lower keys of a corresponding progress.
+// If source progress is empty it is is considered to span corresponding pivot keys range and have MinTimestamp timestamp,
 TReplicationProgress GatherReplicationProgress(
     std::vector<TReplicationProgress> progresses,
     const std::vector<NTableClient::TUnversionedRow>& pivotKeys,
     NTableClient::TUnversionedRow upperKey);
+
+// Splits replication progress into ranges [pivotKeys[0]: pivotKeys[1]], ..., [pivotKeys[-1]: upperKey].
 std::vector<TReplicationProgress> ScatterReplicationProgress(
     TReplicationProgress progress,
     const std::vector<NTableClient::TUnversionedRow>& pivotKeys,
