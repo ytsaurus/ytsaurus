@@ -1320,7 +1320,7 @@ class TestJobIOTracking(TestJobIOTrackingBase):
             if "job_io_kind@" in event:
                 workload = event["job_io_kind@"]
                 assert workload in ["artifact_copy", "artifact_download"]
-                assert event["object_path"] in ["//tmp/table_aux", "<cached_data_source>"]
+                assert event["object_path"] in ["//tmp/table_aux", "//tmp/table_aux"]
             else:
                 assert event["data_node_method@"] in ["FinishChunk", "GetBlockSet", "GetBlockRange"]
                 if event["data_node_method@"] == "FinishChunk":

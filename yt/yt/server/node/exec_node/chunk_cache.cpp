@@ -1244,8 +1244,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        static const TString CachedSourcePath = "<cached_data_source>";
-
         auto nameTable = New<TNameTable>();
 
         auto readerOptions = New<NTableClient::TTableReaderOptions>();
@@ -1256,7 +1254,6 @@ private:
 
         NChunkClient::TDataSource dataSource;
         FromProto(&dataSource, key.data_source());
-        dataSource.SetPath(CachedSourcePath);
         dataSourceDirectory->DataSources().push_back(dataSource);
 
         switch (dataSource.GetType()) {
