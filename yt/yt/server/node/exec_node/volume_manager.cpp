@@ -1030,6 +1030,11 @@ public:
         Location_->RemoveLayer(LayerMeta_.Id, static_cast<bool>(UnderlyingArtifact_));
     }
 
+    const TString& GetCypressPath() const
+    {
+        return GetKey().data_source().path();
+    }
+
     const TString& GetPath() const
     {
         return LayerMeta_.Path;
@@ -1050,10 +1055,21 @@ public:
         UnderlyingArtifact_ = std::move(chunk);
     }
 
+    void IncreaseHitCount()
+    {
+        HitCount_.fetch_add(1);
+    }
+
+    int GetHitCount() const
+    {
+        return HitCount_.load();
+    }
+
 private:
     const TLayerMeta LayerMeta_;
     const TLayerLocationPtr Location_;
     IVolumeArtifactPtr UnderlyingArtifact_;
+    std::atomic<int> HitCount_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
@@ -1188,7 +1204,17 @@ public:
         auto guard2 = Guard(AlertSpinLock_);
         fluent
             .Item("layer_count").Value(CachedLayers_.size())
-            .Item("alert").Value(Alert_);
+            .Item("alert").Value(Alert_)
+            .Item("layers").BeginMap()
+                .DoFor(CachedLayers_, [] (TFluentMap fluent, const auto& item) {
+                    fluent
+                        .Item(item.second->GetCypressPath())
+                            .BeginMap()
+                                .Item("size").Value(item.second->GetSize())
+                                .Item("hit_count").Value(item.second->GetHitCount())
+                            .EndMap();
+                })
+            .EndMap();
     }
 
     const TLayerLocationPtr& GetLocation() const
@@ -1520,7 +1546,7 @@ public:
         } else if (Config_->ConvertLayersToSquashfs) {
             artifactKey.set_is_squashfs_image(true);
         }
-        
+
         auto cookie = BeginInsert(artifactKey);
         auto value = cookie.GetValue();
         if (cookie.IsActive()) {
@@ -1561,6 +1587,7 @@ public:
 
     void Touch(const TLayerPtr& layer)
     {
+        layer->IncreaseHitCount();
         Find(layer->GetKey());
     }
 
@@ -1856,7 +1883,7 @@ public:
     TFuture<void> Remove() override
     {
         if (RemoveFuture_) {
-            return RemoveFuture_;            
+            return RemoveFuture_;
         }
 
         RemoveFuture_ = Location_->RemoveVolume(VolumeMeta_.Id);
