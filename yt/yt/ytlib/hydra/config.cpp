@@ -70,6 +70,8 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
         .Default(false);
     RegisterParameter("changelog_replica_lag_limit", ChangelogReplicaLagLimit)
         .Default(NJournalClient::DefaultReplicaLagLimit);
+    RegisterParameter("changelog_external_cell_tag", ChangelogExternalCellTag)
+        .Optional();
     RegisterParameter("changelog_account", ChangelogAccount)
         .NonEmpty();
     RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)
