@@ -213,6 +213,8 @@ message TUserJobSpec
     // Enables NAT64 - YT-15665.
     // Only to be used with user network projects.
     optional bool enable_nat64 = 64;
+
+    optional bool enable_squashfs = 65;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

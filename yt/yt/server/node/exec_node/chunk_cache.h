@@ -33,6 +33,8 @@ struct TArtifactDownloadOptions
         TArtifactConverter;
 
     TArtifactConverter Converter;
+
+    std::optional<bool> ConvertLayerToSquashFS;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
