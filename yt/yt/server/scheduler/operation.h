@@ -110,6 +110,7 @@ DEFINE_ENUM(EUnschedulableReason,
     // NB(eshcherbin): This is not exactly an "unschedulable" reason, but it is
     // reasonable in our architecture to put it here anyway.
     (MaxScheduleJobCallsViolated)
+    (FifoSchedulableElementCountLimitReached)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

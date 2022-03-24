@@ -654,7 +654,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
-    
+
     // Used for profiling in snapshotted version.
     DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);
 
@@ -1326,6 +1326,7 @@ protected:
     void CheckForStarvation(TInstant now) override;
 
     bool IsSchedulable() const override;
+    void OnFifoSchedulableElementCountLimitReached();
     int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
@@ -1395,6 +1396,8 @@ private:
         TScheduleJobsContext* context,
         EDeactivationReason reason,
         bool considerInOperationCounter);
+
+    friend class TSchedulerCompositeElement;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerOperationElement)

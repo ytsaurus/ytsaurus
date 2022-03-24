@@ -358,6 +358,9 @@ public:
     //! Enables profiling of scheduled and preempted resources in strategy.
     bool EnableScheduledAndPreemptedResourcesProfiling;
 
+    //! Limit to the number of schedulable elements in FIFO pools.
+    std::optional<int> MaxSchedulableElementCountInFifoPool;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
