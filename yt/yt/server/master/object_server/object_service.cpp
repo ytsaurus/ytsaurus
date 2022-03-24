@@ -1243,9 +1243,13 @@ private:
                 const auto& cellDirectory = Bootstrap_->GetCellDirectory();
                 auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
 
+                const auto& request = RpcContext_->Request();
+
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
+                batchReq->SetSuppressUpstreamSync(request.suppress_upstream_sync());
+                batchReq->SetSuppressTransactionCoordinatorSync(request.suppress_transaction_coordinator_sync());
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
 
@@ -1267,7 +1271,7 @@ private:
             auto peerKind = subrequest.YPathExt->mutating() ? EPeerKind::Leader : EPeerKind::Follower;
 
             auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
-                batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
+            batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
