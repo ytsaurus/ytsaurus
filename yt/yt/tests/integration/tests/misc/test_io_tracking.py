@@ -370,7 +370,8 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
             if "job_type@" not in raw_events[0]:
                 continue
             has_replication_job = True
-            assert raw_events[0]["job_type@"] == "ReplicateChunk"
+            assert raw_events[0]["job_type@"] == "replicate_chunk"
+            assert raw_events[0]["user@"] == "root"
             assert "job_id" in raw_events[0]
             assert "medium@" in raw_events[0]
             assert "location_id@" in raw_events[0]
@@ -433,7 +434,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
         assert has_replication_read_job
 
         for event in events:
-            assert event["job_type@"] == "ReplicateChunk"
+            assert event["job_type@"] == "replicate_chunk"
             assert "job_id" in event
             assert min_data_bound <= event["bytes"] <= max_data_bound
 
@@ -452,7 +453,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
 
         _, aggregate_events = self.wait_for_events(
             aggregate_count=1, from_barrier=from_barrier, node_id=0,
-            filter=lambda event: event.get("job_type@") == "MergeChunks" and event.get("data_node_method@") == "FinishChunk")
+            filter=lambda event: event.get("job_type@") == "merge_chunks" and event.get("data_node_method@") == "FinishChunk")
         assert aggregate_events[0]["bytes"] > 0
         assert aggregate_events[0]["io_requests"] > 0
 
@@ -476,7 +477,7 @@ class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
 
         _, aggregate_events = self.wait_for_events(
             aggregate_count=1, from_barrier=from_barrier, node_id=0,
-            filter=lambda event: event.get("job_type@") == "MergeChunks" and event.get("data_node_method@") == "FinishChunk")
+            filter=lambda event: event.get("job_type@") == "merge_chunks" and event.get("data_node_method@") == "FinishChunk")
         assert min_data_bound <= aggregate_events[0]["bytes"] <= max_data_bound
         assert aggregate_events[0]["io_requests"] > 0
 

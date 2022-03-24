@@ -501,7 +501,7 @@ protected:
         TCurrentTraceContextGuard guard(context);
         auto baggage = context->UnpackOrCreateBaggage();
         AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(GetId()));
-        AddTagToBaggage(baggage, EAggregateIOTag::JobType, ToString(GetType()));
+        AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(GetType()));
         context->PackBaggage(std::move(baggage));
 
         try {
@@ -779,6 +779,7 @@ private:
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "read"},
                         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
+                        {FormatIOTag(EAggregateIOTag::User), "root"},
                     });
             }
 
@@ -1261,6 +1262,7 @@ private:
                             {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
                             {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
+                            {FormatIOTag(EAggregateIOTag::User), "root"},
                         });
                 }
 
