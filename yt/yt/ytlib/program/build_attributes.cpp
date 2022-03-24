@@ -47,7 +47,9 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
             .EndAttributes()
             .DoMapFor(TErrorCodeRegistry::Get()->GetAllErrorCodes(), [] (TFluentMap fluent, const auto& pair) {
                 fluent
-                    .Item(ToString(pair.first)).Value(ToString(pair.second));
+                    .Item(ToString(pair.first)).BeginMap()
+                        .Item("cpp_literal").Value(ToString(pair.second))
+                    .EndMap();
             }));
     SyncYPathSet(
         orchidRoot,
@@ -58,7 +60,9 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
             .EndAttributes()
             .DoMapFor(TErrorCodeRegistry::Get()->GetAllErrorCodeRanges(), [] (TFluentMap fluent, const TErrorCodeRegistry::TErrorCodeRangeInfo& range) {
                 fluent
-                    .Item(ToString(range)).Value(range.Namespace);
+                    .Item(ToString(range)).BeginMap()
+                        .Item("cpp_enum").Value(range.Namespace)
+                    .EndMap();
             }));
 }
 
