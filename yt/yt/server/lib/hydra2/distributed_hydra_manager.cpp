@@ -1143,12 +1143,13 @@ private:
             if (SnapshotFuture_ && SnapshotFuture_.IsSet()) {
                 auto* snapshotResponse = response->mutable_snapshot_response();
                 const auto& snapshotParamsOrError = SnapshotFuture_.Get();
-                // TODO(aleksandra-zh): error is actually useful.
-                snapshotResponse->set_ok(snapshotParamsOrError.IsOK());
+                snapshotResponse->set_snapshot_id(SnapshotId_);
                 if (snapshotParamsOrError.IsOK()) {
                     const auto& snapshotParams = snapshotParamsOrError.Value();
-                    snapshotResponse->set_snapshot_id(snapshotParams.SnapshotId);
+                    YT_VERIFY(SnapshotId_ == snapshotParams.SnapshotId);
                     snapshotResponse->set_checksum(snapshotParams.Checksum);
+                } else {
+                    ToProto(snapshotResponse->mutable_error(), snapshotParamsOrError);
                 }
             }
         }
