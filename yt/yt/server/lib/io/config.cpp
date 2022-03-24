@@ -77,6 +77,9 @@ TGentleLoaderConfig::TGentleLoaderConfig()
         .GreaterThan(0)
         .Default(100_GB);
 
+    RegisterParameter("load_adjusting_interval", LoadAdjustingInterval)
+        .Default(TDuration::MilliSeconds(200));
+
     RegisterParameter("segment_size", SegmentSize)
         .GreaterThan(0)
         .Default(10);
@@ -94,6 +97,10 @@ TGentleLoaderConfig::TGentleLoaderConfig()
         .Default(5000);
 
     RegisterParameter("writers_count", WritersCount)
+        .GreaterThan(0)
+        .Default(100);
+
+    RegisterParameter("readers_count", ReadersCount)
         .GreaterThan(0)
         .Default(100);
 

@@ -27,7 +27,11 @@ class TRandomFileProvider
     : public NIO::IRandomFileProvider
 {
 public:
-    TRandomFileProvider(TChunkStorePtr chunkStore, TChunkLocationUuid locationId, NLogging::TLogger logger)
+    TRandomFileProvider(
+        TChunkStorePtr chunkStore,
+        TChunkLocationUuid locationId,
+        i64 minimalFileSize,
+        NLogging::TLogger logger)
         : Logger(std::move(logger))
     {
         NProfiling::TWallTimer timer;
@@ -42,6 +46,10 @@ public:
                     .Path = chunk->GetFileName(),
                     .DiskSpace = NFS::GetFileStatistics(chunk->GetFileName()).Size
                 };
+
+                if (info.DiskSpace < minimalFileSize) {
+                    continue;
+                }
                 Chunks_.push_back(std::move(info));
             } catch (const std::exception&) {
             }
@@ -94,7 +102,12 @@ public:
         YT_LOG_DEBUG("Starting load test (Location: %v)",
             Location_->GetId());
 
-        auto randomFileProvider = New<TRandomFileProvider>(ChunkStore_, Location_->GetUuid(), Logger);
+        auto randomFileProvider = New<TRandomFileProvider>(
+            ChunkStore_,
+            Location_->GetUuid(),
+            mediumConfig->PacketSize,
+            Logger);
+
         auto loader = CreateGentleLoader(
             mediumConfig,
             Location_->GetPath(),
@@ -372,7 +385,7 @@ private:
             }
 
             if (location->Running() && location->GetRunningTime() > config->TestingTimeHardLimit) {
-                YT_LOG_WARNING("Cancel stucked tests (Location: %v, RunningTime: %v, TestingTimeHardLimit: %v)",
+                YT_LOG_WARNING("Cancel stuck tests (Location: %v, RunningTime: %v, TestingTimeHardLimit: %v)",
                     location->GetId(),
                     location->GetRunningTime(),
                     config->TestingTimeHardLimit);

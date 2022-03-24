@@ -25,65 +25,123 @@ static const int PageSize = 4_KB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TDuration> DoRandomRead(
-    IIOEnginePtr engine,
-    IRandomFileProviderPtr fileProvider,
-    i64 readSize,
-    bool directIO)
+class TRandomReader
+    : public TRefCounted
 {
-    auto file = fileProvider->GetRandomExistingFile();
-    if (!file) {
-        return MakeFuture<TDuration>(TError("Can not get file to read"));
+public:
+    TRandomReader(
+        TGentleLoaderConfigPtr config,
+        IRandomFileProviderPtr fileProvider,
+        IIOEngineWorkloadModelPtr engine,
+        NLogging::TLogger logger)
+        : Config_(std::move(config))
+        , IOEngine_(std::move(engine))
+        , FileProvider(fileProvider)
+        , Logger(std::move(logger))
+    {
+        OpenNewFiles();
     }
 
-    i64 offset = 0;
-    if (file->DiskSpace > (readSize + PageSize)) {
-        auto maxPageIndex = (file->DiskSpace - readSize) / PageSize;
-        offset = RandomNumber<ui32>(maxPageIndex) * PageSize;
-    } else {
-        readSize = PageSize;
-    }
+    void OpenNewFiles()
+    {
+        std::vector<TFuture<TReadFileInfo>> futures;
+        for (int i = 0; i < Config_->ReadersCount; ++i) {
+            auto file = FileProvider->GetRandomExistingFile();
+            if (!file) {
+                continue;
+            }
 
-    if (readSize + offset > file->DiskSpace) {
-        return MakeFuture<TDuration>(TError("Wrong packets size")
-            << TErrorAttribute("read_size", readSize)
-            << TErrorAttribute("offset", offset)
-            << TErrorAttribute("disk_space", file->DiskSpace));
-    }
+            auto mode = OpenExisting | RdOnly | CloseOnExec;
+            if (Config_->UseDirectIO) {
+                mode |= DirectAligned;
+            }
 
-    struct TChunkFileReaderBufferTag
-    { };
-
-    auto mode = OpenExisting | RdOnly | CloseOnExec;
-    if (directIO) {
-        mode |= DirectAligned;
-    }
-
-    return engine->Open({file->Path, mode})
-        .ToUncancelable()
-        .Apply(BIND([engine, offset, readSize] (const TIOEngineHandlePtr& dataFile) {
-            NProfiling::TWallTimer requestTimer;
-            return engine->Read<TChunkFileReaderBufferTag>(
-                {{dataFile, offset, readSize}},
-                EWorkloadCategory::Idle)
-                .AsVoid()
-                .Apply(BIND([engine, dataFile, requestTimer] {
-                    auto duration = requestTimer.GetElapsedTime();
-                    return engine->Close({
-                            .Handle = std::move(dataFile)
-                        })
-                        .Apply(BIND([duration] () {
-                            return duration;
-                        }));
+            auto future = IOEngine_->Open({file->Path, mode})
+                .Apply(BIND([file] (const TIOEngineHandlePtr& handle) {
+                    return TReadFileInfo{
+                        .Handle = handle,
+                        .FileSize = file->DiskSpace,
+                    };
                 }));
-        }));
-}
+            futures.push_back(future);
+        }
+
+        auto results = WaitFor(AllSet(futures))
+            .Value();
+
+        std::vector<TReadFileInfo> filesToRead;
+        for (const auto& result : results) {
+            if (result.IsOK()) {
+                filesToRead.push_back(result.Value());
+            }
+        }
+
+        std::swap(filesToRead, FilesToRead_);
+    }
+
+    TFuture<TDuration> Read(i64 readSize)
+    {
+        if (FilesToRead_.empty()) {
+            return MakeFuture<TDuration>(TError("No files to read."));
+        }
+        auto index = RandomNumber<ui32>(FilesToRead_.size());
+        return DoRandomRead(FilesToRead_[index], readSize);
+    }
+
+private:
+    struct TReadFileInfo
+    {
+        TIOEngineHandlePtr Handle;
+        i64 FileSize = 0;
+    };
+
+    const TGentleLoaderConfigPtr Config_;
+    const IIOEngineWorkloadModelPtr IOEngine_;
+    const IRandomFileProviderPtr FileProvider;
+    const NLogging::TLogger Logger;
+    std::vector<TReadFileInfo> FilesToRead_;
+
+    TFuture<TDuration> DoRandomRead(
+        TReadFileInfo fileInfo,
+        i64 readSize)
+    {
+        i64 offset = 0;
+        if (fileInfo.FileSize > (readSize + PageSize)) {
+            auto maxPageIndex = (fileInfo.FileSize - readSize) / PageSize;
+            offset = RandomNumber<ui32>(maxPageIndex) * PageSize;
+        } else {
+            readSize = PageSize;
+        }
+
+        if (readSize + offset > fileInfo.FileSize) {
+            return MakeFuture<TDuration>(TError("Wrong packets size")
+                << TErrorAttribute("read_size", readSize)
+                << TErrorAttribute("offset", offset)
+                << TErrorAttribute("disk_space", fileInfo.FileSize));
+        }
+
+        struct TChunkFileReaderBufferTag
+        { };
+
+        NProfiling::TWallTimer requestTimer;
+        return IOEngine_->Read<TChunkFileReaderBufferTag>(
+            {{fileInfo.Handle, offset, readSize}},
+            EWorkloadCategory::Idle)
+            .AsVoid()
+            .Apply(BIND([requestTimer] {
+                return requestTimer.GetElapsedTime();
+            })).ToUncancelable();
+    }
+};
+
+using TRandomReaderPtr = TIntrusivePtr<TRandomReader>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRandomWriter
+class TRandomWriter
     : public TRefCounted
 {
+public:
     TRandomWriter(
         TGentleLoaderConfigPtr config,
         const TString& path,
@@ -226,7 +284,9 @@ public:
     ECongestedStatus GetCongestionStatus()
     {
         auto current = GetCurrentCongestionStatus();
-        if (current != ECongestedStatus::OK) {
+        if (current == ECongestedStatus::OK) {
+            FailedProbesCounter_ = 0;
+        } else {
             ++FailedProbesCounter_;
         }
 
@@ -280,15 +340,13 @@ public:
         TCongestionDetectorConfigPtr config,
         IIOEngineWorkloadModelPtr engine,
         IInvokerPtr invoker,
-        IRandomFileProviderPtr fileProvider,
-        bool useDirectIO,
+        TRandomReaderPtr randomReader,
         NLogging::TLogger logger)
         : Config_(std::move(config))
         , Logger(std::move(logger))
         , IOEngine_(std::move(engine))
         , Invoker_(std::move(invoker))
-        , RandomFileProvider_(std::move(fileProvider))
-        , UseDirectIO(useDirectIO)
+        , RandomReader_(std::move(randomReader))
         , ProbesExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TProbesCongestionDetector::DoProbe, MakeWeak(this)),
@@ -319,6 +377,9 @@ public:
 
         int failedRequestCount = 0;
         for (const auto& result : results) {
+            if (!result.IsOK()) {
+                YT_LOG_DEBUG(result, "Probe is failed");
+            }
             if (!result.IsOK() || result.Value() > Config_->ProbeDeadline) {
                 ++failedRequestCount;
             }
@@ -343,8 +404,7 @@ private:
     const NLogging::TLogger Logger;
     const IIOEngineWorkloadModelPtr IOEngine_;
     const IInvokerPtr Invoker_;
-    const IRandomFileProviderPtr RandomFileProvider_;
-    const bool UseDirectIO;
+    const TRandomReaderPtr RandomReader_;
     const TPeriodicExecutorPtr ProbesExecutor_;
 
     std::deque<TFuture<TDuration>> Probes_;
@@ -360,11 +420,7 @@ private:
             }
 
             if (std::ssize(Probes_) < Config_->MaxInFlightProbeCount) {
-                Probes_.push_back(DoRandomRead(
-                    IOEngine_,
-                    RandomFileProvider_,
-                    Config_->PacketSize,
-                    UseDirectIO));
+                Probes_.push_back(RandomReader_->Read(Config_->PacketSize));
             } else {
                 YT_LOG_ERROR("Something went wrong: max probe request count reached");
             }
@@ -384,8 +440,7 @@ public:
         TCongestionDetectorConfigPtr config,
         IIOEngineWorkloadModelPtr engine,
         IInvokerPtr invoker,
-        IRandomFileProviderPtr fileProvider,
-        bool useDirectIO,
+        TRandomReaderPtr randomReader,
         NLogging::TLogger logger)
         : Invoker_(std::move(invoker))
         , ProbesExecutor_(New<TPeriodicExecutor>(
@@ -398,8 +453,7 @@ public:
             config,
             engine,
             Invoker_,
-            fileProvider,
-            useDirectIO,
+            randomReader,
             logger);
 
         ProbesExecutor_->Start();
@@ -440,6 +494,109 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLoadAdjuster
+{
+public:
+    TLoadAdjuster(
+        TGentleLoaderConfigPtr config,
+        IIOEngineWorkloadModelPtr engine,
+        NLogging::TLogger logger)
+        : Config_(std::move(config))
+        , IOEngine_(std::move(engine))
+        , Logger(std::move(logger))
+    { }
+
+    bool ShouldSkipRead(i64 size)
+    {
+        Adjust();
+        SyntheticReadBytes_ += size;
+        return RandomNumber<double>() < SkipReadProbability_;
+    }
+
+    bool ShouldSkipWrite(i64 size)
+    {
+        Adjust();
+        SyntheticWrittenBytes_ += size;
+        return RandomNumber<double>() < SkipWriteProbability_;
+    }
+
+    void ResetStatistics()
+    {
+        LastTotalReadBytes_ = IOEngine_->GetTotalReadBytes();
+        LastTotalWrittenBytes_ = IOEngine_->GetTotalWrittenBytes();
+    }
+
+private:
+    const TGentleLoaderConfigPtr Config_;
+    const IIOEngineWorkloadModelPtr IOEngine_;
+    const NLogging::TLogger Logger;
+
+    TInstant LoadAdjustedAt_;
+    i64 SyntheticWrittenBytes_ = 0;
+    i64 SyntheticReadBytes_ = 0;
+    i64 LastTotalReadBytes_ = 0;
+    i64 LastTotalWrittenBytes_ = 0;
+
+    double SkipWriteProbability_ = 0;
+    double SkipReadProbability_ = 0;
+
+    void Adjust()
+    {
+        auto now = TInstant::Now();
+        if (now - LoadAdjustedAt_ < Config_->LoadAdjustingInterval) {
+            return;
+        }
+
+        auto totalReadBytes = IOEngine_->GetTotalReadBytes();
+        auto totalWrittenBytes = IOEngine_->GetTotalWrittenBytes();
+
+        i64 totalReadDelta = totalReadBytes - LastTotalReadBytes_;
+        i64 totalWrittenDelta = totalWrittenBytes - LastTotalWrittenBytes_;
+
+        YT_VERIFY(totalReadDelta >= 0);
+        YT_VERIFY(totalWrittenDelta >= 0);
+
+        SkipReadProbability_ = CalculateSkipProbability(totalReadDelta, SyntheticReadBytes_);
+        SkipWriteProbability_ = CalculateSkipProbability(totalWrittenDelta, SyntheticWrittenBytes_);
+
+        // These are excessive load that we can't mitigate with the next round.
+        i64 readExtraDebt = std::max<i64>(0, totalReadDelta - SyntheticReadBytes_);
+        i64 writeExtraDebt = std::max<i64>(0, totalWrittenDelta - SyntheticWrittenBytes_);
+
+        YT_LOG_DEBUG("Adjusting for background load "
+            "(TotalRead: %v, TotalWritten: %v, SyntheticRead: %v, SyntheticWritten: %v, "
+            "ReadSkip: %v, WriteSkip: %v, ReadDebt: %v, WriteDebt: %v)",
+            totalReadDelta,
+            totalWrittenDelta,
+            SyntheticReadBytes_,
+            SyntheticWrittenBytes_,
+            SkipReadProbability_,
+            SkipWriteProbability_,
+            readExtraDebt,
+            writeExtraDebt);
+
+        SyntheticReadBytes_ = 0;
+        SyntheticWrittenBytes_ = 0;
+        LastTotalReadBytes_ = totalReadBytes - readExtraDebt;
+        LastTotalWrittenBytes_ = totalWrittenBytes - writeExtraDebt;
+
+        YT_VERIFY(LastTotalReadBytes_ >= 0);
+        YT_VERIFY(LastTotalWrittenBytes_ >= 0);
+
+        LoadAdjustedAt_ = now;
+    }
+
+    static double CalculateSkipProbability(i64 totalBytes, i64 syntheticTargetBytes)
+    {
+        auto value = static_cast<double>(totalBytes - syntheticTargetBytes) / (syntheticTargetBytes + 1);
+        value = std::max(value, 0.0);
+        value = std::min(value, 1.0);
+        return value;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGentleLoader
     : public IGentleLoader
 {
@@ -458,6 +615,7 @@ public:
         , RandomFileProvider_(std::move(fileProvider))
         , Invoker_(std::move(invoker))
         , ReadToWriteRatio_(GetReadToWriteRatio(Config_, IOEngine_))
+        , LoadAdjuster_(Config_, IOEngine_, Logger)
         , Started_(false)
     { }
 
@@ -492,10 +650,11 @@ private:
     const IRandomFileProviderPtr RandomFileProvider_;
     const IInvokerPtr Invoker_;
     const ui8 ReadToWriteRatio_;
-
+    
+    TLoadAdjuster LoadAdjuster_;
     std::atomic_bool Started_;
-
     std::vector<TFuture<TDuration>> Results_;
+
 
     void Run()
     {
@@ -513,18 +672,23 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto congestionDetector = New<TCongestionDetector>(
-            Config_->CongestionDetector,
-            IOEngine_,
-            Invoker_,
-            RandomFileProvider_,
-            Config_->UseDirectIO,
-            Logger);
-
         auto randomWriter = New<TRandomWriter>(
             Config_,
             LocationRoot_,
             IOEngine_,
+            Logger);
+
+        auto randomReader = New<TRandomReader>(
+            Config_,
+            RandomFileProvider_,
+            IOEngine_,
+            Logger);
+
+        auto congestionDetector = New<TCongestionDetector>(
+            Config_->CongestionDetector,
+            IOEngine_,
+            Invoker_,
+            randomReader,
             Logger);
 
         const i32 initialWindow = Config_->SegmentSize;
@@ -537,12 +701,12 @@ private:
         i32 slowStartThreshold = Config_->MaxWindowSize;
 
         TCongestedState lastState;
-
         ui64 requestsCounter = 0;
+        LoadAdjuster_.ResetStatistics();
 
         while (Started_) {
             try {
-                SendRequest(congestionWindow, *randomWriter);
+                SendRequest(congestionWindow, *randomReader, *randomWriter);
                 ++requestsCounter;
 
                 auto state = congestionDetector->GetState();
@@ -551,6 +715,8 @@ private:
                 }
                 lastState = state;
                 auto prevWindow = congestionWindow;
+
+                randomReader->OpenNewFiles();
 
                 switch (state.Status) {
                     case ECongestedStatus::OK:
@@ -594,8 +760,9 @@ private:
                 if (state.Status != ECongestedStatus::OK) {
                     // Signal congested.
                     Congested_.Fire(prevWindow);
-                    WaitAfterCongested();
+                    WaitAfterCongested(congestionDetector);
                     lastState = congestionDetector->GetState();
+                    LoadAdjuster_.ResetStatistics();
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Gentle loader loop failed");
@@ -603,57 +770,87 @@ private:
         }
     }
 
-    void WaitAfterCongested()
+    void WaitAfterCongested(TIntrusivePtr<TCongestionDetector> congestionDetector)
     {
         YT_LOG_DEBUG("Before waiting for all requests");
         auto wait = WaitFor(AllSet(Results_));
         Y_UNUSED(wait);
-        YT_LOG_DEBUG("Waiting after congested (Duration: %v)",
-            Config_->WaitAfterCongested);
-        TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
+
+        static const int MaxWaitAttempt = 10;
+        for (int attempt = 0; attempt < MaxWaitAttempt; ++attempt) {
+            YT_LOG_DEBUG("Waiting after congested (Duration: %v, Attempt: %v)",
+                Config_->WaitAfterCongested,
+                attempt);
+
+            TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
+            auto state = congestionDetector->GetState();
+            if (state.Status == ECongestedStatus::OK) {
+                break;
+            }
+        }
     }
 
-    void SendRequest(i32 congestionWindow, TRandomWriter& writer)
+    void SendRequest(i32 congestionWindow, TRandomReader& reader, TRandomWriter& writer)
     {
         if (std::ssize(Results_) >= Config_->MaxInFlightCount) {
             auto _ = WaitFor(AnySet(Results_));
             Results_.erase(std::remove_if(
                 Results_.begin(),
                 Results_.end(),
-                [] (const TFuture<TDuration>& future) {
+                [&] (const TFuture<TDuration>& future) {
+                    if (future.IsSet() && !future.Get().IsOK()) {
+                        YT_LOG_DEBUG(future.Get(), "Request is failed");
+                    }
                     return future.IsSet();
                 }),
                 Results_.end());
         }
 
         static const ui8 IOScale = 100;
+        TFuture<TDuration> future = ReadToWriteRatio_ > RandomNumber(IOScale)
+            ? SendReadRequest(reader)
+            : SendWriteRequest(writer);
 
-        TFuture<TDuration> future;
-        if (ReadToWriteRatio_ > RandomNumber(IOScale)) {
-            future = DoRandomRead(
-                IOEngine_,
-                RandomFileProvider_,
-                Config_->PacketSize,
-                Config_->UseDirectIO);
-        } else {
-            future = writer.Write();
+        if (future) {
+            // Slowing down IOEngine executor for testing purposes.
+            if (Config_->SimulatedRequestLatency) {
+                auto simulatedLatency = Config_->SimulatedRequestLatency;
+                future = future.Apply(BIND([simulatedLatency] (TDuration duration) {
+                    Sleep(simulatedLatency);
+                    return duration + simulatedLatency;
+                }));
+            }
+
+            Results_.push_back(std::move(future));
         }
 
-        // Slowing down IOEngine executor for testing purposes.
-        if (Config_->SimulatedRequestLatency) {
-            auto simulatedLatency = Config_->SimulatedRequestLatency;
-            future = future.Apply(BIND([simulatedLatency] (TDuration duration) {
-                Sleep(simulatedLatency);
-                return duration + simulatedLatency;
-            }));
-        }
-
-        Results_.push_back(std::move(future));
         TDuration yieldTimeout = TDuration::Seconds(1) / congestionWindow;
         TDelayedExecutor::WaitForDuration(yieldTimeout);
     }
 
-    static ui8 GetReadToWriteRatio(
+    TFuture<TDuration> SendReadRequest(TRandomReader& reader)
+    {
+        auto readSize = Config_->PacketSize;
+
+        if (LoadAdjuster_.ShouldSkipRead(readSize)) {
+            // Adjusting for background workload.
+            return {};
+        }
+
+        return reader.Read(readSize);
+    }
+
+    TFuture<TDuration> SendWriteRequest(TRandomWriter& writer)
+    {
+        if (LoadAdjuster_.ShouldSkipWrite(Config_->PacketSize)) {
+            // Adjusting for background workload.
+            return {};
+        }
+
+        return writer.Write();
+    }
+
+     static ui8 GetReadToWriteRatio(
         const TGentleLoaderConfigPtr& config,
         IIOEngineWorkloadModelPtr engine)
     {

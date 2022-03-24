@@ -230,9 +230,9 @@ public:
         : GentleLoaderConfig_(New<TGentleLoaderConfig>())
         , ActionQueue_(New<TActionQueue>("TestActionQueue"))
     {
-        GentleLoaderConfig_->CongestionDetector->ProbeDeadline = TDuration::MilliSeconds(100);
+        GentleLoaderConfig_->CongestionDetector->ProbeDeadline = TDuration::MilliSeconds(30);
         GentleLoaderConfig_->CongestionDetector->ProbesInterval = TDuration::MilliSeconds(30);
-        GentleLoaderConfig_->WaitAfterCongested = TDuration::MilliSeconds(100);
+        GentleLoaderConfig_->WaitAfterCongested = TDuration::MilliSeconds(10);
 
         IOEngineConfig_ = TIOEngineMockConfig{
             .OpenLatency = TDuration::MilliSeconds(1),
@@ -297,7 +297,7 @@ TEST_F(TGentleLoaderTest, TestSimple)
     EXPECT_EQ(std::ssize(results), 5);
     // 4 threads with 100 IOPS each should get about 400 IOPS
     auto lastResult = results.back();
-    EXPECT_TRUE((lastResult.IOPS > 350) && (lastResult.IOPS < 450));
+    EXPECT_TRUE((lastResult.IOPS > 350) && (lastResult.IOPS < 500));
 }
 
 TEST_F(TGentleLoaderTest, TestErrorHandling)
@@ -315,7 +315,7 @@ TEST_F(TGentleLoaderTest, TestErrorHandling)
     EXPECT_EQ(std::ssize(results), 5);
     // Check that we get some sane values even in case of errors.
     auto lastResult = results.back();
-    EXPECT_TRUE((lastResult.IOPS > 200) && (lastResult.IOPS < 450));
+    EXPECT_TRUE((lastResult.IOPS > 200) && (lastResult.IOPS < 500));
 }
 
 TEST_F(TGentleLoaderTest, TestAllFailing)
