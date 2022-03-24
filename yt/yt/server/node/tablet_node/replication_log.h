@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/logging/public.h>
 
+#include <functional>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +36,8 @@ DECLARE_REFCOUNTED_STRUCT(IReplicationLogParser)
 struct IReplicationLogParser
     : public TRefCounted
 {
+    using TOnMissingRowCallback = std::function<void()>;
+
     virtual std::optional<int> GetTimestampColumnId() = 0;
 
     virtual void ParseLogRow(
@@ -49,7 +53,8 @@ struct IReplicationLogParser
     virtual std::optional<i64> ComputeStartRowIndex(
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp startReplicationTimestamp,
-        const NChunkClient::TClientChunkReadOptions& chunkReadOptions) = 0;
+        const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+        TOnMissingRowCallback onMissingRow = [] {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReplicationLogParser)

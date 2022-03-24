@@ -253,7 +253,8 @@ public:
     std::optional<i64> ComputeStartRowIndex(
         const TTabletSnapshotPtr& tabletSnapshot,
         NTransactionClient::TTimestamp startReplicationTimestamp,
-        const TClientChunkReadOptions& chunkReadOptions) override
+        const TClientChunkReadOptions& chunkReadOptions,
+        TOnMissingRowCallback onMissingRow = [] {}) override
     {
         auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
         auto totalRowCount = tabletSnapshot->TabletRuntimeData->TotalRowCount.load();
@@ -271,9 +272,9 @@ public:
 
         while (rowIndexLo < rowIndexHi - 1) {
             auto rowIndexMid = rowIndexLo + (rowIndexHi - rowIndexLo) / 2;
-            auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid);
+            auto timestampMid = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, rowIndexMid, onMissingRow);
             if (!timestampMid) {
-                return {};
+                rowIndexLo = rowIndexMid;
             }
             if (*timestampMid <= startReplicationTimestamp) {
                 rowIndexLo = rowIndexMid;
@@ -285,13 +286,12 @@ public:
         auto startRowIndex = rowIndexLo;
         auto startTimestamp = NullTimestamp;
         while (startRowIndex < totalRowCount) {
-            auto rowTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex);
-            if (!rowTimestamp) {
-                return {};
-            }
-            startTimestamp = *rowTimestamp;
-            if (startTimestamp > startReplicationTimestamp) {
-                break;
+            auto rowTimestamp = ReadLogRowTimestamp(tabletSnapshot, chunkReadOptions, startRowIndex, onMissingRow);
+            if (rowTimestamp) {
+                startTimestamp = *rowTimestamp;
+                if (startTimestamp > startReplicationTimestamp) {
+                    break;
+                }
             }
             ++startRowIndex;
         }
@@ -299,6 +299,13 @@ public:
         YT_LOG_DEBUG("Finished computing replication start row index (StartRowIndex: %v, StartTimestamp: %llx)",
             startRowIndex,
             startTimestamp);
+
+        if (startTimestamp == NullTimestamp) {
+            YT_LOG_DEBUG("No replication log rows available (TrimmedRowCount: %v, TotalRowCount: %v)",
+                trimmedRowCount,
+                totalRowCount);
+            return {};
+        }
 
         return startRowIndex;
     }
@@ -523,7 +530,8 @@ private:
     std::optional<TTimestamp> ReadLogRowTimestamp(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TClientChunkReadOptions& chunkReadOptions,
-        i64 rowIndex)
+        i64 rowIndex,
+        TOnMissingRowCallback onMissingRow)
     {
         auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
@@ -546,6 +554,7 @@ private:
                 YT_LOG_DEBUG("Missing row in replication log (TabletId: %v, RowIndex: %v)",
                     tabletSnapshot->TabletId,
                     rowIndex);
+                onMissingRow();
                 return {};
             }
 
