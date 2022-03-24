@@ -1064,11 +1064,6 @@ private:
         DynamicConfigManager_->Start();
 
         NodeResourceManager_->Start();
-    #ifdef __linux__
-        if (InstanceLimitsTracker_) {
-            InstanceLimitsTracker_->Start();
-        }
-    #endif
 
         // Force start node directory synchronizer.
         MasterConnection_->GetNodeDirectorySynchronizer()->Start();
@@ -1102,6 +1097,16 @@ private:
         SetBuildAttributes(
             OrchidRoot_,
             "node");
+
+#ifdef __linux__
+        if (InstanceLimitsTracker_) {
+            InstanceLimitsTracker_->Start();
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/instance_limits_tracker",
+                CreateVirtualNode(InstanceLimitsTracker_->GetOrchidService()));
+        }
+#endif
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,

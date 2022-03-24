@@ -1,10 +1,16 @@
+#include "public.h"
 #include "instance_limits_tracker.h"
 #include "instance.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/ypath_service.h>
+
 namespace NYT::NContainers {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +55,19 @@ void TInstanceLimitsTracker::DoUpdateLimits()
     YT_LOG_DEBUG("Checking for instance limits update");
 
     try {
+        auto resourceUsage = Instance_->GetResourceUsage({ EStatField::Rss });
+        auto it = resourceUsage.find(EStatField::Rss);
+        if (it != resourceUsage.end()) {
+            const auto& errorOrValue = it->second;
+            if (errorOrValue.IsOK()) {
+                MemoryUsage_ = errorOrValue.Value();
+            } else {
+                YT_LOG_ALERT(errorOrValue, "Failed to get container rss");
+            }
+        } else {
+            YT_LOG_ALERT("Failed to get container rss, property not found");
+        }
+
         auto limits = Instance_->GetResourceLimits();
         bool limitsUpdated = false;
 
@@ -74,6 +93,28 @@ void TInstanceLimitsTracker::DoUpdateLimits()
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get instance limits");
     }
+}
+
+IYPathServicePtr TInstanceLimitsTracker::GetOrchidService()
+{
+    return IYPathService::FromProducer(BIND(&TInstanceLimitsTracker::DoBuildOrchid, MakeStrong(this)))
+        ->Via(Invoker_);
+}
+
+void TInstanceLimitsTracker::DoBuildOrchid(NYson::IYsonConsumer* consumer) const
+{
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoIf(static_cast<bool>(CpuLimit_), [&] (auto fluent) {
+                fluent.Item("cpu_limit").Value(*CpuLimit_);
+            })
+            .DoIf(static_cast<bool>(MemoryLimit_), [&] (auto fluent) {
+                fluent.Item("memory_limit").Value(*MemoryLimit_);
+            })
+            .DoIf(static_cast<bool>(MemoryUsage_), [&] (auto fluent) {
+                fluent.Item("memory_usage").Value(*MemoryUsage_);
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

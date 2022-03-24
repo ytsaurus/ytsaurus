@@ -367,8 +367,11 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         node = nodes[0]
         self.Env.set_nodes_cpu_limit(4)
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/orchid/instance_limits_tracker/cpu_limit".format(node))) == 4)
         self.Env.set_nodes_cpu_limit(3)
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/orchid/instance_limits_tracker/cpu_limit".format(node))) == 3)
+        assert int(get("//sys/cluster_nodes/{}/orchid/instance_limits_tracker/memory_usage".format(node))) > 0
 
     @authors("gritukan")
     def test_update_memory_limits(self):
