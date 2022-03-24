@@ -4721,7 +4721,7 @@ private:
     }
 
 private:
-    TDataSinkDirectoryPtr BuildDataSinkDirectoryForMapper()
+    TDataSinkDirectoryPtr BuildDataSinkDirectoryForMapper() const
     {
         auto dataSinkDirectory = New<TDataSinkDirectory>();
         auto mapperOutputTableCount = static_cast<size_t>(Spec->MapperOutputTableCount);
@@ -4733,7 +4733,7 @@ private:
         return dataSinkDirectory;
     }
 
-    TDataSinkDirectoryPtr BuildDataSinkDirectoryForReducer()
+    TDataSinkDirectoryPtr BuildDataSinkDirectoryForReducer() const
     {
         return BuildDataSinkDirectoryFromOutputTables(
             std::vector<TOutputTablePtr>(OutputTables_.begin() + Spec->MapperOutputTableCount, OutputTables_.end()));

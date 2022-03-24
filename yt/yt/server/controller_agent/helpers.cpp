@@ -167,7 +167,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     if (schemas.empty()) {
-        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+        dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
             GetIntermediatePath(0),
             /*schema*/ nullptr,
             /*columns*/ std::nullopt,
@@ -176,7 +176,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
         dataSourceDirectory->DataSources().back().SetAccount(intermediateAccount);
     } else {
         for (int i = 0; i < std::ssize(schemas); ++i) {
-            dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+            dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
                 GetIntermediatePath(i),
                 schemas[i],
                 /*columns*/ std::nullopt,
@@ -200,7 +200,7 @@ TDataSink BuildIntermediateDataSink(const TString& intermediateAccount)
 TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const TString& intermediateAccount)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
-    dataSinkDirectory->DataSinks().push_back(BuildIntermediateDataSink(intermediateAccount));
+    dataSinkDirectory->DataSinks().emplace_back(BuildIntermediateDataSink(intermediateAccount));
     return dataSinkDirectory;
 }
 
