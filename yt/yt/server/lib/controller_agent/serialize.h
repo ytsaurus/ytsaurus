@@ -22,6 +22,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MaxClipTimestamp)                     (300806))
     ((StripedErasureChunks)                 (300807))
     ((LowGpuPowerUsageOnWindow)             (300808))
+    // 22.2 start here
+    ((MajorUpdateTo22_2)                    (300901))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -60,7 +60,6 @@ private:
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
         TDuration RunningJobInfoSendingBackoff_;
-        bool SendJobResult_ = false;
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
         bool ShouldSendOutOfBand_ = false;

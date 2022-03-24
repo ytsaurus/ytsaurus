@@ -153,8 +153,6 @@ public:
         TErrorOr<NExecNode::TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
             const NJobTrackerClient::NProto::TControllerAgentDescriptor& proto) const;
         
-        bool ShouldSendJobResultExtensionToScheduler() const noexcept;
-
         TJobController* const JobController_;
         NClusterNode::IBootstrapBase* const Bootstrap_;
     };

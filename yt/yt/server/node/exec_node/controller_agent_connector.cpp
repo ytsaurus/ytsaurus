@@ -43,8 +43,6 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
         ControllerAgentConnectorPool_->CurrentConfig_->StatisticsThrottler))
     , RunningJobInfoSendingBackoff_(
         ControllerAgentConnectorPool_->CurrentConfig_->RunningJobInfoSendingBackoff)
-    , SendJobResult_(
-        ControllerAgentConnectorPool_->CurrentConfig_->SendJobResult)
 {
     YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
@@ -84,7 +82,6 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated()
     HeartbeatExecutor_->SetPeriod(currentConfig.HeartbeatPeriod);
     RunningJobInfoSendingBackoff_ = currentConfig.RunningJobInfoSendingBackoff;
     StatisticsThrottler_->Reconfigure(currentConfig.StatisticsThrottler);
-    SendJobResult_ = currentConfig.SendJobResult;
 }
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
@@ -162,9 +159,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         auto* const jobStatus = request->add_jobs();
         FillJobStatus(jobStatus, job);
 
-        if (SendJobResult_) {
-            *jobStatus->mutable_result() = job->GetResult();
-        }
+        *jobStatus->mutable_result() = job->GetResult();
 
         job->ResetStatisticsLastSendTime();
 

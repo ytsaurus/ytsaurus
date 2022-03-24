@@ -4,6 +4,6 @@ from original_tests.yt.yt.tests.integration.tests.controller.test_merge_operatio
 
 class TestMergeCommandsCompatUpToCA(BaseTestMergeCommands):
     ARTIFACT_COMPONENTS = {
-        "21_3": ["master", "node", "job-proxy", "exec", "tools"],
+        "22_1": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }

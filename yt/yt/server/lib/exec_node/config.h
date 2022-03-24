@@ -291,7 +291,6 @@ public:
     TDuration TestHeartbeatDelay;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobInfoSendingBackoff;
-    std::optional<bool> SendJobResult;
 
     TControllerAgentConnectorDynamicConfig()
         : THeartbeatReporterDynamicConfigBase{}
@@ -303,8 +302,6 @@ public:
         RegisterParameter("statistics_throttler", StatisticsThrottler)
             .Default();
         RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
-            .Default();
-        RegisterParameter("send_job_result", SendJobResult)
             .Default();
     }
 };
@@ -385,7 +382,6 @@ class TControllerAgentConnectorConfig
 public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobInfoSendingBackoff;
-    bool SendJobResult;
 
     TControllerAgentConnectorConfig()
         : THeartbeatReporterConfigBase{}
@@ -394,8 +390,6 @@ public:
             .DefaultNew(1_MB);
         RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
             .Default(TDuration::Seconds(30));
-        RegisterParameter("send_job_result", SendJobResult)
-            .Default(false);
     }
 
     TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig)
@@ -416,7 +410,6 @@ public:
             StatisticsThrottler->Period = dynamicConfig.StatisticsThrottler->Period;
         }
         RunningJobInfoSendingBackoff = dynamicConfig.RunningJobInfoSendingBackoff.value_or(RunningJobInfoSendingBackoff);
-        SendJobResult = dynamicConfig.SendJobResult.value_or(SendJobResult);
         Postprocess();
     }
 };
