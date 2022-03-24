@@ -735,6 +735,7 @@ private:
                 THashMap<TString, TString> properties;
                 properties["backend"] = "squash";
                 properties["layers"] = archivePath;
+                properties["read_only"] = "true";
 
                 layerSize = NFS::GetFileStatistics(archivePath).Size;
 

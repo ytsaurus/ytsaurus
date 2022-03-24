@@ -197,14 +197,6 @@ TEST_P(TVolumeManagerTest, CreateSimpleVolume)
 
 TEST_P(TVolumeManagerTest, TwoLayers)
 {
-    if (GetParam().UseSquashfs) {
-        // SquashFS volumes are stacked incorrectly.
-        //
-        // Right now, when file or directory is removed in upper layer, it is still accessible
-        // in merged overlayfs filesystem.
-        GTEST_SKIP();
-    }
-
     TArtifactKey baseKey;
     ToProto(baseKey.add_chunk_specs()->mutable_chunk_id(), TGuid::Create());
     baseKey = FixupKey(baseKey);
