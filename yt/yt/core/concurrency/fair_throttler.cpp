@@ -114,8 +114,13 @@ struct TLeakyCounter
 
     i64 Increment(i64 delta)
     {
-        auto maxValue = std::accumulate(Window.begin(), Window.end(), 0) - Window[WindowPosition];
-        
+        return Increment(delta, delta);
+    }
+
+    i64 Increment(i64 delta, i64 limit)
+    {
+        auto maxValue = std::accumulate(Window.begin(), Window.end(), i64(0)) - Window[WindowPosition];
+
         auto currentValue = Value.load();
         do {
             if (currentValue <= maxValue) {
@@ -123,7 +128,7 @@ struct TLeakyCounter
             }
         } while (!Value.compare_exchange_strong(currentValue, maxValue));
 
-        Window[WindowPosition] = delta;
+        Window[WindowPosition] = limit;
 
         WindowPosition++;
         if (WindowPosition >= std::ssize(Window)) {
@@ -343,7 +348,14 @@ public:
     i64 Refill(i64 quota)
     {
         LastLimit_ = quota;
-        return Quota_.Increment(SatisfyRequests(quota));
+
+        if (Quota_.Value.load() < 0) {
+            auto remainingQuota = Quota_.Increment(quota);
+            return SatisfyRequests(remainingQuota);
+        } else {
+            auto remainingQuota = SatisfyRequests(quota);
+            return Quota_.Increment(remainingQuota, quota);
+        }
     }
 
     void SetDistributionPeriod(TDuration distributionPeriod)
@@ -402,7 +414,7 @@ TFairThrottler::TFairThrottler(
 {
     ScheduleLimitUpdate(TInstant::Now());
 
-    profiler.AddFuncGauge("/shared_quota", MakeStrong(this), [this] {
+    Profiler_.AddFuncGauge("/shared_quota", MakeStrong(this), [this] {
         return SharedBucket_->Limit.Value.load();
     });
 }
@@ -501,7 +513,7 @@ void TFairThrottler::DoUpdateLimits()
     auto tickIncome = ComputeFairDistribution(tickLimit, weights, demands, limits);
 
     // Distribute remaining quota according to weights and limits.
-    auto freeQuota = tickLimit - std::accumulate(tickIncome.begin(), tickIncome.end(), 0l);
+    auto freeQuota = tickLimit - std::accumulate(tickIncome.begin(), tickIncome.end(), i64(0));
     for (int i = 0; i < std::ssize(tickIncome); i++) {
         demands[i] = freeQuota;
 
@@ -555,13 +567,13 @@ void TFairThrottler::DoUpdateLimits()
         tickLimit, // How many bytes was distributed?
         freeQuota, // How many bytes was left unconsumed?
         SharedBucket_->Limit.Value.load(),
-        droppedQuota); // Bucket demands during this iteration.
+        droppedQuota);
 
     YT_LOG_DEBUG("Fair throttler tick details (BucketIncome: %v, BucketUsage: %v, BucketDemands: %v, BucketQuota: %v)",
-        bucketIncome, // Bucket quotas for the next iteration.
-        bucketUsage, // Real bucket usage.
+        bucketIncome,
+        bucketUsage,
         bucketDemands,
-        bucketQuota); // Bucket demands during this iteration.
+        bucketQuota);
 }
 
 void TFairThrottler::UpdateLimits(TInstant at)
