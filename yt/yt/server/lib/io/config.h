@@ -102,6 +102,8 @@ struct TGentleLoaderConfig
     // this bytes count transmitted (read+written).
     i64 AdaptiveReadToWriteRatioThreshold;
 
+    TDuration LoadAdjustingInterval;
+
     // Window increments/decrements are done in terms of segments.
     // Measured in packets.
     i32 SegmentSize;
@@ -109,8 +111,11 @@ struct TGentleLoaderConfig
     // Sane maximum window value.
     i32 MaxWindowSize;
 
-    // Each writer corresponds to one file.
+    // Each writer corresponds to one open file for write.
     i32 WritersCount;
+
+    // Each reader corresponds to one open file for read.
+    i32 ReadersCount;
 
     i32 MaxWriteFileSize;
 

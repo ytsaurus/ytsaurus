@@ -966,7 +966,7 @@ private:
 
     bool ErrorLogged_ = false;
 
-    std::optional<TCounters> GetCounters()
+    std::optional<TCounters> GetCounters() const
     {
         try {
             auto counters = TCounters{
