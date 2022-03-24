@@ -332,7 +332,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
 ##################################################################
 
 
-class TestMasterJobsIOTracking(TestNodeIOTrackingBase):
+class TestMasterJobIOTracking(TestNodeIOTrackingBase):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -806,7 +806,7 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
 ##################################################################
 
 
-class TestJobsIOTrackingBase(TestNodeIOTrackingBase):
+class TestJobIOTrackingBase(TestNodeIOTrackingBase):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -831,8 +831,43 @@ class TestJobsIOTrackingBase(TestNodeIOTrackingBase):
         },
     }
 
+    def _gather_events(self, raw_events, op, task_to_kind, kind_to_job, account="tmp",
+                       intermediate_account="intermediate"):
+        op_type = get(op.get_path() + "/@operation_type")
 
-class TestJobsIOTracking(TestJobsIOTrackingBase):
+        for event in raw_events:
+            assert event["pool_tree@"] == "default"
+            assert event["operation_id"] == op.id
+            assert event["operation_type@"] == op_type
+            assert "job_id" in event
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            assert event["user@"] == "job:root"
+
+        paths = {}
+        for event in raw_events:
+            assert event["data_node_method@"] in ["GetBlockSet", "GetBlockRange", "FinishChunk"]
+            direction = "read" if event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"] else "write"
+
+            kind = task_to_kind[event["task_name@"]]
+            assert event["job_type@"] == kind_to_job[kind]
+            if kind not in paths:
+                paths[kind] = {"read": [], "write": []}
+
+            path = event["object_path"]
+            if path.find("intermediate") == -1:
+                assert "object_id" in event
+                assert event["account@"] == account
+            else:
+                assert "object_id" not in event
+                assert event["account@"] == intermediate_account
+
+            paths[kind][direction].append(path)
+
+        return paths
+
+
+class TestJobIOTracking(TestJobIOTrackingBase):
     @authors("gepardo")
     @pytest.mark.parametrize("op_type", ["map", "ordered_map", "reduce"])
     def test_basic_operations(self, op_type):
@@ -1438,7 +1473,7 @@ class TestJobsIOTracking(TestJobsIOTrackingBase):
         assert read_table("//tmp/table_out") == table_data
 
 
-class TestMapReduceJobsIOTracking(TestJobsIOTrackingBase):
+class TestMapReduceJobIOTracking(TestJobIOTrackingBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "map_reduce_operation_options": {
@@ -1449,38 +1484,6 @@ class TestMapReduceJobsIOTracking(TestJobsIOTrackingBase):
             },
         },
     }
-
-    def _gather_events(self, raw_events, op, task_to_kind, kind_to_job):
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "map_reduce"
-            assert "job_id" in event
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
-
-        paths = {}
-        for event in raw_events:
-            assert event["data_node_method@"] in ["GetBlockSet", "FinishChunk"]
-            direction = "read" if event["data_node_method@"] == "GetBlockSet" else "write"
-
-            kind = task_to_kind[event["task_name@"]]
-            assert event["job_type@"] == kind_to_job[kind]
-            if kind not in paths:
-                paths[kind] = {"read": [], "write": []}
-
-            path = event["object_path"]
-            if path.find("intermediate") == -1:
-                assert "object_id" in event
-                assert event["account@"] == "tmp"
-            else:
-                assert "object_id" not in event
-                assert event["account@"] == "intermediate"
-
-            paths[kind][direction].append(path)
-
-        return paths
 
     @authors("gepardo")
     def test_map_reduce_simple(self):
@@ -1779,7 +1782,7 @@ cat
         assert sorted_dicts(read_table("//tmp/table_out")) == table_data
 
 
-class TestSortJobsIOTracking(TestJobsIOTrackingBase):
+class TestSortJobIOTracking(TestJobIOTrackingBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "sort_operation_options": {
