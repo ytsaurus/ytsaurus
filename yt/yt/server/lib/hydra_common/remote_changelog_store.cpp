@@ -291,6 +291,10 @@ private:
             attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
             attributes->Set("account", Options_->ChangelogAccount);
             attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
+            if (Options_->ChangelogExternalCellTag) {
+                attributes->Set("external", true);
+                attributes->Set("external_cell_tag", *Options_->ChangelogExternalCellTag);
+            }
             options.Attributes = std::move(attributes);
             options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 

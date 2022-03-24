@@ -1,10 +1,10 @@
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import parametrize_external, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, parametrize_external, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists,
+    remove, exists, multicell_sleep,
     create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_table_replica, make_ace,
     insert_rows, mount_table, unmount_table, freeze_table,
     unfreeze_table, reshard_table, wait_for_tablet_state, sync_create_cells, sync_mount_table,
@@ -1339,3 +1339,39 @@ class TestTabletBalancerWithCellBalancer(TestTabletBalancer):
             },
         }
     }
+
+
+##################################################################
+
+
+class TestRemoteChangelogStore(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 6
+    NUM_SCHEDULERS = 0
+    USE_DYNAMIC_TABLES = True
+
+    @authors("h0pless")
+    @pytest.mark.parametrize("possible_cell_tag", [11, 12])
+    def test_chunk_placement(self, possible_cell_tag):
+        desired_cell_tag = possible_cell_tag if self.is_multicell() else 10
+        create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@options/changelog_external_cell_tag", desired_cell_tag)
+        multicell_sleep()
+        sync_create_cells(5, tablet_cell_bundle="b")
+        tablet_cells = ls("//sys/tablet_cells")
+        for cell in tablet_cells:
+            changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(cell))
+            assert changelogs
+            for changelog in changelogs:
+                changelog_path = "//sys/tablet_cells/{0}/changelogs/{1}".format(cell, changelog)
+                is_external = get("{0}/@external".format(changelog_path))
+                if is_external:
+                    assert get("{0}/@external_cell_tag".format(changelog_path)) == desired_cell_tag
+                else:
+                    assert get("{0}/@native_cell_tag".format(changelog_path)) == desired_cell_tag
+                chunk_id = get("{0}/@chunk_ids/0".format(changelog_path))
+                assert get("#{}/@native_cell_tag".format(chunk_id)) == desired_cell_tag
+
+
+class TestRemoteChangelogStoreMulticell(TestRemoteChangelogStore):
+    NUM_SECONDARY_MASTER_CELLS = 2

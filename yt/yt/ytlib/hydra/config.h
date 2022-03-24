@@ -62,6 +62,7 @@ public:
     bool EnableChangelogMultiplexing;
     bool EnableChangelogChunkPreallocation;
     i64 ChangelogReplicaLagLimit;
+    std::optional<NObjectClient::TCellTag> ChangelogExternalCellTag;
     TString ChangelogAccount;
     TString ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;
