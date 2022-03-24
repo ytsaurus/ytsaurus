@@ -2700,7 +2700,8 @@ def update_scheduler_config(path, value, wait_for_orchid=True):
 def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
     set("//sys/pool_trees/{}/@config/{}".format(tree, option), value)
     if wait_for_orchid:
-        wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)) == value)
+        path = yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)
+        wait(lambda: exists(path) and get(path) == value)
 
 
 def update_pool_tree_config(tree, config, wait_for_orchid=True):

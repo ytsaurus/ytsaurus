@@ -17,7 +17,8 @@ from yt_commands import (
     get_first_chunk_id, get_singular_chunk_id, update_op_parameters,
     update_pool_tree_config, update_user_to_default_pool_map,
     enable_op_detailed_logs, set_banned_flag,
-    create_test_tables, PrepareTables)
+    create_test_tables, PrepareTables,
+    update_pool_tree_config_option)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
@@ -3280,6 +3281,7 @@ class TestFifoPools(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
         }
     }
 
@@ -3296,10 +3298,7 @@ class TestFifoPools(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestFifoPools, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 1000)
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
-        time.sleep(0.5)
+        update_pool_tree_config("default", {"preemptive_scheduling_backoff": 0})
 
     @authors("eshcherbin")
     @pytest.mark.parametrize("with_gang_operation", [False, True])
@@ -3341,3 +3340,20 @@ class TestFifoPools(YTEnvSetup):
         set("//sys/pool_trees/default/@config/enable_fair_share_truncation_in_fifo_pool", False)
         wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
+
+    @authors("ignat")
+    def test_max_schedulable_element_count_in_fifo_pool(self):
+        update_pool_tree_config_option("default", "max_schedulable_element_count_in_fifo_pool", 1)
+        create_pool("fifo", attributes={"mode": "fifo"})
+
+        schedulable_element_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
+            .gauge("scheduler/pools/schedulable_element_count")
+        wait(lambda: schedulable_element_count_sensor.get() is not None)
+
+        ops = []
+        for _ in range(5):
+            ops.append(run_test_vanilla("sleep 1", task_patch={"cpu_limit": 10.0}, spec={"pool": "fifo"}))
+            assert schedulable_element_count_sensor.get() <= 2
+            time.sleep(0.1)
+        for op in ops:
+            op.track()

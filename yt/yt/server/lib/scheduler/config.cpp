@@ -422,6 +422,10 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_scheduled_and_preempted_resources_profiling", &TThis::EnableScheduledAndPreemptedResourcesProfiling)
         .Default(true);
 
+    registrar.Parameter("max_schedulable_element_count_in_fifo_pool", &TThis::MaxSchedulableElementCountInFifoPool)
+        .GreaterThan(0)
+        .Default();
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
