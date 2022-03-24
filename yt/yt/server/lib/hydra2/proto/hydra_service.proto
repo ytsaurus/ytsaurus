@@ -1,6 +1,7 @@
 package NYT.NHydra2.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 import "yt/ytlib/election/proto/election_service.proto";
 
@@ -98,9 +99,11 @@ message TRspAcceptMutations
 {
     message TSnapshotResponse
     {
-        required bool ok = 1;
         required int32 snapshot_id = 2;
         required uint64 checksum = 3;
+        optional NYT.NProto.TError error = 4;
+
+        reserved 1;
     }
 
     required bool mutations_accepted = 4;

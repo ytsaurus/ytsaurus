@@ -457,18 +457,27 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
 
     if (rsp->has_snapshot_response()) {
         const auto& snapshotResult = rsp->snapshot_response();
-
         auto snapshotId = snapshotResult.snapshot_id();
-        auto checksum = snapshotResult.checksum();
+        if (!snapshotResult.has_error()) {
+            auto checksum = snapshotResult.checksum();
+            YT_LOG_INFO("Built snapshot at follower (SnapshotId: %v, FollowerId: %v, Checksum: %llx)",
+                snapshotId,
+                followerId,
+                checksum);
+            if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
+                auto& currentChecksum = LastSnapshotInfo_->Checksums[followerId];
+                if (currentChecksum) {
+                    YT_VERIFY(currentChecksum == checksum);
+                } else {
+                    currentChecksum = checksum;
+                }
+            }
+        } else {
+            auto snapshotError = FromProto<TError>(snapshotResult.error());
+            YT_LOG_WARNING(snapshotError, "Error building snapshot at follower (SnapshotId: %v, FollowerId: %v)");
+        }
 
-        YT_LOG_DEBUG("Snapshot reply received (SnapshotId: %v, FollowerId: %v)",
-            snapshotId,
-            followerId);
-
-        // We could have received an unsuccessfull reply before, so we can mark it as success now, but we
-        // won't count it again (because of HasReply).
-        if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId && !LastSnapshotInfo_->Checksums[followerId]) {
-            LastSnapshotInfo_->Checksums[followerId] = checksum;
+        if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
             OnSnapshotReply(followerId);
         }
     }
@@ -660,6 +669,13 @@ void TLeaderCommitter::OnSnapshotsComplete()
     YT_LOG_INFO("Distributed snapshot creation finished (SnapshotId: %v, SuccessCount: %v)",
         LastSnapshotInfo_->SnapshotId,
         successCount);
+
+    // TODO(aleksandra-zh): remove when we stop building snapshots on all peers.
+    if (successCount < CellManager_->GetQuorumPeerCount()) {
+        YT_LOG_ALERT("Not enough successfull snapshots built (SnapshotId: %v, SuccessCount: %v)",
+        LastSnapshotInfo_->SnapshotId,
+        successCount);
+    }
 
     if (checksumMismatch) {
         for (auto id = 0; id < std::ssize(LastSnapshotInfo_->Checksums); ++id) {
