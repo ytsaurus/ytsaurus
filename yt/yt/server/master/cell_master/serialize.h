@@ -121,6 +121,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableReplicationProgressAdvanceToBarrier)                    (1952))  // savrus
     ((AddChangelogExternalCellTag)                                  (1953))  // h0pless
     ((ChaosReplicatedTableSchema)                                   (1954))  // savrus
+    ((CellAreaAttribute)                                            (1955))  // savrus
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
     // 22.2 starts here.

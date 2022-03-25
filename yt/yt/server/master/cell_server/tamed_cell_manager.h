@@ -72,6 +72,9 @@ public:
     virtual void RenameArea(TArea* area, const TString& name) = 0;
     virtual void ZombifyArea(TArea* area) = 0;
     virtual void SetAreaNodeTagFilter(TArea* area, const TString& formula) = 0;
+    virtual TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const TString& name) = 0;
+
+    virtual void UpdateCellArea(TCellBase* cell, TArea* area) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TCellBundle* bundle), CellBundleDestroyed)
     DECLARE_INTERFACE_SIGNAL(void(TArea* area), AreaCreated)

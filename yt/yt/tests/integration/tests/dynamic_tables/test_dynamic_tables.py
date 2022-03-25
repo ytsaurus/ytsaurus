@@ -1326,7 +1326,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         default_area_id = get("//sys/tablet_cell_bundles/default/@areas/default/id")
 
         default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
-        custom_area_id = create_area("custom", cell_bundle_id=default_bundle_id, attributes={"node_tag_filter": "b"})
+        custom_area_id = create_area("custom", cell_bundle_id=default_bundle_id, node_tag_filter="b")
 
         def _validate(area_id, name, tag, cell, node):
             assert get("#{0}/@cell_ids".format(area_id)) == [cell]
@@ -1382,6 +1382,43 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: not exists("#{0}".format(default_area)))
         wait(lambda: not exists("#{0}".format(custom_area)))
         wait(lambda: not exists("//sys/tablet_cell_bundles/custom"))
+
+    @authors("savrus")
+    def test_invalid_area(self):
+        with pytest.raises(YtError):
+            create_area("custom", cell_bundle_id="0-1-2-3")
+
+        with pytest.raises(YtError):
+            create_area("custom", cell_bundle_id=get("//sys/tablet_cell_bundles/default/id"), cell_bundle="default")
+
+        with pytest.raises(YtError):
+            create_area("custom", cell_bundle="default")
+
+    @authors("savrus")
+    def test_area_attributes(self):
+        create_tablet_cell_bundle("custom", attributes={"node_tag_filter": "a"})
+        default_area = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
+        custom_area = create_area("custom", cell_bundle="custom", cellar_type="tablet", node_tag_filter="b")
+
+        nodes = list(get("//sys/cluster_nodes"))
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["a"])
+        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["b"])
+
+        cell = sync_create_cells(1, tablet_cell_bundle="custom")[0]
+        assert get("#{0}/@area".format(cell)) == "default"
+        assert get("#{0}/@area_id".format(cell)) == default_area
+        assert get("#{0}/@peers/0/address".format(cell)) == nodes[0]
+
+        set("#{0}/@area".format(cell), "custom")
+        assert get("#{0}/@area".format(cell)) == "custom"
+        assert get("#{0}/@area_id".format(cell)) == custom_area
+
+        def _check():
+            try:
+                return get("#{0}/@peers/0/address".format(cell)) == nodes[1]
+            except YtError:
+                return False
+        wait(_check)
 
     def _test_cell_bundle_distribution(self, test_decommission=False):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)

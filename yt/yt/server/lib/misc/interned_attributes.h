@@ -32,7 +32,9 @@
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
     XX(ApprovedReplicaCount, approved_replica_count) \
+    XX(Area, area) \
     XX(Areas, areas) \
+    XX(AreaId, area_id) \
     XX(AreaNodes, area_nodes) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
