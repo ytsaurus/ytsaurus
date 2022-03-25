@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.fs.conf
 import io.circe._
 import io.circe.parser._
 import io.circe.syntax._
+import org.apache.log4j.Level
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 
 import scala.concurrent.duration._
@@ -63,3 +64,8 @@ class StringMapConfigEntry(name: String, default: Option[Map[String, String]] = 
 
   override def set(value: Map[String, String]): String = toJson(value)
 }
+
+class LogLevelConfigEntry(name: String, default: Option[Level] = None) extends ConfigEntry[Level](name, default) {
+  override def get(value: String): Level = Level.toLevel(value)
+}
+

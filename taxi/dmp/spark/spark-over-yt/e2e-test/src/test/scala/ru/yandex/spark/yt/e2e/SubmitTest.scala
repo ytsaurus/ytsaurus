@@ -88,6 +88,7 @@ object SubmitTest {
         "--uniqueKeys",
         testCase.uniqueKeys.toString
       )
+      .setConf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "true")
 
     val id = submitClient.submit(launcher).get
 

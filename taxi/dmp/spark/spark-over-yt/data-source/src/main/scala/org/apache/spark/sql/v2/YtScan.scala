@@ -16,6 +16,7 @@ import org.apache.spark.util.SerializableConfiguration
 import ru.yandex.spark.yt.common.utils.SegmentSet
 import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
 import ru.yandex.spark.yt.fs.YtDynamicPath
+import ru.yandex.spark.yt.logger.YtDynTableLoggerConfig
 
 import java.util.Locale
 import scala.collection.JavaConverters._
@@ -44,7 +45,8 @@ case class YtScan(sparkSession: SparkSession,
     val broadcastedConf = sparkSession.sparkContext.broadcast(
       new SerializableConfiguration(hadoopConf))
     YtPartitionReaderFactory(sparkSession.sessionState.conf, broadcastedConf,
-      dataSchema, readDataSchema, readPartitionSchema, options.asScala.toMap, pushedFilterSegments, filterPushdownConf
+      dataSchema, readDataSchema, readPartitionSchema, options.asScala.toMap, pushedFilterSegments, filterPushdownConf,
+      YtDynTableLoggerConfig.fromSpark(sparkSession)
     )
   }
 

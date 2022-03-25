@@ -15,6 +15,7 @@ import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, Segment
 import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathImpl}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
 import ru.yandex.spark.yt.fs.YPathEnriched.ypath
+import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -285,35 +286,6 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     ("a", List(segment2To20)),
     ("b", List(segment10To30)),
     ("c", List(segment10To30))))
-
-  it should "get keys from schema" in {
-    def createMetadata(name: String, keyId: Long): Metadata = {
-      new MetadataBuilder()
-        .putLong(MetadataFields.KEY_ID, keyId)
-        .putString(MetadataFields.ORIGINAL_NAME, name)
-        .build()
-    }
-
-    val schema1 = StructType(Seq())
-    YtInputSplit.keys(schema1) shouldBe Seq()
-
-    val schema2 = StructType(Seq(
-      StructField("a", LongType, metadata = createMetadata("a", 0))
-    ))
-    YtInputSplit.keys(schema2) shouldBe Seq(Some("a"))
-
-    val schema3 = StructType(Seq(
-      StructField("b", LongType, metadata = createMetadata("b", 1)),
-      StructField("c", LongType, metadata = createMetadata("c", 2))
-    ))
-    YtInputSplit.keys(schema3) shouldBe Seq(None, Some("b"), Some("c"))
-
-    val schema4 = StructType(Seq(
-      StructField("c", LongType, metadata = createMetadata("c", 2)),
-      StructField("a", LongType, metadata = createMetadata("a", 0))
-    ))
-    YtInputSplit.keys(schema4) shouldBe Seq(Some("a"), None, Some("c"))
-  }
 
   it should "get key filter segments" in {
     val res1 = getKeyFilterSegments(exampleSet1, List("a", "b").map(Some(_)), 5)

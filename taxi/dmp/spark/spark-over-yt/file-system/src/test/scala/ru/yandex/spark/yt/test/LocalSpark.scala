@@ -15,6 +15,7 @@ import org.apache.spark.yt.test.Utils
 import org.apache.spark.yt.test.Utils.{SparkConfigEntry, defaultConfValue}
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
+import ru.yandex.spark.yt.fs.conf.ConfigEntry
 import ru.yandex.spark.yt.test.LocalSpark.defaultSparkConf
 import ru.yandex.spark.yt.wrapper.client.{YtClientProvider, YtRpcClient}
 
@@ -88,16 +89,21 @@ trait LocalSpark extends LocalYtClient {
     inner(Seq(plan), Seq(plan))
   }
 
+  def withConf[T, R](entry: ConfigEntry[T], value: T)(f: => R): R = {
+    withConf(s"spark.yt.${entry.name}", value.toString, entry.default.map(_.toString))(f)
+  }
+
   def withConf[T, R](entry: SparkConfigEntry[T], value: String)(f: => R): R = {
     withConf(entry.key, value, defaultConfValue(entry, LocalSpark.defaultSparkConf))(f)
   }
 
   def withConf[R](key: String, value: String, default: Option[String] = None)(f: => R): R = {
+    val prev = spark.conf.getOption(key)
     spark.conf.set(key, value)
     try {
       f
     } finally {
-      default match {
+      default.orElse(prev) match {
         case Some(value) => spark.conf.set(key, value)
         case None => spark.conf.unset(key)
       }
@@ -140,5 +146,6 @@ object LocalSpark {
     .set(FILE_COMMIT_PROTOCOL_CLASS.key, "ru.yandex.spark.yt.format.YtOutputCommitter")
     .set("spark.ui.enabled", "false")
     .set("spark.hadoop.yt.read.arrow.enabled", "true")
-    .set("spark.sql.adaptive.enabled", "true"))
+    .set("spark.sql.adaptive.enabled", "true")
+    .set("spark.yt.log.enabled", "false"))
 }

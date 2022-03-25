@@ -53,6 +53,13 @@ object Dependencies {
     ExclusionRule(organization = "org.apache.httpcomponents")
   ).map(_ % Provided)
 
+  lazy val sparkRuntime = Seq(
+    "org.apache.spark" %% "spark-core",
+    "org.apache.spark" %% "spark-sql"
+  ).map(_ % sparkForkVersion).map(_ excludeAll
+    ExclusionRule(organization = "org.apache.httpcomponents")
+  ).excludeLogging
+
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "java-ytclient" % yandexIcebergVersion
 //      excludeAll (

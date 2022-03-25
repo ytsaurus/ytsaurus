@@ -191,6 +191,12 @@ lazy val `e2e-test` = (project in file("e2e-test"))
     buildInfoPackage := "ru.yandex.spark.yt.e2e"
   )
 
+lazy val maintenance = (project in file("maintenance"))
+  .dependsOn(`data-source`)
+  .settings(
+    libraryDependencies ++= yandexIceberg ++ sparkRuntime ++ circe ++ logging
+  )
+
 // benchmark and test ----
 
 //lazy val benchmark = (project in file("benchmark"))

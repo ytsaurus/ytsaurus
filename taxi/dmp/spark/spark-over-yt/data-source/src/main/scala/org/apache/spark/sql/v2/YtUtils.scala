@@ -41,13 +41,6 @@ object YtUtils {
     }
   }
 
-  private def getOldFormatSchema(schema: StructType): StructType = {
-    StructType(schema.map {
-      case f if f.dataType == YsonType => f.copy(dataType = BinaryType)
-      case f => f
-    })
-  }
-
   private def getSchema(sparkSession: SparkSession, path: YPathEnriched, parameters: Map[String, String])
                        (implicit client: CompoundClient): StructType = {
     val config = SchemaConverterConfig(sparkSession)

@@ -18,6 +18,7 @@ import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileSystemBase}
+import ru.yandex.spark.yt.logger.YtDynTableLoggerConfig
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -61,11 +62,14 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
 
     val fs = FileSystem.get(hadoopConf).asInstanceOf[YtFileSystemBase]
 
+    val ytLoggerConfig = YtDynTableLoggerConfig.fromSpark(sparkSession)
+
     {
       case ypf: YtPartitionedFile =>
         val log = LoggerFactory.getLogger(getClass)
         implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
-        val split = YtInputSplit(ypf, requiredSchema, filterPushdownConfig = filterPushdownConfig)
+        val split = YtInputSplit(ypf, requiredSchema, filterPushdownConfig = filterPushdownConfig,
+          ytLoggerConfig = ytLoggerConfig)
         log.info(s"Reading ${split.ytPathWithFilters}")
         log.info(s"Batch read enabled: $readBatch")
         log.info(s"Batch return enabled: $returnBatch")
