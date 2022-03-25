@@ -1,10 +1,18 @@
 package ru.yandex.spark.yt.common.utils
 
 import org.apache.spark.sql.sources.{And, EqualTo, Filter, GreaterThan, GreaterThanOrEqual, In, LessThan, LessThanOrEqual, Or}
+import ru.yandex.spark.yt.logger.YtLogger
 
 object ExpressionTransformer {
-  def filtersToSegmentSet(dataFilters: Seq[Filter]): SegmentSet = {
-    SegmentSet.intercept(dataFilters.flatMap(expressionToSegmentSet):_*)
+  def filtersToSegmentSet(dataFilters: Seq[Filter])
+                         (implicit ytLog: YtLogger = YtLogger.noop): SegmentSet = {
+    val set = dataFilters.flatMap(expressionToSegmentSet)
+    val res = SegmentSet.intercept(set:_*)
+    if (set.length > 2) {
+      ytLog.warn(s"ExpressionTransformer intercepts more than 2 filters",
+        Map("filters" -> dataFilters.mkString(", "), "interception" -> res.toString))
+    }
+    res
   }
 
   private def parseOrderedLiteral(exp: Any): Option[RealValue[_]] = {

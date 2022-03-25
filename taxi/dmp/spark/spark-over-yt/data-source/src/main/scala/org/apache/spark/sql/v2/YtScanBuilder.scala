@@ -4,14 +4,17 @@ import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.read.{Scan, SupportsPushDownFilters}
 import org.apache.spark.sql.execution.datasources.PartitioningAwareFileIndex
 import org.apache.spark.sql.execution.datasources.v2.FileScanBuilder
-import org.apache.spark.sql.sources.Filter
+import org.apache.spark.sql.sources.{Filter, IsNotNull}
 import org.apache.spark.sql.types.{ArrayType, DataType, MapType, StructType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.v2.YtScanBuilder.pushStructMetadata
 import ru.yandex.spark.yt.common.utils.ExpressionTransformer.filtersToSegmentSet
 import ru.yandex.spark.yt.common.utils.SegmentSet
+import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.KeyColumnsFilterPushdown
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
+import ru.yandex.spark.yt.logger.{YtDynTableLogger, YtLogger}
+import ru.yandex.spark.yt.serializers.SchemaConverter
 
 import scala.collection.JavaConverters._
 
@@ -44,9 +47,42 @@ case class YtScanBuilder(sparkSession: SparkSession,
   private var filters: Array[Filter] = Array.empty
 
   override def pushFilters(filters: Array[Filter]): Array[Filter] = {
+    implicit val ytLog: YtLogger = YtDynTableLogger.pushdown(sparkSession)
+
     this.filters = filters
     this.pushedFilterSegments = filtersToSegmentSet(filters)
+
+    logPushdownDetails()
+
     this.filters
+  }
+
+  private def logPushdownDetails()(implicit ytLog: YtLogger): Unit = {
+    import ru.yandex.spark.yt.fs.conf._
+
+    val pushdownEnabled = sparkSession.ytConf(KeyColumnsFilterPushdown.Enabled)
+    val keyColumns = SchemaConverter.keys(schema)
+    val keySet = keyColumns.flatten.toSet
+
+    val logInfo = Map(
+      "filters" -> filters.mkString(", "),
+      "keyColumns" -> keyColumns.mkString(", "),
+      "segments" -> pushedFilterSegments.toString,
+      "pushdownEnabled" -> pushdownEnabled.toString,
+      "paths" -> options.get("paths")
+    )
+
+    val importantFilters = filters.filter(!_.isInstanceOf[IsNotNull])
+
+    if (importantFilters.exists(_.references.exists(keySet.contains)) || pushedFilterSegments.map.nonEmpty) {
+      if (pushedFilterSegments.map.nonEmpty) {
+        ytLog.info("Pushing filters in YtScanBuilder, filters contain some key columns", logInfo)
+      } else {
+        ytLog.debug("Pushing filters in YtScanBuilder, filters contain some key columns", logInfo)
+      }
+    } else if (importantFilters.nonEmpty) {
+      ytLog.trace("Pushing filters in YtScanBuilder, filters don't contain key columns", logInfo)
+    }
   }
 
   override def pushedFilters(): Array[Filter] = {

@@ -65,6 +65,15 @@ object SchemaConverter {
     })
   }
 
+  def keys(schema: StructType): Seq[Option[String]] = {
+    val keyMap = schema
+      .fields
+      .map(x => (x.metadata.getLong(MetadataFields.KEY_ID), x.metadata.getString(MetadataFields.ORIGINAL_NAME)))
+      .toMap
+    val max = if (keyMap.nonEmpty) keyMap.keys.max else -1
+    (0L to max).map(keyMap.get)
+  }
+
   def structField(fieldName: String,
                   ytType: YtLogicalType,
                   metadata: Metadata): StructField = {

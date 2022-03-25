@@ -2,6 +2,7 @@ package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
+import org.apache.spark.TaskContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.InternalRow
@@ -21,6 +22,7 @@ import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.YtFileSystemBase
 import ru.yandex.spark.yt.fs.conf._
+import ru.yandex.spark.yt.logger.{TaskInfo, YtDynTableLoggerConfig}
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -33,7 +35,10 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     partitionSchema: StructType,
                                     options: Map[String, String],
                                     pushedFilterSegments: SegmentSet,
-                                    filterPushdownConf: FilterPushdownConfig) extends FilePartitionReaderFactory with Logging {
+                                    filterPushdownConf: FilterPushdownConfig,
+                                    ytLoggerConfig: Option[YtDynTableLoggerConfig])
+  extends FilePartitionReaderFactory with Logging {
+
   private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType, FloatType)
 
   private val resultSchema = StructType(partitionSchema.fields ++ readDataSchema.fields)
@@ -55,25 +60,15 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   }
   private val batchMaxSize = sqlConf.ytConf(VectorizedCapacity)
 
+  @transient private lazy val taskContext: ThreadLocal[TaskContext] = new ThreadLocal()
+
+
+  override def setTaskContext(context: TaskContext): Unit = {
+    taskContext.set(context)
+  }
 
   override def supportColumnarReads(partition: InputPartition): Boolean = {
     returnBatch
-  }
-
-  def arrowSchemaSupported(dataSchema: StructType): Boolean = {
-    dataSchema.fields.forall(f => !unsupportedTypes.contains(f.dataType))
-  }
-
-  private def buildLockedSplitReader[T](file: PartitionedFile)
-                                       (splitReader: (YtInputSplit, Option[ApiServiceTransaction]) => PartitionReader[T])
-                                       (implicit yt: CompoundClient): PartitionReader[T] = {
-    file match {
-      case ypf: YtPartitionedFile =>
-        val split = createSplit(ypf)
-        splitReader(split, None)
-      case _ =>
-        throw new IllegalArgumentException(s"Partitions of type ${file.getClass.getSimpleName} are not supported")
-    }
   }
 
   override def buildReader(file: PartitionedFile): PartitionReader[InternalRow] = {
@@ -120,9 +115,23 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
     }
   }
 
+  private def buildLockedSplitReader[T](file: PartitionedFile)
+                                       (splitReader: (YtInputSplit, Option[ApiServiceTransaction]) => PartitionReader[T])
+                                       (implicit yt: CompoundClient): PartitionReader[T] = {
+    file match {
+      case ypf: YtPartitionedFile =>
+        val split = createSplit(ypf)
+        splitReader(split, None)
+      case _ =>
+        throw new IllegalArgumentException(s"Partitions of type ${file.getClass.getSimpleName} are not supported")
+    }
+  }
+
   private def createSplit(file: YtPartitionedFile): YtInputSplit = {
     val log = LoggerFactory.getLogger(getClass)
-    val split = YtInputSplit(file, resultSchema, pushedFilterSegments, filterPushdownConf)
+    val ytLoggerConfigWithTaskInfo = ytLoggerConfig.map(_.copy(taskContext = Some(TaskInfo(taskContext.get()))))
+    val split = YtInputSplit(file, resultSchema, pushedFilterSegments, filterPushdownConf,
+      ytLoggerConfigWithTaskInfo)
 
     log.info(s"Reading ${split.ytPath}, " +
       s"read batch: $readBatch, return batch: $returnBatch, arrowEnabled: $arrowEnabled")
@@ -182,6 +191,10 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       timeout = ytClientConf.timeout,
       bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
     )
+  }
+
+  private def arrowSchemaSupported(dataSchema: StructType): Boolean = {
+    dataSchema.fields.forall(f => !unsupportedTypes.contains(f.dataType))
   }
 
 }

@@ -9,7 +9,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
-import ru.yandex.spark.yt.serializers.SchemaConverter.{Unordered, ytLogicalSchema}
+import ru.yandex.spark.yt.serializers.SchemaConverter.{Unordered, MetadataFields, ytLogicalSchema}
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.{SchemaTestUtils, YtReader}
 import ru.yandex.type_info.StructType.Member
@@ -251,5 +251,34 @@ class SchemaConverterTest extends FlatSpec with Matchers
         getColumn("VariantOverTuple", "any")
       ).asJava)
       .build
+  }
+
+  it should "get keys from schema" in {
+    def createMetadata(name: String, keyId: Long): Metadata = {
+      new MetadataBuilder()
+        .putLong(MetadataFields.KEY_ID, keyId)
+        .putString(MetadataFields.ORIGINAL_NAME, name)
+        .build()
+    }
+
+    val schema1 = StructType(Seq())
+    SchemaConverter.keys(schema1) shouldBe Seq()
+
+    val schema2 = StructType(Seq(
+      StructField("a", LongType, metadata = createMetadata("a", 0))
+    ))
+    SchemaConverter.keys(schema2) shouldBe Seq(Some("a"))
+
+    val schema3 = StructType(Seq(
+      StructField("b", LongType, metadata = createMetadata("b", 1)),
+      StructField("c", LongType, metadata = createMetadata("c", 2))
+    ))
+    SchemaConverter.keys(schema3) shouldBe Seq(None, Some("b"), Some("c"))
+
+    val schema4 = StructType(Seq(
+      StructField("c", LongType, metadata = createMetadata("c", 2)),
+      StructField("a", LongType, metadata = createMetadata("a", 0))
+    ))
+    SchemaConverter.keys(schema4) shouldBe Seq(Some("a"), None, Some("c"))
   }
 }

@@ -41,4 +41,12 @@ case class TestTableSettings(ytSchema: YTreeNode,
   override def optionsAny: Map[String, Any] = otherOptions + ("dynamic" -> isDynamic)
 }
 
+object TestTableSettings {
+  def apply(schema: TableSchema, isDynamic: Boolean): YtTableSettings = {
+    import scala.collection.JavaConverters._
+    val keyColumns = schema.getColumns.asScala.filter(_.getSortOrder != null).map(_.getName)
+    TestTableSettings(schema.toYTree, isDynamic, sortColumns = keyColumns)
+  }
+}
+
 case class TestRow(a: Long, b: Long, c: String)

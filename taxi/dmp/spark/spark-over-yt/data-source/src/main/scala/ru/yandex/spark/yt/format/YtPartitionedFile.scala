@@ -19,7 +19,8 @@ class YtPartitionedFile(val path: String,
     length = byteLength
   ) {
   def copy(newEndRow: Long): YtPartitionedFile = {
-    new YtPartitionedFile(path, beginKey, endKey, beginRow, newEndRow, byteLength, isDynamic, keyColumns, modificationTs)
+    new YtPartitionedFile(path, beginKey, endKey, beginRow, newEndRow,
+      byteLength, isDynamic, keyColumns, modificationTs)
   }
 }
 
