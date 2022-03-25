@@ -491,7 +491,7 @@ void TMetaAggregatingWriter::FinalizeMeta()
         auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
             *ColumnarStatisticsExt_,
             [&] (int columnIndex) {
-                return TString{NameTableExt_.names(columnIndex)};
+                return TStableName(TString{NameTableExt_.names(columnIndex)});
             },
             std::ssize(NameTableExt_.names()),
             Options_->MaxHeavyColumns);

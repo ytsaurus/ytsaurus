@@ -422,6 +422,7 @@ void FromProto(
 
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema)
 {
+    protoSchema->set_stable_name(schema.StableName().Get());
     protoSchema->set_name(schema.Name());
     protoSchema->set_type(NYT::ToProto<int>(GetPhysicalType(schema.CastToV1Type())));
     auto typeV3Yson = ConvertToYsonString(TTypeV3LogicalTypeWrapper{schema.LogicalType()});
@@ -466,6 +467,10 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
 void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 {
     schema->SetName(protoSchema.name());
+    schema->SetStableName(
+        protoSchema.has_stable_name()
+        ? TStableName(protoSchema.stable_name())
+        : TStableName(protoSchema.name()));
 
     TLogicalTypePtr columnType;
     if (protoSchema.has_type_v3()) {
@@ -1586,6 +1591,7 @@ TTableSchemaPtr DeserializeRowsetSchema(
         const auto& entry = descriptor.name_table_entries(i);
         if (entry.has_name()) {
             columns[i].SetName(entry.name());
+            columns[i].SetStableName(TStableName(entry.name()));
         }
         if (entry.has_logical_type()) {
             auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(entry.logical_type());

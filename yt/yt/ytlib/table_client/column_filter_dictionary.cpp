@@ -1,5 +1,7 @@
 #include "column_filter_dictionary.h"
 
+#include <yt/yt/client/table_client/schema.h>
+
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -13,11 +15,13 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnFilterDictionary::TColumnFilterDictionary(bool sortColumns)
+template <typename TColumnName>
+TGenericColumnFilterDictionary<TColumnName>::TGenericColumnFilterDictionary(bool sortColumns)
     : SortColumns_(sortColumns)
 { }
 
-int TColumnFilterDictionary::GetIdOrRegisterAdmittedColumns(std::vector<TString> admittedColumns)
+template <typename TColumnName>
+int TGenericColumnFilterDictionary<TColumnName>::GetIdOrRegisterAdmittedColumns(std::vector<TColumnName> admittedColumns)
 {
     if (SortColumns_) {
         std::sort(admittedColumns.begin(), admittedColumns.end());
@@ -31,14 +35,16 @@ int TColumnFilterDictionary::GetIdOrRegisterAdmittedColumns(std::vector<TString>
     return admittedColumnsIterator->second;
 }
 
-const std::vector<TString>& TColumnFilterDictionary::GetAdmittedColumns(int id) const
+template <typename TColumnName>
+const std::vector<TColumnName>& TGenericColumnFilterDictionary<TColumnName>::GetAdmittedColumns(int id) const
 {
     return IdToAdmittedColumns_[id];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TColumnFilterDictionary& dictionary)
+template <typename TColumnName>
+void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericColumnFilterDictionary<TColumnName>& dictionary)
 {
     using NYT::ToProto;
 
@@ -48,14 +54,33 @@ void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TColumnFilt
     }
 }
 
-void FromProto(TColumnFilterDictionary* dictionary, const NProto::TColumnFilterDictionary& protoDictionary)
+template <typename TColumnName>
+void FromProto(TGenericColumnFilterDictionary<TColumnName>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary)
 {
     using NYT::FromProto;
 
     for (const auto& columnFilter : protoDictionary.column_filters()) {
-        dictionary->GetIdOrRegisterAdmittedColumns(FromProto<std::vector<TString>>(columnFilter.admitted_names()));
+        dictionary->GetIdOrRegisterAdmittedColumns(FromProto<std::vector<TColumnName>>(columnFilter.admitted_names()));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TGenericColumnFilterDictionary<TString>;
+
+template
+void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericColumnFilterDictionary<TString>& dictionary);
+
+template
+void FromProto(TGenericColumnFilterDictionary<TString>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
+
+template class TGenericColumnFilterDictionary<TStableName>;
+
+template
+void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericColumnFilterDictionary<TStableName>& dictionary);
+
+template
+void FromProto(TGenericColumnFilterDictionary<TStableName>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

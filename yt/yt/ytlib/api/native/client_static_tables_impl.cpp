@@ -67,7 +67,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         auto transactionId = path.GetTransactionId();
 
-        auto inputChunks = CollectTableInputChunks(
+        auto [inputChunks, schema] = CollectTableInputChunks(
             path,
             this,
             nodeDirectory,
@@ -82,9 +82,10 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             *path.GetColumns(),
             options.FetcherMode);
 
-
+        YT_VERIFY(path.GetColumns().operator bool());
+        auto stableColumnNames = MapNamesToStableNames(*schema, *path.GetColumns(), NonexistentColumnName);
         for (const auto& inputChunk : inputChunks) {
-            fetcher->AddChunk(inputChunk, *path.GetColumns());
+            fetcher->AddChunk(inputChunk, stableColumnNames);
         }
         chunkCount.push_back(inputChunks.size());
     }

@@ -323,7 +323,7 @@ void ValidateDynamicTableTimestamp(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
-std::vector<TInputChunkPtr> CollectTableInputChunks(
+std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr> CollectTableInputChunks(
     const TRichYPath& path,
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
@@ -410,7 +410,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         inputChunks.push_back(New<TInputChunk>(chunkSpec));
     }
 
-    return inputChunks;
+    return {std::move(inputChunks), std::move(schema)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -491,18 +491,18 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TString& columnName)
+ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TStableName& stableName)
 {
     size_t hash = 0;
     HashCombine(hash, salt);
-    HashCombine(hash, columnName);
+    HashCombine(hash, stableName.Get());
 
     return static_cast<ui32>(hash ^ (hash >> 32));
 }
 
 TColumnarStatistics GetColumnarStatistics(
     const NProto::THeavyColumnStatisticsExt& statistics,
-    const std::vector<TString>& columnNames)
+    const std::vector<TStableName>& columnNames)
 {
     YT_VERIFY(statistics.version() == 1);
 
@@ -633,7 +633,7 @@ void TReaderVirtualValues::FillColumns(
 
 NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     const NProto::TColumnarStatisticsExt& columnarStatisticsExt,
-    const std::function<TString(int index)>& getNameByIndex,
+    const std::function<TStableName(int index)>& getStableNameByIndex,
     int columnCount,
     int maxHeavyColumns)
 {
@@ -648,7 +648,7 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     struct TColumnStatistics
     {
         i64 DataWeight;
-        TString Name;
+        TStableName StableName;
     };
     std::vector<TColumnStatistics> columnStatistics;
     columnStatistics.reserve(columnCount);
@@ -661,7 +661,7 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
         maxColumnDataWeight = std::max<i64>(maxColumnDataWeight, dataWeight);
         columnStatistics.push_back(TColumnStatistics{
             .DataWeight = dataWeight,
-            .Name = getNameByIndex(columnIndex)
+            .StableName = getStableNameByIndex(columnIndex),
         });
     }
 
@@ -684,7 +684,7 @@ NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     TBuffer dataWeightBuffer(heavyColumnCount);
     heavyColumnStatistics.set_data_weight_unit(dataWeightUnit);
     for (int columnIndex = 0; columnIndex < heavyColumnCount; ++columnIndex) {
-        heavyColumnStatistics.add_column_name_hashes(GetHeavyColumnStatisticsHash(salt, columnStatistics[columnIndex].Name));
+        heavyColumnStatistics.add_column_name_hashes(GetHeavyColumnStatisticsHash(salt, columnStatistics[columnIndex].StableName));
 
         auto dataWeight = DivCeil<i64>(columnStatistics[columnIndex].DataWeight, dataWeightUnit);
         YT_VERIFY(dataWeight >= 0 && dataWeight < DataWeightGranularity);

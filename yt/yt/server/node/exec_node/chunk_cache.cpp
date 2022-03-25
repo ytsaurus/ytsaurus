@@ -1235,6 +1235,32 @@ private:
         }
     }
 
+    // COMPAT(levysotsky): This function is to be removed after both CA and nodes are updated.
+    // See YT-16507.
+    static NTableClient::TTableSchemaPtr SetStableNames(
+        const NTableClient::TTableSchemaPtr& schema,
+        const NTableClient::TColumnRenameDescriptors& renameDescriptors)
+    {
+        THashMap<TString, TString> nameToStableName;
+        for (const auto& renameDescriptor : renameDescriptors) {
+            nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
+        }
+
+        std::vector<NTableClient::TColumnSchema> columns;
+        for (const auto& originalColumn : schema->Columns()) {
+            auto& column = columns.emplace_back(originalColumn);
+            YT_VERIFY(!column.IsRenamed());
+            if (auto it = nameToStableName.find(column.Name())) {
+                column.SetStableName(NTableClient::TStableName(it->second));
+            }
+        }
+        return New<NTableClient::TTableSchema>(
+            std::move(columns),
+            schema->GetStrict(),
+            schema->GetUniqueKeys(),
+            schema->GetSchemaModification());
+    }
+
     std::function<void(IOutputStream*)> MakeTableProducer(
         const TArtifactKey& key,
         const TNodeDirectoryPtr& nodeDirectory,
@@ -1254,6 +1280,13 @@ private:
 
         NChunkClient::TDataSource dataSource;
         FromProto(&dataSource, key.data_source());
+
+        if (dataSource.Schema() && !dataSource.Schema()->HasRenamedColumns()) {
+            dataSource.Schema() = SetStableNames(
+                dataSource.Schema(),
+                dataSource.ColumnRenameDescriptors());
+        }
+
         dataSourceDirectory->DataSources().push_back(dataSource);
 
         switch (dataSource.GetType()) {

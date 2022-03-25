@@ -1862,6 +1862,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             ValidateNoDescendingSortOrder(*schema);
         }
 
+        if (!config->EnableTableColumnRenaming) {
+            ValidateNoRenamedColumns(*schema);
+        }
+
         if (options.Dynamic) {
             if (*options.Dynamic) {
                 tabletManager->ValidateMakeTableDynamic(table);
