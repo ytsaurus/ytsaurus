@@ -228,8 +228,21 @@ TTableSchemaPtr InferCommonTableSchema(
     }
 
     int maxColumnCount = 0;
+
+    std::vector<THashMap<TString, int>> columnToPositionMaps;
+    columnToPositionMaps.reserve(schemas.size());
+
     for (const auto& table : uniqueTables) {
-        maxColumnCount = std::max(maxColumnCount, table->Schema->GetColumnCount());
+        const auto& schema = table->Schema;
+        auto& columnToPositionMap = columnToPositionMaps.emplace_back();
+
+        for (int columnIndex = 0; columnIndex < schema->GetColumnCount(); ++columnIndex) {
+            const auto& columnName = schema->Columns()[columnIndex].Name();
+            auto [_, inserted] = columnToPositionMap.emplace(columnName, columnIndex);
+            YT_VERIFY(inserted);
+        }
+
+        maxColumnCount = std::max(maxColumnCount, schema->GetColumnCount());
     }
 
     auto getColumnPositions = [&] (const TString& columnName) {
@@ -238,22 +251,10 @@ TTableSchemaPtr InferCommonTableSchema(
 
         int foundInAllSchemas = true;
 
-        std::optional<TStableName> stableName;
-        for (const auto& table : uniqueTables) {
-            if (auto* column = table->Schema->FindColumn(columnName)) {
-                if (stableName) {
-                    if (*stableName != column->StableName()) {
-                        THROW_ERROR_EXCEPTION(
-                            "Input table schemas have column with same name %Qv "
-                            "but different stable names %Qv and %Qv",
-                            columnName,
-                            stableName->Get(),
-                            column->StableName().Get());
-                    }
-                } else {
-                    stableName = column->StableName();
-                }
-                positions.push_back(table->Schema->GetColumnIndex(*column));
+        for (const auto& columnToPositionMap : columnToPositionMaps) {
+            auto positionIt = columnToPositionMap.find(columnName);
+            if (positionIt != columnToPositionMap.end()) {
+                positions.push_back(positionIt->second);
             } else {
                 positions.push_back(-1);
                 foundInAllSchemas = false;

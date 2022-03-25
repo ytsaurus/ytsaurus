@@ -104,7 +104,7 @@ void ValidateDynamicTableTimestamp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr> CollectTableInputChunks(
+std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NYPath::TRichYPath& path,
     const NApi::NNative::IClientPtr& client,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
@@ -125,11 +125,11 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<NChu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TStableName& stableName);
+ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TString& columnName);
 
 TColumnarStatistics GetColumnarStatistics(
     const NProto::THeavyColumnStatisticsExt& statistics,
-    const std::vector<TStableName>& columnNames);
+    const std::vector<TString>& columnNames);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +178,7 @@ private:
 
 NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt(
     const NProto::TColumnarStatisticsExt& columnarStatisticsExt,
-    const std::function<TStableName(int index)>& getStableNameByIndex,
+    const std::function<TString(int index)>& getNameByIndex,
     int columnCount,
     int maxHeavyColumns);
 

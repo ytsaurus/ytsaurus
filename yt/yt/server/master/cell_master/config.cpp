@@ -266,9 +266,6 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .Default(false);
     RegisterParameter("enable_descending_sort_order_dynamic", EnableDescendingSortOrderDynamic)
         .Default(false);
-    RegisterParameter("enable_table_column_renaming", EnableTableColumnRenaming)
-        .Default(false);
-
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
     RegisterParameter("cell_manager", CellManager)

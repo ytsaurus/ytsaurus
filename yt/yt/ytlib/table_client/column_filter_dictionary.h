@@ -12,30 +12,23 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TColumnName>
-class TGenericColumnFilterDictionary
+class TColumnFilterDictionary
 {
 public:
-    using TColumnNames = std::vector<TColumnName>;
+    TColumnFilterDictionary(bool sortColumns = true);
 
-public:
-    TGenericColumnFilterDictionary(bool sortColumns = true);
+    int GetIdOrRegisterAdmittedColumns(std::vector<TString> admittedColumns);
 
-    int GetIdOrRegisterAdmittedColumns(TColumnNames admittedColumns);
-
-    const TColumnNames& GetAdmittedColumns(int id) const;
+    const std::vector<TString>& GetAdmittedColumns(int id) const;
 
 private:
     const bool SortColumns_;
 
-    THashMap<TColumnNames, int, TRangeHash<>> AdmittedColumnsToId_;
-    std::vector<TColumnNames> IdToAdmittedColumns_;
+    THashMap<std::vector<TString>, int, TRangeHash<>> AdmittedColumnsToId_;
+    std::vector<std::vector<TString>> IdToAdmittedColumns_;
 
-    template <typename T>
-    friend void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TGenericColumnFilterDictionary<T>& dictionary);
-
-    template <typename T>
-    friend void FromProto(TGenericColumnFilterDictionary<T>* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
+    friend void ToProto(NProto::TColumnFilterDictionary* protoDictionary, const TColumnFilterDictionary& dictionary);
+    friend void FromProto(TColumnFilterDictionary* dictionary, const NProto::TColumnFilterDictionary& protoDictionary);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

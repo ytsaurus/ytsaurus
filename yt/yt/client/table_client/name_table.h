@@ -17,11 +17,6 @@ public:
     static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
     static TNameTablePtr FromSortColumns(const TSortColumns& sortColumns);
 
-    // TODO(levysotsky): This one is currently used only for
-    // chunk name table. A separate type to chunk name table
-    // may be handy.
-    static TNameTablePtr FromSchemaStable(const TTableSchema& schema);
-
     int GetSize() const;
     i64 GetByteSize() const;
 

@@ -241,8 +241,8 @@ void ValidateClientDataRow(
         }
 
         if (mappedId < keyCount) {
-            THROW_ERROR_EXCEPTION("Key component %v appears in value part",
-                schema.Columns()[mappedId].GetDiagnosticNameString());
+            THROW_ERROR_EXCEPTION("Key component %Qv appears in value part",
+                schema.Columns()[mappedId].Name());
         }
 
         const auto& column = schema.Columns()[mappedId];
@@ -250,13 +250,13 @@ void ValidateClientDataRow(
 
         if (Any(value.Flags & EValueFlags::Aggregate) && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
-                "\"aggregate\" flag is set for value in non-aggregating column %v",
-                column.GetDiagnosticNameString());
+                "\"aggregate\" flag is set for value in non-aggregating column %Qv",
+                column.Name());
         }
 
         if (mappedId < schema.GetKeyColumnCount()) {
-            THROW_ERROR_EXCEPTION("Key column %v in values",
-                column.GetDiagnosticNameString());
+            THROW_ERROR_EXCEPTION("Key column %Qv in values",
+                column.Name());
         }
 
         ValidateDataValue(value);
@@ -301,8 +301,8 @@ void ValidateDuplicateAndRequiredValueColumns(
         const auto& column = schema.Columns()[mappedId];
 
         if (columnSeen[mappedId]) {
-            THROW_ERROR_EXCEPTION("Duplicate value group %v in versioned row",
-                column.GetDiagnosticNameString());
+            THROW_ERROR_EXCEPTION("Duplicate value group %Qv in versioned row",
+                column.Name());
         }
         columnSeen[mappedId] = true;
 
@@ -319,14 +319,14 @@ void ValidateDuplicateAndRequiredValueColumns(
             if (mismatch.first == writeTimestamps + writeTimestampCount) {
                 if (mismatch.second != valueGroupEndIt) {
                     THROW_ERROR_EXCEPTION(
-                        "Row-wise write timestamps do not contain write timestamp %v for column %v",
+                        "Row-wise write timestamps do not contain write timestamp %v for column %Qv",
                         *mismatch.second,
-                        column.GetDiagnosticNameString());
+                        column.Name());
                 }
             } else {
                 THROW_ERROR_EXCEPTION(
-                    "Required column %v does not contain value for timestamp %Qv",
-                    column.GetDiagnosticNameString(),
+                    "Required column %Qv does not contain value for timestamp %Qv",
+                    column.Name(),
                     *mismatch.first);
             }
         }
@@ -334,8 +334,8 @@ void ValidateDuplicateAndRequiredValueColumns(
 
     for (int index = schema.GetKeyColumnCount(); index < schema.GetColumnCount(); ++index) {
         if (!columnSeen[index] && schema.Columns()[index].Required()) {
-            THROW_ERROR_EXCEPTION("Missing values for required column %v",
-                schema.Columns()[index].GetDiagnosticNameString());
+            THROW_ERROR_EXCEPTION("Missing values for required column %Qv",
+                schema.Columns()[index].Name());
         }
     }
 }
