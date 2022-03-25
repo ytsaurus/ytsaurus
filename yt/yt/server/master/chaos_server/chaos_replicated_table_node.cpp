@@ -4,10 +4,14 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/table_server/master_table_schema.h>
+
 namespace NYT::NChaosServer {
 
 using namespace NYTree;
 using namespace NCellMaster;
+using namespace NTableServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +30,21 @@ ENodeType TChaosReplicatedTableNode::GetNodeType() const
     return ENodeType::Entity;
 }
 
+TMasterTableSchema* TChaosReplicatedTableNode::GetSchema() const
+{
+    return Schema_;
+}
+
+void TChaosReplicatedTableNode::SetSchema(TMasterTableSchema* schema)
+{
+    Schema_ = schema;
+}
+
+TAccount* TChaosReplicatedTableNode::GetAccount() const
+{
+    return TCypressNode::GetAccount();
+}
+
 void TChaosReplicatedTableNode::Save(TSaveContext& context) const
 {
     TCypressNode::Save(context);
@@ -34,6 +53,7 @@ void TChaosReplicatedTableNode::Save(TSaveContext& context) const
     Save(context, ChaosCellBundle_);
     Save(context, ReplicationCardId_);
     Save(context, OwnsReplicationCard_);
+    Save(context, Schema_);
 }
 
 void TChaosReplicatedTableNode::Load(TLoadContext& context)
@@ -44,9 +64,12 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
     Load(context, ChaosCellBundle_);
     Load(context, ReplicationCardId_);
     Load(context, OwnsReplicationCard_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EMasterReign::ChaosReplicatedTableSchema) {
+        Load(context, Schema_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosServer
-

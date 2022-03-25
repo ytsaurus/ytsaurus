@@ -54,6 +54,11 @@ DEFINE_ENUM(ERowModificationType,
     ((WriteAndLock)     (3))
 );
 
+DEFINE_ENUM(EReplicaConsistency,
+    ((None)             (0))
+    ((Sync)             (1))
+);
+
 DEFINE_ENUM(ETransactionCoordinatorCommitMode,
     // Success is reported when phase 2 starts (all participants have prepared but not yet committed).
     ((Eager)  (0))

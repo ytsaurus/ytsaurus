@@ -8,7 +8,12 @@
 
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 
+#include <yt/yt/server/master/cell_master/config_manager.h>
+
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
+
+#include <yt/yt/server/master/table_server/schemaful_node_helpers.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
@@ -18,12 +23,13 @@
 
 namespace NYT::NChaosServer {
 
-using namespace NYTree;
-using namespace NObjectClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
-using namespace NTransactionServer;
+using namespace NObjectClient;
 using namespace NSecurityServer;
+using namespace NTableServer;
+using namespace NTransactionServer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,6 +86,15 @@ private:
 
         auto ownsReplicationCard = combinedAttributes->GetAndRemove<bool>("owns_replication_card", true);
 
+        const auto& dynamicConfig = this->Bootstrap_->GetConfigManager()->GetConfig();
+        const auto& tableManager = this->Bootstrap_->GetTableManager();
+        auto [effectiveTableSchema, tableSchema] = ProcessSchemafulNodeAttributes(
+            combinedAttributes,
+            /*dynamic*/ true,
+            /*chaos*/ true,
+            dynamicConfig,
+            tableManager);
+
         auto nodeHolder = TCypressNodeTypeHandlerBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
 
@@ -87,6 +102,11 @@ private:
             node->SetReplicationCardId(replicationCardId);
             node->SetOwnsReplicationCard(ownsReplicationCard);
             chaosManager->SetChaosCellBundle(node, chaosCellBundle);
+
+            if (effectiveTableSchema) {
+                tableManager->GetOrCreateMasterTableSchema(*effectiveTableSchema, node);
+            }
+
             return nodeHolder;
         } catch (const std::exception&) {
             this->Destroy(node);
