@@ -20,15 +20,6 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
     return nameTable;
 }
 
-TNameTablePtr TNameTable::FromSchemaStable(const TTableSchema& schema)
-{
-    auto nameTable = New<TNameTable>();
-    for (const auto& column : schema.Columns()) {
-        nameTable->DoRegisterNameOrThrow(column.StableName().Get());
-    }
-    return nameTable;
-}
-
 TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     auto nameTable = New<TNameTable>();

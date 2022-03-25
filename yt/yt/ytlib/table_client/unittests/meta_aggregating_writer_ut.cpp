@@ -154,7 +154,6 @@ protected:
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
         auto chunkState = New<TChunkState>(GetNullBlockCache(), chunkSpec);
-        chunkState->TableSchema = Schema_;
 
         auto memoryReader = CreateMemoryReader(
             MemoryWriter_->GetChunkMeta(),

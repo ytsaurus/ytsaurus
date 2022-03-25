@@ -1991,8 +1991,8 @@ private:
         std::vector<int> subresponseIndices;
         std::vector<TGuid> chunkIds;
         chunkIds.reserve(request->subrequests_size());
-        std::vector<std::vector<TStableName>> columnStableNames;
-        columnStableNames.reserve(request->subrequests_size());
+        std::vector<std::vector<TString>> columnNames;
+        columnNames.reserve(request->subrequests_size());
         for (int index = 0; index < request->subrequests_size(); ++index) {
             response->add_subresponses();
         }
@@ -2017,9 +2017,9 @@ private:
             chunkIds.push_back(chunkId);
 
             auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
-            columnStableNames.emplace_back();
+            columnNames.emplace_back();
             for (auto id : columnIds) {
-                columnStableNames.back().push_back(TStableName(TString(nameTable->GetNameOrThrow(id))));
+                columnNames.back().emplace_back(nameTable->GetNameOrThrow(id));
             }
 
             TChunkReadOptions options;
@@ -2055,7 +2055,7 @@ private:
                 &TDataNodeService::ProcessColumnarStatistics,
                 MakeWeak(this),
                 subresponseIndices,
-                columnStableNames,
+                columnNames,
                 chunkIds,
                 context)
                 .AsyncVia(heavyInvoker)));
@@ -2063,12 +2063,12 @@ private:
 
     void ProcessColumnarStatistics(
         const std::vector<int>& subresponseIndices,
-        const std::vector<std::vector<TStableName>>& columnStableNames,
+        const std::vector<std::vector<TString>>& columnNames,
         const std::vector<TChunkId>& chunkIds,
         const TCtxGetColumnarStatisticsPtr& context,
         const std::vector<TErrorOr<TRefCountedChunkMetaPtr>>& metaOrErrors)
     {
-        YT_VERIFY(subresponseIndices.size() == columnStableNames.size());
+        YT_VERIFY(subresponseIndices.size() == columnNames.size());
         YT_VERIFY(subresponseIndices.size() == chunkIds.size());
         YT_VERIFY(subresponseIndices.size() == metaOrErrors.size());
         for (int index = 0; index < std::ssize(subresponseIndices); ++index) {
@@ -2108,16 +2108,14 @@ private:
                     nameTable = FromProto<TNameTablePtr>(*nameTableExt);
                 } else {
                     auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
-                    nameTable = TNameTable::FromSchemaStable(FromProto<TTableSchema>(schemaExt));
+                    nameTable = TNameTable::FromSchema(FromProto<TTableSchema>(schemaExt));
                 }
 
-                for (const auto& columnName: columnStableNames[index]) {
-                    auto id = nameTable->FindId(columnName.Get());
+                for (const auto& columnName: columnNames[index]) {
+                    auto id = nameTable->FindId(columnName);
                     if (id && *id < columnarStatisticsExt.data_weights().size()) {
-                        YT_LOG_DEBUG("name %v, id %v, weight %v", columnName.Get(), id, columnarStatisticsExt.data_weights(*id));
                         subresponse->add_data_weights(columnarStatisticsExt.data_weights(*id));
                     } else {
-                        YT_LOG_DEBUG("name %v, id %v, not found", columnName.Get(), id);
                         subresponse->add_data_weights(0);
                     }
                 }

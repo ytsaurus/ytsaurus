@@ -30,8 +30,8 @@ public:
     //! to at least `MinRevision` revision. In case of cache miss, `Schema` is used to determine which columns
     //! should be requested.
     //! NB: this cache believes `Schema` to be the actual table schema. In other words, if cached
-    //! information fits given minimum revision, it is returned despite the fact it may not contain all of the
-    //! requested columns.
+    //! information fits given minimum revision, it is returned despite the fact it may not contains all of the
+    //! requested columns or not.
     struct TRequest
     {
         NObjectClient::TObjectId ObjectId;

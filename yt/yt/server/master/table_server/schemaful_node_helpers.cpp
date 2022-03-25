@@ -68,10 +68,6 @@ std::pair<const TTableSchema*, TTableSchemaPtr> ProcessSchemafulNodeAttributes(
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
             ValidateNoDescendingSortOrder(*effectiveTableSchema);
         }
-
-        if (!dynamicConfig->EnableTableColumnRenaming) {
-            ValidateNoRenamedColumns(*effectiveTableSchema);
-        }
     }
 
     return {effectiveTableSchema, std::move(tableSchema)};
