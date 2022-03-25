@@ -242,7 +242,7 @@ class TestMasterCellAddition(YTEnvSetup):
         default_bundle_id = get("//sys/tablet_cell_bundles/default/@id")
         default_area_id = get("//sys/tablet_cell_bundles/default/@areas/default/id")
         set("#{0}/@node_tag_filter".format(default_area_id), "default")
-        custom_area_id = create_area("custom", cell_bundle_id=default_bundle_id, attributes={"node_tag_filter": "custom"})
+        custom_area_id = create_area("custom", cell_bundle_id=default_bundle_id, node_tag_filter="custom")
 
         yield
 

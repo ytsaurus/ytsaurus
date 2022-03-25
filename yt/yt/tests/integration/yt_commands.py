@@ -2627,13 +2627,14 @@ def create_dynamic_table(path, schema=None, driver=None, **attributes):
     return create("table", path, attributes=attributes, driver=driver)
 
 
-def create_area(name, cell_bundle_id, **kwargs):
-    kwargs["type"] = "area"
-    if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["name"] = name
-    kwargs["attributes"]["cell_bundle_id"] = cell_bundle_id
-    return execute_command("create", kwargs, parse_yson=True)
+def create_area(name, **kwargs):
+    params = {}
+    params["type"] = "area"
+    if "driver" in kwargs:
+        params["driver"] = kwargs.pop("driver")
+    params["attributes"] = kwargs
+    params["attributes"]["name"] = name
+    return execute_command("create", params, parse_yson=True)
 
 
 def remove_area(id, **kwargs):

@@ -1,6 +1,8 @@
 #include "cell_proxy_base.h"
-#include "private.h"
+
+#include "area.h"
 #include "cell_base.h"
+#include "private.h"
 #include "tamed_cell_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -97,6 +99,10 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetReplicated(true)
         .SetMandatory(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Area)
+        .SetWritable(true)
+        .SetReplicated(true));
+    descriptors->push_back(EInternedAttributeKey::AreaId);
     descriptors->push_back(EInternedAttributeKey::TabletCellLifeStage);
     descriptors->push_back(EInternedAttributeKey::Status);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellStatus)
@@ -192,6 +198,22 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 .Value(cell->GetCellBundle()->GetName());
             return true;
 
+        case EInternedAttributeKey::Area:
+            if (!cell->GetArea()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(cell->GetArea()->GetName());
+            return true;
+
+        case EInternedAttributeKey::AreaId:
+            if (!cell->GetArea()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(cell->GetArea()->GetId());
+            return true;
+
         case EInternedAttributeKey::TabletCellLifeStage:
             BuildYsonFluently(consumer)
                 .Value(cell->GetCellLifeStage());
@@ -230,6 +252,27 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
     }
 
     return TBase::GetBuiltinAttribute(key, consumer);
+}
+
+bool TCellProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value)
+{
+    const auto& cellManager = Bootstrap_->GetTamedCellManager();
+
+    auto* cell = GetThisImpl();
+
+    switch (key) {
+        case EInternedAttributeKey::Area: {
+            auto areaName = ConvertTo<TString>(value);
+            auto* area = cellManager->GetAreaByNameOrThrow(cell->GetCellBundle(), areaName);
+            cellManager->UpdateCellArea(cell, area);
+            return true;
+        }
+
+        default:
+            break;
+    }
+
+    return TBase::SetBuiltinAttribute(key, value);
 }
 
 int TCellProxyBase::GetMaxHydraFileId(const TYPath& path) const

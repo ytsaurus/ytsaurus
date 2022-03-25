@@ -1075,6 +1075,35 @@ public:
         }
     }
 
+    TArea* GetAreaByNameOrThrow(TCellBundle* cellBundle, const TString& name) override
+    {
+        if (auto it = cellBundle->Areas().find(name)) {
+            return it->second;
+        }
+
+        THROW_ERROR_EXCEPTION("No area %Qv in cell bundle %v",
+            name,
+            cellBundle->GetId());
+    }
+
+    void UpdateCellArea(TCellBase* cell, TArea* area) override
+    {
+        auto* oldArea = cell->GetArea();
+        if (oldArea == area) {
+            return;
+        }
+
+        if (cell->GetCellBundle() != area->GetCellBundle()) {
+            THROW_ERROR_EXCEPTION("Could not update cell area because it is from another bundle")
+                << TErrorAttribute("cell_id", cell->GetId())
+                << TErrorAttribute("area_id", area->GetId());
+        }
+
+        EraseOrCrash(oldArea->Cells(), cell);
+        cell->SetArea(area);
+        InsertOrCrash(area->Cells(), cell);
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(CellBundle, TCellBundle);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Cell, TCellBase);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Area, TArea);

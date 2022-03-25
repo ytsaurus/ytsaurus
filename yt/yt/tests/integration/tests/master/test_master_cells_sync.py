@@ -178,7 +178,7 @@ class TestMasterCellsSync(YTEnvSetup):
         create_tablet_cell_bundle("custom")
         set("//sys/tablet_cell_bundles/custom/@node_tag_filter", "default")
         custom_bundle_id = get("//sys/tablet_cell_bundles/custom/@id")
-        custom_area_id = create_area("custom", cell_bundle_id=custom_bundle_id, attributes={"node_tag_filter": "custom"})
+        custom_area_id = create_area("custom", cell_bundle_id=custom_bundle_id, node_tag_filter="custom")
         default_area_id = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
 
         self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/default/node_tag_filter", driver=driver) == "default")
@@ -239,6 +239,14 @@ class TestMasterCellsSync(YTEnvSetup):
             )
 
         self._check_true_for_secondary(lambda driver: check(driver))
+
+    @authors("savrus")
+    def test_cell_area_sync(self):
+        custom_area_id = create_area("custom", cellar_type="tablet", cell_bundle="default")
+        cell_id = create_tablet_cell(attributes={"area": "custom"})
+        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/default/@areas/custom/id", driver=driver) == custom_area_id)
+        self._check_true_for_secondary(lambda driver: get("#{0}/@area".format(cell_id), driver=driver) == "custom")
+        self._check_true_for_secondary(lambda driver: get("#{0}/@area_id".format(cell_id), driver=driver) == custom_area_id)
 
     @authors("asaitgalin", "savrus")
     def test_safe_mode_sync(self):
