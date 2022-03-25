@@ -14,7 +14,6 @@ from yt_driver_bindings import Driver
 import yt.yson as yson
 
 from copy import deepcopy
-from collections import defaultdict
 
 import random
 import time
@@ -831,28 +830,36 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
         },
     }
 
-    def _gather_events(self, raw_events, op, task_to_kind, kind_to_job, account="tmp",
-                       intermediate_account="intermediate"):
+    def _validate_basic_tags(self, event, op_id, op_type, users=None):
+        if users is None:
+            users = ["job:root"]
+        assert event["pool_tree@"] == "default"
+        assert event["operation_id"] == op_id
+        assert event["operation_type@"] == op_type
+        assert "job_id" in event
+        assert event["bytes"] > 0
+        assert event["io_requests"] > 0
+        assert event["user@"] in users
+
+    def _gather_events(self, raw_events, op, task_to_kind=None, kind_to_job=None,
+                       account="tmp", intermediate_account="intermediate"):
         op_type = get(op.get_path() + "/@operation_type")
 
         for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == op_type
-            assert "job_id" in event
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
+            self._validate_basic_tags(event, op.id, op_type)
 
         paths = {}
         for event in raw_events:
             assert event["data_node_method@"] in ["GetBlockSet", "GetBlockRange", "FinishChunk"]
             direction = "read" if event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"] else "write"
 
-            kind = task_to_kind[event["task_name@"]]
-            assert event["job_type@"] == kind_to_job[kind]
+            task_name = event["task_name@"]
+            job_type = event["job_type@"]
+            kind = task_name if task_to_kind is None else task_to_kind[task_name]
+            expected_job_type = task_name if kind_to_job is None else kind_to_job[kind]
+            assert job_type == expected_job_type
             if kind not in paths:
-                paths[kind] = {"read": [], "write": []}
+                paths[kind] = {"read": [], "write": [], "read_chunks": [], "write_chunks": []}
 
             path = event["object_path"]
             if path.find("intermediate") == -1:
@@ -863,6 +870,7 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
                 assert event["account@"] == intermediate_account
 
             paths[kind][direction].append(path)
+            paths[kind][direction + "_chunks"].append(event["chunk_id"])
 
         return paths
 
@@ -902,38 +910,16 @@ class TestJobIOTracking(TestJobIOTrackingBase):
             ordered=(op_type == "ordered_map"),  # ignored for reduces
         )
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
-        raw_events.sort(key=lambda event: event["data_node_method@"])
 
-        operation_type = "map" if op_type in ["map", "ordered_map"] else "reduce"
         task_name = {
             "map": "map",
             "ordered_map": "ordered_map",
             "reduce": "sorted_reduce",
         }[op_type]
 
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == operation_type
-            assert "job_id" in event
-            assert event["job_type@"] == task_name
-            assert event["task_name@"] == task_name
-
-        assert raw_events[0]["data_node_method@"] == "FinishChunk"
-        assert raw_events[0]["user@"] == "job:root"
-        assert raw_events[0]["bytes"] > 0
-        assert raw_events[0]["io_requests"] > 0
-        assert raw_events[0]["account@"] == "tmp"
-        assert "object_id" in raw_events[0]
-        assert raw_events[0]["object_path"] == "//tmp/table_out"
-
-        assert raw_events[1]["data_node_method@"] == "GetBlockSet"
-        assert raw_events[1]["object_path"] == "//tmp/table_in"
-        assert "object_id" in raw_events[1]
-        assert raw_events[1]["account@"] == "tmp"
-        assert raw_events[1]["user@"] == "job:root"
-        assert raw_events[1]["bytes"] > 0
-        assert raw_events[1]["io_requests"] > 0
+        paths = self._gather_events(raw_events, op)
+        assert paths[task_name]["read"] == ["//tmp/table_in"]
+        assert paths[task_name]["write"] == ["//tmp/table_out"]
 
         assert read_table("//tmp/table_out") == table_data
 
@@ -976,35 +962,10 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
 
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "merge"
-            assert "job_id" in event
-            assert event["job_type@"] == merge_mode + "_merge"
-            assert event["task_name@"] == merge_mode + "_merge"
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
-
-        read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
-        write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
-        assert len(read_events) == 2
-        assert len(write_events) == 1
-
-        read_events.sort(key=lambda event: event["object_path"])
-
-        assert read_events[0]["object_path"] == "//tmp/table_in1"
-        assert "object_id" in read_events[0]
-        assert read_events[0]["account@"] == "tmp"
-
-        assert read_events[1]["object_path"] == "//tmp/table_in2"
-        assert "object_id" in read_events[1]
-        assert read_events[1]["account@"] == "tmp"
-
-        assert write_events[0]["object_path"] == "//tmp/table_out"
-        assert "object_id" in write_events[0]
-        assert write_events[0]["account@"] == "tmp"
+        task_name = merge_mode + "_merge"
+        paths = self._gather_events(raw_events, op)
+        assert sorted(paths[task_name]["read"]) == ["//tmp/table_in1", "//tmp/table_in2"]
+        assert sorted(paths[task_name]["write"]) == ["//tmp/table_out"]
 
         assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(first_data + second_data)
 
@@ -1037,29 +998,11 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         output_chunk_ids = get("//tmp/table/@chunk_ids")
         assert len(output_chunk_ids) == 1
 
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "erase"
-            assert "job_id" in event
-            assert event["job_type@"] == "ordered_merge"
-            assert event["task_name@"] == "ordered_merge"
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
-            assert event["object_path"] == "//tmp/table"
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-
-        read_events = [event for event in raw_events if event["data_node_method@"] == "GetBlockSet"]
-        write_events = [event for event in raw_events if event["data_node_method@"] == "FinishChunk"]
-
-        assert len(read_events) == 2
-        assert read_events[0]["chunk_id"] == read_events[1]["chunk_id"]
-        assert read_events[0]["chunk_id"] == input_chunk_ids[0]
-
-        assert len(write_events) == 1
-        assert write_events[0]["chunk_id"] == output_chunk_ids[0]
+        paths = self._gather_events(raw_events, op)
+        assert paths["ordered_merge"]["read"] == ["//tmp/table"] * 2
+        assert paths["ordered_merge"]["write"] == ["//tmp/table"]
+        assert paths["ordered_merge"]["read_chunks"] == [input_chunk_ids[0]] * 2
+        assert paths["ordered_merge"]["write_chunks"] == [output_chunk_ids[0]]
 
         assert read_table("//tmp/table") == table_output_data
 
@@ -1096,50 +1039,17 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         raw_events, _ = self.wait_for_events(raw_count=13, from_barrier=from_barrier)
 
         merge_job_type = "shallow_merge" if merge_type == "shallow" else "unordered_merge"
-        read_event_count = 0
-        write_event_count = 0
-        map_event_count = 0
-        auto_merge_event_count = 0
+        paths = self._gather_events(raw_events, op, kind_to_job={
+            "map": "map",
+            "auto_merge": merge_job_type
+        }, intermediate_account="tmp")
 
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "map"
-            assert "job_id" in event
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
-            assert event["data_node_method@"] in {"GetBlockSet", "GetBlockRange", "FinishChunk"}
-            assert event["task_name@"] in ["map", "auto_merge"]
-            assert event["account@"] == "tmp"
+        assert paths["map"]["read"] == ["//tmp/table_in"] * 4
+        assert paths["map"]["write"] == ["<intermediate_0>"] * 4
+        assert paths["auto_merge"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["auto_merge"]["write"] == ["//tmp/table_out"]
 
-            is_read = event["data_node_method@"] in {"GetBlockSet", "GetBlockRange"}
-            is_auto_merge = event["task_name@"] == "auto_merge"
-            is_intermediate = (is_read and is_auto_merge) or (not is_read and not is_auto_merge)
-
-            if is_auto_merge:
-                auto_merge_event_count += 1
-                assert event["job_type@"] == merge_job_type
-            else:
-                map_event_count += 1
-                assert event["job_type@"] == "map"
-
-            if is_read:
-                read_event_count += 1
-            else:
-                write_event_count += 1
-
-            if is_intermediate:
-                assert "object_id" not in event
-                assert event["object_path"] == "<intermediate_0>"
-            else:
-                assert "object_id" in event
-                assert event["object_path"] in ["//tmp/table_in", "//tmp/table_out"]
-
-        assert read_event_count == 8
-        assert write_event_count == 5
-        assert map_event_count == 8
-        assert auto_merge_event_count == 5
+        assert sorted_dicts(read_table("//tmp/table_out")) == sorted_dicts(table_data)
 
     @authors("gepardo")
     @pytest.mark.parametrize("merge_type", ["shallow", "deep"])
@@ -1194,79 +1104,71 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=40, from_barrier=from_barrier)
 
-        read_events = []
-        read_auto_merge_events = []
-        write_events = []
-        write_auto_merge_events = []
-        read_event_count = 0
-        write_event_count = 0
         merge_job_type = "shallow_merge" if merge_type == "shallow" else "unordered_merge"
         task_name = "map" if op_type == "map" else "sorted_reduce"
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == op_type
-            assert "job_id" in event
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] == "job:root"
-            assert event["data_node_method@"] in {"GetBlockSet", "GetBlockRange", "FinishChunk"}
-            assert event["task_name@"] in [task_name, "auto_merge"]
-            is_auto_merge = event["task_name@"] == "auto_merge"
-            if is_auto_merge:
-                assert event["job_type@"] == merge_job_type
-            else:
-                assert event["job_type@"] == task_name
-            if event["data_node_method@"] in {"GetBlockSet", "GetBlockRange"}:
-                read_event_count += 1
-                if is_auto_merge:
-                    read_auto_merge_events.append(event)
-                else:
-                    read_events.append(event)
-            else:
-                write_event_count += 1
-                if is_auto_merge:
-                    write_auto_merge_events.append(event)
-                else:
-                    write_events.append(event)
+        paths = self._gather_events(raw_events, op, kind_to_job={
+            task_name: task_name,
+            "auto_merge": merge_job_type,
+        }, intermediate_account="gepardo")
 
-        assert read_event_count == 24
-        assert len(read_events) == 12
-        assert len(read_auto_merge_events) == 12
-        assert write_event_count == 16
-        assert len(write_events) == 12
-        assert len(write_auto_merge_events) == 4
-
-        intermediate_reads = set()
-        intermediate_writes = set()
-
-        for event in read_events:
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-            assert event["object_path"] == "//tmp/table_in"
-
-        for event in read_auto_merge_events:
-            assert "object_id" not in event
-            assert event["account@"] == "gepardo"
-            assert event["object_path"].startswith("<intermediate")
-            intermediate_reads.add(event["object_path"])
-
-        for event in write_events:
-            assert "object_id" not in event
-            assert event["account@"] == "gepardo"
-            assert event["object_path"].startswith("<intermediate")
-            intermediate_writes.add(event["object_path"])
-
-        for event in write_auto_merge_events:
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-            assert event["object_path"] in ["//tmp/table_out1", "//tmp/table_out2"]
-
-        assert intermediate_reads == intermediate_writes
-        assert intermediate_reads == {"<intermediate_0>", "<intermediate_1>"}
+        assert paths[task_name]["read"] == ["//tmp/table_in"] * 12
+        assert sorted(paths[task_name]["write"]) == ["<intermediate_0>"] * 6 + ["<intermediate_1>"] * 6
+        assert sorted(paths["auto_merge"]["read"]) == ["<intermediate_0>"] * 6 + ["<intermediate_1>"] * 6
+        assert sorted(paths["auto_merge"]["write"]) == ["//tmp/table_out1"] * 2 + ["//tmp/table_out2"] * 2
 
         output_data = read_table("//tmp/table_out1") + read_table("//tmp/table_out2")
         assert sorted_dicts(list(output_data)) == sorted_dicts(list(table_data))
+
+    def _gather_artifact_events(self, raw_events, op, task_name="map", job_type="map"):
+        event_paths = {}
+        op_type = get(op.get_path() + "/@operation_type")
+
+        for event in raw_events:
+            self._validate_basic_tags(event, op.id, op_type, users=["root", "job:root"])
+
+            assert event["task_name@"] == task_name
+            assert event["job_type@"] == job_type
+
+            assert "object_id" in event
+            assert event["account@"] == "tmp"
+
+            if "job_io_kind@" in event:
+                workload = event["job_io_kind@"]
+                assert workload in ["artifact_copy", "artifact_download", "artifact_bypass_cache"]
+            else:
+                assert event["data_node_method@"] in ["FinishChunk", "GetBlockSet", "GetBlockRange"]
+                workload = "job"
+
+            descriptor = (workload, event["direction@"])
+
+            if descriptor in [
+                ("artifact_download", "write"),
+                ("artifact_copy", "read"),
+            ]:
+                assert "medium@" in event
+                assert "disk_family@" in event
+                assert event["location_id@"].find("cache") != -1
+            elif descriptor in [
+                ("artifact_download", "read"),
+                ("artifact_bypass_cache", "read"),
+                ("job", "read"),
+                ("job", "write")
+            ]:
+                assert "medium@" in event
+                assert "disk_family@" in event
+                assert event["location_id@"].find("cache") == -1
+            else:
+                assert "medium@" not in event
+                assert "disk_family@" not in event
+                assert "location_id@" not in event
+
+            if descriptor not in event_paths:
+                event_paths[descriptor] = []
+            event_paths[descriptor] += [event["object_path"]]
+
+        for key in event_paths.keys():
+            event_paths[key].sort()
+        return event_paths
 
     @authors("gepardo")
     def test_table_artifacts(self):
@@ -1302,46 +1204,17 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=7, from_barrier=from_barrier)
 
-        event_counts = defaultdict(int)
-
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "map"
-            assert "job_id" in event
-            assert event["job_type@"] == "map"
-            assert event["task_name@"] == "map"
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] in ["root", "job:root"]
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-
-            if "job_io_kind@" in event:
-                workload = event["job_io_kind@"]
-                assert workload in ["artifact_copy", "artifact_download"]
-                assert event["object_path"] in ["//tmp/table_aux", "//tmp/table_aux"]
-            else:
-                assert event["data_node_method@"] in ["FinishChunk", "GetBlockSet", "GetBlockRange"]
-                if event["data_node_method@"] == "FinishChunk":
-                    assert event["object_path"] == "//tmp/table_out"
-                else:
-                    assert event["object_path"] == "//tmp/table_in"
-                workload = "job"
-
-            descriptor = (workload, event["direction@"])
-            event_counts[descriptor] += 1
-
-        expected_event_counts = {
-            ("artifact_download", "read"): 2,
-            ("artifact_download", "write"): 1,
-            ("artifact_copy", "read"): 1,
-            ("artifact_copy", "write"): 1,
-            ("job", "read"): 1,
-            ("job", "write"): 1,
+        event_paths = self._gather_artifact_events(raw_events, op)
+        expected_event_paths = {
+            ("artifact_download", "read"): ["//tmp/table_aux", "//tmp/table_aux"],
+            ("artifact_download", "write"): ["//tmp/table_aux"],
+            ("artifact_copy", "read"): ["//tmp/table_aux"],
+            ("artifact_copy", "write"): ["//tmp/table_aux"],
+            ("job", "read"): ["//tmp/table_in"],
+            ("job", "write"): ["//tmp/table_out"],
         }
 
-        assert sorted(event_counts.items()) == sorted(expected_event_counts.items())
+        assert sorted(event_paths.items()) == sorted(expected_event_paths.items())
 
         assert read_table("//tmp/table_out") == table_data
 
@@ -1394,81 +1267,31 @@ class TestJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=raw_count, from_barrier=from_barrier)
 
-        event_counts = defaultdict(int)
-
-        for event in raw_events:
-            assert event["pool_tree@"] == "default"
-            assert event["operation_id"] == op.id
-            assert event["operation_type@"] == "map"
-            assert "job_id" in event
-            assert event["job_type@"] == "map"
-            assert event["task_name@"] == "map"
-            assert event["bytes"] > 0
-            assert event["io_requests"] > 0
-            assert event["user@"] in ["root", "job:root"]
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-
-            if "job_io_kind@" in event:
-                workload = event["job_io_kind@"]
-                assert workload in ["artifact_copy", "artifact_download", "artifact_bypass_cache"]
-                assert event["object_path"] == "//tmp/script.sh"
-            else:
-                assert event["data_node_method@"] in ["FinishChunk", "GetBlockSet", "GetBlockRange"]
-                if event["data_node_method@"] == "FinishChunk":
-                    assert event["object_path"] == "//tmp/table_out"
-                else:
-                    assert event["object_path"] == "//tmp/table_in"
-                workload = "job"
-
-            descriptor = (workload, event["direction@"])
-            event_counts[descriptor] += 1
-
-            if descriptor in [
-                ("artifact_download", "write"),
-                ("artifact_copy", "read"),
-            ]:
-                assert "medium@" in event
-                assert "disk_family@" in event
-                assert event["location_id@"].find("cache") != -1
-            elif descriptor in [
-                ("artifact_download", "read"),
-                ("artifact_bypass_cache", "read"),
-                ("job", "read"),
-                ("job", "write")
-            ]:
-                assert "medium@" in event
-                assert "disk_family@" in event
-                assert event["location_id@"].find("cache") == -1
-            else:
-                assert "medium@" not in event
-                assert "disk_family@" not in event
-                assert "location_id@" not in event
-
-        expected_event_counts = {
+        event_paths = self._gather_artifact_events(raw_events, op)
+        expected_event_paths = {
             "link": {
-                ("artifact_download", "read"): chunk_count,
-                ("artifact_download", "write"): 1,
-                ("job", "read"): 1,
-                ("job", "write"): 1,
+                ("artifact_download", "read"): ["//tmp/script.sh"] * chunk_count,
+                ("artifact_download", "write"): ["//tmp/script.sh"],
+                ("job", "read"): ["//tmp/table_in"],
+                ("job", "write"): ["//tmp/table_out"],
             },
             "copy": {
-                ("artifact_download", "read"): chunk_count,
-                ("artifact_download", "write"): 1,
-                ("artifact_copy", "read"): 1,
-                ("artifact_copy", "write"): 1,
-                ("job", "read"): 1,
-                ("job", "write"): 1,
+                ("artifact_download", "read"): ["//tmp/script.sh"] * chunk_count,
+                ("artifact_download", "write"): ["//tmp/script.sh"],
+                ("artifact_copy", "read"): ["//tmp/script.sh"],
+                ("artifact_copy", "write"): ["//tmp/script.sh"],
+                ("job", "read"): ["//tmp/table_in"],
+                ("job", "write"): ["//tmp/table_out"],
             },
             "bypass": {
-                ("artifact_bypass_cache", "read"): chunk_count,
-                ("artifact_bypass_cache", "write"): 1,
-                ("job", "read"): 1,
-                ("job", "write"): 1,
+                ("artifact_bypass_cache", "read"): ["//tmp/script.sh"] * chunk_count,
+                ("artifact_bypass_cache", "write"): ["//tmp/script.sh"],
+                ("job", "read"): ["//tmp/table_in"],
+                ("job", "write"): ["//tmp/table_out"],
             }
         }
 
-        assert sorted(event_counts.items()) == sorted(expected_event_counts[strategy].items())
+        assert sorted(event_paths.items()) == sorted(expected_event_paths[strategy].items())
 
         assert read_table("//tmp/table_out") == table_data
 
@@ -1831,15 +1654,6 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         table_data = sorted(table_data, key=lambda x: x[sorted_by])
         assert read_table("//tmp/table_out") == table_data
 
-    def _check_tags(self, op, event):
-        assert event["pool_tree@"] == "default"
-        assert event["operation_id"] == op.id
-        assert event["operation_type@"] == "sort"
-        assert "job_id" in event
-        assert event["bytes"] > 0
-        assert event["io_requests"] > 0
-        assert event["user@"] in ["root", "job:root"]
-
     def _get_job_counts_by_task_name(self, op):
         progress = get_operation(op.id)["progress"]
         result = {}
@@ -1859,23 +1673,10 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
             sort_by="type",
         )
         raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
-        raw_events.sort(key=lambda e: e["data_node_method@"])
 
-        assert raw_events[0]["data_node_method@"] == "FinishChunk"
-        assert raw_events[1]["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]
-
-        for event in raw_events:
-            self._check_tags(op, event)
-            assert event["job_type@"] == "simple_sort"
-            assert event["task_name@"] == "simple_sort"
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-            if event["data_node_method@"] == "FinishChunk":
-                assert event["object_path"] == "//tmp/table_out"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                assert event["object_path"] == "//tmp/table_in"
-            else:
-                assert False
+        paths = self._gather_events(raw_events, op)
+        assert paths["simple_sort"]["read"] == ["//tmp/table_in"]
+        assert paths["simple_sort"]["write"] == ["//tmp/table_out"]
 
         self._check_output_table()
 
@@ -1897,40 +1698,11 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         event_count = 3 * sort_jobs + merge_jobs
         raw_events, _ = self.wait_for_events(raw_count=event_count, from_barrier=from_barrier)
 
-        read_count_by_task = defaultdict(int)
-        write_count_by_task = defaultdict(int)
-        for event in raw_events:
-            self._check_tags(op, event)
-            task_name = event["task_name@"]
-            assert task_name in ["simple_sort", "sorted_merge"]
-            assert event["job_type@"] == task_name
-            if event["data_node_method@"] == "FinishChunk":
-                write_count_by_task[task_name] += 1
-                if task_name == "simple_sort":
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-                else:
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_out"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_count_by_task[task_name] += 1
-                if task_name == "simple_sort":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_in"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            else:
-                assert False
-
-        assert read_count_by_task["simple_sort"] == sort_jobs
-        assert write_count_by_task["simple_sort"] == sort_jobs
-        assert read_count_by_task["sorted_merge"] == sort_jobs
-        assert write_count_by_task["sorted_merge"] == merge_jobs
+        paths = self._gather_events(raw_events, op)
+        assert paths["simple_sort"]["read"] == sort_jobs * ["//tmp/table_in"]
+        assert paths["simple_sort"]["write"] == sort_jobs * ["<intermediate_0>"]
+        assert paths["sorted_merge"]["read"] == sort_jobs * ["<intermediate_0>"]
+        assert paths["sorted_merge"]["write"] == merge_jobs * ["//tmp/table_out"]
 
         self._check_output_table()
 
@@ -1951,41 +1723,18 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=10, from_barrier=from_barrier)
 
-        read_count_by_task = defaultdict(int)
-        write_count_by_task = defaultdict(int)
-        for event in raw_events:
-            self._check_tags(op, event)
-            job_type = event["job_type@"]
-            task_name = event["task_name@"]
-            assert job_type in ["partition", "final_sort"]
-            assert task_name == ("partition(0)" if job_type == "partition" else "final_sort")
-            if event["data_node_method@"] == "FinishChunk":
-                write_count_by_task[task_name] += 1
-                if job_type == "partition":
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-                else:
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_out"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_count_by_task[task_name] += 1
-                if job_type == "partition":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_in"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            else:
-                assert False
+        paths = self._gather_events(raw_events, op, {
+            "partition(0)": "partition",
+            "final_sort": "final",
+        }, {
+            "partition": "partition",
+            "final": "final_sort",
+        })
 
-        assert read_count_by_task["partition(0)"] == 2
-        assert write_count_by_task["partition(0)"] == 2
-        assert read_count_by_task["final_sort"] == 4
-        assert write_count_by_task["final_sort"] == 2
+        assert paths["partition"]["read"] == ["//tmp/table_in"] * 2
+        assert paths["partition"]["write"] == ["<intermediate_0>"] * 2
+        assert paths["final"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["final"]["write"] == ["//tmp/table_out"] * 2
 
         self._check_output_table()
 
@@ -2007,42 +1756,22 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=24, from_barrier=from_barrier)
 
-        read_count_by_task = defaultdict(int)
-        write_count_by_task = defaultdict(int)
-        for event in raw_events:
-            self._check_tags(op, event)
-            task_name = event["task_name@"]
-            assert task_name in ["partition(0)", "partition(1)", "final_sort"]
-            assert event["job_type@"] == ("final_sort" if task_name == "final_sort" else "partition")
-            if event["data_node_method@"] == "FinishChunk":
-                write_count_by_task[task_name] += 1
-                if task_name == "final_sort":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_out"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_count_by_task[task_name] += 1
-                if task_name == "partition(0)":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_in"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            else:
-                assert False
+        paths = self._gather_events(raw_events, op, {
+            "partition(0)": "part0",
+            "partition(1)": "part1",
+            "final_sort": "final",
+        }, {
+            "part0": "partition",
+            "part1": "partition",
+            "final": "final_sort",
+        })
 
-        assert read_count_by_task["partition(0)"] == 8
-        assert write_count_by_task["partition(0)"] == 2
-        assert read_count_by_task["partition(1)"] == 4
-        assert write_count_by_task["partition(1)"] == 2
-        assert read_count_by_task["final_sort"] == 4
-        assert write_count_by_task["final_sort"] == 4
+        assert paths["part0"]["read"] == ["//tmp/table_in"] * 8
+        assert paths["part0"]["write"] == ["<intermediate_0>"] * 2
+        assert paths["part1"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["part1"]["write"] == ["<intermediate_0>"] * 2
+        assert paths["final"]["read"] == ["<intermediate_0>"] * 4
+        assert paths["final"]["write"] == ["//tmp/table_out"] * 4
 
         self._check_output_table()
 
@@ -2072,42 +1801,22 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         assert tasks == {"partition(0)", "intermediate_sort", "sorted_merge"}
         raw_events, _ = self.wait_for_events(raw_count=48, from_barrier=from_barrier)
 
-        read_count_by_task = defaultdict(int)
-        write_count_by_task = defaultdict(int)
-        for event in raw_events:
-            self._check_tags(op, event)
-            task_name = event["task_name@"]
-            assert task_name in ["partition(0)", "intermediate_sort", "sorted_merge"]
-            assert event["job_type@"] == ("partition" if task_name == "partition(0)" else task_name)
-            if event["data_node_method@"] == "FinishChunk":
-                write_count_by_task[task_name] += 1
-                if task_name == "sorted_merge":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_out"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_count_by_task[task_name] += 1
-                if task_name == "partition(0)":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_in"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            else:
-                assert False
+        paths = self._gather_events(raw_events, op, {
+            "partition(0)": "partition",
+            "intermediate_sort": "intermediate",
+            "sorted_merge": "merge",
+        }, {
+            "partition": "partition",
+            "intermediate": "intermediate_sort",
+            "merge": "sorted_merge",
+        })
 
-        assert read_count_by_task["partition(0)"] == 8
-        assert write_count_by_task["partition(0)"] == 8
-        assert read_count_by_task["intermediate_sort"] == 8
-        assert write_count_by_task["intermediate_sort"] == 8
-        assert read_count_by_task["sorted_merge"] == 8
-        assert write_count_by_task["sorted_merge"] == 8
+        assert paths["partition"]["read"] == ["//tmp/table_in"] * 8
+        assert paths["partition"]["write"] == ["<intermediate_0>"] * 8
+        assert paths["intermediate"]["read"] == ["<intermediate_0>"] * 8
+        assert paths["intermediate"]["write"] == ["<intermediate_0>"] * 8
+        assert paths["merge"]["read"] == ["<intermediate_0>"] * 8
+        assert paths["merge"]["write"] == ["//tmp/table_out"] * 8
 
         self._check_output_table()
 
@@ -2130,40 +1839,18 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
         )
         raw_events, _ = self.wait_for_events(raw_count=26, from_barrier=from_barrier)
 
-        read_count_by_task = defaultdict(int)
-        write_count_by_task = defaultdict(int)
-        for event in raw_events:
-            self._check_tags(op, event)
-            task_name = event["task_name@"]
-            assert task_name in ["partition(0)", "unordered_merge"]
-            assert event["job_type@"] == ("partition" if task_name == "partition(0)" else task_name)
-            if event["data_node_method@"] == "FinishChunk":
-                write_count_by_task[task_name] += 1
-                if task_name == "unordered_merge":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_out"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_count_by_task[task_name] += 1
-                if task_name == "partition(0)":
-                    assert "object_id" in event
-                    assert event["account@"] == "tmp"
-                    assert event["object_path"] == "//tmp/table_in"
-                else:
-                    assert "object_id" not in event
-                    assert event["account@"] == "intermediate"
-                    assert event["object_path"] == "<intermediate_0>"
-            else:
-                assert False
+        paths = self._gather_events(raw_events, op, {
+            "partition(0)": "partition",
+            "unordered_merge": "merge",
+        }, {
+            "partition": "partition",
+            "merge": "unordered_merge",
+        })
 
-        assert read_count_by_task["partition(0)"] == 20
-        assert write_count_by_task["partition(0)"] == 2
-        assert read_count_by_task["unordered_merge"] == 2
-        assert write_count_by_task["unordered_merge"] == 2
+        assert paths["partition"]["read"] == ["//tmp/table_in"] * 20
+        assert paths["partition"]["write"] == ["<intermediate_0>"] * 2
+        assert paths["merge"]["read"] == ["<intermediate_0>"] * 2
+        assert paths["merge"]["write"] == ["//tmp/table_out"] * 2
 
         assert sorted(read_table("//tmp/table_out"), key=lambda e: e["value"]) == table_data
 
@@ -2195,26 +1882,10 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
             sort_by=["id"],
         )
         raw_events, _ = self.wait_for_events(raw_count=3, from_barrier=from_barrier)
-        raw_events.sort(key=lambda e: e["data_node_method@"])
 
-        assert raw_events[0]["data_node_method@"] == "FinishChunk"
-        assert raw_events[1]["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]
-        assert raw_events[2]["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]
-
-        read_paths = []
-        for event in raw_events:
-            self._check_tags(op, event)
-            assert event["job_type@"] == "simple_sort"
-            assert event["task_name@"] == "simple_sort"
-            assert "object_id" in event
-            assert event["account@"] == "tmp"
-            if event["data_node_method@"] == "FinishChunk":
-                assert event["object_path"] == "//tmp/table_out"
-            elif event["data_node_method@"] in ["GetBlockSet", "GetBlockRange"]:
-                read_paths.append(event["object_path"])
-            else:
-                assert False
-        assert sorted(read_paths) == ["//tmp/table_in1", "//tmp/table_in2"]
+        paths = self._gather_events(raw_events, op)
+        assert sorted(paths["simple_sort"]["read"]) == ["//tmp/table_in1", "//tmp/table_in2"]
+        assert paths["simple_sort"]["write"] == ["//tmp/table_out"]
 
         assert sorted(table_data1 + table_data2, key=lambda e: e["id"]) == \
             read_table("//tmp/table_out")
