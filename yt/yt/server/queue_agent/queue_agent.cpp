@@ -4,6 +4,10 @@
 #include "helpers.h"
 #include "queue_controller.h"
 
+#include <yt/yt/server/lib/cypress_election/election_manager.h>
+
+#include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -11,16 +15,23 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NOrchid;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NHydra;
 using namespace NTracing;
 using namespace NHiveClient;
+using namespace NCypressElection;
+using namespace NYPath;
+using namespace NRpc::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,14 +57,19 @@ class TCollectionBoundService
 {
 public:
     using TCollection = THashMap<TCrossClusterReference, TValue>;
+    //! Produces the orchid for the given object reference and object into the consumer.
     using TProducerCallback = TCallback<void(const TCrossClusterReference&, const TValue&, IYsonConsumer*)>;
+    //! Returns a remote service to resolve the given key, or nullptr to resolve the key on this instance.
+    using TRedirectorCallback = TCallback<IYPathServicePtr(TStringBuf)>;
 
     explicit TCollectionBoundService(
         const TCollection& collection,
         TProducerCallback producer,
+        TRedirectorCallback redirector,
         IInvokerPtr invoker)
         : Collection_(collection)
         , Producer_(std::move(producer))
+        , Redirector_(std::move(redirector))
         , Invoker_(std::move(invoker))
     {
         SetOpaque(false);
@@ -79,6 +95,9 @@ public:
 
     IYPathServicePtr FindItemService(TStringBuf key) const override
     {
+        if (auto remoteYPathService = Redirector_.Run(key)) {
+            return remoteYPathService;
+        }
         auto objectRef = TCrossClusterReference::FromString(key);
         auto buildQueueYsonCallback = BIND(&TCollectionBoundService::BuildYson, MakeStrong(this), objectRef);
         return IYPathService::FromProducer(buildQueueYsonCallback)->Via(Invoker_);
@@ -88,6 +107,7 @@ private:
     // Neither the queue agent nor the ypath services are supposed to be destroyed, so references are fine.
     const TCollection& Collection_;
     TProducerCallback Producer_;
+    TRedirectorCallback Redirector_;
     IInvokerPtr Invoker_;
 
     void BuildYson(const TCrossClusterReference& objectRef, IYsonConsumer* ysonConsumer) const
@@ -108,26 +128,32 @@ TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
-    TDynamicStatePtr dynamicState)
+    TDynamicStatePtr dynamicState,
+    ICypressElectionManagerPtr electionManager)
     : Config_(std::move(config))
     , ClientDirectory_(std::move(clientDirectory))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
+    , ElectionManager(std::move(electionManager))
     , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TQueueAgent::Poll, MakeWeak(this)),
         Config_->PollPeriod))
+    , QueueAgentChannelFactory_(
+        CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
 {
     QueueObjectServiceNode_ = CreateVirtualNode(
         New<TCollectionBoundService<TQueue>>(
             Queues_,
-            BIND(&TQueueAgent::BuildQueueYson, MakeWeak(this)),
+            BIND(&TQueueAgent::BuildQueueYson, MakeStrong(this)),
+            BIND(&TQueueAgent::RedirectYPathRequestToLeader, MakeStrong(this), "//queue_agent/queues"),
             ControlInvoker_));
     ConsumerObjectServiceNode_ = CreateVirtualNode(
         New<TCollectionBoundService<TConsumer>>(
             Consumers_,
-            BIND(&TQueueAgent::BuildConsumerYson, MakeWeak(this)),
+            BIND(&TQueueAgent::BuildConsumerYson, MakeStrong(this)),
+            BIND(&TQueueAgent::RedirectYPathRequestToLeader, MakeStrong(this), "//queue_agent/consumers"),
             ControlInvoker_));
 }
 
@@ -399,6 +425,32 @@ void TQueueAgent::Poll()
     }
 
     PollError_ = TError();
+}
+
+NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    if (Active_) {
+        return nullptr;
+    }
+
+    auto leaderTransactionAttributes = ElectionManager->GetCachedLeaderTransactionAttributes();
+    if (!leaderTransactionAttributes) {
+        THROW_ERROR_EXCEPTION(
+            "Unable to fetch %v, queue agent is not active and leader information is not available yet",
+            key);
+    }
+
+    auto host = leaderTransactionAttributes->Get<TString>("host");
+    YT_LOG_DEBUG("Redirecting orchid request (LeaderHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
+
+    auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);
+    auto remoteRoot = Format("%v/%v", queryRoot, ToYPathLiteral(key));
+    return CreateOrchidYPathService({
+        .Channel = std::move(leaderChannel),
+        .RemoteRoot = std::move(remoteRoot),
+    });
 }
 
 void TQueueAgent::BuildQueueYson(const TCrossClusterReference& /*queueRef*/, const TQueue& queue, IYsonConsumer* ysonConsumer)

@@ -38,6 +38,8 @@ void TQueueAgentConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
         .DefaultNew();
+    registrar.Parameter("bus_client", &TThis::BusClient)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
