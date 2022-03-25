@@ -75,7 +75,6 @@ void TGrpcMetadataArrayBuilder::Add(const char* key, TString value)
     grpc_metadata metadata;
     metadata.key = grpc_slice_from_static_string(key);
     metadata.value = grpc_slice_from_static_buffer(value.c_str(), value.length());
-    metadata.flags = 0;
     NativeMetadata_.push_back(metadata);
     Strings_.emplace_back(std::move(value));
 }
