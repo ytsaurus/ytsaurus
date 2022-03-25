@@ -2,6 +2,7 @@
 #include "private.h"
 #include "master_table_schema_proxy.h"
 #include "replicated_table_node.h"
+#include "schemaful_node.h"
 #include "table_collocation.h"
 #include "table_collocation_type_handler.h"
 #include "table_node.h"
@@ -237,7 +238,7 @@ public:
         return GetEmptyMasterTableSchema();
     }
 
-    void SetTableSchema(TTableNode* table, TMasterTableSchema* schema)
+    void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema)
     {
         if (!schema) {
             // During cross-shard copying of an opaque table, it is materialized
@@ -265,7 +266,7 @@ public:
         securityManager->UpdateMasterMemoryUsage(schema, tableAccount);
     }
 
-    void ResetTableSchema(TTableNode* table)
+    void ResetTableSchema(ISchemafulNode* table)
     {
         auto* oldSchema = table->GetSchema();
         if (!oldSchema) {
@@ -304,7 +305,7 @@ public:
             : nullptr;
     }
 
-    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, TTableNode* schemaHolder)
+    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, ISchemafulNode* schemaHolder)
     {
         auto* schema = DoGetOrCreateMasterTableSchema(tableSchema);
         SetTableSchema(schemaHolder, schema);
@@ -1266,7 +1267,7 @@ TMasterTableSchema* TTableManager::FindMasterTableSchema(const TTableSchema& tab
 
 TMasterTableSchema* TTableManager::GetOrCreateMasterTableSchema(
     const TTableSchema& schema,
-    TTableNode* schemaHolder)
+    ISchemafulNode* schemaHolder)
 {
     return Impl_->GetOrCreateMasterTableSchema(schema, schemaHolder);
 }
@@ -1302,12 +1303,12 @@ TMasterTableSchema::TTableSchemaToObjectMapIterator TTableManager::RegisterSchem
     return Impl_->RegisterSchema(schema, std::move(tableSchema));
 }
 
-void TTableManager::SetTableSchema(TTableNode* table, TMasterTableSchema* schema)
+void TTableManager::SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema)
 {
     return Impl_->SetTableSchema(table, schema);
 }
 
-void TTableManager::ResetTableSchema(TTableNode* table)
+void TTableManager::ResetTableSchema(ISchemafulNode* table)
 {
     return Impl_->ResetTableSchema(table);
 }

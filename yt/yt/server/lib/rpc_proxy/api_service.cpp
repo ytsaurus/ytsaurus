@@ -2903,6 +2903,9 @@ private:
         if (request->has_tablet_read_options()) {
             FromProto(options, request->tablet_read_options());
         }
+        if (request->has_replica_consistency()) {
+            options->ReplicaConsistency = FromProto<EReplicaConsistency>(request->replica_consistency());
+        }
 
         SetTimeoutOptions(options, context.Get());
 
@@ -3296,6 +3299,9 @@ private:
         // TODO(lukyan): Move to FillSelectRowsOptionsBaseFromRequest
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
+        }
+        if (request->has_replica_consistency()) {
+            options.ReplicaConsistency = FromProto<EReplicaConsistency>(request->replica_consistency());
         }
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;

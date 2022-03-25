@@ -4,12 +4,23 @@
 #include "chaos_cell_bundle.h"
 #include "chaos_manager.h"
 
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+
 #include <yt/yt/server/master/cypress_server/node_proxy_detail.h>
+
+#include <yt/yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -20,15 +31,18 @@
 
 namespace NYT::NChaosServer {
 
-using namespace NYTree;
-using namespace NYson;
-using namespace NObjectServer;
-using namespace NTransactionServer;
-using namespace NCypressServer;
+using namespace NApi::NNative;
+using namespace NApi;
 using namespace NCellMaster;
 using namespace NChaosClient;
-using namespace NApi;
-using namespace NApi::NNative;
+using namespace NCypressServer;
+using namespace NObjectServer;
+using namespace NRpc;
+using namespace NSecurityServer;
+using namespace NTableClient;
+using namespace NTransactionServer;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,11 +68,15 @@ private:
             .SetWritable(true)
             .SetReplicated(true)
             .SetPresent(impl->ChaosCellBundle().IsAlive()));
+        descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);
         descriptors->push_back(EInternedAttributeKey::Era);
         descriptors->push_back(EInternedAttributeKey::CoordinatorCellIds);
         descriptors->push_back(EInternedAttributeKey::Replicas);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
+            .SetWritable(true)
+            .SetReplicated(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -75,6 +93,11 @@ private:
                 } else {
                     return false;
                 }
+
+            case EInternedAttributeKey::Dynamic:
+                BuildYsonFluently(consumer)
+                    .Value(true);
+                return true;
 
             case EInternedAttributeKey::ReplicationCardId:
                 BuildYsonFluently(consumer)
@@ -126,6 +149,8 @@ private:
 
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
+        const auto* table = GetThisImpl();
+
         switch (key) {
             case EInternedAttributeKey::Era:
                 return GetReplicationCard()
@@ -148,11 +173,25 @@ private:
                             .Value(card->Replicas);
                     }));
 
+            case EInternedAttributeKey::Schema:
+                if (!table->GetSchema()) {
+                    break;
+                }
+                return table->GetSchema()->AsYsonAsync();
+
+
             default:
                 break;
         }
 
         return TCypressNodeProxyBase::GetBuiltinAttributeAsync(key);
+    }
+
+    bool DoInvoke(const IServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
+        DISPATCH_YPATH_SERVICE_METHOD(Alter);
+        return TBase::DoInvoke(context);
     }
 
     TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardFetchOptions& options = {})
@@ -169,7 +208,95 @@ private:
                 return card;
             }));
     }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
 };
+
+DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
+{
+    DeclareNonMutating();
+    SuppressAccessTracking();
+
+    context->SetRequestInfo();
+
+    ValidateNotExternal();
+    ValidateNoTransaction();
+
+    const auto* trunkTable = GetThisImpl();
+
+    if (!trunkTable->GetSchema()) {
+        THROW_ERROR_EXCEPTION("Table schema is not specified");
+    }
+    if (!trunkTable->GetReplicationCardId()) {
+        THROW_ERROR_EXCEPTION("Replication card id is not specified");
+    }
+
+    ToProto(response->mutable_table_id(), trunkTable->GetId());
+    ToProto(response->mutable_upstream_replica_id(), NTabletClient::TTableReplicaId());
+    ToProto(response->mutable_replication_card_id(), trunkTable->GetReplicationCardId());
+    response->set_dynamic(true);
+    ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
+{
+    DeclareMutating();
+
+    NTableClient::TTableSchemaPtr schema;
+
+    if (request->has_schema()) {
+        schema = New<TTableSchema>(FromProto<TTableSchema>(request->schema()));
+    }
+    if (request->has_dynamic() ||
+        request->has_upstream_replica_id() ||
+        request->has_schema_modification() ||
+        request->has_replication_progress())
+    {
+        THROW_ERROR_EXCEPTION("Chaos replicated table could not be altered in this way");
+    }
+
+    context->SetRequestInfo("Schema: %v",
+        schema);
+
+    auto* table = LockThisImpl();
+
+    // NB: Sorted dynamic tables contain unique keys, set this for user.
+    if (schema && schema->IsSorted() && !schema->GetUniqueKeys()) {
+        schema = schema->ToUniqueKeys();
+    }
+
+    if (schema) {
+        if (table->GetSchema()) {
+            ValidateTableSchemaUpdate(
+                *table->GetSchema()->AsTableSchema(),
+                *schema,
+                /*isTableDynamic*/ true,
+                /*isTableEmpty*/ false);
+        }
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+
+        if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
+            ValidateNoDescendingSortOrder(*schema);
+        }
+    }
+
+    YT_LOG_ACCESS(
+        context,
+        GetId(),
+        GetPath(),
+        Transaction_);
+
+    if (schema) {
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->GetOrCreateMasterTableSchema(*schema, table);
+    }
+
+    context->Reply();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
