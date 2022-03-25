@@ -115,13 +115,15 @@ void ValidateTabletMounted(TTablet* tablet)
 
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
 {
-    statistics->set_current_replication_row_index(CurrentReplicationRowIndex.load());
+    statistics->set_committed_replication_row_index(CommittedReplicationRowIndex.load());
     statistics->set_current_replication_timestamp(CurrentReplicationTimestamp.load());
 }
 
 void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statistics)
 {
-    CurrentReplicationRowIndex = statistics.current_replication_row_index();
+    CommittedReplicationRowIndex = statistics.committed_replication_row_index();
+    CurrentReplicationRowIndex = CommittedReplicationRowIndex.load();
+
     CurrentReplicationTimestamp = statistics.current_replication_timestamp();
 }
 
@@ -397,6 +399,16 @@ i64 TTableReplicaInfo::GetPreparedReplicationRowIndex() const
 void TTableReplicaInfo::SetPreparedReplicationRowIndex(i64 value)
 {
     RuntimeData_->PreparedReplicationRowIndex = value;
+}
+
+i64 TTableReplicaInfo::GetCommittedReplicationRowIndex() const
+{
+    return RuntimeData_->CommittedReplicationRowIndex;
+}
+
+void TTableReplicaInfo::SetCommittedReplicationRowIndex(i64 value)
+{
+    RuntimeData_->CommittedReplicationRowIndex = value;
 }
 
 TError TTableReplicaInfo::GetError() const
@@ -2037,6 +2049,14 @@ void TTablet::RecomputeReplicaStatuses()
 {
     for (auto& [replicaId, replicaInfo] : Replicas()) {
         replicaInfo.RecomputeReplicaStatus();
+    }
+}
+
+void TTablet::RecomputeCommittedReplicationRowIndices()
+{
+    for (auto& [replica, replicaInfo] : Replicas()) {
+        auto committedReplicationRowIndex = replicaInfo.GetCurrentReplicationRowIndex() - GetDelayedLocklessRowCount();
+        replicaInfo.SetCommittedReplicationRowIndex(committedReplicationRowIndex);
     }
 }
 

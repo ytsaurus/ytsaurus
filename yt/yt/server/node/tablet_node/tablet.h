@@ -69,6 +69,7 @@ struct TRuntimeTableReplicaData
 {
     std::atomic<ETableReplicaMode> Mode = ETableReplicaMode::Async;
     std::atomic<i64> CurrentReplicationRowIndex = 0;
+    std::atomic<i64> CommittedReplicationRowIndex = 0;
     std::atomic<TTimestamp> CurrentReplicationTimestamp = NullTimestamp;
     std::atomic<TTimestamp> LastReplicationTimestamp = NullTimestamp;
     std::atomic<i64> PreparedReplicationRowIndex = -1;
@@ -364,6 +365,9 @@ public:
     i64 GetPreparedReplicationRowIndex() const;
     void SetPreparedReplicationRowIndex(i64 value);
 
+    i64 GetCommittedReplicationRowIndex() const;
+    void SetCommittedReplicationRowIndex(i64 value);
+
     TError GetError() const;
     void SetError(TError error);
 
@@ -637,6 +641,8 @@ public:
     const TRowCachePtr& GetRowCache() const;
 
     void RecomputeReplicaStatuses();
+
+    void RecomputeCommittedReplicationRowIndices();
 
     void CheckedSetBackupStage(EBackupStage previous, EBackupStage next);
 

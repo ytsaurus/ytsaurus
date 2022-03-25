@@ -607,6 +607,7 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
                 currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
                 currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
                 currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+                currentReplica.CommittedReplicationRowIndex = protoReplicaInfo.committed_replication_row_index();
                 currentReplica.ReplicationError = FromProto<TError>(protoReplicaInfo.replication_error());
             }
         }

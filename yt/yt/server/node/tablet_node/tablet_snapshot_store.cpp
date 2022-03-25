@@ -525,6 +525,7 @@ private:
                 .Item("start_replication_timestamp").Value(replica->StartReplicationTimestamp)
                 .Item("last_replication_timestamp").Value(replica->RuntimeData->LastReplicationTimestamp)
                 .Item("current_replication_row_index").Value(replica->RuntimeData->CurrentReplicationRowIndex)
+                .Item("committed_replication_row_index").Value(replica->RuntimeData->CommittedReplicationRowIndex)
                 .Item("current_replication_timestamp").Value(replica->RuntimeData->CurrentReplicationTimestamp)
                 .Item("prepared_replication_row_index").Value(replica->RuntimeData->PreparedReplicationRowIndex)
             .EndMap();

@@ -746,8 +746,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert len(tablets) == 1
 
         def _do():
-            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
-            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
+            before_index1 = get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
             before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
@@ -785,8 +785,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == []
             wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [])
 
-            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 4)
-            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id1)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id2)) == before_index1 + 4)
 
             after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
             after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
@@ -913,8 +913,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 return result[-1]
 
         def _do():
-            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
-            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
+            before_index1 = get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
             before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
@@ -988,8 +988,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 }
             )
 
-            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 3)
-            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 3)
+            wait(lambda: get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id1)) == before_index1 + 3)
+            wait(lambda: get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id2)) == before_index1 + 3)
 
             after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
             after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
@@ -1028,8 +1028,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert len(tablets) == 1
 
         def _do():
-            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
-            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
+            before_index1 = get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
             before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
@@ -1078,8 +1078,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 == [{"key": 2, "value1": yson.YsonEntity(), "value2": 457}]
             )
 
-            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 4)
-            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id1)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id2)) == before_index1 + 4)
 
             after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
             after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
@@ -1547,7 +1547,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_enable_table_replica(replica_id)
 
-        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
+        assert get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id)) == 0
 
         insert_rows(
             "//tmp/t",
@@ -1562,7 +1562,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_disable_table_replica(replica_id)
 
-        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
+        assert get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id)) == 1
 
     @authors("babenko")
     def test_unmount_propagates_replication_row_index(self):
@@ -1573,7 +1573,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_enable_table_replica(replica_id)
 
-        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
+        assert get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id)) == 0
 
         insert_rows(
             "//tmp/t",
@@ -1587,7 +1587,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
-        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
+        assert get("#{0}/@tablets/0/committed_replication_row_index".format(replica_id)) == 1
 
     @pytest.mark.parametrize(
         "with_data, schema",

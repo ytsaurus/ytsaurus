@@ -380,6 +380,7 @@ public:
 
         for (const auto& [tabletId, tablet] : Host_->Tablets()) {
             tablet->RecomputeReplicaStatuses();
+            tablet->RecomputeCommittedReplicationRowIndices();
         }
     }
 
@@ -953,9 +954,10 @@ private:
             auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
             auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
             replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
+
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                "Sync replicated rows committed (TransactionId: %v, TabletId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx, "
-                "TotalRowCount: %v)",
+                "Sync replicated rows committed "
+                "(TransactionId: %v, TabletId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %llx -> %llx, TotalRowCount: %v)",
                 transaction->GetId(),
                 tablet->GetId(),
                 replicaInfo->GetId(),
@@ -1006,6 +1008,7 @@ private:
 
         int rowCount = 0;
         TCompactFlatMap<TTablet*, int, 16> tabletToRowCount;
+        TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
         for (const auto& record : transaction->DelayedLocklessWriteLog()) {
             auto* tablet = Host_->FindTablet(record.TabletId);
             if (!tablet) {
@@ -1025,6 +1028,15 @@ private:
 
             tabletToRowCount[tablet] += record.RowCount;
             rowCount += context.RowCount;
+
+            for (auto replicaId : record.SyncReplicaIds) {
+                auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
+                if (!replicaInfo) {
+                    continue;
+                }
+
+                replicaToRowCount[replicaInfo] += record.RowCount;
+            }
         }
 
         for (auto [tablet, rowCount] : tabletToRowCount) {
@@ -1041,9 +1053,24 @@ private:
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Delayed lockless rows committed (TransactionId: %v, TabletId: %v, DelayedLocklessRowCount: %v -> %v)",
                 transaction->GetId(),
+                tablet->GetId());
+        }
+
+        for (auto [replicaInfo, rowCount] : replicaToRowCount) {
+            auto* tablet = replicaInfo->GetTablet();
+            auto oldCommittedReplicationRowIndex = replicaInfo->GetCommittedReplicationRowIndex();
+            auto newCommittedReplicationRowIndex = oldCommittedReplicationRowIndex + rowCount;
+            replicaInfo->SetCommittedReplicationRowIndex(newCommittedReplicationRowIndex);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Delayed lockless rows committed "
+                "(TransactionId: %v, TabletId: %v, ReplicaId: %v, CommittedReplicationRowIndex: %v -> %v, TotalRowCount: %v)",
+                transaction->GetId(),
                 tablet->GetId(),
-                oldDelayedLocklessRowCount,
-                newDelayedLocklessRowCount);
+                replicaInfo->GetId(),
+                oldCommittedReplicationRowIndex,
+                newCommittedReplicationRowIndex,
+                tablet->GetTotalRowCount());
         }
 
         UnlockLockedTablets(transaction);

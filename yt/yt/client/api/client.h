@@ -274,6 +274,7 @@ struct TTabletInfo
         NTransactionClient::TTimestamp LastReplicationTimestamp;
         NTabletClient::ETableReplicaMode Mode;
         i64 CurrentReplicationRowIndex;
+        i64 CommittedReplicationRowIndex;
         TError ReplicationError;
     };
 

@@ -418,6 +418,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
                 currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
                 currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
                 currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+                currentReplica.CommittedReplicationRowIndex = protoReplicaInfo.committed_replication_row_index();
                 if (options.RequestErrors && protoReplicaInfo.has_replication_error()) {
                     FromProto(&currentReplica.ReplicationError, protoReplicaInfo.replication_error());
                 }

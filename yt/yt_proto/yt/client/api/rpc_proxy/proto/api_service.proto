@@ -644,6 +644,7 @@ message TRspGetTabletInfos
             required uint64 last_replication_timestamp = 2;
             required int32 mode = 3; // ETableReplicaMode
             required int64 current_replication_row_index = 4;
+            required int64 committed_replication_row_index = 6;
             optional NYT.NProto.TError replication_error = 5;
         }
 
