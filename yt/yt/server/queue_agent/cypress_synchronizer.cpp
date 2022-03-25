@@ -86,6 +86,8 @@ public:
 
     void Start() override
     {
+        Active_ = true;
+
         SyncExecutor_->Start();
     }
 
@@ -94,6 +96,8 @@ public:
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
         SyncExecutor_->Stop();
+
+        Active_ = false;
     }
 
     //! Perform a polling round which finds out which objects have changed since the last round
@@ -133,6 +137,8 @@ private:
     const TPeriodicExecutorPtr SyncExecutor_;
     const IYPathServicePtr OrchidService_;
 
+    //! Whether this instance is actively performing polling.
+    std::atomic<bool> Active_ = false;
     //! Current poll iteration error.
     TError PollError_;
     //! Current poll iteration instant.
@@ -374,6 +380,7 @@ private:
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
         BuildYsonFluently(consumer).BeginMap()
+            .Item("active").Value(Active_)
             .Item("poll_instant").Value(PollInstant_)
             .Item("poll_index").Value(PollIndex_)
             .Item("poll_error").Value(PollError_)

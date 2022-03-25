@@ -37,6 +37,14 @@ class QueueAgentOrchid:
 
         self.agent_id = agent_id
 
+    @staticmethod
+    def leader_orchid():
+        agent_ids = ls("//sys/queue_agents/instances", verbose=False)
+        for agent_id in agent_ids:
+            if get("//sys/queue_agents/instances/{}/orchid/queue_agent/active".format(agent_id)):
+                return QueueAgentOrchid(agent_id)
+        assert False, "No leading queue agent found"
+
     def queue_agent_orchid_path(self):
         return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
 
@@ -515,36 +523,43 @@ class TestMultipleAgents(TestQueueAgentBase):
         },
         "queue_agent": {
             "poll_period": 100,
+            "controller": {
+                "pass_period": 100,
+            },
+        },
+        "cypress_synchronizer": {
+            "sync_period": 100,
         },
         "election_manager": {
             "transaction_timeout": 5000,
             "transaction_ping_period": 100,
             "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
         },
     }
+
+    def _collect_leaders(self, instances, ignore_instances=()):
+        result = []
+        for instance in instances:
+            if instance in ignore_instances:
+                continue
+            active = get("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent/active")
+            if active:
+                result.append(instance)
+        return result
 
     @authors("max42")
     def test_leader_election(self):
         instances = ls("//sys/queue_agents/instances")
         assert len(instances) == 5
 
-        def collect_leaders(ignore_instances=[]):
-            result = []
-            for instance in instances:
-                if instance in ignore_instances:
-                    continue
-                active = get("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent/active")
-                if active:
-                    result.append(instance)
-            return result
+        wait(lambda: len(self._collect_leaders(instances)) == 1)
 
-        wait(lambda: len(collect_leaders()) == 1)
-
-        leader = collect_leaders()[0]
+        leader = self._collect_leaders(instances)[0]
 
         # Check that exactly one queue agent instance is performing polling.
 
-        def validate_leader(leader, ignore_instances=[]):
+        def validate_leader(leader, ignore_instances=()):
             wait(lambda: get("//sys/queue_agents/instances/" + leader + "/orchid/queue_agent/poll_index") > 10)
 
             for instance in instances:
@@ -574,13 +589,133 @@ class TestMultipleAgents(TestQueueAgentBase):
             prev_leader = leader
 
             def reelection():
-                leaders = collect_leaders(ignore_instances=[prev_leader])
+                leaders = self._collect_leaders(instances, ignore_instances=(prev_leader,))
                 return len(leaders) == 1 and leaders[0] != prev_leader
             wait(reelection)
 
-            leader = collect_leaders(ignore_instances=[prev_leader])[0]
+            leader = self._collect_leaders(instances, ignore_instances=(prev_leader,))[0]
 
-            validate_leader(leader, ignore_instances=[prev_leader])
+            validate_leader(leader, ignore_instances=(prev_leader,))
+
+    @authors("achulkov2")
+    def test_queue_attribute_leader_redirection(self):
+        self._prepare_tables()
+
+        queues = ["//tmp/q{}".format(i) for i in range(3)]
+        for queue in queues:
+            create("table", queue, attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+            sync_mount_table(queue)
+            insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": queue}])
+
+        def wait_polls(cypress_synchronizer_orchid, queue_agent_orchid):
+            cypress_synchronizer_orchid.wait_fresh_poll()
+            queue_agent_orchid.wait_fresh_poll()
+            for queue in queues:
+                queue_agent_orchid.wait_fresh_queue_pass("primary:" + queue)
+
+        wait_polls(CypressSynchronizerOrchid.leader_orchid(), QueueAgentOrchid.leader_orchid())
+
+        instances = ls("//sys/queue_agents/instances")
+
+        def perform_checks(ignore_instances=()):
+            # Balancing channel should send request to random instances.
+            for i in range(15):
+                for queue in queues:
+                    assert get(queue + "/@queue_status/partition_count") == 1
+
+            for instance in instances:
+                if instance in ignore_instances:
+                    continue
+                orchid_path = "//sys/queue_agents/instances/{}/orchid/queue_agent".format(instance)
+                for queue in queues:
+                    assert get("{}/queues/primary:{}/status/partition_count".format(
+                        orchid_path, escape_ypath_literal(queue))) == 1
+
+        perform_checks()
+
+        leader = self._collect_leaders(instances)[0]
+        leader_index = get("//sys/queue_agents/instances/" + leader + "/@annotations/yt_env_index")
+
+        with Restarter(self.Env, QUEUE_AGENTS_SERVICE, indexes=[leader_index]):
+            prev_leader = leader
+
+            leaders = []
+
+            def reelection():
+                nonlocal leaders
+                leaders = self._collect_leaders(instances, ignore_instances=(prev_leader,))
+                return len(leaders) == 1 and leaders[0] != prev_leader
+
+            wait(reelection)
+            assert len(leaders) == 1
+
+            wait_polls(CypressSynchronizerOrchid(leaders[0]), QueueAgentOrchid(leaders[0]))
+
+            perform_checks(ignore_instances=(prev_leader,))
+
+    @authors("achulkov2")
+    def test_consumer_attribute_leader_redirection(self):
+        self._prepare_tables()
+
+        consumers = ["//tmp/c{}".format(i) for i in range(3)]
+        target_queues = ["//tmp/q{}".format(i) for i in range(len(consumers))]
+        for i in range(len(consumers)):
+            create("table", target_queues[i],
+                   attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+            sync_mount_table(target_queues[i])
+            create("table", consumers[i], attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
+                                                      "target_queue": "primary:" + target_queues[i],
+                                                      "treat_as_queue_consumer": True})
+            sync_mount_table(consumers[i])
+
+            insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": consumers[i]}])
+            insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": target_queues[i]}])
+
+        def wait_polls(cypress_synchronizer_orchid, queue_agent_orchid):
+            cypress_synchronizer_orchid.wait_fresh_poll()
+            queue_agent_orchid.wait_fresh_poll()
+            for consumer in consumers:
+                queue_agent_orchid.wait_fresh_consumer_pass("primary:" + consumer)
+
+        wait_polls(CypressSynchronizerOrchid.leader_orchid(), QueueAgentOrchid.leader_orchid())
+
+        instances = ls("//sys/queue_agents/instances")
+
+        def perform_checks(ignore_instances=()):
+            # Balancing channel should send request to random instances.
+            for i in range(15):
+                for consumer in consumers:
+                    assert get(consumer + "/@queue_consumer_status/partition_count") == 1
+
+            for instance in instances:
+                if instance in ignore_instances:
+                    continue
+                orchid_path = "//sys/queue_agents/instances/{}/orchid/queue_agent".format(instance)
+                for consumer in consumers:
+                    assert get("{}/consumers/primary:{}/status/partition_count".format(
+                        orchid_path, escape_ypath_literal(consumer))) == 1
+
+        perform_checks()
+
+        leader = self._collect_leaders(instances)[0]
+        leader_index = get("//sys/queue_agents/instances/" + leader + "/@annotations/yt_env_index")
+
+        with Restarter(self.Env, QUEUE_AGENTS_SERVICE, indexes=[leader_index]):
+            prev_leader = leader
+
+            leaders = []
+
+            def reelection():
+                nonlocal leaders
+                leaders = self._collect_leaders(instances, ignore_instances=(prev_leader,))
+                return len(leaders) == 1 and leaders[0] != prev_leader
+
+            wait(reelection)
+            assert len(leaders) == 1
+
+            wait_polls(CypressSynchronizerOrchid(leaders[0]), QueueAgentOrchid(leaders[0]))
+
+            perform_checks(ignore_instances=(prev_leader,))
 
 
 class TestMasterIntegration(TestQueueAgentBase):
@@ -728,6 +863,14 @@ class CypressSynchronizerOrchid:
             agent_id = agent_ids[0]
 
         self.agent_id = agent_id
+
+    @staticmethod
+    def leader_orchid():
+        agent_ids = ls("//sys/queue_agents/instances", verbose=False)
+        for agent_id in agent_ids:
+            if get("//sys/queue_agents/instances/{}/orchid/cypress_synchronizer/active".format(agent_id)):
+                return CypressSynchronizerOrchid(agent_id)
+        assert False, "No leading cypress synchronizer found"
 
     def queue_agent_orchid_path(self):
         return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"

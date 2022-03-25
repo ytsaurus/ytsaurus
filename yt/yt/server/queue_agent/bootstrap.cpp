@@ -135,13 +135,23 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
+    {
+        TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
+        options->GroupName = "QueueAgent";
+        options->MemberName = AgentId_;
+        options->TransactionAttributes = CreateEphemeralAttributes();
+        options->TransactionAttributes->Set("host", AgentId_);
+        ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
+    }
+
     DynamicState_ = New<TDynamicState>(Config_->Root, NativeClient_);
 
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
         ClientDirectory_,
         ControlInvoker_,
-        DynamicState_);
+        DynamicState_,
+        ElectionManager_);
 
     CypressSynchronizer_ = CreatePollingCypressSynchronizer(
         Config_->CypressSynchronizer,
@@ -194,20 +204,11 @@ void TBootstrap::DoRun()
 
     UpdateCypressNode();
 
-    {
-        TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
-        options->GroupName = "QueueAgent";
-        options->MemberName = AgentId_;
-        options->TransactionAttributes = CreateEphemeralAttributes();
-        options->TransactionAttributes->Set("host", AgentId_);
-        ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
+    ElectionManager_->SubscribeLeadingStarted(BIND(&TQueueAgent::Start, QueueAgent_));
+    ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
 
-        ElectionManager_->SubscribeLeadingStarted(BIND(&TQueueAgent::Start, QueueAgent_));
-        ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
-
-        ElectionManager_->SubscribeLeadingEnded(BIND(&TQueueAgent::Stop, QueueAgent_));
-        ElectionManager_->SubscribeLeadingEnded(BIND(&ICypressSynchronizer::Stop, CypressSynchronizer_));
-    }
+    ElectionManager_->SubscribeLeadingEnded(BIND(&TQueueAgent::Stop, QueueAgent_));
+    ElectionManager_->SubscribeLeadingEnded(BIND(&ICypressSynchronizer::Stop, CypressSynchronizer_));
 
     ElectionManager_->Start();
 }

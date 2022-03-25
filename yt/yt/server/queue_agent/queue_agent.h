@@ -1,12 +1,15 @@
 #pragma once
 
 #include "private.h"
+#include "bootstrap.h"
 
 #include "dynamic_state.h"
 
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <yt/yt/core/rpc/bus/public.h>
 
 namespace NYT::NQueueAgent {
 
@@ -21,7 +24,8 @@ public:
         TQueueAgentConfigPtr config,
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
-        TDynamicStatePtr dynamicState);
+        TDynamicStatePtr dynamicState,
+        NCypressElection::ICypressElectionManagerPtr electionManager);
 
     void Start();
 
@@ -34,6 +38,7 @@ private:
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
+    const NCypressElection::ICypressElectionManagerPtr ElectionManager;
     const NConcurrency::TThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
 
@@ -85,10 +90,15 @@ private:
     //! Index of a current poll iteration.
     i64 PollIndex_ = 0;
 
-    void BuildQueueYson(const TCrossClusterReference& /*queueRef*/, const TQueue& queue, NYson::IYsonConsumer* ysonConsumer);
+    NRpc::IChannelFactoryPtr QueueAgentChannelFactory_;
+
     NYTree::INodePtr QueueObjectServiceNode_;
-    void BuildConsumerYson(const TCrossClusterReference& consumerRef, const TConsumer& consumer, NYson::IYsonConsumer* ysonConsumer);
     NYTree::INodePtr ConsumerObjectServiceNode_;
+
+    NYTree::IYPathServicePtr RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key);
+
+    void BuildQueueYson(const TCrossClusterReference& queueRef, const TQueue& queue, NYson::IYsonConsumer* ysonConsumer);
+    void BuildConsumerYson(const TCrossClusterReference& consumerRef, const TConsumer& consumer, NYson::IYsonConsumer* ysonConsumer);
 
     //! One iteration of state polling and queue/consumer in-memory state updating.
     void Poll();

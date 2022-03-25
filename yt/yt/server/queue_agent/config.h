@@ -65,6 +65,9 @@ public:
     //! Configuration of queue controllers.
     TQueueControllerConfigPtr Controller;
 
+    //! Used to create channels to other queue agents.
+    NBus::TTcpBusConfigPtr BusClient;
+
     REGISTER_YSON_STRUCT(TQueueAgentConfig)
 
     static void Register(TRegistrar registrar);
