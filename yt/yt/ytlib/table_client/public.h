@@ -28,7 +28,12 @@ struct TColumnIdMapping
 DECLARE_REFCOUNTED_CLASS(TTableSchema)
 
 class TSchemaDictionary;
-class TColumnFilterDictionary;
+
+template <typename TColumnName>
+class TGenericColumnFilterDictionary;
+
+using TColumnFilterDictionary = TGenericColumnFilterDictionary<TString>;
+using TStableColumnNameFilterDictionary = TGenericColumnFilterDictionary<TStableName>;
 
 struct IBlockWriter;
 class TBlockWriter;

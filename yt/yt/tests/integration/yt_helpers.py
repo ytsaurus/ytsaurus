@@ -111,17 +111,28 @@ def get_chunk_owner_master_cell_gauges(cypress_path, sensor_path, *args, **kwarg
     return [profiler.gauge(sensor_path, *args, **kwargs) for profiler in _get_chunk_owner_master_cell_profilers(cypress_path)]
 
 
+def skip_if_old(env, version_at_least, message):
+    def get_message(name):
+        return "{} {}".format(name, message)
+
+    if env.get_component_version("ytserver-master").abi < version_at_least:
+        pytest.skip(get_message("Masters"))
+    if env.get_component_version("ytserver-controller-agent").abi < version_at_least:
+        pytest.skip(get_message("Controller agents"))
+    if env.get_component_version("ytserver-job-proxy").abi < version_at_least:
+        pytest.skip(get_message("Job proxies"))
+    if env.get_component_version("ytserver-http-proxy").abi < version_at_least:
+        pytest.skip(get_message("HTTP proxies"))
+    if env.get_component_version("ytserver-proxy").abi < version_at_least:
+        pytest.skip(get_message("RPC proxies"))
+
+
 def skip_if_no_descending(env):
-    if env.get_component_version("ytserver-master").abi <= (20, 3):
-        pytest.skip("Masters do not support descending yet")
-    if env.get_component_version("ytserver-controller-agent").abi <= (20, 3):
-        pytest.skip("Controller agents do not support descending yet")
-    if env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
-        pytest.skip("Job proxies do not support descending yet")
-    if env.get_component_version("ytserver-http-proxy").abi <= (20, 3):
-        pytest.skip("Http proxies do not support descending yet")
-    if env.get_component_version("ytserver-proxy").abi <= (20, 3):
-        pytest.skip("Rpc proxies do not support descending yet")
+    skip_if_old(env, (21, 1), "do not support descending yet")
+
+
+def skip_if_renaming_disabled(env):
+    skip_if_old(env, (22, 1), "do not support column renaming")
 
 
 def write_log_barrier(address, category="Barrier", driver=None):

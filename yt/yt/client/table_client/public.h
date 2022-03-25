@@ -236,6 +236,8 @@ class TKeyComparer;
 struct TColumnRenameDescriptor;
 using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
 
+class TStableName;
+
 class TColumnSchema;
 
 struct TColumnSortSchema;

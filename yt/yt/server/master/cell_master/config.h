@@ -261,6 +261,8 @@ public:
     bool EnableSafeMode;
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
+    bool EnableTableColumnRenaming;
+
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;

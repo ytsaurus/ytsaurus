@@ -815,20 +815,20 @@ void ValidateClientRow(
 
         if (Any(value.Flags & EValueFlags::Aggregate) && !column.Aggregate()) {
             THROW_ERROR_EXCEPTION(
-                "\"aggregate\" flag is set for value in column %Qv which is not aggregating",
-                column.Name());
+                "\"aggregate\" flag is set for value in column %v which is not aggregating",
+                column.GetDiagnosticNameString());
         }
 
         if (mappedId < schema.GetKeyColumnCount()) {
             if (keyColumnSeen[mappedId]) {
-                THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
-                    column.Name());
+                THROW_ERROR_EXCEPTION("Duplicate key column %v",
+                    column.GetDiagnosticNameString());
             }
             keyColumnSeen[mappedId] = true;
             ValidateKeyValue(value);
         } else if (isKey) {
-            THROW_ERROR_EXCEPTION("Non-key column %Qv in a key",
-                column.Name());
+            THROW_ERROR_EXCEPTION("Non-key column %v in a key",
+                column.GetDiagnosticNameString());
         } else {
             haveDataColumns = true;
             ValidateDataValue(value);
@@ -848,8 +848,8 @@ void ValidateClientRow(
 
     for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
         if (!keyColumnSeen[index] && !schema.Columns()[index].Expression()) {
-            THROW_ERROR_EXCEPTION("Missing key column %Qv",
-                schema.Columns()[index].Name());
+            THROW_ERROR_EXCEPTION("Missing key column %v",
+                schema.Columns()[index].GetDiagnosticNameString());
         }
     }
 
@@ -1055,8 +1055,8 @@ void ValidateValueType(
 
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
-                "Required column %Qv cannot have %Qlv value",
-                columnSchema.Name(),
+                "Required column %v cannot have %Qlv value",
+                columnSchema.GetDiagnosticNameString(),
                 value.Type);
         } else {
             return;
@@ -1126,8 +1126,8 @@ void ValidateValueType(
         YT_ABORT();
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-            "Error validating column %Qv",
-            columnSchema.Name())
+            "Error validating column %v",
+            columnSchema.GetDiagnosticNameString())
             << ex;
     }
 }
@@ -1221,16 +1221,16 @@ void ValidateDuplicateAndRequiredValueColumns(
         const auto& column = schema.Columns()[mappedId];
 
         if (columnSeen[mappedId]) {
-            THROW_ERROR_EXCEPTION("Duplicate column %Qv",
-                column.Name());
+            THROW_ERROR_EXCEPTION("Duplicate column %v",
+                column.GetDiagnosticNameString());
         }
         columnSeen[mappedId] = true;
     }
 
     for (int index = schema.GetKeyColumnCount(); index < schema.GetColumnCount(); ++index) {
         if (!columnSeen[index] && schema.Columns()[index].Required()) {
-            THROW_ERROR_EXCEPTION("Missing required column %Qv",
-                schema.Columns()[index].Name());
+            THROW_ERROR_EXCEPTION("Missing required column %v",
+                schema.Columns()[index].GetDiagnosticNameString());
         }
     }
 }

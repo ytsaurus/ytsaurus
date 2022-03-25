@@ -1269,7 +1269,6 @@ public:
             if (auto* column = schema.FindColumn(reference.ColumnName)) {
                 auto formattedName = NAst::InferColumnName(reference);
 
-
                 if (mapping) {
                     mapping->push_back(TColumnDescriptor{
                         formattedName,
