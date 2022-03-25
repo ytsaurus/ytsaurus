@@ -6,7 +6,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TTableReplicaStatistics
 {
-    required int64 current_replication_row_index = 1;
+    required int64 committed_replication_row_index = 1;
     required uint64 current_replication_timestamp = 2;
 }
 

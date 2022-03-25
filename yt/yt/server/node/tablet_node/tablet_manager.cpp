@@ -2257,6 +2257,7 @@ private:
         replicaInfo->SetPreparedReplicationTransactionId(NullTransactionId);
 
         auto prevCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
+        auto prevCommittedReplicationRowIndex = replicaInfo->GetCommittedReplicationRowIndex();
         auto prevCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
         auto prevTrimmedRowCount = tablet->GetTrimmedRowCount();
 
@@ -2285,18 +2286,22 @@ private:
         }
 
         replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
+        replicaInfo->SetCommittedReplicationRowIndex(newCurrentReplicationRowIndex);
         replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
         replicaInfo->RecomputeReplicaStatus();
 
         AdvanceReplicatedTrimmedRowCount(tablet, transaction);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Async replicated rows committed (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
-            "CurrentReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, TrimmedRowCount: %v -> %v, TotalRowCount: %v)",
+            "CurrentReplicationRowIndex: %v -> %v, CommittedReplicationRowIndex: %v -> %v, CurrentReplicationTimestamp: %llx -> %llx, "
+            "TrimmedRowCount: %v -> %v, TotalRowCount: %v)",
             tabletId,
             replicaId,
             transaction->GetId(),
             prevCurrentReplicationRowIndex,
             replicaInfo->GetCurrentReplicationRowIndex(),
+            prevCommittedReplicationRowIndex,
+            replicaInfo->GetCommittedReplicationRowIndex(),
             prevCurrentReplicationTimestamp,
             replicaInfo->GetCurrentReplicationTimestamp(),
             prevTrimmedRowCount,
@@ -2999,6 +3004,7 @@ private:
                 .Item("preserve_timestamps").Value(replica.GetPreserveTimestamps())
                 .Item("start_replication_timestamp").Value(replica.GetStartReplicationTimestamp())
                 .Item("current_replication_row_index").Value(replica.GetCurrentReplicationRowIndex())
+                .Item("committed_replication_row_index").Value(replica.GetCommittedReplicationRowIndex())
                 .Item("current_replication_timestamp").Value(replica.GetCurrentReplicationTimestamp())
                 .Item("prepared_replication_transaction").Value(replica.GetPreparedReplicationTransactionId())
                 .Item("prepared_replication_row_index").Value(replica.GetPreparedReplicationRowIndex())

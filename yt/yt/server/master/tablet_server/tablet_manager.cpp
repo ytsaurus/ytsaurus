@@ -448,7 +448,7 @@ public:
             auto& replicaInfo = pair.first->second;
 
             if (startReplicationRowIndexes) {
-                replicaInfo.SetCurrentReplicationRowIndex((*startReplicationRowIndexes)[tabletIndex]);
+                replicaInfo.SetCommittedReplicationRowIndex((*startReplicationRowIndexes)[tabletIndex]);
             }
 
             if (!tablet->IsActive()) {
@@ -2043,13 +2043,14 @@ public:
             YT_VERIFY(mode == ENodeCloneMode::Copy);
 
             for (const auto* replica : GetValuesSortedByKey(replicatedSourceTable->Replicas())) {
-                std::vector<i64> currentReplicationRowIndexes;
+                std::vector<i64> committedReplicationRowIndexes;
+                committedReplicationRowIndexes.reserve(sourceTablets.size());
 
-                for (int tabletIndex = 0; tabletIndex < static_cast<int>(sourceTablets.size()); ++tabletIndex) {
+                for (int tabletIndex = 0; tabletIndex < std::ssize(sourceTablets); ++tabletIndex) {
                     auto* tablet = replicatedSourceTable->Tablets()[tabletIndex];
                     auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    auto replicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
-                    currentReplicationRowIndexes.push_back(replicationRowIndex);
+                    auto replicationRowIndex = replicaInfo->GetCommittedReplicationRowIndex();
+                    committedReplicationRowIndexes.push_back(replicationRowIndex);
                 }
 
                 CreateTableReplica(
@@ -2061,7 +2062,7 @@ public:
                     replica->GetAtomicity(),
                     /*enabled*/ false,
                     replica->GetStartReplicationTimestamp(),
-                    currentReplicationRowIndexes);
+                    committedReplicationRowIndexes);
             }
         }
 
@@ -5478,10 +5479,10 @@ private:
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
+            "CommittedReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tabletId,
             replicaId,
-            replicaInfo->GetCurrentReplicationRowIndex(),
+            replicaInfo->GetCommittedReplicationRowIndex(),
             replicaInfo->GetCurrentReplicationTimestamp());
     }
 
@@ -7352,16 +7353,16 @@ private:
 
     static void PopulateTableReplicaStatisticsFromInfo(TTableReplicaStatistics* statistics, const TTableReplicaInfo& info)
     {
-        statistics->set_current_replication_row_index(info.GetCurrentReplicationRowIndex());
+        statistics->set_committed_replication_row_index(info.GetCommittedReplicationRowIndex());
         statistics->set_current_replication_timestamp(info.GetCurrentReplicationTimestamp());
     }
 
     static void PopulateTableReplicaInfoFromStatistics(TTableReplicaInfo* info, const TTableReplicaStatistics& statistics)
     {
         // Updates may be reordered but we can rely on monotonicity here.
-        info->SetCurrentReplicationRowIndex(std::max(
-            info->GetCurrentReplicationRowIndex(),
-            statistics.current_replication_row_index()));
+        info->SetCommittedReplicationRowIndex(std::max(
+            info->GetCommittedReplicationRowIndex(),
+            statistics.committed_replication_row_index()));
         info->SetCurrentReplicationTimestamp(std::max(
             info->GetCurrentReplicationTimestamp(),
             statistics.current_replication_timestamp()));

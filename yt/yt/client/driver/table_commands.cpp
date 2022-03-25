@@ -1295,6 +1295,7 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
                                                     .Item("last_replication_timestamp").Value(replicaInfo.LastReplicationTimestamp)
                                                     .Item("mode").Value(replicaInfo.Mode)
                                                     .Item("current_replication_row_index").Value(replicaInfo.CurrentReplicationRowIndex)
+                                                    .Item("committed_replication_row_index").Value(replicaInfo.CommittedReplicationRowIndex)
                                                     .DoIf(Options.RequestErrors, [&] (TFluentMap fluent) {
                                                         fluent
                                                             .Item("replication_error").Value(replicaInfo.ReplicationError);

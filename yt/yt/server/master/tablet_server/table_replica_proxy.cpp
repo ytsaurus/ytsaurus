@@ -137,7 +137,9 @@ private:
                             .Item().BeginMap()
                                 .Item("tablet_id").Value(tablet->GetId())
                                 .Item("state").Value(replicaInfo->GetState())
-                                .Item("current_replication_row_index").Value(replicaInfo->GetCurrentReplicationRowIndex())
+                                .Item("committed_replication_row_index").Value(replicaInfo->GetCommittedReplicationRowIndex())
+                                // COMPAT(gritukan)
+                                .Item("current_replication_row_index").Value(replicaInfo->GetCommittedReplicationRowIndex())
                                 .Item("current_replication_timestamp").Value(replicaInfo->GetCurrentReplicationTimestamp())
                                 .Item("replication_lag_time").Value(tablet->ComputeReplicationLagTime(
                                     timestampProvider->GetLatestTimestamp(), *replicaInfo))

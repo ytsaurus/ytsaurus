@@ -235,7 +235,7 @@ class TTableReplicaInfo
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CurrentReplicationRowIndex, 0);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CommittedReplicationRowIndex, 0);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentReplicationTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasError);
 

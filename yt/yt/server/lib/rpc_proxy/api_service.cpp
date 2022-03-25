@@ -3494,6 +3494,7 @@ private:
                             protoReplicaInfo->set_last_replication_timestamp(replicaInfo.LastReplicationTimestamp);
                             protoReplicaInfo->set_mode(static_cast<NApi::NRpcProxy::NProto::ETableReplicaMode>(replicaInfo.Mode));
                             protoReplicaInfo->set_current_replication_row_index(replicaInfo.CurrentReplicationRowIndex);
+                            protoReplicaInfo->set_committed_replication_row_index(replicaInfo.CommittedReplicationRowIndex);
                             ToProto(protoReplicaInfo->mutable_replication_error(), replicaInfo.ReplicationError);
                         }
                     }

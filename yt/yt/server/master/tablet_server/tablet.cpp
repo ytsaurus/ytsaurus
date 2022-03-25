@@ -492,7 +492,7 @@ void TTableReplicaInfo::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
 
     Save(context, State_);
-    Save(context, CurrentReplicationRowIndex_);
+    Save(context, CommittedReplicationRowIndex_);
     Save(context, CurrentReplicationTimestamp_);
     Save(context, HasError_);
 }
@@ -502,7 +502,7 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, State_);
-    Load(context, CurrentReplicationRowIndex_);
+    Load(context, CommittedReplicationRowIndex_);
     Load(context, CurrentReplicationTimestamp_);
     Load(context, HasError_);
 }
