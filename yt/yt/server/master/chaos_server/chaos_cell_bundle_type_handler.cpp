@@ -51,8 +51,6 @@ public:
     }
 
 private:
-    using TBase = TCellBundleTypeHandlerBase<TChaosCellBundle>;
-
     TString DoGetName(const TChaosCellBundle* cellBundle) override
     {
         return Format("chaos cell bundle %Qv", cellBundle->GetName());

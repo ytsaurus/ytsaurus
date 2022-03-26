@@ -18,8 +18,7 @@ class TCellBundleTypeHandlerBase
     : public NObjectServer::TConcreteObjectTypeHandlerBase<TImpl>
 {
 public:
-    explicit TCellBundleTypeHandlerBase(
-        NCellMaster::TBootstrap* bootstrap);
+    using NObjectServer::TConcreteObjectTypeHandlerBase<TImpl>::TConcreteObjectTypeHandlerBase;
 
     NObjectServer::ETypeFlags GetFlags() const override;
     NObjectServer::TObject* FindObject(NObjectClient::TObjectId id) override;
@@ -32,7 +31,7 @@ protected:
         NYTree::IAttributeDictionary* attributes,
         NTabletClient::TTabletCellOptionsPtr options);
 
-    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* /*cellBundle*/) override;
+    NObjectClient::TCellTagList DoGetReplicationCellTags(const TImpl* cellBundle) override;
     NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* cellBundle) override;
     void DoZombifyObject(TImpl* cellBundle) override;
     void DoDestroyObject(TImpl* cellBundle) noexcept override;

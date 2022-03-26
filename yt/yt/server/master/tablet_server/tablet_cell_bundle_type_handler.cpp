@@ -26,9 +26,7 @@ class TTabletCellBundleTypeHandler
     : public TCellBundleTypeHandlerBase<TTabletCellBundle>
 {
 public:
-    explicit TTabletCellBundleTypeHandler(TBootstrap* bootstrap)
-        : TBase(bootstrap)
-    { }
+    using TCellBundleTypeHandlerBase::TCellBundleTypeHandlerBase;
 
     EObjectType GetType() const override
     {
@@ -49,8 +47,6 @@ public:
     }
 
 private:
-    using TBase = TCellBundleTypeHandlerBase<TTabletCellBundle>;
-
     IObjectProxyPtr DoGetProxy(TTabletCellBundle* cellBundle, TTransaction* /*transaction*/) override
     {
         return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);
