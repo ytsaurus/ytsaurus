@@ -1206,6 +1206,56 @@ class TestChaos(ChaosTestBase):
         assert select_rows("* from [//tmp/crt]") == values
 
     @authors("savrus")
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_chaos_table_and_dynamic_table(self, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        replicas = [
+            {"cluster_name": "remote_0", "content_type": "data", "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids)
+        card_id = get("//tmp/crt/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/d")
+        sync_mount_table("//tmp/d")
+
+        values = [{"key": 0, "value": "0"}]
+        tx = start_transaction(type="tablet")
+        insert_rows("//tmp/crt", values, tx=tx)
+        insert_rows("//tmp/d",  [{"key": 0, "value": "1"}], tx=tx)
+        commit_transaction(tx)
+
+        row = lookup_rows("//tmp/d", [{"key": 0}], versioned=True)
+        assert str(row[0]["value"][0]) == "1"
+        ts = row[0].attributes["write_timestamps"][0]
+
+        if mode == "async":
+            def _insistent_lookup_rows():
+                try:
+                    return lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts)
+                except YtError as err:
+                    if err.contains_text("No in-sync replicas found for table //tmp/crt"):
+                        return []
+                    raise err
+            wait(lambda: _insistent_lookup_rows() == values)
+            row = lookup_rows("//tmp/crt", [{"key": 0}], timestamp=ts, versioned=True)
+        else:
+            row = lookup_rows("//tmp/crt", [{"key": 0}], versioned=True)
+
+        assert str(row[0]["value"][0]) == "0"
+        assert row[0].attributes["write_timestamps"][0] == ts
+
+    @authors("savrus")
     @pytest.mark.parametrize("disable_data", [True, False])
     def test_trim_replica_history_items(self, disable_data):
         cell_id = self._sync_create_chaos_bundle_and_cell()
