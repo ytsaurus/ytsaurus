@@ -412,60 +412,6 @@ private:
 
         YT_LOG_DEBUG("Pick replica to pull from");
 
-        auto findFreshQueueReplica = [&] (TTimestamp oldestTimestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
-            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
-                    continue;
-                }
-
-                if (replicaInfo.ContentType == ETableReplicaContentType::Queue &&
-                    replicaInfo.State == ETableReplicaState::Enabled &&
-                    !IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress) &&
-                    replicaInfo.FindHistoryItemIndex(oldestTimestamp) != -1)
-                {
-                    return {replicaId, &replicaInfo};
-                }
-            }
-            return {};
-        };
-
-        auto findSyncQueueReplica = [&] (auto* selfReplicaInfo, auto timestamp) -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
-            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
-                    continue;
-                }
-
-                if (replicaInfo.ContentType != ETableReplicaContentType::Queue || replicaInfo.State != ETableReplicaState::Enabled) {
-                    continue;
-                }
-
-                auto historyItemIndex = replicaInfo.FindHistoryItemIndex(timestamp);
-                if (historyItemIndex == -1) {
-                    continue;
-                }
-
-                if (const auto& item = replicaInfo.History[historyItemIndex]; !IsReplicaReallySync(item.Mode, item.State)) {
-                    continue;
-                }
-
-                YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
-                    replicaId,
-                    replicaInfo.History[historyItemIndex]);
-
-                // Pull from (past) sync replica until it changed mode or we became sync.
-                auto upperTimestamp = NullTimestamp;
-                if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
-                    upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
-                } else if (IsReplicaReallySync(selfReplicaInfo->Mode, selfReplicaInfo->State)) {
-                    upperTimestamp = selfReplicaInfo->History.back().Timestamp;
-                }
-
-                return {replicaId, &replicaInfo, upperTimestamp};
-            }
-
-            return {};
-        };
-
         auto* selfReplicaInfo = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
         if (!selfReplicaInfo) {
             YT_LOG_DEBUG("Will not pull rows since replication card does not contain us");
@@ -510,13 +456,81 @@ private:
             // NB: Allow this since sync replica could be catching up.
         }
 
-        if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(oldestTimestamp); queueReplica) {
+        auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
+            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
+                    continue;
+                }
+
+                if (replicaInfo.ContentType != ETableReplicaContentType::Queue ||
+                    replicaInfo.State != ETableReplicaState::Enabled ||
+                    replicaInfo.FindHistoryItemIndex(oldestTimestamp) == -1)
+                {
+                    continue;
+                }
+
+                if (selfReplicaInfo->ContentType == ETableReplicaContentType::Data) {
+                    if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress)) {
+                        return {replicaId, &replicaInfo};
+                    }
+                } else {
+                    YT_VERIFY(selfReplicaInfo->ContentType == ETableReplicaContentType::Queue);
+                    auto replicaOldestTimestamp = GetReplicationProgressMinTimestamp(
+                        replicaInfo.ReplicationProgress,
+                        replicationProgress->Segments[0].LowerKey,
+                        replicationProgress->UpperKey);
+                    if (replicaOldestTimestamp > oldestTimestamp) {
+                        return {replicaId, &replicaInfo};
+                    }
+                }
+            }
+            return {};
+        };
+
+        auto findSyncQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
+            for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+                if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
+                    continue;
+                }
+
+                if (replicaInfo.ContentType != ETableReplicaContentType::Queue || replicaInfo.State != ETableReplicaState::Enabled) {
+                    continue;
+                }
+
+                auto historyItemIndex = replicaInfo.FindHistoryItemIndex(oldestTimestamp);
+                if (historyItemIndex == -1) {
+                    continue;
+                }
+
+                if (const auto& item = replicaInfo.History[historyItemIndex]; !IsReplicaReallySync(item.Mode, item.State)) {
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
+                    replicaId,
+                    replicaInfo.History[historyItemIndex]);
+
+                // Pull from (past) sync replica until it changed mode or we became sync.
+                auto upperTimestamp = NullTimestamp;
+                if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
+                    upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
+                } else if (IsReplicaReallySync(selfReplicaInfo->Mode, selfReplicaInfo->State)) {
+                    upperTimestamp = selfReplicaInfo->History.back().Timestamp;
+                }
+
+                return {replicaId, &replicaInfo, upperTimestamp};
+            }
+
+            return {};
+        };
+
+        if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(); queueReplica) {
             YT_LOG_DEBUG("Pull rows from fresh replica (ReplicaId: %v)",
                 queueReplicaId);
             return {queueReplicaId, queueReplica, NullTimestamp};
         }
 
-        if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(selfReplicaInfo, oldestTimestamp); queueReplicaInfo) {
+        if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(); queueReplicaInfo) {
             YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %llx, UpperTimestamp: %llx)",
                 queueReplicaId,
                 oldestTimestamp,
