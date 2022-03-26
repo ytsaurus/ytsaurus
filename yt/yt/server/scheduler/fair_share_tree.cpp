@@ -1758,29 +1758,6 @@ private:
         return nullptr;
     }
 
-    TYPath GetPoolPath(const TSchedulerCompositeElementPtr& element) const
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        std::vector<TString> tokens;
-        const auto* current = element.Get();
-        while (!current->IsRoot()) {
-            if (current->IsExplicit()) {
-                tokens.push_back(current->GetId());
-            }
-            current = current->GetParent();
-        }
-
-        std::reverse(tokens.begin(), tokens.end());
-
-        TYPath path = "/" + NYPath::ToYPathLiteral(TreeId_);
-        for (const auto& token : tokens) {
-            path.append('/');
-            path.append(NYPath::ToYPathLiteral(token));
-        }
-        return path;
-    }
-
     TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const TString& userName) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -1998,7 +1975,10 @@ private:
         if (operation->GetType() == EOperationType::RemoteCopy && Config_->FailRemoteCopyOnMissingResourceLimits) {
             ValidateSpecifiedResourceLimits(operation, pool, Config_->RequiredResourceLimitsForRemoteCopy);
         }
-        StrategyHost_->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
+        StrategyHost_->ValidatePoolPermission(
+            pool->GetFullPath(/*explicitOnly*/ true),
+            operation->GetAuthenticatedUser(),
+            EPermission::Use);
     }
 
     int GetPoolCount() const

@@ -69,6 +69,7 @@ public:
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
         const TString& treeId,
+        const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig) override;
 
     void UpdateMinNeededJobResources() override;

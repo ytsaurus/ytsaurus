@@ -1242,7 +1242,7 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
         for (auto* child : sortedChildren) {
             SchedulableElementCount_ += child->BuildSchedulableChildrenLists(context);
             Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
-            if (SchedulableElementCount_ >= *maxSchedulableElementCount && 
+            if (SchedulableElementCount_ >= *maxSchedulableElementCount &&
                 Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total))
             {
                 child->OnFifoSchedulableElementCountLimitReached();
@@ -1787,6 +1787,27 @@ void TSchedulerCompositeElement::UpdateStarvationAttributes(TInstant now, bool e
     for (const auto& child : EnabledChildren_) {
         child->UpdateStarvationAttributes(now, enablePoolStarvation);
     }
+}
+
+TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly) const
+{
+    std::vector<TString> tokens;
+    const auto* current = this;
+    while (!current->IsRoot()) {
+        if (!explicitOnly || current->IsExplicit()) {
+            tokens.push_back(current->GetId());
+        }
+        current = current->GetParent();
+    }
+
+    std::reverse(tokens.begin(), tokens.end());
+
+    TYPath path = "/" + NYPath::ToYPathLiteral(TreeId_);
+    for (const auto& token : tokens) {
+        path.append('/');
+        path.append(NYPath::ToYPathLiteral(token));
+    }
+    return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3829,6 +3850,7 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
         availableResources,
         ControllerConfig_->ScheduleJobTimeLimit,
         GetTreeId(),
+        GetParent()->GetFullPath(/*explicitOnly*/ false),
         TreeConfig_);
 
     MaybeDelay(

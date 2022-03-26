@@ -19,6 +19,7 @@ void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobReques
     ToProto(protoRequest->mutable_job_id(), request.JobId);
     protoRequest->set_tree_id(request.TreeId);
     ToProto(protoRequest->mutable_job_resource_limits(), request.JobResourceLimits);
+    protoRequest->set_pool_path(request.PoolPath);
     // COMPAT (remove after CA update)
     ToProto(protoRequest->mutable_node_resource_limits(), request.NodeResourceLimits);
     protoRequest->mutable_node_disk_resources()->CopyFrom(request.NodeDiskResources);

@@ -39,6 +39,7 @@ struct IOperationControllerStrategyHost
         const ISchedulingContextPtr& context,
         const TJobResources& availableResources,
         const TString& treeId,
+        const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.

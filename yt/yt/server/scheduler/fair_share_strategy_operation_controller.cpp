@@ -123,9 +123,10 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
     const TJobResources& availableResources,
     TDuration timeLimit,
     const TString& treeId,
+    const TString& poolPath,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
-    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, treeId, treeConfig);
+    auto scheduleJobResultFuture = Controller_->ScheduleJob(context, availableResources, treeId, poolPath, treeConfig);
 
     auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
         .ToUncancelable()

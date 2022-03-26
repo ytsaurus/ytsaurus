@@ -138,9 +138,10 @@ public:
 
     std::vector<TStreamDescriptor> StreamDescriptors;
 
-    // This fields are used only to build job spec and thus transient.
+    // These fields are used only to build job spec and thus transient.
     std::optional<TString> UserJobMonitoringDescriptor;
     std::optional<TString> EnabledProfiler;
+    std::optional<TString> PoolPath;
 
     virtual void Persist(const TPersistenceContext& context) override;
 
@@ -158,7 +159,7 @@ struct TFinishedJobInfo
     : public TRefCounted
 {
     TFinishedJobInfo() = default;
-    
+
     std::unique_ptr<TJobSummary> JobSummary;
     NConcurrency::TDelayedExecutorCookie JobAbortCookie;
 

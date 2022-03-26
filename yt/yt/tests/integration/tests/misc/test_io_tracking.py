@@ -5,8 +5,8 @@ import yt_commands
 from yt_commands import (
     alter_table, authors, create, get, read_journal, wait, read_table, write_file, write_journal, create_account,
     write_table, update_nodes_dynamic_config, get_singular_chunk_id, set_node_banned, sort, get_operation,
-    sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
-    reduce, map_reduce, merge, erase, read_file, sorted_dicts, get_driver, remote_copy)
+    sync_create_cells, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table, ls,
+    reduce, map_reduce, merge, erase, read_file, sorted_dicts, get_driver, remote_copy, create_pool_tree, create_pool)
 
 from yt_helpers import read_structured_log, write_log_barrier
 from yt_driver_bindings import Driver
@@ -830,10 +830,12 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
         },
     }
 
-    def _validate_basic_tags(self, event, op_id, op_type, users=None):
+    def _validate_basic_tags(self, event, op_id, op_type, users=None, pool_tree="default", pool="/root"):
         if users is None:
             users = ["job:root"]
-        assert event["pool_tree@"] == "default"
+        assert event["pool_tree@"] == pool_tree
+        assert event["pool@"] == pool.rsplit("/", 1)[1]
+        assert event["pool_path@"] == "/{}{}".format(pool_tree, pool)
         assert event["operation_id"] == op_id
         assert event["operation_type@"] == op_type
         assert "job_id" in event
@@ -842,11 +844,12 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
         assert event["user@"] in users
 
     def _gather_events(self, raw_events, op, task_to_kind=None, kind_to_job=None,
-                       account="tmp", intermediate_account="intermediate"):
+                       account="tmp", intermediate_account="intermediate", pool_tree="default",
+                       pool="/root"):
         op_type = get(op.get_path() + "/@operation_type")
 
         for event in raw_events:
-            self._validate_basic_tags(event, op.id, op_type)
+            self._validate_basic_tags(event, op.id, op_type, pool_tree=pool_tree, pool=pool)
 
         paths = {}
         for event in raw_events:
@@ -876,6 +879,82 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
 
 
 class TestJobIOTracking(TestJobIOTrackingBase):
+    @authors("gepardo")
+    def test_pools(self):
+        node = ls("//sys/cluster_nodes")[0]
+        yt_commands.set("//sys/cluster_nodes/" + node + "/@user_tags/end", "oaken")
+        yt_commands.set("//sys/pool_trees/default/@config/nodes_filter", "!oaken")
+
+        create_pool_tree("oak", config={"nodes_filter": "oaken"})
+        create_pool("branch", pool_tree="oak")
+        create_pool("acorn", pool_tree="oak", parent_name="branch")
+
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = yt_commands.map(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="cat",
+            spec={
+                "pool": "acorn",
+                "pool_trees": ["oak"],
+            }
+        )
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, pool_tree="oak", pool="/branch/acorn")
+        assert paths["map"]["read"] == ["//tmp/table_in"]
+        assert paths["map"]["write"] == ["//tmp/table_out"]
+
+        assert read_table("//tmp/table_out") == table_data
+
+    @authors("gepardo")
+    def test_ephemeral_pool(self):
+        create_pool("first")
+        create_pool("second", parent_name="first")
+        yt_commands.set("//sys/pool_trees/default/@config/default_parent_pool", "second")
+
+        table_data = [
+            {"id": 1, "name": "cat"},
+            {"id": 1, "name": "python"},
+            {"id": 2, "name": "dog"},
+            {"id": 2, "name": "rattlesnake"},
+        ]
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        create("table", "//tmp/table_in")
+        create("table", "//tmp/table_out")
+        write_table("//tmp/table_in", table_data)
+        raw_events, _ = self.wait_for_events(raw_count=1, from_barrier=from_barrier)
+        assert raw_events[0]["data_node_method@"] == "FinishChunk"
+
+        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
+        op = yt_commands.map(
+            in_="//tmp/table_in",
+            out="//tmp/table_out",
+            command="cat",
+        )
+        raw_events, _ = self.wait_for_events(raw_count=2, from_barrier=from_barrier)
+
+        paths = self._gather_events(raw_events, op, pool="/first/second/root")
+        assert paths["map"]["read"] == ["//tmp/table_in"]
+        assert paths["map"]["write"] == ["//tmp/table_out"]
+
+        assert read_table("//tmp/table_out") == table_data
+
     @authors("gepardo")
     @pytest.mark.parametrize("op_type", ["map", "ordered_map", "reduce"])
     def test_basic_operations(self, op_type):

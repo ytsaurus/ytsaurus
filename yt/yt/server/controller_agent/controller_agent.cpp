@@ -45,6 +45,7 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -103,7 +104,13 @@ public:
         , JobId_(FromProto<TJobId>(request->job_id()))
         , NodeDescriptor_(nodeDescriptor)
         , ScheduleJobSpec_(scheduleJobSpec)
+        , PoolPath_(YT_PROTO_OPTIONAL(*request, pool_path))
     { }
+
+    const std::optional<TString>& GetPoolPath() const override
+    {
+        return PoolPath_;
+    }
 
     const TExecNodeDescriptor& GetNodeDescriptor() const override
     {
@@ -135,6 +142,7 @@ private:
     const TJobId JobId_;
     const TExecNodeDescriptor& NodeDescriptor_;
     const NScheduler::NProto::TScheduleJobSpec ScheduleJobSpec_;
+    const std::optional<TString> PoolPath_;
 };
 
 ////////////////////////////////////////////////////////////////////
