@@ -365,7 +365,13 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
             replicationCard,
             /*nameTable*/ nullptr,
             /*keys*/ {},
-            /*allKeys*/ true);
+            /*allKeys*/ true,
+            options.Timestamp);
+
+        YT_LOG_DEBUG("Picked in-sync replicas for select (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
+            replicaIds,
+            options.Timestamp,
+            *replicationCard);
 
         for (auto replicaId : replicaIds) {
             const auto& replica = GetOrCrash(replicationCard->Replicas, replicaId);

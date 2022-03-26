@@ -705,7 +705,13 @@ TRowset TClient::DoLookupRowsOnce(
                     replicationCard,
                     nameTable,
                     MakeSharedRange(keys),
-                    false);
+                    /*allKeys*/ false,
+                    options.Timestamp);
+
+                YT_LOG_DEBUG("Picked in-sync replicas for lookup (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
+                    replicaIds,
+                    options.Timestamp,
+                    *replicationCard);
 
                 for (auto replicaId : replicaIds) {
                     const auto& replica = GetOrCrash(replicationCard->Replicas, replicaId);
