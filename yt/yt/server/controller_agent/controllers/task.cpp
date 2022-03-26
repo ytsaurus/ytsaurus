@@ -28,6 +28,8 @@
 
 #include <yt/yt/client/misc/io_tags.h>
 
+#include <yt/yt/core/ypath/helpers.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -43,6 +45,7 @@ using namespace NScheduler;
 using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -428,6 +431,7 @@ void TTask::ScheduleJob(
     int taskJobIndex = TaskJobIndexGenerator_.Next();
     auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId, treeIsTentative);
     joblet->StartTime = TInstant::Now();
+    joblet->PoolPath = context->GetPoolPath();
 
     auto nodeId = context->GetNodeDescriptor().Id;
     const auto& address = context->GetNodeDescriptor().Address;
@@ -1505,8 +1509,11 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     schedulerJobSpecExt->set_authenticated_user(TaskHost_->GetAuthenticatedUser());
 
     auto ioTags = CreateEphemeralAttributes();
-    // TODO(gepardo): Add EAggregateIOTag::Pool here when schedulers will pass pool information to controller.
-    // See YT-16119 for details.
+    if (joblet->PoolPath) {
+        const auto& poolPath = *joblet->PoolPath;
+        AddTagToBaggage(ioTags, EAggregateIOTag::Pool, DirNameAndBaseName(poolPath).second);
+        AddTagToBaggage(ioTags, EAggregateIOTag::PoolPath, poolPath);
+    }
     AddTagToBaggage(ioTags, EAggregateIOTag::OperationType, FormatEnum(GetTaskHost()->GetOperationType()));
     AddTagToBaggage(ioTags, EAggregateIOTag::TaskName, GetVertexDescriptor());
     AddTagToBaggage(ioTags, EAggregateIOTag::PoolTree, joblet->TreeId);

@@ -203,6 +203,7 @@ public:
         const ISchedulingContextPtr& context,
         const TJobResources& nodeLimits,
         const TString& /* treeId */,
+        const TString& /* poolPath */,
         const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
 
     void UpdateMinNeededJobResources() override;
@@ -436,6 +437,7 @@ TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::Schedule
     const ISchedulingContextPtr& context,
     const TJobResources& nodeLimits,
     const TString& /* treeId */,
+    const TString& /* poolPath */,
     const TFairShareStrategyTreeConfigPtr& /* treeConfig */)
 {
     if (ScheduleJobDelay_) {

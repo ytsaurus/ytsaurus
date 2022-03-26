@@ -272,6 +272,7 @@ public:
         const ISchedulingContextPtr& context,
         const TJobResources& jobLimits,
         const TString& treeId,
+        const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
 
     MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason, const TString&, TControllerEpoch), (override));
@@ -1272,9 +1273,9 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     std::atomic<int> heartbeatsInScheduling(0);
     EXPECT_CALL(
         operationControllerStrategyHost,
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_))
+        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*treeConfig*/) {
+        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleJobResultPtr>(
@@ -2839,9 +2840,9 @@ TEST_F(TFairShareTreeTest, ChildHeap)
         auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
         EXPECT_CALL(
             operationControllerStrategyHost,
-            ScheduleJob(testing::_, testing::_, testing::_, testing::_))
+            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*treeConfig*/) {
+            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
                 result->StartDescriptor.emplace(TGuid::Create(), EJobType::Vanilla, operationJobResources, /* interruptible */ false);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
@@ -2997,6 +2998,36 @@ TEST_F(TFairShareTreeTest, TestIntegralPoolsWithParent)
         EXPECT_EQ(unit * 10, rootElement->Attributes().FairShare.IntegralGuarantee);
         EXPECT_EQ(unit * 0, rootElement->Attributes().FairShare.WeightProportional);
     }
+}
+
+TEST_F(TFairShareTreeTest, TestGetPoolPath)
+{
+    auto strategyHost = New<TSchedulerStrategyHostMock>();
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    auto poolA = CreateTestPool(strategyHost.Get(), "PoolA");
+    poolA->AttachParent(rootElement.Get());
+    auto poolB = CreateTestPool(strategyHost.Get(), "PoolB");
+    poolB->AttachParent(poolA.Get());
+    auto poolC = CreateTestPool(strategyHost.Get(), "PoolC");
+    poolC->AttachParent(poolB.Get());
+
+    EXPECT_EQ(poolC->GetFullPath(/*explicitOnly*/ true), "/default");
+    EXPECT_EQ(poolC->GetFullPath(/*explicitOnly*/ false), "/default/PoolA/PoolB/PoolC");
+
+    // NB. Setting non-default config makes pools explicit.
+    poolA->SetConfig(New<TPoolConfig>());
+    poolB->SetConfig(New<TPoolConfig>());
+    poolC->SetConfig(New<TPoolConfig>());
+
+    EXPECT_EQ(poolC->GetFullPath(/*explicitOnly*/ true), "/default/PoolA/PoolB/PoolC");
+    EXPECT_EQ(poolC->GetFullPath(/*explicitOnly*/ false), "/default/PoolA/PoolB/PoolC");
+
+    // NB. Setting default config makes pools non-explicit.
+    poolC->SetDefaultConfig();
+
+    EXPECT_EQ(poolC->GetFullPath(/*explicitOnly*/ true), "/default/PoolA/PoolB");
+    EXPECT_EQ(poolC->GetFullPath(/*explicitOnly*/ false), "/default/PoolA/PoolB/PoolC");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

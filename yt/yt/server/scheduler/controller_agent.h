@@ -58,6 +58,7 @@ struct TScheduleJobRequest
     TJobId JobId;
     TJobResources JobResourceLimits;
     TString TreeId;
+    TString PoolPath;
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;
     NNodeTrackerClient::NProto::TDiskResources NodeDiskResources;

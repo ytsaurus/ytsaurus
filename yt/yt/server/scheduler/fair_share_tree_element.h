@@ -757,6 +757,8 @@ public:
 
     void CountOperationsByPreemptionPriority(TScheduleJobsContext* context) const override;
 
+    NYPath::TYPath GetFullPath(bool explicitOnly) const;
+
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
 

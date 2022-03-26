@@ -34,6 +34,7 @@ DEFINE_ENUM(EAggregateIOTag,
     ((OperationType)  (12))
     ((TaskName)       (13))
     ((JobIoKind)      (14))
+    ((PoolPath)       (15))
 );
 
 TString FormatIOTag(ERawIOTag tag);

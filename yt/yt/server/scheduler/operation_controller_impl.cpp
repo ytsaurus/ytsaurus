@@ -659,6 +659,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResources& jobLimits,
     const TString& treeId,
+    const TString& poolPath,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -694,6 +695,7 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     request->JobId = jobId;
     request->JobResourceLimits = jobLimits;
     request->TreeId = treeId;
+    request->PoolPath = poolPath;
     request->NodeId = nodeId;
     request->NodeResourceLimits = context->ResourceLimits();
     request->NodeDiskResources = context->DiskResources();
