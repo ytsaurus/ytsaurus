@@ -220,7 +220,9 @@ class TServiceDiscoveryEndpointsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TString Cluster;
+    std::optional<TString> Cluster;
+    //! NB: If empty (default) this vector is filled with the cluster above.
+    std::vector<TString> Clusters;
     TString EndpointSetId;
     TDuration UpdatePeriod;
 

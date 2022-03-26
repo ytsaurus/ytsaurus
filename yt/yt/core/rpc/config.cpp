@@ -151,10 +151,21 @@ void TDynamicChannelPoolConfig::Register(TRegistrar registrar)
 
 TServiceDiscoveryEndpointsConfig::TServiceDiscoveryEndpointsConfig()
 {
-    RegisterParameter("cluster", Cluster);
+    RegisterParameter("cluster", Cluster)
+        .Default();
+    RegisterParameter("clusters", Clusters)
+        .Default();
     RegisterParameter("endpoint_set_id", EndpointSetId);
     RegisterParameter("update_period", UpdatePeriod)
         .Default(TDuration::Seconds(60));
+
+    RegisterPostprocessor([&] {
+        YT_VERIFY(Cluster.has_value() ^ !Clusters.empty());
+
+        if (Clusters.empty()) {
+            Clusters.push_back(*Cluster);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

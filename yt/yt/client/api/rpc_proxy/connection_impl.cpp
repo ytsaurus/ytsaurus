@@ -383,7 +383,7 @@ std::vector<TString> TConnection::DiscoverProxiesViaServiceDiscovery()
         YT_LOG_DEBUG("Updating proxy list via Service Discovery");
 
         auto endpointSet = WaitFor(ServiceDiscovery_->ResolveEndpoints(
-            Config_->ProxyEndpoints->Cluster,
+            *Config_->ProxyEndpoints->Cluster,
             Config_->ProxyEndpoints->EndpointSetId))
             .ValueOrThrow();
 
