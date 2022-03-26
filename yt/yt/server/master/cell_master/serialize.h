@@ -125,6 +125,7 @@ DEFINE_ENUM(EMasterReign,
     ((TwoPhaseCellBundleCreation)                                   (1956))  // babenko
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
+    ((EnableStripedErasureAttribute)                                (1981))  // gritukan
     // 22.2 starts here.
     ((LogicalDataWeight)                                            (2000))  // achulkov2
     ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko

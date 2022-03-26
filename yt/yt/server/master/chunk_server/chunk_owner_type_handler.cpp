@@ -95,6 +95,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
         branchedNode->Replication() != originatingNode->Replication() ||
         branchedNode->GetCompressionCodec() != originatingNode->GetCompressionCodec() ||
         branchedNode->GetErasureCodec() != originatingNode->GetErasureCodec() ||
+        branchedNode->GetEnableStripedErasure() != originatingNode->GetEnableStripedErasure() ||
         branchedNode->GetEnableSkynetSharing() != originatingNode->GetEnableSkynetSharing() ||
         !branchedNode->DeltaSecurityTags()->IsEmpty() ||
         !TInternedSecurityTags::RefEqual(branchedNode->SnapshotSecurityTags(), originatingNode->SnapshotSecurityTags());
@@ -107,6 +108,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     int replicationFactor,
     NCompression::ECodec compressionCodec,
     NErasure::ECodec erasureCodec,
+    bool enableStripedErasure,
     EChunkListKind rootChunkListKind)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
@@ -134,6 +136,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
+        node->SetEnableStripedErasure(enableStripedErasure);
 
         node->SetChunkMergerMode(chunkMergerMode);
 
@@ -232,6 +235,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     // Merge builtin attributes.
     originatingNode->MergeCompressionCodec(branchedNode);
     originatingNode->MergeErasureCodec(branchedNode);
+    originatingNode->MergeEnableStripedErasure(branchedNode);
     originatingNode->MergeEnableSkynetSharing(branchedNode);
 
     bool isExternal = originatingNode->IsExternal();
@@ -467,6 +471,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
     clonedTrunkNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
     clonedTrunkNode->SetErasureCodec(sourceNode->GetErasureCodec());
+    clonedTrunkNode->SetEnableStripedErasure(sourceNode->GetEnableStripedErasure());
     clonedTrunkNode->SetEnableSkynetSharing(sourceNode->GetEnableSkynetSharing());
 
     if (!sourceNode->IsExternal()) {
@@ -508,6 +513,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
     Save(*context, node->DeltaSecurityTags());
     Save(*context, node->GetCompressionCodec());
     Save(*context, node->GetErasureCodec());
+    Save(*context, node->GetEnableStripedErasure());
     Save(*context, node->GetEnableSkynetSharing());
 
     context->RegisterExternalCellTag(node->GetExternalCellTag());
@@ -533,6 +539,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     Load(*context, trunkNode->DeltaSecurityTags());
     trunkNode->SetCompressionCodec(Load<NCompression::ECodec>(*context));
     trunkNode->SetErasureCodec(Load<NErasure::ECodec>(*context));
+    trunkNode->SetEnableStripedErasure(Load<bool>(*context));
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
 }
 

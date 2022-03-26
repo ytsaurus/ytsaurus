@@ -39,6 +39,7 @@ protected:
         int replicationFactor,
         NCompression::ECodec compressionCodec,
         NErasure::ECodec erasureCodec,
+        bool enableStripedErasure,
         NChunkServer::EChunkListKind rootChunkListKind = NChunkServer::EChunkListKind::Static);
 
     void DoDestroy(TChunkOwner* node) override;

@@ -47,6 +47,7 @@ TChunkOwnerBase::TChunkOwnerBase(TVersionedNodeId id)
     if (IsTrunk()) {
         SetCompressionCodec(NCompression::ECodec::None);
         SetErasureCodec(NErasure::ECodec::None);
+        SetEnableStripedErasure(false);
         SetEnableSkynetSharing(false);
     }
 }
@@ -64,6 +65,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, DeltaStatistics_);
     Save(context, CompressionCodec_);
     Save(context, ErasureCodec_);
+    Save(context, EnableStripedErasure_);
     Save(context, SnapshotSecurityTags_);
     Save(context, DeltaSecurityTags_);
     Save(context, ChunkMergerMode_);
@@ -85,6 +87,14 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaStatistics_);
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::EnableStripedErasureAttribute) {
+        Load(context, EnableStripedErasure_);
+    } else {
+        SetEnableStripedErasure(false);
+    }
+
     Load(context, SnapshotSecurityTags_);
     Load(context, DeltaSecurityTags_);
     Load(context, ChunkMergerMode_);

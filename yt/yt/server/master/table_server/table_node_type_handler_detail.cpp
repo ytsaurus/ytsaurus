@@ -100,6 +100,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
     auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
     auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+    auto enableStripedErasure = combinedAttributes->GetAndRemove<bool>("use_striped_erasure", false);
 
     ValidateReplicationFactor(replicationFactor);
 
@@ -146,7 +147,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         context,
         replicationFactor,
         compressionCodec,
-        erasureCodec);
+        erasureCodec,
+        enableStripedErasure);
     auto* node = nodeHolder.get();
 
     try {
