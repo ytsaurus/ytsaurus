@@ -26,6 +26,10 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = RpcClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TBalancingChannelSubprovider)
 DECLARE_REFCOUNTED_CLASS(TBalancingChannelProvider)
 
@@ -119,22 +123,41 @@ private:
 
     void UpdateEndpoints()
     {
-        ServiceDiscovery_->ResolveEndpoints(
-            Config_->Endpoints->Cluster,
-            Config_->Endpoints->EndpointSetId)
-            .Subscribe(
-                BIND(&TBalancingChannelSubprovider::OnEndpointsResolved, MakeWeak(this)));
+        std::vector<TFuture<TEndpointSet>> asyncEndpointSets;
+        for (const auto& cluster : Config_->Endpoints->Clusters) {
+            asyncEndpointSets.push_back(ServiceDiscovery_->ResolveEndpoints(
+                cluster,
+                Config_->Endpoints->EndpointSetId));
+        }
+
+        AllSet(asyncEndpointSets)
+            .Subscribe(BIND(&TBalancingChannelSubprovider::OnEndpointsResolved, MakeWeak(this)));
     }
 
-    void OnEndpointsResolved(const TErrorOr<TEndpointSet>& endpointSetOrError)
+    void OnEndpointsResolved(const TErrorOr<std::vector<TErrorOr<TEndpointSet>>>& endpointSetsOrError)
     {
-        if (!endpointSetOrError.IsOK()) {
-            Pool_->SetPeerDiscoveryError(endpointSetOrError);
+        const auto& endpointSets = endpointSetsOrError.ValueOrThrow();
+
+        std::vector<TString> allAddresses;
+        std::vector<TError> errors;
+        for (const auto& endpointSetOrError : endpointSets) {
+            if (!endpointSetOrError.IsOK()) {
+                errors.push_back(endpointSetOrError);
+                YT_LOG_WARNING(endpointSetOrError, "Could not resolve endpoints from cluster");
+                continue;
+            }
+
+            auto addresses = AddressesFromEndpointSet(endpointSetOrError.Value());
+            allAddresses.insert(allAddresses.end(), addresses.begin(), addresses.end());
+        }
+
+        if (errors.size() == endpointSets.size()) {
+            Pool_->SetPeerDiscoveryError(
+                TError("Endpoints could not be resolved in any cluster") << errors);
             return;
         }
 
-        const auto& endpointSet = endpointSetOrError.Value();
-        Pool_->SetPeers(AddressesFromEndpointSet(endpointSet));
+        Pool_->SetPeers(allAddresses);
     }
 };
 
