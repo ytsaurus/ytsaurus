@@ -142,6 +142,7 @@
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
+    XX(EnableStripedErasure, enable_striped_erasure) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \

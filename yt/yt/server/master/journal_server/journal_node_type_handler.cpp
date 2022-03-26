@@ -93,6 +93,7 @@ protected:
             replicationFactor,
             NCompression::ECodec::None,
             erasureCodec,
+            /*enableStripedErasure*/ false,
             EChunkListKind::JournalRoot);
         auto* node = nodeHolder.get();
 

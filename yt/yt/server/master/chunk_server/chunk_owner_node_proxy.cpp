@@ -586,6 +586,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableStripedErasure)
+        .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkErasureCodec)
         .SetWritable(true)
         .SetPresent(node->GetType() == EObjectType::Table));
@@ -694,6 +696,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         case EInternedAttributeKey::ErasureCodec:
             BuildYsonFluently(consumer)
                 .Value(node->GetErasureCodec());
+            return true;
+
+        case EInternedAttributeKey::EnableStripedErasure:
+            BuildYsonFluently(consumer)
+                .Value(node->GetEnableStripedErasure());
             return true;
 
         case EInternedAttributeKey::HunkErasureCodec:
@@ -883,6 +890,21 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             auto codec = ConvertTo<NErasure::ECodec>(value);
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             node->SetErasureCodec(codec);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::EnableStripedErasure: {
+            if (TrunkNode_->GetType() == EObjectType::Journal) {
+                THROW_ERROR_EXCEPTION("Striped erasure cannot be enabled for journals");
+            }
+
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+            const auto& uninternedKey = key.Unintern();
+            auto enableStripedErasure = ConvertTo<bool>(value);
+            auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+            node->SetEnableStripedErasure(enableStripedErasure);
 
             return true;
         }

@@ -3027,6 +3027,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@optimize_for") == "lookup"
         assert get("//tmp/t1/@compression_codec") == "zlib_6"
         assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert not get("//tmp/t1/@enable_striped_erasure")
         assert not get("//tmp/t1/@enable_skynet_sharing")
 
         tx = start_transaction()
@@ -3034,16 +3035,19 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t1/@optimize_for", "scan", tx=tx)
         set("//tmp/t1/@compression_codec", "lz4", tx=tx)
         set("//tmp/t1/@erasure_codec", "lrc_12_2_2", tx=tx)
+        set("//tmp/t1/@enable_striped_erasure", True, tx=tx)
         set("//tmp/t1/@enable_skynet_sharing", True, tx=tx)
 
         assert get("//tmp/t1/@optimize_for") == "lookup"
         assert get("//tmp/t1/@compression_codec") == "zlib_6"
         assert get("//tmp/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert not get("//tmp/t1/@enable_striped_erasure")
         assert not get("//tmp/t1/@enable_skynet_sharing")
 
         assert get("//tmp/t1/@optimize_for", tx=tx) == "scan"
         assert get("//tmp/t1/@compression_codec", tx=tx) == "lz4"
         assert get("//tmp/t1/@erasure_codec", tx=tx) == "lrc_12_2_2"
+        assert get("//tmp/t1/@enable_striped_erasure", tx=tx)
         assert get("//tmp/t1/@enable_skynet_sharing", tx=tx)
 
         commit_transaction(tx)
@@ -3051,6 +3055,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t1/@optimize_for") == "scan"
         assert get("//tmp/t1/@compression_codec") == "lz4"
         assert get("//tmp/t1/@erasure_codec") == "lrc_12_2_2"
+        assert get("//tmp/t1/@enable_striped_erasure")
         assert get("//tmp/t1/@enable_skynet_sharing")
 
     @authors("avmatrosov")
@@ -3532,6 +3537,7 @@ class TestCypressPortal(TestCypressMulticell):
                 "optimize_for": "lookup",
                 "compression_codec": "zlib_6",
                 "erasure_codec": "reed_solomon_6_3",
+                "enable_striped_erasure": True,
                 "enable_skynet_sharing": True,
                 "external_cell_tag": 13
             },
@@ -3542,6 +3548,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//portals/p/t1/@optimize_for") == "lookup"
         assert get("//portals/p/t1/@compression_codec") == "zlib_6"
         assert get("//portals/p/t1/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//portals/p/t1/@enable_striped_erasure")
         assert get("//portals/p/t1/@enable_skynet_sharing")
 
         copy("//portals/p/t1", "//tmp/t2")
@@ -3549,6 +3556,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/t2/@optimize_for") == "lookup"
         assert get("//tmp/t2/@compression_codec") == "zlib_6"
         assert get("//tmp/t2/@erasure_codec") == "reed_solomon_6_3"
+        assert get("//tmp/t2/@enable_striped_erasure")
         assert get("//tmp/t2/@enable_skynet_sharing")
 
     @authors("shakurov")
