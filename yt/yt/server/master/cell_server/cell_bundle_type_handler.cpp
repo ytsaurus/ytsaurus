@@ -26,11 +26,6 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
-TCellBundleTypeHandlerBase<TImpl>::TCellBundleTypeHandlerBase(TBootstrap* bootstrap)
-    : TBase(bootstrap)
-{ }
-
-template <class TImpl>
 NObjectServer::ETypeFlags TCellBundleTypeHandlerBase<TImpl>::GetFlags() const
 {
     return
@@ -39,6 +34,7 @@ NObjectServer::ETypeFlags TCellBundleTypeHandlerBase<TImpl>::GetFlags() const
         NObjectServer::ETypeFlags::ReplicateAttributes |
         NObjectServer::ETypeFlags::Creatable |
         NObjectServer::ETypeFlags::Removable |
+        NObjectServer::ETypeFlags::TwoPhaseCreation |
         NObjectServer::ETypeFlags::TwoPhaseRemoval;
 }
 

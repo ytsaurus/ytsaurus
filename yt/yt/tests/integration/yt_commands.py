@@ -2438,18 +2438,25 @@ def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[], cl
 
     bundle_ids = []
 
+    def _create(cluster_name, params):
+        driver = get_driver(cluster=cluster_name)
+        params["driver"] = driver
+        result = execute_command("create", params)
+        bundle_id = yson.loads(result)["object_id"]
+        bundle_ids.append(bundle_id)
+        wait(
+            lambda: exists("#{}".format(bundle_id), driver=driver)
+            and get("#{}/@life_stage".format(bundle_id), driver=driver) == "creation_committed"
+        )
+
     for peer_id, cluster_name in enumerate(peer_cluster_names):
         params = pycopy.deepcopy(params_pattern)
         del params["attributes"]["chaos_options"]["peers"][peer_id]["alien_cluster"]
-        params["driver"] = get_driver(cluster=cluster_name)
-        result = execute_command("create", params)
-        bundle_ids.append(yson.loads(result)["object_id"])
+        _create(cluster_name, params)
 
     for cluster_name in meta_cluster_names:
         params = pycopy.deepcopy(params_pattern)
-        params["driver"] = get_driver(cluster=cluster_name)
-        result = execute_command("create", params)
-        bundle_ids.append(yson.loads(result)["object_id"])
+        _create(cluster_name, params)
 
     return bundle_ids
 

@@ -122,6 +122,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddChangelogExternalCellTag)                                  (1953))  // h0pless
     ((ChaosReplicatedTableSchema)                                   (1954))  // savrus
     ((CellAreaAttribute)                                            (1955))  // savrus
+    ((TwoPhaseCellBundleCreation)                                   (1956))  // babenko
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
     // 22.2 starts here.
