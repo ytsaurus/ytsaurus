@@ -262,6 +262,7 @@ public:
         auto rowIndexLo = trimmedRowCount;
         auto rowIndexHi = totalRowCount;
         if (rowIndexLo == rowIndexHi) {
+            onMissingRow();
             return {};
         }
 
@@ -304,6 +305,7 @@ public:
             YT_LOG_DEBUG("No replication log rows available (TrimmedRowCount: %v, TotalRowCount: %v)",
                 trimmedRowCount,
                 totalRowCount);
+            onMissingRow();
             return {};
         }
 
