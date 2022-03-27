@@ -48,6 +48,7 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/ytlib/transaction_client/clock_manager.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
@@ -980,7 +981,10 @@ private:
         context->SetRequestInfo("Count: %v",
             count);
 
-        const auto& timestampProvider = Bootstrap_->GetNativeConnection()->GetTimestampProvider();
+        const auto& connection = Bootstrap_->GetNativeConnection();
+        connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
+
+        const auto& timestampProvider = connection->GetTimestampProvider();
 
         ExecuteCall(
             context,

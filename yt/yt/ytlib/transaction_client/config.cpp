@@ -2,6 +2,8 @@
 
 namespace NYT::NTransactionClient {
 
+using namespace NObjectClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTransactionManagerConfig::Register(TRegistrar registrar)
@@ -23,6 +25,30 @@ void TTransactionManagerConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("\"default_transaction_timeout\" must be greater than \"default_ping_period\"");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClockManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Default(InvalidCellTag);
+}
+
+TClockManagerConfigPtr TClockManagerConfig::ApplyDynamic(const TDynamicClockManagerConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = New<TClockManagerConfig>();
+    mergedConfig->ClockClusterTag = dynamicConfig->ClockClusterTag.value_or(ClockClusterTag);
+    mergedConfig->Postprocess();
+    return mergedConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicClockManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

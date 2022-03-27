@@ -1366,6 +1366,7 @@ void TClient::ExecuteTabletServiceRequest(
         NTransactionClient::ETransactionType::Master,
         TTransactionStartOptions{
             .Attributes = std::move(transactionAttributes),
+            .SuppressStartTimestampGeneration = true,
             .CoordinatorMasterCellTag = nativeCellTag,
             .ReplicateToMasterCellTags = TCellTagList{externalCellTag}
         });

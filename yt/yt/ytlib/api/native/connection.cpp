@@ -48,6 +48,7 @@
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
 #include <yt/yt/ytlib/transaction_client/config.h>
+#include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -158,6 +159,11 @@ public:
         }
 
         InitializeTimestampProvider();
+
+        ClockManager_ = CreateClockManager(
+            Config_->ClockManager,
+            this,
+            Logger);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
@@ -296,6 +302,11 @@ public:
     const ITimestampProviderPtr& GetTimestampProvider() override
     {
         return TimestampProvider_;
+    }
+
+    const IClockManagerPtr& GetClockManager() override
+    {
+        return ClockManager_;
     }
 
     const TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() override
@@ -583,6 +594,7 @@ public:
     {
         SyncReplicaCache_->Reconfigure(Config_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(Config_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
+        ClockManager_->Reconfigure(Config_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
     }
 
 private:
@@ -612,6 +624,7 @@ private:
     IReplicationCardCachePtr ReplicationCardCache_;
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
+    IClockManagerPtr ClockManager_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
     IEvaluatorPtr QueryEvaluator_;

@@ -81,6 +81,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();
+    RegisterParameter("clock_manager", ClockManager)
+        .DefaultNew();
     RegisterParameter("block_cache", BlockCache)
         .DefaultNew();
     RegisterParameter("chunk_meta_cache", ChunkMetaCache)
@@ -263,6 +265,8 @@ TConnectionDynamicConfig::TConnectionDynamicConfig()
 {
     RegisterParameter("sync_replica_cache", SyncReplicaCache)
         .DefaultNew();
+    RegisterParameter("clock_manager", ClockManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,4 +290,3 @@ TRemoteTimestampProviderConfigPtr CreateRemoteTimestampProviderConfig(TMasterCon
 /////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
-

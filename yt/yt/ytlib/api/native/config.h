@@ -101,6 +101,7 @@ public:
     NQueueClient::TQueueAgentConnectionConfigPtr QueueAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
+    NTransactionClient::TClockManagerConfigPtr ClockManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
@@ -195,6 +196,8 @@ class TConnectionDynamicConfig
 {
 public:
     TAsyncExpiringCacheDynamicConfigPtr SyncReplicaCache;
+
+    NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
 
     TConnectionDynamicConfig();
 };

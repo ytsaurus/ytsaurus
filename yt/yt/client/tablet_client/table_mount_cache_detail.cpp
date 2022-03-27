@@ -4,6 +4,10 @@
 
 #include <yt/yt/core/misc/hash.h>
 
+#include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NTabletClient {
@@ -252,9 +256,10 @@ void TTableMountCacheBase::Reconfigure(TTableMountCacheConfigPtr config)
     TAsyncExpiringCache::Reconfigure(config);
     {
         auto guard = WriterGuard(SpinLock_);
-        Config_ = std::move(config);
+        Config_ = config;
     }
-    YT_LOG_DEBUG("Table mount info cache reconfigured");
+    YT_LOG_DEBUG("Table mount info cache reconfigured (NewConfig: %v)",
+        NYson::ConvertToYsonString(config, NYson::EYsonFormat::Text).AsStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
