@@ -890,12 +890,12 @@ private:
                 term);
 
             auto owner = GetOwnerOrThrow();
-            auto state = owner->SyncWithLeader(epochId, term);
+            auto sequenceNumber = owner->SyncWithLeader(epochId, term);
 
-            context->SetResponseInfo("CommittedState: %v",
-                state);
+            context->SetResponseInfo("SyncSequenceNumber: %v",
+                sequenceNumber);
 
-            response->set_committed_sequence_number(state.SequenceNumber);
+            response->set_sync_sequence_number(sequenceNumber);
             context->Reply();
         }
 
@@ -1368,7 +1368,7 @@ private:
         }
     }
 
-    TReachableState SyncWithLeader(TEpochId epochId, int term)
+    i64 SyncWithLeader(TEpochId epochId, int term)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1380,10 +1380,9 @@ private:
 
         // Validate epoch id.
         auto epochContext = GetControlEpochContext(epochId);
-
         ValidateTerm(epochContext, term);
 
-        return epochContext->LeaderCommitter->GetCommittedState();
+        return DecoratedAutomaton_->GetSequenceNumber();
     }
 
     void PrepareLeaderSwitch()
@@ -2417,14 +2416,14 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        auto committedSequenceNumber = rsp->committed_sequence_number();
+        auto sequenceNumber = rsp->sync_sequence_number();
 
-        YT_LOG_DEBUG("Received synchronization response from leader (CommittedSequenceNumber: %v)",
-            committedSequenceNumber);
+        YT_LOG_DEBUG("Received synchronization response from leader (SyncSequenceNumber: %v)",
+            sequenceNumber);
 
         YT_VERIFY(!epochContext->LeaderSyncSequenceNumber);
-        epochContext->LeaderSyncSequenceNumber = committedSequenceNumber;
-        CommitMutationsAtFollower(committedSequenceNumber);
+        epochContext->LeaderSyncSequenceNumber = sequenceNumber;
+        CommitMutationsAtFollower(sequenceNumber);
         CheckForPendingLeaderSync();
     }
 
