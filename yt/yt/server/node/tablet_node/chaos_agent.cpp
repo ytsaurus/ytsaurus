@@ -49,7 +49,11 @@ public:
 
     void Enable() override
     {
-        FiberFuture_ = BIND(&TChaosAgent::FiberMain, MakeWeak(this))
+        FiberFuture_ = BIND(&TChaosAgent::FiberMain, MakeWeak(this), BIND(&TChaosAgent::FiberIteration, MakeWeak(this)))
+            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+            .Run();
+
+        ProgressReporterFiberFuture_ = BIND(&TChaosAgent::FiberMain, MakeWeak(this), BIND(&TChaosAgent::ReportUpdatedReplicationProgress, MakeWeak(this)))
             .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
             .Run();
 
@@ -62,7 +66,12 @@ public:
             FiberFuture_.Cancel(TError("Chaos agent disabled"));
             YT_LOG_INFO("Chaos agent fiber stopped");
         }
+        if (ProgressReporterFiberFuture_) {
+            ProgressReporterFiberFuture_.Cancel(TError("Chaos agent progress reporter disabled"));
+            YT_LOG_INFO("Chaos agent progress reporter fiber stopped");
+        }
         FiberFuture_.Reset();
+        ProgressReporterFiberFuture_.Reset();
     }
 
 private:
@@ -77,12 +86,13 @@ private:
     const NLogging::TLogger Logger;
 
     TFuture<void> FiberFuture_;
+    TFuture<void> ProgressReporterFiberFuture_;
 
-    void FiberMain()
+    void FiberMain(TCallback<void()> callback)
     {
         while (true) {
             NProfiling::TWallTimer timer;
-            FiberIteration();
+            callback();
             TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
         }
     }
@@ -91,7 +101,6 @@ private:
     {
         UpdateReplicationCard();
         ReconfigureTabletWriteMode();
-        ReportUpdatedReplicationProgress();
     }
 
     void UpdateReplicationCard()

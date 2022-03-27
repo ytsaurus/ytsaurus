@@ -2103,6 +2103,7 @@ std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
 {
     auto channel = GetMasterChannelOrThrow(options.ReadFrom, PrimaryMasterCellTagSentinel);
     auto proxy = TChaosMasterServiceProxy(channel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultSyncAlienCellsTimeout));
     auto req = proxy.SyncAlienCells();
 
     ToProto(req->mutable_cell_descriptors(), alienCellDescriptors);
@@ -2209,6 +2210,7 @@ private:
             networks);
 
         TQueryServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
         auto req = proxy.PullRows();
         req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
         req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
@@ -2511,6 +2513,7 @@ TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& ta
         auto cooridnator = replicationCard->CoordinatorCellIds[RandomNumber<size_t>() % replicationCard->CoordinatorCellIds.size()];
         auto channel = GetChaosChannelByCellId(cooridnator, EPeerKind::Leader);
         auto proxy = TCoordinatorServiceProxy(channel);
+        proxy.SetDefaultTimeout(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardEra();
 
         ToProto(req->mutable_replication_card_id(), tableInfo->ReplicationCardId);
@@ -2560,6 +2563,7 @@ TReplicationCardPtr TClient::DoGetReplicationCard(
 
     auto channel = GetChaosChannelByCardId(replicationCardId, EPeerKind::LeaderOrFollower);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     auto req = proxy.GetReplicationCard();
     ToProto(req->mutable_replication_card_id(), replicationCardId);
@@ -2585,6 +2589,7 @@ void TClient::DoUpdateChaosTableReplicaProgress(
     auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
     auto channel = GetChaosChannelByCardId(replicationCardId);
     auto proxy = TChaosNodeServiceProxy(std::move(channel));
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
 
     auto req = proxy.UpdateTableReplicaProgress();
     SetMutationId(req, options);

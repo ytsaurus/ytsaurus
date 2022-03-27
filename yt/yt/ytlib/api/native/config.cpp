@@ -182,6 +182,12 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(60));
     RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
+    RegisterParameter("default_pull_rows_timeout", DefaultPullRowsTimeout)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("default_sync_alien_cells_timeout", DefaultSyncAlienCellsTimeout)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("default_chaos_node_serivce_timeout", DefaultChaosNodeServiceTimeout)
+        .Default(TDuration::Seconds(15));
 
     RegisterParameter("cypress_write_yson_nesting_level_limit", CypressWriteYsonNestingLevelLimit)
         .Default(NYson::OriginalNestingLevelLimit)

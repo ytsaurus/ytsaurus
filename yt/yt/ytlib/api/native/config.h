@@ -145,6 +145,9 @@ public:
     TDuration DefaultListJobsTimeout;
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
+    TDuration DefaultPullRowsTimeout;
+    TDuration DefaultSyncAlienCellsTimeout;
+    TDuration DefaultChaosNodeServiceTimeout;
 
     int CypressWriteYsonNestingLevelLimit;
 
