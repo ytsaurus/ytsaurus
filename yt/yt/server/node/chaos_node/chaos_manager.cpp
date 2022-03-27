@@ -541,9 +541,10 @@ private:
             });
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (ReplicationCardId: %v, ReplicaId: %v, ReplicaInfo: %v)",
             replicationCardId,
-            newReplicaId);
+            newReplicaId,
+            replicaInfo);
 
         if (replicaInfo.State == ETableReplicaState::Enabling) {
             RevokeShortcuts(replicationCard);
@@ -679,7 +680,7 @@ private:
 
             if (auto it = replicationCard->Coordinators().find(coordinatorCellId); !it || it->second.State != EShortcutState::Granting) {
                 YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Got grant shortcut response but shortcut is not waiting for it"
-                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v, ShortcutState: %v)",
+                    "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, ShortcutState: %v)",
                     replicationCardId,
                     era,
                     coordinatorCellId,
@@ -783,7 +784,7 @@ private:
         }
     }
 
-    void GrantShortcuts(TReplicationCard* replicationCard, const std::vector<TCellId> coordinatorCellIds)
+    void GrantShortcuts(TReplicationCard* replicationCard, const std::vector<TCellId> coordinatorCellIds, bool strict = true)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -798,11 +799,13 @@ private:
             // TODO(savrus) This could happen in case if coordinator cell id has been removed from CoordinatorCellIds_ and then added.
             // Need to make a better protocol (YT-16072).
             if (replicationCard->Coordinators().contains(cellId)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Will not revoke shortcut since it already is in replication card "
-                    "(ReplicationCardId: %v, Era: %v CoordinatorCellId: %v)",
-                    replicationCard->GetId(),
-                    replicationCard->GetEra(),
-                    cellId);
+                if (strict) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Will not grant shortcut since it already is in replication card "
+                        "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v)",
+                        replicationCard->GetId(),
+                        replicationCard->GetEra(),
+                        cellId);
+                }
 
                 continue;
             }
@@ -818,27 +821,41 @@ private:
         }
     }
 
+    bool IsReplicationCardInCataclysm(TReplicationCard* replicationCard)
+    {
+        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
+            if (!IsStableReplicaMode(replicaInfo.Mode) || !IsStableReplicaState(replicaInfo.State)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void ScheduleNewEraIfReplicationCardIsReady(TReplicationCard* replicationCard)
     {
-        if (!replicationCard->Coordinators().empty()) {
-            return;
-        }
         if (!IsLeader()) {
             return;
         }
 
-        for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
-            if (!IsStableReplicaMode(replicaInfo.Mode) || !IsStableReplicaState(replicaInfo.State)) {
-                Slot_->GetTimestampProvider()->GenerateTimestamps()
-                    .Subscribe(BIND(
-                        &TChaosManager::OnNewReplicationEraTimestampGenerated,
-                        MakeWeak(this),
-                        replicationCard->GetId(),
-                        replicationCard->GetEra())
-                        .Via(AutomatonInvoker_));
-                break;
-            }
+        auto isCoordinatorListEmpty = replicationCard->Coordinators().empty();
+        auto isCardInCataclysm = IsReplicationCardInCataclysm(replicationCard);
+
+        YT_LOG_DEBUG("Checking if replication card needs era update (ReplicationCardId: %v, IsCoordinatorListEmpty: %v, IsCardInCataclysm: %v)",
+            replicationCard->GetId(),
+            isCoordinatorListEmpty,
+            isCardInCataclysm);
+
+        if (!isCoordinatorListEmpty || !isCardInCataclysm) {
+            return;
         }
+
+        Slot_->GetTimestampProvider()->GenerateTimestamps()
+            .Subscribe(BIND(
+                &TChaosManager::OnNewReplicationEraTimestampGenerated,
+                MakeWeak(this),
+                replicationCard->GetId(),
+                replicationCard->GetEra())
+                .Via(AutomatonInvoker_));
     }
 
     void OnNewReplicationEraTimestampGenerated(
@@ -1008,7 +1025,9 @@ private:
         std::sort(newCells.begin(), newCells.end());
 
         for (auto [_, replicationCard] : ReplicationCardMap_) {
-            GrantShortcuts(replicationCard, newCells);
+            if (!IsReplicationCardInCataclysm(replicationCard)) {
+                GrantShortcuts(replicationCard, newCells, /*strict*/ false);
+            }
         }
 
         CoordinatorCellIds_.insert(CoordinatorCellIds_.end(), newCells.begin(), newCells.end());
@@ -1083,9 +1102,13 @@ private:
 
     void InvestigateStalledReplicationCards()
     {
+        YT_LOG_DEBUG("Started investigaging for stalled replication cards");
+
         for (const auto& [replicationCardId, replicationCard] : ReplicationCardMap_) {
             ScheduleNewEraIfReplicationCardIsReady(replicationCard);
         }
+
+        YT_LOG_DEBUG("Finished investigaging for stalled replication cards");
     }
 
 
