@@ -186,7 +186,8 @@ private:
                 "compression_codec",
                 "erasure_codec",
                 "primary_medium",
-                "replication_factor"
+                "replication_factor",
+                "enable_striped_erasure",
             });
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -205,6 +206,8 @@ private:
             writerOptions->Account = attributes->Get<TString>("account");
             writerOptions->CompressionCodec = Path_.GetCompressionCodec().value_or(attributesCompressionCodec);
             writerOptions->ErasureCodec = Path_.GetErasureCodec().value_or(attributesErasureCodec);
+            // COMPAT(gritukan)
+            writerOptions->EnableStripedErasure = attributes->Get<bool>("enable_striped_erasure", false);
 
             YT_LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);

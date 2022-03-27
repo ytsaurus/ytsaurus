@@ -115,6 +115,7 @@ public:
     int TableIndex;
 
     NErasure::ECodec ErasureCodec;
+    bool EnableStripedErasure;
 
     //! Table and chunk schema might differ. By default they are assumed
     //! to be equal, this value overrides table schema, if set. Table schema

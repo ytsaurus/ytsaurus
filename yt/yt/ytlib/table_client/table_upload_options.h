@@ -28,6 +28,7 @@ struct TTableUploadOptions
     EOptimizeFor OptimizeFor;
     NCompression::ECodec CompressionCodec;
     NErasure::ECodec ErasureCodec;
+    bool EnableStripedErasure;
     std::optional<std::vector<NSecurityClient::TSecurityTag>> SecurityTags;
     bool PartiallySorted;
 

@@ -80,6 +80,9 @@ public:
         Config_->MinUploadReplicationFactor = std::min(
             Config_->MinUploadReplicationFactor,
             Options_->ReplicationFactor);
+
+        // TODO(gritukan): Unify.
+        Config_->EnableStripedErasure |= Options_->EnableStripedErasure;
     }
 
 
@@ -264,6 +267,7 @@ private:
         auto config = CloneYsonSerializable(Config_);
         // Block reordering is done in erasure writer.
         config->EnableBlockReordering = false;
+
         auto writers = CreateAllErasurePartWriters(
             config,
             options,
@@ -275,7 +279,7 @@ private:
             Throttler_,
             BlockCache_,
             std::move(TargetReplicas_));
-        if (Config_->UseStripedErasureWriter) {
+        if (Config_->EnableStripedErasure) {
             return CreateStripedErasureWriter(
                 Config_,
                 Options_->ErasureCodec,

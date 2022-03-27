@@ -5989,6 +5989,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             "optimize_for",
             "compression_codec",
             "erasure_codec",
+            "enable_striped_erasure",
             "dynamic"
         });
         req->Tag() = table;
@@ -6272,6 +6273,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
             table->TableWriterOptions->CompressionCodec = table->TableUploadOptions.CompressionCodec;
             table->TableWriterOptions->ErasureCodec = table->TableUploadOptions.ErasureCodec;
+            table->TableWriterOptions->EnableStripedErasure = table->TableUploadOptions.EnableStripedErasure;
             table->TableWriterOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
             table->TableWriterOptions->MediumName = attributes->Get<TString>("primary_medium");
             table->TableWriterOptions->Account = attributes->Get<TString>("account");
@@ -9167,8 +9169,22 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable->TableWriterOptions->ErasureCodec);
-            double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
-            result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
+
+            if (outputTable->TableWriterOptions->EnableStripedErasure) {
+                // Table writer buffers.
+                result += std::max(
+                    ioConfig->TableWriter->MaxRowWeight,
+                    ioConfig->TableWriter->MaxBufferSize);
+                // Erasure writer buffer.
+                result += ioConfig->TableWriter->ErasureWindowSize;
+                // Encoding writer buffer.
+                result += ioConfig->TableWriter->EncodeWindowSize;
+                // Part writer buffers.
+                result += ioConfig->TableWriter->SendWindowSize * codec->GetTotalPartCount();
+            } else {
+                double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
+                result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
+            }
         }
     }
     return result;

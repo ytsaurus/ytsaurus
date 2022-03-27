@@ -668,11 +668,11 @@ class TTabletHunkWriterConfig
     static void Register(TRegistrar registrar)
     {
         registrar.Preprocessor([&] (TTabletHunkWriterConfig* config) {
-            config->UseStripedErasureWriter = true;
+            config->EnableStripedErasure = true;
         });
 
         registrar.Postprocessor([&] (TTabletHunkWriterConfig* config) {
-            if (!config->UseStripedErasureWriter) {
+            if (!config->EnableStripedErasure) {
                 THROW_ERROR_EXCEPTION("Hunk chunk writer must use striped erasure writer");
             }
         });

@@ -389,8 +389,15 @@ private:
             segmentSize += block.Size();
         }
 
+        i64 dataSize;
+
         auto dataPartCount = Codec_->GetDataPartCount();
-        auto dataSize = RoundUp<i64>(segmentSize, dataPartCount);
+        if (Codec_->IsBytewise()) {
+            dataSize = RoundUp<i64>(segmentSize, dataPartCount);
+        } else {
+            dataSize = RoundUp<i64>(segmentSize, dataPartCount * Codec_->GetWordSize());
+        }
+
         auto partSize = dataSize / dataPartCount;
 
         struct TErasureWriterTag { };
