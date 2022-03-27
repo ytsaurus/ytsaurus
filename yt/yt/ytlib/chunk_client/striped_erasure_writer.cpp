@@ -28,6 +28,9 @@ namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 
+using ::NYT::FromProto;
+using ::NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStripedErasureWriter
@@ -468,6 +471,12 @@ private:
     void FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+
+        {
+            auto chunkFeatures = FromProto<EChunkFeatures>(chunkMeta->features());
+            chunkFeatures |= EChunkFeatures::StripedErasure;
+            chunkMeta->set_features(ToProto<ui64>(chunkFeatures));
+        }
 
         auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta->extensions());
         miscExt.set_striped_erasure(true);
