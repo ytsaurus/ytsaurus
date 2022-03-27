@@ -41,6 +41,11 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, OptimizeFor);
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
+
+    if (context.GetVersion() >= /*ESnapshotVersion::StripedErasureTables*/ 300585) {
+        Persist(context, EnableStripedErasure);
+    }
+
     Persist(context, SecurityTags);
     Persist(context, PartiallySorted);
 }
@@ -94,6 +99,7 @@ TTableUploadOptions GetTableUploadOptions(
     auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
     auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+    auto enableStripedErasure = cypressTableAttributes.Get<bool>("enable_striped_erasure", false);
     auto dynamic = cypressTableAttributes.Get<bool>("dynamic");
 
     // Some ypath attributes are not compatible with attribute "schema".
@@ -216,6 +222,7 @@ TTableUploadOptions GetTableUploadOptions(
     }
 
     result.ErasureCodec = path.GetErasureCodec().value_or(erasureCodec);
+    result.EnableStripedErasure = enableStripedErasure;
 
     if (path.GetSchemaModification() == ETableSchemaModification::UnversionedUpdateUnsorted) {
         THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" cannot have value %Qlv for output tables",

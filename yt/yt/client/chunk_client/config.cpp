@@ -334,7 +334,7 @@ void TErasureWriterConfig::Register(TRegistrar registrar)
     registrar.Parameter("erasure_store_original_block_checksums", &TThis::ErasureStoreOriginalBlockChecksums)
         .Default(false);
 
-    registrar.Parameter("use_striped_erasure_writer", &TThis::UseStripedErasureWriter)
+    registrar.Parameter("enable_striped_erasure", &TThis::EnableStripedErasure)
         .Default(false);
 
     registrar.Parameter("erasure_stripe_size", &TThis::ErasureStripeSize)

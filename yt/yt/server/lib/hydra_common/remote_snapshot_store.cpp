@@ -302,6 +302,7 @@ private:
                     attributes->Set("account", Store_->Options_->SnapshotAccount);
                     attributes->Set("primary_medium", Store_->Options_->SnapshotPrimaryMedium);
                     attributes->Set("erasure_codec", Store_->Options_->SnapshotErasureCodec);
+                    attributes->Set("enable_striped_erasure", Store_->Options_->SnapshotEnableStripedErasure);
                     attributes->Set("sequence_number", Meta_.sequence_number());
                     attributes->Set("random_seed", Meta_.random_seed());
                     attributes->Set("state_hash", Meta_.state_hash());

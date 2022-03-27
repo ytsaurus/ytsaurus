@@ -42,6 +42,7 @@ public:
     TString SnapshotAccount;
     TString SnapshotPrimaryMedium;
     NErasure::ECodec SnapshotErasureCodec;
+    bool SnapshotEnableStripedErasure;
     NYTree::IListNodePtr SnapshotAcl;
 
     TRemoteSnapshotStoreOptions();

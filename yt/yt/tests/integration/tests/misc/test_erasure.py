@@ -118,27 +118,38 @@ class TestErasureBase(YTEnvSetup):
 class TestErasure(TestErasureBase):
     NUM_TEST_PARTITIONS = 5
 
-    def _do_test_simple(self, erasure_codec):
+    def _do_test_simple(self, erasure_codec, enable_striped_erasure):
         create("table", "//tmp/table")
         set("//tmp/table/@erasure_codec", erasure_codec)
+        set("//tmp/table/@enable_striped_erasure", enable_striped_erasure)
 
         assert read_table("//tmp/table") == []
         assert get("//tmp/table/@row_count") == 0
         assert get("//tmp/table/@chunk_count") == 0
 
         write_table("//tmp/table", {"b": "hello"})
-        assert read_table("//tmp/table") == [{"b": "hello"}]
+        # TODO(gritukan): Striped erasure chunks are not meant to be read.
+        if not enable_striped_erasure:
+            assert read_table("//tmp/table") == [{"b": "hello"}]
         assert get("//tmp/table/@row_count") == 1
-        assert get("//tmp/table/@chunk_count") == 1
+
+        chunk_ids = get("//tmp/table/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        assert get("#{}/@erasure_codec".format(chunk_id)) == erasure_codec
+        assert get("#{}/@striped_erasure".format(chunk_id)) == enable_striped_erasure
 
         write_table(
             "<append=true>//tmp/table",
             [{"b": "2", "a": "1"}, {"x": "10", "y": "20", "a": "30"}],
         )
-        assert read_table("//tmp/table") == [
-            {"b": "hello"},
-            {"a": "1", "b": "2"},
-            {"a": "30", "x": "10", "y": "20"},
+
+        # TODO(gritukan): Striped erasure chunks are not meant to be read.
+        if not enable_striped_erasure:
+            assert read_table("//tmp/table") == [
+                {"b": "hello"},
+                {"a": "1", "b": "2"},
+                {"a": "30", "x": "10", "y": "20"},
         ]
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
@@ -147,8 +158,9 @@ class TestErasure(TestErasureBase):
     @pytest.mark.parametrize(
         "erasure_codec",
         ["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"])
-    def test_codecs_simple(self, erasure_codec):
-        self._do_test_simple(erasure_codec)
+    @pytest.mark.parametrize("enable_striped_erasure", [False, True])
+    def test_codecs_simple(self, erasure_codec, enable_striped_erasure):
+        self._do_test_simple(erasure_codec, enable_striped_erasure)
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])

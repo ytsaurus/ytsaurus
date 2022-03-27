@@ -65,6 +65,8 @@ void TMultiChunkWriterOptions::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("erasure_codec", &TThis::ErasureCodec)
         .Default(NErasure::ECodec::None);
+    registrar.Parameter("enable_striped_erasure", &TThis::EnableStripedErasure)
+        .Default(false);
     registrar.Parameter("table_index", &TThis::TableIndex)
         .Default(InvalidTableIndex);
     registrar.Parameter("table_schema", &TThis::TableSchema)

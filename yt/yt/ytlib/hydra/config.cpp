@@ -42,6 +42,8 @@ TRemoteSnapshotStoreOptions::TRemoteSnapshotStoreOptions()
         .Default(NChunkClient::DefaultStoreMediumName);
     RegisterParameter("snapshot_erasure_codec", SnapshotErasureCodec)
         .Default(NErasure::ECodec::None);
+    RegisterParameter("snapshot_enable_striped_erasure", SnapshotEnableStripedErasure)
+        .Default(false);
     RegisterParameter("snapshot_acl", SnapshotAcl)
         .Default(BuildYsonNodeFluently()
             .BeginList()

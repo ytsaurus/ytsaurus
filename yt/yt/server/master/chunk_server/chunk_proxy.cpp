@@ -853,6 +853,7 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(chunk->GetStripedErasure());
+                return true;
             }
 
             default:

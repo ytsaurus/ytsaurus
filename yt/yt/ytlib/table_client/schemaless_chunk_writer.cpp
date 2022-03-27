@@ -2163,6 +2163,7 @@ private:
                 "compression_codec",
                 "dynamic",
                 "erasure_codec",
+                "enable_striped_erasure",
                 "optimize_for",
                 "primary_medium",
                 "replication_factor",
@@ -2199,6 +2200,7 @@ private:
             Options_->MediumName = attributes.Get<TString>("primary_medium");
             Options_->CompressionCodec = TableUploadOptions_.CompressionCodec;
             Options_->ErasureCodec = TableUploadOptions_.ErasureCodec;
+            Options_->EnableStripedErasure = TableUploadOptions_.EnableStripedErasure;
             Options_->Account = attributes.Get<TString>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
             Options_->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
@@ -2216,10 +2218,12 @@ private:
                 ReconfigureYsonSerializable(writerConfig, chunkWriterConfig);
             }
 
-            YT_LOG_DEBUG("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v, EnableSkynetSharing: %v)",
+            YT_LOG_DEBUG("Extended attributes received "
+                "(Account: %v, CompressionCodec: %v, ErasureCodec: %v, EnableStripedErasure: %v, EnableSkynetSharing: %v)",
                 Options_->Account,
                 Options_->CompressionCodec,
                 Options_->ErasureCodec,
+                Options_->EnableStripedErasure,
                 Options_->EnableSkynetSharing);
         }
 

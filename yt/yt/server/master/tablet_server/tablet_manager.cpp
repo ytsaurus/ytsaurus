@@ -3638,6 +3638,7 @@ private:
         result.StoreWriterOptions->Account = table->GetAccount()->GetName();
         result.StoreWriterOptions->CompressionCodec = table->GetCompressionCodec();
         result.StoreWriterOptions->ErasureCodec = table->GetErasureCodec();
+        result.StoreWriterOptions->EnableStripedErasure = table->GetEnableStripedErasure();
         result.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
         result.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
 

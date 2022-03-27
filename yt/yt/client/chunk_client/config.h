@@ -373,7 +373,7 @@ public:
 
     bool EnableErasureTargetNodeReallocation;
 
-    bool UseStripedErasureWriter;
+    bool EnableStripedErasure;
 
     REGISTER_YSON_STRUCT(TErasureWriterConfig);
 
