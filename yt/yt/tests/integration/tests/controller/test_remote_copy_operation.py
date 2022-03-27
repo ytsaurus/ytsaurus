@@ -769,6 +769,42 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
+    @authors("egor-gutrov")
+    def test_auto_create(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                },
+            )
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="<create=true>//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+            }
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+        assert not get("//tmp/t2/@sorted")
+
+        create("map_node", "//tmp/t3")
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="<create=true>//tmp/t3",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                }
+            )
+
+
 ##################################################################
 
 

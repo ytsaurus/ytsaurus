@@ -149,6 +149,9 @@ public:
     // "cluster"
     std::optional<TString> GetCluster() const;
 
+    // "create"
+    bool GetCreate() const;
+
 private:
     TYPath Path_;
     NYTree::IAttributeDictionaryPtr Attributes_;

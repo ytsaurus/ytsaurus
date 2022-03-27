@@ -1684,6 +1684,48 @@ done
 
         assert_statistics(op, "chunk_reader_statistics.idle_time", lambda idle_time: idle_time > 1000, env=self.Env)
 
+    @authors("egor-gutrov")
+    def test_auto_create(self):
+        # TODO(egor-gutrov): change it to (21, 3) after cherry-pick to 22.1
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (22, 1):
+            pytest.skip()
+
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", [{"a": "b"}])
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="cat",
+            )
+        map(
+            in_="//tmp/t_input",
+            out="<create=true>//tmp/t_output",
+            spec={
+                "core_table_path": "<create=true>//tmp/core_table",
+                "stderr_table_path": "<create=true>//tmp/stderr_table",
+            },
+            command="cat",
+        )
+        assert read_table("//tmp/t_output") == [{"a": "b"}]
+        assert exists("//tmp/stderr_table")
+        assert exists("//tmp/core_table")
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t_input",
+                out="<create=true>//tmp/t_output1",
+                spec={
+                    "core_table_path": "<create=true>//tmp/core_table1",
+                    "stderr_table_path": "<create=true>//tmp/stderr_table1",
+                },
+                command="exit 1",
+            )
+        assert not exists("//tmp/t_output1")
+        assert exists("//tmp/stderr_table1")
+        assert exists("//tmp/core_table1")
+
 
 ##################################################################
 
