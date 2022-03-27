@@ -439,7 +439,7 @@ private:
         meta->set_format(ToProto<int>(GetChunkFormat()));
 
         {
-            EChunkFeatures chunkFeatures = EChunkFeatures::None;
+            auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
             bool hasDescendingColumns = false;
             for (const auto& column : Schema_->Columns()) {
                 if (column.SortOrder() == ESortOrder::Descending) {

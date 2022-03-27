@@ -129,6 +129,7 @@ DEFINE_ENUM(EUpdateMode,
 DEFINE_BIT_ENUM(EChunkFeatures,
     ((None)                     (0x0000))
     ((DescendingSortOrder)      (0x0001))
+    ((StripedErasure)           (0x0002))
 );
 
 DEFINE_ENUM(EChunkClientFeature,
