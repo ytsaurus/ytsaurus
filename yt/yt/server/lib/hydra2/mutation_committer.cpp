@@ -356,8 +356,12 @@ void TLeaderCommitter::FlushMutations()
         auto request = proxy.AcceptMutations();
         ToProto(request->mutable_epoch_id(), EpochContext_->EpochId);
         request->set_start_sequence_number(followerState.NextExpectedSequenceNumber);
-        request->set_committed_sequence_number(CommittedState_.SequenceNumber);
-        request->set_committed_segment_id(CommittedState_.SegmentId);
+
+        // We do not want followers to apply mutations before leader.
+        auto automatonSegmentId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId;
+        auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+        request->set_committed_sequence_number(automatonSequenceNumber);
+        request->set_committed_segment_id(automatonSegmentId);
         request->set_term(EpochContext_->Term);
 
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
