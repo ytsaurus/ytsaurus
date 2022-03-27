@@ -267,7 +267,7 @@ private:
             auto era = protoShortcut.era();
 
             if (auto it = Shortcuts_.find(replicationCardId)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Granting shortcut while shortcut already present (ChaosCellId: %v, ReplicationCardId: %v, OldEra: %v, OldState: %v",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Granting shortcut while shortcut already present (ChaosCellId: %v, ReplicationCardId: %v, OldEra: %v, OldState: %v)",
                     chaosCellId,
                     replicationCardId,
                     it->second.Era,
