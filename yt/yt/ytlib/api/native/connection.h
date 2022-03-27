@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/ytlib/transaction_client/public.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/client/chaos_client/public.h>
@@ -82,6 +84,7 @@ struct IConnection
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
+    virtual const NTransactionClient::IClockManagerPtr& GetClockManager() = 0;
 
     virtual const NJobProberClient::TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() = 0;
 

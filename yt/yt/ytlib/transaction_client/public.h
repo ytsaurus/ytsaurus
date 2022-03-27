@@ -26,8 +26,11 @@ class TRspReplicateTransactions;
 struct TTransactionActionData;
 DECLARE_REFCOUNTED_CLASS(TTransaction)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
+DECLARE_REFCOUNTED_STRUCT(IClockManager)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TClockManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicClockManagerConfig)
 
 //! Signatures enable checking tablet transaction integrity.
 /*!

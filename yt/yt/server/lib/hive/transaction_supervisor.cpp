@@ -677,6 +677,9 @@ private:
             auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
             auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+            auto clockClusterTag = request->has_clock_cluster_tag()
+                ? request->clock_cluster_tag()
+                : InvalidCellTag;
             std::vector<TTransactionId> prerequisiteTransactionIds;
             if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
                 auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -693,8 +696,20 @@ private:
                     << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds);
             }
 
+            auto owner = GetOwnerOrThrow();
+
+            if (clockClusterTag != InvalidCellTag &&
+                owner->SelfClockClusterTag_ != InvalidCellTag &&
+                clockClusterTag != owner->SelfClockClusterTag_)
+            {
+                THROW_ERROR_EXCEPTION("Transaction origin clock source differs from coordinator clock source")
+                    << TErrorAttribute("transaction_id", transactionId)
+                    << TErrorAttribute("client_clock_cluster_tag", clockClusterTag)
+                    << TErrorAttribute("coordinator_clock_cluster_tag", owner->SelfClockClusterTag_);
+            }
+
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
-                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v, "
+                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, CoordinatorCommitMode: %v, "
                 "PrerequisiteTransactionIds: %v",
                 transactionId,
                 participantCellIds,
@@ -703,10 +718,9 @@ private:
                 force2PC,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
+                clockClusterTag,
                 coordinatorCommitMode,
                 prerequisiteTransactionIds);
-
-            auto owner = GetOwnerOrThrow();
 
             if (owner->ResponseKeeper_->TryReplyFrom(context)) {
                 return;

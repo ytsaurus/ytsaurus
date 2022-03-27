@@ -1806,7 +1806,7 @@ class TestChaosMetaCluster(ChaosTestBase):
 ##################################################################
 
 
-class TestChaosClock(ChaosTestBase):
+class ChaosClockBase(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 1
     USE_PRIMARY_CLOCKS = False
 
@@ -1828,6 +1828,11 @@ class TestChaosClock(ChaosTestBase):
             clock_cluster_tag=clock_cluster_tag)
         return cell_id
 
+
+##################################################################
+
+
+class TestChaosClock(ChaosClockBase):
     @authors("savrus")
     def test_invalid_clock(self):
         drivers = self._get_drivers()
@@ -1866,7 +1871,10 @@ class TestChaosClock(ChaosTestBase):
             for iteration in range(total_iterations):
                 rows = [{"key": 1, "value": str(iteration)}]
                 keys = [{"key": 1}]
-                insert_rows("//tmp/t", rows)
+                if primary:
+                    insert_rows("//tmp/t", rows)
+                else:
+                    insert_rows("//tmp/q", rows, driver=drivers[1])
                 wait(lambda: lookup_rows("//tmp/t", keys) == rows)
 
                 if iteration < total_iterations - 1:
@@ -1878,3 +1886,79 @@ class TestChaosClock(ChaosTestBase):
         sync_flush_table("//tmp/t")
         sync_flush_table("//tmp/q", driver=drivers[1])
         _run_iterations()
+
+
+##################################################################
+
+
+class TestChaosClockRpcProxy(ChaosClockBase):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    def _set_proxies_clock_cluster_tag(self, clock_cluster_tag, driver=None):
+        config = {
+            "cluster_connection": {
+                "clock_manager": {
+                    "clock_cluster_tag": clock_cluster_tag,
+                },
+                # FIXME(savrus) Workaround for YT-16713.
+                "table_mount_cache": {
+                    "expire_after_successful_update_time": 0,
+                    "expire_after_failed_update_time": 0,
+                    "expire_after_access_time": 0,
+                    "refresh_time": 0,
+                },
+            },
+        }
+
+        set("//sys/rpc_proxies/@config", config, driver=driver)
+
+        proxies = ls("//sys/rpc_proxies")
+        def _check_config():
+            orchid_path = "orchid/dynamic_config_manager/effective_config/cluster_connection/clock_manager/clock_cluster_tag"
+            for proxy in proxies:
+                path = "//sys/rpc_proxies/{0}/{1}".format(proxy, orchid_path)
+                if not exists(path) or get(path) != clock_cluster_tag:
+                    return False
+            return True
+        wait(_check_config)
+
+    @authors("savrus")
+    def test_invalid_clock_source(self):
+        drivers = self._get_drivers()
+        remote_clock_tag = get("//sys/@primary_cell_tag", driver=drivers[1])
+        self._set_proxies_clock_cluster_tag(remote_clock_tag)
+
+        clock_cluster_tag = get("//sys/@primary_cell_tag")
+        set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag)
+
+        self._create_sorted_table("//tmp/t")
+        sync_create_cells(1)
+        sync_mount_table("//tmp/t")
+
+        with pytest.raises(YtError, match="Transaction origin clock source differs from coordinator clock source"):
+            insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+
+        with pytest.raises(YtError):
+            generate_timestamp()
+
+    @authors("savrus")
+    def test_chaos_write_with_client_clock_tag(self):
+        drivers = self._get_drivers()
+        remote_clock_tag = get("//sys/@primary_cell_tag", driver=drivers[1])
+        self._set_proxies_clock_cluster_tag(remote_clock_tag)
+
+        for driver in drivers:
+            clock_cluster_tag = get("//sys/@primary_cell_tag", driver=driver)
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag, driver=driver)
+
+        cell_id = self._create_single_peer_chaos_cell(clock_cluster_tag=remote_clock_tag)
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)

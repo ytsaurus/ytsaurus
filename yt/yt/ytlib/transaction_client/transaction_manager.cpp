@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/yt/ytlib/hive/transaction_participant_service_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/clock_manager.h>
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
@@ -24,7 +25,6 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
-
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -92,7 +92,7 @@ private:
     const TCellTag PrimaryCellTag_;
     const TCellTagList SecondaryCellTags_;
     const TString User_;
-    const ITimestampProviderPtr TimestampProvider_;
+    const IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
 
@@ -485,6 +485,7 @@ private:
     std::optional<TDuration> Timeout_;
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
+    TCellTag ClockClusterTag_ = InvalidCellTag;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
@@ -683,8 +684,10 @@ private:
                 if (options.StartTimestamp != NullTimestamp || options.SuppressStartTimestampGeneration) {
                     return OnGotStartTimestamp(options, options.StartTimestamp);
                 } else {
-                    YT_LOG_DEBUG("Generating transaction start timestamp");
-                    return Owner_->TimestampProvider_->GenerateTimestamps()
+                    ClockClusterTag_ = Owner_->ClockManager_->GetCurrentClockTag();
+                    YT_LOG_DEBUG("Generating transaction start timestamp (ClockClusterTag: %v)",
+                        ClockClusterTag_);
+                    return Owner_->ClockManager_->GetTimestampProviderOrThrow(ClockClusterTag_)->GenerateTimestamps()
                         .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
                 }
 
@@ -908,6 +911,7 @@ private:
             req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
             req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
             req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
+            req->set_clock_cluster_tag(ClockClusterTag_);
             ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
@@ -1309,7 +1313,7 @@ TTransactionManager::TImpl::TImpl(
     , PrimaryCellTag_(connection->GetPrimaryMasterCellTag())
     , SecondaryCellTags_(connection->GetSecondaryMasterCellTags())
     , User_(user)
-    , TimestampProvider_(connection->GetTimestampProvider())
+    , ClockManager_(connection->GetClockManager())
     , CellDirectory_(connection->GetCellDirectory())
     , DownedCellTracker_(connection->GetDownedCellTracker())
 { }

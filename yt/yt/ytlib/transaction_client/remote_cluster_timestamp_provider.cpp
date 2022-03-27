@@ -41,6 +41,11 @@ public:
             return;
         }
 
+        if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
+            Underlying_.Store(connection->GetTimestampProvider());
+            return;
+        }
+
         nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Subscribe(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)));
     }
@@ -51,9 +56,22 @@ public:
             return underlying->GenerateTimestamps(count);
         }
 
-        return MakeFuture<TTimestamp>(TError(
-            "Timestamp provider for clock cluster tag %v is unavailable at the moment",
-            ClockClusterTag_));
+        auto nativeConnection = NativeConnection_.Lock();
+        if (!nativeConnection) {
+            THROW_ERROR_EXCEPTION("Cannot generate timestamps: connection terminated")
+                << TErrorAttribute("clock_cluster_tag", ClockClusterTag_);
+        }
+
+        return nativeConnection->GetClusterDirectorySynchronizer()->Sync()
+            .Apply(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)))
+            .Apply(BIND([this, this_ = MakeStrong(this), count] {
+                if (auto underlying = Underlying_.Load()) {
+                    return underlying->GenerateTimestamps(count);
+                }
+                return MakeFuture<TTimestamp>(TError(
+                    "Timestamp provider for clock cluster tag %v is unavailable at the moment",
+                    ClockClusterTag_));
+            }));
     }
 
     TTimestamp GetLatestTimestamp() override
@@ -73,7 +91,7 @@ private:
 
     TAtomicObject<ITimestampProviderPtr> Underlying_;
 
-    void InitializeUnderlying()
+    void OnClusterDirectorySync(const TError& /*error*/)
     {
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
@@ -87,21 +105,8 @@ private:
             return;
         }
 
-        auto retryTime = nativeConnection->GetConfig()->ClusterDirectorySynchronizer->SyncPeriod;
-
-        YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known; retrying "
-            "(ClockClusterTag: %v, RetryTime: %v)",
-            ClockClusterTag_,
-            retryTime);
-
-        TDelayedExecutor::Submit(
-            BIND(&TRemoteClusterTimestampProvider::InitializeUnderlying, MakeWeak(this)),
-            retryTime);
-    }
-
-    void OnClusterDirectorySync(const TError& /*error*/)
-    {
-        InitializeUnderlying();
+        YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known (ClockClusterTag: %v)",
+            ClockClusterTag_);
     }
 };
 
