@@ -1278,6 +1278,12 @@ private:
 
     void UpdateActualHistogram(const TStatistics& statistics);
 
+    void CreateOutputTables(
+        const NApi::NNative::IClientPtr& client,
+        const std::vector<NChunkClient::TUserObject*>& tables,
+        NTransactionClient::TTransactionId defaultTransactionId,
+        EOutputTableType outputTableType);
+
     virtual void OnExecNodesUpdated();
 
     int GetOnlineExecNodeCount();

@@ -940,6 +940,45 @@ void TOperationControllerBase::SleepInPrepare()
     }
 }
 
+void TOperationControllerBase::CreateOutputTables(
+    const NApi::NNative::IClientPtr& client,
+    const std::vector<TUserObject*>& tables,
+    TTransactionId defaultTransactionId,
+    EOutputTableType outputTableType)
+{
+    std::vector<TUserObject*> tablesToCreate;
+    for (auto* table : tables) {
+        if (table->Path.GetCreate()) {
+            tablesToCreate.push_back(table);
+        }
+    }
+    if (tablesToCreate.empty()) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Creating output tables (TableCount: %v, OutputTableType: %v)",
+        tablesToCreate.size(),
+        outputTableType);
+
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
+
+    for (auto* table : tablesToCreate) {
+        auto req = TCypressYPathProxy::Create(table->Path.GetPath());
+        req->set_ignore_existing(true);
+        req->set_type(static_cast<int>(EObjectType::Table));
+
+        NCypressClient::SetTransactionId(req, table->TransactionId.value_or(defaultTransactionId));
+        GenerateMutationId(req);
+
+        batchReq->AddRequest(req);
+    }
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error creating output tables");
+}
+
 TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -973,9 +1012,11 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     // Process output and stderr tables.
     if (!OutputTables_.empty()) {
+        auto userObjectList = MakeUserObjectList(OutputTables_);
+        CreateOutputTables(OutputClient, userObjectList, OutputTransaction->GetId(), EOutputTableType::Output);
         GetUserObjectBasicAttributes(
             OutputClient,
-            MakeUserObjectList(OutputTables_),
+            userObjectList,
             OutputTransaction->GetId(),
             Logger,
             EPermission::Write);
@@ -984,6 +1025,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     if (StderrTable_) {
+        CreateOutputTables(Client, {StderrTable_.Get()}, DebugTransaction->GetId(), EOutputTableType::Stderr);
         GetUserObjectBasicAttributes(
             Client,
             {StderrTable_.Get()},
@@ -995,6 +1037,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     }
 
     if (CoreTable_) {
+        CreateOutputTables(Client, {CoreTable_.Get()}, DebugTransaction->GetId(), EOutputTableType::Core);
         GetUserObjectBasicAttributes(
             Client,
             {CoreTable_.Get()},

@@ -635,6 +635,11 @@ std::optional<TString> TRichYPath::GetCluster() const
     return FindAttribute<TString>(*this, "cluster");
 }
 
+bool TRichYPath::GetCreate() const
+{
+    return GetAttribute<bool>(*this, "create", false);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)
