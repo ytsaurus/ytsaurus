@@ -292,8 +292,8 @@ TVolumeManagerConfig::TVolumeManagerConfig()
         .GreaterThan(0)
         .LessThanOrEqual(10);
 
-    RegisterParameter("test_disk_quota", TestDiskQuota)
-        .Default(false);
+    RegisterParameter("enable_disk_quota", EnableDiskQuota)
+        .Default(true);
 
     RegisterParameter("tar2squash_tool_path", Tar2SquashToolPath)
         .Default("tar2squash");

@@ -1913,6 +1913,9 @@ void TJob::PrepareSandboxDirectories()
     YT_LOG_INFO("Started preparing sandbox directories");
 
     TUserSandboxOptions options;
+    // NB: this eventually results in job failure.
+    options.DiskOverdraftCallback = BIND(&TJob::Abort, MakeWeak(this))
+        .Via(Invoker_);
 
     if (UserJobSpec_) {
         for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {

@@ -215,7 +215,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
 
         {
             auto guard = WriterGuard(SlotsLock_);
-            YT_VERIFY(OccupiedSlotToDiskLimit_.emplace(slotIndex, options.DiskSpaceLimit).second);
+            YT_VERIFY(SandboxOptionsPerSlot_.emplace(slotIndex, options).second);
         }
 
         std::vector<TString> result;
@@ -566,7 +566,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 
             // There may be no slotIndex in this map
             // (e.g. during SlotMananager::Initialize)
-            OccupiedSlotToDiskLimit_.erase(slotIndex);
+            SandboxOptionsPerSlot_.erase(slotIndex);
         }
 
         try {
@@ -768,7 +768,7 @@ TFuture<void> TSlotLocation::Repair()
         try {
             {
                 auto guard = WriterGuard(SlotsLock_);
-                OccupiedSlotToDiskLimit_.clear();
+                SandboxOptionsPerSlot_.clear();
                 TmpfsPaths_.clear();
                 SlotsWithQuota_.clear();
             }
@@ -882,29 +882,40 @@ void TSlotLocation::UpdateDiskResources()
         }
 
         i64 diskUsage = 0;
-        THashMap<int, std::optional<i64>> occupiedSlotToDiskLimit;
+        THashMap<int, TUserSandboxOptions> sandboxOptionsPerSlot;
 
         {
             auto guard = ReaderGuard(SlotsLock_);
-            occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
+            sandboxOptionsPerSlot = SandboxOptionsPerSlot_;
         }
 
-        for (const auto& [slotIndex, slotDiskLimit] : occupiedSlotToDiskLimit) {
-            if (!slotDiskLimit) {
-                for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                    auto path = GetSandboxPath(slotIndex, sandboxKind);
-                    if (NFS::Exists(path)) {
-                        // We have to calculate user directory size as root,
-                        // because user job could have set restricted permissions for files and
-                        // directories inside sandbox.
-                        auto dirSize = (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
-                            ? RunTool<TGetDirectorySizeAsRootTool>(path)
-                            : NFS::GetDirectorySize(path);
-                        diskUsage += dirSize;
-                    }
+        for (const auto& [slotIndex, sandboxOptions] : sandboxOptionsPerSlot) {
+            i64 dirSize = 0;
+            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                auto path = GetSandboxPath(slotIndex, sandboxKind);
+                if (NFS::Exists(path)) {
+                    // We have to calculate user directory size as root,
+                    // because user job could have set restricted permissions for files and
+                    // directories inside sandbox.
+                    dirSize = (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
+                        ? RunTool<TGetDirectorySizeAsRootTool>(path)
+                        : NFS::GetDirectorySize(path);
+                }
+            }
+
+            if (sandboxOptions.DiskSpaceLimit) {
+                diskUsage += *sandboxOptions.DiskSpaceLimit;
+                if (dirSize > *sandboxOptions.DiskSpaceLimit) {
+                    auto error = TError("Disk usage overdrafted: %v > %v",
+                        dirSize,
+                        *sandboxOptions.DiskSpaceLimit);
+
+                    YT_LOG_DEBUG(error, "Slot disk usage overdrafted (SlotIndex: %v)", slotIndex);
+                    sandboxOptions.DiskOverdraftCallback
+                        .Run(error);
                 }
             } else {
-                diskUsage += *slotDiskLimit;
+                diskUsage += dirSize;
             }
         }
 

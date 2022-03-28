@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
+#include <yt/yt/core/actions/callback.h>
+
 #include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NExecNode {
@@ -33,6 +35,7 @@ struct TUserSandboxOptions
     std::vector<TTmpfsVolume> TmpfsVolumes;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
+    TCallback<void(const TError&)> DiskOverdraftCallback;
 };
 
 extern const TString ProxyConfigFileName;

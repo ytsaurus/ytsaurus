@@ -332,7 +332,7 @@ public:
     double CacheCapacityFraction;
     int LayerImportConcurrency;
 
-    bool TestDiskQuota;
+    bool EnableDiskQuota;
 
     bool ConvertLayersToSquashfs;
 
