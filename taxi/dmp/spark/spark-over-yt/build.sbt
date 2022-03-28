@@ -176,6 +176,7 @@ lazy val `e2e-test` = (project in file("e2e-test"))
   .dependsOn(`yt-wrapper`, `file-system`, `data-source`, `spark-submit`, `e2e-checker`,
     `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
+    Test / javaOptions ++= Option(System.getProperty("proxies")).map(x => s"-Dproxies=$x").toSeq,
     libraryDependencies ++= commonDependencies.value,
     publishYtArtifacts ++= {
       val checker = YtPublishFile((`e2e-checker` / assembly).value, sparkYtE2ETestPath,

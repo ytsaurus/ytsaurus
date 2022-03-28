@@ -11,7 +11,7 @@ import ru.yandex.yt.ytclient.proxy.CompoundClient
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class SubmitTest extends FlatSpec with Matchers with HumeYtClient {
+class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
   private val log = LoggerFactory.getLogger(getClass)
 
   import SubmitTest._
@@ -47,7 +47,7 @@ class SubmitTest extends FlatSpec with Matchers with HumeYtClient {
 object SubmitTest {
   private val basePath = "//home/spark/e2e"
 
-  private val submitClient = new SubmissionClient("hume", s"$basePath/cluster",
+  private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, s"$basePath/cluster",
     BuildInfo.spytClientVersion, DefaultRpcCredentials.user, DefaultRpcCredentials.token)
 
   def runJob(testCase: E2ETestCase): Unit = {
