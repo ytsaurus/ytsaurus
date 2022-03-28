@@ -893,9 +893,7 @@ void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TC
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     auto externalizedTransactionId = transactionManager->ExternalizeTransaction(transaction, cellTags);
 
-    if (GetDynamicCypressManagerConfig()->ClearPrerequisitesFromExternalizedRequests) {
-        ClearPrerequisiteTransactions(context);
-    }
+    ClearPrerequisiteTransactions(context);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMasters(
