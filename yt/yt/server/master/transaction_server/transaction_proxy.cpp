@@ -101,7 +101,7 @@ private:
         switch (key) {
             case EInternedAttributeKey::State:
                 BuildYsonFluently(consumer)
-                    .Value(transaction->GetState());
+                    .Value(transaction->GetPersistentState());
                 return true;
 
             case EInternedAttributeKey::ReplicatedToCellTags:

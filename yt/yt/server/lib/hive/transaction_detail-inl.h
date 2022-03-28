@@ -4,6 +4,8 @@
 #include "transaction_detail.h"
 #endif
 
+#include <library/cpp/yt/assert/assert.h>
+
 namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,13 +13,46 @@ namespace NYT::NHiveServer {
 template <class TBase>
 ETransactionState TTransactionBase<TBase>::GetPersistentState() const
 {
-    switch (this->State_) {
+    switch (State_) {
         case ETransactionState::TransientCommitPrepared:
         case ETransactionState::TransientAbortPrepared:
             return ETransactionState::Active;
         default:
-            return this->State_;
+            return State_;
     }
+}
+
+template <class TBase>
+void TTransactionBase<TBase>::SetPersistentState(ETransactionState state)
+{
+    YT_VERIFY(
+        state == ETransactionState::Active ||
+        state == ETransactionState::PersistentCommitPrepared ||
+        state == ETransactionState::Committed ||
+        state == ETransactionState::Serialized ||
+        state == ETransactionState::Aborted);
+    State_ = state;
+}
+
+template <class TBase>
+ETransactionState TTransactionBase<TBase>::GetTransientState() const
+{
+    return State_;
+}
+
+template <class TBase>
+void TTransactionBase<TBase>::SetTransientState(ETransactionState state)
+{
+    YT_VERIFY(
+        state == ETransactionState::TransientCommitPrepared ||
+        state == ETransactionState::TransientAbortPrepared);
+    State_ = state;
+}
+
+template <class TBase>
+ETransactionState TTransactionBase<TBase>::GetState(bool persistent) const
+{
+    return persistent ? GetPersistentState() : GetTransientState();
 }
 
 template <class TBase>
@@ -27,7 +62,7 @@ void TTransactionBase<TBase>::ThrowInvalidState() const
         NTransactionClient::EErrorCode::InvalidTransactionState,
         "Transaction %v is in %Qlv state",
         this->Id_,
-        this->State_);
+        State_);
 }
 
 template <class TBase>

@@ -139,8 +139,15 @@ public:
         ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
+        auto state = transaction->GetState(persistent);
         auto signature = transaction->GetSignature();
+
+        // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        if (state != ETransactionState::Active &&
+            !(persistent && state == ETransactionState::TransientCommitPrepared))
+        {
+            transaction->ThrowInvalidState();
+        }
 
         if (signature != FinalTransactionSignature) {
             THROW_ERROR_EXCEPTION("Transaction %v is incomplete: expected signature %x, actual signature %x",
@@ -149,20 +156,25 @@ public:
                 signature);
         }
 
-        if (state != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
+        if (state == ETransactionState::Active) {
+            YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
+            transaction->SetPrepareTimestamp(prepareTimestamp);
+
+            if (persistent) {
+                transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
+            } else {
+                transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
+            }
+
+            RunPrepareTransactionActions(transaction, persistent);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
+                "PrepareTimestamp: %llx@%v)",
+                transactionId,
+                persistent,
+                prepareTimestamp,
+                prepareTimestampClusterTag);
         }
-
-        YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
-        transaction->SetPrepareTimestamp(prepareTimestamp);
-        transaction->SetState(ETransactionState::PersistentCommitPrepared);
-
-        RunPrepareTransactionActions(transaction, persistent);
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, PrepareTimestamp: %llx@%v)",
-            transactionId,
-            prepareTimestamp,
-            prepareTimestampClusterTag);
     }
 
     void PrepareTransactionAbort(TTransactionId transactionId, bool force) override
@@ -173,12 +185,12 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (!transaction->IsActive() && !force) {
+        if (transaction->GetTransientState() != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
         }
 
-        if (transaction->IsActive()) {
-            transaction->SetState(ETransactionState::TransientAbortPrepared);
+        if (transaction->GetTransientState() == ETransactionState::Active) {
+            transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction abort prepared (TransactionId: %v)",
                 transactionId);
@@ -196,7 +208,7 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
@@ -214,7 +226,7 @@ public:
         }
 
         transaction->SetCommitTimestamp(commitTimestamp);
-        transaction->SetState(ETransactionState::Committed);
+        transaction->SetPersistentState(ETransactionState::Committed);
 
         RunCommitTransactionActions(transaction);
 
@@ -230,7 +242,7 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force) {
             transaction->ThrowInvalidState();
         }
@@ -239,7 +251,7 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetState(ETransactionState::Aborted);
+        transaction->SetPersistentState(ETransactionState::Aborted);
 
         RunAbortTransactionActions(transaction);
 
@@ -286,7 +298,7 @@ private:
                 fluent
                     .Item(ToString(transaction->GetId())).BeginMap()
                     .Item("timeout").Value(transaction->GetTimeout())
-                    .Item("state").Value(transaction->GetState())
+                    .Item("state").Value(transaction->GetTransientState())
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
                     // Omit CommitTimestamp, it's typically null.
@@ -331,7 +343,7 @@ private:
             return;
         }
 
-        if (transaction->GetState() != ETransactionState::Active) {
+        if (transaction->GetTransientState() != ETransactionState::Active) {
             return;
         }
 
@@ -357,6 +369,19 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnLeaderActive();
+
+        // Recreate leases for all active transactions.
+        for (auto [transactionId, transaction] : TransactionMap_) {
+            auto state = transaction->GetPersistentState();
+            YT_VERIFY(state == transaction->GetTransientState());
+            if (state == ETransactionState::Active ||
+                state == ETransactionState::PersistentCommitPrepared)
+            {
+                CreateLease(transaction);
+            }
+        }
+
+        LeaseTracker_->Start();
     }
 
     void OnStopLeading() override
@@ -364,6 +389,17 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnStopLeading();
+
+        // Reset all transiently prepared persistent transactions back into active state.
+        for (auto [transactionId, transaction] : TransactionMap_) {
+            if (transaction->GetTransientState() == ETransactionState::TransientCommitPrepared) {
+                transaction->SetPrepareTimestamp(NullTimestamp);
+            }
+            transaction->SetPersistentState(transaction->GetPersistentState());
+            CloseLease(transaction);
+        }
+
+        LeaseTracker_->Stop();
     }
 
 
@@ -419,7 +455,7 @@ private:
             transactionStartTimestamp,
             transactionTimeout);
 
-        auto state = transaction->GetState();
+        auto state = transaction->GetPersistentState();
         if (state != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
@@ -484,7 +520,7 @@ private:
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
         transactionHolder->SetTimeout(timeout);
         transactionHolder->SetStartTimestamp(startTimestamp);
-        transactionHolder->SetState(ETransactionState::Active);
+        transactionHolder->SetPersistentState(ETransactionState::Active);
         transactionHolder->SetUser(user);
 
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));

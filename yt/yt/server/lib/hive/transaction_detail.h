@@ -13,7 +13,6 @@ class TTransactionBase
     : public TBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State, ETransactionState::Active);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTransactionActionData>, Actions);
 
 public:
@@ -23,8 +22,17 @@ public:
     void Load(TStreamLoadContext& context);
 
     ETransactionState GetPersistentState() const;
+    void SetPersistentState(ETransactionState state);
+
+    ETransactionState GetTransientState() const;
+    void SetTransientState(ETransactionState state);
+
+    ETransactionState GetState(bool persistent) const;
 
     void ThrowInvalidState() const;
+
+private:
+    ETransactionState State_ = ETransactionState::Active;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -110,7 +110,7 @@ void TTransaction::Load(TLoadContext& context)
     Transient_ = false;
     Load(context, Foreign_);
     Load(context, Timeout_);
-    Load(context, State_);
+    SetPersistentState(Load<ETransactionState>(context));
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
@@ -170,7 +170,7 @@ void TTransaction::ResetFinished()
 
 TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
 {
-    switch (State_) {
+    switch (GetTransientState()) {
         case ETransactionState::TransientCommitPrepared:
             return NullTimestamp;
         default:
@@ -181,28 +181,6 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
 TInstant TTransaction::GetStartTime() const
 {
     return TimestampToInstant(StartTimestamp_).first;
-}
-
-bool TTransaction::IsAborted() const
-{
-    return State_ == ETransactionState::Aborted;
-}
-
-bool TTransaction::IsActive() const
-{
-    return State_ == ETransactionState::Active;
-}
-
-bool TTransaction::IsCommitted() const
-{
-    return State_ == ETransactionState::Committed;
-}
-
-bool TTransaction::IsPrepared() const
-{
-    return
-        State_ == ETransactionState::TransientCommitPrepared ||
-        State_ == ETransactionState::PersistentCommitPrepared;
 }
 
 bool TTransaction::IsSerializationNeeded() const

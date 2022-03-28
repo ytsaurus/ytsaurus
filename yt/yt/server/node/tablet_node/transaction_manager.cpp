@@ -217,7 +217,7 @@ public:
         transactionHolder->SetForeign(CellTagFromId(transactionId) != NativeCellTag_);
         transactionHolder->SetTimeout(timeout);
         transactionHolder->SetStartTimestamp(startTimestamp);
-        transactionHolder->SetState(ETransactionState::Active);
+        transactionHolder->SetPersistentState(ETransactionState::Active);
         transactionHolder->SetTransient(transient);
         transactionHolder->AuthenticationIdentity() = NRpc::GetCurrentAuthenticationIdentity();
 
@@ -351,11 +351,9 @@ public:
             signature = transaction->GetPersistentSignature();
         } else {
             transaction = GetTransactionOrThrow(transactionId);
-            state = transaction->GetState();
+            state = transaction->GetTransientState();
             signature = transaction->GetTransientSignature();
         }
-
-        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         if (state != ETransactionState::Active &&
@@ -371,6 +369,8 @@ public:
                 signature);
         }
 
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
+
         if (persistent) {
             const auto* context = GetCurrentMutationContext();
             // COMPAT(ifsmirnov)
@@ -383,18 +383,22 @@ public:
             YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
             transaction->SetPrepareTimestamp(prepareTimestamp);
             RegisterPrepareTimestamp(transaction);
-            transaction->SetState(persistent
-                ? ETransactionState::PersistentCommitPrepared
-                : ETransactionState::TransientCommitPrepared);
+
+            if (persistent) {
+                transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
+            } else {
+                transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
+            }
 
             TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, persistent);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
-                "PrepareTimestamp: %llx)",
+                "PrepareTimestamp: %llx@%v)",
                 transactionId,
                 persistent,
-                prepareTimestamp);
+                prepareTimestamp,
+                prepareTimestampClusterTag);
         }
     }
 
@@ -408,12 +412,12 @@ public:
 
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
 
-        if (!transaction->IsActive() && !force) {
+        if (transaction->GetTransientState() != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
         }
 
-        if (transaction->IsActive()) {
-            transaction->SetState(ETransactionState::TransientAbortPrepared);
+        if (transaction->GetTransientState() == ETransactionState::Active) {
+            transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
             YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
                 transactionId);
@@ -457,14 +461,15 @@ public:
         }
 
         transaction->SetCommitTimestamp(commitTimestamp);
-        transaction->SetState(ETransactionState::Committed);
+        transaction->SetPersistentState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx@%v)",
             transactionId,
-            commitTimestamp);
+            commitTimestamp,
+            commitTimestampClusterTag);
 
         FinishTransaction(transaction);
 
@@ -499,7 +504,7 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetState(ETransactionState::Aborted);
+        transaction->SetPersistentState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction);
@@ -591,7 +596,7 @@ private:
                 .Item(ToString(transaction->GetId())).BeginMap()
                     .Item("transient").Value(transaction->GetTransient())
                     .Item("timeout").Value(transaction->GetTimeout())
-                    .Item("state").Value(transaction->GetState())
+                    .Item("state").Value(transaction->GetTransientState())
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
                     // Omit CommitTimestamp, it's typically null.
@@ -648,7 +653,7 @@ private:
             return;
         }
 
-        if (transaction->GetState() != ETransactionState::Active) {
+        if (transaction->GetTransientState() != ETransactionState::Active) {
             return;
         }
 
@@ -675,12 +680,13 @@ private:
 
         SerializingTransactionHeaps_.clear();
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
-            YT_VERIFY(transaction->GetState() == transaction->GetPersistentState());
-            YT_VERIFY(transaction->GetState() != ETransactionState::Aborted);
-            if (transaction->GetState() == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
+            auto state = transaction->GetPersistentState();
+            YT_VERIFY(transaction->GetTransientState() == state);
+            YT_VERIFY(state != ETransactionState::Aborted);
+            if (state == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
                 SerializingTransactionHeaps_[transaction->GetCellTag()].push_back(transaction);
             }
-            if (transaction->IsPrepared()) {
+            if (state == ETransactionState::PersistentCommitPrepared) {
                 RegisterPrepareTimestamp(transaction);
             }
         }
@@ -700,8 +706,9 @@ private:
 
         // Recreate leases for all active transactions.
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
-            if (transaction->GetState() == ETransactionState::Active ||
-                transaction->GetState() == ETransactionState::PersistentCommitPrepared)
+            auto state = transaction->GetPersistentState();
+            if (state == ETransactionState::Active ||
+                state == ETransactionState::PersistentCommitPrepared)
             {
                 CreateLease(transaction);
             }
@@ -751,11 +758,11 @@ private:
         // Reset all transiently prepared persistent transactions back into active state.
         // Mark all transactions as finished to release pending readers.
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
-            if (transaction->GetState() == ETransactionState::TransientCommitPrepared) {
+            if (transaction->GetTransientState() == ETransactionState::TransientCommitPrepared) {
                 UnregisterPrepareTimestamp(transaction);
                 transaction->SetPrepareTimestamp(NullTimestamp);
             }
-            transaction->SetState(transaction->GetPersistentState());
+            transaction->SetPersistentState(transaction->GetPersistentState());
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->SetTransientGeneration(transaction->GetPersistentGeneration());
             transaction->ResetFinished();
@@ -924,10 +931,10 @@ private:
                     transaction->GetId(),
                     commitTimestamp);
 
-                transaction->SetState(ETransactionState::Serialized);
+                transaction->SetPersistentState(ETransactionState::Serialized);
                 BeforeTransactionSerialized_.Fire(transaction);
 
-                // NB: Explicitly run serialize actoins before actual serializing.
+                // NB: Explicitly run serialize actions before actual serializing.
                 RunSerializeTransactionActions(transaction);
                 TransactionSerialized_.Fire(transaction);
 
@@ -1146,8 +1153,8 @@ private:
         const TTransaction* lhs,
         const TTransaction* rhs)
     {
-        YT_ASSERT(lhs->IsCommitted());
-        YT_ASSERT(rhs->IsCommitted());
+        YT_ASSERT(lhs->GetPersistentState() == ETransactionState::Committed);
+        YT_ASSERT(rhs->GetPersistentState() == ETransactionState::Committed);
         return lhs->GetCommitTimestamp() < rhs->GetCommitTimestamp();
     }
 };
