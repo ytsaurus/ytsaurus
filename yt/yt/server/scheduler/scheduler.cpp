@@ -115,7 +115,6 @@ using namespace NTransactionClient;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::TNodeDescriptor;
-using NNodeTrackerClient::TNodeDirectory;
 
 using std::placeholders::_1;
 
@@ -176,6 +175,7 @@ public:
             GetControlInvoker(EControlQueue::UserRequest),
             SchedulerLogger,
             SchedulerProfiler))
+        , ExperimentsAssigner_(Config_->Experiments)
     {
         YT_VERIFY(config);
         YT_VERIFY(bootstrap);
@@ -641,7 +641,6 @@ public:
             type,
             user,
             Passed(std::move(specString)),
-            Config_,
             SpecTemplate_)
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -1623,7 +1622,7 @@ public:
             ELogEventType::FairShareInfo,
             now);
     }
-    
+
     // NB(eshcherbin): Separate method due to separate invoker.
     TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant now) override
     {
@@ -2086,6 +2085,8 @@ private:
     TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
 
     THashMap<TString, TString> UserToDefaultPoolMap_;
+
+    TExperimentAssigner ExperimentsAssigner_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2795,6 +2796,8 @@ private:
             Bootstrap_->GetControllerAgentTracker()->UpdateConfig(Config_);
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
+
+            ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
         }
 
         ++ConfigRevision_;
@@ -4390,14 +4393,13 @@ private:
         EOperationType type,
         const TString& user,
         TYsonString specString,
-        TSchedulerConfigPtr config,
         NYTree::INodePtr specTemplate) const
     {
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
         auto specNode = ConvertSpecStringToNode(specString);
 
-        auto experimentAssignments = AssignExperiments(type, user, specNode, config->Experiments);
+        auto experimentAssignments = ExperimentsAssigner_.Assign(type, user, specNode);
 
         for (const auto& assignment : experimentAssignments) {
             if (const auto& patch = assignment->Effect->SchedulerSpecTemplatePatch) {

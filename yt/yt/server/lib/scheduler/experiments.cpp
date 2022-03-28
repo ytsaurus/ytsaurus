@@ -2,6 +2,10 @@
 
 #include "config.h"
 
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/orm/query_helpers/filter_matcher.h>
@@ -12,6 +16,7 @@ namespace NYT::NScheduler {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NOrm::NQueryHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,40 +162,57 @@ TString TExperimentAssignment::GetName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TExperimentAssignmentPtr> AssignExperiments(
+TExperimentAssigner::TExperimentAssigner(THashMap<TString, TExperimentConfigPtr> experiments)
+{
+    UpdateExperimentConfigs(std::move(experiments));
+}
+
+bool TExperimentAssigner::MatchExperiment(
+    const TPreparedExperimentPtr& experiment,
+    TAssignmentContext& attributes) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!experiment->FilterMatcher) {
+        return true;
+    }
+
+    return experiment->FilterMatcher->Match(attributes.GetAttributesAsYson())
+        .ValueOrThrow();
+};
+
+void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto preparedExperiments = New<TPreparedExperiments>();
+
+    for (const auto& [name, experimentConfig] : experiments) {
+        auto preparedExperiment = New<TPreparedExperiment>();
+        preparedExperiment->Config = experimentConfig;
+        if (experimentConfig->Filter) {
+            preparedExperiment->FilterMatcher = CreateFilterMatcher(*experimentConfig->Filter);
+        }
+        EmplaceOrCrash(preparedExperiments->Experiments, name, preparedExperiment);
+    }
+
+    PreparedExperiments_.Store(preparedExperiments);
+}
+
+std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
     EOperationType type,
     const TString& user,
-    const IMapNodePtr& specNode,
-    const THashMap<TString, TExperimentConfigPtr>& experiments)
+    const IMapNodePtr& specNode) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     std::vector<TExperimentAssignmentPtr> assignments;
+
+    auto preparedExperiments = PreparedExperiments_.Acquire();
 
     auto experimentOverridesNode = specNode->FindChild("experiment_overrides");
 
-    // We feed this YSON to experiment filters. Constructing such string costs
-    // some CPU time, so we construct it lazily.
-    TYsonString filterAttributes;
-    auto initFilterAttributes = [&] {
-        if (filterAttributes) {
-            return;
-        }
-        filterAttributes = BuildYsonStringFluently()
-            .BeginMap()
-                .Item("type").Value(type)
-                .Item("user").Value(user)
-                .Item("spec").Value(specNode)
-            .EndMap();
-    };
-
-    auto matchFilter = [&] (const TExperimentConfigPtr& experiment) {
-        if (!experiment->Filter) {
-            return true;
-        }
-        auto filterMatcher = NOrm::NQueryHelpers::CreateFilterMatcher(*experiment->Filter);
-        initFilterAttributes();
-        return filterMatcher->Match(filterAttributes)
-            .ValueOrThrow();
-    };
+    TAssignmentContext assignmentContext(type, user, specNode);
 
     if (experimentOverridesNode) {
         auto experimentOverrides = ConvertTo<std::vector<TString>>(experimentOverridesNode);
@@ -207,27 +229,27 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
                 groupName = "treatment";
             }
 
-            auto experimentIt = experiments.find(experimentName);
-            if (experimentIt == experiments.end()) {
+            auto experimentIt = preparedExperiments->Experiments.find(experimentName);
+            if (experimentIt == preparedExperiments->Experiments.end()) {
                 THROW_ERROR_EXCEPTION("Experiment %Qv is not known", experimentName);
             }
             const auto& experiment = experimentIt->second;
-            auto groupIt = experiment->Groups.find(groupName);
-            if (groupIt == experiment->Groups.end()) {
+            auto groupIt = experiment->Config->Groups.find(groupName);
+            if (groupIt == experiment->Config->Groups.end()) {
                 THROW_ERROR_EXCEPTION("Group %Qv is not known in experiment %Qv", groupName, experimentName);
             }
-            if (!matchFilter(experiment)) {
+            if (!MatchExperiment(experiment, assignmentContext)) {
                 THROW_ERROR_EXCEPTION("Operation does not match filter of experiment %Qv",
                     experimentName)
-                    << TErrorAttribute("filter", experiment->Filter);
+                    << TErrorAttribute("filter", experiment->Config->Filter);
             }
 
             assignments.emplace_back(New<TExperimentAssignment>());
             assignments.back()->SetFields(
                 experimentName,
                 groupName,
-                experiment->Ticket,
-                experiment->Dimension,
+                experiment->Config->Ticket,
+                experiment->Config->Dimension,
                 /* experimentUniformSample */ 0.0,
                 /* groupUniformSample */ 0.0,
                 groupIt->second);
@@ -237,10 +259,9 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
         // one group in each chosen experiment.
 
         // dimension -> name -> experiment.
-        THashMap<TString, THashMap<TString, TExperimentConfigPtr>> dimensionToExperiments;
-        for (auto it = experiments.begin(); it != experiments.end(); ++it) {
-            const auto& experiment = it->second;
-            YT_VERIFY(dimensionToExperiments[experiment->Dimension].insert(*it).second);
+        THashMap<TString, THashMap<TString, TPreparedExperimentPtr>> dimensionToExperiments;
+        for (const auto& [name, experiment] : preparedExperiments->Experiments) {
+            EmplaceOrCrash(dimensionToExperiments[experiment->Config->Dimension], name, experiment);
         }
 
         std::random_device randomDevice;
@@ -252,7 +273,7 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
         //! If forcePick is set, some element is guaranteed to be picked (use this option to overcome
         //! double precision issues when total Fraction is expected to be 1.0).
         //! Returns a pair (iterator, uniformSample); iterator may point to collection's end().
-        auto pickElement = [&] (const auto& collection, bool forcePick) {
+        auto pickElement = [&] (auto& collection, bool forcePick, auto fractionGetter) {
             if (forcePick) {
                 // Sanity check.
                 YT_VERIFY(!collection.empty());
@@ -271,25 +292,35 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
                     // By this moment sampledIt may be equal to end().
                     break;
                 }
-                if (cumulativeFraction + it->second->Fraction > uniformSample) {
+                if (cumulativeFraction + fractionGetter(it->second) > uniformSample) {
                     break;
                 }
-                cumulativeFraction += it->second->Fraction;
+                cumulativeFraction += fractionGetter(it->second);
             }
             return std::make_pair(sampledIt, uniformSample);
         };
 
         for (const auto& dimensionExperiments : GetValues(dimensionToExperiments)) {
-            auto [experimentIt, experimentUniformSample] = pickElement(dimensionExperiments, /* forcePick */ false);
+            auto [experimentIt, experimentUniformSample] = pickElement(
+                dimensionExperiments,
+                /* forcePick */ false,
+                [] (const TPreparedExperimentPtr& experiment) {
+                    return experiment->Config->Fraction;
+                });
             if (experimentIt == dimensionExperiments.end()) {
                 // Pick no experiment from this dimension.
                 continue;
             }
             auto [experimentName, experiment] = *experimentIt;
-            auto [groupIt, groupUniformSample] = pickElement(experiment->Groups, /* forcePick */ true);
+            auto [groupIt, groupUniformSample] = pickElement(
+                experiment->Config->Groups,
+                /* forcePick */ true,
+                [] (const TExperimentGroupConfigPtr& experiment) {
+                    return experiment->Fraction;
+                });
             auto [groupName, group] = *groupIt;
 
-            if (!matchFilter(experiment)) {
+            if (!MatchExperiment(experiment, assignmentContext)) {
                 // Skip such experiment.
                 continue;
             }
@@ -298,8 +329,8 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
             assignments.back()->SetFields(
                 experimentName,
                 groupName,
-                experiment->Ticket,
-                experiment->Dimension,
+                experiment->Config->Ticket,
+                experiment->Config->Dimension,
                 experimentUniformSample,
                 groupUniformSample,
                 group);
@@ -324,6 +355,30 @@ std::vector<TExperimentAssignmentPtr> AssignExperiments(
 
     return assignments;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExperimentAssigner::TAssignmentContext::TAssignmentContext(EOperationType type, TString user, IMapNodePtr spec)
+    : Type_(type)
+    , User_(std::move(user))
+    , Spec_(std::move(spec))
+{ }
+
+const TYsonString& TExperimentAssigner::TAssignmentContext::GetAttributesAsYson()
+{
+    if (!AttributesAsYson_) {
+        AttributesAsYson_ = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("type").Value(Type_)
+                .Item("user").Value(User_)
+                .Item("spec").Value(Spec_)
+            .EndMap();
+    }
+
+    return AttributesAsYson_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ValidateExperiments(const THashMap<TString, TExperimentConfigPtr>& experiments)
 {

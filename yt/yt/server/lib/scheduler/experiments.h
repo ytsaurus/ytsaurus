@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/orm/query_helpers/public.h>
+
+#include <yt/yt/core/misc/atomic_ptr.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NScheduler {
@@ -138,13 +142,61 @@ DEFINE_REFCOUNTED_TYPE(TExperimentAssignment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! This method assigns experiments to an operation considering the possible
-//! specification of experiment overrides in operation spec.
-std::vector<TExperimentAssignmentPtr> AssignExperiments(
-    EOperationType operationType,
-    const TString& user,
-    const NYTree::IMapNodePtr& specNode,
-    const THashMap<TString, TExperimentConfigPtr>& experiments);
+class TExperimentAssigner
+{
+public:
+    explicit TExperimentAssigner(THashMap<TString, TExperimentConfigPtr> experiments);
+
+    void UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments);
+
+    //! This method assigns experiments to an operation considering the possible
+    //! specification of experiment overrides in operation spec.
+    std::vector<TExperimentAssignmentPtr> Assign(
+        EOperationType operationType,
+        const TString& user,
+        const NYTree::IMapNodePtr& specNode) const;
+
+    class TAssignmentContext;
+    struct TPreparedExperiment;
+    using TPreparedExperimentPtr = TIntrusivePtr<TPreparedExperiment>;
+
+    bool MatchExperiment(
+        const TPreparedExperimentPtr& experiment,
+        TAssignmentContext& attributes) const;
+
+    class TAssignmentContext
+    {
+    public:
+        TAssignmentContext(EOperationType type, TString user, NYTree::IMapNodePtr spec);
+
+        const NYson::TYsonString& GetAttributesAsYson();
+
+    private:
+        EOperationType Type_;
+        TString User_;
+        NYTree::IMapNodePtr Spec_;
+
+        NYson::TYsonString AttributesAsYson_;
+    };
+
+    struct TPreparedExperiment final
+    {
+        TExperimentConfigPtr Config;
+        NOrm::NQueryHelpers::IFilterMatcherPtr FilterMatcher;
+    };
+
+    struct TPreparedExperiments final
+    {
+        static constexpr bool EnableHazard = true;
+
+        THashMap<TString, TPreparedExperimentPtr> Experiments;
+    };
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+private:
+    TAtomicPtr<TPreparedExperiments> PreparedExperiments_;
+};
 
 //! Validate experiment specification, in particular:
 //! - validate total fraction sum over each dimension;
