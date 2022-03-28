@@ -8,7 +8,10 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
+import java.util.concurrent.TimeUnit
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
 
 class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
@@ -17,34 +20,48 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
   import SubmitTest._
 
   val jobs = Seq(
-    E2ETestCase("link_eda_user_appsession_request_id", Seq("appsession_id")),
-    E2ETestCase("link_eda_user_appsession_request_id_python2", Seq("appsession_id"))
+    E2ETestCase("link_eda_user_appsession_request_id", 80 seconds, Seq("appsession_id")),
+    E2ETestCase("link_eda_user_appsession_request_id_python2", 70 seconds, Seq("appsession_id"))
       .withConf("spark.pyspark.python" , "python2.7"),
-    E2ETestCase("fct_extreme_user_order_act", Seq("phone_pd_id"))
+    E2ETestCase("fct_extreme_user_order_act", 100 seconds, Seq("phone_pd_id"))
       .withConf("spark.sql.mapKeyDedupPolicy", "LAST_WIN"),
-    E2ETestCase("yt_cdm_agg_ca_adjust_event_sfo", Seq("moscow_dt", "brand", "platform")),
-    E2ETestCase("cdm_callcenter_fct_operator_state_hist_yt", Seq("agent_id", "utc_valid_from_dttm")),
-    E2ETestCase("summary_fct_user_rating", Seq("user_uid", "brand", "utc_order_dttm", "taximeter_order_id")),
-    E2ETestCase("DmCommutationCheckNewbieCheck", Seq("check_id", "check_name", "check_root_id", "msk_updated_dttm"))
+    E2ETestCase("yt_cdm_agg_ca_adjust_event_sfo", 70 seconds, Seq("moscow_dt", "brand", "platform")),
+    E2ETestCase("cdm_callcenter_fct_operator_state_hist_yt", 180 seconds, Seq("agent_id", "utc_valid_from_dttm")),
+    E2ETestCase("summary_fct_user_rating", 50 seconds, Seq("user_uid", "brand", "utc_order_dttm", "taximeter_order_id")),
+    E2ETestCase("DmCommutationCheckNewbieCheck", 35 seconds, Seq("check_id", "check_name", "check_root_id", "msk_updated_dttm"))
   )
 
   jobs.foreach { testCase =>
     testCase.name should "work correctly" in {
       YtWrapper.removeIfExists(testCase.outputPath)
 
+      val lowerBound = testCase.executionTime / executionTimeSpread
+      val upperBound = testCase.executionTime * executionTimeSpread
+
       log.info(s"Start job ${testCase.name}")
-      runJob(testCase)
+      val executionTime = measure(runJob(testCase), upperBound)
       log.info(s"Finished job ${testCase.name}")
+      log.info(s"Used ${executionTime.toSeconds} seconds")
 
       log.info(s"Check job ${testCase.name}")
       val res = runCheck(testCase)(yt)
       log.info(s"Finished check ${testCase.name}")
       res shouldEqual CheckResult.Ok
+
+      executionTime should be > lowerBound
     }
+  }
+
+  private def measure(block: => Unit, limit: Duration): Duration = {
+    val t0 = System.nanoTime()
+    Await.ready(Future{ block }, limit)
+    val t1 = System.nanoTime()
+    Duration.fromNanos(t1 - t0)
   }
 }
 
 object SubmitTest {
+  private val executionTimeSpread = 1.5
   private val basePath = "//home/spark/e2e"
 
   private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, s"$basePath/cluster",

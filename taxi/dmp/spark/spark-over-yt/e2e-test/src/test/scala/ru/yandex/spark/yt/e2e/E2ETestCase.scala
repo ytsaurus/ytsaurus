@@ -1,6 +1,9 @@
 package ru.yandex.spark.yt.e2e
 
+import scala.concurrent.duration.Duration
+
 case class E2ETestCase(name: String,
+                       executionTime: Duration,
                        keyColumns: Seq[String],
                        uniqueKeys: Boolean = false,
                        conf: Map[String, String] = Map(
