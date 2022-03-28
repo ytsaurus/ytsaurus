@@ -6,7 +6,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.proxy.request._
-import ru.yandex.yt.ytclient.rpc.RpcCredentials
+import ru.yandex.yt.ytclient.rpc.{RpcCredentials, RpcOptions}
 import sbt.Keys._
 import sbt._
 
@@ -57,13 +57,14 @@ object YtPublishPlugin extends AutoPlugin {
         val dst = s"$remoteDir/$dstName"
 
         log.info(s"Upload $src to YT cluster $proxyName $dst..")
-        val transaction = yt.startTransaction(new StartTransaction(TransactionType.Master)).join()
+        val transaction = yt.startTransaction(new StartTransaction(TransactionType.Master)
+          .setTransactionTimeout(Duration.ofMinutes(10))).join()
         try {
           if (yt.existsNode(dst).join()) yt.removeNode(dst).join()
           yt.createNode(dst, ObjectType.File).join()
 
-          val buffer = new Array[Byte](64 * 1024)
-          val writer = yt.writeFile(new WriteFile(dst)).join()
+          val buffer = new Array[Byte](32 * 1024 * 1024)
+          val writer = yt.writeFile(new WriteFile(dst).setTimeout(Duration.ofMinutes(10))).join()
           @tailrec
           def write(len: Int): Unit = {
             writer.readyEvent().join()
@@ -74,10 +75,12 @@ object YtPublishPlugin extends AutoPlugin {
 
           try {
             val is = new BufferedInputStream(new FileInputStream(src))
+            var writtenBytes = 0
             try {
               Stream.continually {
                 val res = is.read(buffer)
                 if (res > 0) write(res)
+                writtenBytes += res
                 res
               }.dropWhile(_ > 0)
             } finally {
@@ -161,12 +164,17 @@ object YtPublishPlugin extends AutoPlugin {
       .setReadTimeout(Duration.ofMinutes(5))
       .setWriteTimeout(Duration.ofMinutes(5))
 
+    val options = new RpcOptions()
+    options.setGlobalTimeout(Duration.ofMinutes(10))
+    options.setStreamingReadTimeout(Duration.ofMinutes(10))
+    options.setStreamingWriteTimeout(Duration.ofMinutes(10))
+
     if (proxy == "local") {
       val proxyHost = sys.env.getOrElse("YT_LOCAL_HOST", "localhost")
       val credentials = new RpcCredentials("root", "")
-      new YtClient(connector, s"$proxyHost:8000", credentials) -> connector
+      new YtClient(connector, s"$proxyHost:8000", credentials, options) -> connector
     } else {
-      new YtClient(connector, proxy, credentials) -> connector
+      new YtClient(connector, proxy, credentials, options) -> connector
     }
   }
 
