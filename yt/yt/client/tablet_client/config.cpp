@@ -13,15 +13,15 @@ void TTableMountCacheConfig::Register(TRegistrar registrar)
 TTableMountCacheConfigPtr TTableMountCacheConfig::ApplyDynamic(
     const TTableMountCacheDynamicConfigPtr& dynamicConfig)
 {
-    auto config = New<TTableMountCacheConfig>();
+    auto mergedConfig = CloneYsonSerializable(MakeStrong(this));
 
-    config->ApplyDynamicInplace(dynamicConfig);
+    mergedConfig->ApplyDynamicInplace(dynamicConfig);
 
-    config->RejectIfEntryIsRequestedButNotReady = dynamicConfig->RejectIfEntryIsRequestedButNotReady.value_or(
+    mergedConfig->RejectIfEntryIsRequestedButNotReady = dynamicConfig->RejectIfEntryIsRequestedButNotReady.value_or(
         RejectIfEntryIsRequestedButNotReady);
 
-    config->Postprocess();
-    return config;
+    mergedConfig->Postprocess();
+    return mergedConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
