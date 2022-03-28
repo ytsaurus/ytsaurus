@@ -34,6 +34,7 @@ object CommonPlugin extends AutoPlugin {
 
     val clusterShadeRules: Seq[ShadeRule] = commonShadeRules ++ Seq(ShadeRule.rename(
       "ru.yandex.spark.yt.submit.*" -> "ru.yandex.spark.yt.submit.@1",
+      "ru.yandex.spark.yt.fs.YtCachedFileSystem" -> "ru.yandex.spark.yt.fs.YtCachedFileSystem",
       "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
       "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
       "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",

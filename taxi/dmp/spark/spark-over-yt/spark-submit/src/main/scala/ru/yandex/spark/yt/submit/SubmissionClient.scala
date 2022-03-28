@@ -51,6 +51,10 @@ class SubmissionClient(proxy: String,
     val remoteGlobalConfig = parseRemoteConfig(remoteGlobalConfigPath, yt)
     val remoteVersionConfig = parseRemoteConfig(remoteVersionConfigPath(cluster.get().version), yt)
 
+    val jarCachingEnabled = remoteVersionConfig.get("spark.yt.jarCaching")
+      .orElse(remoteGlobalConfig.get("spark.yt.jarCaching"))
+      .exists(_.toBoolean)
+
     launcher.setDeployMode("cluster")
 
     addConf(launcher, remoteGlobalConfig)
@@ -65,8 +69,8 @@ class SubmissionClient(proxy: String,
     launcher.setConf("spark.hadoop.yt.token", token)
 
     launcher.setConf("spark.yt.version", spytVersion)
-    launcher.setConf("spark.yt.jars", s"yt:/${spytJarPath(spytVersion)}")
-    launcher.setConf("spark.yt.pyFiles", s"yt:/${spytPythonPath(spytVersion)}")
+    launcher.setConf("spark.yt.jars", wrapCachedJar(s"yt:/${spytJarPath(spytVersion)}", jarCachingEnabled))
+    launcher.setConf("spark.yt.pyFiles", wrapCachedJar(s"yt:/${spytPythonPath(spytVersion)}", jarCachingEnabled))
     launcher.setConf("spark.eventLog.dir", "ytEventLog:/" + eventLogPath)
 
     if (useDedicatedDriverOp) {
@@ -227,6 +231,14 @@ class SubmissionClient(proxy: String,
   private val SPYT_BASE_PATH = SPARK_BASE_PATH.child("spyt")
   private val RELEASES_SUBDIR = "releases"
   private val SNAPSHOTS_SUBDIR = "snapshots"
+
+  private def wrapCachedJar(path: String, jarCachingEnabled: Boolean): String = {
+    if (jarCachingEnabled && path.startsWith("yt:/")) {
+      "ytCached:/" + path.drop(4)
+    } else {
+      path
+    }
+  }
 
   private def spytJarPath(spytVersion: String): YPath = {
     getSpytVersionPath(spytVersion).child("spark-yt-data-source.jar")
