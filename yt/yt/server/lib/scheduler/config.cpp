@@ -712,7 +712,7 @@ void TControllerAgentTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_response_keeper", &TThis::EnableResponseKeeper)
         .Default(false);
-    
+
     registrar.Preprocessor([&] (TControllerAgentTrackerConfig* config) {
         config->ResponseKeeper->EnableWarmup = false;
     });
@@ -749,7 +749,7 @@ void TResourceMeteringConfig::Register(TRegistrar registrar)
 void TSchedulerConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
-        
+
     registrar.Parameter("operation_service_response_keeper", &TThis::OperationServiceResponseKeeper)
         .DefaultNew();
 
@@ -953,7 +953,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("schedule_job_entry_removal_timeout", &TThis::ScheduleJobEntryRemovalTimeout)
         .Default(TDuration::Minutes(2));
-    
+
     registrar.Parameter("schedule_job_entry_check_period", &TThis::ScheduleJobEntryCheckPeriod)
         .Default(TDuration::Minutes(1));
 
