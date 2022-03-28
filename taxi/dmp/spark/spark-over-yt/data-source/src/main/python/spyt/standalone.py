@@ -369,7 +369,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             "client_version": __version__,
             "enable_byop": enablers.enable_byop,
             "enable_arrow": enablers.enable_arrow,
-            "enable_mtn": enablers.enable_mtn
+            "enable_mtn": enablers.enable_mtn,
+            "job_types": job_types
         }
     }
 
