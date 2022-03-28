@@ -31,10 +31,9 @@ class SparkCluster(object):
 
 
 class SparkDiscovery(object):
-    def __init__(self, discovery_path=None, spark_id=None):
+    def __init__(self, discovery_path=None):
         discovery_path = discovery_path or os.getenv("SPARK_BASE_DISCOVERY_PATH")
         self.base_discovery_path = YPath(discovery_path)
-        self.spark_id = spark_id
 
     @staticmethod
     def getAll(path, client=None):
@@ -73,10 +72,7 @@ class SparkDiscovery(object):
         create("map_node", self.logs(), recursive=True, ignore_existing=True, client=client)
 
     def discovery(self):
-        if self.spark_id:
-            return self.base_discovery_path.join("instances").join(self.spark_id)
-        else:
-            return self.base_discovery_path.join("discovery")
+        return self.base_discovery_path.join("discovery")
 
     def operation(self):
         return self.discovery().join("operation")
@@ -97,7 +93,7 @@ class SparkDiscovery(object):
         return self.logs().join("worker_log")
 
     def master_spark(self):
-        return self.discovery().join("address") if self.spark_id else self.discovery().join("spark_address")
+        return self.discovery().join("spark_address")
 
     def master_webui(self):
         return self.discovery().join("webui")
@@ -136,8 +132,8 @@ class ClusterInfo(object):
         return len(self.workers)
 
 
-def cluster_info(yt_client, discovery_path, spark_id=None):
-    discovery = SparkDiscovery(discovery_path, spark_id)
+def cluster_info(yt_client, discovery_path):
+    discovery = SparkDiscovery(discovery_path)
     master = SparkDiscovery.getOption(discovery.master_spark())
     shs = SparkDiscovery.getOption(discovery.shs())
     operation = SparkDiscovery.getOption(discovery.operation())

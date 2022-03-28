@@ -79,7 +79,6 @@ def spark_session(num_executors=None,
                   dynamic_allocation=False,
                   spark_conf_args=None,
                   local_conf_path=Defaults.LOCAL_CONF_PATH,
-                  spark_id=None,
                   client=None):
     spark_session_already_existed = _spark_session_exists()
     spark = connect(
@@ -93,7 +92,6 @@ def spark_session(num_executors=None,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
         local_conf_path=local_conf_path,
-        spark_id=spark_id,
         client=client
     )
     exception = None
@@ -108,11 +106,10 @@ def spark_session(num_executors=None,
             stop(spark, exception)
 
 
-def get_spark_discovery(discovery_path, spark_id, conf):
-    spark_id = spark_id or conf.get("spark_id")
+def get_spark_discovery(discovery_path, conf):
     discovery_path = discovery_path or conf.get("discovery_path") or conf.get(
         "discovery_dir") or default_discovery_dir()
-    return SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
+    return SparkDiscovery(discovery_path=discovery_path)
 
 
 def create_yt_client(yt_proxy, conf):
@@ -130,9 +127,8 @@ def create_yt_client_spark_conf(yt_proxy, spark_conf):
 def _configure_client_mode(spark_conf,
                            discovery_path,
                            local_conf,
-                           spark_id,
                            client=None):
-    discovery = get_spark_discovery(discovery_path, spark_id, local_conf)
+    discovery = get_spark_discovery(discovery_path, local_conf)
     master = get_spark_master(discovery, rest=False, yt_client=client)
     set_conf(spark_conf, base_spark_conf(client=client, discovery=discovery))
     spark_conf.set("spark.master", master)
@@ -228,7 +224,6 @@ def _build_spark_conf(num_executors=None,
                       dynamic_allocation=None,
                       spark_conf_args=None,
                       local_conf_path=None,
-                      spark_id=None,
                       client=None):
     from pyspark import SparkConf
 
@@ -240,7 +235,7 @@ def _build_spark_conf(num_executors=None,
         local_conf = _read_local_conf(local_conf_path)
         client = client or create_yt_client(yt_proxy, local_conf)
         app_name = app_name or "PySpark for {}".format(get_user_name(client=client) or os.getenv("USER"))
-        _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
+        _configure_client_mode(spark_conf, discovery_path, local_conf, client)
         spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
         spark_cluster_conf_path = spark_conf.get("spark.yt.cluster.confPath")
     else:
@@ -279,7 +274,6 @@ def connect(num_executors=5,
             dynamic_allocation=True,
             spark_conf_args=None,
             local_conf_path=Defaults.LOCAL_CONF_PATH,
-            spark_id=None,
             client=None):
     from pyspark.sql import SparkSession
     conf = _build_spark_conf(
@@ -293,7 +287,6 @@ def connect(num_executors=5,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
         local_conf_path=local_conf_path,
-        spark_id=spark_id,
         client=client
     )
     if _spark_session_exists():
