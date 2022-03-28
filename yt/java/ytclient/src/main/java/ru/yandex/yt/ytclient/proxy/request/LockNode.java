@@ -92,9 +92,7 @@ public class LockNode extends MutatePath<LockNode> implements HighLevelRequest<T
         if (prerequisiteOptions != null) {
             builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
-        if (mutatingOptions != null) {
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
+        builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }

@@ -59,9 +59,7 @@ public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelReque
         if (transactionalOptions != null) {
             builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
-        if (mutatingOptions != null) {
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
+        builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }

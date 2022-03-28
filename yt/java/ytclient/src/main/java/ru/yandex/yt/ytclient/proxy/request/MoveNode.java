@@ -38,9 +38,7 @@ public class MoveNode extends CopyLikeReq<MoveNode> implements HighLevelRequest<
         if (prerequisiteOptions != null) {
             builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
-        if (mutatingOptions != null) {
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
+        builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
         }
