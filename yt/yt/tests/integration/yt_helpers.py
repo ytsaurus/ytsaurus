@@ -27,32 +27,35 @@ def profiler_factory():
 
 def get_job_count_profiling(tree="default"):
     job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
-    profiler = profiler_factory().at_scheduler(fixed_tags={"tree": tree})
+    scheduler_profiler = profiler_factory().at_scheduler(fixed_tags={"tree": tree})
 
     start_time = datetime.now()
 
     # Enable verbose for debugging.
-    for projection in profiler.get_all("scheduler/jobs/running_job_count", {}, verbose=False):
+    for projection in scheduler_profiler.get_all("scheduler/jobs/running_job_count", {}, verbose=False):
         if ("state" not in projection["tags"]) or ("job_type" in projection["tags"]):
             continue
         job_count["state"][projection["tags"]["state"]] = int(projection["value"])
 
-    job_count["state"]["completed"] = int(
-        profiler.get(
-            "scheduler/jobs/completed_job_count",
-            tags={},
-            default=0,
-            verbose=False
-        )
-    )
+    for controller_agent in ls("//sys/controller_agents/instances"):
+        controller_agent_profiler = profiler_factory().at_controller_agent(controller_agent, fixed_tags={"tree": tree})
 
-    for projection in profiler.get_all("scheduler/jobs/aborted_job_count", tags={}, verbose=False):
-        if "job_type" in projection["tags"]:
-            continue
-        if "abort_reason" in projection["tags"]:
-            job_count["abort_reason"][projection["tags"]["abort_reason"]] = int(projection["value"])
-        else:
-            job_count["state"]["aborted"] = int(projection["value"])
+        job_count["state"]["completed"] += int(
+            controller_agent_profiler.get(
+                "controller_agent/jobs/completed_job_count",
+                tags={},
+                default=0,
+                verbose=False,
+            )
+        )
+
+        for projection in controller_agent_profiler.get_all("controller_agent/jobs/aborted_job_count", tags={}, verbose=False):
+            if "job_type" in projection["tags"]:
+                continue
+            if "abort_reason" in projection["tags"]:
+                job_count["abort_reason"][projection["tags"]["abort_reason"]] += int(projection["value"])
+            else:
+                job_count["state"]["aborted"] += int(projection["value"])
 
     duration = (datetime.now() - start_time).total_seconds()
 

@@ -381,6 +381,11 @@ TMemoryTagQueue* TOperationControllerHost::GetMemoryTagQueue()
     return Bootstrap_->GetControllerAgent()->GetMemoryTagQueue();
 }
 
+TJobProfiler* TOperationControllerHost::GetJobProfiler() const
+{
+    return Bootstrap_->GetControllerAgent()->GetJobProfiler();
+}
+
 int TOperationControllerHost::GetOnlineExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetOnlineExecNodeCount();

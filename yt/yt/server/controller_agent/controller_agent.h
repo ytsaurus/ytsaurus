@@ -109,6 +109,11 @@ public:
      */
     TMasterConnector* GetMasterConnector();
 
+    /*!
+     *  \note Thread affinity: any
+     */
+    TJobProfiler* GetJobProfiler() const;
+
     bool IsConnected() const;
     TIncarnationId GetIncarnationId() const;
 
