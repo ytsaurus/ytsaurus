@@ -71,9 +71,6 @@ public:
 
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 
-    // COMPAT(shakurov)
-    bool ClearPrerequisitesFromExternalizedRequests;
-
     double DefaultExternalCellBias;
 
     TDynamicCypressManagerConfig();

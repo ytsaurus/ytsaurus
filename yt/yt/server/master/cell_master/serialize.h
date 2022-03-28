@@ -130,6 +130,7 @@ DEFINE_ENUM(EMasterReign,
     ((LogicalDataWeight)                                            (2000))  // achulkov2
     ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko
     ((PersistentNodeTouchTime)                                      (2002))  // shakurov
+    ((UnconditionallyClearPrerequisitesFromExternalizedRequests)    (2003))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
