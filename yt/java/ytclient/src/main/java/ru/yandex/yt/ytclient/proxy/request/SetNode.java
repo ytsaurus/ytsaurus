@@ -86,9 +86,7 @@ public class SetNode extends MutatePath<SetNode> implements HighLevelRequest<TRe
         if (prerequisiteOptions != null) {
             builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
-        if (mutatingOptions != null) {
-            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
+        builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }

@@ -38,9 +38,7 @@ public class ConcatenateNodes
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
-        if (mutatingOptions != null) {
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
-        }
+        builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
         }

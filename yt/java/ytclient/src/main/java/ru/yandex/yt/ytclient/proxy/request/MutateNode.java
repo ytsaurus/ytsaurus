@@ -17,9 +17,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends TransactionalR
 
     protected MutateNode(MutateNode<?> other) {
         super(other);
-        if (other.mutatingOptions != null) {
-            mutatingOptions = new MutatingOptions(other.mutatingOptions);
-        }
+        mutatingOptions = new MutatingOptions(other.mutatingOptions);
     }
 
     public T setMutatingOptions(MutatingOptions mutatingOptions) {
@@ -28,7 +26,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends TransactionalR
     }
 
     public Optional<MutatingOptions> getMutatingOptions() {
-        return Optional.ofNullable(mutatingOptions);
+        return Optional.of(mutatingOptions);
     }
 
     YTreeBuilder toTree(YTreeBuilder builder) {
