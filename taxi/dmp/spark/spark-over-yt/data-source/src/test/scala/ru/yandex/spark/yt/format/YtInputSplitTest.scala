@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources._
@@ -12,12 +12,12 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.ExpressionTransformer.expressionToSegmentSet
 import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, Segment, SegmentSet}
-import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathImpl}
+import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathStaticImpl}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
 import ru.yandex.spark.yt.fs.YPathEnriched.ypath
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
-import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
+import ru.yandex.spark.yt.test.{DynTableTestUtils, LocalSpark, TestRow, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
@@ -25,15 +25,21 @@ import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import scala.language.postfixOps
 import scala.util.Random
 
-class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
+class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTableTestUtils
   with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks {
   behavior of "YtInputSplit"
 
   import spark.implicits._
 
-  override def beforeEach(): Unit = {
+  override def beforeAll(): Unit = {
+    super.beforeAll()
     spark.conf.set(s"spark.yt.${SparkYtConfiguration.Read.KeyColumnsFilterPushdown.Enabled.name}", value = true)
-    spark.conf.set(s"spark.yt.${SparkYtConfiguration.Read.KeyColumnsFilterPushdown.UnionEnabled.name}", value = true)
+    spark.conf.set(s"spark.yt.${SparkYtConfiguration.Read.KeyColumnsFilterPushdown.YtPathCountLimit.name}", value = 10)
+  }
+
+  override def afterAll(): Unit = {
+    super.afterAll()
+    spark.conf.set(s"spark.yt.${SparkYtConfiguration.Read.KeyColumnsFilterPushdown.Enabled.name}", value = false)
   }
 
   it should "create SegmentSet from Filter" in {
@@ -41,23 +47,22 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     val a2 = GreaterThan("a", 3L)
     val b = GreaterThanOrEqual("b", 2L)
 
-    val a1SS = expressionToSegmentSet(a1).get
-    val a2SS = expressionToSegmentSet(a2).get
-    val bSS = expressionToSegmentSet(b).get
+    val a1SS = expressionToSegmentSet(a1)
+    val a2SS = expressionToSegmentSet(a2)
+    val bSS = expressionToSegmentSet(b)
     val union = expressionToSegmentSet(Or(Or(a1, a2), b))
     val intercept = expressionToSegmentSet(And(And(a1, a2), b))
     a1SS shouldBe SegmentSet("a", Segment(MInfinity(), RealValue(5L)))
     a2SS shouldBe SegmentSet("a", Segment(RealValue(3L), PInfinity()))
     bSS shouldBe SegmentSet("b", Segment(RealValue(2L), PInfinity()))
-    union shouldBe None
-    intercept shouldBe Some(
+    union shouldBe SegmentSet()
+    intercept shouldBe
       SegmentSet(
         Map(
           ("a", List(Segment(RealValue(3L), RealValue(5L)))),
           ("b", List(Segment(RealValue(2L), PInfinity()))),
         )
       )
-    )
   }
 
   it should "push compatible filters" in {
@@ -78,14 +83,12 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
           In("a", Array(1, 2, 3)),
           In("c", Array(1))
         )
-      ),
-      (
+      ), (
         df("a") === 1L || df("a") === 4L || df("a") < 3L,
         Seq(
           Or(In("a", Array(4)), LessThanOrEqual("a", 3))
         )
-      ),
-      (
+      ), (
         df("a") === 1L || df("c") === 2L,
         Seq()
       )
@@ -102,10 +105,6 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     }
   }
 
-  private def makeRow(tuple: (Any, Any, Any)): Row = {
-    Row(tuple._1, tuple._2, tuple._3)
-  }
-
   it should "read with pushed data filters" in {
     val data = (1L to 1000L).map(x => (x, x % 2, 0L))
     val df = data
@@ -118,26 +117,18 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     val test = Seq(
       (
         (res("a") <= 50 && res("a") >= 50 - 1) && res("b") === 1L,
-        data
-          .filter { case (a, b, c) => a >= 49 && a <= 50 && b == 1 }
-          .map(makeRow)
-      ),
-      (
+        data.filter { case (a, b, c) => a >= 49 && a <= 50 && b == 1 }
+      ), (
         res("a") >= 77L && res("b").isin(0L) && res("c") === 0L,
-        data
-          .filter { case (a, b, c) => a >= 77 && b == 0 && c == 0 }
-          .map(makeRow)
-      ),
-      (
+        data.filter { case (a, b, c) => a >= 77 && b == 0 && c == 0 }
+      ), (
         res("a") === 1L || res("b") === 2L,
-        data
-          .filter { case (a, b, c) => a == 1 || b == 2 }
-          .map(makeRow)
+        data.filter { case (a, b, c) => a == 1 || b == 2 }
       )
     )
     test.foreach {
       case (input, output) =>
-        res.filter(input).collect() should contain theSameElementsAs output
+        res.filter(input).collect() should contain theSameElementsAs output.map(Row.fromTuple)
     }
   }
 
@@ -194,15 +185,12 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     val test = Seq(
       (res("a") <= 50, 60L),
       (res("a") >= 123L && res("a") % 2 === 0, 900L),
-      (res("a") === 1L || res("a").isin(5L, 10L, 15L, 20L), 30L)
+      (res("a") === 1L || res("a").isin(5L, 10L, 15L, 20L), 30L),
+      (res("a") < 10 && res("a") > 20, 0L)
     )
     test.foreach {
       case (filter, rowLimit) =>
-        val query = res.filter(filter)
-        query.collect()
-        val numOutputRows = query.queryExecution.executedPlan.collectFirst {
-          case b @ BatchScanExec(_, _) => b.metrics("numOutputRows").value
-        }.get
+        val numOutputRows = getNumOutputRows(res, filter)
         numOutputRows should be <= rowLimit
     }
   }
@@ -224,21 +212,16 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
         (res("a") <= 7.0 || res("a") >= 7.0) &&
           (res("b") >= 6.0 && res("b") >= 5.0) &&
           res("c") < 5.0,
-        data
-          .filter { case (a, b, c) => b >= 6.0 && c < 5.0 }
-          .map(makeRow)
-      ),
-      (
+        data.filter { case (a, b, c) => b >= 6.0 && c < 5.0 }
+      ), (
         res("c") < 5.0,
-        data
-          .filter { case (a, b, c) => c < 5.0 }
-          .map(makeRow)
+        data.filter { case (a, b, c) => c < 5.0 }
       )
     )
     test.foreach {
       case (input, output) =>
         res.filter(input).count() shouldBe output.size
-        res.filter(input).collect() should contain theSameElementsAs output
+        res.filter(input).collect() should contain theSameElementsAs output.map(Row.fromTuple)
     }
   }
 
@@ -256,21 +239,34 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     val test = Seq(
       (
         res("b") <= "20",
-        data
-          .filter { case (_, _, c) => c <= 20 }
-          .map(makeRow)
-      ),
-      (
+        data.filter { case (_, _, c) => c <= 20 }
+      ), (
         res("a") > "10" && res("b") <= "20",
-        data
-          .filter { case (_, _, c) => c <= 20 && c >= 10 }
-          .map(makeRow)
+        data.filter { case (_, _, c) => c <= 20 && c >= 10 }
       )
     )
     test.foreach {
       case (input, output) =>
         res.filter(input).count() shouldBe output.size
-        res.filter(input).collect() should contain theSameElementsAs output
+        res.filter(input).collect() should contain theSameElementsAs output.map(Row.fromTuple)
+    }
+  }
+
+  it should "not duplicate data" in {
+    val data = Seq((0, 1), (1, 5), (2, 1))
+    val df = data
+      .toDF("a", "b")
+      .coalesce(3)
+
+    df.write.sortedBy("a", "b").yt(tmpPath)
+
+    val res = spark.read.yt(tmpPath)
+    val test = Seq(
+      (res("b") === 1 || res("b") === 5, data)
+    )
+    test.foreach {
+      case (input, output) =>
+        res.filter(input).collect() should contain theSameElementsAs output.map(Row.fromTuple)
     }
   }
 
@@ -288,35 +284,23 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
     ("c", List(segment10To30))))
 
   it should "get key filter segments" in {
-    val res1 = getKeyFilterSegments(exampleSet1, List("a", "b").map(Some(_)), 5)
+    val res1 = getKeyFilterSegments(exampleSet1, List("a", "b"), 5)
     res1 should contain theSameElementsAs Seq(
-      Seq(segmentMInfTo5, segment2To20),
-      Seq(segment15ToPInf, segment2To20)
+      Seq(("a", segmentMInfTo5), ("b", segment2To20)),
+      Seq(("a", segment15ToPInf), ("b", segment2To20))
     )
 
-    val res2 = getKeyFilterSegments(exampleSet2, List("c", "a").map(Some(_)), 5)
+    val res2 = getKeyFilterSegments(exampleSet2, List("c", "a"), 5)
     res2 should contain theSameElementsAs Seq(
-      Seq(segment10To30, segment2To20)
+      Seq(("c", segment10To30), ("a", segment2To20))
     )
 
-    val res3 = getKeyFilterSegments(exampleSet2, List("z").map(Some(_)), 5)
-    res3 should contain theSameElementsAs Seq(
-      Seq(Segment.full)
-    )
+    val res3 = getKeyFilterSegments(exampleSet2, List("z"), 5)
+    res3 should contain theSameElementsAs Seq(Seq())
 
-    val res4 = getKeyFilterSegments(exampleSet1, List("b", "a").map(Some(_)), 1)
+    val res4 = getKeyFilterSegments(exampleSet1, List("b", "a"), 1)
     res4 should contain theSameElementsAs Seq(
-      Seq(segment2To20)
-    )
-
-    val res5 = getKeyFilterSegments(exampleSet2, List(None, Some("b")), 5)
-    res5 should contain theSameElementsAs Seq(
-      Seq(Segment.full, segment10To30)
-    )
-
-    val res6 = getKeyFilterSegments(exampleSet2, List(Some("c"), None, Some("a")), 1)
-    res6 should contain theSameElementsAs Seq(
-      Seq(segment10To30, Segment.full, segment2To20)
+      Seq(("b", segment2To20))
     )
   }
 
@@ -326,7 +310,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
       5, 10, false, keyColumns, 0)
     val baseYPath =  ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
-    getYPathImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
+    getYPathStaticImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[5;20;<"type"="max">#]}};
@@ -334,7 +318,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
         |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];
         |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
 
-    getYPathImpl(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
+    getYPathStaticImpl(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];
@@ -390,4 +374,81 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark
       .filter(col("a") === 2)
       .count() shouldBe 1
   }
+
+  it should "read filtered dynamic tables" in {
+    val data = (1L to 1000L).map(x => (x / 10, x % 10, 0.toString))
+    prepareTestTable(tmpPath,
+      data.map{ case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
+
+    val res = spark.read.yt(tmpPath)
+    val test = Seq(
+      (
+        (res("a") <= 50 && res("a") >= 50 - 1) && res("b") === 1L,
+        data.filter { case (a, b, c) => a >= 49 && a <= 50 && b == 1 }
+      ), (
+        res("a") >= 77L && res("b").isin(0L) && res("c") === "0",
+        data.filter { case (a, b, c) => a >= 77 && b == 0 && c == "0" }
+      ), (
+        res("a") === 1L || res("b") === 2L,
+        data.filter { case (a, b, c) => a == 1 || b == 2 }
+      ), (
+        res("b") === 1L || res("b") === 0,
+        data.filter { case (a, b, c) => b == 1 || b == 0 }
+      ), (
+        res("a") < 10 || res("a") > 20,
+        data.filter { case (a, b, c) => a < 10 || a > 20 }
+      ), (
+        res("a") < 10 && res("a") > 20,
+        data.filter { case (a, b, c) => a < 10 && a > 20 }
+      ), (
+        res("a") < 50 && res("c") < "1",
+        data.filter { case (a, b, c) => a < 50 && c < "1" }
+      ), (
+        res("c") === "0",
+        data.filter { case (a, b, c) => c == "0"}
+      ), (
+        res("a") <= 6,
+        data.filter { case (a, b, c) => a <= 6 }
+      ), (
+        res("a") === 6,
+        data.filter { case (a, b, c) => a == 6 }
+      )
+    )
+    test.foreach {
+      case (input, output) =>
+        res.filter(input).count() shouldBe output.size
+        res.filter(input).collect() should contain theSameElementsAs output.map(Row.fromTuple)
+    }
+  }
+
+  it should "reduce number of read rows in dynamic tables" in {
+    val data = (1L to 1000L).map(x => (x / 10, x % 10, 0.toString))
+    prepareTestTable(tmpPath,
+      data.map{ case (a, b, c) => TestRow(a, b, c) }, Seq(Seq(), Seq(6, 0), Seq(7, 0), Seq(50), Seq(80, 0)))
+
+    val res = spark.read.yt(tmpPath)
+    val test = Seq(
+      (res("a") <= 50 && res("a") >= 50 - 1 && res("b") === 1L, 20L),
+      (res("a") >= 77L && res("b").isin(0L) && res("c") === "0", 300L),
+      (res("a") === 6, 20L),
+      (res("a") < 10 || res("a") > 20, 950L),
+      (res("a") < 10 && res("a") > 20, 0L),
+      (res("a") < 50 && res("c") < "1", 550L),
+      (res("a").isin(10, 20, 30, 49), 50L)
+    )
+    test.foreach {
+      case (filter, rowLimit) =>
+        val numOutputRows = getNumOutputRows(res, filter)
+        numOutputRows should be <= rowLimit
+    }
+  }
+
+  private def getNumOutputRows(res: DataFrame, filter: Column): Long = {
+    val query = res.filter(filter)
+    query.collect()
+    query.queryExecution.executedPlan.collectFirst {
+      case b@BatchScanExec(_, _) => b.metrics("numOutputRows").value
+    }.get
+  }
 }
+

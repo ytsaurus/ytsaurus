@@ -19,9 +19,15 @@ object PivotKeysConverter {
     }
   }
 
+  def toList(pivotKey: Array[Byte], columnsOrder: Seq[String]): Seq[YTreeNode] = {
+    columnsOrder.flatMap(toMap(pivotKey).get)
+  }
+
   def toRangeLimit(pivotKey: Array[Byte], columnsOrder: Seq[String]): RangeLimit = {
-    val map = toMap(pivotKey)
-    val list = columnsOrder.flatMap(map.get)
+    toRangeLimit(toList(pivotKey, columnsOrder))
+  }
+
+  def toRangeLimit(list: Seq[YTreeNode]): RangeLimit = {
     new RangeLimit(Cf.list[YTreeNode](list:_*), -1, -1)
   }
 }

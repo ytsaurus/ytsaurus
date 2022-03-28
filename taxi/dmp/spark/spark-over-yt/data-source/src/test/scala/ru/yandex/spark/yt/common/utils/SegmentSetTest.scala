@@ -4,6 +4,7 @@ import org.apache.spark.sql.sources._
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.spark.yt.common.utils.AbstractSegment.SegmentSide
 import ru.yandex.spark.yt.common.utils.Segment._
 import ru.yandex.spark.yt.test.TestUtils
 
@@ -54,9 +55,9 @@ class SegmentSetTest extends FlatSpec with Matchers
       set => SegmentSet.intercept(set) shouldBe set
     }
     SegmentSet.intercept(set1, set2) shouldBe SegmentSet(variableName, Segment(RealValue(2), RealValue(5)))
-    SegmentSet.intercept(set1, set3) shouldBe SegmentSet()
+    SegmentSet.intercept(set1, set3) shouldBe SegmentSet(variableName)
     SegmentSet.intercept(set2, set3) shouldBe SegmentSet(variableName, Segment(RealValue(15), RealValue(20)))
-    SegmentSet.intercept(set1, set2, set3) shouldBe SegmentSet()
+    SegmentSet.intercept(set1, set2, set3) shouldBe SegmentSet(variableName)
   }
 
   it should "union" in {
@@ -142,12 +143,12 @@ class SegmentSetTest extends FlatSpec with Matchers
   }
 
   it should "get points from segment seq" in {
-    val res = List(
+    val data = List(
       List(segmentMInfTo5, segment10To30), List(segment15ToPInf),
       Nil, List(segment2To20, segment10To30), List(point7)
     )
 
-    getAllPoints(res) shouldBe Map(
+    AbstractSegment.getAllPoints(data) shouldBe Map(
       (MInfinity(), Map(SegmentSide.Begin -> 1)),
       (RealValue(2), Map(SegmentSide.Begin -> 1)),
       (RealValue(5), Map(SegmentSide.End -> 1)),
@@ -166,7 +167,7 @@ class SegmentSetTest extends FlatSpec with Matchers
       Nil, List(segment2To20, segment10To30, point7)
     )
 
-    calculateCoverage(res) shouldBe Seq(
+    AbstractSegment.calculateCoverage(res) shouldBe Seq(
       (Segment(MInfinity(), MInfinity()), 1),
       (Segment(MInfinity(), RealValue(2)), 1),
       (Segment(RealValue(2), RealValue(2)), 2),
@@ -196,7 +197,7 @@ class SegmentSetTest extends FlatSpec with Matchers
       Segment(RealValue(20), RealValue(20)),
       Segment(RealValue(20), RealValue(30)))
 
-    unionNeighbourSegments(test) shouldBe Seq(
+    AbstractSegment.unionNeighbourSegments(test) shouldBe Seq(
       Segment(MInfinity(), RealValue(2)),
       Segment(RealValue(5), RealValue(15)),
       Segment(RealValue(20), RealValue(30))
