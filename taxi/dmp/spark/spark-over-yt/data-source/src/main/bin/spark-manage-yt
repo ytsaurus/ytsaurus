@@ -16,16 +16,15 @@ def main():
     if args.command:
         yt_client = YtClient(args.proxy, spark_utils.default_token())
         if args.command == 'info':
-            info(yt_client, args.discovery_path, args.id)
+            info(yt_client, args.discovery_path)
         elif args.command == 'set_workers_count':
-            set_workers_count(yt_client, args.discovery_path,
-                              args.id, args.count)
+            set_workers_count(yt_client, args.discovery_path, args.count)
     else:
         parser.print_help()
 
 
-def info(yt_client, discovery_path, spark_id):
-    info = spark_utils.cluster_info(yt_client, discovery_path, spark_id)
+def info(yt_client, discovery_path):
+    info = spark_utils.cluster_info(yt_client, discovery_path)
     print("Cluster information:")
     print("  master=%s" % info.master)
     print("  shs=%s" % info.shs)
@@ -36,8 +35,8 @@ def info(yt_client, discovery_path, spark_id):
     print("  user_slots=%i" % info.user_slots)
 
 
-def set_workers_count(yt_client: YtClient, discovery_path, spark_id, workers_count):
-    info = spark_utils.cluster_info(yt_client, discovery_path, spark_id)
+def set_workers_count(yt_client: YtClient, discovery_path, workers_count):
+    info = spark_utils.cluster_info(yt_client, discovery_path)
     if workers_count > info.max_workers_count:
         logging.warning('Maximum available workers count: %i',
                         info.max_workers_count)

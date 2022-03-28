@@ -186,7 +186,7 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
                client=client)
 
 
-def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python_version=None, client=None, spark_id=None):
+def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python_version=None, client=None):
     spark_submit_path = "{}/bin/spark-submit".format(spark_home)
     spark_base_args = [spark_submit_path]
     permission_status = check_permission(user=client.get_user_name(),
@@ -194,8 +194,7 @@ def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python
     if permission_status.get('action', 'deny') != 'allow':
         raise RuntimeError(
             'No permission for reading cluster, actual permission status is ' + str(permission_status))
-    discovery = SparkDiscovery(
-        discovery_path=discovery_path, spark_id=spark_id)
+    discovery = SparkDiscovery(discovery_path=discovery_path)
 
     spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
     dedicated_driver_op = _parse_bool(spark_conf.get('spark.dedicated_operation_mode'))
@@ -256,11 +255,10 @@ def _add_spyt_deps(spyt_version, spark_args, discovery, client, jar_caching_enab
     }, spark_args)
 
 
-def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None, spark_id=None):
+def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None):
     spark_shell_path = "{}/bin/spark-shell".format(spark_home)
     spark_base_args = [spark_shell_path]
-    discovery = SparkDiscovery(
-        discovery_path=discovery_path, spark_id=spark_id)
+    discovery = SparkDiscovery(discovery_path=discovery_path)
 
     spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
     jar_caching_enabled = _parse_bool(spark_conf.get('spark.yt.jarCaching'))

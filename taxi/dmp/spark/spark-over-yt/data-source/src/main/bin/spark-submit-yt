@@ -23,8 +23,7 @@ def main():
                              spark_args=unknown_args,
                              spyt_version=args.spyt_version,
                              python_version=args.python_version,
-                             client=yt_client,
-                             spark_id=args.id)
+                             client=yt_client)
     exit(return_code)
 
 
