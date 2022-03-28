@@ -1,0 +1,418 @@
+
+<!DOCTYPE html><html>
+<head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8"/><link rel="stylesheet" href="/static/bootstrap.min.css" type="text/css"/><link rel="stylesheet" href="/static/vis-timeline-graph2d.min.css" type="text/css"/><link rel="stylesheet" href="/static/webui.css" type="text/css"/><link rel="stylesheet" href="/static/timeline-view.css" type="text/css"/><script src="/static/sorttable.js"></script><script src="/static/jquery-3.4.1.min.js"></script><script src="/static/vis-timeline-graph2d.min.js"></script><script src="/static/bootstrap-tooltip.js"></script><script src="/static/initialize-tooltips.js"></script><script src="/static/table.js"></script><script src="/static/timeline-view.js"></script><script src="/static/log-view.js"></script><script src="/static/webui.js"></script><script>setUIRoot('')</script>
+
+    <link rel="shortcut icon" href="/static/spark-logo-77x50px-hd.png"></link>
+    <title>Spark Master at spark://sas0-1479-node-hahn.sas.yp-c.yandex.net:27001</title>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row-fluid">
+        <div class="span12">
+            <h3 style="vertical-align: middle; display: inline-block;">
+                <a style="text-decoration: none" href="/">
+                    <img src="/static/spark-logo-77x50px-hd.png"/>
+                    <span class="version" style="margin-right: 15px;">3.0.1</span>
+                </a>
+                Spark Master at spark://sas0-1479-node-hahn.sas.yp-c.yandex.net:27001
+            </h3>
+        </div>
+    </div>
+    <div class="row-fluid">
+        <div class="span12">
+            <ul class="unstyled">
+                <li><strong>URL:</strong> spark://sas0-1479-node-hahn.sas.yp-c.yandex.net:27001</li>
+                <li>
+                    <strong>REST URL:</strong> spark://sas0-1479-node-hahn.sas.yp-c.yandex.net:27003
+                    <span class="rest-uri"> (cluster mode)</span>
+                </li>
+                <li><strong>Alive Workers:</strong> 4</li>
+                <li><strong>Cores in use:</strong> 16 Total,
+                    0 Used</li>
+                <li><strong>Memory in use:</strong>
+                    16.0 GiB Total,
+                    0.0 B Used</li>
+                <li><strong>Resources in use:</strong>
+                </li>
+                <li><strong>Applications:</strong>
+                    0 <a href="#running-app">Running</a>,
+                    6 <a href="#completed-app">Completed</a> </li>
+                <li><strong>Drivers:</strong>
+                    0 Running,
+                    6 Completed </li>
+                <li><strong>Status:</strong> ALIVE</li>
+            </ul>
+        </div>
+    </div><div class="row-fluid">
+    <div class="span12">
+            <span class="collapse-aggregated-workers collapse-table" onClick="collapseTable('collapse-aggregated-workers','aggregated-workers')">
+              <h4>
+                <span class="collapse-table-arrow arrow-open"></span>
+                <a>Workers (4)</a>
+              </h4>
+            </span>
+        <div class="aggregated-workers collapsible-table">
+            <table class="table table-bordered table-condensed table-striped sortable">
+                <thead><th width="" class="">Worker Id</th><th width="" class="">Address</th><th width="" class="">State</th><th width="" class="">Cores</th><th width="" class="">Memory</th><th width="" class="">Resources</th></thead>
+                <tbody>
+                <tr>
+                    <td>
+                        <a href="http://sas6-1501-node-hahn.sas.yp-c.yandex.net:27004">
+                            worker-20220209114453-sas6-1501-node-hahn.sas.yp-c.yandex.net-27003
+                        </a>
+                    </td>
+                    <td>sas6-1501-node-hahn.sas.yp-c.yandex.net:27003</td>
+                    <td>ALIVE</td>
+                    <td>4 (2 Used)</td>
+                    <td sorttable_customkey="4096.0">
+                        4.0 GiB
+                        (0.0 B Used)
+                    </td>
+                    <td></td>
+                </tr><tr>
+                    <td>
+                        <a href="http://sas6-1506-node-hahn.sas.yp-c.yandex.net:27004">
+                            worker-20220209114538-sas6-1506-node-hahn.sas.yp-c.yandex.net-27003
+                        </a>
+                    </td>
+                    <td>sas6-1506-node-hahn.sas.yp-c.yandex.net:27003</td>
+                    <td>ALIVE</td>
+                    <td>4 (2 Used)</td>
+                    <td sorttable_customkey="4096.0">
+                        4.0 GiB
+                        (0.0 B Used)
+                    </td>
+                    <td></td>
+                </tr><tr>
+                    <td>
+                        <a href="http://sas0-1182-node-hahn.sas.yp-c.yandex.net:27004">
+                            worker-20220209211555-sas0-1182-node-hahn.sas.yp-c.yandex.net-27003
+                        </a>
+                    </td>
+                    <td>sas0-1182-node-hahn.sas.yp-c.yandex.net:27003</td>
+                    <td>ALIVE</td>
+                    <td>4 (0 Used)</td>
+                    <td sorttable_customkey="4096.0">
+                        4.0 GiB
+                        (0.0 B Used)
+                    </td>
+                    <td></td>
+                </tr><tr>
+                    <td>
+                        <a href="http://sas7-0037-node-hahn.sas.yp-c.yandex.net:27004">
+                            worker-20220209211827-sas7-0037-node-hahn.sas.yp-c.yandex.net-27003
+                        </a>
+                    </td>
+                    <td>sas7-0037-node-hahn.sas.yp-c.yandex.net:27003</td>
+                    <td>ALIVE</td>
+                    <td>4 (0 Used)</td>
+                    <td sorttable_customkey="4096.0">
+                        4.0 GiB
+                        (0.0 B Used)
+                    </td>
+                    <td></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div><div class="row-fluid">
+    <div class="span12">
+            <span id="running-app" class="collapse-aggregated-activeApps collapse-table" onClick="collapseTable('collapse-aggregated-activeApps','aggregated-activeApps')">
+              <h4>
+                <span class="collapse-table-arrow arrow-open"></span>
+                <a>Running Applications (0)</a>
+              </h4>
+            </span>
+        <div class="aggregated-activeApps collapsible-table">
+            <table class="table table-bordered table-condensed table-striped sortable">
+                <thead><th width="" class="">Application ID</th><th width="" class="">Name</th><th width="" class="">Cores</th><th width="" class="">Memory per Executor</th><th width="" class="">Resources Per Executor</th><th width="" class="">Submitted Time</th><th width="" class="">User</th><th width="" class="">State</th><th width="" class="">Duration</th></thead>
+                <tbody>
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div><div>
+    <div class="row-fluid">
+        <div class="span12">
+                 <span class="collapse-aggregated-activeDrivers collapse-table" onClick="collapseTable('collapse-aggregated-activeDrivers',
+                     'aggregated-activeDrivers')">
+                   <h4>
+                     <span class="collapse-table-arrow arrow-open"></span>
+                     <a>Running Drivers (0)</a>
+                   </h4>
+                 </span>
+            <div class="aggregated-activeDrivers collapsible-table">
+                <table class="table table-bordered table-condensed table-striped sortable">
+                    <thead><th width="" class="">Submission ID</th><th width="" class="">Submitted Time</th><th width="" class="">Worker</th><th width="" class="">State</th><th width="" class="">Cores</th><th width="" class="">Memory</th><th width="" class="">Resources</th><th width="" class="">Main Class</th><th width="" class="">Duration</th></thead>
+                    <tbody>
+
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div><div class="row-fluid">
+    <div class="span12">
+            <span id="completed-app" class="collapse-aggregated-completedApps collapse-table" onClick="collapseTable('collapse-aggregated-completedApps',
+                'aggregated-completedApps')">
+              <h4>
+                <span class="collapse-table-arrow arrow-open"></span>
+                <a>Completed Applications (6)</a>
+              </h4>
+            </span>
+        <div class="aggregated-completedApps collapsible-table">
+            <table class="table table-bordered table-condensed table-striped sortable">
+                <thead><th width="" class="">Application ID</th><th width="" class="">Name</th><th width="" class="">Cores</th><th width="" class="">Memory per Executor</th><th width="" class="">Resources Per Executor</th><th width="" class="">Submitted Time</th><th width="" class="">User</th><th width="" class="">State</th><th width="" class="">Duration</th></thead>
+                <tbody>
+                <tr>
+                    <td>
+                        <a href="app?appId=app-20220209170117-0005">app-20220209170117-0005</a>
+
+                    </td>
+                    <td>
+                        smoke_test.py
+                    </td>
+                    <td>
+                        8
+                    </td>
+                    <td sorttable_customkey="4096">
+                        4.0 GiB
+                    </td>
+                    <td>
+
+                    </td>
+                    <td>2022/02/09 17:01:17</td>
+                    <td>yt_slot_92</td>
+                    <td>FINISHED</td>
+                    <td>26 s</td>
+                </tr><tr>
+                    <td>
+                        <a href="app?appId=app-20220209165400-0003">app-20220209165400-0003</a>
+
+                    </td>
+                    <td>
+                        smoke_test.py
+                    </td>
+                    <td>
+                        0
+                    </td>
+                    <td sorttable_customkey="4096">
+                        4.0 GiB
+                    </td>
+                    <td>
+
+                    </td>
+                    <td>2022/02/09 16:54:00</td>
+                    <td>yt_slot_92</td>
+                    <td>FINISHED</td>
+                    <td>2.8 min</td>
+                </tr><tr>
+                    <td>
+                        <a href="app?appId=app-20220209165604-0004">app-20220209165604-0004</a>
+
+                    </td>
+                    <td>
+                        smoke_test.py
+                    </td>
+                    <td>
+                        12
+                    </td>
+                    <td sorttable_customkey="4096">
+                        4.0 GiB
+                    </td>
+                    <td>
+
+                    </td>
+                    <td>2022/02/09 16:56:04</td>
+                    <td>yt_slot_92</td>
+                    <td>FINISHED</td>
+                    <td>15 s</td>
+                </tr><tr>
+                    <td>
+                        <a href="app?appId=app-20220209165152-0002">app-20220209165152-0002</a>
+
+                    </td>
+                    <td>
+                        smoke_test.py
+                    </td>
+                    <td>
+                        12
+                    </td>
+                    <td sorttable_customkey="4096">
+                        4.0 GiB
+                    </td>
+                    <td>
+
+                    </td>
+                    <td>2022/02/09 16:51:52</td>
+                    <td>yt_slot_44</td>
+                    <td>FINISHED</td>
+                    <td>18 s</td>
+                </tr><tr>
+                    <td>
+                        <a href="app?appId=app-20220209164157-0001">app-20220209164157-0001</a>
+
+                    </td>
+                    <td>
+                        smoke_test.py
+                    </td>
+                    <td>
+                        12
+                    </td>
+                    <td sorttable_customkey="4096">
+                        4.0 GiB
+                    </td>
+                    <td>
+
+                    </td>
+                    <td>2022/02/09 16:41:57</td>
+                    <td>yt_slot_92</td>
+                    <td>FINISHED</td>
+                    <td>15 s</td>
+                </tr><tr>
+                    <td>
+                        <a href="app?appId=app-20220209163949-0000">app-20220209163949-0000</a>
+
+                    </td>
+                    <td>
+                        smoke_test.py
+                    </td>
+                    <td>
+                        12
+                    </td>
+                    <td sorttable_customkey="4096">
+                        4.0 GiB
+                    </td>
+                    <td>
+
+                    </td>
+                    <td>2022/02/09 16:39:49</td>
+                    <td>yt_slot_89</td>
+                    <td>FINISHED</td>
+                    <td>21 s</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div><div>
+    <div class="row-fluid">
+        <div class="span12">
+                  <span class="collapse-aggregated-completedDrivers collapse-table" onClick="collapseTable('collapse-aggregated-completedDrivers',
+                      'aggregated-completedDrivers')">
+                    <h4>
+                      <span class="collapse-table-arrow arrow-open"></span>
+                      <a>Completed Drivers (6)</a>
+                    </h4>
+                  </span>
+            <div class="aggregated-completedDrivers collapsible-table">
+                <table class="table table-bordered table-condensed table-striped sortable">
+                    <thead><th width="" class="">Submission ID</th><th width="" class="">Submitted Time</th><th width="" class="">Worker</th><th width="" class="">State</th><th width="" class="">Cores</th><th width="" class="">Memory</th><th width="" class="">Resources</th><th width="" class="">Main Class</th></thead>
+                    <tbody>
+                    <tr>
+                        <td>driver-20220209170102-0005 </td>
+                        <td>2022/02/09 17:01:02</td>
+                        <td>worker-20220209135714-sas0-3855-node-hahn.sas.yp-c.yandex.net-27003
+                        </td>
+                        <td>FINISHED</td>
+                        <td sorttable_customkey="1">
+                            1
+                        </td>
+                        <td sorttable_customkey="1024">
+                            1024.0 MiB
+                        </td>
+                        <td></td>
+                        <td>org.apache.spark.deploy.PythonRunner</td>
+
+                    </tr><tr>
+                        <td>driver-20220209165545-0004 </td>
+                        <td>2022/02/09 16:55:45</td>
+                        <td>worker-20220209135714-sas0-3855-node-hahn.sas.yp-c.yandex.net-27003
+                        </td>
+                        <td>FINISHED</td>
+                        <td sorttable_customkey="1">
+                            1
+                        </td>
+                        <td sorttable_customkey="1024">
+                            1024.0 MiB
+                        </td>
+                        <td></td>
+                        <td>org.apache.spark.deploy.PythonRunner</td>
+
+                    </tr><tr>
+                        <td>driver-20220209165345-0003 </td>
+                        <td>2022/02/09 16:53:45</td>
+                        <td>worker-20220209135714-sas0-3855-node-hahn.sas.yp-c.yandex.net-27003
+                        </td>
+                        <td>FAILED</td>
+                        <td sorttable_customkey="1">
+                            1
+                        </td>
+                        <td sorttable_customkey="1024">
+                            1024.0 MiB
+                        </td>
+                        <td></td>
+                        <td>org.apache.spark.deploy.PythonRunner</td>
+
+                    </tr><tr>
+                        <td>driver-20220209165053-0002 </td>
+                        <td>2022/02/09 16:50:53</td>
+                        <td><a href="http://sas6-1506-node-hahn.sas.yp-c.yandex.net:27004">
+                            worker-20220209114538-sas6-1506-node-hahn.sas.yp-c.yandex.net-27003
+                        </a>
+                        </td>
+                        <td>FINISHED</td>
+                        <td sorttable_customkey="1">
+                            1
+                        </td>
+                        <td sorttable_customkey="1024">
+                            1024.0 MiB
+                        </td>
+                        <td></td>
+                        <td>org.apache.spark.deploy.PythonRunner</td>
+
+                    </tr><tr>
+                        <td>driver-20220209164109-0001 </td>
+                        <td>2022/02/09 16:41:09</td>
+                        <td>worker-20220209135714-sas0-3855-node-hahn.sas.yp-c.yandex.net-27003
+                        </td>
+                        <td>FINISHED</td>
+                        <td sorttable_customkey="1">
+                            1
+                        </td>
+                        <td sorttable_customkey="1024">
+                            1024.0 MiB
+                        </td>
+                        <td></td>
+                        <td>org.apache.spark.deploy.PythonRunner</td>
+
+                    </tr><tr>
+                        <td>driver-20220209163924-0000 </td>
+                        <td>2022/02/09 16:39:24</td>
+                        <td><a href="http://sas6-1501-node-hahn.sas.yp-c.yandex.net:27004">
+                            worker-20220209114453-sas6-1501-node-hahn.sas.yp-c.yandex.net-27003
+                        </a>
+                        </td>
+                        <td>FINISHED</td>
+                        <td sorttable_customkey="1">
+                            1
+                        </td>
+                        <td sorttable_customkey="1024">
+                            1024.0 MiB
+                        </td>
+                        <td></td>
+                        <td>org.apache.spark.deploy.PythonRunner</td>
+
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+</body>
+</html>

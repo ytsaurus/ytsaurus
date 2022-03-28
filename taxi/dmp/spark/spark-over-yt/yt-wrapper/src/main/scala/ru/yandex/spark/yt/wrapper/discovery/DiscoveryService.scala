@@ -11,8 +11,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
-case class OperationSet(master: String, children: Set[String] = Set()) {
-  def allOperations: Set[String] = children + master
+case class OperationSet(master: String, children: Set[String] = Set(), driverOperation: Option[String] = None) {
+  def allOperations: Set[String] = children + master ++ driverOperation.toSet
 }
 
 trait DiscoveryService {
