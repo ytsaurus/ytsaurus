@@ -53,13 +53,14 @@ lazy val `spark-fork` = (project in file("spark-fork"))
 
 lazy val `cluster` = (project in file("spark-cluster"))
   .configs(IntegrationTest)
-  .dependsOn(`yt-wrapper`, `yt-wrapper` % "test->test")
+  .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging,
     libraryDependencies ++= scalatra,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= scalatraTestDeps,
+    libraryDependencies ++= spark,
     assembly / assemblyJarName := s"spark-yt-launcher.jar",
     assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = true),
     assembly / test := {}

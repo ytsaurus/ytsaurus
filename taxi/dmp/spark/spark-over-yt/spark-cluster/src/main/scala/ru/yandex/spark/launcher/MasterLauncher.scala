@@ -19,7 +19,7 @@ object MasterLauncher extends App
   val masterArgs = MasterLauncherArgs(args)
   import masterArgs._
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, _) =>
+  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
     withService(startMaster) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
         withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) { solomonAgent =>
@@ -36,7 +36,7 @@ object MasterLauncher extends App
           )
           log.info("Master registered")
 
-          checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
+          AutoScaler.start(AutoScaler.build(discoveryService, yt, ytConfig))
           log.error("Master is not alive")
         }
       }

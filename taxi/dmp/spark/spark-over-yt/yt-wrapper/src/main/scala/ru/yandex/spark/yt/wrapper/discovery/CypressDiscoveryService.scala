@@ -3,13 +3,15 @@ package ru.yandex.spark.yt.wrapper.discovery
 import com.google.common.net.HostAndPort
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.GetOperation
 
+import java.util.Optional
 import scala.concurrent.duration._
-import scala.language.postfixOps
+import scala.language.{implicitConversions, postfixOps}
 import scala.util.Try
 
 class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient) extends DiscoveryService {
@@ -133,13 +135,22 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
   private def operation: Option[String] = getPath(operationPath)
 
   override def operations(): Option[OperationSet] = {
+    def isDriverOp: String => Boolean = opId => {
+      import CypressDiscoveryService._
+      yt.getOperation(new GetOperation(GUID.valueOf(opId)))
+        .join()
+        .path("full_spec", "tasks", "drivers")
+        .isDefined
+    }
     operation.map(masterId => {
-      val children = if (YtWrapper.exists(childrenOperationsPath)) {
+      val allChildren = if (YtWrapper.exists(childrenOperationsPath)) {
         YtWrapper.listDir(childrenOperationsPath).toSet
       } else {
         Set[String]()
       }
-      OperationSet(masterId, children)
+      val children = allChildren.filterNot(isDriverOp)
+      val driverOp = allChildren.find(isDriverOp)
+      OperationSet(masterId, children, driverOp)
     })
   }
 
@@ -170,5 +181,21 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
 object CypressDiscoveryService {
   def eventLogPath(discoveryBasePath: String): String = {
     s"$discoveryBasePath/logs/event_log_table"
+  }
+
+  implicit def convertOptional[T](opt: Optional[T]): Option[T] = {
+    if (opt.isPresent)
+      Some(opt.get())
+    else
+      None
+  }
+
+  implicit class YTreeNodeExt(n: YTreeNode) {
+    def path(path: String*): Option[YTreeNode] =
+      path.foldLeft(Option(n)) { case (no, p) =>
+        no.flatMap(v => Option(v.asMap().get(p)))
+      }
+
+    def longAttribute(path: String*): Option[Long] = n.path(path:_*).map(_.longValue())
   }
 }
