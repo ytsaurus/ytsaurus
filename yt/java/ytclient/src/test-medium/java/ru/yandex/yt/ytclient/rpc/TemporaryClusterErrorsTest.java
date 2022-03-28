@@ -11,6 +11,7 @@ import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.asynchttpclient.RequestBuilder;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
@@ -106,6 +107,7 @@ public class TemporaryClusterErrorsTest {
     }
 
     @Test
+    @Ignore
     public void testMultipleClusters() {
         final RpcCredentials credentials = new RpcCredentials("root", "");
 
