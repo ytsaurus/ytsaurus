@@ -130,6 +130,7 @@ TLeaderCommitter::TLeaderCommitter(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::SerializeMutations, MakeWeak(this)),
         Config_->MutationSerializationPeriod))
+    , InitialState_(reachableState)
     , CommittedState_(std::move(reachableState))
     , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
     , MutationQueueSummarySize_(profiler.Summary("/mutation_queue_size"))
@@ -359,10 +360,14 @@ void TLeaderCommitter::FlushMutations()
         request->set_start_sequence_number(followerState.NextExpectedSequenceNumber);
 
         // We do not want followers to apply mutations before leader.
-        auto automatonSegmentId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId;
-        auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-        request->set_committed_sequence_number(automatonSequenceNumber);
-        request->set_committed_segment_id(automatonSegmentId);
+        TReachableState automatonState(
+            DecoratedAutomaton_->GetAutomatonVersion().SegmentId,
+            DecoratedAutomaton_->GetSequenceNumber());
+        // We might not yet recovered to this state, but we want followers to recover to it.
+        const auto& stateToSend = std::max(automatonState, InitialState_);
+        request->set_committed_sequence_number(stateToSend.SequenceNumber);
+        request->set_committed_segment_id(stateToSend.SegmentId);
+
         request->set_term(EpochContext_->Term);
 
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {

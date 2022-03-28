@@ -150,6 +150,7 @@ private:
 
     ui64 LastRandomSeed_ = 0;
 
+    TReachableState InitialState_;
     TReachableState CommittedState_;
     i64 LastOffloadedSequenceNumber_ = 0;
     i64 NextLoggedSequenceNumber_ = 0;
