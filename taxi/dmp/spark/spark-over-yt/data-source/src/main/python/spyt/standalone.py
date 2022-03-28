@@ -122,6 +122,10 @@ def _parse_memory(memory_str):
     return value * units[unit]
 
 
+def _parse_bool(flag):
+    return flag is not None and flag.lower() == 'true'
+
+
 def _wait_op_start(op, operation_path, client):
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
         if state.is_running() and exists(operation_path, client=client):
@@ -185,19 +189,22 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
 def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, python_version=None, client=None, spark_id=None):
     spark_submit_path = "{}/bin/spark-submit".format(spark_home)
     spark_base_args = [spark_submit_path]
-    permission_status = check_permission(user=client.get_user_name(
-    ), permission='read', path=discovery_path, client=client)
+    permission_status = check_permission(user=client.get_user_name(),
+                                         permission='read', path=discovery_path, client=client)
     if permission_status.get('action', 'deny') != 'allow':
         raise RuntimeError(
             'No permission for reading cluster, actual permission status is ' + str(permission_status))
     discovery = SparkDiscovery(
         discovery_path=discovery_path, spark_id=spark_id)
-    dedicated_driver_op = read_cluster_conf(
-        str(discovery.conf()), client)['spark_conf'].get('spark.dedicated_operation_mode') == 'True'
+
+    spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
+    dedicated_driver_op = _parse_bool(spark_conf.get('spark.dedicated_operation_mode'))
+    jar_caching_enabled = _parse_bool(spark_conf.get('spark.yt.jarCaching'))
+
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
-    _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
+    _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
     _add_python_version(python_version, spark_base_args, client)
     _add_dedicated_driver_op_conf(spark_base_args, dedicated_driver_op)
     spark_env = _create_spark_env(client, spark_home)
@@ -226,7 +233,14 @@ def _add_python_version(python_version, spark_args, client):
                 "Interpreter for python version `{}` is not found".format(python_version))
 
 
-def _add_spyt_deps(spyt_version, spark_args, discovery, client):
+def wrap_cached_jar(path, jar_caching_enabled):
+    if jar_caching_enabled and path.startswith("yt:/"):
+        return "ytCached:/" + path[4:]
+    else:
+        return path
+
+
+def _add_spyt_deps(spyt_version, spark_args, discovery, client, jar_caching_enabled):
     spark_cluster_version = SparkDiscovery.get(
         discovery.spark_cluster_version(), client=client)
     if spyt_version is not None:
@@ -237,8 +251,8 @@ def _add_spyt_deps(spyt_version, spark_args, discovery, client):
             spark_cluster_version, client=client)
     _add_conf({
         "spark.yt.version": spyt_version,
-        "spark.yt.jars": "yt:/{}".format(spyt_jar_path(spyt_version)),
-        "spark.yt.pyFiles": "yt:/{}".format(spyt_python_path(spyt_version))
+        "spark.yt.jars": wrap_cached_jar("yt:/{}".format(spyt_jar_path(spyt_version)), jar_caching_enabled),
+        "spark.yt.pyFiles": wrap_cached_jar("yt:/{}".format(spyt_python_path(spyt_version)), jar_caching_enabled)
     }, spark_args)
 
 
@@ -247,11 +261,15 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     spark_base_args = [spark_shell_path]
     discovery = SparkDiscovery(
         discovery_path=discovery_path, spark_id=spark_id)
+
+    spark_conf = read_cluster_conf(str(discovery.conf()), client)['spark_conf']
+    jar_caching_enabled = _parse_bool(spark_conf.get('spark.yt.jarCaching'))
+
     _add_master(discovery, spark_base_args, rest=False, client=client)
     _add_shs_option(discovery, spark_base_args, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
     _add_conf({"spark.ui.showConsoleProgress": "true"}, spark_base_args)
-    _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
+    _add_spyt_deps(spyt_version, spark_base_args, discovery, client, jar_caching_enabled)
     spark_env = _create_spark_env(client, spark_home)
 
     os.execve(spark_shell_path, spark_base_args + spark_args, spark_env)
