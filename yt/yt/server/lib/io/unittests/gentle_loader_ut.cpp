@@ -313,9 +313,9 @@ TEST_F(TGentleLoaderTest, TestErrorHandling)
 
     auto results = Run(5);
     EXPECT_EQ(std::ssize(results), 5);
-    // Check that we get some sane values even in case of errors.
+    // Check that we get sane values even in case of errors.
     auto lastResult = results.back();
-    EXPECT_TRUE((lastResult.IOPS > 200) && (lastResult.IOPS < 500));
+    EXPECT_TRUE((lastResult.IOPS > 300) && (lastResult.IOPS < 600));
 }
 
 TEST_F(TGentleLoaderTest, TestAllFailing)
