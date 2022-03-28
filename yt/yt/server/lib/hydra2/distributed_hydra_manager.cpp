@@ -2192,15 +2192,6 @@ private:
 
         YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
 
-        auto reachableState = epochContext->ReachableState;
-        // This is weird now.
-        if (committedState < reachableState) {
-            YT_LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderState: %v, ReachableState: %v)",
-                committedState,
-                epochContext->ReachableState);
-            return false;
-        }
-
         YT_LOG_INFO("Received initial ping from leader (CommittedState: %v, Term: %v)",
             committedState,
             term);
