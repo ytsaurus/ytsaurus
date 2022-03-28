@@ -160,10 +160,13 @@ TServiceDiscoveryEndpointsConfig::TServiceDiscoveryEndpointsConfig()
         .Default(TDuration::Seconds(60));
 
     RegisterPostprocessor([&] {
-        YT_VERIFY(Cluster.has_value() ^ !Clusters.empty());
+        if (Cluster.has_value() == !Clusters.empty()) {
+            THROW_ERROR_EXCEPTION("Exactly one of \"cluster\" and \"clusters\" field must be set");
+        }
 
         if (Clusters.empty()) {
             Clusters.push_back(*Cluster);
+            Cluster.reset();
         }
     });
 }
