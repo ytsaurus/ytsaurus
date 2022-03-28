@@ -197,6 +197,9 @@ class ProfilerFactory(object):
     def at_scheduler(self, **kwargs):
         return Profiler(self.yt_client, "//sys/scheduler/orchid/sensors", **kwargs)
 
+    def at_controller_agent(self, controller_agent, **kwargs):
+        return Profiler(self.yt_client, "//sys/controller_agents/instances/{0}/orchid/sensors".format(controller_agent), **kwargs)
+
     def at_node(self, node, *args, **kwargs):
         return Profiler(self.yt_client, "//sys/cluster_nodes/{0}/orchid/sensors".format(node), *args, **kwargs)
 

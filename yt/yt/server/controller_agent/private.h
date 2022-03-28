@@ -33,6 +33,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkListPool)
 
 DECLARE_REFCOUNTED_CLASS(TZombieOperationOrchids)
 
+DECLARE_REFCOUNTED_CLASS(TJobProfiler)
+
 struct TLivePreviewTableBase;
 
 ////////////////////////////////////////////////////////////////////////////////

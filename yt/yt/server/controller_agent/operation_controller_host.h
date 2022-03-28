@@ -141,6 +141,8 @@ public:
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
     TMemoryTagQueue* GetMemoryTagQueue() override;
 
+    TJobProfiler* GetJobProfiler() const override;
+
     int GetOnlineExecNodeCount() override;
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;
     TJobResources GetMaxAvailableResources(const NScheduler::TSchedulingTagFilter& filter) override;

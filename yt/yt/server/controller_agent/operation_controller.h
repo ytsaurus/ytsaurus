@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/job_agent/public.h>
 
@@ -195,6 +196,8 @@ struct IOperationControllerHost
     virtual const NJobAgent::TJobReporterPtr& GetJobReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
+
+    virtual TJobProfiler* GetJobProfiler() const = 0;
 
     virtual int GetOnlineExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
