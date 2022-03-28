@@ -140,7 +140,7 @@ private:
 
     std::set<TString> TmpfsPaths_;
     THashSet<int> SlotsWithQuota_;
-    THashMap<int, std::optional<i64>> OccupiedSlotToDiskLimit_;
+    THashMap<int, TUserSandboxOptions> SandboxOptionsPerSlot_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;

@@ -38,6 +38,8 @@ class TestDiskUsagePorto(YTEnvSetup):
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
@@ -245,6 +247,8 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
@@ -472,6 +476,8 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
@@ -578,6 +584,8 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
@@ -671,6 +679,8 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
@@ -809,6 +819,8 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
@@ -911,6 +923,8 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         },
         "data_node": {
             "volume_manager": {
+                "enable_disk_quota": False,
+                # (COMPAT): psushin
                 "test_disk_quota": True,
             }
         }
