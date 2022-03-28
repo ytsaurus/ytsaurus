@@ -38,10 +38,12 @@ class TChaosNodeService
 public:
     explicit TChaosNodeService(IChaosSlotPtr slot)
         : THydraServiceBase(
+            slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TChaosNodeServiceProxy::GetDescriptor(),
             ChaosNodeLogger,
-            slot->GetCellId())
+            slot->GetCellId(),
+            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()))
         , Slot_(std::move(slot))
     {
         YT_VERIFY(Slot_);
@@ -197,12 +199,6 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->UpdateTableReplicaProgress(std::move(context));
-    }
-
-    // THydraServiceBase overrides.
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return Slot_->GetHydraManager();
     }
 };
 

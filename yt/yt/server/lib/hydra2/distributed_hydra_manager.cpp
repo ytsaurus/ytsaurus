@@ -624,28 +624,24 @@ private:
             IInvokerPtr invoker,
             const TServiceDescriptor& descriptor,
             TCellId cellId)
-        : THydraServiceBase(
-            invoker,
-            descriptor,
-            HydraLogger.WithTag("CellId: %v", cellId),
-            cellId)
-        , Owner_(owner)
-    { }
+            : THydraServiceBase(
+                owner,
+                invoker,
+                descriptor,
+                HydraLogger.WithTag("CellId: %v", cellId),
+                cellId,
+                CreateHydraManagerUpstreamSynchronizer(owner))
+            , Owner_(owner)
+        { }
 
-    TDistributedHydraManagerPtr GetOwnerOrThrow()
-    {
-        auto owner = Owner_.Lock();
-        if (!owner) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service is shutting down");
+        TDistributedHydraManagerPtr GetOwnerOrThrow()
+        {
+            auto owner = Owner_.Lock();
+            if (!owner) {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service is shutting down");
+            }
+            return owner;
         }
-        return owner;
-    }
-
-    // THydraServiceBase overrides.
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return GetOwnerOrThrow();
-    }
 
     private:
         const TWeakPtr<TDistributedHydraManager> Owner_;

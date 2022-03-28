@@ -14,6 +14,7 @@
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/hydra_service.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
@@ -461,7 +462,8 @@ public:
                 GetCellId(),
                 occupier->GetOccupierAutomatonInvoker(),
                 hydraManager,
-                Automaton_);
+                Automaton_,
+                CreateHydraManagerUpstreamSynchronizer(hydraManager));
 
             auto clockClusterTag = Options_->ClockClusterTag != InvalidCellTag
                 ? Options_->ClockClusterTag

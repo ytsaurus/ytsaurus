@@ -23,11 +23,11 @@ protected:
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue);
     void ValidateClusterInitialized();
-
-private:
-    NHydra::IHydraManagerPtr GetHydraManager() override;
-    TFuture<void> DoSyncWithUpstream() override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NHydra::IUpstreamSynchronizerPtr CreateMulticellUpstreamSynchronizer(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

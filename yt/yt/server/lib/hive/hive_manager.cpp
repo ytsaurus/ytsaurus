@@ -94,12 +94,15 @@ public:
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
-        TCompositeAutomatonPtr automaton)
+        TCompositeAutomatonPtr automaton,
+        IUpstreamSynchronizerPtr upstreamSynchronizer)
         : THydraServiceBase(
+            hydraManager,
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             THiveServiceProxy::GetDescriptor(),
             HiveServerLogger,
-            selfCellId)
+            selfCellId,
+            std::move(upstreamSynchronizer))
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -1603,13 +1606,6 @@ private:
     }
 
 
-    // THydraServiceBase overrides.
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return HydraManager_;
-    }
-
-
     IYPathServicePtr CreateOrchidService()
     {
         auto invoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
@@ -1651,14 +1647,16 @@ THiveManager::THiveManager(
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
-    TCompositeAutomatonPtr automaton)
+    TCompositeAutomatonPtr automaton,
+    IUpstreamSynchronizerPtr upstreamSynchronizer)
     : Impl_(New<TImpl>(
-        config,
-        cellDirectory,
+        std::move(config),
+        std::move(cellDirectory),
         selfCellId,
-        automatonInvoker,
-        hydraManager,
-        automaton))
+        std::move(automatonInvoker),
+        std::move(hydraManager),
+        std::move(automaton),
+        std::move(upstreamSynchronizer)))
 { }
 
 THiveManager::~THiveManager()

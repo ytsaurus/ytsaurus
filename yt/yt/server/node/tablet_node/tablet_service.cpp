@@ -62,10 +62,12 @@ public:
         ITabletSlotPtr slot,
         IBootstrap* bootstrap)
         : THydraServiceBase(
+            slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),
             TabletNodeLogger,
-            slot->GetCellId())
+            slot->GetCellId(),
+            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()))
         , Slot_(slot)
         , Bootstrap_(bootstrap)
     {
@@ -319,12 +321,6 @@ private:
         auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
         tabletSnapshot->ValidateCellId(cellId);
         return tabletSnapshot;
-    }
-
-    // THydraServiceBase overrides.
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return Slot_->GetHydraManager();
     }
 };
 
