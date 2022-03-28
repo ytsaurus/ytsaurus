@@ -1,12 +1,14 @@
 #include "bootstrap.h"
-#include "private.h"
+
 #include "alert_manager.h"
 #include "config.h"
 #include "config_manager.h"
 #include "epoch_history_manager.h"
 #include "hydra_facade.h"
-#include "world_initializer.h"
+#include "master_hydra_service.h"
 #include "multicell_manager.h"
+#include "private.h"
+#include "world_initializer.h"
 
 #include <yt/yt/server/master/chaos_server/chaos_manager.h>
 #include <yt/yt/server/master/chaos_server/chaos_service.h>
@@ -706,7 +708,8 @@ void TBootstrap::DoInitialize()
         CellId_,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
         HydraFacade_->GetHydraManager(),
-        HydraFacade_->GetAutomaton());
+        HydraFacade_->GetAutomaton(),
+        CreateMulticellUpstreamSynchronizer(this));
 
     std::vector<TString> addresses;
     addresses.reserve(localCellConfig->Peers.size());

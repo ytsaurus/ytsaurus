@@ -26,10 +26,12 @@ class TCoordinatorService
 public:
     explicit TCoordinatorService(IChaosSlotPtr slot)
         : THydraServiceBase(
+            slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TCoordinatorServiceProxy::GetDescriptor(),
             ChaosNodeLogger,
-            slot->GetCellId())
+            slot->GetCellId(),
+            CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()))
         , Slot_(std::move(slot))
     {
         YT_VERIFY(Slot_);
@@ -98,14 +100,9 @@ private:
         context->Reply();
     }
 
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return Slot_->GetHydraManager();
-    }
-
     void ValidateLeader()
     {
-        if (!GetHydraManager()->IsActiveLeader()) {
+        if (!Slot_->GetHydraManager()->IsActiveLeader()) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Not an active leader");

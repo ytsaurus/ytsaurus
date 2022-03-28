@@ -14,21 +14,56 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THydraManagerUpstreamSynchronizer
+    : public IUpstreamSynchronizer
+{
+public:
+    explicit THydraManagerUpstreamSynchronizer(TWeakPtr<IHydraManager> hydraManager)
+        : HydraManager_(std::move(hydraManager))
+    { }
+
+    TFuture<void> SyncWithUpstream() override
+    {
+        if (auto hydraManager = HydraManager_.Lock()) {
+            return hydraManager->SyncWithLeader();
+        }
+        return MakeFuture<void>(TError(NRpc::EErrorCode::Unavailable, "Hydra manager has been destroyed"));
+    }
+
+private:
+    const TWeakPtr<IHydraManager> HydraManager_;
+};
+
+IUpstreamSynchronizerPtr CreateHydraManagerUpstreamSynchronizer(TWeakPtr<IHydraManager> hydraManager)
+{
+    return New<THydraManagerUpstreamSynchronizer>(std::move(hydraManager));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THydraServiceBase::THydraServiceBase(
+    IHydraManagerPtr hydraManager,
     IInvokerPtr invoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
-    TRealmId realmId)
+    TRealmId realmId,
+    IUpstreamSynchronizerPtr upstreamSynchronizer)
     : TServiceBase(
         invoker,
         descriptor,
         logger,
         realmId)
+    , HydraManager_(std::move(hydraManager))
+    , UpstreamSynchronizer_(std::move(upstreamSynchronizer))
 { }
 
 void THydraServiceBase::ValidatePeer(EPeerKind kind)
 {
-    auto hydraManager = GetHydraManager();
+    auto hydraManager = HydraManager_.Lock();
+    if (!hydraManager) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Service is shutting down");
+    }
+
     hydraManager->ValidatePeer(kind);
 
     auto cancelableInvoker = hydraManager
@@ -39,13 +74,8 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
 
 void THydraServiceBase::SyncWithUpstream()
 {
-    WaitFor(DoSyncWithUpstream())
+    WaitFor(UpstreamSynchronizer_->SyncWithUpstream())
         .ThrowOnError();
-}
-
-TFuture<void> THydraServiceBase::DoSyncWithUpstream()
-{
-    return GetHydraManager()->SyncWithLeader();
 }
 
 bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
@@ -59,7 +89,7 @@ bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
         kind = EPeerKind::Leader;
     }
 
-    auto hydraManager = GetHydraManager();
+    auto hydraManager = HydraManager_.Lock();
     if (!hydraManager) {
         return false;
     }

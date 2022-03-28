@@ -156,10 +156,12 @@ public:
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions)
         : THydraServiceBase(
+            this,
             controlInvoker,
             TLegacyHydraServiceProxy::GetDescriptor(),
             HydraLogger.WithTag("CellId: %v", cellId),
-            cellId)
+            cellId,
+            CreateHydraManagerUpstreamSynchronizer(MakeWeak(this)))
         , Config_(config)
         , RpcServer_(rpcServer)
         , ElectionManager_(electionManager)
@@ -2264,13 +2266,6 @@ private:
         YT_LOG_DEBUG("Cannot postpone more actions at the moment; backing off and retrying");
         TDelayedExecutor::WaitForDuration(PostponeBackoffTime);
         SwitchTo(ControlInvoker_);
-    }
-
-
-    // THydraServiceBase overrides.
-    IHydraManagerPtr GetHydraManager() override
-    {
-        return this;
     }
 };
 

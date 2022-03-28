@@ -16,10 +16,12 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     EAutomatonThreadQueue defaultQueue,
     const NLogging::TLogger& logger)
     : THydraServiceBase(
+        bootstrap->GetHydraFacade()->GetHydraManager(),
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(defaultQueue),
         descriptor,
         logger,
-        bootstrap->GetMulticellManager()->GetCellId())
+        bootstrap->GetMulticellManager()->GetCellId(),
+        CreateMulticellUpstreamSynchronizer(bootstrap))
     , Bootstrap_(bootstrap)
 {
     YT_VERIFY(Bootstrap_);
@@ -30,20 +32,34 @@ IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThread
     return Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(queue);
 }
 
-IHydraManagerPtr TMasterHydraServiceBase::GetHydraManager()
-{
-    return Bootstrap_->GetHydraFacade()->GetHydraManager();
-}
-
-TFuture<void> TMasterHydraServiceBase::DoSyncWithUpstream()
-{
-    return Bootstrap_->GetMulticellManager()->SyncWithUpstream();
-}
-
 void TMasterHydraServiceBase::ValidateClusterInitialized()
 {
     const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
     worldInitializer->ValidateInitialized();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMulticellUpstreamSynchronizer
+    : public IUpstreamSynchronizer
+{
+public:
+    explicit TMulticellUpstreamSynchronizer(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    TFuture<void> SyncWithUpstream() override
+    {
+        return Bootstrap_->GetMulticellManager()->SyncWithUpstream();
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+};
+
+IUpstreamSynchronizerPtr CreateMulticellUpstreamSynchronizer(TBootstrap* bootstrap)
+{
+    return New<TMulticellUpstreamSynchronizer>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

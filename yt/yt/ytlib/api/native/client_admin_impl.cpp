@@ -77,9 +77,8 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
         TCellId CellId;
     };
 
-    auto constructRequest = [&] (TCellId cellId) {
-        auto channel = GetHydraAdminChannelOrThrow(cellId);
-        THydraServiceProxy proxy(channel);
+    auto constructRequest = [&] (IChannelPtr channel) {
+        THydraServiceProxy proxy(std::move(channel));
         auto req = proxy.ForceBuildSnapshot();
         req->SetTimeout(options.Timeout);
         req->set_set_read_only(options.SetReadOnly);
@@ -95,10 +94,15 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
         cellIds.push_back(Connection_->GetMasterCellId(cellTag));
     }
 
+    THashMap<TCellId, IChannelPtr> channels;
+    for (auto cellId : cellIds) {
+        EmplaceOrCrash(channels, std::make_pair(cellId, GetHydraAdminChannelOrThrow(cellId)));
+    }
+
     std::queue<TSnapshotRequest> requestQueue;
     auto enqueueRequest = [&] (TCellId cellId) {
         YT_LOG_INFO("Requesting cell to build a snapshot (CellId: %v)", cellId);
-        auto request = constructRequest(cellId);
+        auto request = constructRequest(channels[cellId]);
         requestQueue.push({request->Invoke(), cellId});
     };
 

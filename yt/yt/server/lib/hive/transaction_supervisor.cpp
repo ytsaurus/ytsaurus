@@ -617,12 +617,13 @@ private:
             TTransactionSupervisorPtr owner,
             const TServiceDescriptor& descriptor)
             : THydraServiceBase(
+                owner->HydraManager_,
                 owner->HydraManager_->CreateGuardedAutomatonInvoker(owner->AutomatonInvoker_),
                 descriptor,
                 HiveServerLogger,
-                owner->SelfCellId_)
+                owner->SelfCellId_,
+                CreateHydraManagerUpstreamSynchronizer(owner->HydraManager_))
             , Owner_(owner)
-            , HydraManager_(owner->HydraManager_)
         { }
 
         TTransactionSupervisorPtr GetOwnerOrThrow()
@@ -636,12 +637,6 @@ private:
 
     private:
         const TWeakPtr<TTransactionSupervisor> Owner_;
-        const IHydraManagerPtr HydraManager_;
-
-        IHydraManagerPtr GetHydraManager() override
-        {
-            return HydraManager_;
-        }
     };
 
 
