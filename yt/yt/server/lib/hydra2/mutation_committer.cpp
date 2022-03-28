@@ -334,7 +334,8 @@ void TLeaderCommitter::FlushMutations()
 
                 req->Invoke();
 
-                followerState = {};
+                followerState.NextExpectedSequenceNumber = -1;
+                followerState.LastLoggedSequenceNumber = -1;
                 continue;
             }
         }
