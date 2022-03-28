@@ -101,7 +101,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     TTransactionBase::Load(context);
 
     using NYT::Load;
-    Load(context, State_);
+    SetPersistentState(Load<ETransactionState>(context));
     Load(context, Timeout_);
     Load(context, Title_);
     Load(context, ReplicatedToCellTags_);

@@ -236,7 +236,7 @@ public:
     {
         auto transaction = std::make_unique<TTransaction>(TTransactionId::Create());
         transaction->SetStartTimestamp(startTimestamp == NullTimestamp ? GenerateTimestamp() : startTimestamp);
-        transaction->SetState(ETransactionState::Active);
+        transaction->SetPersistentState(ETransactionState::Active);
         return transaction;
     }
 
@@ -247,9 +247,9 @@ public:
 
     void PrepareTransaction(TTransaction* transaction, TTimestamp timestamp)
     {
-        EXPECT_EQ(ETransactionState::Active, transaction->GetState());
+        EXPECT_EQ(ETransactionState::Active, transaction->GetTransientState());
         transaction->SetPrepareTimestamp(timestamp);
-        transaction->SetState(ETransactionState::TransientCommitPrepared);
+        transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
     }
 
     NTransactionClient::TTimestamp CommitTransaction(TTransaction* transaction)
@@ -259,16 +259,16 @@ public:
 
     NTransactionClient::TTimestamp CommitTransaction(TTransaction* transaction, TTimestamp timestamp)
     {
-        EXPECT_EQ(ETransactionState::TransientCommitPrepared, transaction->GetState());
+        EXPECT_EQ(ETransactionState::TransientCommitPrepared, transaction->GetTransientState());
         transaction->SetCommitTimestamp(timestamp);
-        transaction->SetState(ETransactionState::Committed);
+        transaction->SetPersistentState(ETransactionState::Committed);
         transaction->SetFinished();
         return transaction->GetCommitTimestamp();
     }
 
     void AbortTransaction(TTransaction* transaction)
     {
-        transaction->SetState(ETransactionState::Aborted);
+        transaction->SetPersistentState(ETransactionState::Aborted);
         transaction->SetFinished();
     }
 

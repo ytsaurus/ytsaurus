@@ -373,7 +373,7 @@ public:
                 }
             }
 
-            if (transaction->IsPrepared()) {
+            if (transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared) {
                 PrepareLockedRows(transaction);
             }
         }
@@ -1512,7 +1512,7 @@ private:
 
     void ValidateTransactionActive(TTransaction* transaction)
     {
-        if (transaction->GetState() != ETransactionState::Active) {
+        if (transaction->GetTransientState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
     }

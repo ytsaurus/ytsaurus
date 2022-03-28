@@ -383,7 +383,7 @@ public:
             }
         }
 
-        transaction->SetState(ETransactionState::Active);
+        transaction->SetPersistentState(ETransactionState::Active);
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
@@ -531,7 +531,7 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetState(ETransactionState::Committed);
+        transaction->SetPersistentState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
 
@@ -634,7 +634,7 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetState(ETransactionState::Aborted);
+        transaction->SetPersistentState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
 
@@ -986,7 +986,7 @@ public:
         {
             auto* currentTransaction = transaction;
             while (currentTransaction) {
-                auto state = persistent ? currentTransaction->GetPersistentState() : currentTransaction->GetState();
+                auto state = currentTransaction->GetState(persistent);
                 if (state != ETransactionState::Active) {
                     currentTransaction->ThrowInvalidState();
                 }
@@ -997,7 +997,7 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
-        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
+        auto state = transaction->GetState(persistent);
         if (state != ETransactionState::Active) {
             return;
         }
@@ -1008,9 +1008,11 @@ public:
 
         RunPrepareTransactionActions(transaction, persistent);
 
-        transaction->SetState(persistent
-            ? ETransactionState::PersistentCommitPrepared
-            : ETransactionState::TransientCommitPrepared);
+        if (persistent) {
+            transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
+        } else {
+            transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
+        }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
             transactionId,
@@ -1023,7 +1025,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        auto state = transaction->GetState();
+
+        auto state = transaction->GetTransientState();
         if (state != ETransactionState::Active && !force) {
             transaction->ThrowInvalidState();
         }
@@ -1036,7 +1039,7 @@ public:
         TAuthenticatedUserGuard userGuard(securityManager);
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
-        transaction->SetState(ETransactionState::TransientAbortPrepared);
+        transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
         YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
             transactionId);
@@ -1276,7 +1279,7 @@ private:
             THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
                 "Prerequisite check failed: transaction %v is in %Qlv state",
                 transactionId,
-                prerequisiteTransaction->GetState());
+                prerequisiteTransaction->GetPersistentState());
         }
 
         return prerequisiteTransaction;
@@ -1646,15 +1649,18 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
+        LeaseTracker_->Start();
+
+        // Recreate leases for all active transactions.
         for (auto [transactionId, transaction] : TransactionMap_) {
-            if (transaction->GetState() == ETransactionState::Active ||
-                transaction->GetState() == ETransactionState::PersistentCommitPrepared)
+            auto state = transaction->GetTransientState();
+            if (state == ETransactionState::Active ||
+                state == ETransactionState::PersistentCommitPrepared)
             {
                 CreateLease(transaction);
             }
         }
 
-        LeaseTracker_->Start();
         BoomerangTracker_->Start();
     }
 
@@ -1664,13 +1670,15 @@ private:
 
         TMasterAutomatonPart::OnStopLeading();
 
-        LeaseTracker_->Stop();
         BoomerangTracker_->Stop();
 
         // Reset all transiently prepared transactions back into active state.
         for (auto [transactionId, transaction] : TransactionMap_) {
-            transaction->SetState(transaction->GetPersistentState());
+            transaction->SetPersistentState(transaction->GetPersistentState());
+            CloseLease(transaction);
         }
+
+        LeaseTracker_->Stop();
 
         OnStopEpoch();
     }
@@ -1725,10 +1733,12 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = FindTransaction(transactionId);
-        if (!IsObjectAlive(transaction))
+        if (!IsObjectAlive(transaction)) {
             return;
-        if (transaction->GetState() != ETransactionState::Active)
+        }
+        if (transaction->GetTransientState() != ETransactionState::Active) {
             return;
+        }
 
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {

@@ -53,11 +53,6 @@ public:
 
     TInstant GetStartTime() const;
 
-    bool IsAborted() const;
-    bool IsActive() const;
-    bool IsCommitted() const;
-    bool IsPrepared() const;
-
     NObjectClient::TCellTag GetCellTag() const;
 
 private:
