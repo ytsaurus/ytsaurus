@@ -134,7 +134,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       ytLoggerConfigWithTaskInfo)
 
     log.info(s"Reading ${split.ytPath}, " +
-      s"read batch: $readBatch, return batch: $returnBatch, arrowEnabled: $arrowEnabled")
+      s"read batch: $readBatch, return batch: $returnBatch, arrowEnabled: $arrowEnabled, " +
+      s"pushdown config: $filterPushdownConf, detailed yPath: ${split.ytPathWithFiltersDetailed}")
 
     split
   }
