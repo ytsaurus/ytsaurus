@@ -3,8 +3,9 @@ package ru.yandex.spark.launcher
 import com.google.common.net.HostAndPort
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.launcher.AutoScaler._
-import ru.yandex.spark.launcher.SparkStateService.{MasterStats, WorkerInfo, WorkerStats}
+import ru.yandex.spark.launcher.SparkStateService.{AppStats, MasterStats, WorkerInfo, WorkerStats}
 
+import scala.concurrent.duration.DurationInt
 import scala.util.Success
 
 //noinspection UnstableApiUsage
@@ -13,13 +14,13 @@ class AutoScalerTest extends FlatSpec with Matchers  {
 
   it should "correctly assign action according to cluster state" in {
     val f = AutoScaler.autoScaleFunction(1, 1)
-    f(State(OperationState(10, 3, 0), SparkState(3, 3, 0))) shouldEqual SetUserSlot(4)
-    f(State(OperationState(10, 3, 0), SparkState(3, 2, 0))) shouldEqual DoNothing
-    f(State(OperationState(10, 3, 1), SparkState(3, 3, 0))) shouldEqual DoNothing
-    f(State(OperationState(10, 5, 0), SparkState(3, 1, 0))) shouldEqual SetUserSlot(1)
-    f(State(OperationState(10, 5, 0), SparkState(3, 1, 1))) shouldEqual SetUserSlot(6)
-    f(State(OperationState(10, 5, 0), SparkState(3, 0, 0))) shouldEqual SetUserSlot(1)
-    f(State(OperationState(10, 10, 0), SparkState(10, 10, 0))) shouldEqual DoNothing
+    f(State(OperationState(10, 3, 0), SparkState(3, 3, 0, 12, 12, 0L))) shouldEqual SetUserSlot(4)
+    f(State(OperationState(10, 3, 0), SparkState(3, 2, 0, 12, 8, 0L))) shouldEqual DoNothing
+    f(State(OperationState(10, 3, 1), SparkState(3, 3, 0, 12, 12, 0L))) shouldEqual DoNothing
+    f(State(OperationState(10, 5, 0), SparkState(3, 1, 0, 12, 4, 0L))) shouldEqual SetUserSlot(1)
+    f(State(OperationState(10, 5, 0), SparkState(3, 1, 1, 12, 8, 0L))) shouldEqual SetUserSlot(6)
+    f(State(OperationState(10, 5, 0), SparkState(3, 0, 0, 12, 0, 0L))) shouldEqual SetUserSlot(1)
+    f(State(OperationState(10, 10, 0), SparkState(10, 10, 0, 40, 40, 0L))) shouldEqual DoNothing
   }
 
   it should "correctly parse worker metrics" in {
@@ -55,5 +56,28 @@ class AutoScalerTest extends FlatSpec with Matchers  {
       HostAndPort.fromString("localhost:8081"))
     val res = srv.parseMasterMetrics(metrics)
     res shouldEqual Success(MasterStats(3, 4, 2, 1))
+  }
+
+  it should "correctly parse app metrics" in {
+    val metrics =
+      """
+        |metrics_application_loop_smoke_test_py_1647589577877_cores_Value{type="gauges"} 4
+        |metrics_application_loop_smoke_test_py_1647589577877_runtime_ms_Value{type="gauges"} 121836
+        |metrics_application_loop_smoke_test_py_1647589684254_cores_Value{type="gauges"} 0
+        |metrics_application_loop_smoke_test_py_1647589684254_runtime_ms_Value{type="gauges"} 15458
+        |metrics_jvm_G1_Old_Generation_count_Value{type="gauges"} 0
+        |metrics_jvm_G1_Old_Generation_time_Value{type="gauges"} 0
+        |metrics_jvm_G1_Young_Generation_count_Value{type="gauges"} 6
+        |metrics_jvm_G1_Young_Generation_time_Value{type="gauges"} 172
+        |metrics_jvm_direct_capacity_Value{type="gauges"} 84599582
+        |metrics_jvm_direct_count_Value{type="gauges"} 85
+        |""".stripMargin
+    val srv = SparkStateService.sparkStateService(HostAndPort.fromString("localhost:8080"),
+      HostAndPort.fromString("localhost:8081"))
+    val res = srv.parseAppMetrics(metrics).map(_.toSet)
+    res shouldEqual Success(Set(
+      AppStats("loop_smoke_test_py_1647589577877", 4L, 121836.millis),
+      AppStats("loop_smoke_test_py_1647589684254", 0L, 15458.millis),
+    ))
   }
 }

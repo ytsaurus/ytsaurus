@@ -293,7 +293,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
                                worker_log_update_interval, worker_log_table_ttl,
                                pool, enablers, client,
-                               preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None):
+                               preemption_mode, job_types, driver_op_resources=None, driver_op_discovery_script=None,
+                               extra_metrics_enabled=True):
     if job_types == [] or job_types == None:
         job_types = ['master', 'history', 'worker']
 
@@ -527,7 +528,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         preemption_mode="normal", enable_multi_operation_mode=False,
                         dedicated_operation_mode=False,
                         driver_cores=None, driver_memory=None, driver_num=None,
-                        driver_cores_overhead=None, driver_timeout=None):
+                        driver_cores_overhead=None, driver_timeout=None,
+                        autoscaler_period=None, autoscaler_metrics_port=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -568,6 +570,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param driver_num: number of driver workers
     :param driver_cores_overhead: additional driver worker cores
     :param driver_timeout: timeout to fail master waiting
+    :param autoscaler_period: time between autoscaler calls in scala duration string format
+    :param autoscaler_metrics_port: port for exposing of autoscaler metrics
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -607,6 +611,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
     dynamic_config['spark_conf']['spark.dedicated_operation_mode'] = dedicated_operation_mode
+    dynamic_config['spark_conf']['spark.autoscaler.enabled'] = bool(autoscaler_period)
+    dynamic_config['spark_conf']['spark.autoscaler.period'] = autoscaler_period
+    dynamic_config['spark_conf']['spark.autoscaler.metrics.port'] = autoscaler_metrics_port
 
     enablers = enablers or SpytEnablers()
     enablers.apply_config(dynamic_config)

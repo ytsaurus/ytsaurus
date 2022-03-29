@@ -98,7 +98,8 @@ def main():
                        dest='dedicated_operation_mode', action='store_true')
     parser.set_defaults(dedicated_operation_mode=False)
 
-    subgroup = parser.add_argument_group('(experimental) run driver in dedicated operation')
+    subgroup = parser.add_argument_group(
+        '(experimental) run driver in dedicated operation')
     subgroup.add_argument("--driver-cores", required=False,
                           type=int, help="same as worker-cores by default")
     subgroup.add_argument("--driver-memory", required=False,
@@ -110,9 +111,23 @@ def main():
     subgroup.add_argument("--driver-timeout", required=False,
                           help="same as worker-timeout by default")
 
+    subgroup = parser.add_argument_group("(experimental) autoscaler")
+    subgroup.add_argument("--autoscaler-period", required=False,
+                          type=str,
+                          help="""
+                            Start autoscaler process with provided period between autoscaling actions.
+                            Period format is '<number> <time_unit>', for example '1s', '5 seconds', '100millis' etc.
+                          """.strip())
+    subgroup.add_argument("--autoscaler-metrics-port", required=False,
+                          type=int, help="expose autoscaler metrics on provided port")
+
     args, unknown_args = spark_utils.parse_args(parser)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
+
+    if args.autoscaler_period and not args.enable_multi_operation_mode:
+        print("Autoscaler could be enabled only with multi-operation mode")
+        exit(-1)
 
     start_spark_cluster(worker_cores=args.worker_cores,
                         worker_memory=args.worker_memory,
@@ -154,7 +169,9 @@ def main():
                         driver_memory=args.driver_memory,
                         driver_num=args.driver_num,
                         driver_cores_overhead=args.driver_cores_overhead,
-                        driver_timeout=args.driver_timeout)
+                        driver_timeout=args.driver_timeout,
+                        autoscaler_period=args.autoscaler_period,
+                        autoscaler_metrics_port=args.autoscaler_metrics_port)
 
 
 if __name__ == '__main__':
