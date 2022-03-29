@@ -1,15 +1,18 @@
 package ru.yandex.spark.launcher
 
+import com.codahale.metrics.{Histogram, MetricRegistry, UniformReservoir}
 import com.google.common.util.concurrent.ThreadFactoryBuilder
-import org.slf4j.LoggerFactory
+import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.spark.launcher.rest.AutoScalerMetricsServer
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.GetOperation
 
-import java.util.concurrent.{ScheduledFuture, ScheduledThreadPoolExecutor, TimeUnit}
-import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import java.io.Closeable
+import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit}
+import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 import scala.language.postfixOps
 import scala.sys.process.ProcessLogger
 
@@ -18,21 +21,60 @@ trait AutoScaler {
 }
 
 object AutoScaler {
-  private val log = LoggerFactory.getLogger(getClass)
+  private val log: Logger = LoggerFactory.getLogger(getClass)
+  private object Metrics {
+    val metricRegistry: MetricRegistry = new MetricRegistry()
+    val userSlots = new Histogram(new UniformReservoir())
+    val runningJobs = new Histogram(new UniformReservoir())
+    val plannedJobs = new Histogram(new UniformReservoir())
+    val maxWorkers = new Histogram(new UniformReservoir())
+    val busyWorkers = new Histogram(new UniformReservoir())
+    val waitingApps = new Histogram(new UniformReservoir())
+    val coresTotal = new Histogram(new UniformReservoir())
+    val coresUsed = new Histogram(new UniformReservoir())
+    val maxAppWaitTimeMs = new Histogram(new UniformReservoir())
+    metricRegistry.register("user_slots", userSlots)
+    metricRegistry.register("running_jobs", runningJobs)
+    metricRegistry.register("planned_jobs", plannedJobs)
+    metricRegistry.register("max_workers", maxWorkers)
+    metricRegistry.register("busy_workers", busyWorkers)
+    metricRegistry.register("waiting_apps", waitingApps)
+    metricRegistry.register("cores_total", coresTotal)
+    metricRegistry.register("cores_used", coresUsed)
+    metricRegistry.register("max_wait_app_time_ms", maxAppWaitTimeMs)
+  }
+
+  def registerMetrics(state: State, userSlots: Long): Unit = state match {
+    case State(
+    OperationState(_, runningJobs, plannedJobs),
+    SparkState(maxWorkers, busyWorkers, waitingApps, coresTotal, coresUsed, maxAppAwaitTimeMs),
+    ) =>
+      Metrics.userSlots.update(userSlots)
+      Metrics.runningJobs.update(runningJobs)
+      Metrics.plannedJobs.update(plannedJobs)
+      Metrics.maxWorkers.update(maxWorkers)
+      Metrics.busyWorkers.update(busyWorkers)
+      Metrics.waitingApps.update(waitingApps)
+      Metrics.coresTotal.update(coresTotal)
+      Metrics.coresUsed.update(coresUsed)
+      Metrics.maxAppWaitTimeMs.update(maxAppAwaitTimeMs)
+  }
+
+
   private val processLogger = new ProcessLogger {
     override def out(s: => String): Unit = log.debug(s)
     override def err(s: => String): Unit = log.error(s)
     override def buffer[T](f: => T): T = f
   }
 
-  private val executor = new ScheduledThreadPoolExecutor(1,
+  private val scheduler = new ScheduledThreadPoolExecutor(1,
     new ThreadFactoryBuilder()
-        .setDaemon(true)
-        .setUncaughtExceptionHandler(
-          (_: Thread, ex: Throwable) => log.error(s"Uncaught exception in autoscaler thread", ex)
-        )
-        .setNameFormat("auto-scaler-%d")
-        .build()
+      .setDaemon(true)
+      .setUncaughtExceptionHandler(
+        (_: Thread, ex: Throwable) => log.error(s"Uncaught exception in autoscaler thread", ex)
+      )
+      .setNameFormat("auto-scaler-%d")
+      .build()
   )
 
   trait ClusterStateService {
@@ -75,6 +117,10 @@ object AutoScaler {
                 spark <- sparkState.toOption
               } yield State(operation, spark)
               log.info(s"result state: $state")
+              for {
+                st <- state
+                sl <- currentUserSlots.orElse(Some(st.operationState.maxJobs))
+              } registerMetrics(st, sl)
               state
             }
           case None =>
@@ -131,12 +177,20 @@ object AutoScaler {
       )
   }
 
-  def start(autoScaler: AutoScaler, period: FiniteDuration = 1.minute): ScheduledFuture[_] = {
-    log.info(s"Starting autoscaler service: period = $period")
-    executor.scheduleAtFixedRate(() => {
-      log.info("Autoscaler called")
-      autoScaler()
-    }, period.toNanos, period.toNanos, TimeUnit.NANOSECONDS)
+  def start(autoScaler: AutoScaler, conf: Option[AutoScaler.Conf]): Closeable = {
+    conf.map { c =>
+      log.info(s"Starting autoscaler service: period = ${c.period}")
+      val f = scheduler.scheduleAtFixedRate(() => {
+        log.info("Autoscaler called")
+        autoScaler()
+      }, c.period.toNanos, c.period.toNanos, TimeUnit.NANOSECONDS)
+      val metricsServer = c.metricsPort.map(p => AutoScalerMetricsServer.start(p, Metrics.metricRegistry))
+      val r: Closeable = () => {
+        f.cancel(false)
+        metricsServer.foreach(_.close())
+      }
+      r
+    }.getOrElse(() => ())
   }
 
   case class OperationState(maxJobs: Long, runningJobs: Long, plannedJobs: Long) {
@@ -146,10 +200,12 @@ object AutoScaler {
       s"OperationState(maxJobs=$maxJobs, runningJobs=$runningJobs, plannedJobs=$plannedJobs)"
   }
 
-  case class SparkState(maxWorkers: Long, busyWorkers: Long, waitingApps: Long) {
+  case class SparkState(maxWorkers: Long, busyWorkers: Long, waitingApps: Long, coresTotal: Long, coresUsed: Long,
+                        maxAppAwaitTimeMs: Long) {
     def freeWorkers: Long = maxWorkers - busyWorkers
 
-    override def toString: String = s"SparkState(maxWorkers=$maxWorkers, busyWorkers=$busyWorkers, waitingApps=$waitingApps)"
+    override def toString: String =
+      s"SparkState(maxWorkers=$maxWorkers, busyWorkers=$busyWorkers, waitingApps=$waitingApps)"
   }
 
   case class State(operationState: OperationState, sparkState: SparkState)
@@ -157,4 +213,21 @@ object AutoScaler {
   sealed trait Action
   case object DoNothing extends Action
   case class SetUserSlot(count: Long) extends Action
+
+  case class Conf(period: FiniteDuration, metricsPort: Option[Int])
+
+  object Conf {
+    def apply(props: Map[String, String]): Option[Conf] =
+      props.map(p => (p._1.toLowerCase, p._2.toLowerCase))
+        .get("spark.autoscaler.enabled")
+        .filter(_ == "true")
+        .map { _ =>
+          val period = props.get("spark.autoscaler.period")
+            .map(p => Duration.create(p))
+            .collect { case d: FiniteDuration => d }
+            .getOrElse(1.second)
+          val port = props.get("spark.autoscaler.metrics.port").map(_.toInt)
+          Conf(period, port)
+        }
+  }
 }

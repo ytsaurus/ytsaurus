@@ -47,7 +47,7 @@ trait SparkLauncher {
     MasterService("Master", address, thread)
   }
 
-  def startWorker(master: Address, cores: Int, memory: String): BasicService = {
+    def startWorker(master: Address, cores: Int, memory: String): BasicService = {
     val config = SparkDaemonConfig.fromProperties("worker", "512M")
     val thread = runSparkThread(
       workerClass,

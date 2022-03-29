@@ -19,10 +19,14 @@ object MasterLauncher extends App
   val masterArgs = MasterLauncherArgs(args)
   import masterArgs._
 
+  val autoscalerConf: Option[AutoScaler.Conf] = AutoScaler.Conf(sparkSystemProperties)
+
   withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
     withService(startMaster) { master =>
       withService(startMasterWrapper(args, master)) { masterWrapper =>
-        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort)) { solomonAgent =>
+        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.getPort,
+          autoscalerConf)) { solomonAgent =>
+
           master.waitAndThrowIfNotAlive(5 minutes)
           masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
@@ -36,7 +40,8 @@ object MasterLauncher extends App
           )
           log.info("Master registered")
 
-          AutoScaler.start(AutoScaler.build(discoveryService, yt, ytConfig))
+          AutoScaler.start(AutoScaler.build(discoveryService, yt, ytConfig), autoscalerConf)
+          checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
           log.error("Master is not alive")
         }
       }

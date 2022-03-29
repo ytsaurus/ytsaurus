@@ -6,12 +6,13 @@ import io.circe.parser.parse
 import io.circe.{Decoder, Error}
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.AutoScaler.SparkState
-import ru.yandex.spark.launcher.SparkStateService.{MasterStats, WorkerInfo, WorkerStats}
+import ru.yandex.spark.launcher.SparkStateService.{AppStats, MasterStats, WorkerInfo, WorkerStats}
 import sttp.client.{HttpError, HttpURLConnectionBackend, Identity, NothingT, SttpBackend, UriContext, basicRequest}
 import sttp.model.Uri
 
 import java.util.concurrent.{ExecutorService, Executors}
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.{Duration, DurationLong}
 import scala.util.{Failure, Try}
 
 trait SparkStateService {
@@ -19,9 +20,11 @@ trait SparkStateService {
   def activeWorkers: Try[Seq[WorkerInfo]]
   def workerStats(workers: Seq[WorkerInfo]): Seq[Try[WorkerStats]]
   def masterStats: Try[MasterStats]
+  def appStats: Try[Seq[AppStats]]
 
   private[launcher] def parseWorkerMetrics(resp: String, workerInfo: WorkerInfo): Try[WorkerStats]
   private[launcher] def parseMasterMetrics(resp: String): Try[MasterStats]
+  private[launcher] def parseAppMetrics(resp: String): Try[Seq[AppStats]]
 }
 
 object SparkStateService {
@@ -32,6 +35,8 @@ object SparkStateService {
   }
 
   case class MasterStats(aliveWorkers: Long, workers: Long, apps: Long, waitingApps: Long)
+
+  case class AppStats(name: String, cores: Long, runtime: Duration)
 
   case class WorkerInfo(id: String, host: String, port: Int, cores: Int, memory: Int, webUiAddress: String,
                         alive: Boolean, resources: Map[String, ResourceInfo]) {
@@ -64,7 +69,11 @@ object SparkStateService {
           for {
             stats <- allWorkerStats
             master <- masterStats
-          } yield SparkState(ws.size, stats.count(_.coresUsed > 0), master.waitingApps)
+            apps <- appStats
+          } yield SparkState(ws.size, stats.count(_.coresUsed > 0), master.waitingApps,
+            stats.map(_.coresTotal).sum, stats.map(_.coresUsed).sum,
+            apps.filter(_.cores == 0).map(_.runtime.toMillis).reduceLeftOption(_ max _).getOrElse(0L)
+          )
         })
       }
 
@@ -78,6 +87,19 @@ object SparkStateService {
           .fold(
             error => Failure(HttpError(error)),
             body => parseMasterMetrics(body)
+          )
+      }
+
+      override def appStats: Try[Seq[AppStats]] = {
+        val uri = uri"http://$webUi/metrics/applications/prometheus"
+        log.debug(s"querying $uri")
+        basicRequest
+          .get(uri)
+          .send()
+          .body
+          .fold(
+            error => Failure(HttpError(error)),
+            body => parseAppMetrics(body)
           )
       }
 
@@ -119,7 +141,7 @@ object SparkStateService {
         }
 
 
-      def parseMetrics(prefix: String, resp: String): Try[Map[String, Long]] = {
+      def parseMetrics(prefix: String, resp: String, ignoreNotMatching: Boolean = false): Try[Map[String, Long]] = {
         log.debug(s"parseMetrics: $prefix: $resp")
         val matcher = (s"metrics_${prefix}_(.*?)_Value\\{.*?} (\\d+)").r
         Try {
@@ -127,7 +149,8 @@ object SparkStateService {
             case matcher(name, value) =>
               Option((name, value.toLong))
             case unknown =>
-              log.warn(s"Unable to parse metrics string: $unknown")
+              if (ignoreNotMatching) log.debug(s"Unable to parse metrics string: $unknown")
+              else log.warn(s"Unable to parse metrics string: $unknown")
               None
           }.toMap
         }
@@ -143,5 +166,27 @@ object SparkStateService {
         parseMetrics("master", resp).map(metrics =>
           MasterStats(metrics("aliveWorkers"), metrics("workers"), metrics("apps"), metrics("waitingApps"))
         )
+
+      override def parseAppMetrics(resp: String): Try[Seq[AppStats]] = {
+        val matcher = "^(.*?)_(cores|runtime_ms)$".r
+        def split(s: String): Option[(String, String)] =
+          s match {
+            case matcher(appName, metric) => Some((appName, metric))
+            case _ => None
+          }
+
+        parseMetrics("application", resp, ignoreNotMatching = true)
+          .map(metrics =>
+            metrics.flatMap(kv => split(kv._1).map { case (appName, metric) =>
+              (appName, metric, kv._2)
+            }).groupBy(_._1)
+              .toSeq
+              .map { case (appName, vs) =>
+                val m = vs.map{ case (_, metric, value) => (metric, value) }.toMap
+                AppStats(appName, m.getOrElse("cores", 0L), m.getOrElse("runtime_ms", 0L).millis)
+              }
+          )
+      }
+
     }
 }
