@@ -10,8 +10,7 @@ TResourceVector TResourceVector::FromJobResources(
     double zeroDivByZero,
     double oneDivByZero)
 {
-    TResourceVector resultVector = {};
-    auto update = [&] (auto resourceValue, auto resourceLimit, double& result) {
+    auto computeResult = [&] (auto resourceValue, auto resourceLimit, double& result) {
         if (static_cast<double>(resourceLimit) == 0.0) {
             if (static_cast<double>(resourceValue) == 0.0) {
                 result = zeroDivByZero;
@@ -22,8 +21,10 @@ TResourceVector TResourceVector::FromJobResources(
             result = static_cast<double>(resourceValue) / static_cast<double>(resourceLimit);
         }
     };
-    #define XX(name, Name, resourceIndex) update(resources.Get##Name(), totalLimits.Get##Name(), resultVector[resourceIndex]);
-    ITERATE_JOB_RESOURCES_WITH_INDEX(XX)
+
+    TResourceVector resultVector;
+    #define XX(name, Name) computeResult(resources.Get##Name(), totalLimits.Get##Name(), resultVector[EJobResourceType::Name]);
+    ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return resultVector;
 }

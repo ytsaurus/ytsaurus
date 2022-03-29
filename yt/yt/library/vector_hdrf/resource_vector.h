@@ -91,11 +91,11 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
     using std::round;
 
     TJobResources result;
-    #define XX(name, Name, resourceIndex) do { \
-        auto newValue = round(lhs.Get##Name() * rhs[resourceIndex]); \
+    #define XX(name, Name) do { \
+        auto newValue = round(lhs.Get##Name() * rhs[EJobResourceType::Name]); \
         result.Set##Name(static_cast<decltype(lhs.Get##Name())>(newValue)); \
     } while (false);
-    ITERATE_JOB_RESOURCES_WITH_INDEX(XX)
+    ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
 }
