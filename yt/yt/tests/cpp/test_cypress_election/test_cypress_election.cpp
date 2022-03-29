@@ -138,9 +138,12 @@ TEST_F(TCypressElectionManagerTest, TestElectionManager)
     EXPECT_EQ(StartCount_, 2);
     EXPECT_EQ(EndCount_, 1);
 
-    electionManager->Stop();
+    WaitFor(electionManager->Stop())
+        .ThrowOnError();
     EXPECT_FALSE(IsActive(transaction1));
-    EXPECT_FALSE(IsActive(transaction2));
+    WaitForPredicate([&] {
+        return !IsActive(transaction2);
+    });
 
     EXPECT_EQ(StartCount_, 2);
     EXPECT_EQ(EndCount_, 2);
