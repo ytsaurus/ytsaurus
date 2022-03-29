@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ytprof"
 )
 
-func (m *TableStorage) queryIDsMetadataPeriod(minTime int64, maxTime int64, limit int) string {
+func (m *TableStorage) queryIDsMetadataPeriod(minTime schema.Timestamp, maxTime schema.Timestamp, limit int) string {
 	return fmt.Sprintf("ProfIDHigh, ProfIDLow from [%s] where Timestamp >= %d and Timestamp <= %d limit %d",
 		m.tableMetadata,
 		minTime,
@@ -16,7 +17,7 @@ func (m *TableStorage) queryIDsMetadataPeriod(minTime int64, maxTime int64, limi
 	)
 }
 
-func (m *TableStorage) queryMetadataPeriod(minTime int64, maxTime int64, limit int) string {
+func (m *TableStorage) queryMetadataPeriod(minTime schema.Timestamp, maxTime schema.Timestamp, limit int) string {
 	return fmt.Sprintf("* from [%s] where Timestamp >= %d and Timestamp <= %d limit %d",
 		m.tableMetadata,
 		minTime,

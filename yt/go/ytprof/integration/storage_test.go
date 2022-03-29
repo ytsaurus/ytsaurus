@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 	"a.yandex-team.ru/yt/go/yttest"
@@ -28,6 +29,12 @@ var (
 		DropFrames:        "none",
 		DefaultSampleType: "cpu",
 		Comments:          []string{"c1", "c2"},
+	}, {
+		Period:            2324,
+		PeriodType:        &profile.ValueType{Type: "cpr", Unit: "ms"},
+		DropFrames:        "none",
+		DefaultSampleType: "cpu",
+		Comments:          []string{"c1123", "c2222"},
 	}, {
 		Period:            2314,
 		PeriodType:        &profile.ValueType{Type: "memory", Unit: "bytes"},
@@ -69,18 +76,44 @@ func TestDataAndMetadataTables(t *testing.T) {
 	env := yttest.New(t)
 
 	tmpPath := env.TmpPath()
-	dataPath := tmpPath
-	tsData := storage.NewTableStorage(env.YT, env.L, dataPath)
+	tsData := storage.NewTableStorage(env.YT, env.L, tmpPath)
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
 	require.NoError(t, tsData.PushData(TestProfiles, env.Ctx))
 
-	resultIDs, err := tsData.MetadataIdsQuery(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(time.Hour).UnixMilli(), env.Ctx)
+	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	resultIDs, err := tsData.MetadataIdsQuery(tlow, thigh, env.Ctx)
 	require.NoError(t, err)
 	resultData, err := tsData.FindProfiles(resultIDs, env.Ctx)
 	require.NoError(t, err)
 	checkTestProfiles(t, resultData)
+}
+
+func TestDataExpr(t *testing.T) {
+	env := yttest.New(t)
+
+	tmpPath := env.TmpPath()
+	tsData := storage.NewTableStorage(env.YT, env.L, tmpPath)
+
+	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
+
+	require.NoError(t, tsData.PushData(TestProfiles, env.Ctx))
+
+	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	resultIDs, err := tsData.MetadataIdsQueryExpr(tlow, thigh, env.Ctx, "ProfileType == 'cpu'")
+	require.NoError(t, err)
+	resultData, err := tsData.FindProfiles(resultIDs, env.Ctx)
+	require.NoError(t, err)
+	require.Equal(t, len(resultData), 2)
 }
 
 func TestMetadataIdsQuery(t *testing.T) {
@@ -94,7 +127,12 @@ func TestMetadataIdsQuery(t *testing.T) {
 
 	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, env.Ctx))
 
-	resultIDs, err := tsData.MetadataIdsQuery(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(time.Hour).UnixMilli(), env.Ctx)
+	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	resultIDs, err := tsData.MetadataIdsQuery(tlow, thigh, env.Ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, resultIDs)
 }
@@ -110,7 +148,12 @@ func TestMetadataQuery(t *testing.T) {
 
 	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, env.Ctx))
 
-	result, err := tsData.MetadataQuery(time.Now().Add(-time.Hour).UnixMilli(), time.Now().Add(time.Hour).UnixMilli(), env.Ctx)
+	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	result, err := tsData.MetadataQuery(tlow, thigh, env.Ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
 }
