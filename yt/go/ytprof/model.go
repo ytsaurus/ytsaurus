@@ -7,6 +7,10 @@ import (
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+
+	"github.com/google/cel-go/checker/decls"
+
+	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 )
 
 const (
@@ -33,10 +37,22 @@ type Metadata struct {
 	ProfileType string `yson:",omitempty"`
 }
 
+func (m *Metadata) Vars() map[string]interface{} {
+	return map[string]interface{}{
+		"ProfileType": m.ProfileType,
+	}
+}
+
+func (m *Metadata) Types() map[string]*exprpb.Type {
+	return map[string]*exprpb.Type{
+		"ProfileType": decls.String,
+	}
+}
+
 type ProfileMetadata struct {
-	Timestamp  int64  `yson:",key"`
-	ProfIDHigh uint64 `yson:",key"`
-	ProfIDLow  uint64 `yson:",key"`
+	Timestamp  schema.Timestamp `yson:",key"`
+	ProfIDHigh uint64           `yson:",key"`
+	ProfIDLow  uint64           `yson:",key"`
 
 	Metadata Metadata `yson:",omitempty"`
 }

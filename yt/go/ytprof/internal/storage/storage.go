@@ -7,11 +7,14 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/google/pprof/profile"
+
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/ytprof"
-	"github.com/google/pprof/profile"
+	"a.yandex-team.ru/yt/go/ytprof/internal/expressions"
 )
 
 const (
@@ -58,7 +61,12 @@ func (m *TableStorage) PushData(profiles []*profile.Profile, ctx context.Context
 	rowsData := make([]interface{}, 0, len(profiles))
 	rowsMetadata := make([]interface{}, 0, len(profiles))
 
-	curTime := time.Now().UnixMilli()
+	curTime := time.Now()
+	timestamp, err := schema.NewTimestamp(curTime)
+	if err != nil {
+		return err
+	}
+
 	for _, profileData := range profiles {
 		var buf bytes.Buffer
 		err := profileData.Write(&buf)
@@ -75,7 +83,7 @@ func (m *TableStorage) PushData(profiles []*profile.Profile, ctx context.Context
 		rowsMetadata = append(rowsMetadata, ytprof.ProfileMetadata{
 			ProfIDHigh: uID.ProfIDHigh,
 			ProfIDLow:  uID.ProfIDLow,
-			Timestamp:  curTime,
+			Timestamp:  timestamp,
 			Metadata:   ytprof.Metadata{ProfileType: profileData.DefaultSampleType},
 		})
 	}
@@ -93,7 +101,7 @@ func (m *TableStorage) PushData(profiles []*profile.Profile, ctx context.Context
 	return tx.Commit()
 }
 
-func (m *TableStorage) MetadataIdsQuery(minTime int64, maxTime int64, ctx context.Context) ([]ytprof.ProfID, error) {
+func (m *TableStorage) MetadataIdsQuery(minTime schema.Timestamp, maxTime schema.Timestamp, ctx context.Context) ([]ytprof.ProfID, error) {
 	r, err := m.yc.SelectRows(ctx, m.queryIDsMetadataPeriod(minTime, maxTime, DefaultQueryLimit), nil)
 	if err != nil {
 		return nil, err
@@ -115,14 +123,14 @@ func (m *TableStorage) MetadataIdsQuery(minTime int64, maxTime int64, ctx contex
 	return resultIDs, r.Err()
 }
 
-func (m *TableStorage) MetadataQuery(minTime int64, maxTime int64, ctx context.Context) ([]ytprof.ProfileMetadata, error) {
-	r, err := m.yc.SelectRows(ctx, m.queryIDsMetadataPeriod(minTime, maxTime, DefaultQueryLimit), nil)
+func (m *TableStorage) MetadataQuery(minTime schema.Timestamp, maxTime schema.Timestamp, ctx context.Context) ([]ytprof.ProfileMetadata, error) {
+	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(minTime, maxTime, DefaultQueryLimit), nil)
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
 
-	resultIDs := make([]ytprof.ProfileMetadata, 0)
+	results := make([]ytprof.ProfileMetadata, 0)
 
 	for r.Next() {
 		var nextVal ytprof.ProfileMetadata
@@ -131,7 +139,75 @@ func (m *TableStorage) MetadataQuery(minTime int64, maxTime int64, ctx context.C
 			return nil, err
 		}
 
-		resultIDs = append(resultIDs, nextVal)
+		results = append(results, nextVal)
+	}
+
+	return results, r.Err()
+}
+
+func (m *TableStorage) MetadataQueryExpr(minTime schema.Timestamp, maxTime schema.Timestamp, ctx context.Context, exprText string) ([]ytprof.ProfileMetadata, error) {
+	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(minTime, maxTime, DefaultQueryLimit), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	results := make([]ytprof.ProfileMetadata, 0)
+
+	expr, err := expressions.NewExpression(exprText)
+	if err != nil {
+		return nil, err
+	}
+
+	for r.Next() {
+		var nextVal ytprof.ProfileMetadata
+		err = r.Scan(&nextVal)
+		if err != nil {
+			return nil, err
+		}
+
+		var result bool
+		result, err = expr.Evaluate(nextVal.Metadata)
+		if err != nil {
+			return nil, err
+		}
+		if result {
+			results = append(results, nextVal)
+		}
+	}
+
+	return results, r.Err()
+}
+
+func (m *TableStorage) MetadataIdsQueryExpr(minTime schema.Timestamp, maxTime schema.Timestamp, ctx context.Context, exprText string) ([]ytprof.ProfID, error) {
+	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(minTime, maxTime, DefaultQueryLimit), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	resultIDs := make([]ytprof.ProfID, 0)
+
+	expr, err := expressions.NewExpression(exprText)
+	if err != nil {
+		return nil, err
+	}
+
+	for r.Next() {
+		var nextVal ytprof.ProfileMetadata
+		err = r.Scan(&nextVal)
+		if err != nil {
+			return nil, err
+		}
+
+		var result bool
+		result, err = expr.Evaluate(nextVal.Metadata)
+		if err != nil {
+			return nil, err
+		}
+		if result {
+			resultIDs = append(resultIDs, nextVal.ProfID())
+		}
 	}
 
 	return resultIDs, r.Err()
