@@ -19,6 +19,7 @@ import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
+import ru.yandex.yt.ytclient.proxy.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
@@ -75,6 +76,8 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<List<YTreeNode>> getTablePivotKeys(GetTablePivotKeys req);
 
     CompletableFuture<GUID> createObject(CreateObject req);
+
+    CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req);
 
     <T> CompletableFuture<Void> lookupRows(
             AbstractLookupRowsRequest<?> request,
