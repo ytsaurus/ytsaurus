@@ -13,6 +13,7 @@ import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
+import ru.yandex.yt.rpcproxy.TReqCheckClusterLiveness;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
@@ -55,6 +56,7 @@ import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
+import ru.yandex.yt.rpcproxy.TRspCheckClusterLiveness;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspCommitTransaction;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
@@ -214,6 +216,10 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqCheckPermission.Builder, TRspCheckPermission> CHECK_PERMISSION =
             apiServiceMethod("CheckPermission", TReqCheckPermission::newBuilder, TRspCheckPermission.parser());
+
+    public static final RpcMethodDescriptor<TReqCheckClusterLiveness.Builder, TRspCheckClusterLiveness>
+            CHECK_CLUSTER_LIVENESS = apiServiceMethod(
+                    "CheckClusterLiveness", TReqCheckClusterLiveness::newBuilder, TRspCheckClusterLiveness.parser());
 
     public static final RpcMethodDescriptor<TReqReadTable.Builder, TRspReadTable> READ_TABLE =
             apiServiceMethod("ReadTable", TReqReadTable::newBuilder, TRspReadTable.parser());

@@ -52,6 +52,7 @@ import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
 import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
+import ru.yandex.yt.ytclient.proxy.request.CheckClusterLiveness;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -323,6 +324,16 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.CREATE_OBJECT.createRequestBuilder(rpcOptions)),
                 response -> RpcUtil.fromProto(response.body().getObjectId()));
+    }
+
+    /**
+     * Check cluster's liveness
+     * @see CheckClusterLiveness
+     */
+    public CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.CHECK_CLUSTER_LIVENESS.createRequestBuilder(rpcOptions)),
+                response -> null);
     }
 
     /**
