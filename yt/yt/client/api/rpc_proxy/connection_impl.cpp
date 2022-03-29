@@ -37,6 +37,7 @@ using namespace NHttp;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NServiceDiscovery;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -379,25 +380,40 @@ std::vector<TString> TConnection::DiscoverProxiesViaHttp()
 
 std::vector<TString> TConnection::DiscoverProxiesViaServiceDiscovery()
 {
-    try {
-        YT_LOG_DEBUG("Updating proxy list via Service Discovery");
+    YT_LOG_DEBUG("Updating proxy list via Service Discovery");
 
-        auto endpointSet = WaitFor(ServiceDiscovery_->ResolveEndpoints(
-            *Config_->ProxyEndpoints->Cluster,
-            Config_->ProxyEndpoints->EndpointSetId))
-            .ValueOrThrow();
+    std::vector<TFuture<TEndpointSet>> asyncEndpointSets;
+    for (const auto& cluster : Config_->ProxyEndpoints->Clusters) {
+        asyncEndpointSets.push_back(ServiceDiscovery_->ResolveEndpoints(
+            cluster,
+            Config_->ProxyEndpoints->EndpointSetId));
+    }
 
-        std::vector<TString> addresses;
-        addresses.reserve(endpointSet.Endpoints.size());
-        for (const auto& endpoint : endpointSet.Endpoints) {
-            addresses.push_back(NNet::BuildServiceAddress(endpoint.Fqdn, endpoint.Port));
+    auto endpointSets = WaitFor(AllSet(asyncEndpointSets))
+        .ValueOrThrow();
+
+    std::vector<TString> allAddresses;
+    std::vector<TError> errors;
+    for (int i = 0; i < std::ssize(endpointSets); ++i) {
+        if (!endpointSets[i].IsOK()) {
+            errors.push_back(endpointSets[i]);
+            YT_LOG_WARNING(
+                endpointSets[i],
+                "Could not resolve endpoints from cluster (Cluster: %v, EndpointSetId: %v)",
+                Config_->ProxyEndpoints->Clusters[i],
+                Config_->ProxyEndpoints->EndpointSetId);
+            continue;
         }
 
-        return addresses;
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error discovering RPC proxies via Service Discovery")
-            << ex;
+        auto addresses = AddressesFromEndpointSet(endpointSets[i].Value());
+        allAddresses.insert(allAddresses.end(), addresses.begin(), addresses.end());
     }
+
+    if (errors.size() == endpointSets.size()) {
+        THROW_ERROR_EXCEPTION("Error discovering RPC proxies via Service Discovery") << errors;
+    }
+
+    return allAddresses;
 }
 
 void TConnection::OnProxyListUpdate()
