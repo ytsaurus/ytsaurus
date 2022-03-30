@@ -252,7 +252,11 @@ private:
 
             readyEvent.TrySet();
         } else if (!wasFull && isFull) {
-            YT_VERIFY(ReadyEvent_.IsSet());
+            // ReadyEvent_ can be still not set because it is set outside of
+            // critical section. Technically, we can just ignore it, but let's
+            // set it here to avoid writer freeze in case of some bugs.
+            ReadyEvent_.TrySet();
+
             if (ReadyEvent_.Get().IsOK()) {
                 ReadyEvent_ = NewPromise<void>();
             }
