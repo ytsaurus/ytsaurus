@@ -5,14 +5,12 @@ from spyt.types import YsonType
 
 
 from typing import List, Tuple, Union, Iterable, Callable
-
+import sys
 
 from dataclasses import dataclass
 
-test_name = "DmCommutationCheckNewbieCheck"
-input_path = "//home/spark/e2e/{}/input".format(test_name)
-output_path = "//home/spark/e2e/{}/output".format(test_name)
-print(test_name)
+input_path = sys.argv[1]
+output_path = sys.argv[2]
 
 SPARK_DATE_FORMAT = 'yyyy-MM-dd'
 
@@ -96,15 +94,12 @@ class BaseCheckTask:
 
 
 with spark_session() as spark:
-    input_base = f"//home/spark/e2e/{test_name}/input"
-    output_base = f"//home/spark/e2e/{test_name}"
-
     check = BaseCheckTask(spark,
                           name="DmCommutationCheckNewbieCheck",
                           check_id="0000-0000-0000-0000",
                           check_root_id="0000-0000-0000-0000",
-                          old_results_path=input_base + "/old_results",
-                          current_results_path=input_base + "/current_results",
-                          output_path=output_base + "/output",
+                          old_results_path=input_path + "/old_results",
+                          current_results_path=input_path + "/current_results",
+                          output_path=output_path,
                           )
     check.run_check()

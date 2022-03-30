@@ -4,12 +4,15 @@ import sbt.plugins.JvmPlugin
 import sbtbuildinfo.BuildInfoPlugin
 import spyt.YtPublishPlugin
 
+import java.time.Duration
+
 object E2ETestPlugin extends AutoPlugin {
   override def trigger = AllRequirements
 
   override def requires = JvmPlugin && YtPublishPlugin && BuildInfoPlugin
 
   object autoImport {
+    lazy val e2eDirTTL = Duration.ofMinutes(30).toMillis
     lazy val e2eTest = taskKey[Unit]("Run e2e tests")
   }
 

@@ -33,7 +33,7 @@ object ClusterConfig {
       "spark-launch-conf",
       isSnapshot
     )
-    val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None, isSnapshot))
+    val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None, isTtlLimited = isSnapshot))
 
     val globalConfigPublish = if (!isSnapshot) {
       log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")
