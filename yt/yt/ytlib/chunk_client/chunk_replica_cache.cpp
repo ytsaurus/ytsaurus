@@ -90,7 +90,9 @@ public:
 
             for (auto& [cellTag, stillMissingIndicies] : cellTagToStillMissingIndices) {
                 try {
-                    auto channel = connection->GetMasterCellDirectory()->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
+                    auto channel = connection->GetMasterCellDirectory()->GetMasterChannelOrThrow(
+                        EMasterChannelKind::Follower,
+                        cellTag);
 
                     TChunkServiceProxy proxy(std::move(channel));
                     TChunkServiceProxy::TReqLocateChunksPtr currentReq;
@@ -107,8 +109,11 @@ public:
                             cellTag,
                             currentChunkIds);
 
-                        currentReq->Invoke().Subscribe(
-                            BIND(&TChunkReplicaCache::OnChunksLocated, MakeStrong(this), cellTag, std::move(currentChunkIds), std::move(currentPromises)));
+                        currentReq->Invoke().Subscribe(BIND(&TChunkReplicaCache::OnChunksLocated,
+                            MakeStrong(this),
+                            cellTag,
+                            std::move(currentChunkIds),
+                            std::move(currentPromises)));
 
                         currentReq.Reset();
                     };
@@ -206,18 +211,17 @@ public:
             }
 
             if (oldRevision >= replicas.Revision) {
-                return false;
+                return;
             }
 
             update(entry);
-
-            return true;
         };
 
         {
             auto mapGuard = ReaderGuard(EntriesLock_);
             auto it = Entries_.find(chunkId);
-            if (it != Entries_.end() && tryUpdate(*it->second)) {
+            if (it != Entries_.end()) {
+                tryUpdate(*it->second);
                 return;
             }
         }
@@ -298,7 +302,7 @@ private:
                 cellTag);
 
             {
-                auto mapGuard = ReaderGuard(EntriesLock_);
+                auto mapGuard = WriterGuard(EntriesLock_);
                 for (int index = 0; index < std::ssize(chunkIds); ++index) {
                     auto chunkId = chunkIds[index];
                     auto it = Entries_.find(chunkId);

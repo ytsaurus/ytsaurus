@@ -63,7 +63,7 @@ public:
         int replicaIndex,
         int mediumIndex,
         TChunkLocationUuid locationUuid);
-    
+
     TChunkLocationUuid GetChunkLocationUuid() const;
 
 private:

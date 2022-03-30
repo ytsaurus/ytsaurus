@@ -789,7 +789,7 @@ public:
         return Promise_;
     }
 
-    TChunkInfoPtr FindChunkInfo(TChunkId chunkId)
+    TChunkInfoPtr FindChunkInfo(TChunkId chunkId) const
     {
         auto it = ChunkIdToInfo_.find(chunkId);
         return it == ChunkIdToInfo_.end() ? nullptr : it->second;
@@ -1064,10 +1064,10 @@ private:
         } else {
             PopulateChunkInfos(std::move(uncachedChunkIds));
         }
-     }
+    }
 
-     void PopulateChunkInfos(std::vector<TChunkId> chunkIds)
-     {
+    void PopulateChunkInfos(std::vector<TChunkId> chunkIds)
+    {
         YT_LOG_DEBUG("Some chunk infos are missing; will populate the cache (ChunkIds: %v)",
             chunkIds);
 
@@ -1075,10 +1075,10 @@ private:
         subsession->Run(std::move(chunkIds)).Subscribe(
             BIND(&TSimpleReadFragmentsSession::OnChunkInfosPopulated, MakeStrong(this), subsession)
                 .Via(SessionInvoker_));
-     }
+    }
 
-     void OnChunkInfosPopulated(const TIntrusivePtr<TPopulatingProbingSession>& subsession, const TError& error)
-     {
+    void OnChunkInfosPopulated(const TIntrusivePtr<TPopulatingProbingSession>& subsession, const TError& error)
+    {
         if (!error.IsOK()) {
             OnFatalError(error);
             return;
@@ -1102,8 +1102,8 @@ private:
             }
         }
 
-         OnChunkInfosReady();
-     }
+        OnChunkInfosReady();
+    }
 
     void OnChunkInfosReady()
     {
@@ -1149,7 +1149,8 @@ private:
         int unavailableChunkCount = PendingChunkCount_ - std::ssize(ChunkIdToChunkState_);
 
         YT_LOG_DEBUG("Chunk fragment read session started "
-            "(RetryIndex: %v/%v, PendingFragmentCount: %v, TotalChunkCount: %v, UnavailableChunkCount: %v, TotalNodeCount: %v, SuspiciousNodeCount: %v)",
+            "(RetryIndex: %v/%v, PendingFragmentCount: %v, TotalChunkCount: %v, UnavailableChunkCount: %v, "
+            "TotalNodeCount: %v, SuspiciousNodeCount: %v)",
             State_->RetryIndex + 1,
             Reader_->Config_->RetryCountLimit,
             PendingFragmentCount_,
