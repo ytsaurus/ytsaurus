@@ -26,7 +26,7 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
     E2ETestCase("fct_extreme_user_order_act", 100 seconds, Seq("phone_pd_id"))
       .withConf("spark.sql.mapKeyDedupPolicy", "LAST_WIN"),
     E2ETestCase("yt_cdm_agg_ca_adjust_event_sfo", 70 seconds, Seq("moscow_dt", "brand", "platform")),
-    E2ETestCase("cdm_callcenter_fct_operator_state_hist_yt", 180 seconds, Seq("agent_id", "utc_valid_from_dttm")),
+    E2ETestCase("cdm_callcenter_fct_operator_state_hist_yt", 115 seconds, Seq("agent_id", "utc_valid_from_dttm")),
     E2ETestCase("summary_fct_user_rating", 50 seconds, Seq("user_uid", "brand", "utc_order_dttm", "taximeter_order_id")),
     E2ETestCase("DmCommutationCheckNewbieCheck", 35 seconds, Seq("check_id", "check_name", "check_root_id", "msk_updated_dttm"))
   )
