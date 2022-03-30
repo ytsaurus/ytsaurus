@@ -1,5 +1,6 @@
 package spyt
 
+import com.typesafe.sbt.packager.Compat.ProcessLogger
 import sbt._
 import sbtrelease.ReleasePlugin.autoImport.{ReleaseStep, releaseStepTask}
 import sbtrelease.Utilities.stateW
@@ -8,6 +9,7 @@ import spyt.ReleaseUtils._
 import spyt.SpytPlugin.autoImport._
 
 import scala.sys.process.Process
+import scala.util.control.NonFatal
 
 object SpytSnapshot {
   lazy val clientSnapshotProcess: Seq[ReleaseStep] = Seq(
@@ -68,25 +70,52 @@ object SpytSnapshot {
       }
     }
 
-    def inc: SnapshotVersion = {
-      val hash = gitHash().getOrElse("")
-      val ticket = gitBranch().flatMap(ticketFromBranch).getOrElse("")
-      copy(dev = dev + 1, hash = hash, ticket = ticket)
-    }
+    def inc: SnapshotVersion = getVcsInfo()
+        .map(info => copy(dev = dev + 1, hash = info.hash, ticket = info.ticketName.getOrElse("")))
+        .get
 
     def updateDev(other: Option[SnapshotVersion]): SnapshotVersion = {
       other.map(o => copy(dev = dev.max(o.dev))).getOrElse(this)
     }
 
-    private def ticketFromBranch(branchName: String): Option[String] = {
-      val p = "^(\\w+)[ -_](\\d+)[ -_].*$".r
+    case class VcsInfo(hash: String, branch: String, isGit: Boolean) {
+      def ticketName: Option[String] = {
+        val p = "^(\\w+)[ -_](\\d+).*$".r
 
-      branchName match {
-        case p(q, n) => Some(q.toLowerCase + n)
-        case "develop" => Some("develop")
-        case _ => None
+        branch match {
+          case p(q, n) => Some(q.toLowerCase + n)
+          case "develop" => Some("develop")
+          case _ => None
+        }
       }
     }
+
+    private def getVcsInfo(submodule: String = ""): Option[VcsInfo] =
+      try {
+        val catchStderr: ProcessLogger = new ProcessLogger {
+          override def out(s: => String): Unit = ()
+          override def err(s: => String): Unit = ()
+          override def buffer[T](f: => T): T = f
+        }
+        val out = Process("arc info").lineStream(catchStderr).toList
+        val m = out.map(_.split(':').toList)
+          .map(as => (as(0), as(1).trim))
+          .toMap
+        for {
+          rev <- m.get("revision")
+          branch <- m.get("branch")
+        } yield VcsInfo(rev, branch, isGit = false)
+      } catch {
+        // arc not found or it is not arc branch
+        // let's try git
+        case NonFatal(_) =>
+          for {
+            branch <- gitBranch(submodule)
+            hash <- gitHash(submodule)
+          } yield VcsInfo(hash, branch, isGit = true)
+      }
+
+
 
     private def gitBranch(submodule: String = ""): Option[String] = {
       val cmd = "git rev-parse --abbrev-ref HEAD"
