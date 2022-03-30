@@ -11,7 +11,7 @@ using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
 
 void TMetaBase::Init(const NProto::TSegmentMeta& meta)
 {
-    Offset = meta.offset();
+    DataOffset = meta.offset();
     RowCount = meta.row_count();
     ChunkRowCount = meta.chunk_row_count();
     Type = meta.type();
@@ -153,7 +153,7 @@ size_t TPreparedChunkMeta::Prepare(
     std::vector<TColumnInfo> preparedColumns;
     // Plus one timestamp column.
     preparedColumns.resize(chunkSchemaColumns.size() + 1);
-    GroupIdPerColumn.resize(chunkSchemaColumns.size() + 1);
+    ColumnIdToGroupId.resize(chunkSchemaColumns.size() + 1);
     ColumnIndexInGroup.resize(chunkSchemaColumns.size() + 1);
 
     auto determineColumnGroup = [&] (std::vector<ui32> blockIds, int columnIndex) {
@@ -165,7 +165,7 @@ size_t TPreparedChunkMeta::Prepare(
         }
 
         auto groupId = it->second;
-        GroupIdPerColumn[columnIndex] = groupId;
+        ColumnIdToGroupId[columnIndex] = groupId;
 
         auto& blockGroup = ColumnGroups[groupId];
 

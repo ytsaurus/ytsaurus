@@ -27,7 +27,7 @@ namespace NBitmapDetail {
 
     constexpr static TByte GetBitMask(size_t index)
     {
-        return static_cast<TByte>(1) << (index % Bits);
+        return TByte(1) << (index % Bits);
     }
 
     constexpr static size_t GetWordIndex(size_t index)
@@ -111,6 +111,10 @@ private:
 };
 
 static_assert(sizeof(TBitmap) == sizeof(void*), "Do not modify TBitmap. Write your own class.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CopyBitmap(void* dst, ui32 dstOffset, const void* src, ui32 srcOffset, ui32 count);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -30,22 +30,10 @@ TKeySegmentReader<Type, true>::TKeySegmentReader()
 }
 
 template <EValueType Type>
-void TKeySegmentReader<Type, true>::SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers* tmpBuffers)
-{
-    DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
-}
-
-template <EValueType Type>
 TKeySegmentReader<Type, false>::TKeySegmentReader()
 {
     TLookupKeyIndexExtractor::InitNullIndex();
     TLookupDataExtractor<Type>::InitNullData();
-}
-
-template <EValueType Type>
-void TKeySegmentReader<Type, false>::SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers* tmpBuffers)
-{
-    DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,7 +111,12 @@ template <EValueType Type>
 void TColumnIterator<Type>::UpdateSegment()
 {
     const auto& segmentMeta = SegmentsMeta_[SegmentIndex_];
-    TBase::SetSegmentData(&segmentMeta, Block_.Begin() + segmentMeta.Offset, &LocalBuffers_);
+
+    DoInitKeySegment<Type>(
+        this,
+        &segmentMeta,
+        reinterpret_cast<const ui64*>(Block_.Begin() + segmentMeta.DataOffset),
+        &LocalBuffers_);
 }
 
 template <EValueType Type>
@@ -324,7 +317,7 @@ TReadSpan TBoundsIterator<TRowRange>::ShrinkRange(TReadSpan span)
     // [x] is less than [x, Min]
     // [x, null or value] is greater than [x, Min]
 
-    // Supports cases when key ranges are:
+    // Support cases when key ranges are:
     // [x]..[x] -> empty
     // [x, Min]..[x, Min] -> empty
     // [x, Max]..[x, Max] -> empty
@@ -376,6 +369,7 @@ void BuildReadRowRanges(
         auto currentValue = chunk->GetValue();
 
         if (keys->template SkipTo<Type>(currentValue)) {
+            // Check for open upper bound.
             if (auto controlSpan = keys->CoversIntervalBeforeBound()) {
                 nextMatchings->emplace_back(chunk->SkipTillEnd(), *controlSpan);
             }

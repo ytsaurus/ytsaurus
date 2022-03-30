@@ -17,7 +17,7 @@ Y_FORCE_INLINE bool IsDense(int type);
 
 struct TMetaBase
 {
-    ui64 Offset;
+    ui64 DataOffset;
     // RowCount can be evaluated from ChunkRowCount of adjacent segments.
     ui32 RowCount;
     ui32 ChunkRowCount;
@@ -130,7 +130,7 @@ struct TPreparedChunkMeta final
     };
 
     std::vector<TColumnGroup> ColumnGroups;
-    std::vector<ui16> GroupIdPerColumn;
+    std::vector<ui16> ColumnIdToGroupId;
     std::vector<ui16> ColumnIndexInGroup;
 
     size_t Prepare(

@@ -50,9 +50,30 @@ void DoInitKeySegment(
         ptr = extractor->InitIndex(meta, ptr, IsDense(meta->Type));
         extractor->InitData(meta, ptr, tmpBuffers);
     } else {
-        ptr = extractor->InitData(meta, ptr, tmpBuffers);
         bool dense = Type == EValueType::Double || Type == EValueType::Boolean || IsDense(meta->Type);
+
+        ptr = extractor->InitData(meta, ptr, tmpBuffers);
         extractor->InitIndex(meta, ptr, dense);
+    }
+}
+
+template <EValueType Type, class TExtractor>
+void DoInitKeySegment(
+    TExtractor* extractor,
+    const TMetaBase* meta,
+    const ui64* ptr,
+    TInitContext* initContext)
+{
+    if constexpr (IsStringLikeType(Type)) {
+        ptr = extractor->InitIndex(meta, ptr, IsDense(meta->Type), initContext);
+        extractor->InitData(meta, ptr, initContext->DataSpans, extractor->GetCount(), initContext);
+    } else {
+        bool dense = Type == EValueType::Double || Type == EValueType::Boolean || IsDense(meta->Type);
+
+        // For partial unpacking index must be always initialized before data.
+        auto indexDataPtr = extractor->GetEndPtr(meta, ptr);
+        extractor->InitIndex(meta, indexDataPtr, dense, initContext);
+        ptr = extractor->InitData(meta, ptr, initContext->DataSpans, extractor->GetCount(), initContext);
     }
 }
 
@@ -111,7 +132,7 @@ TRange<TTimestamp> TScanTimestampExtractor::GetWriteTimestamps(
     TChunkedMemoryPool* /*memoryPool*/) const
 {
     auto [begin, end] = GetWriteTimestampsSpan(rowIndex);
-    return MakeRange(WriteTimestamps_ + begin, WriteTimestamps_ + end);
+    return MakeRange(WriteTimestamps_.GetData() + begin, WriteTimestamps_.GetData() + end);
 }
 
 TRange<TTimestamp> TScanTimestampExtractor::GetDeleteTimestamps(
@@ -119,7 +140,7 @@ TRange<TTimestamp> TScanTimestampExtractor::GetDeleteTimestamps(
     TChunkedMemoryPool* /*memoryPool*/) const
 {
     auto [begin, end] = GetDeleteTimestampsSpan(rowIndex);
-    return MakeRange(DeleteTimestamps_ + begin, DeleteTimestamps_ + end);
+    return MakeRange(DeleteTimestamps_.GetData() + begin, DeleteTimestamps_.GetData() + end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,12 +229,12 @@ ui32 TScanKeyIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
 
 ui32 TScanKeyIndexExtractor::LowerRowBound(ui32 position) const
 {
-    return RowIndex_[position];
+    return RowIndexes_[position];
 }
 
 ui32 TScanKeyIndexExtractor::UpperRowBound(ui32 position) const
 {
-    return RowIndex_[position + 1];
+    return RowIndexes_[position + 1];
 }
 
 ui32 TScanVersionExtractorBase::AdjustIndex(ui32 valueIdx, ui32 valueIdxEnd, ui32 timestampId) const
@@ -266,6 +287,11 @@ ui32 TScanMultiValueIndexExtractor::SkipTo(ui32 rowIndex, ui32 position) const
     return position;
 }
 
+ui32 TScanMultiValueIndexExtractor::GetValueCount() const
+{
+    return RowToValue_[IndexCount_].ValueOffset;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ui32 TLookupTimestampExtractor::GetSegmentRowLimit() const
@@ -273,8 +299,8 @@ ui32 TLookupTimestampExtractor::GetSegmentRowLimit() const
     return SegmentRowLimit_;
 }
 
-void TLookupTimestampExtractor::ReadSegment(
-    const TMetaBase* meta,
+void TLookupTimestampExtractor::InitSegment(
+    const TTimestampMeta* meta,
     const char* data,
     TTmpBuffers* /*tmpBuffers*/)
 {
@@ -283,11 +309,9 @@ void TLookupTimestampExtractor::ReadSegment(
 
     TCompressedVectorView view(reinterpret_cast<const ui64*>(data));
 
-    const auto* timestampMeta = static_cast<const TTimestampMeta*>(meta);
-
-    BaseTimestamp_ = timestampMeta->BaseTimestamp;
-    ExpectedDeletesPerRow_ = timestampMeta->ExpectedDeletesPerRow;
-    ExpectedWritesPerRow_ = timestampMeta->ExpectedWritesPerRow;
+    BaseTimestamp_ = meta->BaseTimestamp;
+    ExpectedDeletesPerRow_ = meta->ExpectedDeletesPerRow;
+    ExpectedWritesPerRow_ = meta->ExpectedWritesPerRow;
 
     TimestampsDict_ = view;
     WriteTimestampIds_ = ++view;
@@ -673,16 +697,15 @@ ui32 TLookupKeyIndexExtractor::UpperRowBound(ui32 position) const
 const ui64* TLookupMultiValueIndexExtractor::InitIndex(
     const TMetaBase* meta,
     const TDenseMeta* denseMeta,
-    const ui64* ptr,
-    bool dense)
+    const ui64* ptr)
 {
     YT_VERIFY(ptr);
     Ptr_ = ptr;
     RowOffset_ = meta->ChunkRowCount - meta->RowCount;
     RowLimit_ = meta->ChunkRowCount;
-    Dense_ = dense;
+    Dense_ = denseMeta;
 
-    if (dense) {
+    if (denseMeta) {
         ExpectedPerRow_ = denseMeta->ExpectedPerRow;
     } else {
         ExpectedPerRow_ = 0;

@@ -630,7 +630,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     for (int index = 0; index < std::ssize(keyTypes); ++index) {
         const TBlockRef* blockRef = nullptr;
         if (index < chunkMeta->GetChunkKeyColumnCount()) {
-            auto groupId = preparedChunkMeta->GroupIdPerColumn[index];
+            auto groupId = preparedChunkMeta->ColumnIdToGroupId[index];
             auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
             blockRef = groupBlockHolders[blockHolderIndex].get();
         }
@@ -641,7 +641,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        auto groupId = preparedChunkMeta->GroupIdPerColumn[chunkSchemaIndex];
+        auto groupId = preparedChunkMeta->ColumnIdToGroupId[chunkSchemaIndex];
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         const auto* blockRef = groupBlockHolders[blockHolderIndex].get();
         columnInfos.emplace_back(
@@ -651,7 +651,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     {
         // Timestamp column info.
-        auto groupId = preparedChunkMeta->GroupIdPerColumn.back();
+        auto groupId = preparedChunkMeta->ColumnIdToGroupId.back();
         auto blockHolderIndex = LowerBound(groupIds.begin(), groupIds.end(), groupId) - groupIds.begin();
         const auto* blockRef = groupBlockHolders[blockHolderIndex].get();
         columnInfos.emplace_back(
