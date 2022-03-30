@@ -5,6 +5,7 @@
 #include "snapshot_representation.h"
 #include "config.h"
 #include "helpers.h"
+#include "profile_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -321,6 +322,12 @@ public:
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
             Config_->PassPeriod))
+        , ProfileManager_(CreateQueueProfileManager(
+            Invoker_,
+            QueueAgentProfiler
+                .WithPrefix("/controller")
+                .WithTag("queue_path", QueueRef_.Path)
+                .WithTag("queue_cluster", QueueRef_.Cluster)))
     {
         QueueSnapshot_ = New<TQueueSnapshot>();
         QueueSnapshot_->Row = std::move(queueRow);
@@ -404,9 +411,11 @@ private:
 
     const IInvokerPtr Invoker_;
 
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     const TPeriodicExecutorPtr PassExecutor_;
+
+    IQueueProfileManagerPtr ProfileManager_;
 
     i64 PassIndex_ = 0;
     TInstant PassInstant_ = TInstant::Zero();
@@ -427,16 +436,23 @@ private:
             PassInstant_ = nextPassInstant;
         });
 
-        UpdateSnapshots();
+        auto previousQueueSnapshot = UpdateSnapshots();
+
+        ProfileManager_->Profile(previousQueueSnapshot, QueueSnapshot_);
     }
 
-    void UpdateSnapshots()
+    //! Builds new queue/consumer snapshots and returns the old queue snapshot.
+    TQueueSnapshotPtr UpdateSnapshots()
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         YT_LOG_INFO("Updating controller snapshots");
+
+        auto previousQueueSnapshot = std::move(QueueSnapshot_);
 
         // First, update queue snapshot.
         QueueSnapshot_ = TQueueSnapshotBuildSession(
-            QueueSnapshot_->Row,
+            previousQueueSnapshot->Row,
             Invoker_,
             Logger,
             ClientDirectory_)
@@ -477,6 +493,8 @@ private:
         QueueSnapshot_->ConsumerSnapshots = ConsumerSnapshots_;
 
         YT_LOG_INFO("Controller snapshots updated");
+
+        return previousQueueSnapshot;
     }
 };
 

@@ -36,6 +36,11 @@ bool TCrossClusterReference::operator==(const TCrossClusterReference& other) con
     return Cluster == other.Cluster && Path == other.Path;
 }
 
+bool TCrossClusterReference::operator<(const TCrossClusterReference& other) const
+{
+    return std::tie(Cluster, Path) < std::tie(other.Cluster, other.Path);
+}
+
 TCrossClusterReference TCrossClusterReference::FromString(TStringBuf path)
 {
     TCrossClusterReference result;

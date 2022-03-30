@@ -24,6 +24,7 @@ struct TCrossClusterReference
     NYPath::TYPath Path;
 
     bool operator ==(const TCrossClusterReference& other) const;
+    bool operator <(const TCrossClusterReference& other) const;
 
     static TCrossClusterReference FromString(TStringBuf path);
 };
