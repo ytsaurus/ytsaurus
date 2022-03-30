@@ -153,6 +153,7 @@ private:
     TReachableState InitialState_;
     TReachableState CommittedState_;
     i64 LastOffloadedSequenceNumber_ = 0;
+    TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
     i64 NextLoggedSequenceNumber_ = 0;
     TVersion NextLoggedVersion_;
 
