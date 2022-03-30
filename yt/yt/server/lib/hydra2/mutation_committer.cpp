@@ -258,6 +258,12 @@ void TLeaderCommitter::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    SerializeMutationsExecutor_->Stop();
+    FlushMutationsExecutor_->Stop();
+
+    // YT-16687: We do not want to apply mutation after its promise is set.
+    Y_UNUSED(WaitFor(LastOffloadedMutationsFuture_));
+
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
     for (const auto& mutation : MutationQueue_) {
         mutation->LocalCommitPromise.TrySet(error);
@@ -966,7 +972,7 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 
     YT_VERIFY(LastOffloadedSequenceNumber_ + std::ssize(mutations) == CommittedState_.SequenceNumber);
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
-    ScheduleApplyMutations(std::move(mutations));
+    LastOffloadedMutationsFuture_ = ScheduleApplyMutations(std::move(mutations));
 }
 
 TReachableState TLeaderCommitter::GetCommittedState() const
