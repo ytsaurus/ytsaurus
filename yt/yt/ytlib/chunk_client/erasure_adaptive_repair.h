@@ -75,7 +75,8 @@ public:
         std::vector<IChunkReaderAllowingRepairPtr> readers,
         IInvokerPtr invoker,
         TTarget target,
-        NLogging::TLogger logger);
+        NLogging::TLogger logger,
+        NProfiling::TCounter adaptivelyRepairedCounter = {});
 
     template <typename TResultType>
     using TDoRepairAttempt = std::function<TFuture<TResultType>(
@@ -93,6 +94,7 @@ private:
     const IInvokerPtr Invoker_;
     const TTarget Target_;
     const NLogging::TLogger Logger;
+    NProfiling::TCounter AdaptivelyRepairedCounter_;
 
 
     NErasure::TPartIndexSet CalculateBannedParts();

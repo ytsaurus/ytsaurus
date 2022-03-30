@@ -42,7 +42,8 @@ TFuture<void> AdaptiveRepairErasedParts(
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     TPartWriterFactory writerFactory,
     const TClientChunkReadOptions& options,
-    const NLogging::TLogger& logger = {});
+    const NLogging::TLogger& logger = {},
+    NProfiling::TCounter adaptivelyRepairedCounter = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

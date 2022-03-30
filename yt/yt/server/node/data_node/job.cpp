@@ -854,7 +854,8 @@ public:
         const TJobSpec& jobSpec,
         const TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
-        IBootstrap* bootstrap)
+        IBootstrap* bootstrap,
+        TMasterJobSensors sensors)
         : TMasterJobBase(
             jobId,
             std::move(jobSpec),
@@ -865,6 +866,7 @@ public:
         , ChunkId_(FixChunkId(FromProto<TChunkId>(JobSpecExt_.chunk_id())))
         , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
+        , Sensors_(std::move(sensors))
     {
         Logger.AddTag("ChunkId: %v", ChunkId_);
     }
@@ -874,6 +876,7 @@ private:
     const TChunkId ChunkId_;
     const TChunkReplicaList SourceReplicas_;
     const TChunkReplicaWithMediumList TargetReplicas_;
+    const TMasterJobSensors Sensors_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
 
@@ -974,7 +977,7 @@ private:
             for (int partIndex = 0; partIndex < codec->GetTotalPartCount(); ++partIndex) {
                 readers.push_back(CreateReader(partIndex));
             }
-            return NChunkClient::AdaptiveRepairErasedParts(
+            auto future = NChunkClient::AdaptiveRepairErasedParts(
                 ChunkId_,
                 codec,
                 adaptiveRepairConfig,
@@ -982,7 +985,18 @@ private:
                 readers,
                 BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
                 chunkReadOptions,
-                Logger);
+                Logger,
+                Sensors_.AdaptivelyRepairedChunksCounter);
+
+            future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& handler) {
+                if (handler.IsOK()) {
+                    Sensors_.TotalRepairedChunksCounter.Increment();
+                } else {
+                    Sensors_.FailedRepairChunksCounter.Increment();
+                }
+            }));
+
+            return future;
         }
 
         // Legacy: make single repair attempt.
@@ -2491,7 +2505,8 @@ IJobPtr CreateMasterJob(
     TJobSpec&& jobSpec,
     const TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
-    IBootstrap* bootstrap)
+    IBootstrap* bootstrap,
+    const TMasterJobSensors& sensors)
 {
     auto type = CheckedEnumCast<EJobType>(jobSpec.type());
     switch (type) {
@@ -2517,7 +2532,8 @@ IJobPtr CreateMasterJob(
                 std::move(jobSpec),
                 resourceLimits,
                 std::move(config),
-                bootstrap);
+                bootstrap,
+                sensors);
 
         case EJobType::SealChunk:
             return New<TSealChunkJob>(
