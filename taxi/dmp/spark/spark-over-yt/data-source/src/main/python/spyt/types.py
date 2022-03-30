@@ -109,6 +109,21 @@ def register_xxHash64ZeroSeed(spark):
     sc._jvm.ru.yandex.spark.yt.common.utils.XxHash64ZeroSeed.registerFunction(spark._jsparkSession)
 
 
+def cityhash_udf(*s_cols):
+    sc = SparkContext._active_spark_context
+    sz = len(s_cols)
+    cols = sc._gateway.new_array(sc._jvm.Column, sz)
+    for i in range(sz):
+        cols[i] = _to_java_column(s_cols[i])
+    jc = sc._jvm.ru.yandex.spark.yt.common.utils.CityHash.cityHashUdf(cols)
+    return Column(jc)
+
+
+def register_cityHash(spark):
+    sc = SparkContext._active_spark_context
+    sc._jvm.ru.yandex.spark.yt.common.utils.CityHash.registerFunction(spark._jsparkSession)
+
+
 def tuple_type(element_types):
     """
     :param element_types: List[DataType]
