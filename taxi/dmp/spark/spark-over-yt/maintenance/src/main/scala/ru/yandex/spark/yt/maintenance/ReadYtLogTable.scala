@@ -13,8 +13,8 @@ import scala.language.postfixOps
 object ReadYtLogTable extends App {
   val cluster = "hume"
   val logName = "pushdown"
-  val startDttm = "2022-02-02T16:32:00"
-  val endDttm = "2022-02-03T00:00:00"
+  val startDttm = "2022-03-29T00:00:00"
+  val endDttm = "2022-03-30T00:00:00"
   val tablePath = "//home/spark/logs/log_table"
 
   val spark = SparkSession.builder().master("local[1]").getOrCreate()
@@ -50,7 +50,9 @@ object ReadYtLogTable extends App {
   println(s"Count: ${rows.count()}")
   println(s"Distinct apps: ${rows.select('discovery_path, 'app_id).distinct().count()}")
   rows
-    .filter(levelGreaterThanOrEqual(Level.INFO)('level))
+    .filter(levelGreaterThanOrEqual(Level.DEBUG)('level))
+//    .filter('partition_id === 0)
+    .filter('app_id === "app-20220329162640-0008")
     .sort("dttm")
     .show(1000, truncate = false)
 

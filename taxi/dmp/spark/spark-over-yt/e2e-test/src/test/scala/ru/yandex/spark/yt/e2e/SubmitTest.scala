@@ -8,7 +8,6 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -23,7 +22,7 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
     E2ETestCase("link_eda_user_appsession_request_id", 80 seconds, Seq("appsession_id")),
     E2ETestCase("link_eda_user_appsession_request_id_python2", 70 seconds, Seq("appsession_id"),
       customInputPath = Some(s"${SubmitTest.basePath}/link_eda_user_appsession_request_id/input"))
-      .withConf("spark.pyspark.python" , "python2.7"),
+      .withConf("spark.pyspark.python", "python2.7"),
     E2ETestCase("fct_extreme_user_order_act", 100 seconds, Seq("phone_pd_id"))
       .withConf("spark.sql.mapKeyDedupPolicy", "LAST_WIN"),
     E2ETestCase("yt_cdm_agg_ca_adjust_event_sfo", 70 seconds, Seq("moscow_dt", "brand", "platform")),
