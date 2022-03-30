@@ -151,33 +151,38 @@ func EnsureTables(
 		}
 
 	retry:
-		opts := &yt.GetNodeOptions{Attributes: []string{
-			"schema",
-			"expected_tablet_state",
-		}}
+		ok, err := yc.NodeExists(ctx, path, nil)
+		if err != nil {
+			return err
+		}
 
-		if err := yc.GetNode(ctx, path.Attrs(), &attrs, opts); err != nil {
-			if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
-				attrs := make(map[string]interface{})
-				for k, v := range table.Attributes {
-					attrs[k] = v
-				}
+		if !ok {
+			attrs := make(map[string]interface{})
+			for k, v := range table.Attributes {
+				attrs[k] = v
+			}
 
-				attrs["dynamic"] = true
-				attrs["schema"] = table.Schema
+			attrs["dynamic"] = true
+			attrs["schema"] = table.Schema
 
-				_, err = yc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
-					Recursive:  true,
-					Attributes: attrs,
-				})
+			_, err = yc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+				Recursive:  true,
+				Attributes: attrs,
+			})
 
-				if err != nil {
-					return err
-				}
-			} else {
+			if err != nil {
 				return err
 			}
 		} else {
+			opts := &yt.GetNodeOptions{Attributes: []string{
+				"schema",
+				"expected_tablet_state",
+			}}
+
+			if err := yc.GetNode(ctx, path.Attrs(), &attrs, opts); err != nil {
+				return err
+			}
+
 			fixUniqueKeys := func(s schema.Schema) schema.Schema {
 				if len(s.Columns) > 0 && s.Columns[0].SortOrder != schema.SortNone {
 					s.UniqueKeys = true
