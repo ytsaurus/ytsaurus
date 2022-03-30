@@ -1,14 +1,18 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
+import com.google.common.collect.ImmutableMap
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.YtWrapper.{RichLogger, attribute}
+import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request._
+
+import scala.util.control.NonFatal
 
 trait YtCypressUtils {
   self: YtTransactionUtils =>
@@ -30,15 +34,40 @@ trait YtCypressUtils {
 
   def escape(s: String): String = s.replaceAll("([\\\\/@&*\\[{])", "\\\\$1")
 
+  def isDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean = {
+    try {
+      val x = yt.getNode(new GetNode(formatPath(path) + "/@type").optionalTransaction(transaction)).join()
+      x.stringValue() == "map_node"
+    } catch {
+      case NonFatal(e) =>
+        log.debug(s"Cannot get node type: ${e.getMessage}", e)
+        false
+    }
+  }
+
+  def createLink(sourcePath: String, destPath: String, transaction: Option[String] = None,
+                 ignoreExisting: Boolean = false)(implicit yt: CompoundClient): Unit = {
+    log.debug(s"Creating link $sourcePath -> $destPath, transaction $transaction")
+    yt.createNode(new CreateNode(formatPath(destPath), ObjectType.Link)
+      .optionalTransaction(transaction)
+      .setAttributes(ImmutableMap.of("target_path", YTree.stringNode(sourcePath)))
+      .setIgnoreExisting(ignoreExisting)
+      .setRecursive(true)
+    ).join()
+  }
+
   def createDir(path: String, transaction: Option[String] = None, ignoreExisting: Boolean = false)
                (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create new directory: $path, transaction $transaction")
-    yt.createNode(
-      new CreateNode(formatPath(path), ObjectType.MapNode)
-        .setRecursive(true)
-        .setIgnoreExisting(ignoreExisting)
-        .optionalTransaction(transaction)
-    ).join()
+    val fp = formatPath(path)
+    if (!ignoreExisting || !isDir(fp, transaction)) {
+      yt.createNode(
+        new CreateNode(fp, ObjectType.MapNode)
+          .setRecursive(true)
+          .setIgnoreExisting(ignoreExisting)
+          .optionalTransaction(transaction)
+      ).join()
+    }
   }
 
   def listDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Array[String] = {
