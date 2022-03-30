@@ -10,6 +10,7 @@ from yt_commands import (
 from yt.common import YtError
 
 import pytest
+from flaky import flaky
 
 from copy import deepcopy
 import builtins
@@ -791,6 +792,7 @@ class TestDynamicMedia(YTEnvSetup):
         wait(lambda: get(f"//sys/chunk_locations/{location}/@statistics/medium_name") == "default")
 
     @authors("kvk1920")
+    @flaky(max_runs=2)
     def test_replica_collision(self):
         self._validate_empty_medium_overrides()
         medium = "testmedium"
