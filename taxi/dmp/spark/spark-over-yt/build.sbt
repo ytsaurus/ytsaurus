@@ -8,6 +8,8 @@ import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
 import spyt.ZipPlugin.autoImport._
 
+import java.util.UUID
+
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -46,7 +48,7 @@ lazy val `spark-fork` = (project in file("spark-fork"))
       val isSnapshotValue = isSnapshotVersion(versionValue)
 
       Seq(
-        YtPublishFile(tarArchiveBuild.value, basePath, None, isSnapshotValue)
+        YtPublishFile(tarArchiveBuild.value, basePath, None, isTtlLimited = isSnapshotValue)
       )
     }
   )
@@ -83,7 +85,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
         (Compile / resourceDirectory).value)
 
       sparkLink ++ legacyLink ++ Seq(
-        YtPublishFile(assembly.value, basePath, None, isSnapshotValue),
+        YtPublishFile(assembly.value, basePath, None, isTtlLimited = isSnapshotValue),
       ) ++ clusterConfigArtifacts
     }
   )
@@ -129,8 +131,8 @@ lazy val `data-source` = (project in file("data-source"))
       } else Nil
 
       link ++ Seq(
-        YtPublishFile(assembly.value, publishDir, proxy = None, isSnapshot.value),
-        YtPublishFile(zip.value, publishDir, proxy = None, isSnapshot.value)
+        YtPublishFile(assembly.value, publishDir, proxy = None, isTtlLimited = isSnapshot.value),
+        YtPublishFile(zip.value, publishDir, proxy = None, isTtlLimited = isSnapshot.value)
       )
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
@@ -164,6 +166,8 @@ lazy val `file-system` = (project in file("file-system"))
     assembly / test := {}
   )
 
+lazy val e2eTestUDirPath = s"$sparkYtE2ETestPath/${UUID.randomUUID()}"
+
 lazy val `e2e-checker` = (project in file("e2e-checker"))
   .dependsOn(`data-source` % Provided)
   .settings(
@@ -176,18 +180,22 @@ lazy val `e2e-test` = (project in file("e2e-test"))
   .dependsOn(`yt-wrapper`, `file-system`, `data-source`, `spark-submit`, `e2e-checker`,
     `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
+    Test / javaOptions ++= Seq(s"-De2eTestHomePath=$sparkYtE2ETestPath"),
+    Test / javaOptions ++= Seq(s"-De2eTestUDirPath=$e2eTestUDirPath"),
     Test / javaOptions ++= Option(System.getProperty("proxies")).map(x => s"-Dproxies=$x").toSeq,
     libraryDependencies ++= commonDependencies.value,
     publishYtArtifacts ++= {
-      val checker = YtPublishFile((`e2e-checker` / assembly).value, sparkYtE2ETestPath,
-        proxy = None, isSnapshot = false, Some("check.jar"))
+      val tempFolder = YtPublishDirectory(e2eTestUDirPath, proxy = None,
+        isTtlLimited = true, forcedTTL = Some(e2eDirTTL))
+      val checker = YtPublishFile((`e2e-checker` / assembly).value, e2eTestUDirPath,
+        proxy = None, Some("check.jar"))
       val pythonScripts: Seq[YtPublishArtifact] = (sourceDirectory.value / "test" / "python")
         .listFiles()
         .map { script =>
-          YtPublishFile(script, s"$sparkYtE2ETestPath/${script.getName.dropRight(3)}",
-            proxy = None, isSnapshot = false, Some("job.py"))
+          YtPublishFile(script, s"$e2eTestUDirPath/${script.getName.dropRight(3)}",
+            proxy = None, Some("job.py"))
         }
-      checker +: pythonScripts
+      tempFolder +: checker +: pythonScripts
     },
     buildInfoKeys := Seq[BuildInfoKey](ThisBuild / spytClientVersion),
     buildInfoPackage := "ru.yandex.spark.yt.e2e"

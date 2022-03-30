@@ -1,10 +1,10 @@
+import sys
+
 from pyspark.sql import functions as f, types as t
 from spyt import spark_session
 
-test_name = "yt_cdm_agg_ca_adjust_event_sfo"
-input_path = "//home/spark/e2e/{}/input".format(test_name)
-output_path = "//home/spark/e2e/{}/output".format(test_name)
-print(test_name)
+input_path = sys.argv[1]
+output_path = sys.argv[2]
 
 SPARK_DATE_FORMAT = 'yyyy-MM-dd'
 

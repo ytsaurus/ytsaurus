@@ -21,7 +21,8 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
 
   val jobs = Seq(
     E2ETestCase("link_eda_user_appsession_request_id", 80 seconds, Seq("appsession_id")),
-    E2ETestCase("link_eda_user_appsession_request_id_python2", 70 seconds, Seq("appsession_id"))
+    E2ETestCase("link_eda_user_appsession_request_id_python2", 70 seconds, Seq("appsession_id"),
+      customInputPath = Some(s"${SubmitTest.basePath}/link_eda_user_appsession_request_id/input"))
       .withConf("spark.pyspark.python" , "python2.7"),
     E2ETestCase("fct_extreme_user_order_act", 100 seconds, Seq("phone_pd_id"))
       .withConf("spark.sql.mapKeyDedupPolicy", "LAST_WIN"),
@@ -62,7 +63,8 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
 
 object SubmitTest {
   private val executionTimeSpread = 1.5
-  private val basePath = "//home/spark/e2e"
+  val basePath: String = System.getProperty("e2eTestHomePath")
+  val userDirPath: String = System.getProperty("e2eTestUDirPath")
 
   private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, s"$basePath/cluster",
     BuildInfo.spytClientVersion, DefaultRpcCredentials.user, DefaultRpcCredentials.token)
@@ -74,6 +76,10 @@ object SubmitTest {
       }
       .setAppName(testCase.name)
       .setAppResource(testCase.jobPath)
+      .addAppArgs(
+        testCase.inputPath,
+        testCase.outputPath
+      )
 
     val id = submitClient.submit(launcher).get
 
@@ -91,7 +97,7 @@ object SubmitTest {
   def runCheck(testCase: E2ETestCase)(implicit yt: CompoundClient): CheckResult = {
     val launcher = submitClient.newLauncher()
       .setAppName(s"${testCase.name}_check")
-      .setAppResource(s"yt:/$basePath/check.jar")
+      .setAppResource(s"yt:/$userDirPath/check.jar")
       .setMainClass(CheckApp.getClass.getCanonicalName.dropRight(1))
       .addAppArgs(
         "--actual",

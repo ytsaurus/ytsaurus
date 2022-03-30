@@ -30,15 +30,37 @@ object YtPublishPlugin extends AutoPlugin {
 
       def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit
 
-      def isSnapshot: Boolean
+      def isTtlLimited: Boolean
+
+      def forcedTTL: Option[Long]
+
+      def ttlMillis: Option[Long] = {
+        if (isTtlLimited) {
+          forcedTTL.orElse(Some(Duration.ofDays(7).toMillis))
+        } else {
+          None
+        }
+      }
+    }
+
+    case class YtPublishDirectory(remoteDir: String,
+                                  proxy: Option[String],
+                                  override val isTtlLimited: Boolean = false,
+                                  override val forcedTTL: Option[Long] = None) extends YtPublishArtifact {
+      override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
+        createDir(remoteDir, proxyName, log, ttlMillis)
+      }
     }
 
     case class YtPublishLink(originalPath: String,
                              remoteDir: String,
                              proxy: Option[String],
                              linkName: String,
-                             override val isSnapshot: Boolean) extends YtPublishArtifact {
+                             override val isTtlLimited: Boolean = false,
+                             override val forcedTTL: Option[Long] = None) extends YtPublishArtifact {
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
+        createDir(remoteDir, proxyName, log, ttlMillis)
+
         val link = s"$remoteDir/$linkName"
         log.info(s"Link $originalPath to $link..")
         yt.linkNode(new LinkNode(originalPath, link).setIgnoreExisting(true)).join()
@@ -48,11 +70,14 @@ object YtPublishPlugin extends AutoPlugin {
     case class YtPublishFile(localFile: File,
                              remoteDir: String,
                              proxy: Option[String],
-                             override val isSnapshot: Boolean,
-                             remoteName: Option[String] = None) extends YtPublishArtifact {
+                             remoteName: Option[String] = None,
+                             override val isTtlLimited: Boolean = false,
+                             override val forcedTTL: Option[Long] = None) extends YtPublishArtifact {
       private def dstName: String = remoteName.getOrElse(localFile.getName)
 
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
+        createDir(remoteDir, proxyName, log, ttlMillis)
+
         val src = localFile
         val dst = s"$remoteDir/$dstName"
 
@@ -61,7 +86,9 @@ object YtPublishPlugin extends AutoPlugin {
           .setTransactionTimeout(Duration.ofMinutes(10))).join()
         try {
           if (yt.existsNode(dst).join()) yt.removeNode(dst).join()
-          yt.createNode(dst, ObjectType.File).join()
+          val request = new CreateNode(dst, ObjectType.File)
+          ttlMillis.foreach(setTTL(request, _))
+          yt.createNode(request).join()
 
           val buffer = new Array[Byte](32 * 1024 * 1024)
           val writer = yt.writeFile(new WriteFile(dst).setTimeout(Duration.ofMinutes(10))).join()
@@ -105,13 +132,18 @@ object YtPublishPlugin extends AutoPlugin {
                                  remoteDir: String,
                                  proxy: Option[String],
                                  remoteName: String,
-                                 override val isSnapshot: Boolean) extends YtPublishArtifact {
+                                 override val isTtlLimited: Boolean = false,
+                                 override val forcedTTL: Option[Long] = None) extends YtPublishArtifact {
       override def publish(proxyName: String, log: sbt.Logger)(implicit yt: YtClient): Unit = {
+        createDir(remoteDir, proxyName, log, ttlMillis)
+
         val dst = s"$remoteDir/$remoteName"
         val exists = yt.existsNode(dst).join().booleanValue()
         if (!exists) {
           log.info(s"Create document $dst at YT cluster $proxyName")
-          yt.createNode(new CreateNode(dst, ObjectType.Document)).join()
+          val request = new CreateNode(dst, ObjectType.Document)
+          ttlMillis.foreach(setTTL(request, _))
+          yt.createNode(request).join()
         }
         val ysonForPublish = yson.resolveSymlinks(yt)
         log.info(s"Upload document $ysonForPublish to YT cluster $proxyName $dst..")
@@ -138,6 +170,10 @@ object YtPublishPlugin extends AutoPlugin {
 
   import autoImport._
 
+  private def setTTL(request: CreateNode, ttl: Long): Unit = {
+    request.addAttribute("expiration_timeout", YTree.integerNode(ttl));
+  }
+
   private def createDir(dir: String, proxy: String, log: Logger,
                         ttlMillis: Option[Long])(implicit yt: YtClient): Unit = {
     val exists = yt.existsNode(dir).join().booleanValue()
@@ -146,9 +182,7 @@ object YtPublishPlugin extends AutoPlugin {
       val request = new CreateNode(dir, ObjectType.MapNode)
         .setIgnoreExisting(true)
         .setRecursive(true)
-      ttlMillis.foreach { ttl =>
-        request.setAttributes(java.util.Map.of("expiration_timeout", YTree.integerNode(ttl)));
-      }
+      ttlMillis.foreach(setTTL(request, _))
       yt.createNode(request).join()
     } else {
       ttlMillis.foreach { ttl =>
@@ -194,8 +228,6 @@ object YtPublishPlugin extends AutoPlugin {
       if (sys.env.get("RELEASE_TEST").exists(_.toBoolean)) {
         log.info(s"RELEASE_TEST: Publish $artifact to $proxy")
       } else {
-        val ttlMillis = if (artifact.isSnapshot) Some(Duration.ofDays(7).toMillis) else None
-        createDir(artifact.remoteDir, proxy, log, ttlMillis)
         artifact.publish(proxy, log)
       }
     }
@@ -212,9 +244,14 @@ object YtPublishPlugin extends AutoPlugin {
 
       val creds = publishYtCredentials.value
       val artifacts = publishYtArtifacts.value
-      val (links, files) = artifacts.partition {
-        case _: YtPublishLink => true
-        case _ => false
+      val (dirs, files, links) = artifacts
+        .foldLeft((Seq.empty[YtPublishArtifact], Seq.empty[YtPublishArtifact], Seq.empty[YtPublishArtifact])) {
+          case ((dirs, files, links), artifact) =>
+            artifact match {
+              case _: YtPublishLink => (dirs, files, artifact +: links)
+              case _: YtPublishDirectory => (artifact +: dirs, files, links)
+              case _ => (dirs, artifact +: files, links)
+            }
       }
       if (ytProxies.isEmpty) {
         log.warn("No yt proxies provided. " +
@@ -225,6 +262,7 @@ object YtPublishPlugin extends AutoPlugin {
         implicit val yt: YtClient = ytClient
         try {
           // publish links strictly after files
+          dirs.par.foreach(publishArtifact(_, proxy, log))
           files.par.foreach(publishArtifact(_, proxy, log))
           links.par.foreach(publishArtifact(_, proxy, log))
         } finally {

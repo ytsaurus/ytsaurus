@@ -2,14 +2,13 @@ from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
+import sys
 
 from pyspark.sql import DataFrame, functions as f, Window, types as t, Column
 from spyt import spark_session
 
-test_name = "cdm_callcenter_fct_operator_state_hist_yt"
-input_path = "//home/spark/e2e/{}/input".format(test_name)
-output_path = "//home/spark/e2e/{}/output".format(test_name)
-print(test_name)
+input_path = sys.argv[1]
+output_path = sys.argv[2]
 
 SPARK_MILLISECONDS_FORMAT = 'yyyy-MM-dd HH:mm:ss.SSS'
 

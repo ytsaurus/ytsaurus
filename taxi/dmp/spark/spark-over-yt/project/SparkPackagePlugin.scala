@@ -122,7 +122,7 @@ object SparkPackagePlugin extends AutoPlugin {
         "spark-launch-conf",
         sparkIsSnapshot.value
       )
-      val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None, sparkIsSnapshot.value))
+      val configsPublish = sidecarConfigs.map(file => YtPublishFile(file, versionConfPath, None, isTtlLimited = sparkIsSnapshot.value))
 
       val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         log.info(s"Prepare configs for ${ytProxies.mkString(", ")}")

@@ -1,10 +1,10 @@
+import sys
+
 from spyt import spark_session
 from pyspark.sql import DataFrame, functions as f, Window
 
-test_name = "fct_extreme_user_order_act"
-input_path = "//home/spark/e2e/{}/input".format(test_name)
-output_path = "//home/spark/e2e/{}/output".format(test_name)
-print(test_name)
+input_path = sys.argv[1]
+output_path = sys.argv[2]
 
 UNKNOWN_BRAND_LITERAL = 'unknown'
 ALL_BRAND_LITERAL = '__all__'
