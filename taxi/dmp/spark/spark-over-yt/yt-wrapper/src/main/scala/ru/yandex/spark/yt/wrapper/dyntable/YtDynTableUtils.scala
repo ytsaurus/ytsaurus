@@ -239,6 +239,15 @@ trait YtDynTableUtils {
     processModifyRowsRequest(new ModifyRowsRequest(formatPath(path), schema).addDelete(map), parentTransaction)
   }
 
+  def deleteRows(path: String, schema: TableSchema, rows: Seq[java.util.Map[String, Any]],
+                parentTransaction: Option[ApiServiceTransaction] = None)(implicit yt: CompoundClient): Unit = {
+
+    val request = rows.foldLeft(new ModifyRowsRequest(formatPath(path), schema)){ case (req, next) =>
+      req.addDelete(next)
+    }
+    processModifyRowsRequest(request, parentTransaction)
+  }
+
   def tabletState(path: String)(implicit yt: CompoundClient): TabletState = {
     TabletState.fromString(attribute(formatPath(path), YtAttributes.tabletState).stringValue())
   }

@@ -10,7 +10,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 object CreateYtLogTable extends App {
-  val cluster = "hume"
+  val cluster = "hahn"
   implicit val yt = YtWrapper.createRpcClient("maintenance", YtClientConfiguration.default(cluster)).yt
 
   val tableSettings = new YtTableSettings {
@@ -19,6 +19,7 @@ object CreateYtLogTable extends App {
     override def optionsAny: Map[String, Any] = Map("dynamic" -> true)
   }
 
+  YtWrapper.createDir("//home/spark/logs", ignoreExisting = true)
   YtWrapper.createTable("//home/spark/logs/log_table", tableSettings)
   YtWrapper.mountTableSync("//home/spark/logs/log_table", 10 seconds)
 }
