@@ -162,10 +162,10 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
                 }),
             actual.end());
 
-        std::vector<TVersionedRow> ex(it, it + actual.size());
+        std::vector<TVersionedRow> ex(it, std::min(it + actual.size(), expected->end()));
 
         CheckSchemafulResult(ex, actual);
-        it += actual.size();
+        it += ex.size();
     }
 
     EXPECT_TRUE(it == expected->end());

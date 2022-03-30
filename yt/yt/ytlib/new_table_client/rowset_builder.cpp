@@ -55,7 +55,10 @@ public:
 
     virtual ~TKeyColumnBase() = default;
 
+#ifdef FULL_UNPACK
     virtual ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) = 0;
+#endif
+    virtual ui32 UpdateSegment(TInitContext* initContext) = 0;
 
     virtual ui32 ReadKeys(
         TUnversionedValue** keys,
@@ -83,12 +86,26 @@ public:
         }
     }
 
+#ifdef FULL_UNPACK
     ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) override
     {
         auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
         if (meta) {
-            auto data = GetBlock().begin() + meta->Offset;
-            DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
+            auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
+            DoInitKeySegment<Type>(this, meta, ptr, tmpBuffers);
+        }
+        return GetSegmentRowLimit();
+    }
+#endif
+
+    ui32 UpdateSegment(TInitContext* initContext) override
+    {
+        auto startRowIndex = initContext->Spans.Front().Lower;
+
+        auto meta = SkipToSegment<TKeyMeta<Type>>(startRowIndex);
+        if (meta) {
+            auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
+            DoInitKeySegment<Type>(this, meta, ptr, initContext);
         }
         return GetSegmentRowLimit();
     }
@@ -120,6 +137,7 @@ private:
     {
         YT_ASSERT(rowLimit <= GetSegmentRowLimit());
         YT_ASSERT(position < GetCount());
+        YT_ASSERT(rowIndex >= LowerRowBound(position));
         YT_ASSERT(rowIndex < UpperRowBound(position));
 
         // Keep counter in register.
@@ -132,6 +150,7 @@ private:
             Extract(&value, position);
 
             ui32 nextRowIndex = rowLimit < UpperRowBound(position) ? rowLimit : UpperRowBound(position++);
+            YT_ASSERT(rowIndex < nextRowIndex);
 
             auto keysEnd = keys + nextRowIndex - rowIndex;
             rowIndex = nextRowIndex;
@@ -192,7 +211,7 @@ public:
     {
         auto meta = SkipToSegment<TKeyMeta<Type>>(rowIndex);
         if (meta) {
-            auto data = GetBlock().begin() + meta->Offset;
+            auto data = GetBlock().begin() + meta->DataOffset;
             DoInitKeySegment<Type>(this, meta, reinterpret_cast<const ui64*>(data), tmpBuffers);
         }
         return GetSegmentRowLimit();
@@ -255,6 +274,17 @@ public:
     {
         ptr = TScanVersionExtractor<Aggregate>::InitVersion(ptr);
         TScanDataExtractor<Type>::InitData(meta, ptr, tmpBuffers);
+    }
+
+    void Init(
+        const TMetaBase* meta,
+        const ui64* ptr,
+        TRange<TReadSpan> spans,
+        ui32 batchSize,
+        TTmpBuffers* tmpBuffers)
+    {
+        ptr = TScanVersionExtractor<Aggregate>::InitVersion(ptr, spans, batchSize);
+        TScanDataExtractor<Type>::InitData(meta, ptr, spans, batchSize, tmpBuffers);
     }
 
 protected:
@@ -485,9 +515,9 @@ public:
             return GetSegmentRowLimit();
         }
 
-        bool dense = IsDense(meta->Type);
-        auto data = GetBlock().begin() + meta->Offset;
-        auto ptr = TValueColumnBase<ui32>::InitIndex(meta, meta, reinterpret_cast<const ui64*>(data), dense);
+        const TDenseMeta* denseMeta = IsDense(meta->Type) ? meta : nullptr;
+        auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
+        ptr = TValueColumnBase<ui32>::InitIndex(meta, denseMeta, ptr);
         TVersionedValueBase::Init(meta, ptr, tmpBuffers);
 
 #ifdef USE_UNSPECIALIZED_SEGMENT_READERS
@@ -500,7 +530,7 @@ public:
 
         DoReadValues_ = &DoReadValues<TLookupMultiValueIndexExtractor, TVersionedValueBase>;
 #else
-        if (dense) {
+        if (denseMeta) {
             InitSegmentReaders<true>(meta->Type);
         } else {
             InitSegmentReaders<false>(meta->Type);
@@ -580,12 +610,12 @@ public:
 
     virtual ~TValueColumnBase() = default;
 
+#ifdef FULL_UNPACK
     virtual ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) = 0;
+#endif
+    virtual ui32 UpdateSegment(TInitContext* initContext) = 0;
 
-    ui32 CollectCounts(
-        ui32* counts,
-        TRange<TReadSpan> spans,
-        ui32 position) const
+    ui32 CollectCounts(ui32* counts, TRange<TReadSpan> spans, ui32 position) const
     {
         YT_ASSERT(!spans.Empty());
         position = SkipTo(spans.Front().Lower, position);
@@ -663,21 +693,34 @@ public:
         , TVersionedValueBase(columnId)
     { }
 
+#ifdef FULL_UNPACK
     ui32 UpdateSegment(ui32 rowIndex, TTmpBuffers* tmpBuffers) override
     {
         auto meta = SkipToSegment<TValueMeta<Type>>(rowIndex);
-
         if (meta) {
-            auto data = GetBlock().begin() + meta->Offset;
+            auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
 
-            bool dense = IsDense(meta->Type);
-            auto ptr = TValueColumnBase<TReadSpan>::InitIndex(
-                meta,
-                meta,
-                reinterpret_cast<const ui64*>(data),
-                dense,
-                tmpBuffers);
+            const TDenseMeta* denseMeta = IsDense(meta->Type) ? meta : nullptr;
+            ptr = TValueColumnBase<TReadSpan>::InitIndex(meta, denseMeta, ptr, tmpBuffers);
             TVersionedValueBase::Init(meta, ptr, tmpBuffers);
+        }
+
+        return GetSegmentRowLimit();
+    }
+#endif
+
+    ui32 UpdateSegment(TInitContext* initContext) override
+    {
+        auto startRowIndex = initContext->Spans.Front().Lower;
+
+        auto meta = SkipToSegment<TValueMeta<Type>>(startRowIndex);
+        if (meta) {
+            auto* ptr = reinterpret_cast<const ui64*>(GetBlock().begin() + meta->DataOffset);
+
+            const TDenseMeta* denseMeta = IsDense(meta->Type) ? meta : nullptr;
+            ptr = TValueColumnBase<TReadSpan>::InitIndex(meta, denseMeta, ptr, initContext);
+            ui32 valueCount = TValueColumnBase<TReadSpan>::GetValueCount();
+            TVersionedValueBase::Init(meta, ptr, initContext->DataSpans, valueCount, initContext);
         }
 
         return GetSegmentRowLimit();
@@ -763,8 +806,8 @@ class TRowAllocatorBase
 public:
     using TTimestampExtractorBase = TTimestampExtractor<TReadItem>;
 
+    using TTimestampExtractorBase::InitSegment;
     using TTimestampExtractorBase::GetSegmentRowLimit;
-    using TTimestampExtractorBase::ReadSegment;
     using TTimestampExtractorBase::GetWriteTimestamps;
     using TTimestampExtractorBase::GetDeleteTimestamps;
 
@@ -781,8 +824,20 @@ public:
     {
         auto meta = SkipToSegment<TTimestampMeta>(rowIndex);
         if (meta) {
-            auto data = GetBlock().begin() + meta->Offset;
-            ReadSegment(meta, data, tmpBuffers);
+            auto data = GetBlock().begin() + meta->DataOffset;
+            InitSegment(static_cast<const TTimestampMeta*>(meta), data, tmpBuffers);
+        }
+        return GetSegmentRowLimit();
+    }
+
+    ui32 UpdateSegment(TInitContext* initContext)
+    {
+        auto startRowIndex = initContext->Spans.Front().Lower;
+
+        auto meta = SkipToSegment<TTimestampMeta>(startRowIndex);
+        if (meta) {
+            auto data = GetBlock().begin() + meta->DataOffset;
+            InitSegment(static_cast<const TTimestampMeta*>(meta), data, initContext);
         }
         return GetSegmentRowLimit();
     }
@@ -796,6 +851,16 @@ public:
     {
         auto writeTimestamps = GetWriteTimestamps(rowIndex, rowBuffer->GetPool());
         auto deleteTimestamps = GetDeleteTimestamps(rowIndex, rowBuffer->GetPool());
+
+#ifndef NDEBUG
+            for (int index = 1; index < std::ssize(writeTimestamps); ++index) {
+                YT_VERIFY(writeTimestamps[index - 1] > writeTimestamps[index]);
+            }
+
+            for (int index = 1; index < std::ssize(deleteTimestamps); ++index) {
+                YT_VERIFY(deleteTimestamps[index - 1] > deleteTimestamps[index]);
+            }
+#endif
 
         auto [lowerDeleteIt, lowerWriteIt] = GetLowerTimestampsIndexes(
             deleteTimestamps.Begin(),
@@ -1060,6 +1125,53 @@ public:
         return segmentRowLimit;
     }
 
+    ui32 UpdateSegments(ui32 resultRowOffset, TMutableRange<TReadSpan> spans, TReaderStatistics* readerStatistics)
+    {
+        YT_VERIFY(!spans.empty());
+        ui32 startRowIndex = spans.Front().Lower;
+
+        TInitContext initContext(resultRowOffset, spans, &TmpBuffers_);
+
+        // Timestamp column segment limit.
+        ui32 segmentRowLimit = TBase::GetSegmentRowLimit();
+        if (startRowIndex >= segmentRowLimit) {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&readerStatistics->DecodeTimestampSegmentTime);
+
+            ++readerStatistics->UpdateSegmentCallCount;
+            segmentRowLimit = TBase::UpdateSegment(&initContext);
+        }
+
+        {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&readerStatistics->DecodeKeySegmentTime);
+            for (const auto& column : KeyColumns_) {
+                auto currentLimit = column->GetSegmentRowLimit();
+                if (startRowIndex >= currentLimit) {
+                    ++readerStatistics->UpdateSegmentCallCount;
+                    currentLimit = column->UpdateSegment(&initContext);
+                    Positions_[&column - KeyColumns_.begin()] = 0;
+                }
+
+                segmentRowLimit = std::min(segmentRowLimit, currentLimit);
+            }
+        }
+
+        {
+            TValueIncrementingTimingGuard<TWallTimer> timingGuard(&readerStatistics->DecodeValueSegmentTime);
+            for (const auto& column : ValueColumns_) {
+                auto currentLimit = column->GetSegmentRowLimit();
+                if (startRowIndex >= currentLimit) {
+                    ++readerStatistics->UpdateSegmentCallCount;
+                    currentLimit = column->UpdateSegment(&initContext);
+                    Positions_[GetKeyColumnCount() + &column - ValueColumns_.begin()] = 0;
+                }
+
+                segmentRowLimit = std::min(segmentRowLimit, currentLimit);
+            }
+        }
+
+        return segmentRowLimit;
+    }
+
     ui16 GetKeyColumnCount() const
     {
         return KeyColumns_.size();
@@ -1084,7 +1196,7 @@ public:
         {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&readerStatistics->CollectCountsTime);
 
-            ui32 fixedValueCountColumns = 0;
+            ui16 fixedValueCountColumns = 0;
             ui16 columnId = GetKeyColumnCount();
             for (const auto& column : ValueColumns_) {
                 if (ProduceAll_ || column->IsAggregate()) {
@@ -1269,6 +1381,23 @@ struct TColumnRefiner
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Environment variable options for debug and benchmark purposes.
+#ifdef FULL_UNPACK
+static bool IsFullUnpack()
+{
+    static bool result = (getenv("FULL_UNPACK") != nullptr);
+    return result;
+}
+#endif
+
+static bool IsNoRead()
+{
+    static bool result = (getenv("NO_READ") != nullptr);
+    return result;
+}
+
 template <class TReadItem>
 class TReader;
 
@@ -1306,12 +1435,27 @@ public:
         return ReadList_.empty();
     }
 
-    // Returns read row count.
     ui32 ReadRowsByList(
         TMutableVersionedRow* rows,
         ui32 readCount,
         ui64* dataWeight,
         TReaderStatistics* readerStatistics) override
+    {
+#ifdef FULL_UNPACK
+        if (IsFullUnpack()) {
+            return DoReadRowsByListFull(rows, readCount, dataWeight, readerStatistics);
+        }
+#endif
+        return DoReadRowsByListPartial(rows, readCount, dataWeight, readerStatistics);
+    }
+
+#ifdef FULL_UNPACK
+    // Returns read row count.
+    ui32 DoReadRowsByListFull(
+        TMutableVersionedRow* rows,
+        ui32 readCount,
+        ui64* dataWeight,
+        TReaderStatistics* readerStatistics)
     {
         ui32 segmentRowLimit = this->UpdateSegments(GetStartRowIndex(), readerStatistics);
         ui32 leftCount = readCount;
@@ -1365,7 +1509,9 @@ public:
         auto readListSlice = ReadList_.Slice(ReadList_.begin(), spansIt + (savedUpperBound > 0 ? 1 : 0));
         ReadList_ = ReadList_.Slice(spansIt, ReadList_.end());
 
-        this->ReadRows(rows, readListSlice, dataWeight, readerStatistics);
+        if (!IsNoRead()) {
+            this->ReadRows(rows, readListSlice, dataWeight, readerStatistics);
+        }
 
         if (savedUpperBound > 0) {
             // Set spansIt->Lower = splitBound and restore spansIt->Upper.
@@ -1375,10 +1521,81 @@ public:
 
         return readCount - leftCount;
     }
+#endif
+
+    // Returns read row count.
+    ui32 DoReadRowsByListPartial(
+        TMutableVersionedRow* rows,
+        ui32 readCount,
+        ui64* dataWeight,
+        TReaderStatistics* readerStatistics)
+    {
+        ui32 segmentRowLimit = this->UpdateSegments(CurrentResultOffset_, ReadList_, readerStatistics);
+        ui32 leftCount = readCount;
+
+        TValueIncrementingTimingGuard<TWallTimer> timingGuard(&readerStatistics->DoReadTime);
+
+        auto spansIt = ReadList_.begin();
+
+        // Ranges are limited by segmentRowLimit and readCountLimit
+
+        // Last range [.........]
+        //                ^       ^
+        //                |       readCountLimit = leftCount + lower
+        //                segmentRowLimit
+
+        // Last range [.........]
+        //               ^          ^
+        //  readCountLimit          |
+        //            segmentRowLimit
+
+        // Last range [.........]
+        //                ^   ^
+        //                |   readCountLimit
+        //                segmentRowLimit
+
+        while (spansIt != ReadList_.end() && spansIt->Upper <= segmentRowLimit) {
+            auto [lower, upper] = *spansIt;
+            YT_VERIFY(lower != upper);
+
+            if (lower + leftCount < upper) {
+                break;
+            }
+
+            leftCount -= upper - lower;
+            ++spansIt;
+        }
+
+        if (spansIt != ReadList_.end() && spansIt->Lower < segmentRowLimit && leftCount > 0) {
+            auto& [lower, upper] = *spansIt;
+            ui32 splitBound = std::min(lower + leftCount, segmentRowLimit);
+            YT_VERIFY(splitBound < upper);
+            leftCount -= splitBound - lower;
+
+            YT_VERIFY(spansIt->Lower != splitBound);
+            YT_VERIFY(spansIt->Upper != splitBound);
+            spansIt->Lower = splitBound;
+        }
+
+        ReadList_ = ReadList_.Slice(spansIt, ReadList_.end());
+
+        if (!IsNoRead()) {
+            TReadSpan readSpan{CurrentResultOffset_, CurrentResultOffset_ + readCount - leftCount};
+            // TODO(lukyan): Use separate version for one range.
+            // It will reduce function size and improve compiler optimizations.
+            this->ReadRows(rows, MakeRange(&readSpan, 1), dataWeight, readerStatistics);
+        }
+        CurrentResultOffset_ += readCount - leftCount;
+
+        return readCount - leftCount;
+    }
+
 
 private:
     TMemoryHolder<TReadSpan> ReadListHolder_;
     TMutableRange<TReadSpan> ReadList_;
+
+    ui32 CurrentResultOffset_ = 0;
 
     const TSharedRange<TRowRange> KeyRanges_;
     std::vector<std::unique_ptr<IColumnRefiner<TRowRange>>> ColumnRefiners_;
@@ -1394,20 +1611,28 @@ private:
         std::vector<TSpanMatching> matchings;
         std::vector<TSpanMatching> nextMatchings;
 
+        auto [chunkSpan, controlSpan] = initialWindow;
+
         // Each range consists of two bounds.
-        initialWindow.Control.Lower *= 2;
-        initialWindow.Control.Upper *= 2;
+        controlSpan.Lower *= 2;
+        controlSpan.Upper *= 2;
 
         TRangeSliceAdapter keys;
         keys.Ranges = KeyRanges_;
 
         // All values must be accessible in column refiner.
-        if (!keys.GetBound(initialWindow.Control.Lower).GetCount()) {
+        while (
+            controlSpan.Lower < controlSpan.Upper &&
+            keys.GetBound(controlSpan.Lower).GetCount() == 0)
+        {
             // Bound is empty skip it.
-            ++initialWindow.Control.Lower;
+            ++controlSpan.Lower;
         }
 
-        matchings.push_back(initialWindow);
+        // Inside column refiner empty range denotes universal range.
+        if (!IsEmpty(controlSpan)) {
+            matchings.push_back({chunkSpan, controlSpan});
+        }
 
         for (ui32 columnId = 0; columnId < ColumnRefiners_.size(); ++columnId) {
             keys.ColumnId = columnId;
@@ -1576,13 +1801,15 @@ private:
 
         ReadList_ = MakeMutableRange(ReadListHolder_.GetData(), it);
 
-        for (size_t i = 1; i < ReadList_.size(); ++i) {
-            if (ReadList_[i] == SentinelRowIndex) {
+#ifndef NDEBUG
+        for (size_t index = 1; index < ReadList_.size(); ++index) {
+            if (ReadList_[index] == SentinelRowIndex) {
                 continue;
             }
 
-            YT_VERIFY(ReadList_[i] != ReadList_[i - 1]);
+            YT_VERIFY(ReadList_[index] != ReadList_[index - 1]);
         }
+#endif
     }
 
     ui32* BuildSentinelRowIndexes(ui32* it, ui32* end, ui32* sentinelRowIndexes)

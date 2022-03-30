@@ -74,11 +74,11 @@ std::vector<ui16> GetGroupsIds(
 {
     std::vector<ui16> groupIds;
     for (int index = 0; index < keyColumnCount; ++index) {
-        groupIds.push_back(preparedChunkMeta.GroupIdPerColumn[index]);
+        groupIds.push_back(preparedChunkMeta.ColumnIdToGroupId[index]);
     }
 
     for (auto [chunkSchemaIndex, readerSchemaIndex] : valuesIdMapping) {
-        groupIds.push_back(preparedChunkMeta.GroupIdPerColumn[chunkSchemaIndex]);
+        groupIds.push_back(preparedChunkMeta.ColumnIdToGroupId[chunkSchemaIndex]);
     }
 
     // TODO(lukyan): Or use first group for timestamp?
@@ -126,7 +126,7 @@ bool TBlockWindowManager::TryUpdateWindow(ui32 rowIndex)
     TValueIncrementingTimingGuard<TWallTimer> timingGuard(&ReaderStatistics_->FetchBlockTime);
     if (FetchedBlocks_) {
         if (!FetchedBlocks_.IsSet()) {
-            // Blocks has been already requested from previous Read but are not fetched yet.
+            // Blocks have been already requested from previous Read but are not fetched yet.
             return false;
         }
 

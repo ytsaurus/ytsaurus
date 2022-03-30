@@ -21,8 +21,6 @@ class TKeySegmentReader<Type, true>
 {
 public:
     TKeySegmentReader();
-
-    void SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers* tmpBuffers);
 };
 
 template <EValueType Type>
@@ -32,8 +30,6 @@ class TKeySegmentReader<Type, false>
 {
 public:
     TKeySegmentReader();
-
-    void SetSegmentData(const TMetaBase* meta, const char* data, TTmpBuffers*);
 };
 
 template <EValueType Type>
