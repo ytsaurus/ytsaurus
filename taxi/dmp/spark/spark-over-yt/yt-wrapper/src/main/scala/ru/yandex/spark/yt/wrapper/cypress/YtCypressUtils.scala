@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.wrapper.cypress
 import com.google.common.collect.ImmutableMap
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.inside.yt.kosher.cypress.YPath
+import ru.yandex.inside.yt.kosher.cypress.{CypressNodeType, YPath}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -34,16 +34,26 @@ trait YtCypressUtils {
 
   def escape(s: String): String = s.replaceAll("([\\\\/@&*\\[{])", "\\\\$1")
 
-  def isDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean = {
+  def getNodeType(path: String, transaction: Option[String] = None)
+                 (implicit yt: CompoundClient): Option[CypressNodeType] = {
+    val fp = formatPath(path) + "/@type"
+    if (yt.existsNode(new ExistsNode(fp).optionalTransaction(transaction)).join()) {
+      val nt = yt.getNode(new GetNode(fp).optionalTransaction(transaction))
+        .join()
+        .stringValue()
+      Some(CypressNodeType.R.fromName(nt))
+    } else
+      None
+  }
+
+  def isDir(path: String, transaction: Option[String] = None)(implicit yt: CompoundClient): Boolean =
     try {
-      val x = yt.getNode(new GetNode(formatPath(path) + "/@type").optionalTransaction(transaction)).join()
-      x.stringValue() == "map_node"
+      getNodeType(path, transaction).contains(CypressNodeType.MAP)
     } catch {
       case NonFatal(e) =>
         log.debug(s"Cannot get node type: ${e.getMessage}", e)
         false
     }
-  }
 
   def createLink(sourcePath: String, destPath: String, transaction: Option[String] = None,
                  ignoreExisting: Boolean = false)(implicit yt: CompoundClient): Unit = {
