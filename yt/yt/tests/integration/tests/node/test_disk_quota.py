@@ -5,7 +5,8 @@ from yt_commands import (
     create_medium, create_account, read_table,
     write_table, map,
     start_transaction, abort_transaction,
-    create_account_resource_usage_lease, update_controller_agent_config)
+    create_account_resource_usage_lease, update_controller_agent_config,
+    run_test_vanilla)
 
 from yt.common import YtError, update
 
@@ -1143,3 +1144,16 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         wait(lambda: op.get_state() == "running")
 
         assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024
+
+    @authors("ignat")
+    def test_multiple_jobs(self):
+        update_controller_agent_config("max_retained_jobs_per_operation", 2)
+
+        create_account("my_account")
+        set("//sys/accounts/my_account/@resource_limits/disk_space_per_medium/ssd", 1024 * 1024)
+
+        disk_request = {"disk_space": 512 * 1024, "medium_name": "ssd", "account": "my_account"}
+        op = run_test_vanilla("echo $JOB_INDEX >&2", job_count=5, spec={"max_stderr_count": 1}, task_patch={"disk_request": disk_request})
+        op.track()
+
+        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 0

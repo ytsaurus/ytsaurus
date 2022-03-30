@@ -4937,37 +4937,35 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
         ReleaseJobFlags_.emplace(jobId, releaseJobFlags);
     }
 
-    if (!shouldRetainJob) {
-        return;
-    }
+    if (shouldRetainJob) {
+        auto attributesFragment = BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do([&] (TFluentMap fluent) {
+                BuildFinishedJobAttributes(
+                    joblet,
+                    summary.get(),
+                    /* outputStatistics */ true,
+                    hasStderr,
+                    hasFailContext,
+                    fluent);
+            })
+            .Finish();
 
-    auto attributesFragment = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do([&] (TFluentMap fluent) {
-            BuildFinishedJobAttributes(
-                joblet,
-                summary.get(),
-                /* outputStatistics */ true,
-                hasStderr,
-                hasFailContext,
-                fluent);
-        })
-        .Finish();
+        {
+            auto attributes = BuildYsonStringFluently()
+                .DoMap([&] (TFluentMap fluent) {
+                    fluent.GetConsumer()->OnRaw(attributesFragment);
+                });
+            RetainedFinishedJobs_.emplace_back(jobId, std::move(attributes));
+        }
 
-    {
-        auto attributes = BuildYsonStringFluently()
-            .DoMap([&] (TFluentMap fluent) {
-                fluent.GetConsumer()->OnRaw(attributesFragment);
-            });
-        RetainedFinishedJobs_.emplace_back(jobId, std::move(attributes));
+        if (hasStderr) {
+            ++RetainedJobWithStderrCount_;
+        }
+        if (retainJob) {
+            ++RetainedJobCount_;
+        }
+        RetainedJobsCoreInfoCount_ += coreInfoCount;
     }
-
-    if (hasStderr) {
-        ++RetainedJobWithStderrCount_;
-    }
-    if (retainJob) {
-        ++RetainedJobCount_;
-    }
-    RetainedJobsCoreInfoCount_ += coreInfoCount;
 
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, -joblet->DiskQuota);
 }
