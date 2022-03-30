@@ -113,34 +113,35 @@ object SpytRelease {
     st.put(versions.key, (releaseV, nextV))
   }
 
-  private def vcs(st: State): Vcs = {
-    st.extract.get(releaseVcs)
-      .getOrElse(sys.error("Aborting release. Working directory is not a repository of a recognized VCS."))
-  }
+  private def vcs(st: State): Option[Vcs] = st.extract.get(releaseVcs)
 
   private def commit(st: State,
                      commitMessage: TaskKey[String],
                      files: Seq[SettingKey[File]]): State = {
     val log = st.log
-    val addFiles = files.map(f => st.extract.get(f).getCanonicalFile)
-    val base = vcs(st).baseDir.getCanonicalFile
-    val sign = st.extract.get(releaseVcsSign)
-    val signOff = st.extract.get(releaseVcsSignOff)
-    val relativePaths = addFiles.map(f => IO.relativize(base, f)
-      .getOrElse("Version file [%s] is outside of this VCS repository with base directory [%s]!" format(f, base)))
+    vcs(st).map { git =>
+      val addFiles = files.map(f => st.extract.get(f).getCanonicalFile)
+      val base = git.baseDir.getCanonicalFile
+      val sign = st.extract.get(releaseVcsSign)
+      val signOff = st.extract.get(releaseVcsSignOff)
+      val relativePaths = addFiles.map(f => IO.relativize(base, f)
+        .getOrElse("Version file [%s] is outside of this VCS repository with base directory [%s]!" format(f, base)))
 
-    relativePaths.foreach(p => vcs(st).add(p) !! log)
-    val status = vcs(st).status.!!.trim
+      relativePaths.foreach(p => git.add(p) !! log)
+      val status = git.status.!!.trim
 
-    val newState = if (status.nonEmpty) {
-      val (state, msg) = st.extract.runTask(commitMessage, st)
-      vcs(state).commit(msg, sign, signOff) ! log
-      state
-    } else {
-      // nothing to commit. this happens if the version.sbt file hasn't changed.
+      if (status.nonEmpty) {
+        val (state, msg) = st.extract.runTask(commitMessage, st)
+        git.commit(msg, sign, signOff) ! log
+        state
+      } else {
+        // nothing to commit. this happens if the version.sbt file hasn't changed.
+        st
+      }
+    }.getOrElse({
+      log.error("No version control system detected.  Changes not committed.")
       st
-    }
-    newState
+    })
   }
 
   private def maybeCommit(st: State,
