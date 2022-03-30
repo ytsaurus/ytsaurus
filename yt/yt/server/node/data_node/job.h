@@ -12,12 +12,22 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMasterJobSensors
+{
+    NProfiling::TCounter AdaptivelyRepairedChunksCounter;
+    NProfiling::TCounter TotalRepairedChunksCounter;
+    NProfiling::TCounter FailedRepairChunksCounter;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 NJobAgent::IJobPtr CreateMasterJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
-    IBootstrap* bootstrap);
+    IBootstrap* bootstrap,
+    const TMasterJobSensors& sensors);
 
 ////////////////////////////////////////////////////////////////////////////////
 

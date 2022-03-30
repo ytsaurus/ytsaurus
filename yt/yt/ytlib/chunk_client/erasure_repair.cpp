@@ -774,7 +774,8 @@ TFuture<void> AdaptiveRepairErasedParts(
     const std::vector<IChunkReaderAllowingRepairPtr>& allReaders,
     TPartWriterFactory writerFactory,
     const TClientChunkReadOptions& options,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    NProfiling::TCounter adaptivelyRepairedCounter)
 {
     auto invoker = TDispatcher::Get()->GetReaderInvoker();
     auto observer = New<TRepairingReadersObserver>(codec, config, invoker, allReaders);
@@ -790,7 +791,8 @@ TFuture<void> AdaptiveRepairErasedParts(
         allReaders,
         invoker,
         target,
-        logger);
+        logger,
+        std::move(adaptivelyRepairedCounter));
 
     return session->Run<void>([=] (const TPartIndexList& bannedIndices, const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
         auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);

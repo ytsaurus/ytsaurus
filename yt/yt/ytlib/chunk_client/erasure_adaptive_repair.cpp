@@ -151,7 +151,8 @@ TAdaptiveErasureRepairingSession::TAdaptiveErasureRepairingSession(
     std::vector<IChunkReaderAllowingRepairPtr> readers,
     IInvokerPtr invoker,
     TTarget target,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    NProfiling::TCounter adaptivelyRepairedCounter)
     : ChunkId_(chunkId)
     , Codec_(codec)
     , Observer_(std::move(observer))
@@ -159,6 +160,7 @@ TAdaptiveErasureRepairingSession::TAdaptiveErasureRepairingSession(
     , Invoker_(std::move(invoker))
     , Target_(std::move(target))
     , Logger(std::move(logger))
+    , AdaptivelyRepairedCounter_(std::move(adaptivelyRepairedCounter))
 {
     YT_VERIFY(std::ssize(Readers_) == Codec_->GetTotalPartCount());
 }

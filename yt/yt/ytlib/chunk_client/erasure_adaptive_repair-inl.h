@@ -81,6 +81,11 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
         auto future = doRepairAttempt(bannedPartIndicesList, readers);
         auto result = NConcurrency::WaitFor(future);
         if (result.IsOK()) {
+
+            if (attempt) {
+                AdaptivelyRepairedCounter_.Increment();
+            }
+
             return unpackValue(result);
         } else {
             innerErrors.push_back(result);

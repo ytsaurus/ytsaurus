@@ -227,6 +227,11 @@ public:
 
         GetRpcServer()->RegisterService(CreateDataNodeService(GetConfig()->DataNode, this));
 
+        auto jobsProfiler = DataNodeProfiler.WithPrefix("/master_jobs");
+        MasterJobSensors_.AdaptivelyRepairedChunksCounter = jobsProfiler.Counter("/adaptively_repaired_chunks");
+        MasterJobSensors_.TotalRepairedChunksCounter = jobsProfiler.Counter("/total_repaired_chunks");
+        MasterJobSensors_.FailedRepairChunksCounter = jobsProfiler.Counter("/failed_repair_chunks");
+
         auto createMasterJob = BIND([this] (
             NJobAgent::TJobId jobId,
             NJobAgent::TOperationId /*operationId*/,
@@ -238,7 +243,8 @@ public:
                 std::move(jobSpec),
                 resourceLimits,
                 GetConfig()->DataNode,
-                this);
+                this,
+                MasterJobSensors_);
         });
         GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::RemoveChunk, createMasterJob);
         GetJobController()->RegisterMasterJobFactory(NJobAgent::EJobType::ReplicateChunk, createMasterJob);
@@ -433,6 +439,8 @@ private:
     NHttp::IServerPtr SkynetHttpServer_;
 
     IIOThroughputMeterPtr IOThroughputMeter_;
+
+    TMasterJobSensors MasterJobSensors_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
