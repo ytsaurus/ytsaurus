@@ -1426,6 +1426,11 @@ private:
                         << TErrorAttribute("replication_card_id", replicationCardId);
                 }
 
+                if (options.CoordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy) {
+                    THROW_ERROR_EXCEPTION("Coordinator commit mode %Qv is incompatible with chaos tables",
+                        options.CoordinatorCommitMode);
+                }
+
                 auto coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
                 Transaction_->RegisterParticipant(coordinatorCellId);
 
