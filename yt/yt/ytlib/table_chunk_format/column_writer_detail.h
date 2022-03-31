@@ -70,7 +70,7 @@ protected:
 
     void AddValues(
         TRange<NTableClient::TVersionedRow> rows,
-        std::function<void (const NTableClient::TVersionedValue& value)> onValue);
+        std::function<bool (const NTableClient::TVersionedValue& value)> onValue);
 
     void DumpVersionedData(TSegmentInfo* segmentInfo);
 };

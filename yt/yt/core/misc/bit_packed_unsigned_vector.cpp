@@ -1,4 +1,5 @@
 #include "bit_packed_unsigned_vector.h"
+#include "numeric_helpers.h"
 
 #include <library/cpp/yt/coding/zig_zag.h>
 
@@ -14,7 +15,7 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
         return;
     }
 
-    *expected = values->back() / values->size();
+    *expected = DivRound<int>(values->back(), values->size());
 
     *maxDiff = 0;
     i64 expectedValue = 0;

@@ -7,8 +7,6 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/yt/core/yson/writer.h>
-
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
 #include <yt/yt/core/misc/chunked_output_stream.h>
 
@@ -20,7 +18,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxValueCount = 128 * 1024;
 static const int MaxBufferSize = 32_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +29,6 @@ protected:
     const bool Hunk_;
 
     std::unique_ptr<TChunkedOutputStream> DirectBuffer_;
-    char* CurrentPreallocated_;
 
     ui32 MaxValueLength_;
     std::vector<TStringBuf> Values_;
@@ -47,18 +43,12 @@ protected:
     void Reset()
     {
         DirectBuffer_ = std::make_unique<TChunkedOutputStream>();
-        CurrentPreallocated_ = nullptr;
 
         MaxValueLength_ = 0;
         Values_.clear();
 
         DictionaryByteSize_ = 0;
         Dictionary_.clear();
-    }
-
-    void EnsureCapacity(i64 size)
-    {
-        CurrentPreallocated_ = DirectBuffer_->Preallocate(size);
     }
 
     std::vector<ui32> GetDirectDenseOffsets() const
@@ -93,41 +83,51 @@ protected:
 
     TStringBuf CaptureValue(const TUnversionedValue& unversionedValue)
     {
-        if (!CurrentPreallocated_) {
-            // This means, that we reserved nothing, because all strings are either null or empty.
-            // To distinguish between null and empty, we set preallocated pointer to special value.
-            static char* const EmptyStringBase = reinterpret_cast<char*>(1);
-            CurrentPreallocated_ = EmptyStringBase;
-        }
-
         if (unversionedValue.Type == EValueType::Null) {
             return {};
         }
 
-        char* dst = CurrentPreallocated_;
+        auto valueCapacity = IsAnyOrComposite(ValueType) && !IsAnyOrComposite(unversionedValue.Type)
+            ? GetYsonSize(unversionedValue)
+            : static_cast<i64>(unversionedValue.Length);
+
         if (Hunk_ && None(unversionedValue.Flags & EValueFlags::Hunk)) {
-            *dst++ = static_cast<char>(EHunkValueTag::Inline);
+            valueCapacity += 1;
+        }
+
+        char* buffer = DirectBuffer_->Preallocate(valueCapacity);
+        if (!buffer) {
+            // This means, that we reserved nothing, because all strings are either null or empty.
+            // To distinguish between null and empty, we set preallocated pointer to special value.
+            static char* const EmptyStringBase = reinterpret_cast<char*>(1);
+            buffer = EmptyStringBase;
+        }
+
+        auto start = buffer;
+
+        if (Hunk_ && None(unversionedValue.Flags & EValueFlags::Hunk)) {
+            *buffer++ = static_cast<char>(EHunkValueTag::Inline);
         }
         if (IsAnyOrComposite(ValueType) && !IsAnyOrComposite(unversionedValue.Type)) {
             // Any non-any and non-null value convert to YSON.
-            dst += WriteYson(dst, unversionedValue);
+            buffer += WriteYson(buffer, unversionedValue);
         } else {
             std::memcpy(
-                dst,
+                buffer,
                 unversionedValue.Data.String,
                 unversionedValue.Length);
-            dst += unversionedValue.Length;
+            buffer += unversionedValue.Length;
         }
 
-        auto value = TStringBuf(CurrentPreallocated_, dst);
-        auto length = value.length();
-        CurrentPreallocated_ = dst;
+        auto value = TStringBuf(start, buffer);
 
-        DirectBuffer_->Advance(length);
+        YT_VERIFY(value.size() <= valueCapacity);
+
+        DirectBuffer_->Advance(value.size());
 
         if (Dictionary_.emplace(value, Dictionary_.size() + 1).second) {
-            DictionaryByteSize_ += length;
-            MaxValueLength_ = std::max(MaxValueLength_, static_cast<ui32>(length));
+            DictionaryByteSize_ += value.size();
+            MaxValueLength_ = std::max(MaxValueLength_, static_cast<ui32>(value.size()));
         }
 
         return value;
@@ -227,19 +227,6 @@ protected:
             return lhs == rhs;
         }
     }
-
-    i64 GetValueByteSize(const TUnversionedValue& value) const
-    {
-        if (value.Type == EValueType::Null) {
-            return 0;
-        }
-        YT_ASSERT(IsStringLikeType(value.Type));
-        auto result = static_cast<i64>(value.Length);
-        if (Hunk_ && None(value.Flags & EValueFlags::Hunk)) {
-            result += 1;
-        }
-        return result;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,35 +240,26 @@ public:
     TVersionedStringColumnWriter(
         int columnId,
         const TColumnSchema& columnSchema,
-        TDataBlockWriter* blockWriter)
+        TDataBlockWriter* blockWriter,
+        int maxValueCount)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
             blockWriter)
         , TStringColumnWriterBase<ValueType>(columnSchema)
+        , MaxValueCount_(maxValueCount)
     {
         this->Reset();
     }
 
     void WriteVersionedValues(TRange<TVersionedRow> rows) override
     {
-        i64 totalSize = 0;
-        for (auto row : rows) {
-            for (const auto& value : FindValues(row, ColumnId_)) {
-                totalSize += this->GetValueByteSize(value);
-            }
-        }
-        this->EnsureCapacity(totalSize);
-
         AddValues(
             rows,
             [&] (const TVersionedValue& value) {
                 Values_.push_back(this->CaptureValue(value));
+                return std::ssize(Values_) >= MaxValueCount_ || DirectBuffer_->GetSize() > MaxBufferSize;
             });
-
-        if (Values_.size() > MaxValueCount || DirectBuffer_->GetSize() > MaxBufferSize) {
-            FinishCurrentSegment();
-        }
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -307,6 +285,8 @@ private:
     using TStringColumnWriterBase<ValueType>::Values_;
     using TStringColumnWriterBase<ValueType>::Dictionary_;
     using TStringColumnWriterBase<ValueType>::DirectBuffer_;
+
+    const int MaxValueCount_;
 
     void Reset()
     {
@@ -347,34 +327,40 @@ private:
 std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::String>>(
         columnId,
         columnSchema,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::Any>>(
         columnId,
         columnSchema,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TVersionedStringColumnWriter<EValueType::Composite>>(
         columnId,
         columnSchema,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,9 +371,10 @@ class TUnversionedStringColumnWriter
     , public TStringColumnWriterBase<ValueType>
 {
 public:
-    TUnversionedStringColumnWriter(int columnIndex, TDataBlockWriter* blockWriter)
+    TUnversionedStringColumnWriter(int columnIndex, TDataBlockWriter* blockWriter, int maxValueCount)
         : TColumnWriterBase(blockWriter)
         , ColumnIndex_(columnIndex)
+        , MaxValueCount_(maxValueCount)
     {
         Reset();
     }
@@ -423,6 +410,7 @@ public:
 
 private:
     const int ColumnIndex_;
+    const int MaxValueCount_;
 
     i64 DirectRleSize_;
     std::vector<ui64> RleRowIndexes_;
@@ -622,34 +610,11 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
-        if (Values_.size() > MaxValueCount || DirectBuffer_->GetSize() > MaxBufferSize) {
-            FinishCurrentSegment();
-        }
     }
 
     template <class TRow>
     void AddValues(TRange<TRow> rows)
     {
-        i64 totalSize = 0;
-        for (auto row : rows) {
-            const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
-            YT_ASSERT(None(unversionedValue.Flags & EValueFlags::Hunk));
-            if (unversionedValue.Type == EValueType::Null) {
-                continue;
-            }
-            if constexpr (
-                ValueType == EValueType::String ||
-                ValueType == EValueType::Composite)
-            {
-                totalSize += unversionedValue.Length;
-            } else {
-                static_assert(ValueType == EValueType::Any);
-                totalSize += GetYsonSize(unversionedValue);
-            }
-        }
-
-        this->EnsureCapacity(totalSize);
-
         for (auto row : rows) {
             const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
             YT_ASSERT(None(unversionedValue.Flags & EValueFlags::Hunk));
@@ -659,9 +624,12 @@ private:
                 RleRowIndexes_.push_back(Values_.size());
             }
             Values_.push_back(value);
-        }
+            ++RowCount_;
 
-        RowCount_ += rows.Size();
+            if (std::ssize(Values_) >= MaxValueCount_ || DirectBuffer_->GetSize() > MaxBufferSize) {
+                FinishCurrentSegment();
+            }
+        }
     }
 };
 
@@ -669,23 +637,26 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::String>>(columnIndex, blockWriter);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::String>>(columnIndex, blockWriter, maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, blockWriter);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, blockWriter, maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int maxValueCount)
 {
-    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(columnIndex, blockWriter);
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(columnIndex, blockWriter, maxValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

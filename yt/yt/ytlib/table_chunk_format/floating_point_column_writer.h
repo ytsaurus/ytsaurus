@@ -11,7 +11,8 @@ namespace NYT::NTableChunkFormat {
 template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +20,8 @@ template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

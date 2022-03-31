@@ -44,12 +44,14 @@ struct IValueColumnWriter
 std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

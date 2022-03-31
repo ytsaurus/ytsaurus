@@ -11,31 +11,37 @@ namespace NYT::NTableChunkFormat {
 std::unique_ptr<IValueColumnWriter> CreateVersionedStringColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter);
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedAnyColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter);
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedCompositeColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter);
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
-    TDataBlockWriter* dataBlockWriter);
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedCompositeColumnWriter(
     int columnIndex,
-    TDataBlockWriter* dataBlockWriter);
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount = DefaultMaxSegmentValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

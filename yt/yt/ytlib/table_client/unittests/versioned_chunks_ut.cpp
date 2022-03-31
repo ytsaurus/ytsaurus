@@ -482,6 +482,7 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 1025;
+        config->MaxSegmentValueCount = 128;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
         auto chunkWriter = CreateVersionedChunkWriter(
@@ -578,6 +579,7 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 1025;
+        config->MaxSegmentValueCount = 128;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
         auto chunkWriter = CreateVersionedChunkWriter(

@@ -14,10 +14,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxValueCount = 128 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 template <typename T>
@@ -44,11 +40,13 @@ public:
     TVersionedFloatingPointColumnWriter(
         int columnId,
         const TColumnSchema& columnSchema,
-        TDataBlockWriter* blockWriter)
+        TDataBlockWriter* blockWriter,
+        int maxValueCount)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
             blockWriter)
+        , MaxValueCount_(maxValueCount)
     {
         Reset();
     }
@@ -59,11 +57,8 @@ public:
             rows,
             [&] (const TVersionedValue& value) {
                 Values_.push_back(static_cast<T>(value.Data.Double));
+                return std::ssize(Values_) >= MaxValueCount_;
             });
-
-        if (Values_.size() > MaxValueCount) {
-            FinishCurrentSegment();
-        }
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -88,6 +83,7 @@ public:
 
 private:
     static_assert(std::is_floating_point_v<T>);
+    const int MaxValueCount_;
 
     std::vector<T> Values_;
 
@@ -118,12 +114,14 @@ template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int mavValueCount)
 {
     return std::make_unique<TVersionedFloatingPointColumnWriter<T>>(
         columnId,
         columnSchema,
-        blockWriter);
+        blockWriter,
+        mavValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,9 +131,10 @@ class TUnversionedFloatingPointColumnWriter
     : public TColumnWriterBase
 {
 public:
-    TUnversionedFloatingPointColumnWriter(int columnIndex, TDataBlockWriter* blockWriter)
+    TUnversionedFloatingPointColumnWriter(int columnIndex, TDataBlockWriter* blockWriter, int maxValueCount)
         : TColumnWriterBase(blockWriter)
         , ColumnIndex_(columnIndex)
+        , MaxValueCount_(maxValueCount)
     {
         static_assert(std::is_floating_point_v<T>);
         Reset();
@@ -170,6 +169,7 @@ public:
 
 private:
     const int ColumnIndex_;
+    const int MaxValueCount_;
 
     std::vector<T> Values_;
     TBitmapOutput NullBitmap_;
@@ -198,7 +198,7 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
-        if (Values_.size() > MaxValueCount) {
+        if (std::ssize(Values_) >= MaxValueCount_) {
             FinishCurrentSegment();
         }
     }
@@ -221,9 +221,10 @@ private:
 template <typename T>
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
     int columnIndex,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int mavValueCount)
 {
-    return std::make_unique<TUnversionedFloatingPointColumnWriter<T>>(columnIndex, blockWriter);
+    return std::make_unique<TUnversionedFloatingPointColumnWriter<T>>(columnIndex, blockWriter, mavValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,24 +232,28 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
 template
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter<float>(
     int columnIndex,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int mavValueCount);
 
 template
 std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter<double>(
     int columnIndex,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int mavValueCount);
 
 template
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter<float>(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int mavValueCount);
 
 template
 std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter<double>(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter);
+    TDataBlockWriter* blockWriter,
+    int mavValueCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

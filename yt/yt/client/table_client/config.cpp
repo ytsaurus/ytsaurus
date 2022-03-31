@@ -72,6 +72,10 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(16_MB);
 
+    registrar.Parameter("max_segment_value_count", &TThis::MaxSegmentValueCount)
+        .GreaterThan(0)
+        .Default(128 * 1024);
+
     registrar.Parameter("max_buffer_size", &TThis::MaxBufferSize)
         .GreaterThan(0)
         .Default(16_MB);
