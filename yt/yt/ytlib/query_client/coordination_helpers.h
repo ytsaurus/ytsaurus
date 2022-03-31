@@ -232,7 +232,7 @@ void GroupByShards(
             // In cases 0 and 1 no need to call `auto shardItStart = ExponentialSearch`.
 
         } else {
-            onGroupFunctor(itemIt, items.end(), shardItStart, shards.end());
+            onGroupFunctor(itemIt, items.end(), shardItStart, shardIt);
             return;
         }
     }

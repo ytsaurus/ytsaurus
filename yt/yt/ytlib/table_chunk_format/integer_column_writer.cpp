@@ -16,10 +16,6 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxValueCount = 128 * 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ui64 EncodeValue(i64 value)
@@ -86,7 +82,7 @@ protected:
             if (nullBitmap[index]) {
                 YT_ASSERT(Values_[index] == 0);
             } else {
-                auto dictionaryIndex = DistinctValues_[Values_[index]];
+                auto dictionaryIndex = GetOrCrash(DistinctValues_, Values_[index]);
                 YT_ASSERT(dictionaryIndex <= std::ssize(dictionary) + 1);
 
                 if (dictionaryIndex > std::ssize(dictionary)) {
@@ -117,11 +113,13 @@ public:
     TVersionedIntegerColumnWriter(
         int columnId,
         const TColumnSchema& columnSchema,
-        TDataBlockWriter* blockWriter)
+        TDataBlockWriter* blockWriter,
+        int maxValueCount)
         : TVersionedColumnWriterBase(
             columnId,
             columnSchema,
             blockWriter)
+        , MaxValueCount_(maxValueCount)
     {
         Reset();
     }
@@ -134,14 +132,10 @@ public:
                 ui64 data = 0;
                 if (value.Type != EValueType::Null) {
                     data = EncodeValue(GetValue<TValue>(value));
-                    UpdateStatistics(data);
                 }
                 Values_.push_back(data);
+                return std::ssize(Values_) >= MaxValueCount_;
             });
-
-        if (Values_.size() > MaxValueCount) {
-            FinishCurrentSegment();
-        }
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -150,7 +144,7 @@ public:
             return 0;
         } else {
             return std::min(GetDirectSize(), GetDictionarySize()) +
-                   TVersionedColumnWriterBase::GetCurrentSegmentSize();
+                TVersionedColumnWriterBase::GetCurrentSegmentSize();
         }
     }
 
@@ -163,6 +157,8 @@ public:
     }
 
 private:
+    const int MaxValueCount_;
+
     void Reset()
     {
         TVersionedColumnWriterBase::Reset();
@@ -185,6 +181,14 @@ private:
 
     void DumpSegment()
     {
+        for (i64 index = 0; index < std::ssize(Values_); ++index) {
+            if (NullBitmap_[index]) {
+                YT_ASSERT(Values_[index] == 0);
+            } else {
+                UpdateStatistics(Values_[index]);
+            }
+        }
+
         TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_version(0);
 
@@ -195,6 +199,7 @@ private:
 
         ui64 dictionarySize = GetDictionarySize();
         ui64 directSize = GetDirectSize();
+
         if (dictionarySize < directSize) {
             DumpDictionaryValues(&segmentInfo, NullBitmap_);
 
@@ -219,23 +224,27 @@ private:
 std::unique_ptr<IValueColumnWriter> CreateVersionedInt64ColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TVersionedIntegerColumnWriter<i64>>(
         columnId,
         columnSchema,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedUint64ColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TVersionedIntegerColumnWriter<ui64>>(
         columnId,
         columnSchema,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,9 +256,10 @@ class TUnversionedIntegerColumnWriter
     , private TIntegerColumnWriterBase
 {
 public:
-    TUnversionedIntegerColumnWriter(int columnIndex, TDataBlockWriter* blockWriter)
+    TUnversionedIntegerColumnWriter(int columnIndex, TDataBlockWriter* blockWriter, int maxValueCount)
         : TColumnWriterBase(blockWriter)
         , ColumnIndex_(columnIndex)
+        , MaxValueCount_(maxValueCount)
     {
         Reset();
     }
@@ -285,6 +295,7 @@ public:
 
 private:
     const int ColumnIndex_;
+    const int MaxValueCount_;
     i64 RunCount_;
 
     TBitmapOutput NullBitmap_;
@@ -399,7 +410,7 @@ private:
             if (NullBitmap_[runBegin]) {
                 Values_[runIndex] = 0;
             } else {
-                auto dictionaryIndex = DistinctValues_[Values_[runBegin]];
+                auto dictionaryIndex = GetOrCrash(DistinctValues_, Values_[runBegin]);
                 YT_ASSERT(dictionaryIndex <= std::ssize(dictionary) + 1);
 
                 if (dictionaryIndex > std::ssize(dictionary)) {
@@ -430,6 +441,14 @@ private:
 
     void DumpSegment()
     {
+        for (i64 index = 0; index < std::ssize(Values_); ++index) {
+            if (NullBitmap_[index]) {
+                YT_ASSERT(Values_[index] == 0);
+            } else {
+                UpdateStatistics(Values_[index]);
+            }
+        }
+
         auto sizes = GetSegmentSizeVector();
 
         auto minElement = std::min_element(sizes.begin(), sizes.end());
@@ -471,9 +490,6 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
-        if (Values_.size() > MaxValueCount) {
-            FinishCurrentSegment();
-        }
     }
 
     template <class TRow>
@@ -485,7 +501,6 @@ private:
             ui64 data = 0;
             if (!isNull) {
                 data = EncodeValue(GetValue<TValue>(value));
-                UpdateStatistics(data);
             }
 
             if (Values_.empty() ||
@@ -497,9 +512,12 @@ private:
 
             Values_.push_back(data);
             NullBitmap_.Append(isNull);
-        }
+            ++RowCount_;
 
-        RowCount_ += rows.Size();
+            if (std::ssize(Values_) >= MaxValueCount_) {
+                FinishCurrentSegment();
+            }
+        }
     }
 };
 
@@ -507,20 +525,24 @@ private:
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedInt64ColumnWriter(
     int columnIndex,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TUnversionedIntegerColumnWriter<i64>>(
         columnIndex,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 std::unique_ptr<IValueColumnWriter> CreateUnversionedUint64ColumnWriter(
     int columnIndex,
-    TDataBlockWriter* dataBlockWriter)
+    TDataBlockWriter* dataBlockWriter,
+    int maxValueCount)
 {
     return std::make_unique<TUnversionedIntegerColumnWriter<ui64>>(
         columnIndex,
-        dataBlockWriter);
+        dataBlockWriter,
+        maxValueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

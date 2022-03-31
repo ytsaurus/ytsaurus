@@ -8,6 +8,8 @@ class TDataBlockWriter;
 
 struct IColumnWriterBase;
 
+constexpr int DefaultMaxSegmentValueCount = 128 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat

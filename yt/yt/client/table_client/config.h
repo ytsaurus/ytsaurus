@@ -81,6 +81,7 @@ class TChunkWriterConfig
 {
 public:
     i64 BlockSize;
+    i64 MaxSegmentValueCount;
 
     i64 MaxBufferSize;
 

@@ -464,7 +464,8 @@ public:
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 keyColumnIndex,
                 columnSchema,
-                mainBlockWriter));
+                mainBlockWriter,
+                Config_->MaxSegmentValueCount));
 
             if (keyColumnIndex == 0) {
                 keyGroupFromSchema = columnSchema.Group();
@@ -501,7 +502,8 @@ public:
             ValueColumnWriters_.emplace_back(CreateVersionedColumnWriter(
                 valueColumnIndex,
                 columnSchema,
-                blockWriter));
+                blockWriter,
+                Config_->MaxSegmentValueCount));
         }
 
         YT_VERIFY(BlockWriters_.size() > 0);

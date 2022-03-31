@@ -18,34 +18,35 @@ using namespace NTableClient;
 std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int maxValueCount)
 {
     switch (columnSchema.GetWireType()) {
         case EValueType::Int64:
-            return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter, maxValueCount);
 
         case EValueType::Uint64:
-            return CreateUnversionedUint64ColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedUint64ColumnWriter(columnIndex, blockWriter, maxValueCount);
 
         case EValueType::Double:
             switch (columnSchema.CastToV1Type()) {
                 case NTableClient::ESimpleLogicalValueType::Float:
-                    return CreateUnversionedFloatingPointColumnWriter<float>(columnIndex, blockWriter);
+                    return CreateUnversionedFloatingPointColumnWriter<float>(columnIndex, blockWriter, maxValueCount);
                 default:
-                    return CreateUnversionedFloatingPointColumnWriter<double>(columnIndex, blockWriter);
+                    return CreateUnversionedFloatingPointColumnWriter<double>(columnIndex, blockWriter, maxValueCount);
             }
 
         case EValueType::String:
-            return CreateUnversionedStringColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedStringColumnWriter(columnIndex, blockWriter, maxValueCount);
 
         case EValueType::Boolean:
             return CreateUnversionedBooleanColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Any:
-            return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter, maxValueCount);
 
         case EValueType::Composite:
-            return CreateUnversionedCompositeColumnWriter(columnIndex, blockWriter);
+            return CreateUnversionedCompositeColumnWriter(columnIndex, blockWriter, maxValueCount);
 
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);
@@ -63,20 +64,23 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
 std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int columnId,
     const TColumnSchema& columnSchema,
-    TDataBlockWriter* blockWriter)
+    TDataBlockWriter* blockWriter,
+    int maxValueCount)
 {
     switch (columnSchema.GetWireType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
                 columnId,
                 columnSchema,
-                blockWriter);
+                blockWriter,
+                maxValueCount);
 
         case EValueType::Uint64:
             return CreateVersionedUint64ColumnWriter(
                 columnId,
                 columnSchema,
-                blockWriter);
+                blockWriter,
+                maxValueCount);
 
         case EValueType::Double:
             switch (auto simplifiedLogicalType = columnSchema.CastToV1Type()) {
@@ -84,12 +88,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                     return CreateVersionedFloatingPointColumnWriter<float>(
                         columnId,
                         columnSchema,
-                        blockWriter);
+                        blockWriter,
+                        maxValueCount);
                 default:
                     return CreateVersionedFloatingPointColumnWriter<double>(
                         columnId,
                         columnSchema,
-                        blockWriter);
+                        blockWriter,
+                        maxValueCount);
             }
 
         case EValueType::Boolean:
@@ -102,19 +108,22 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
             return CreateVersionedAnyColumnWriter(
                 columnId,
                 columnSchema,
-                blockWriter);
+                blockWriter,
+                maxValueCount);
 
         case EValueType::String:
             return CreateVersionedStringColumnWriter(
                 columnId,
                 columnSchema,
-                blockWriter);
+                blockWriter,
+                maxValueCount);
 
         case EValueType::Composite:
             return CreateVersionedCompositeColumnWriter(
                 columnId,
                 columnSchema,
-                blockWriter);
+                blockWriter,
+                maxValueCount);
 
         case EValueType::Null:
         case EValueType::Min:

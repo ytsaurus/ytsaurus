@@ -105,7 +105,7 @@ void TVersionedColumnWriterBase::WriteUnversionedValues(TRange<NTableClient::TUn
 
 void TVersionedColumnWriterBase::AddValues(
     TRange<TVersionedRow> rows,
-    std::function<void (const TVersionedValue& value)> onValue)
+    std::function<bool (const TVersionedValue& value)> onValue)
 {
     for (auto row : rows) {
         auto values = FindValues(row, ColumnId_);
@@ -120,10 +120,11 @@ void TVersionedColumnWriterBase::AddValues(
             continue;
         }
 
+        bool finishSegment = false;
         for (const auto& value : values) {
             bool isNull = value.Type == EValueType::Null;
 
-            onValue(value);
+            finishSegment |= onValue(value);
 
             ui32 timestampIndex = GetTimestampIndex(value, row);
             MaxTimestampIndex_ = std::max(MaxTimestampIndex_, timestampIndex);
@@ -134,6 +135,10 @@ void TVersionedColumnWriterBase::AddValues(
                 AggregateBitmap_.Append(Any(value.Flags & EValueFlags::Aggregate));
             }
         }
+
+        if (finishSegment) {
+            FinishCurrentSegment();
+        }
     }
 }
 
@@ -141,6 +146,7 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
 {
     ui32 expectedValuesPerRow;
     ui32 maxDiffFromExpected;
+
     PrepareDiffFromExpected(&ValuesPerRow_, &expectedValuesPerRow, &maxDiffFromExpected);
 
     auto denseSize = CompressedUnsignedVectorSizeInBytes(
