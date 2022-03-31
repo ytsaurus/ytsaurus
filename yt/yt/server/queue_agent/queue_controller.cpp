@@ -448,17 +448,16 @@ private:
 
         YT_LOG_INFO("Updating controller snapshots");
 
-        auto previousQueueSnapshot = std::move(QueueSnapshot_);
-
         // First, update queue snapshot.
-        QueueSnapshot_ = TQueueSnapshotBuildSession(
-            previousQueueSnapshot->Row,
+        auto nextQueueSnapshot = TQueueSnapshotBuildSession(
+            QueueSnapshot_->Row,
             Invoker_,
             Logger,
             ClientDirectory_)
             .Build();
 
         // Second, update consumer snapshots.
+        TConsumerSnapshotMap nextConsumerSnapshots;
         {
             std::vector<TFuture<TConsumerSnapshotPtr>> consumerSnapshotFutures;
 
@@ -471,7 +470,7 @@ private:
                     Invoker_,
                     Logger.WithTag("Consumer: %Qv", consumerRef),
                     ClientDirectory_,
-                    QueueSnapshot_);
+                    nextQueueSnapshot);
                 consumerSnapshotFutures.emplace_back(BIND(&TConsumerSnapshotBuildSession::Build, session)
                     .AsyncVia(Invoker_)
                     .Run());
@@ -480,21 +479,23 @@ private:
             // None of snapshot update methods may throw.
             YT_VERIFY(WaitFor(AllSucceeded(consumerSnapshotFutures)).IsOK());
 
-            TConsumerSnapshotMap nextConsumerSnapshots;
             for (const auto& consumerSnapshotFuture : consumerSnapshotFutures) {
                 const auto& consumerSnapshot = consumerSnapshotFuture.Get().Value();
                 nextConsumerSnapshots[consumerSnapshot->Row.Consumer] = consumerSnapshot;
             }
-
-            ConsumerSnapshots_.swap(nextConsumerSnapshots);
         }
 
         // Connect queue snapshot to consumer snapshots with pointers.
-        QueueSnapshot_->ConsumerSnapshots = ConsumerSnapshots_;
+        nextQueueSnapshot->ConsumerSnapshots = nextConsumerSnapshots;
+
+        // NB: these swaps must be performed without context switches in order to not expose the partially altered state.
+        ConsumerSnapshots_.swap(nextConsumerSnapshots);
+        QueueSnapshot_.Swap(nextQueueSnapshot);
 
         YT_LOG_INFO("Controller snapshots updated");
 
-        return previousQueueSnapshot;
+        // nextQueueSnapshot is actually a previous queue snapshot now.
+        return nextQueueSnapshot;
     }
 };
 
