@@ -136,7 +136,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag);
+        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag, prepareTimestamp);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         auto state = transaction->GetState(persistent);
@@ -204,9 +204,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag);
-
         auto* transaction = GetTransactionOrThrow(transactionId);
+
+        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag, transaction->GetPrepareTimestamp());
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
@@ -539,8 +539,12 @@ private:
         return transaction;
     }
 
-    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag)
+    void ValidateTimestampClusterTag(TTransactionId transactionId, TClusterTag timestampClusterTag, TTimestamp prepareTimestamp)
     {
+        if (prepareTimestamp == NullTimestamp) {
+            return;
+        }
+
         if (ClockClusterTag_ == InvalidCellTag || timestampClusterTag == InvalidCellTag) {
             return;
         }

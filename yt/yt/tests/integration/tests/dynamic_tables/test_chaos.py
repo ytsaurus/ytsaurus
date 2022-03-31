@@ -1818,11 +1818,12 @@ class ChaosClockBase(ChaosTestBase):
         }
     }
 
-    def _create_single_peer_chaos_cell(self, clock_cluster_tag=None):
+    def _create_single_peer_chaos_cell(self, name="c", clock_cluster_tag=None):
         cluster_names = self.get_cluster_names()
         peer_cluster_names = cluster_names[:1]
         meta_cluster_names = cluster_names[1:]
         cell_id = self._sync_create_chaos_bundle_and_cell(
+            name=name,
             peer_cluster_names=peer_cluster_names,
             meta_cluster_names=meta_cluster_names,
             clock_cluster_tag=clock_cluster_tag)
@@ -1961,4 +1962,35 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+    @authors("savrus")
+    def test_chaos_replicated_table_with_different_clock_tag(self):
+        drivers = self._get_drivers()
+        remote_clock_tag = get("//sys/@primary_cell_tag", driver=drivers[1])
+        self._set_proxies_clock_cluster_tag(remote_clock_tag)
+
+        for driver in drivers:
+            clock_cluster_tag = get("//sys/@primary_cell_tag", driver=driver)
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", clock_cluster_tag, driver=driver)
+
+        cell_id = self._create_single_peer_chaos_cell(name="chaos_bundle", clock_cluster_tag=remote_clock_tag)
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"}
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids)
+        card_id = get("//tmp/crt/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/crt", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)

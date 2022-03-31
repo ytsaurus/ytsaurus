@@ -87,6 +87,7 @@ private:
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", Format("Creating %v", path));
         options.Attributes = std::move(transactionAttributes);
+        options.SuppressStartTimestampGeneration = true;
         return WaitFor(Client_->StartNativeTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
     }
@@ -187,6 +188,7 @@ private:
     {
         TTransactionCommitOptions options;
         options.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+        options.GeneratePrepareTimestamp = false;
         WaitFor(transaction->Commit(options))
             .ThrowOnError();
     }
