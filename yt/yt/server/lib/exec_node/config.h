@@ -287,7 +287,6 @@ class TControllerAgentConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    std::optional<bool> EnableHeartbeats;
     TDuration TestHeartbeatDelay;
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobInfoSendingBackoff;
@@ -295,8 +294,6 @@ public:
     TControllerAgentConnectorDynamicConfig()
         : THeartbeatReporterDynamicConfigBase{}
     {
-        RegisterParameter("enable_heartbeats", EnableHeartbeats)
-            .Default();
         RegisterParameter("test_heartbeat_delay", TestHeartbeatDelay)
             .Default();
         RegisterParameter("statistics_throttler", StatisticsThrottler)
