@@ -228,3 +228,22 @@ public:
     }
 };
 REGISTER_REDUCER(TCountNamesReducer);
+
+class TTableAndRowIndexMapper
+    : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer) override {
+        for (auto& cursor : *reader) {
+            const auto& row = cursor.GetRow();
+
+            TNode outRow = row;
+            outRow["row_index"] = cursor.GetRowIndex();
+            outRow["table_index"] = cursor.GetTableIndex();
+            outRow["range_index"] = cursor.GetRangeIndex();
+
+            writer->AddRow(outRow);
+        }
+    }
+};
+REGISTER_MAPPER(TTableAndRowIndexMapper);

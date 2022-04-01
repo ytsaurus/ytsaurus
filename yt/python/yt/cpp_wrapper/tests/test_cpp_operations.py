@@ -303,3 +303,37 @@ class TestCppOperations(object):
         assert len(reducer_output_columns) == 2
         assert reducer_output_columns[0].to_yson_type() == name_column
         assert reducer_output_columns[1].to_yson_type() == {"name": "count", "type_v3": {"type_name": "optional", "item": "int64"}}
+
+    @authors("egor-gutrov")
+    def test_table_and_row_index_from_job(self):
+        input_ = _get_random_path()
+        yt.write_table(input_, [{"x": 1}, {"y": 2}, {"z": 1}])
+
+        output = _get_random_path()
+
+        yt.run_map(
+            CppJob("TTableAndRowIndexMapper"),
+            [
+                yt.TablePath(
+                    input_,
+                    ranges=[
+                        {"exact": {"row_index": 1}},
+                        {"exact": {"row_index": 2}},
+                    ],
+                ),
+                yt.TablePath(
+                    input_,
+                    ranges=[{"exact": {"row_index": 0}}],
+                )
+            ],
+            output,
+            spec={"ordered": True},
+        )
+
+        result = sorted(list(yt.read_table(output)), key=lambda item: (item["table_index"], item["row_index"]))
+
+        assert [
+            {"table_index": 0, "row_index": 1, "range_index": 0, "y": 2},
+            {"table_index": 0, "row_index": 2, "range_index": 1, "z": 1},
+            {"table_index": 1, "row_index": 0, "range_index": 0, "x": 1},
+        ] == result
