@@ -19,6 +19,10 @@ struct ICypressSynchronizer
     virtual void Start() = 0;
 
     virtual void Stop() = 0;
+
+    virtual void OnDynamicConfigChanged(
+        const TCypressSynchronizerDynamicConfigPtr& oldConfig,
+        const TCypressSynchronizerDynamicConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressSynchronizer)

@@ -69,13 +69,14 @@ public:
         TDynamicStatePtr dynamicState,
         TClientDirectoryPtr clientDirectory)
         : Config_(std::move(config))
+        , DynamicConfig_(New<TCypressSynchronizerDynamicConfig>())
         , ControlInvoker_(std::move(controlInvoker))
         , DynamicState_(std::move(dynamicState))
         , ClientDirectory_(std::move(clientDirectory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TPollingCypressSynchronizer::Poll, MakeWeak(this)),
-            Config_->PollPeriod))
+            DynamicConfig_->PollPeriod))
         , OrchidService_(IYPathService::FromProducer(BIND(&TPollingCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
     { }
 
@@ -106,16 +107,17 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-        if (!Config_->Enable) {
+        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
+
+        if (!DynamicConfig_->Enable) {
+            YT_LOG_DEBUG("Polling iteration skipped");
             return;
         }
 
         PollInstant_ = TInstant::Now();
         ++PollIndex_;
 
-        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
-
-        YT_LOG_DEBUG("Sync round started (PollIndex: %v)", PollIndex_);
+        YT_LOG_DEBUG("Polling round started (PollIndex: %v)", PollIndex_);
         try {
             auto objectMaps = FetchObjectMaps();
             auto modifiedObjects = ListModifiedObjectsByCluster(objectMaps);
@@ -124,13 +126,30 @@ public:
             PollError_ = TError();
         } catch (const std::exception& ex) {
             PollError_ = TError(ex);
-            YT_LOG_ERROR(ex, "Error performing sync round");
+            YT_LOG_ERROR(ex, "Error performing polling round");
         }
-        YT_LOG_DEBUG("Sync round finished (PollIndex: %v)", PollIndex_);
+        YT_LOG_DEBUG("Polling round finished (PollIndex: %v)", PollIndex_);
+    }
+
+    void OnDynamicConfigChanged(
+        const TCypressSynchronizerDynamicConfigPtr& oldConfig,
+        const TCypressSynchronizerDynamicConfigPtr& newConfig) override
+    {
+        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+        DynamicConfig_ = newConfig;
+
+        SyncExecutor_->SetPeriod(newConfig->PollPeriod);
+
+        YT_LOG_DEBUG(
+            "Updated cypress synchronizer dynamic config (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:
     const TCypressSynchronizerConfigPtr Config_;
+    TCypressSynchronizerDynamicConfigPtr DynamicConfig_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const TClientDirectoryPtr ClientDirectory_;

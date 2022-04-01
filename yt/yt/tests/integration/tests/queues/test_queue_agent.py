@@ -4,7 +4,7 @@ from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, s
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, sync_reshard_table, trim_rows, print_debug)
 
-from yt.common import YtError
+from yt.common import YtError, update_inplace, update
 
 import copy
 import datetime
@@ -107,6 +107,37 @@ class QueueAgentOrchid:
 class TestQueueAgentBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
+    @classmethod
+    def setup_class(cls):
+        super(TestQueueAgentBase, cls).setup_class()
+
+        queue_agent_config = cls.Env._cluster_configuration["queue_agent"][0]
+        cls.root_path = queue_agent_config.get("root", "//sys/queue_agents")
+        cls.config_path = queue_agent_config.get("dynamic_config_path", cls.root_path + "/config")
+
+        if not exists(cls.config_path):
+            create("document", cls.config_path, attributes={"value": {}})
+
+        cls._apply_dynamic_config_patch(getattr(cls, "DELTA_QUEUE_AGENT_DYNAMIC_CONFIG", dict()))
+
+    @classmethod
+    def _apply_dynamic_config_patch(cls, patch):
+        config = get(cls.config_path)
+        update_inplace(config, patch)
+        set(cls.config_path, config)
+
+        instances = ls(cls.root_path + "/instances")
+
+        def config_updated_on_all_instances():
+            for instance in instances:
+                effective_config = get(
+                    "{}/instances/{}/orchid/dynamic_config_manager/effective_config".format(cls.root_path, instance))
+                if update(effective_config, config) != effective_config:
+                    return False
+            return True
+
+        wait(config_updated_on_all_instances)
+
     def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None):
         sync_create_cells(1)
         remove("//sys/queue_agents/queues", force=True)
@@ -160,6 +191,9 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
                 "refresh_time": 0,
             },
         },
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
         },
@@ -325,11 +359,14 @@ class TestQueueController(TestQueueAgentBase):
                 "refresh_time": 0,
             },
         },
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
         },
         "cypress_synchronizer": {
-            "sync_period": 100,
+            "poll_period": 100,
         },
     }
 
@@ -521,6 +558,15 @@ class TestMultipleAgents(TestQueueAgentBase):
                 "refresh_time": 0,
             },
         },
+        "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
             "controller": {
@@ -528,13 +574,7 @@ class TestMultipleAgents(TestQueueAgentBase):
             },
         },
         "cypress_synchronizer": {
-            "sync_period": 100,
-        },
-        "election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-            "leader_cache_update_period": 100,
+            "poll_period": 100,
         },
     }
 
@@ -721,8 +761,6 @@ class TestMultipleAgents(TestQueueAgentBase):
 class TestMasterIntegration(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
-    USE_DYNAMIC_TABLES = True
-
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
             # Disable cache.
@@ -733,13 +771,16 @@ class TestMasterIntegration(TestQueueAgentBase):
                 "refresh_time": 0,
             },
         },
-        "queue_agent": {
-            "poll_period": 100,
-        },
         "election_manager": {
             "transaction_timeout": 5000,
             "transaction_ping_period": 100,
             "lock_acquisition_period": 100,
+        },
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
         },
     }
 
@@ -889,8 +930,6 @@ class CypressSynchronizerOrchid:
 class TestCypressSynchronizer(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
-    USE_DYNAMIC_TABLES = True
-
     DELTA_QUEUE_AGENT_CONFIG = {
         "cluster_connection": {
             # Disable cache.
@@ -901,12 +940,15 @@ class TestCypressSynchronizer(TestQueueAgentBase):
                 "refresh_time": 0,
             },
         },
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
         },
         "cypress_synchronizer": {
-            "sync_period": 1000
-        }
+            "poll_period": 100
+        },
     }
 
     def _get_queue_name(self, name):
@@ -1081,3 +1123,51 @@ class TestCypressSynchronizer(TestQueueAgentBase):
         self._drop_queues()
         self._drop_consumers()
         self._drop_tables()
+
+
+class TestDynamicConfig(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS = 1
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": {
+            # Disable cache.
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0,
+            },
+        },
+    }
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100
+        },
+    }
+
+    @authors("achulkov2")
+    def test_basic(self):
+        orchid = CypressSynchronizerOrchid()
+        orchid.wait_fresh_poll()
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "enable": False
+            }
+        })
+
+        poll_index = orchid.get_poll_index()
+        time.sleep(3)
+        assert orchid.get_poll_index() == poll_index
+
+        self._apply_dynamic_config_patch({
+            "cypress_synchronizer": {
+                "enable": True
+            }
+        })
+
+        orchid.wait_fresh_poll()

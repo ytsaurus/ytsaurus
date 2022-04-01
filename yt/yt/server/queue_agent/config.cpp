@@ -12,7 +12,12 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCypressSynchronizerConfig::Register(TRegistrar registrar)
+void TCypressSynchronizerConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poll_period", &TThis::PollPeriod)
         .Default(TDuration::Seconds(2));
@@ -22,7 +27,15 @@ void TCypressSynchronizerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueControllerConfig::Register(TRegistrar registrar)
+void TQueueAgentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("bus_client", &TThis::BusClient)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
         .Default(TDuration::Seconds(1));
@@ -30,15 +43,13 @@ void TQueueControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueAgentConfig::Register(TRegistrar registrar)
+void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poll_period", &TThis::PollPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("controller_thread_count", &TThis::ControllerThreadCount)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
-        .DefaultNew();
-    registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
 }
 
@@ -65,13 +76,30 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
         .Default("//sys/queue_agents");
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
             lockPath = config->Root + "/leader_lock";
         }
+        if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
+            dynamicConfigPath = config->Root + "/config";
+        }
     });
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueAgentServerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("queue_agent", &TThis::QueueAgent)
+        .DefaultNew();
+    registrar.Parameter("cypress_synchronizer", &TThis::CypressSynchronizer)
+        .DefaultNew();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
