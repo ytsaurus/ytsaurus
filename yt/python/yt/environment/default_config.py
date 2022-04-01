@@ -738,8 +738,9 @@ def get_queue_agent_config():
     return yson.loads(
 b"""
 {
-    queue_agent = {
-    }
+    dynamic_config_manager = {
+        update_period = 100;
+    };
 }
 """)
 

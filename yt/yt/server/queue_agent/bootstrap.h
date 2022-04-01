@@ -53,6 +53,8 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;
 
+    TDynamicConfigManagerPtr DynamicConfigManager_;
+
     NHiveClient::TClientDirectoryPtr ClientDirectory_;
 
     NCypressElection::ICypressElectionManagerPtr ElectionManager_;
@@ -68,6 +70,10 @@ private:
     //! Creates instance node with proper annotations and an orchid node at the native cluster.
     void UpdateCypressNode();
     void GuardedUpdateCypressNode();
+
+    void OnDynamicConfigChanged(
+        const TQueueAgentServerDynamicConfigPtr& oldConfig,
+        const TQueueAgentServerDynamicConfigPtr& newConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

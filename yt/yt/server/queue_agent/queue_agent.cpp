@@ -131,15 +131,16 @@ TQueueAgent::TQueueAgent(
     TDynamicStatePtr dynamicState,
     ICypressElectionManagerPtr electionManager)
     : Config_(std::move(config))
+    , DynamicConfig_(New<TQueueAgentDynamicConfig>())
     , ClientDirectory_(std::move(clientDirectory))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
     , ElectionManager(std::move(electionManager))
-    , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
+    , ControllerThreadPool_(New<TThreadPool>(DynamicConfig_->ControllerThreadCount, "Controller"))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TQueueAgent::Poll, MakeWeak(this)),
-        Config_->PollPeriod))
+        DynamicConfig_->PollPeriod))
     , QueueAgentChannelFactory_(
         CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
 {
@@ -228,6 +229,39 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     node->AddChild("consumers", ConsumerObjectServiceNode_);
 
     return node;
+}
+
+void TQueueAgent::OnDynamicConfigChanged(
+    const TQueueAgentDynamicConfigPtr& oldConfig,
+    const TQueueAgentDynamicConfigPtr& newConfig)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    // NB: We do this in the beginning, so that we use the new config if a context switch happens below.
+    DynamicConfig_ = newConfig;
+
+    PollExecutor_->SetPeriod(newConfig->PollPeriod);
+
+    ControllerThreadPool_->Configure(newConfig->ControllerThreadCount);
+
+    std::vector<TFuture<void>> asyncQueueControllerUpdates;
+    for (const auto& [queueRef, queue] : Queues_) {
+        asyncQueueControllerUpdates.push_back(
+            BIND(
+                &IQueueController::OnDynamicConfigChanged,
+                queue.Controller,
+                oldConfig->Controller,
+                newConfig->Controller)
+                .AsyncVia(queue.Controller->GetInvoker())
+                .Run());
+    }
+    WaitFor(AllSucceeded(asyncQueueControllerUpdates))
+        .ThrowOnError();
+
+    YT_LOG_DEBUG(
+        "Updated queue agent dynamic config (OldConfig: %v, NewConfig: %v)",
+        ConvertToYsonString(oldConfig, EYsonFormat::Text),
+        ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 void TQueueAgent::Poll()
@@ -413,7 +447,7 @@ void TQueueAgent::Poll()
             }
 
             queue.Controller = CreateQueueController(
-                Config_->Controller,
+                DynamicConfig_->Controller,
                 ClientDirectory_,
                 queueRef,
                 queue.QueueFamily,

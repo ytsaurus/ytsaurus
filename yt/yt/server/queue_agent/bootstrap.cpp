@@ -4,6 +4,7 @@
 #include "private.h"
 #include "queue_agent.h"
 #include "cypress_synchronizer.h"
+#include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -25,6 +26,7 @@
 
 #include <yt/yt/ytlib/program/build_attributes.h>
 #include <yt/yt/ytlib/program/config.h>
+#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/core/bus/server.h>
 
@@ -69,6 +71,7 @@ using namespace NNodeTrackerClient;
 using namespace NLogging;
 using namespace NCypressElection;
 using namespace NHiveClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +126,9 @@ void TBootstrap::DoRun()
     auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
+    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+
     ClientDirectory_ = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -159,6 +165,8 @@ void TBootstrap::DoRun()
         DynamicState_,
         ClientDirectory_);
 
+    DynamicConfigManager_->Start();
+
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
@@ -170,6 +178,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/config",
         CreateVirtualNode(ConfigNode_));
+    SetNodeByYPath(
+        orchidRoot,
+        "/dynamic_config_manager",
+        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
     if (CoreDumper_) {
         SetNodeByYPath(
             orchidRoot,
@@ -266,6 +278,40 @@ void TBootstrap::GuardedUpdateCypressNode()
 
         YT_LOG_INFO("Orchid node created");
     }
+}
+
+void TBootstrap::OnDynamicConfigChanged(
+    const TQueueAgentServerDynamicConfigPtr& oldConfig,
+    const TQueueAgentServerDynamicConfigPtr& newConfig)
+{
+    ReconfigureSingletons(Config_, newConfig);
+
+    YT_VERIFY(QueueAgent_);
+    YT_VERIFY(CypressSynchronizer_);
+
+    std::vector<TFuture<void>> asyncUpdateComponents{
+        BIND(
+            &TQueueAgent::OnDynamicConfigChanged,
+            QueueAgent_,
+            oldConfig->QueueAgent,
+            newConfig->QueueAgent)
+            .AsyncVia(ControlInvoker_)
+            .Run(),
+        BIND(
+            &ICypressSynchronizer::OnDynamicConfigChanged,
+            CypressSynchronizer_,
+            oldConfig->CypressSynchronizer,
+            newConfig->CypressSynchronizer)
+            .AsyncVia(ControlInvoker_)
+            .Run(),
+    };
+    WaitFor(AllSucceeded(asyncUpdateComponents))
+        .ThrowOnError();
+
+    YT_LOG_DEBUG(
+        "Updated queue agent server dynamic config (OldConfig: %v, NewConfig: %v)",
+        ConvertToYsonString(oldConfig, EYsonFormat::Text),
+        ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

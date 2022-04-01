@@ -307,13 +307,13 @@ class TOrderedDynamicTableController
 {
 public:
     TOrderedDynamicTableController(
-        TQueueControllerConfigPtr config,
+        TQueueControllerDynamicConfigPtr dynamicConfig,
         TClientDirectoryPtr clientDirectory,
         TCrossClusterReference queueRef,
         TQueueTableRow queueRow,
         TConsumerRowMap consumerRowMap,
         IInvokerPtr invoker)
-        : Config_(std::move(config))
+        : DynamicConfig_(std::move(dynamicConfig))
         , ClientDirectory_(std::move(clientDirectory))
         , QueueRef_(std::move(queueRef))
         , Invoker_(std::move(invoker))
@@ -321,7 +321,7 @@ public:
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
-            Config_->PassPeriod))
+            DynamicConfig_->PassPeriod))
         , ProfileManager_(CreateQueueProfileManager(
             Invoker_,
             QueueAgentProfiler
@@ -401,8 +401,24 @@ public:
         return Invoker_;
     }
 
+    void OnDynamicConfigChanged(
+        const TQueueControllerDynamicConfigPtr& oldConfig,
+        const TQueueControllerDynamicConfigPtr& newConfig) override
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        DynamicConfig_ = newConfig;
+
+        PassExecutor_->SetPeriod(newConfig->PassPeriod);
+
+        YT_LOG_DEBUG(
+            "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(newConfig, EYsonFormat::Text));
+    }
+
 private:
-    const TQueueControllerConfigPtr Config_;
+    TQueueControllerDynamicConfigPtr DynamicConfig_;
     const TClientDirectoryPtr ClientDirectory_;
     const TCrossClusterReference QueueRef_;
 
@@ -504,7 +520,7 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueControllerPtr CreateQueueController(
-    TQueueControllerConfigPtr config,
+    TQueueControllerDynamicConfigPtr dynamicConfig,
     NHiveClient::TClientDirectoryPtr clientDirectory,
     TCrossClusterReference queueRef,
     EQueueFamily queueFamily,
@@ -515,7 +531,7 @@ IQueueControllerPtr CreateQueueController(
     switch (queueFamily) {
         case EQueueFamily::OrderedDynamicTable:
             return New<TOrderedDynamicTableController>(
-                std::move(config),
+                std::move(dynamicConfig),
                 std::move(clientDirectory),
                 std::move(queueRef),
                 std::move(queueRow),

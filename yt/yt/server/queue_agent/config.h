@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/cypress_election/config.h>
 
+#include <yt/yt/server/lib/dynamic_config/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/client/ypath/public.h>
@@ -20,12 +22,6 @@ class TCypressSynchronizerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    //! Cypress poll period.
-    TDuration PollPeriod;
-
-    //! Flag for disabling cypress synchronizer entirely; used primarily for tests.
-    bool Enable;
-
     REGISTER_YSON_STRUCT(TCypressSynchronizerConfig)
 
     static void Register(TRegistrar registrar);
@@ -35,7 +31,42 @@ DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueControllerConfig
+class TCypressSynchronizerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Cypress poll period.
+    TDuration PollPeriod;
+
+    //! Flag for disabling cypress synchronizer entirely; used primarily for tests.
+    bool Enable;
+
+    REGISTER_YSON_STRUCT(TCypressSynchronizerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueAgentConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Used to create channels to other queue agents.
+    NBus::TTcpBusConfigPtr BusClient;
+
+    REGISTER_YSON_STRUCT(TQueueAgentConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -43,16 +74,16 @@ public:
     //! trimming and the maximum age of cached Orchid state.
     TDuration PassPeriod;
 
-    REGISTER_YSON_STRUCT(TQueueControllerConfig)
+    REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueControllerConfig)
+DEFINE_REFCOUNTED_TYPE(TQueueControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentConfig
+class TQueueAgentDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -63,17 +94,14 @@ public:
     int ControllerThreadCount;
 
     //! Configuration of queue controllers.
-    TQueueControllerConfigPtr Controller;
+    TQueueControllerDynamicConfigPtr Controller;
 
-    //! Used to create channels to other queue agents.
-    NBus::TTcpBusConfigPtr BusClient;
-
-    REGISTER_YSON_STRUCT(TQueueAgentConfig)
+    REGISTER_YSON_STRUCT(TQueueAgentDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
+DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,12 +127,31 @@ public:
 
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    TString DynamicConfigPath;
+
     REGISTER_YSON_STRUCT(TQueueAgentServerConfig)
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentServerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueAgentServerDynamicConfig
+    : public TSingletonsDynamicConfig
+{
+public:
+    TQueueAgentDynamicConfigPtr QueueAgent;
+    TCypressSynchronizerDynamicConfigPtr CypressSynchronizer;
+
+    REGISTER_YSON_STRUCT(TQueueAgentServerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentServerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

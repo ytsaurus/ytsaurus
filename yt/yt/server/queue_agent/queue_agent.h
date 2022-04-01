@@ -33,8 +33,13 @@ public:
 
     NYTree::IMapNodePtr GetOrchidNode() const;
 
+    void OnDynamicConfigChanged(
+        const TQueueAgentDynamicConfigPtr& oldConfig,
+        const TQueueAgentDynamicConfigPtr& newConfig);
+
 private:
     const TQueueAgentConfigPtr Config_;
+    TQueueAgentDynamicConfigPtr DynamicConfig_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
