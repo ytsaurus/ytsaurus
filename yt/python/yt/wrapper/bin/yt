@@ -843,8 +843,8 @@ def reshard_table(**kwargs):
         del kwargs["pivot_keys"]
     if kwargs.get("uniform") == False:
         del kwargs["uniform"]
-    if kwargs.get("enable-slicing") == False:
-        del kwargs["enable-slicing"]
+    if kwargs.get("enable_slicing") == False:
+        del kwargs["enable_slicing"]
     yt.reshard_table(**kwargs)
 
 def add_reshard_table_parser(add_parser):
