@@ -120,12 +120,11 @@ private:
 
         // Cf. TPathResolver::ResolveRoot.
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster() && CellTagFromId(objectId) != multicellManager->GetCellTag()) {
+        if (multicellManager->IsPrimaryMaster() && CellTagFromId(objectId) != multicellManager->GetCellTag() && !IsSequoiaId(objectId)) {
             return New<TRemoteService>(Bootstrap_, objectId);
         } else {
             const auto& epochHistoryManager = Bootstrap_->GetEpochHistoryManager();
-            auto version = NHydra::TVersion::FromRevision(CounterFromId(objectId));
-            auto timeSpan = epochHistoryManager->GetEstimatedMutationTime(version);
+            auto timeSpan = epochHistoryManager->GetEstimatedCreationTime(objectId);
             return IYPathService::FromProducer(BIND([timeSpan] (NYson::IYsonConsumer* consumer) {
                 BuildYsonFluently(consumer)
                     .BeginMap()

@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -19,7 +21,9 @@ namespace NYT::NCellMaster {
 
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NObjectClient;
 using namespace NProto;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,33 +31,34 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEpochHistoryManager::TImpl
-    : public TMasterAutomatonPart
+class TEpochHistoryManager
+    : public IEpochHistoryManager
+    , public TMasterAutomatonPart
 {
 public:
-    TImpl(TBootstrap* bootstrap)
+    TEpochHistoryManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
         , StoreMutationTimeExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::Run, MakeWeak(this))))
+            BIND(&TEpochHistoryManager::Run, MakeWeak(this))))
         , Versions_(1)
         , Instants_(1)
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "EpochHistoryManager",
-            BIND(&TImpl::Save, Unretained(this)));
+            BIND(&TEpochHistoryManager::Save, Unretained(this)));
 
         RegisterLoader(
             "EpochHistoryManager",
-            BIND(&TImpl::Load, Unretained(this)));
+            BIND(&TEpochHistoryManager::Load, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraStoreMutationTime, Unretained(this)));
+        RegisterMethod(BIND(&TEpochHistoryManager::HydraStoreMutationTime, Unretained(this)));
 
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TEpochHistoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    std::pair<TInstant, TInstant> GetEstimatedMutationTime(TVersion version)
+    std::pair<TInstant, TInstant> GetEstimatedMutationTime(TVersion version) const override
     {
         int index = std::upper_bound(Versions_.begin(), Versions_.end(), version) - Versions_.begin();
         if (index == 0) {
@@ -63,6 +68,15 @@ public:
             Instants_[index - 1],
             index < std::ssize(Instants_) ? Instants_[index] : TInstant::Max()
         };
+    }
+
+    std::pair<TInstant, TInstant> GetEstimatedCreationTime(TObjectId id) const override
+    {
+        if (IsSequoiaId(id)) {
+            return TimestampToInstant(TimestampFromId(id));
+        } else {
+            return GetEstimatedMutationTime(VersionFromId(id));
+        }
     }
 
 private:
@@ -141,15 +155,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEpochHistoryManager::TEpochHistoryManager(TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TEpochHistoryManager::~TEpochHistoryManager() = default;
-
-std::pair<TInstant, TInstant> TEpochHistoryManager::GetEstimatedMutationTime(TVersion version) const
+IEpochHistoryManagerPtr CreateEpochHistoryManager(TBootstrap* bootstrap)
 {
-    return Impl_->GetEstimatedMutationTime(version);
+    return New<TEpochHistoryManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -123,7 +123,13 @@ TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalized
 
 TTimestamp TimestampFromTransactionId(TTransactionId id)
 {
-    return TTimestamp(CounterFromId(id));
+    if (IsSequoiaId(id)) {
+        // Sequoia master transaction.
+        return TimestampFromId(id);
+    } else {
+        // Tablet transaction or non-Sequoia master transaction.
+        return TTimestamp(CounterFromId(id));
+    }
 }
 
 EAtomicity AtomicityFromTransactionId(TTransactionId id)

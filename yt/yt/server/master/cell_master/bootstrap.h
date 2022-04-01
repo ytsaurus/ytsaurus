@@ -110,7 +110,7 @@ public:
     const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
     const NCypressServer::TPortalManagerPtr& GetPortalManager() const;
     const THydraFacadePtr& GetHydraFacade() const;
-    const TEpochHistoryManagerPtr& GetEpochHistoryManager() const;
+    const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const TWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
@@ -179,7 +179,7 @@ protected:
     NCypressServer::TCypressManagerPtr CypressManager_;
     NCypressServer::TPortalManagerPtr PortalManager_;
     THydraFacadePtr HydraFacade_;
-    TEpochHistoryManagerPtr EpochHistoryManager_;
+    IEpochHistoryManagerPtr EpochHistoryManager_;
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
     NObjectServer::IObjectServicePtr ObjectService_;

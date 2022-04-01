@@ -2,11 +2,14 @@
 
 #include "public.h"
 
+#include <yt/yt/client/hydra/version.h>
+
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/client/hydra/version.h>
 
 namespace NYT::NObjectClient {
 
@@ -51,6 +54,12 @@ ui64 CounterFromId(TObjectId id);
 //! Extracts the hash component from #id.
 ui32 HashFromId(TObjectId id);
 
+//! Extracts Hydra revision from #id for non-Sequoia objects.
+NHydra::TVersion VersionFromId(TObjectId id);
+
+//! Extracts the object creation timestamp from #id for Sequoia object.
+NTransactionClient::TTimestamp TimestampFromId(TObjectId id);
+
 //! Returns |true| iff a given #type denotes a schema.
 bool IsSchemaType(EObjectType type);
 
@@ -81,11 +90,24 @@ TObjectId MakeRandomId(
  */
 bool IsWellKnownId(TObjectId id);
 
+//! Returns |true| if a given #id corresponds to Sequoia.
+/*
+ *  This method checks the second highest bit of counter part.
+ */
+bool IsSequoiaId(TObjectId id);
+
 //! Constructs the id for a regular object.
 TObjectId MakeRegularId(
     EObjectType type,
     TCellTag cellTag,
     NHydra::TVersion version,
+    ui32 hash);
+
+//! Constructs the id for a regular Sequoia object.
+TObjectId MakeSequoiaId(
+    EObjectType type,
+    TCellTag cellTag,
+    NTransactionClient::TTimestamp timestamp,
     ui32 hash);
 
 //! Constructs the id corresponding to well-known (usually singleton) entities.
