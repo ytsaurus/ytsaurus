@@ -16,6 +16,23 @@ import json
 MAX_DECIMAL_PRECISION = 35
 
 
+class JobCountProfiler:
+    def __init__(self, state, tags=None):
+        assert state in ["started", "failed", "aborted", "completed"]
+        path = "controller_agent/jobs/{}_job_count".format(state)
+        self._counters = [
+            profiler_factory().at_controller_agent(agent, fixed_tags=tags).counter(path)
+            for agent in ls("//sys/controller_agents/instances")
+        ]
+
+    def get_job_count_delta(self, tags=None):
+        delta = 0
+        for counter in self._counters:
+            delta += counter.get_delta(tags=tags)
+
+        return delta
+
+
 def profiler_factory():
     yt_client = YtClient(config={
         "enable_token": False,

@@ -22,7 +22,7 @@ from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
     scheduler_orchid_default_pool_tree_path)
 
-from yt_helpers import get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
+from yt_helpers import JobCountProfiler, get_current_time, parse_yt_time, profiler_factory, get_job_count_profiling
 
 from yt.yson import YsonEntity
 from yt.common import YtResponseError, YtError
@@ -990,14 +990,14 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     def test_aborted_job_count_profiling_per_tree(self):
-        aborted_jobs_counter = profiler_factory().at_scheduler().counter("scheduler/jobs/aborted_job_count")
+        aborted_job_profiler = JobCountProfiler("aborted")
 
         op1 = run_sleeping_vanilla()
         wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/resource_usage/cpu", default=None) == 1.0)
         op1.abort()
 
-        wait(lambda: aborted_jobs_counter.get_delta(tags={"tree": "default"}) == 1)
-        wait(lambda: aborted_jobs_counter.get_delta() == 1)
+        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "default"}) == 1)
+        wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
 
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other"})
@@ -1009,9 +1009,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_operation_path(op2.id, tree="other") + "/resource_usage/cpu", default=None) == 1.0)
         op2.abort()
 
-        wait(lambda: aborted_jobs_counter.get_delta(tags={"tree": "other"}) == 1)
-        wait(lambda: aborted_jobs_counter.get_delta(tags={"tree": "default"}) == 1)
-        wait(lambda: aborted_jobs_counter.get_delta() == 2)
+        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "other"}) == 1)
+        wait(lambda: aborted_job_profiler.get_job_count_delta(tags={"tree": "default"}) == 1)
+        wait(lambda: aborted_job_profiler.get_job_count_delta() == 2)
 
     @authors("ignat")
     def test_scheduling_index_profiling(self):
@@ -1033,16 +1033,15 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     @authors("eshcherbin")
     def test_started_job_count_profiling(self):
-        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
-        started_job_counter = profiler.counter("scheduler/jobs/started_job_count")
-        started_vanilla_job_counter = profiler.counter("scheduler/jobs/started_job_count", tags={"job_type": "vanilla"})
+        started_job_profiler = JobCountProfiler("started", tags={"tree": "default"})
+        started_vanilla_job_profiler = JobCountProfiler("started", tags={"tree": "default", "job_type": "vanilla"})
 
         time.sleep(3.0)
-        assert started_job_counter.get_delta() == started_vanilla_job_counter.get_delta() == 0
+        assert started_job_profiler.get_job_count_delta() == started_vanilla_job_profiler.get_job_count_delta() == 0
 
         run_sleeping_vanilla()
 
-        wait(lambda: started_job_counter.get_delta() == started_vanilla_job_counter.get_delta() == 1)
+        wait(lambda: started_job_profiler.get_job_count_delta() == started_vanilla_job_profiler.get_job_count_delta() == 1)
 
 
 ##################################################################
