@@ -1328,7 +1328,7 @@ protected:
     void CheckForStarvation(TInstant now) override;
 
     bool IsSchedulable() const override;
-    void OnFifoSchedulableElementCountLimitReached();
+    void OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context);
     int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
