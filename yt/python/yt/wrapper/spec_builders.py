@@ -99,6 +99,9 @@ def _is_tables_sorted(table, client):
     sort_attributes = get(table + "/@", attributes=["sorted", "sorted_by"], client=client)
     return apply_function_to_result(_is_sorted, sort_attributes)
 
+def _is_cpp_job(command):
+    return _CPP_WRAPPER_AVAILABLE and isinstance(command, CppJob)
+
 class Finalizer(object):
     """Entity for operation finalizing: checking size of result chunks, deleting of \
     empty output tables and temporary local files.
@@ -513,7 +516,7 @@ class UserJobSpecBuilder(object):
             output_table_count=len(output_tables),
             use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
 
-        is_cpp_job = _CPP_WRAPPER_AVAILABLE and isinstance(spec["command"], CppJob)
+        is_cpp_job = _is_cpp_job(spec["command"])
         if is_cpp_job:
             state_bytes, spec_patch = spec["command"].prepare_state_and_spec_patch(
                 group_by,
@@ -734,13 +737,18 @@ class UserJobSpecBuilder(object):
             )
             should_process_key_switch = True
 
-        elif _CPP_WRAPPER_AVAILABLE and isinstance(command, CppJob):
+        elif _is_cpp_job(command):
             if "input_format" in spec or "output_format" in spec or "format" in spec:
                 raise YtError("Cpp job must not be used with explicit format specification")
             # TODO(egor-gutrov): mb check has_input_query?
+
+            if self._supports_row_index(operation_type):
+                self._set_control_attribute(job_io_spec, "enable_row_index", True)
+                self._set_control_attribute(job_io_spec, "enable_range_index", True)
+            should_process_key_switch = True
+
             input_tables = operation_preparation_context.get_input_paths()
             output_tables = operation_preparation_context.get_output_paths()
-            should_process_key_switch = True
             input_format, output_format = CppUninitializedFormat(), CppUninitializedFormat()
 
         else:
