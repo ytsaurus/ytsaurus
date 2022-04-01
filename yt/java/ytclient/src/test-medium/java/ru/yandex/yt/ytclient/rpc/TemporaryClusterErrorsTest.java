@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.rpc;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,7 +12,6 @@ import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.asynchttpclient.RequestBuilder;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
@@ -107,7 +107,6 @@ public class TemporaryClusterErrorsTest {
     }
 
     @Test
-    @Ignore
     public void testMultipleClusters() {
         final RpcCredentials credentials = new RpcCredentials("root", "");
 
@@ -145,15 +144,23 @@ public class TemporaryClusterErrorsTest {
         }
 
         try {
-            Thread.sleep(2000);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 
-        {
-            var getFuture = client.getNode("//tmp/data-node");
-            waitOkResult(getFuture, 1000);
-            assertThat(getFuture.join(), is(dataNode));
+        // Proxy needs some time to understand that it's not banned anymore.
+        for (int i = 0; i < 100; ++i) {
+            try {
+                var getFuture = client.getNode("//tmp/data-node");
+                assertThat(getFuture.join(), is(dataNode));
+            } catch (CompletionException ex) {
+                try {
+                    Thread.sleep(100, 0);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
 }
