@@ -3539,7 +3539,7 @@ private:
             ? transactionManager->FindTransaction(sourceTransactionId)
             : nullptr;
         if (sourceTransactionId && !IsObjectAlive(sourceTransaction)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Source transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Source transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
                 sourceNodeId,
                 clonedNodeId,
                 sourceTransactionId,
