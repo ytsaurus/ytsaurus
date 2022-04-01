@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko
     ((PersistentNodeTouchTime)                                      (2002))  // shakurov
     ((UnconditionallyClearPrerequisitesFromExternalizedRequests)    (2003))  // shakurov
+    ((SequoiaObjects)                                               (2004))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

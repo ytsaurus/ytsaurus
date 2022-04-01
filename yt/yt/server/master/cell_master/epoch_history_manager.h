@@ -4,27 +4,26 @@
 
 #include <yt/yt/client/hydra/version.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEpochHistoryManager
-    : public TRefCounted
+struct IEpochHistoryManager
+    : public virtual TRefCounted
 {
-public:
-    explicit TEpochHistoryManager(TBootstrap* bootstrap);
-    ~TEpochHistoryManager();
+    virtual std::pair<TInstant, TInstant> GetEstimatedMutationTime(NHydra::TVersion version) const = 0;
 
-    std::pair<TInstant, TInstant> GetEstimatedMutationTime(NHydra::TVersion version) const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual std::pair<TInstant, TInstant> GetEstimatedCreationTime(NObjectClient::TObjectId id) const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TEpochHistoryManager)
+DEFINE_REFCOUNTED_TYPE(IEpochHistoryManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IEpochHistoryManagerPtr CreateEpochHistoryManager(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellMaster
-

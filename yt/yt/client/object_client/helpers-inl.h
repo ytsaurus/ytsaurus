@@ -34,6 +34,18 @@ inline ui32 HashFromId(TObjectId id)
     return id.Parts32[0];
 }
 
+inline NHydra::TVersion VersionFromId(TObjectId id)
+{
+    YT_ASSERT(!IsSequoiaId(id));
+    return NHydra::TVersion::FromRevision(CounterFromId(id));
+}
+
+inline NTransactionClient::TTimestamp TimestampFromId(TObjectId id)
+{
+    YT_ASSERT(IsSequoiaId(id));
+    return CounterFromId(id) & ~SequoiaCounterMask;
+}
+
 inline EObjectType SchemaTypeFromType(EObjectType type)
 {
     YT_ASSERT(HasSchema(type));
@@ -75,6 +87,12 @@ inline bool IsWellKnownId(TObjectId id)
     return CounterFromId(id) & WellKnownCounterMask;
 }
 
+inline bool IsSequoiaId(TObjectId id)
+{
+    // NB: Well-known objects have Sequoia bit set.
+    return (CounterFromId(id) & SequoiaCounterMask) && !IsWellKnownId(id);
+}
+
 inline TObjectId MakeRegularId(
     EObjectType type,
     TCellTag cellTag,
@@ -86,6 +104,20 @@ inline TObjectId MakeRegularId(
         (cellTag << 16) | static_cast<ui32>(type),
         version.RecordId,
         version.SegmentId);
+}
+
+inline TObjectId MakeSequoiaId(
+    EObjectType type,
+    TCellTag cellTag,
+    NTransactionClient::TTimestamp timestamp,
+    ui32 hash)
+{
+    YT_ASSERT(!(timestamp & SequoiaCounterMask));
+    return MakeId(
+        type,
+        cellTag,
+        timestamp | SequoiaCounterMask,
+        hash);
 }
 
 inline TObjectId MakeWellKnownId(

@@ -291,7 +291,6 @@ private:
     //! Stores schemas (for serialization mostly).
     TEntityMap<TSchemaObject> SchemaMap_;
 
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;

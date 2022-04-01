@@ -42,7 +42,10 @@ using TObjectId = TGuid;
 constexpr TObjectId NullObjectId = {};
 
 //! Used to mark counters for well-known ids.
-constexpr ui64 WellKnownCounterMask = 0x1000000000000000;
+constexpr ui64 WellKnownCounterMask = 0x8000000000000000;
+
+//! Used to mark counters for Sequoia objects.
+constexpr ui64 SequoiaCounterMask = 0x4000000000000000;
 
 using NElection::TCellId;
 using NElection::NullCellId;

@@ -378,7 +378,7 @@ const THydraFacadePtr& TBootstrap::GetHydraFacade() const
     return HydraFacade_;
 }
 
-const TEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
+const IEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
 {
     return EpochHistoryManager_;
 }
@@ -696,7 +696,7 @@ void TBootstrap::DoInitialize()
     ConfigManager_ = New<TConfigManager>(this);
     ConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
-    EpochHistoryManager_ = New<TEpochHistoryManager>(this);
+    EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
     MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
 
