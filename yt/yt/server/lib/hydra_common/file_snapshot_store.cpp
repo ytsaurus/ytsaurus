@@ -109,7 +109,7 @@ private:
             Offset_);
 
         try {
-            File_.reset(new TFile(FileName_, OpenExisting | CloseOnExec));
+            File_.reset(new TFile(FileName_, RdOnly | OpenExisting | CloseOnExec));
             TUnbufferedFileInput input(*File_);
 
             if (SkipHeader_) {
