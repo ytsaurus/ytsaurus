@@ -1223,7 +1223,6 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
             Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
             if (child->IsSchedulable()) {
                 SchedulableChildren_.push_back(child);
-                ++SchedulableElementCount_;
             }
         }
     } else { // Fifo pool, MaxSchedulableElementCountInFifoPool specified.
@@ -1240,18 +1239,21 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
             });
 
         for (auto* child : sortedChildren) {
-            SchedulableElementCount_ += child->BuildSchedulableChildrenLists(context);
+            int childSchedulableElementCount = child->BuildSchedulableChildrenLists(context);
             Attributes_.UnschedulableOperationsResourceUsage += child->Attributes().UnschedulableOperationsResourceUsage;
             if (SchedulableElementCount_ >= *maxSchedulableElementCount &&
                 Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total))
             {
-                child->OnFifoSchedulableElementCountLimitReached();
+                child->OnFifoSchedulableElementCountLimitReached(context);
             }
             if (child->IsSchedulable()) {
                 SchedulableChildren_.push_back(child);
-                ++SchedulableElementCount_;
+                SchedulableElementCount_ += childSchedulableElementCount;
             }
         }
+    }
+    if (IsRoot() || IsSchedulable()) {
+        ++SchedulableElementCount_;
     }
     return SchedulableElementCount_;
 }
@@ -2962,14 +2964,16 @@ int TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpda
     if (!IsSchedulable()) {
         ++context->UnschedulableReasons[*UnschedulableReason_];
         Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
-        return 1;
+        return 0;
     }
-    return 0;
+    return 1;
 }
 
-void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached()
+void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context)
 {
     UnschedulableReason_ = EUnschedulableReason::FifoSchedulableElementCountLimitReached;
+    ++context->UnschedulableReasons[*UnschedulableReason_];
+    Attributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
 }
 
 void TSchedulerOperationElement::UpdatePreemptionAttributes()
@@ -4223,8 +4227,9 @@ void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateCo
     BuildSchedulableChildrenLists(postUpdateContext);
 
     // Calculate tree sizes.
-    SchedulableElementCount_ = EnumerateElements(/* startIndex */ 0, /* isSchedulableValueFilter*/ true);
-    TreeSize_ = EnumerateElements(/* startIndex */ SchedulableElementCount_, /* isSchedulableValueFilter*/ false);
+    int schedulableElementCount = EnumerateElements(/* startIndex */ 0, /* isSchedulableValueFilter*/ true);
+    YT_VERIFY(schedulableElementCount == SchedulableElementCount_);
+    TreeSize_ = EnumerateElements(/* startIndex */ schedulableElementCount, /* isSchedulableValueFilter*/ false);
 
     // We calculate SatisfactionRatio by computing dynamic attributes using the same algorithm as during the scheduling phase.
     TDynamicAttributesList dynamicAttributesList(TreeSize_);
