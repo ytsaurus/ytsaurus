@@ -30,8 +30,8 @@ def test_get(yt_stuff):
     # test get list
     l = [1, 2, 'a', 'b', ['x', 'z'], {'a': 1, 'b': 2}]
     yt.create('list_node', '//test_get/list')
-    yt.set('//test_get/list', l)
-    assert client.get('//test_get/list') == l
+    yt.set('//test_get/list/@value', l)
+    assert client.get('//test_get/list/@value') == l
 
     # test get table attrs
     yt.create('table', '//test_get/table')
@@ -124,8 +124,8 @@ def test_get_set_yson(yt_stuff):
     list_node = test_root + '/list_node'
     list_val = to_yson_type([1, 2, 'a', 'b', ['x', 'z'], {'a': 1, 'b': 2}], attrs)
     yt.create('list_node', list_node)
-    client.set(list_node, list_val)
-    assert client.get(list_node, attributes=['attr_key'], yson=True) == list_val
+    client.set(list_node + "/@value", list_val)
+    assert client.get(list_node + "/@value", attributes=['attr_key'], yson=True) == list_val
 
 
 def test_exists(yt_stuff):
