@@ -1195,7 +1195,10 @@ void TTablet::RemoveStore(IStorePtr store)
         sortedStore->SetPartition(nullptr);
         UpdateOverlappingStoreCount();
 
-        NonActiveStoresUnmergedRowCount_ -= store->GetRowCount();
+        if (store->GetStoreState() != EStoreState::ActiveDynamic) {
+            YT_VERIFY(NonActiveStoresUnmergedRowCount_ >= store->GetRowCount());
+            NonActiveStoresUnmergedRowCount_ -= store->GetRowCount();
+        }
     } else {
         auto orderedStore = store->AsOrdered();
         YT_VERIFY(StoreRowIndexMap_.erase(orderedStore->GetStartingRowIndex()) == 1);

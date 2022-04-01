@@ -2658,6 +2658,8 @@ private:
 
         auto storeManager = CreateStoreManager(tablet);
         tablet->SetStoreManager(storeManager);
+
+        tablet->RecomputeNonActiveStoresUnmergedRowCount();
     }
 
     void StartTabletEpoch(TTablet* tablet)
@@ -3516,7 +3518,7 @@ private:
 
             TTransactionCommitOptions commitOptions{
                 .GeneratePrepareTimestamp = false
-            }; 
+            };
 
             WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
