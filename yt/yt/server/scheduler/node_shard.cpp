@@ -150,10 +150,6 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitJobsToStrategyPeriod))
 {
-    TotalCompletedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_completed_wall_time");
-    TotalFailedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_failed_wall_time");
-    TotalAbortedJobTime_ = SchedulerProfiler.TimeCounter("/jobs/total_aborted_wall_time");
-
     SoftConcurrentHeartbeatLimitReachedCounter_ = SchedulerProfiler
         .WithTag("limit_type", "soft")
         .Counter("/node_heartbeat/concurrent_limit_reached_count");
@@ -265,8 +261,6 @@ void TNodeShard::DoCleanup()
     ActiveJobCount_ = 0;
 
     JobCounter_.clear();
-    AbortedJobCounter_.clear();
-    CompletedJobCounter_.clear();
 
     JobsToSubmitToStrategy_.clear();
 
@@ -2516,21 +2510,6 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool bySch
 void TNodeShard::OnJobFinished(const TJobPtr& job)
 {
     job->SetFinishTime(TInstant::Now());
-    auto duration = job->GetDuration();
-
-    switch (job->GetState()) {
-        case EJobState::Completed:
-            TotalCompletedJobTime_.Add(duration);
-            break;
-        case EJobState::Failed:
-            TotalFailedJobTime_.Add(duration);
-            break;
-        case EJobState::Aborted:
-            TotalAbortedJobTime_.Add(duration);
-            break;
-        default:
-            YT_ABORT();
-    }
 }
 
 void TNodeShard::SubmitJobsToStrategy()
@@ -2564,86 +2543,36 @@ void TNodeShard::SubmitJobsToStrategy()
 
 void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 {
-    // COMPAT(ignat): remove processing finished job events.
     auto jobState = job->GetState();
     if (jobState == EJobState::Aborted ||
         jobState == EJobState::Completed ||
-        jobState == EJobState::Failed)
+        jobState == EJobState::Failed ||
+	    jobState == EJobState::None)
     {
-        YT_ASSERT(value >= 0);
-    }
-
-    // TODO(eshcherbin): This is very ugly, job count profiling needs refactoring.
-    if ((jobState == EJobState::None) && value < 0) {
         return;
     }
 
-    auto getProfiler = [&] {
+    auto createGauge = [&] {
         return SchedulerProfiler.WithTags(TTagSet(TTagList{
-            {"job_type", FormatEnum(job->GetType())},
-            {ProfilingPoolTreeKey, job->GetTreeId()}}));
+                {"job_type", FormatEnum(job->GetType())},
+                {ProfilingPoolTreeKey, job->GetTreeId()},
+                {"state", FormatEnum(jobState)}}))
+            .Gauge("/jobs/running_job_count");
     };
 
-    if (jobState == EJobState::Aborted) {
-        auto key = std::make_tuple(job->GetType(), job->GetAbortReason(), job->GetTreeId());
-        auto it = AbortedJobCounter_.find(key);
-        if (it == AbortedJobCounter_.end()) {
-            it = AbortedJobCounter_.emplace(
-                std::move(key),
-                getProfiler()
-                    .WithTag("abort_reason", FormatEnum(job->GetAbortReason()))
-                    .Counter("/jobs/aborted_job_count")).first;
-        }
-        it->second.Increment(value);
-    } else if (jobState == EJobState::Completed) {
-        auto key = std::make_tuple(job->GetType(), job->GetInterruptReason(), job->GetTreeId());
-        auto it = CompletedJobCounter_.find(key);
-        if (it == CompletedJobCounter_.end()) {
-            it = CompletedJobCounter_.emplace(
-                std::move(key),
-                getProfiler()
-                    .WithTag("interrupt_reason", FormatEnum(job->GetInterruptReason()))
-                    .Counter("/jobs/completed_job_count")).first;
-        }
-        it->second.Increment(value);
-    } else if (jobState == EJobState::Failed) {
-        auto key = std::make_tuple(job->GetType(), job->GetTreeId());
-        auto it = FailedJobCounter_.find(key);
-        if (it == FailedJobCounter_.end()) {
-            it = FailedJobCounter_.emplace(
-                std::move(key),
-                getProfiler()
-                    .Counter("/jobs/failed_job_count")).first;
-        }
-        it->second.Increment(value);
-    } else if (jobState == EJobState::None) {
-        // Job has just started.
-        auto key = std::make_tuple(job->GetType(), job->GetTreeId());
-        auto it = StartedJobCounter_.find(key);
-        if (it == StartedJobCounter_.end()) {
-            it = StartedJobCounter_.emplace(
-                std::move(key),
-                getProfiler()
-                    .Counter("/jobs/started_job_count")).first;
-        }
-        it->second.Increment(value);
-    } else {
-        auto key = std::make_tuple(job->GetType(), jobState);
-        auto it = JobCounter_.find(key);
-        if (it == JobCounter_.end()) {
-            it = JobCounter_.emplace(
-                key,
-                std::make_pair(
-                    0,
-                    getProfiler()
-                        .WithTag("state", FormatEnum(jobState))
-                        .Gauge("/jobs/running_job_count"))).first;
-        }
-
-        auto& [count, gauge] = it->second;
-        count += value;
-        gauge.Update(count);
+    auto key = std::make_tuple(job->GetType(), jobState);
+    auto it = JobCounter_.find(key);
+    if (it == JobCounter_.end()) {
+        it = JobCounter_.emplace(
+            key,
+            std::make_pair(
+                0,
+                createGauge())).first;
     }
+
+    auto& [count, gauge] = it->second;
+    count += value;
+    gauge.Update(count);
 }
 
 void TNodeShard::SetJobState(const TJobPtr& job, EJobState state)

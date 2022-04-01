@@ -249,19 +249,11 @@ private:
     std::atomic<int> ExecNodeCount_ = {0};
     std::atomic<int> TotalNodeCount_ = {0};
 
-    NProfiling::TTimeCounter TotalCompletedJobTime_;
-    NProfiling::TTimeCounter TotalFailedJobTime_;
-    NProfiling::TTimeCounter TotalAbortedJobTime_;
-
     std::atomic<int> JobReporterWriteFailuresCount_ = {0};
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
 
-    // COMPAT(ignat)
+    // TODO(pogorelov): Move job counter to CA.
     TJobCounter JobCounter_;
-    TAbortedJobCounter AbortedJobCounter_;
-    TFailedJobCounter FailedJobCounter_;
-    TCompletedJobCounter CompletedJobCounter_;
-    TStartedJobCounter StartedJobCounter_;
 
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
