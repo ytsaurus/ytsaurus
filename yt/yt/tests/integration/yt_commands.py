@@ -390,9 +390,6 @@ def execute_command(
         authenticated_user = parameters["authenticated_user"]
         del parameters["authenticated_user"]
 
-    if "rewrite_operation_path" not in parameters:
-        parameters["rewrite_operation_path"] = False
-
     if "path" in parameters:
         parameters["path"] = prepare_path(parameters["path"])
 
