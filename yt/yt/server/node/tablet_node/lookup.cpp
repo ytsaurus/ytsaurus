@@ -410,6 +410,7 @@ private:
 
         // NB: Will remain empty for in-memory tables.
         std::vector<TFuture<void>> futures;
+
         for (const auto& store : stores) {
             YT_LOG_DEBUG("Creating reader (Store: %v, KeyCount: %v, ReadSessionId: %v)",
                 store->GetId(),

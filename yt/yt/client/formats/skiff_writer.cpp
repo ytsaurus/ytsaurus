@@ -721,7 +721,7 @@ public:
                         << ex;
                 }
             };
-            
+
             size_t nextDenseIndex = 0;
             for (size_t i = 0; i < denseFieldDescriptionList.size(); ++i) {
                 const auto& denseField = denseFieldDescriptionList[i];

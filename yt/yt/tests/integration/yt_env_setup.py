@@ -243,6 +243,9 @@ class YTEnvSetup(object):
                 "max_failed_job_count": 1,
             }
         },
+        "controller_agent": {
+            "enable_table_column_renaming": True,
+        },
     }
     DELTA_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {}
@@ -1030,6 +1033,8 @@ class YTEnvSetup(object):
         if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
             dynamic_master_config["enable_descending_sort_order"] = True
             dynamic_master_config["enable_descending_sort_order_dynamic"] = True
+        if self.Env.get_component_version("ytserver-master").abi >= (22, 1):
+            dynamic_master_config["enable_table_column_renaming"] = True
 
         default_pool_tree_config = {
             "nodes_filter": "",

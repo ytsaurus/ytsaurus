@@ -19,10 +19,10 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 //! Validates the column schema update.
 /*!
- *  \pre{oldColumn and newColumn should have the same name.}
+ *  \pre{oldColumn and newColumn should have the same stable name.}
  *
  *  Validates that:
- *  - Column type remains the same.
+ *  - New column type is compatible with the old one.
  *  - Optional column doesn't become required.
  *  - Column expression remains the same.
  *  - Column aggregate method either was introduced or remains the same.
@@ -30,7 +30,8 @@ using namespace NTabletClient;
  */
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
-    YT_VERIFY(oldColumn.Name() == newColumn.Name());
+    YT_VERIFY(oldColumn.StableName() == newColumn.StableName());
+
     auto compatibility = NComplexTypes::CheckTypeCompatibility(
         oldColumn.LogicalType(),
         newColumn.LogicalType());
@@ -44,44 +45,42 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             THROW_ERROR compatibility.second;
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %Qv",
-            oldColumn.Name())
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %v",
+            oldColumn.GetDiagnosticNameString())
             << ex;
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {
-        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
-            oldColumn.Name(),
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Sort order mismatch for column %v: old %Qlv, new %Qlv",
+            oldColumn.GetDiagnosticNameString(),
             oldColumn.SortOrder(),
             newColumn.SortOrder());
     }
 
     if (newColumn.Expression() != oldColumn.Expression()) {
-        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Expression mismatch for column %Qv: old %Qv, new %Qv",
-            oldColumn.Name(),
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Expression mismatch for column %v: old %Qv, new %Qv",
+            oldColumn.GetDiagnosticNameString(),
             oldColumn.Expression(),
             newColumn.Expression());
     }
 
     if (oldColumn.Aggregate() && oldColumn.Aggregate() != newColumn.Aggregate()) {
-        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Aggregate mode mismatch for column %Qv: old %Qv, new %Qv",
-            oldColumn.Name(),
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Aggregate mode mismatch for column %v: old %Qv, new %Qv",
+            oldColumn.GetDiagnosticNameString(),
             oldColumn.Aggregate(),
             newColumn.Aggregate());
     }
 
     if (oldColumn.SortOrder() && oldColumn.Lock() != newColumn.Lock()) {
-        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Lock mismatch for key column %Qv: old %Qv, new %Qv",
-            oldColumn.Name(),
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Lock mismatch for key column %v: old %Qv, new %Qv",
+            oldColumn.GetDiagnosticNameString(),
             oldColumn.Lock(),
             newColumn.Lock());
     }
 
     if (oldColumn.MaxInlineHunkSize() && !newColumn.MaxInlineHunkSize()) {
-        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Cannot reset max inline hunk size for column %Qv",
-            oldColumn.Name(),
-            oldColumn.Lock(),
-            newColumn.Lock());
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Cannot reset max inline hunk size for column %v",
+            oldColumn.GetDiagnosticNameString());
     }
 }
 
@@ -91,11 +90,10 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(newSchema.GetStrict());
-    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
-        const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
-        if (!newSchema.FindColumn(oldColumn.Name())) {
-            THROW_ERROR_EXCEPTION("Cannot remove column %Qv from a strict schema",
-                oldColumn.Name());
+    for (const auto& oldColumn : oldSchema.Columns()) {
+        if (!newSchema.FindColumnByStableName(oldColumn.StableName())) {
+            THROW_ERROR_EXCEPTION("Cannot remove column %v from a strict schema",
+                oldColumn.GetDiagnosticNameString());
         }
     }
 }
@@ -104,23 +102,27 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
 void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YT_VERIFY(!oldSchema.GetStrict());
-    for (int newColumnIndex = 0; newColumnIndex < newSchema.GetColumnCount(); ++newColumnIndex) {
-        const auto& newColumn = newSchema.Columns()[newColumnIndex];
-        if (!oldSchema.FindColumn(newColumn.Name())) {
-            THROW_ERROR_EXCEPTION("Cannot insert a new column %Qv into non-strict schema",
-                newColumn.Name());
+    for (const auto& newColumn : newSchema.Columns()) {
+        if (!oldSchema.FindColumnByStableName(newColumn.StableName())) {
+            THROW_ERROR_EXCEPTION("Cannot insert a new column %v into non-strict schema",
+                newColumn.GetDiagnosticNameString());
         }
     }
 }
 
-//! Validates that for each column present in both #oldSchema and #newSchema, its declarations match each other.
-//! Also validates that key columns positions are not changed.
+//! Validates that table schema columns match.
+/*!
+ *  Validates that:
+ *  - For each column present in both #oldSchema and #newSchema, its declarations match each other.
+ *  - Key columns are not removed (but they may become non-key).
+ *  - If any key columns are removed, the unique_keys is set to false.
+ */
 void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     int commonKeyColumnPrefix = 0;
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetColumnCount(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
-        const auto* newColumnPtr = newSchema.FindColumn(oldColumn.Name());
+        const auto* newColumnPtr = newSchema.FindColumnByStableName(oldColumn.StableName());
         if (!newColumnPtr) {
             // We consider only columns present both in oldSchema and newSchema.
             continue;
@@ -131,8 +133,8 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         if (oldColumn.SortOrder() && newColumn.SortOrder()) {
             int newColumnIndex = newSchema.GetColumnIndex(newColumn);
             if (oldColumnIndex != newColumnIndex) {
-                THROW_ERROR_EXCEPTION("Cannot change position of a key column %Qv: old %v, new %v",
-                    oldColumn.Name(),
+                THROW_ERROR_EXCEPTION("Cannot change position of a key column %v: old %v, new %v",
+                    oldColumn.GetDiagnosticNameString(),
                     oldColumnIndex,
                     newColumnIndex);
             }
@@ -145,8 +147,8 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
     // Check that all columns from the commonKeyColumnPrefix in oldSchema are actually present in newSchema.
     for (int oldColumnIndex = 0; oldColumnIndex < commonKeyColumnPrefix; ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
-        if (!newSchema.FindColumn(oldColumn.Name())) {
-            THROW_ERROR_EXCEPTION("Key column %Qv is missing in new schema", oldColumn.Name());
+        if (!newSchema.FindColumnByStableName(oldColumn.StableName())) {
+            THROW_ERROR_EXCEPTION("Key column with %v is missing in new schema", oldColumn.GetDiagnosticNameString());
         }
     }
 
@@ -157,13 +159,12 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 
 void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
-    for (int newColumnIndex = 0; newColumnIndex < newSchema.GetColumnCount(); ++newColumnIndex) {
-        const auto& newColumn = newSchema.Columns()[newColumnIndex];
+    for (const auto& newColumn : newSchema.Columns()) {
         if (newColumn.Required()) {
-            const auto* oldColumn = oldSchema.FindColumn(newColumn.Name());
+            const auto* oldColumn = oldSchema.FindColumnByStableName(newColumn.StableName());
             if (!oldColumn) {
-                THROW_ERROR_EXCEPTION("Cannot insert a new required column %Qv into a non-empty table",
-                    newColumn.Name());
+                THROW_ERROR_EXCEPTION("Cannot insert a new required column %v into a non-empty table",
+                    newColumn.GetDiagnosticNameString());
             }
         }
     }
@@ -187,11 +188,11 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Aggregate()) {
             if (index < schema.GetKeyColumnCount()) {
-                THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name());
+                THROW_ERROR_EXCEPTION("Key column %v cannot be aggregated", columnSchema.GetDiagnosticNameString());
             }
             if (!columnSchema.IsOfV1Type() || !IsPhysicalType(columnSchema.CastToV1Type())) {
-                THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbidden to have logical type %Qlv",
-                    columnSchema.Name(),
+                THROW_ERROR_EXCEPTION("Aggregated column %v is forbidden to have logical type %Qlv",
+                    columnSchema.GetDiagnosticNameString(),
                     *columnSchema.LogicalType());
             }
 
@@ -203,32 +204,32 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
 
                 descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
                 if (!constraint.Get(columnSchema.GetWireType())) {
-                    THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %Qv: expected %Qlv, got %Qlv",
+                    THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %v: expected %Qlv, got %Qlv",
                         *columnSchema.Aggregate(),
-                        columnSchema.Name(),
+                        columnSchema.GetDiagnosticNameString(),
                         constraint,
                         columnSchema.GetWireType());
                 }
 
                 if (stateType && *stateType != columnSchema.GetWireType()) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %Qv type %Qlv",
+                    THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %v type %Qlv",
                         *columnSchema.Aggregate(),
                         stateType,
-                        columnSchema.Name(),
+                        columnSchema.GetDiagnosticNameString(),
                         columnSchema.GetWireType());
                 }
 
                 if (resultType && *resultType != columnSchema.GetWireType()) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %Qv type %Qlv",
+                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %v type %Qlv",
                         *columnSchema.Aggregate(),
                         resultType,
-                        columnSchema.Name(),
+                        columnSchema.GetDiagnosticNameString(),
                         columnSchema.GetWireType());
                 }
             } else {
-                THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
+                THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %v",
                     *columnSchema.Aggregate(),
-                    columnSchema.Name());
+                    columnSchema.GetDiagnosticNameString());
             }
         }
     }
@@ -236,36 +237,39 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
 
 void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 {
-    // TODO(max42): Passing *this before the object is finally constructed
-    // doesn't look like a good idea (although it works :) ). Get rid of this.
-
     for (int index = 0; index < schema.GetColumnCount(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
+        // TODO(levysotsky): Use early continue.
         if (columnSchema.Expression()) {
             if (index >= schema.GetKeyColumnCount() && isTableDynamic) {
-                THROW_ERROR_EXCEPTION("Non-key column %Qv cannot be computed", columnSchema.Name());
+                THROW_ERROR_EXCEPTION("Non-key column %v cannot be computed", columnSchema.GetDiagnosticNameString());
             }
             THashSet<TString> references;
             auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
             if (*columnSchema.LogicalType() != *expr->LogicalType) {
                 THROW_ERROR_EXCEPTION(
-                    "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
-                    columnSchema.Name(),
+                    "Computed column %v type mismatch: declared type is %Qlv but expression type is %Qlv",
+                    columnSchema.GetDiagnosticNameString(),
                     *columnSchema.LogicalType(),
                     *expr->LogicalType);
             }
 
             for (const auto& ref : references) {
-                const auto& refColumn = schema.GetColumnOrThrow(ref);
-                if (!refColumn.SortOrder() && isTableDynamic) {
-                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
-                        columnSchema.Name(),
+                const auto* refColumn = schema.FindColumn(ref);
+                if (!refColumn) {
+                    THROW_ERROR_EXCEPTION("Computed column %v depends on unknown column %Qv",
+                        columnSchema.GetDiagnosticNameString(),
                         ref);
                 }
-                if (refColumn.Expression()) {
-                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on a computed column %Qv",
-                        columnSchema.Name(),
-                        ref);
+                if (!refColumn->SortOrder() && isTableDynamic) {
+                    THROW_ERROR_EXCEPTION("Computed column %v depends on a non-key column %v",
+                        columnSchema.GetDiagnosticNameString(),
+                        refColumn->GetDiagnosticNameString());
+                }
+                if (refColumn->Expression()) {
+                    THROW_ERROR_EXCEPTION("Computed column %v depends on a computed column %v",
+                        columnSchema.GetDiagnosticNameString(),
+                        refColumn->GetDiagnosticNameString());
                 }
             }
         }
@@ -325,11 +329,9 @@ void ValidateTableSchemaUpdate(
         // We allow adding computed columns only on creation of the table.
         if (!oldSchema.Columns().empty() || !isTableEmpty) {
             for (const auto& newColumn : newSchema.Columns()) {
-                if (!oldSchema.FindColumn(newColumn.Name())) {
-                    if (newColumn.Expression()) {
-                        THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %Qv after creation",
-                            newColumn.Name());
-                    }
+                if (newColumn.Expression() && !oldSchema.FindColumnByStableName(newColumn.StableName())) {
+                    THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %v after creation",
+                        newColumn.GetDiagnosticNameString());
                 }
             }
         }
@@ -357,8 +359,8 @@ void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schem
         if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetWireType()) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SchemaViolation,
-                "Mismatched type of column %Qv in %v key: expected %Qlv, found %Qlv",
-                schema.Columns()[index].Name(),
+                "Mismatched type of column %v in %v key: expected %Qlv, found %Qlv",
+                schema.Columns()[index].GetDiagnosticNameString(),
                 keyType,
                 schema.Columns()[index].GetWireType(),
                 pivotKey[index].Type);
@@ -366,8 +368,8 @@ void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schem
         if (validateRequired && pivotKey[index].Type == EValueType::Null && !schema.Columns()[index].LogicalType()->IsNullable()) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SchemaViolation,
-                "Unexpected null for required column %Qv in %v key",
-                schema.Columns()[index].Name(),
+                "Unexpected null for required column %v in %v key",
+                schema.Columns()[index].GetDiagnosticNameString(),
                 keyType);
         }
     }
@@ -388,63 +390,60 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
 
     int commonKeyColumnPrefix = 0;
     if (!discardKeyColumns) {
-        while (true) {
-            if (commonKeyColumnPrefix >= schemas.front()->GetKeyColumnCount()) {
+        std::vector<TSortColumns> allSortColumns;
+        for (const auto& schema : schemas) {
+            allSortColumns.push_back(schema->GetSortColumns());
+        }
+        for (; commonKeyColumnPrefix < ssize(allSortColumns.front()); ++commonKeyColumnPrefix) {
+            const auto& firstSortColumn = allSortColumns.front()[commonKeyColumnPrefix];
+            auto match = std::all_of(begin(allSortColumns), end(allSortColumns), [&] (const TSortColumns& sortColumns) {
+                return commonKeyColumnPrefix < ssize(sortColumns) && firstSortColumn == sortColumns[commonKeyColumnPrefix];
+            });
+            if (!match) {
                 break;
             }
-            const auto& keyColumnName = schemas.front()->Columns()[commonKeyColumnPrefix].Name();
-            bool mismatch = false;
-            for (const auto& schema : schemas) {
-                if (commonKeyColumnPrefix >= schema->GetKeyColumnCount() ||
-                    schema->Columns()[commonKeyColumnPrefix].Name() != keyColumnName)
-                {
-                    mismatch = true;
-                    break;
-                }
-            }
-            if (mismatch) {
-                break;
-            }
-            ++commonKeyColumnPrefix;
         }
     }
 
-    THashMap<TString, TColumnSchema> nameToColumnSchema;
-    std::vector<TString> columnNames;
-
+    std::vector<TColumnSchema> columns;
+    THashMap<TStableName, int> stableNameToColumnIndex;
+    THashMap<TString, int> nameToColumnIndex;
     for (const auto& schema : schemas) {
         for (int columnIndex = 0; columnIndex < schema->GetColumnCount(); ++columnIndex) {
             auto column = schema->Columns()[columnIndex];
             if (columnIndex >= commonKeyColumnPrefix) {
-                column = column.SetSortOrder(std::nullopt);
+                column.SetSortOrder(std::nullopt);
             }
-            column = column
+            column
                 .SetExpression(std::nullopt)
                 .SetAggregate(std::nullopt)
                 .SetLock(std::nullopt);
 
-            auto it = nameToColumnSchema.find(column.Name());
-            if (it == nameToColumnSchema.end()) {
-                nameToColumnSchema[column.Name()] = column;
-                columnNames.push_back(column.Name());
-            } else {
-                if (it->second != column) {
+            auto it = nameToColumnIndex.find(column.Name());
+            if (it == nameToColumnIndex.end()) {
+                columns.push_back(column);
+                auto index = ssize(columns) - 1;
+                EmplaceOrCrash(nameToColumnIndex, column.Name(), index);
+                if (auto [it, inserted] = stableNameToColumnIndex.emplace(column.StableName(), index); !inserted) {
                     THROW_ERROR_EXCEPTION(
-                        "Conflict while merging schemas, column %Qs has two conflicting declarations",
-                        column.Name())
-                        << TErrorAttribute("first_column_schema", it->second)
+                        "Conflict while merging schemas: duplicate stable name %Qv for columns with differing names",
+                        column.StableName().Get())
+                        << TErrorAttribute("first_column_schema", columns[it->second])
+                        << TErrorAttribute("second_column_schema", columns[index]);
+                }
+            } else {
+                if (columns[it->second] != column) {
+                    THROW_ERROR_EXCEPTION(
+                        "Conflict while merging schemas: column %v has two conflicting declarations",
+                        column.GetDiagnosticNameString())
+                        << TErrorAttribute("first_column_schema", columns[it->second])
                         << TErrorAttribute("second_column_schema", column);
                 }
             }
         }
     }
 
-    std::vector<TColumnSchema> columns;
-    for (const auto& columnName : columnNames) {
-        columns.push_back(nameToColumnSchema[columnName]);
-    }
-
-    return New<TTableSchema>(std::move(columns), true);
+    return New<TTableSchema>(std::move(columns));
 }
 
 std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
@@ -452,16 +451,6 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     const TTableSchema& outputSchema,
     bool ignoreSortOrder)
 {
-    auto createSchemaIndex = [] (const TTableSchema& schema) {
-        THashMap<TString, const TColumnSchema*> result;
-        for (const auto& column : schema.Columns()) {
-            result[column.Name()] = &column;
-        }
-        return result;
-    };
-    auto inputSchemaIndex = createSchemaIndex(inputSchema);
-    auto outputSchemaIndex = createSchemaIndex(outputSchema);
-
     // If output schema is strict, check that input columns are subset of output columns.
     if (outputSchema.GetStrict()) {
         if (!inputSchema.GetStrict()) {
@@ -472,11 +461,11 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
         }
 
         for (const auto& inputColumn : inputSchema.Columns()) {
-            if (!outputSchemaIndex.contains(inputColumn.Name())) {
+            if (!outputSchema.FindColumn(inputColumn.Name())) {
                 return {
                     ESchemaCompatibility::Incompatible,
-                    TError("Column %Qv is found in input schema but is missing in output schema",
-                        inputColumn.Name()),
+                    TError("Column %v is found in input schema but is missing in output schema",
+                        inputColumn.GetDiagnosticNameString()),
                 };
             }
         }
@@ -486,17 +475,26 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
 
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
-        auto it = inputSchemaIndex.find(outputColumn.Name());
-        if (it != inputSchemaIndex.end()) {
-            auto inputColumn = it->second;
+        const auto* inputColumn = inputSchema.FindColumn(outputColumn.Name());
+        if (inputColumn) {
+            if (inputColumn->StableName() != outputColumn.StableName()) {
+                return {
+                    ESchemaCompatibility::Incompatible,
+                    TError("Column %Qv has stable name %Qv in input and %Qv in output schema",
+                        inputColumn->Name(),
+                        inputColumn->StableName().Get(),
+                        outputColumn.StableName().Get())
+                };
+            }
+
             auto currentTypeCompatibility = NComplexTypes::CheckTypeCompatibility(
                 inputColumn->LogicalType(), outputColumn.LogicalType());
 
             if (currentTypeCompatibility.first < result.first) {
                 result = {
                     currentTypeCompatibility.first,
-                    TError("Column %Qv input type is incompatible with output type",
-                        inputColumn->Name())
+                    TError("Column %v input type is incompatible with output type",
+                        inputColumn->GetDiagnosticNameString())
                         << currentTypeCompatibility.second
                 };
             }
@@ -508,34 +506,34 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
             if (outputColumn.Expression() && inputColumn->Expression() != outputColumn.Expression()) {
                 return {
                     ESchemaCompatibility::Incompatible,
-                    TError("Column %Qv expression mismatch",
-                        inputColumn->Name()),
+                    TError("Column %v expression mismatch",
+                        inputColumn->GetDiagnosticNameString()),
                 };
             }
             if (outputColumn.Aggregate() && inputColumn->Aggregate() != outputColumn.Aggregate()) {
                 return {
                     ESchemaCompatibility::Incompatible,
-                    TError("Column %Qv aggregate mismatch",
-                        inputColumn->Name()),
+                    TError("Column %v aggregate mismatch",
+                        inputColumn->GetDiagnosticNameString()),
                 };
             }
         } else if (outputColumn.Expression()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Unexpected computed column %Qv in output schema",
-                    outputColumn.Name()),
+                TError("Unexpected computed column %v in output schema",
+                    outputColumn.GetDiagnosticNameString()),
             };
         } else if (!inputSchema.GetStrict()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Column %Qv is present in output schema and is missing in non-strict input schema",
-                    outputColumn.Name()),
+                TError("Column %v is present in output schema and is missing in non-strict input schema",
+                    outputColumn.GetDiagnosticNameString()),
             };
         } else if (outputColumn.Required()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Required column %Qv is present in output schema and is missing in input schema",
-                    outputColumn.Name()),
+                TError("Required column %v is present in output schema and is missing in input schema",
+                    outputColumn.GetDiagnosticNameString()),
             };
         }
     }
@@ -548,11 +546,11 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
             if (!IsV3Composite(inputColumn.LogicalType())) {
                 continue;
             }
-            if (!outputSchemaIndex.contains(inputColumn.Name())) {
+            if (!outputSchema.FindColumn(inputColumn.Name())) {
                 return {
                     ESchemaCompatibility::Incompatible,
-                    TError("Column %Qv of input schema with complex type %Qv is missing in strict part of output schema",
-                        inputColumn.Name(),
+                    TError("Column %v of input schema with complex type %Qv is missing in strict part of output schema",
+                        inputColumn.GetDiagnosticNameString(),
                         *inputColumn.LogicalType()),
                 };
             }
@@ -593,19 +591,19 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     for (int index = 0; index < outputKeySchema->GetColumnCount(); ++index) {
         const auto& inputColumn = inputKeySchema->Columns()[index];
         const auto& outputColumn = outputKeySchema->Columns()[index];
-        if (inputColumn.Name() != outputColumn.Name()) {
+        if (inputColumn.StableName() != outputColumn.StableName()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Key columns do not match: input column %Qv, output column %Qv",
-                    inputColumn.Name(),
-                    outputColumn.Name())
+                TError("Key columns do not match: input column %v, output column %v",
+                    inputColumn.GetDiagnosticNameString(),
+                    outputColumn.GetDiagnosticNameString())
             };
         }
         if (inputColumn.SortOrder() != outputColumn.SortOrder()) {
             return {
                 ESchemaCompatibility::Incompatible,
-                TError("Sort order of column %Qv does not match: input sort order %Qlv, output sort order %Qlv",
-                    inputColumn.Name(),
+                TError("Sort order of column %v does not match: input sort order %Qlv, output sort order %Qlv",
+                    inputColumn.GetDiagnosticNameString(),
                     inputColumn.SortOrder(),
                     outputColumn.SortOrder())
             };
@@ -648,41 +646,35 @@ TError ValidateComputedColumnsCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema)
 {
-    auto addAttributes = [&] (TError error) {
-        return error
+    try {
+        for (const auto& outputColumn : outputSchema.Columns()) {
+            if (!outputColumn.Expression()) {
+                continue;
+            }
+            const auto* inputColumn = inputSchema.FindColumn(outputColumn.Name());
+            if (!inputColumn) {
+                THROW_ERROR_EXCEPTION("Computed column %v is missing in input schema",
+                    outputColumn.GetDiagnosticNameString());
+            }
+            if (outputColumn.Expression() != inputColumn->Expression()) {
+                THROW_ERROR_EXCEPTION("Computed column %v has different expressions in input "
+                    "and output schemas",
+                    outputColumn.GetDiagnosticNameString())
+                    << TErrorAttribute("input_schema_expression", inputColumn->Expression())
+                    << TErrorAttribute("output_schema_expression", outputColumn.Expression());
+            }
+            if (*outputColumn.LogicalType() != *inputColumn->LogicalType()) {
+                THROW_ERROR_EXCEPTION("Computed column %v type in the input table %Qlv "
+                    "differs from the type in the output table %Qlv",
+                    outputColumn.GetDiagnosticNameString(),
+                    *inputColumn->LogicalType(),
+                    *outputColumn.LogicalType());
+            }
+        }
+    } catch (const TErrorException& exception) {
+        return exception.Error()
             << TErrorAttribute("input_table_schema", inputSchema)
             << TErrorAttribute("output_table_schema", outputSchema);
-    };
-
-    THashMap<TString, const TColumnSchema*> inputSchemaIndex;
-    for (const auto& inputColumn : inputSchema.Columns()) {
-        if (inputColumn.Expression()) {
-            inputSchemaIndex[inputColumn.Name()] = &inputColumn;
-        }
-    }
-
-    for (const auto& outputColumn : outputSchema.Columns()) {
-        if (outputColumn.Expression()) {
-            auto it = inputSchemaIndex.find(outputColumn.Name());
-            if (it == inputSchemaIndex.end()) {
-                return addAttributes(TError("Computed column %Qv is missing in input schema",
-                    outputColumn.Name()));
-            }
-            if (outputColumn.Expression() != it->second->Expression()) {
-                return addAttributes(TError("Computed column %Qv has different expressions in input "
-                    "and output schemas",
-                    outputColumn.Name())
-                    << TErrorAttribute("input_schema_expression", it->second->Expression())
-                    << TErrorAttribute("output_schema_expression", outputColumn.Expression()));
-            }
-            if (*outputColumn.LogicalType() != *it->second->LogicalType()) {
-                return addAttributes(TError("Computed column %Qv type in the input table %Qlv "
-                    "differs from the type in the output table %Qlv",
-                    outputColumn.Name(),
-                    *it->second->LogicalType(),
-                    *outputColumn.LogicalType()));
-            }
-        }
     }
 
     return TError();
