@@ -717,7 +717,7 @@ private:
                 coordinatorCommitMode,
                 prerequisiteTransactionIds);
 
-            if (owner->ResponseKeeper_->TryReplyFrom(context)) {
+            if (owner->ResponseKeeper_->TryReplyFrom(context, /*subscribeToResponse*/ false)) {
                 return;
             }
 
@@ -778,7 +778,7 @@ private:
 
             auto owner = GetOwnerOrThrow();
 
-            if (owner->ResponseKeeper_->TryReplyFrom(context)) {
+            if (owner->ResponseKeeper_->TryReplyFrom(context, /*subscribeToResponse*/ false)) {
                 return;
             }
 

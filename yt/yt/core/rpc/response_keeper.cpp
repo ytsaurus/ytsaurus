@@ -200,7 +200,7 @@ public:
         YT_LOG_INFO(error, "All pending requests canceled");
     }
 
-    bool TryReplyFrom(const IServiceContextPtr& context)
+    bool TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse)
     {
         auto guard = WriterGuard(Lock_);
 
@@ -214,17 +214,20 @@ public:
             return true;
         }
 
-        context->GetAsyncResponseMessage()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
-                auto responseMessage = context->GetResponseMessage();
-                bool remember = context->GetError().GetCode() != NRpc::EErrorCode::Unavailable;
-                Invoker_->Invoke(BIND([this, this_ = std::move(this_), mutationId, remember, responseMessage = std::move(responseMessage)] {
-                    EndRequest(
-                        mutationId,
-                        std::move(responseMessage),
-                        remember);
+        if (subscribeToResponse) {
+            context->GetAsyncResponseMessage()
+                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>&) {
+                    auto responseMessage = context->GetResponseMessage();
+                    bool remember = context->GetError().GetCode() != NRpc::EErrorCode::Unavailable;
+                    Invoker_->Invoke(BIND([this, this_ = std::move(this_), mutationId, remember, responseMessage = std::move(responseMessage)] {
+                        EndRequest(
+                            mutationId,
+                            std::move(responseMessage),
+                            remember);
+                    }));
                 }));
-            }));
+        }
+
         return false;
     }
 
@@ -406,9 +409,9 @@ void TResponseKeeper::CancelPendingRequests(const TError& error)
     Impl_->CancelPendingRequests(error);
 }
 
-bool TResponseKeeper::TryReplyFrom(const IServiceContextPtr& context)
+bool TResponseKeeper::TryReplyFrom(const IServiceContextPtr& context, bool subscribeToResponse)
 {
-    return Impl_->TryReplyFrom(context);
+    return Impl_->TryReplyFrom(context, subscribeToResponse);
 }
 
 bool TResponseKeeper::IsWarmingUp() const
