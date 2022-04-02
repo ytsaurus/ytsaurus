@@ -23,7 +23,9 @@
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 
 #include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
@@ -41,6 +43,8 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/table_client/column_rename_descriptor.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/server.h>
@@ -276,6 +280,76 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
     YT_LOG_DEBUG("Job spec:\n%v", jobSpec.DebugString());
 }
 
+// COMPAT(levysotsky): This function is to be removed after both CA and nodes are updated.
+// See YT-16507
+static NTableClient::TTableSchemaPtr SetStableNames(
+    const NTableClient::TTableSchemaPtr& schema,
+    const NTableClient::TColumnRenameDescriptors& renameDescriptors)
+{
+    THashMap<TString, TString> nameToStableName;
+    for (const auto& renameDescriptor : renameDescriptors) {
+        nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
+    }
+
+    std::vector<NTableClient::TColumnSchema> columns;
+    for (const auto& originalColumn : schema->Columns()) {
+        auto& column = columns.emplace_back(originalColumn);
+        YT_VERIFY(!column.IsRenamed());
+        if (auto it = nameToStableName.find(column.Name())) {
+            column.SetStableName(NTableClient::TStableName(it->second));
+        }
+    }
+    return New<NTableClient::TTableSchema>(
+        std::move(columns),
+        schema->GetStrict(),
+        schema->GetUniqueKeys(),
+        schema->GetSchemaModification());
+}
+
+// COMPAT(levysotsky): We need to distinguish between two cases:
+// 1) New CA has sent already renamed schema, we check it and do nothing
+// 2) Old CA has sent not-renamed schema, we need to perform the renaming
+//    according to rename descriptors.
+// This function is to be removed after both CA and nodes are updated. See YT-16507
+static IJobSpecHelperPtr MaybePatchDataSourceDirectory(const NJobTrackerClient::NProto::TJobSpec& jobSpecProto)
+{
+    auto schedulerJobSpecExt = jobSpecProto.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+    if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(schedulerJobSpecExt.extensions())) {
+        return CreateJobSpecHelper(jobSpecProto);
+    }
+    const auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+        schedulerJobSpecExt.extensions());
+
+    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+
+    for (auto& dataSource : dataSourceDirectory->DataSources()) {
+        if (dataSource.Schema() && dataSource.Schema()->HasRenamedColumns()) {
+            return CreateJobSpecHelper(jobSpecProto);
+        }
+    }
+
+    for (auto& dataSource : dataSourceDirectory->DataSources()) {
+        if (!dataSource.Schema()) {
+            continue;
+        }
+        dataSource.Schema() = SetStableNames(
+            dataSource.Schema(),
+            dataSource.ColumnRenameDescriptors());
+    }
+
+    NChunkClient::NProto::TDataSourceDirectoryExt newExt;
+    ToProto(&newExt, dataSourceDirectory);
+    SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
+        schedulerJobSpecExt.mutable_extensions(),
+        std::move(newExt));
+
+    auto jobSpecProtoCopy = jobSpecProto;
+    auto* mutableExt = jobSpecProtoCopy.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    *mutableExt = std::move(schedulerJobSpecExt);
+    return CreateJobSpecHelper(jobSpecProtoCopy);
+}
+
 void TJobProxy::RetrieveJobSpec()
 {
     YT_LOG_INFO("Requesting job spec");
@@ -298,7 +372,8 @@ void TJobProxy::RetrieveJobSpec()
         Abort(EJobProxyExitCode::InvalidSpecVersion);
     }
 
-    JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
+    JobSpecHelper_ = MaybePatchDataSourceDirectory(rsp->job_spec());
+
     const auto& resourceUsage = rsp->resource_usage();
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());

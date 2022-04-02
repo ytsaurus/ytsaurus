@@ -934,6 +934,25 @@ class TestFilesInSandbox(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"y": 42}]
 
+    @authors("levysotsky")
+    def test_rename_columns_artifact_table_no_schema(self):
+        create("table", "//tmp/t")
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t", [{"x": 42}])
+        write_table("//tmp/t_in", [{"a": "b"}])
+
+        with raises_yt_error(yt_error_codes.OperationFailedToPrepare):
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                file=["<format=<format=text>yson;rename_columns={x=y}>//tmp/t"],
+                command="cat t",
+                spec={"mapper": {"format": yson.loads(b"<format=text>yson")}},
+            )
+
 
 ##################################################################
 

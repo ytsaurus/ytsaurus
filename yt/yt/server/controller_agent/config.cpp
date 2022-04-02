@@ -920,6 +920,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_teleporter", &TThis::ChunkTeleporter)
         .DefaultNew();
 
+    registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
+        .Default(false);
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

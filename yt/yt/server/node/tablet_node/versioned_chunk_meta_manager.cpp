@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
+#include <util/digest/sequence.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;

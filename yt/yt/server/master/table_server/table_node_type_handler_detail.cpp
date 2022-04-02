@@ -2,7 +2,6 @@
 #include "table_node_type_handler_detail.h"
 #include "table_node.h"
 #include "table_node_proxy.h"
-#include "schemaful_node_helpers.h"
 #include "replicated_table_node.h"
 #include "replicated_table_node_proxy.h"
 #include "master_table_schema.h"
@@ -114,13 +113,55 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             type);
     }
 
+    auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+    auto schemaId = combinedAttributes->FindAndRemove<TObjectId>("schema_id");
+
+    if (dynamic && !tableSchema && !schemaId) {
+        THROW_ERROR_EXCEPTION("Either \"schema\" or \"schema_id\" must be specified for dynamic tables");
+    }
+
     const auto& tableManager = this->Bootstrap_->GetTableManager();
-    auto [effectiveTableSchema, tableSchema] = ProcessSchemafulNodeAttributes(
-        combinedAttributes,
-        dynamic,
-        /*chaos*/ false,
-        dynamicConfig,
-        tableManager);
+    const TTableSchema* effectiveTableSchema = nullptr;
+    if (schemaId) {
+        auto* schemaById = tableManager->GetMasterTableSchemaOrThrow(*schemaId);
+        if (tableSchema) {
+            auto* schemaByYson = tableManager->FindMasterTableSchema(*tableSchema);
+            if (IsObjectAlive(schemaByYson)) {
+                if (schemaById != schemaByYson) {
+                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
+                }
+            } else {
+                if (*schemaById->AsTableSchema() != *tableSchema) {
+                    THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and the schemas do not match");
+                }
+            }
+        }
+        effectiveTableSchema = schemaById->AsTableSchema().Get();
+    } else if (tableSchema) {
+        effectiveTableSchema = &*tableSchema;
+    }
+
+    if (effectiveTableSchema) {
+        // NB: Sorted dynamic tables contain unique keys, set this for user.
+        if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->GetUniqueKeys()) {
+            tableSchema = effectiveTableSchema->ToUniqueKeys();
+            effectiveTableSchema = &*tableSchema;
+        }
+
+        if (effectiveTableSchema->HasNontrivialSchemaModification()) {
+            THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
+        }
+
+        ValidateTableSchemaUpdate(TTableSchema(), *effectiveTableSchema, dynamic, true);
+
+        if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
+            ValidateNoDescendingSortOrder(*effectiveTableSchema);
+        }
+
+        if (!dynamicConfig->EnableTableColumnRenaming) {
+            ValidateNoRenamedColumns(*effectiveTableSchema);
+        }
+    }
 
     auto optionalTabletCount = combinedAttributes->FindAndRemove<int>("tablet_count");
     auto optionalPivotKeys = combinedAttributes->FindAndRemove<std::vector<TLegacyOwningKey>>("pivot_keys");

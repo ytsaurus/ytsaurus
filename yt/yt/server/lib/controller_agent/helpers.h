@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NJobTrackerClient {
@@ -33,6 +35,15 @@ struct TJobToRelease
 };
 
 TString ToString(const TReleaseJobFlags& releaseFlags);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::TTableSchemaPtr RenameColumnsInSchema(
+    TStringBuf name,
+    const NTableClient::TTableSchemaPtr& schema,
+    bool isDynamic,
+    const NTableClient::TColumnRenameDescriptors& renameDescriptors,
+    bool changeStableName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

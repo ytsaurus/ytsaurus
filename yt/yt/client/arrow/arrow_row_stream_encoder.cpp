@@ -104,8 +104,8 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
         //   Timestamp
 
         default:
-            THROW_ERROR_EXCEPTION("Column %Qv has type %Qlv that is not currently supported by Arrow encoder",
-                schema.Name(),
+            THROW_ERROR_EXCEPTION("Column %v has type %Qlv that is not currently supported by Arrow encoder",
+                schema.GetDiagnosticNameString(),
                 simpleType);
     }
 }

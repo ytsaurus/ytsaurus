@@ -77,6 +77,7 @@ int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
 // Column filter universal fills readerNameTable via GetIdOrRegisterName.
 std::vector<int> BuildColumnIdMapping(
     const TNameTablePtr& chunkNameTable,
+    const TTableSchemaPtr& readerSchema,
     const TNameTablePtr& readerNameTable,
     const TColumnFilter& columnFilter,
     const TRange<TString> omittedInaccessibleColumns)
@@ -90,7 +91,9 @@ std::vector<int> BuildColumnIdMapping(
 
     if (columnFilter.IsUniversal()) {
         for (int chunkColumnId = 0; chunkColumnId < chunkNamesCount; ++chunkColumnId) {
-            auto name = chunkNameTable->GetName(chunkColumnId);
+            auto stableName = chunkNameTable->GetName(chunkColumnId);
+            auto name = readerSchema->GetNameMapping().StableNameToName(TStableName(TString(stableName)));
+
             if (omittedInaccessibleColumnSet.contains(name)) {
                 continue;
             }
@@ -105,11 +108,17 @@ std::vector<int> BuildColumnIdMapping(
                 continue;
             }
 
-            auto chunkColumnId = chunkNameTable->FindId(name);
+            TStringBuf stableName = name;
+            if (readerSchema) {
+                if (auto* column = readerSchema->FindColumn(name)) {
+                    stableName = column->StableName().Get();
+                }
+            }
+
+            auto chunkColumnId = chunkNameTable->FindId(stableName);
             if (!chunkColumnId) {
                 continue;
             }
-
             chunkToReaderIdMapping[*chunkColumnId] = readerColumnId;
         }
     }
@@ -707,7 +716,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
     i64 dataWeight = 0;
 
     const auto& upperLimit = ReadRange_.UpperLimit();
-
     while (!BlockEnded_ &&
            std::ssize(rows) < options.MaxRowsPerRead &&
            dataWeight < options.MaxDataWeightPerRead)
@@ -730,7 +738,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
         if (SampleRow(GetTableRowIndex())) {
             auto row = BlockReader_->GetRow(&MemoryPool_);
             AddExtraValues(row, GetTableRowIndex());
-
             rows.push_back(row);
             dataWeight += GetDataWeight(row);
         }
@@ -1248,6 +1255,7 @@ private:
 
         TSharedRange<TUnversionedRow> MaterializeRows() override
         {
+
             if (RootColumns_) {
                 THROW_ERROR_EXCEPTION("Cannot materialize batch into rows since it was already materialized into columns");
             }
@@ -1799,10 +1807,11 @@ struct TReaderParams
         std::optional<i64> virtualRowIndex = std::nullopt)
     {
         YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
+        YT_VERIFY(chunkState->TableSchema);
 
         const auto& columns = chunkMeta->GetChunkSchema()->Columns();
         for (int index = 0; index < std::ssize(columns); ++index) {
-            auto id = chunkMeta->ChunkNameTable()->FindId(columns[index].Name());
+            auto id = chunkMeta->ChunkNameTable()->FindId(columns[index].StableName().Get());
             YT_VERIFY(id);
             YT_VERIFY(*id == index);
         }
@@ -1824,6 +1833,7 @@ struct TReaderParams
         try {
             ChunkToReaderIdMapping = BuildColumnIdMapping(
                 chunkNameTable,
+                chunkState->TableSchema,
                 nameTable,
                 columnFilter,
                 omittedInaccessibleColumns);
@@ -1854,7 +1864,10 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     std::optional<i64> virtualRowIndex,
     int interruptDescriptorKeyLength)
 {
-    ValidateSortColumns(sortColumns, chunkMeta->GetChunkSchema()->GetSortColumns(), options->DynamicTable);
+    YT_VERIFY(chunkState && chunkState->TableSchema);
+    auto chunkSortColumns = chunkMeta->GetChunkSchema()->GetSortColumns(
+        chunkState->TableSchema->GetNameMapping());
+    ValidateSortColumns(sortColumns, chunkSortColumns, options->DynamicTable);
 
     TReaderParams params(
         chunkState,
@@ -1874,7 +1887,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     // TODO(gritukan): Now we use the longest possible keyInfo in order
     // to properly handle all the comparable entities. Rethink it after YT-14154.
     if (hasKeyBounds && chunkMeta->GetChunkSchema()->GetKeyColumnCount() >= std::ssize(sortColumns)) {
-        sortColumns = chunkMeta->GetChunkSchema()->GetSortColumns();
+        sortColumns = chunkSortColumns;
     }
 
     // Check that read ranges suit sortColumns if sortColumns are provided.
@@ -1888,7 +1901,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     auto sortOrders = GetSortOrders(sortColumns);
 
     int commonKeyPrefix = GetCommonKeyPrefix(
-        chunkMeta->GetChunkSchema()->GetKeyColumns(),
+        GetColumnNames(chunkSortColumns),
         GetColumnNames(sortColumns));
 
     switch (chunkMeta->GetChunkFormat()) {
@@ -1952,7 +1965,10 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
 {
-    ValidateSortColumns(sortColumns, chunkMeta->GetChunkSchema()->GetSortColumns(), options->DynamicTable);
+    YT_VERIFY(chunkState && chunkState->TableSchema);
+    auto chunkSortColumns = chunkMeta->GetChunkSchema()->GetSortColumns(
+        chunkState->TableSchema->GetNameMapping());
+    ValidateSortColumns(sortColumns, chunkSortColumns, options->DynamicTable);
 
     TReaderParams params(
         chunkState,
@@ -1968,7 +1984,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     }
 
     int commonKeyPrefix = GetCommonKeyPrefix(
-        chunkMeta->GetChunkSchema()->GetKeyColumns(),
+        GetColumnNames(chunkSortColumns),
         GetColumnNames(sortColumns));
 
     switch (chunkMeta->GetChunkFormat()) {

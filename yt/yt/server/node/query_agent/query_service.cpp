@@ -149,8 +149,8 @@ void ValidateColumnFilterContainsAllKeyColumns(
 
     for (int columnIndex = 0; columnIndex < schema.GetKeyColumnCount(); ++columnIndex) {
         if (!columnFilter.ContainsIndex(columnIndex)) {
-            THROW_ERROR_EXCEPTION("Column filter does not contain key column %Qv with index %v",
-                schema.Columns()[columnIndex].Name(),
+            THROW_ERROR_EXCEPTION("Column filter does not contain key column %v with index %v",
+                schema.Columns()[columnIndex].GetDiagnosticNameString(),
                 columnIndex);
         }
     }
