@@ -94,10 +94,12 @@ public:
      *
      *  If |false| is returned then either the request has no mutation id assigned or
      *  this id hasn't been seen before. In both cases the server must proceed with serving the request.
-     *  Also, if the request has mutation id assigned the response will be automatically remembered
-     *  when #context is replied.
+     *  Also, if #subscribeToResponse is set and the request has mutation id assigned the response will
+     *  be automatically remembered when #context is replied.
      */
-    bool TryReplyFrom(const IServiceContextPtr& context);
+    bool TryReplyFrom(
+        const IServiceContextPtr& context,
+        bool subscribeToResponse = true);
 
     //! Returns |true| if the keeper is still warming up.
     /*!
