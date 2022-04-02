@@ -57,13 +57,13 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Others must not be able to list chunk store and chunk cache directories.
-static const int ChunkFilesPermissions = 0751;
+static constexpr int ChunkFilesPermissions = 0751;
 
 // https://www.kernel.org/doc/html/latest/block/stat.html
 // read sectors, write sectors, discard_sectors
 // These values count the number of sectors read from, written to, or discarded from this block device.
 // The “sectors” in question are the standard UNIX 512-byte sectors, not any device- or filesystem-specific block size.
-static const int UnixSectorSize = 512;
+static constexpr int UnixSectorSize = 512;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -980,13 +980,15 @@ private:
                 counters.DiskRead = it->second.SectorsRead * UnixSectorSize;
                 counters.DiskWritten = it->second.SectorsWritten * UnixSectorSize;
             } else {
-                YT_LOG_WARNING("Can't find disk statistics for location with disk label %v", DeviceName_);
+                YT_LOG_WARNING("Cannot find disk IO statistics (DeviceName: %v)",
+                    DeviceName_);
             }
+
             return counters;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get IO statistics");
+            YT_LOG_WARNING(ex, "Failed to get disk IO statistics");
         }
-        return std::nullopt;
+        return {};
     }
 
     static i64 CalculateRate(i64 oldValue, i64 newValue, TDuration duration)
@@ -1003,7 +1005,7 @@ private:
         auto duration = now - LastUpdateTime_;
 
         if (oldCounters && currentCounters) {
-            Statistics_ = TIOStatistics {
+            Statistics_ = TIOStatistics{
                 .FilesystemReadRate = CalculateRate(oldCounters->FilesystemRead, currentCounters->FilesystemRead, duration),
                 .FilesystemWriteRate = CalculateRate(oldCounters->FilesystemWritten, currentCounters->FilesystemWritten, duration),
                 .DiskReadRate = CalculateRate(oldCounters->DiskRead, currentCounters->DiskRead, duration),
@@ -1406,7 +1408,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId
             metaFileName);
         NFS::Replace(metaFileName, trashMetaFileName);
     }
-    return std::nullopt;
+    return {};
 }
 
 std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chunkId)
@@ -1442,7 +1444,7 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
         NFS::Replace(indexFileName, trashIndexFileName);
     }
 
-    return std::nullopt;
+    return {};
 }
 
 std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(TChunkId chunkId)
@@ -1631,7 +1633,7 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
         NFS::Remove(metaFileName);
     }
 
-    return std::nullopt;
+    return {};
 }
 
 std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
