@@ -40,14 +40,6 @@ static const auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSlotManagerAlertEligibleToReset(ESlotManagerAlertType alertType)
-{
-    return alertType == ESlotManagerAlertType::GpuCheckFailed ||
-        alertType == ESlotManagerAlertType::TooManyConsecutiveJobAbortions;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSlotManager::TSlotManager(
     TSlotManagerConfigPtr config,
     IBootstrap* bootstrap)
@@ -61,6 +53,9 @@ TSlotManager::TSlotManager(
 
 void TSlotManager::Initialize()
 {
+    YT_LOG_INFO("Slot manager sync initialization started (SlotCount: %v)",
+        SlotCount_);
+
     Bootstrap_->SubscribePopulateAlerts(
         BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
     Bootstrap_->GetJobController()->SubscribeJobFinished(
@@ -70,8 +65,6 @@ void TSlotManager::Initialize()
 
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
     dynamicConfigManager->SubscribeConfigChanged(BIND(&TSlotManager::OnDynamicConfigChanged, MakeWeak(this)));
-
-    YT_LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
         FreeSlots_.insert(slotIndex);
@@ -107,6 +100,8 @@ void TSlotManager::Initialize()
         ++locationIndex;
     }
 
+    YT_LOG_INFO("Slot manager sync initialization finished");
+
     Bootstrap_->GetJobInvoker()->Invoke(BIND(&TSlotManager::AsyncInitialize, MakeStrong(this)));
 }
 
@@ -114,11 +109,15 @@ void TSlotManager::OnDynamicConfigChanged(
     const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
     const TClusterNodeDynamicConfigPtr& newNodeConfig)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     DynamicConfig_.Store(newNodeConfig->ExecNode->SlotManager);
 }
 
 void TSlotManager::UpdateAliveLocations()
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     AliveLocations_.clear();
     for (const auto& location : Locations_) {
         if (location->IsEnabled()) {
@@ -172,7 +171,12 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
         bestLocation->AcquireDiskSpace(diskRequest.disk_space());
     }
 
-    return CreateSlot(this, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
+    return CreateSlot(
+        this,
+        std::move(bestLocation),
+        JobEnvironment_,
+        RootVolumeManager_.Load(),
+        NodeTag_);
 }
 
 std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot()
@@ -193,11 +197,13 @@ int TSlotManager::GetUsedSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return IsEnabled() ? SlotCount_ - FreeSlots_.size() : 0;
+    return IsEnabled() ? SlotCount_ - std::ssize(FreeSlots_) : 0;
 }
 
 bool TSlotManager::IsInitialized() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Initialized_.load();
 }
 
@@ -233,14 +239,18 @@ bool TSlotManager::HasSlotDisablingAlert() const
 
 bool TSlotManager::HasFatalAlert() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(SpinLock_);
     return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
 }
 
 void TSlotManager::ResetAlert(ESlotManagerAlertType alertType)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(SpinLock_);
-    Alerts_[alertType] = TError();
+    Alerts_[alertType] = {};
 }
 
 void TSlotManager::OnJobsCpuLimitUpdated()
@@ -276,18 +286,18 @@ void TSlotManager::Disable(const TError& error)
         return;
     }
 
-    auto errorWrapper = TError("Scheduler jobs disabled")
+    auto wrappedError = TError("Scheduler jobs disabled")
         << error;
 
-    YT_LOG_WARNING(errorWrapper, "Disabling slot manager");
-    Alerts_[ESlotManagerAlertType::GenericPersistentError] = errorWrapper;
+    YT_LOG_WARNING(wrappedError, "Disabling slot manager");
+    Alerts_[ESlotManagerAlertType::GenericPersistentError] = wrappedError;
 }
 
 void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
 {
     YT_LOG_WARNING(
         error,
-        "Gpu check failed alert set, jobs may be disabled if \"disable_jobs_on_gpu_check_failure\" specified");
+        "GPU check failed alert set, jobs may be disabled if \"disable_jobs_on_gpu_check_failure\" specified");
 
     auto guard = Guard(SpinLock_);
     Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
@@ -345,7 +355,7 @@ void TSlotManager::ResetConsecutiveAbortedJobCount()
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = TError();
+    Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = {};
     ConsecutiveAbortedJobCount_ = 0;
 }
 
@@ -372,8 +382,7 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
             .Item("free_slot_count").Value(FreeSlots_.size())
             .Item("alerts").DoMapFor(
                 TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
-                [&] (TFluentMap fluent, ESlotManagerAlertType alertType)
-                {
+                [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
                     const auto& error = Alerts_[alertType];
                     if (!error.IsOK()) {
                         fluent
@@ -382,12 +391,12 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
                 });
     }
 
-    fluent
-       .DoIf(static_cast<bool>(RootVolumeManager_), [&] (auto fluent) {
-           fluent.Item("root_volume_manager").DoMap(BIND(
-               &IVolumeManager::BuildOrchidYson,
-               RootVolumeManager_));
-       });
+    if (auto rootVolumeManager = RootVolumeManager_.Load()) {
+        fluent
+            .Item("root_volume_manager").DoMap(BIND(
+                &IVolumeManager::BuildOrchidYson,
+                rootVolumeManager));
+    }
 }
 
 void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
@@ -425,31 +434,33 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
     }
 }
 
+bool TSlotManager::IsResettableAlertType(ESlotManagerAlertType alertType)
+{
+    return
+        alertType == ESlotManagerAlertType::GpuCheckFailed ||
+        alertType == ESlotManagerAlertType::TooManyConsecutiveJobAbortions;
+}
+
 void TSlotManager::AsyncInitialize()
 {
     auto finally = Finally([&] {
         Initialized_.store(true);
     });
 
-    YT_LOG_INFO("Start async slot manager initialization");
+    YT_LOG_INFO("Slot manager async initialization started");
 
     std::vector<TFuture<void>> initLocationFutures;
-    for (auto& location : Locations_) {
+    for (const auto& location : Locations_) {
         initLocationFutures.push_back(location->Initialize());
     }
 
-    auto initResults = WaitFor(AllSet(initLocationFutures));
-    if (!initResults.IsOK()) {
-        auto error =  TError("Failed to initialize slot locations") << initResults;
+    YT_LOG_INFO("Waiting for all locations to initialize");
+    auto initResult = WaitFor(AllSet(initLocationFutures));
+    YT_LOG_INFO("Locations initialization finished");
+
+    if (!initResult.IsOK()) {
+        auto error =  TError("Failed to initialize slot locations") << initResult;
         Disable(error);
-    } else {
-        // We ignore results from initLocationsFutures,
-        // they are provided via TSlotLocation::IsEnabled method.
-        for (const auto& location: Locations_) {
-            if (!location->IsEnabled()) {
-                AliveLocations_.push_back(location);
-            }
-        }
     }
 
     // To this moment all old processed must have been killed, so we can safely clean up old volumes
@@ -464,7 +475,7 @@ void TSlotManager::AsyncInitialize()
             Bootstrap_->GetMemoryUsageTracker()->WithCategory(NNodeTrackerClient::EMemoryCategory::TmpfsLayers),
             Bootstrap_));
         if (volumeManagerOrError.IsOK()) {
-            RootVolumeManager_ = volumeManagerOrError.Value();
+            RootVolumeManager_.Store(volumeManagerOrError.Value());
         } else {
             auto error =  TError("Failed to initialize volume manager") << volumeManagerOrError;
             Disable(error);
@@ -477,7 +488,7 @@ void TSlotManager::AsyncInitialize()
         BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
             .Via(Bootstrap_->GetJobInvoker()));
 
-    YT_LOG_INFO("Exec slot manager initialized");
+    YT_LOG_INFO("Slot manager async initialization finished");
 }
 
 int TSlotManager::DoAcquireSlot()
@@ -515,10 +526,10 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    UpdateAliveLocations();
     NNodeTrackerClient::NProto::TDiskResources result;
-
     result.set_default_medium_index(DefaultMediumIndex_);
+
+    UpdateAliveLocations();
 
     // Make a copy, since GetDiskResources is async and iterator over AliveLocations_
     // may have been invalidated between iterations.
@@ -531,7 +542,7 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
             locationResources->set_limit(info.limit());
             locationResources->set_medium_index(info.medium_index());
         } catch (const std::exception& ex) {
-            auto alert = TError("Failed to get disk info of location")
+            auto alert = TError("Failed to get location disk info")
                 << ex;
             location->Disable(alert);
         }
