@@ -705,8 +705,7 @@ static std::vector<TUnversionedRow> ParseRows(
         context->GetInputFormat(),
         valueConsumer));
 
-    auto input = CreateSyncAdapter(context->Request().InputStream);
-    PipeInputToOutput(input.get(), &output, 64_KB);
+    PipeInputToOutput(context->Request().InputStream, &output, 64_KB);
     return valueConsumer->GetRows();
 }
 

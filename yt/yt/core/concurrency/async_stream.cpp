@@ -51,9 +51,30 @@ private:
 
     size_t DoRead(void* buffer, size_t length) override
     {
-        auto future = UnderlyingStream_->Read(TSharedMutableRef(buffer, length, nullptr));
-        return WaitForWithStrategy(std::move(future), Strategy_)
+        if (length == 0) {
+            return 0;
+        }
+
+        // When using WaitFor, we protect ourselves from TFiberCancelledException by
+        // introducing our own read buffer and additional data copying. In case of
+        // Get, there are no means of cancellation, so reading directly to the destination
+        // buffer is just fine.
+        TSharedMutableRef readBuffer;
+        if (Strategy_ == ESyncStreamAdapterStrategy::WaitFor) {
+            struct TSyncInputStreamAdapterIntermediateBufferTag { };
+            readBuffer = TSharedMutableRef::Allocate<TSyncInputStreamAdapterIntermediateBufferTag>(length);
+        } else {
+            readBuffer = TSharedMutableRef(buffer, length, /*holder*/ nullptr);
+        }
+
+        auto bytesRead = WaitForWithStrategy(UnderlyingStream_->Read(readBuffer), Strategy_)
             .ValueOrThrow();
+
+        if (Strategy_ == ESyncStreamAdapterStrategy::WaitFor) {
+            memcpy(buffer, readBuffer.Begin(), bytesRead);
+        }
+
+        return bytesRead;
     }
 };
 
