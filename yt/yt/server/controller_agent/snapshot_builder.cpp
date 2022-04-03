@@ -17,7 +17,6 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/checkpointable_stream.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -43,8 +42,7 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t PipeWriteBufferSize = 1_MB;
-static const size_t RemoteWriteBufferSize = 1_MB;
+static const size_t ReadBufferSize = 1_MB;
 
 static const TString TmpSuffix = ".tmp";
 
@@ -101,7 +99,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         job->OperationId = operationId;
         job->WeakController = weakController;
         auto pipe = TPipeFactory().Create();
-        job->Reader = pipe.CreateAsyncReader();
+        job->Reader = CreateZeroCopyAdapter(pipe.CreateAsyncReader(), ReadBufferSize);
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         job->Suspended = false;
 
@@ -248,14 +246,11 @@ void TSnapshotBuilder::RunParent()
 void DoSnapshotJobs(const std::vector<TBuildSnapshotJob> jobs)
 {
     for (const auto& job : jobs) {
-        TUnbufferedFileOutput outputStream(*job.OutputFile);
-
-        auto checkpointableOutput = CreateCheckpointableOutputStream(&outputStream);
-        auto bufferedOutput = CreateBufferedCheckpointableOutputStream(checkpointableOutput.get(), PipeWriteBufferSize);
+        TFileOutput outputStream(*job.OutputFile);
 
         try {
-            job.Controller->SaveSnapshot(bufferedOutput.get());
-            bufferedOutput->Finish();
+            job.Controller->SaveSnapshot(&outputStream);
+            outputStream.Finish();
             job.OutputFile->Close();
         } catch (const TFileError& ex) {
             // Failed to save snapshot because other side of the pipe was closed.
@@ -267,7 +262,7 @@ void TSnapshotBuilder::RunChild()
 {
     // TODO(babenko): We have to prevent readers from dying here since once descriptors are closed below
     // the poller will crash. One must come up with a more robust approach.
-    static std::vector<NConcurrency::IAsyncInputStreamPtr> readers;
+    static std::vector<NConcurrency::IAsyncZeroCopyInputStreamPtr> readers;
     for (const auto& job : Jobs_) {
         readers.push_back(job->Reader);
     }
@@ -400,20 +395,9 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             WaitFor(writer->Open())
                 .ThrowOnError();
 
-            auto syncReader = CreateSyncAdapter(job->Reader);
-            auto checkpointableInput = CreateCheckpointableInputStream(syncReader.get());
-
-            struct TSnapshotBuilderBufferTag { };
-            auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
-
-            while (true) {
-                size_t bytesRead = checkpointableInput->Read(buffer.Begin(), buffer.Size());
-                snapshotSize += bytesRead;
-                if (bytesRead == 0) {
-                    break;
-                }
-
-                WaitFor(writer->Write(buffer.Slice(0, bytesRead)))
+            while (auto data = WaitFor(job->Reader->Read()).ValueOrThrow()) {
+                snapshotSize += data.Size();
+                WaitFor(writer->Write(data))
                     .ThrowOnError();
             }
 

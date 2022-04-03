@@ -24,7 +24,7 @@ struct TSnapshotJob
     // We intentionally deal with controller weak pointers in the parent process in order
     // to not prolong controller lifetime.
     IOperationControllerWeakPtr WeakController;
-    NConcurrency::IAsyncInputStreamPtr Reader;
+    NConcurrency::IAsyncZeroCopyInputStreamPtr Reader;
     std::unique_ptr<TFile> OutputFile;
     TSnapshotCookie Cookie;
     bool Suspended = false;
