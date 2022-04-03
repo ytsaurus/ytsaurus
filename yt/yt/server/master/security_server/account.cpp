@@ -202,9 +202,9 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();
     if (auto value = FindAttribute(attributeName)) {
         YT_VERIFY(Attributes_->Remove(attributeName));
-        YT_LOG_INFO("Dropping custom chunk merger traversal concurrency value (Value: %v, AccountName: %v)",
+        YT_LOG_INFO("Dropping custom chunk merger traversal concurrency value (Value: %v, AccountId: %v)",
             *value,
-            GetName());
+            GetId());
     }
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
