@@ -1062,8 +1062,7 @@ private:
 
         actions->push_back(BIND([=] () {
             try {
-                auto input = CreateSyncAdapter(asyncInput);
-                PipeInputToOutput(input.get(), output, BufferSize);
+                PipeInputToOutput(asyncInput, output, BufferSize);
                 YT_LOG_INFO("Data successfully read from pipe (Pipe: %v)", path);
             } catch (const std::exception& ex) {
                 auto error = wrappingError
