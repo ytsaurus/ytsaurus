@@ -2153,7 +2153,7 @@ class TestHealExecNode(YTEnvSetup):
 
         assert has_job_proxy_build_info_missing_alert()
 
-        with raises_yt_error("is not eligible to reset"):
+        with raises_yt_error("is not resettable"):
             heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
 
         heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"], force_reset=True)

@@ -72,9 +72,9 @@ private:
             request->alert_types_to_reset().end());
         for (const auto& alertTypeString : alertTypesToReset) {
             auto alertType = ParseEnum<ESlotManagerAlertType>(alertTypeString);
-            if (!IsSlotManagerAlertEligibleToReset(alertType) && !request->force_reset()) {
-                THROW_ERROR_EXCEPTION("Alert %Qv is not eligible to reset",
-                    FormatEnum(alertType));
+            if (!TSlotManager::IsResettableAlertType(alertType) && !request->force_reset()) {
+                THROW_ERROR_EXCEPTION("Alert %Qlv is not resettable",
+                    alertType);
             }
             slotManager->ResetAlert(alertType);
         }

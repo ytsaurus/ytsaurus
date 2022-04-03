@@ -31,8 +31,6 @@ DEFINE_ENUM(ESlotManagerAlertType,
     ((JobProxyUnavailable)            (3))
 )
 
-bool IsSlotManagerAlertEligibleToReset(ESlotManagerAlertType alertType);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls acquisition and release of slots.
@@ -113,6 +111,8 @@ public:
      */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
+    static bool IsResettableAlertType(ESlotManagerAlertType alertType);
+
 private:
     const TSlotManagerConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -124,7 +124,7 @@ private:
 
     TAtomicObject<TSlotManagerDynamicConfigPtr> DynamicConfig_;
 
-    IVolumeManagerPtr RootVolumeManager_;
+    TAtomicObject<IVolumeManagerPtr> RootVolumeManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
     std::vector<TSlotLocationPtr> Locations_;

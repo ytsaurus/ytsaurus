@@ -120,6 +120,8 @@ void TSlotLocation::DoInitialize()
 {
     VERIFY_INVOKER_AFFINITY(SerializedHeavyInvoker_);
 
+    YT_LOG_INFO("Location initialization started");
+
     NFS::MakeDirRecursive(Config_->Path, 0755);
 
     WaitFor(HealthChecker_->RunCheck())
@@ -143,6 +145,8 @@ void TSlotLocation::DoInitialize()
 
     DiskResourcesUpdateExecutor_->Start();
     SlotLocationStatisticsUpdateExecutor_->Start();
+
+    YT_LOG_INFO("Location initialization complete");
 }
 
 TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
