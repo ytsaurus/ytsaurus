@@ -28,6 +28,7 @@ DEFINE_ENUM(ELinuxErrorCode,
     ((CONNRESET)          ((LinuxErrorCodeBase + ECONNRESET)))
     ((TIMEDOUT)           ((LinuxErrorCodeBase + ETIMEDOUT)))
     ((CONNREFUSED)        ((LinuxErrorCodeBase + ECONNREFUSED)))
+    ((DQUOT)              ((LinuxErrorCodeBase + EDQUOT)))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
