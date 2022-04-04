@@ -25,7 +25,8 @@ public:
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState,
-        NCypressElection::ICypressElectionManagerPtr electionManager);
+        NCypressElection::ICypressElectionManagerPtr electionManager,
+        TString agentId);
 
     void Start();
 
@@ -43,9 +44,10 @@ private:
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
-    const NCypressElection::ICypressElectionManagerPtr ElectionManager;
+    const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
     const NConcurrency::TThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
+    TString AgentId_;
 
     std::atomic<bool> Active_ = false;
 
