@@ -2655,7 +2655,9 @@ private:
             .Item("starving_since").Value(element->GetStarvationStatus() != EStarvationStatus::NonStarving
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
-            .Item("disk_request_media").Value(element->DiskRequestMedia())
+            .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
+                fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
+            })
             .Item("disk_quota_usage").BeginMap()
                 .Do([&] (TFluentMap fluent) {
                     strategyHost->SerializeDiskQuota(element->GetTotalDiskQuota(), fluent.GetConsumer());

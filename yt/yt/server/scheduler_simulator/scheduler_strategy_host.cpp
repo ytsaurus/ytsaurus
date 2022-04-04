@@ -187,6 +187,12 @@ std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& 
     return {};
 }
 
+const TString& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
+{
+    static const TString defaultMediumName = "default";
+    return defaultMediumName;
+}
+
 TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return NScheduler::FormatResources(resources);

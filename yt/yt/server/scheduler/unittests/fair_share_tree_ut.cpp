@@ -153,6 +153,11 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    
+    const TString& GetMediumNameByIndex(int /*mediumIndex*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
 
     std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
         const TSchedulingTagFilter& /*filter*/) const override
