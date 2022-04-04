@@ -120,6 +120,10 @@ TGentleLoaderConfig::TGentleLoaderConfig()
 
     RegisterParameter("use_direct_io", UseDirectIO)
         .Default(true);
+
+    RegisterParameter("max_write_rate", MaxWriteRate)
+        .GreaterThan(0)
+        .Default(96_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

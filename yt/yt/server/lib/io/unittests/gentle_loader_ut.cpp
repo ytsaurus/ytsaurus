@@ -185,12 +185,12 @@ public:
 
     i64 GetTotalReadBytes() const override
     {
-        return 0;
+        return TotalReadCounter_;
     }
 
     i64 GetTotalWrittenBytes() const override
     {
-        return 0;
+        return TotalWriteCounter_;
     }
 
     TFuture<void> RunRequest(TDuration latency, ui32 failingProbability = 0)
@@ -208,10 +208,23 @@ public:
         Y_UNUSED(config);
     }
 
+    void IncreaseReads(i64 size)
+    {
+        TotalReadCounter_ += size;
+    }
+
+    void IncreaseWrites(i64 size)
+    {
+        TotalWriteCounter_ += size;
+    }
+
 private:
     const TIOEngineMockConfig Config_;
     const TThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
+
+    i64 TotalReadCounter_ = 0;
+    i64 TotalWriteCounter_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,6 +367,99 @@ TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
     // Check that we some small IOPS before overload.
     auto lastResult = results.back();
     EXPECT_LE(lastResult.IOPS, 10);
+}
+
+TEST_F(TGentleLoaderTest, TestWriteLimmit)
+{
+    GentleLoaderConfig_->MaxWriteRate = GentleLoaderConfig_->PacketSize * 100;
+    GentleLoaderConfig_->DefaultReadToWriteRatio =  50; // only writes
+
+    IOEngineConfig_.ThreadsCount = 4;
+    IOEngineConfig_.ReadLatency = TDuration::MilliSeconds(10);
+    IOEngineConfig_.WriteLatency = TDuration::MilliSeconds(10);
+
+    auto results = Run(5);
+    EXPECT_EQ(std::ssize(results), 5);
+    // 4 threads with 100 IOPS each should get about 400 IOPS
+    // but because we skip most writes we should get about 600 IOPS. 
+    auto lastResult = results.back();
+    EXPECT_TRUE((lastResult.IOPS > 550) && (lastResult.IOPS < 750));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSkipTestStep
+{
+    i64 Background = 0;
+    i64 Synthetic = 0;
+    double SkipProbability = 0;
+};
+
+void ExecuteWriteSkipProbabilityTest(const std::vector<TSkipTestStep>& steps)
+{
+    auto config = New<TGentleLoaderConfig>();
+    config->LoadAdjustingInterval = TDuration::MicroSeconds(100);
+    auto engine = New<TIOEngineMock>(TIOEngineMockConfig{.ThreadsCount = 1});
+    auto loadAdjuster = CreateLoadAdjuster(config, engine, Logger);
+
+    for (const auto& step : steps) {
+        loadAdjuster->ShouldSkipWrite(step.Synthetic);
+
+        auto writeSkipProb = loadAdjuster->GetWriteProbability();
+        auto totalWrites = step.Background + (step.Synthetic - step.Synthetic * writeSkipProb);
+        engine->IncreaseWrites(totalWrites);
+
+        EXPECT_NEAR(writeSkipProb, step.SkipProbability, 0.01);
+
+        Sleep(TDuration::MilliSeconds(1));
+    }
+}
+
+void ExecuteReadSkipProbabilityTest(const std::vector<TSkipTestStep>& steps)
+{
+    auto config = New<TGentleLoaderConfig>();
+    config->LoadAdjustingInterval = TDuration::MicroSeconds(100);
+    auto engine = New<TIOEngineMock>(TIOEngineMockConfig{.ThreadsCount = 1});
+    auto loadAdjuster = CreateLoadAdjuster(config, engine, Logger);
+
+    for (const auto& step : steps) {
+        loadAdjuster->ShouldSkipRead(step.Synthetic);
+
+        auto readSkipProb = loadAdjuster->GetReadProbability();
+        auto totalWrites = step.Background + (step.Synthetic - step.Synthetic * readSkipProb);
+        engine->IncreaseReads(totalWrites);
+
+        EXPECT_NEAR(readSkipProb, step.SkipProbability, 0.01);
+
+        // Sleep.
+        Sleep(TDuration::MilliSeconds(1));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TCalculateSkipProbabilityTest, Simple)
+{
+    std::vector<TSkipTestStep> testSteps = {
+        {40, 100, 0},
+        {40, 100, 0.4},
+        {40, 100, 0.4},
+        {50, 100, 0.4},
+        {50, 100, 0.5},
+        {60, 100, 0.5},
+        {60, 100, 0.6},
+        {240, 100, 0.6},    // debt 200
+        {40, 100, 1},       // debt 140
+        {40, 100, 1},       // debt 80
+        {40, 100, 1},       // debt 20
+        {40, 100, 0.6},     // debt 0
+        {40, 100, 0.4},
+        {0, 100, 0.4},
+        {0, 100, 0},
+    };
+
+    ExecuteWriteSkipProbabilityTest(testSteps);
+    ExecuteReadSkipProbabilityTest(testSteps);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,7 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IRandomFileProvider);
 struct IGentleLoader
     : public TRefCounted
 {
-    // TODO(capone212): pass packets histogram here.
+    //! TODO(capone212): pass packets histogram here.
     virtual void Start() = 0;
     virtual void Stop() = 0;
 
@@ -45,11 +45,34 @@ DEFINE_REFCOUNTED_TYPE(IGentleLoader);
 ////////////////////////////////////////////////////////////////////////////////
 
 IGentleLoaderPtr CreateGentleLoader(
-    const TGentleLoaderConfigPtr& config,
-    const TString& locationRoot,
+    TGentleLoaderConfigPtr config,
+    TString locationRoot,
     IIOEngineWorkloadModelPtr engine,
     IRandomFileProviderPtr fileProvider,
     IInvokerPtr invoker,
+    NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class ILoadAdjuster
+    : public TRefCounted
+{
+public:
+    virtual bool ShouldSkipRead(i64 size) = 0;
+    virtual bool ShouldSkipWrite(i64 size) = 0;
+    virtual void ResetStatistics() = 0;
+
+    // Method for testing purposes.
+    virtual double GetReadProbability() const = 0;
+    virtual double GetWriteProbability() const = 0;
+};
+
+DECLARE_REFCOUNTED_CLASS(ILoadAdjuster);
+DEFINE_REFCOUNTED_TYPE(ILoadAdjuster);
+
+ILoadAdjusterPtr CreateLoadAdjuster(
+    TGentleLoaderConfigPtr config,
+    IIOEngineWorkloadModelPtr engine,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
