@@ -869,9 +869,18 @@ std::optional<TString> TJob::GetStderr()
         return std::nullopt;
     }
 
+    // Cleanup is not atomic, so in case of job proxy failure we might see job in cleanup phase and running state.
+    if (JobPhase_ == EJobPhase::Cleanup) {
+        if (auto error = FromProto<TError>(JobResultWithoutExtension_->error());
+            error.FindMatching(NExecNode::EErrorCode::JobProxyFailed))
+        {
+            return nullptr;
+        }
+    }
+
     // When job proxy finished with completed or failed state, Stderr_ must not be unset.
     YT_LOG_ALERT(
-        "Stderr is unset for job that has been started and has not been aborted (JobState: %v, JobPhase: %v)",
+        "Stderr is unset for job (JobState: %v, JobPhase: %v)",
         JobState_,
         JobPhase_);
 
