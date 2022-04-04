@@ -66,6 +66,7 @@ struct ISchedulerStrategyHost
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 
     virtual std::optional<int> FindMediumIndexByName(const TString& mediumName) const = 0;
+    virtual const TString& GetMediumNameByIndex(int mediumIndex) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 

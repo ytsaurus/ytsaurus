@@ -14,8 +14,8 @@ def scheduler_orchid_operations_by_pool_path(pool, tree="default"):
     return scheduler_new_orchid_pool_tree_path(tree) + "/operations_by_pool/{}".format(pool)
 
 
-def scheduler_orchid_operation_by_pool_path(op, pool, tree="default"):
-    return scheduler_orchid_operations_by_pool_path(pool, tree) + "/{}".format(op)
+def scheduler_orchid_operation_by_pool_path(op_id, pool, tree="default"):
+    return scheduler_orchid_operations_by_pool_path(pool, tree) + "/{}".format(op_id)
 
 
 def scheduler_orchid_default_pool_tree_path():
@@ -34,8 +34,8 @@ def scheduler_orchid_pool_path(pool, tree="default"):
     return scheduler_orchid_pool_tree_path(tree) + "/pools/{}".format(pool)
 
 
-def scheduler_orchid_operation_path(op, tree="default"):
-    return scheduler_orchid_pool_tree_path(tree) + "/operations/{}".format(op)
+def scheduler_orchid_operation_path(op_id, tree="default"):
+    return scheduler_orchid_pool_tree_path(tree) + "/operations/{}".format(op_id)
 
 
 def scheduler_orchid_node_path(node):
