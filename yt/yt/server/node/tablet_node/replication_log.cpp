@@ -319,7 +319,7 @@ private:
     const std::optional<int> TimestampColumnId_;
     const EWorkloadCategory WorkloadCategory_;
     const NLogging::TLogger Logger;
-
+    
     void ParseOrderedLogRow(
         TUnversionedRow logRow,
         const TRowBufferPtr& rowBuffer,

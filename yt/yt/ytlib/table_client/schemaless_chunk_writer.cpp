@@ -145,7 +145,7 @@ public:
         : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
-        , ChunkNameTable_(TNameTable::FromSchemaStable(*Schema_))
+        , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
         , Config_(std::move(config))
         , Options_(std::move(options))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
@@ -375,7 +375,7 @@ protected:
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(
                 ColumnarStatisticsExt_,
                 [&] (int columnIndex) {
-                    return TStableName(TString{GetNameTable()->GetName(columnIndex)});
+                    return TString{GetNameTable()->GetName(columnIndex)};
                 },
                 columnCount,
                 Options_->MaxHeavyColumns);
@@ -1078,9 +1078,7 @@ protected:
                 }
 
                 if (IdMapping_[valueIt->Id] == -1) {
-                    const auto& name = NameTable_->GetNameOrThrow(valueIt->Id);
-                    auto stableName = Schema_->GetNameMapping().NameToStableName(name);
-                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(stableName.Get());
+                    IdMapping_[valueIt->Id] = GetChunkNameTable()->GetIdOrRegisterName(NameTable_->GetNameOrThrow(valueIt->Id));
                 }
 
                 int id = IdMapping_[valueIt->Id];
@@ -1667,7 +1665,7 @@ public:
             blockCache)
         , CreateChunkWriter_(std::move(createChunkWriter))
         , OriginalSchema_(std::move(schema))
-        , ChunkNameTable_(TNameTable::FromSchemaStable(*Schema_))
+        , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
     { }
 
     bool Write(TRange<TUnversionedRow> rows) override
@@ -1746,8 +1744,8 @@ private:
         if (flags.Data.Uint64 > ToUnderlying(MaxValidUnversionedUpdateDataFlags)) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
-                "Flags column %v has value %v which exceeds its maximum value %v",
-                columnSchema.GetDiagnosticNameString(),
+                "Flags column %Qv has value %v which exceeds its maximum value %v",
+                columnSchema.Name(),
                 flags.Data.Uint64,
                 ToUnderlying(MaxValidUnversionedUpdateDataFlags));
         }
@@ -1760,8 +1758,8 @@ private:
                 if (row[index].Type != EValueType::Null) {
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::SchemaViolation,
-                        "Column %v must be %Qlv when modification type is \"delete\"",
-                        Schema_->Columns()[index].GetDiagnosticNameString(),
+                        "Column %Qv must be %Qlv when modification type is \"delete\"",
+                        Schema_->Columns()[index].Name(),
                         EValueType::Null);
                 }
             }
@@ -1786,15 +1784,15 @@ private:
                     if (isMissing) {
                         THROW_ERROR_EXCEPTION(
                             EErrorCode::SchemaViolation,
-                            "Flags for required column %v cannot have %Qlv bit set",
-                            columnSchema.GetDiagnosticNameString(),
+                            "Flags for required column %Qv cannot have %Qlv bit set",
+                            columnSchema.Name(),
                             EUnversionedUpdateDataFlags::Missing);
                     }
                     if (value.Type == EValueType::Null) {
                         THROW_ERROR_EXCEPTION(
                             EErrorCode::SchemaViolation,
-                            "Required column %v cannot have %Qlv value",
-                            columnSchema.GetDiagnosticNameString(),
+                            "Required column %Qv cannot have %Qlv value",
+                            columnSchema.Name(),
                             value.Type);
                     }
                 }

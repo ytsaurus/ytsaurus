@@ -2,25 +2,14 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/column_rename_descriptor.h>
-
-#include <yt/yt/ytlib/table_client/schema.h>
-
-#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/phoenix.h>
-
-#include <yt/yt/core/yson/string.h>
-#include <yt/yt/core/ytree/convert.h>
 
 #include <util/generic/cast.h>
 
 // TODO(max42): this whole file must be moved to server/lib/job_tracker_client.
 namespace NYT::NJobTrackerClient {
-
-using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,49 +44,6 @@ TString ToString(const TReleaseJobFlags& releaseFlags)
         releaseFlags.ArchiveJobSpec,
         releaseFlags.ArchiveFailContext,
         releaseFlags.ArchiveProfile);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTableSchemaPtr RenameColumnsInSchema(
-    TStringBuf tableDescription,
-    const TTableSchemaPtr& originalSchema,
-    bool isDynamic,
-    const TColumnRenameDescriptors& renameDescriptors,
-    bool changeStableName)
-{
-    auto schema = originalSchema;
-    try {
-        THashMap<TStringBuf, TStringBuf> columnMapping;
-        for (const auto& descriptor : renameDescriptors) {
-            EmplaceOrCrash(columnMapping, descriptor.OriginalName, descriptor.NewName);
-        }
-        auto newColumns = schema->Columns();
-        for (auto& column : newColumns) {
-            auto it = columnMapping.find(column.Name());
-            if (it != columnMapping.end()) {
-                column.SetName(TString(it->second));
-                if (changeStableName) {
-                    column.SetStableName(TStableName(column.Name()));
-                }
-                ValidateColumnSchema(column, schema->IsSorted(), isDynamic);
-                columnMapping.erase(it);
-            }
-        }
-        if (!columnMapping.empty()) {
-            THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
-                << TErrorAttribute("failed_rename_descriptors", columnMapping)
-                << TErrorAttribute("schema", schema);
-        }
-        schema = New<TTableSchema>(newColumns, schema->GetStrict(), schema->GetUniqueKeys());
-        ValidateColumnUniqueness(*schema);
-        return schema;
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error renaming columns")
-            << TErrorAttribute("table_description", tableDescription)
-            << TErrorAttribute("column_rename_descriptors", renameDescriptors)
-            << ex;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

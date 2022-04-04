@@ -815,7 +815,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
 
         EXPECT_THROW_THAT(
             AlterTable("//tmp/t1", schema),
@@ -827,7 +826,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(static_cast<int>(EValueType::Min));
 
         EXPECT_THROW_THAT(
@@ -840,7 +838,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(-1);
 
         EXPECT_THROW_THAT(
@@ -853,7 +850,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(static_cast<int>(EValueType::Any));
         column->set_simple_logical_type(-1);
 
@@ -867,7 +863,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(static_cast<int>(EValueType::Any));
         column->set_simple_logical_type(static_cast<int>(ESimpleLogicalValueType::Int64));
 
@@ -879,7 +874,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(static_cast<int>(EValueType::Int64));
         column->mutable_logical_type()->set_simple(-1);
 
@@ -893,7 +887,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(static_cast<int>(EValueType::Int64));
         column->mutable_logical_type();
 
@@ -907,7 +900,6 @@ TEST_F(TAlterTableTest, TestUnknownType)
         NTableClient::NProto::TTableSchemaExt schema;
         auto* column = schema.add_columns();
         column->set_name("foo");
-        column->set_stable_name("foo");
         column->set_type(static_cast<int>(EValueType::Int64));
         column->mutable_logical_type();
         auto unknownFields = column->GetReflection()->MutableUnknownFields(column);

@@ -169,7 +169,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     if (schemas.empty()) {
         dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(
             GetIntermediatePath(0),
-            New<TTableSchema>(),
+            /*schema*/ nullptr,
             /*columns*/ std::nullopt,
             /*omittedInaccessibleColumns*/ {},
             /*columnRenameDescriptors*/ {}));

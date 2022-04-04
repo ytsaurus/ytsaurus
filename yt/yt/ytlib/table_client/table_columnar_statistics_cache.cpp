@@ -55,10 +55,7 @@ bool operator == (const TTableKey& lhs, const TTableKey& rhs)
 
 TString ToString(const TTableKey& key)
 {
-    return Format("#%v@%v%v",
-        key.ObjectId,
-        key.Revision,
-        MakeShrunkFormattableView(key.Schema->GetColumnNames(), TDefaultFormatter(), 5));
+    return Format("#%v@%v%v", key.ObjectId, key.Revision, MakeShrunkFormattableView(key.Schema->GetColumnNames(), TDefaultFormatter(), 5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,7 +235,7 @@ public:
             });
         for (const auto& chunk : chunkSpecFetcher->ChunkSpecs()) {
             auto inputChunk = New<TInputChunk>(chunk);
-            columnarStatisticsFetcher->AddChunk(inputChunk, keys[chunk.table_index()].Schema->GetColumnStableNames());
+            columnarStatisticsFetcher->AddChunk(inputChunk, keys[chunk.table_index()].Schema->GetColumnNames());
         }
         return columnarStatisticsFetcher->Fetch()
             .Apply(BIND(&TImpl::OnColumnarStatisticsFetched, MakeStrong(this), columnarStatisticsFetcher, keys));

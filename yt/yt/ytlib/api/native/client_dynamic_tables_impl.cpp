@@ -646,9 +646,7 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
-
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
     auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary]->Filter(remappedColumnFilter, true);
     auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);

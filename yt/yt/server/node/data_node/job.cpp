@@ -1443,7 +1443,7 @@ private:
                 /*performanceCounters*/ nullptr,
                 /*keyComparer*/ TKeyComparer{},
                 /*virtualValueDirectory*/ nullptr,
-                /*tableSchema*/ Schema_);
+                /*tableSchema*/ nullptr);
 
             ChunkReader_ = CreateSchemalessRangeChunkReader(
                 std::move(chunkState),

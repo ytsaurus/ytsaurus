@@ -213,6 +213,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /* isUpper */ true, keyColumnCount);
                         }
 
+                        chunkMeta->RenameColumns(dataSource.ColumnRenameDescriptors());
+
                         auto chunkState = New<TChunkState>(
                             blockCache,
                             chunkSpec,
@@ -222,8 +224,9 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             /*performanceCounters*/ nullptr,
                             TKeyComparer{},
                             dataSource.GetVirtualValueDirectory(),
-                            dataSource.Schema());
+                            /*tableSchema*/ nullptr);
                         chunkState->DataSource = dataSource;
+
 
                         return CreateSchemalessRangeChunkReader(
                             std::move(chunkState),
@@ -1028,7 +1031,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     if (!columnFilter.IsUniversal()) {
         TColumnFilter::TIndexes transformedIndexes;
         for (auto index : columnFilter.GetIndexes()) {
-            if (const auto* column = tableSchema->FindColumn(nameTable->GetName(index))) {
+            if (auto* column = tableSchema->FindColumn(nameTable->GetName(index))) {
                 auto columnIndex = tableSchema->GetColumnIndex(*column);
                 if (std::find(transformedIndexes.begin(), transformedIndexes.end(), columnIndex) ==
                     transformedIndexes.end())
@@ -1183,6 +1186,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         auto versionedChunkMeta = WaitFor(asyncVersionedChunkMeta)
             .ValueOrThrow();
+
+        versionedChunkMeta->RenameColumns(renameDescriptors);
 
         auto chunkState = New<TChunkState>(
             blockCache,

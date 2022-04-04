@@ -68,7 +68,6 @@ message TLogicalType
 message TColumnSchema
 {
     required string name = 1;
-    optional string stable_name = 12;
 
     // `type', `simple_logical_type` `logical_type' describe type of the column.
     //

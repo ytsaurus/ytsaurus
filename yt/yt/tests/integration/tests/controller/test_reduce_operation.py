@@ -7,7 +7,7 @@ from yt_commands import (
     sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics, sorted_dicts,
     create_dynamic_table)
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending
 from yt_type_helpers import make_schema, tuple_type
 
 from yt.environment.helpers import assert_items_equal
@@ -400,88 +400,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command="cat",
                 spec={"reducer": {"format": "dsv"}},
             )
-
-    @authors("levysotsky")
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_rename_columns_alter_table(self, optimize_for):
-        skip_if_renaming_disabled(self.Env)
-
-        schema1 = [
-            {"name": "a", "type": "int64", "sort_order": "ascending"},
-            {"name": "b", "type": "int64"},
-        ]
-        schema1_new = [
-            {"name": "a2", "stable_name": "a", "type": "int64", "sort_order": "ascending"},
-            {"name": "b", "type": "int64"},
-        ]
-        schema2 = [
-            {"name": "a2", "type": "int64", "sort_order": "ascending"},
-            {"name": "b2", "type": "int64"},
-        ]
-        schema3 = [
-            {"name": "a3", "type": "int64", "sort_order": "ascending"},
-            {"name": "b", "type": "int64"},
-        ]
-
-        create(
-            "table",
-            "//tmp/t1",
-            attributes={
-                "schema": schema1,
-                "optimize_for": optimize_for,
-            },
-        )
-
-        write_table("//tmp/t1", [{"a": 42, "b": 1}])
-        alter_table("//tmp/t1", schema=schema1_new)
-        write_table("<append=%true>//tmp/t1", [{"a2": 42, "b": 2}])
-
-        create(
-            "table",
-            "//tmp/t2",
-            attributes={
-                "schema": schema2,
-                "optimize_for": optimize_for,
-            },
-        )
-        write_table("//tmp/t2", [{"a2": 42, "b2": 3}])
-
-        create(
-            "table",
-            "//tmp/t3",
-            attributes={
-                "schema": schema3,
-                "optimize_for": optimize_for,
-            },
-        )
-        write_table("//tmp/t3", [{"a3": 42, "b": 4}])
-
-        create("table", "//tmp/tout")
-
-        op = reduce(
-            in_=[
-                "//tmp/t1",
-                "<rename_columns={b2=b}>//tmp/t2",
-                "<rename_columns={a3=a2}>//tmp/t3",
-            ],
-            out="//tmp/tout",
-            reduce_by=["a2"],
-            command="cat",
-            spec={
-                "job_count": 4,  # We are trying to divide rows in different jobs.
-                "reducer": {"format": "dsv"},
-            },
-        )
-
-        assert read_table("//tmp/tout") == [
-            {"a2": "42", "b": "1"},
-            {"a2": "42", "b": "2"},
-            {"a2": "42", "b": "3"},
-            {"a2": "42", "b": "4"},
-        ]
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        assert completed["total"] == 1  # Actualy all rows should be in one job despite job_count > 1
 
     @authors("psushin", "klyachin")
     def test_control_attributes_yson(self):

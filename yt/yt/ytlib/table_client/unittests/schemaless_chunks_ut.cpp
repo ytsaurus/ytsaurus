@@ -255,7 +255,6 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
     auto chunkState = New<TChunkState>(
         GetNullBlockCache(),
         ChunkSpec_);
-    chunkState->TableSchema = New<TTableSchema>(std::get<1>(GetParam()));
 
     auto legacyReadRange = std::get<3>(GetParam());
 
@@ -398,7 +397,6 @@ protected:
         ChunkState_ = New<TChunkState>(
             GetNullBlockCache(),
             ChunkSpec_);
-        ChunkState_->TableSchema = Schema_;
     }
 
     virtual ISchemalessUnversionedReaderPtr CreateReader(const TColumnFilter& columnFilter)
@@ -643,7 +641,6 @@ protected:
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             ChunkSpec_);
-        chunkState->TableSchema = Schema_;
 
         return CreateSchemalessLookupChunkReader(
             std::move(chunkState),

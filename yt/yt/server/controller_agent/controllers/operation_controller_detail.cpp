@@ -4061,7 +4061,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             break;
         }
     }
-
+    
     if (foundMatching) {
         AvailableExecNodesObserved_ = true;
     }
@@ -5347,11 +5347,7 @@ void TOperationControllerBase::FetchInputTables()
             // We fetch columnar statistics only for the tables that have column selectors specified.
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
             if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled) {
-                auto stableColumnNames = MapNamesToStableNames(
-                    *table->Schema,
-                    *table->Path.GetColumns(),
-                    NonexistentColumnName);
-                columnarStatisticsFetcher->AddChunk(inputChunk, stableColumnNames);
+                columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
             }
 
             if (hasColumnSelectors) {
@@ -5834,15 +5830,35 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
                     << TErrorAttribute("table_path", table->Path);
             }
-            YT_LOG_DEBUG("Start renaming columns of input table");
-            auto description = Format("input table %v", table->GetPath());
-            table->Schema = RenameColumnsInSchema(
-                description,
-                table->Schema,
-                table->Dynamic,
-                table->ColumnRenameDescriptors,
-                /*changeStableName*/ !Config->EnableTableColumnRenaming);
-            YT_LOG_DEBUG("Columns of input table are renamed (Path: %v, NewSchema: %v)",
+            YT_LOG_DEBUG("Start renaming columns");
+            try {
+                THashMap<TString, TString> columnMapping;
+                for (const auto& descriptor : table->ColumnRenameDescriptors) {
+                    auto it = columnMapping.insert({descriptor.OriginalName, descriptor.NewName});
+                    YT_VERIFY(it.second);
+                }
+                auto newColumns = table->Schema->Columns();
+                for (auto& column : newColumns) {
+                    auto it = columnMapping.find(column.Name());
+                    if (it != columnMapping.end()) {
+                        column.SetName(it->second);
+                        ValidateColumnSchema(column, table->Schema->IsSorted(), table->Dynamic);
+                        columnMapping.erase(it);
+                    }
+                }
+                if (!columnMapping.empty()) {
+                    THROW_ERROR_EXCEPTION("Rename is supported only for columns in schema")
+                        << TErrorAttribute("failed_rename_descriptors", columnMapping);
+                }
+                table->Schema = New<TTableSchema>(newColumns, table->Schema->GetStrict(), table->Schema->GetUniqueKeys());
+                ValidateColumnUniqueness(*table->Schema);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error renaming columns")
+                    << TErrorAttribute("table_path", table->Path)
+                    << TErrorAttribute("column_rename_descriptors", table->ColumnRenameDescriptors)
+                    << ex;
+            }
+            YT_LOG_DEBUG("Columns are renamed (Path: %v, NewSchema: %v)",
                 table->GetPath(),
                 *table->Schema);
         }
@@ -6441,11 +6457,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
                     auto chunk = New<TInputChunk>(chunkSpec);
                     file.Chunks.emplace_back(chunk);
                     if (file.Path.GetColumns() && Spec_->UserFileColumnarStatistics->Enabled) {
-                        auto stableColumnNames = MapNamesToStableNames(
-                            *file.Schema,
-                            *file.Path.GetColumns(),
-                            NonexistentColumnName);
-                        columnarStatisticsFetcher->AddChunk(chunk, stableColumnNames);
+                        columnarStatisticsFetcher->AddChunk(chunk, *file.Path.GetColumns());
                     }
                 }
             }
@@ -6682,19 +6694,6 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         case EObjectType::Table:
                             file.Dynamic = attributes.Get<bool>("dynamic");
                             file.Schema = attributes.Get<TTableSchemaPtr>("schema");
-                            if (auto renameDescriptors = file.Path.GetColumnRenameDescriptors()) {
-                                YT_LOG_DEBUG("Start renaming columns of user file");
-                                auto description = Format("user file %v", file.GetPath());
-                                file.Schema = RenameColumnsInSchema(
-                                    description,
-                                    file.Schema,
-                                    file.Dynamic,
-                                    *renameDescriptors,
-                                    /*changeStableName*/ !Config->EnableTableColumnRenaming);
-                                YT_LOG_DEBUG("Columns of user file are renamed (Path: %v, NewSchema: %v)",
-                                    file.GetPath(),
-                                    *file.Schema);
-                            }
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {
                                 file.Format = file.Path.GetFormat();
@@ -9223,35 +9222,20 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
         }
     }
 
-    auto replaceStableNamesWithNames = [] (const TTableSchemaPtr& schema) {
-        auto newColumns = schema->Columns();
-        for (auto& newColumn : newColumns) {
-            newColumn.SetStableName(TStableName(newColumn.Name()));
-        }
-        return New<TTableSchema>(std::move(newColumns), schema->GetStrict(), schema->IsUniqueKeys());
-    };
-
     if (OutputTables_[0]->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
         OutputTables_[0]->TableUploadOptions.TableSchema = TTableSchema::FromSortColumns(sortColumns);
     } else {
-        auto schema = replaceStableNamesWithNames(InputTables_[0]->Schema)
+        auto schema = InputTables_[0]->Schema
             ->ToStrippedColumnAttributes()
             ->ToCanonical();
 
         for (const auto& table : InputTables_) {
-            auto canonizedSchema = replaceStableNamesWithNames(table->Schema)
-                ->ToStrippedColumnAttributes()
-                ->ToCanonical();
-            if (*canonizedSchema != *schema) {
-                THROW_ERROR_EXCEPTION(
-                    "Cannot infer output schema from input in strong schema mode, "
-                    "tables have incompatible schemas")
-                    << TErrorAttribute("lhs_schema", InputTables_[0]->Schema)
-                    << TErrorAttribute("rhs_schema", table->Schema);
+            if (*table->Schema->ToStrippedColumnAttributes()->ToCanonical() != *schema) {
+                THROW_ERROR_EXCEPTION("Cannot infer output schema from input in strong schema mode, tables have incompatible schemas");
             }
         }
 
-        OutputTables_[0]->TableUploadOptions.TableSchema = replaceStableNamesWithNames(InputTables_[0]->Schema)
+        OutputTables_[0]->TableUploadOptions.TableSchema = InputTables_[0]->Schema
             ->ToSorted(sortColumns)
             ->ToSortedStrippedColumnAttributes()
             ->ToCanonical();

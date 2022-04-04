@@ -12,9 +12,9 @@ from yt_commands import (
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2)
 
-from yt_type_helpers import make_schema, normalize_schema, make_column
+from yt_type_helpers import make_schema, normalize_schema
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -1088,67 +1088,6 @@ print row + table_index
         map(in_="<rename_columns={a=d}>//tmp/tin{d}", out="//tmp/tout", command="cat")
 
         assert read_table("//tmp/tout") == [{"d": 42}]
-
-    @authors("levysotsky")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_rename_schema(self, optimize_for):
-        skip_if_renaming_disabled(self.Env)
-
-        input_table = "//tmp/tin"
-        output_table = "//tmp/tout"
-
-        schema1 = make_schema([
-            make_column("a", "int64"),
-            make_column("b", "string"),
-            make_column("c", "bool"),
-        ])
-        create(
-            "table",
-            input_table,
-            attributes={
-                "schema": schema1,
-                "optimize_for": optimize_for,
-            },
-        )
-        create("table", output_table)
-        write_table(input_table, [{"a": 42, "b": "42", "c": False}])
-
-        schema2 = make_schema([
-            make_column("b", "string"),
-            make_column("c_new", "bool", stable_name="c"),
-            make_column("a_new", "int64", stable_name="a"),
-        ])
-        alter_table(input_table, schema=schema2)
-
-        write_table("<append=%true>" + input_table, [{"a_new": 43, "b": "43", "c_new": False}])
-
-        map(in_=input_table, out=output_table, command="cat")
-        assert sorted(read_table(output_table), key=lambda r: r["a_new"]) == [
-            {"a_new": 42, "b": "42", "c_new": False},
-            {"a_new": 43, "b": "43", "c_new": False},
-        ]
-
-        input_table_with_filter = "<columns=[a_new;b]>" + input_table
-        map(in_=input_table_with_filter, out=output_table, command="cat")
-        assert sorted(read_table(output_table), key=lambda r: r["a_new"]) == [
-            {"a_new": 42, "b": "42"},
-            {"a_new": 43, "b": "43"},
-        ]
-
-        input_table_with_rename = "<rename_columns={a_new=a_renamed;b=b_renamed}>" + input_table
-        map(in_=input_table_with_rename, out=output_table, command="cat")
-        assert sorted(read_table(output_table), key=lambda r: r["a_renamed"]) == [
-            {"a_renamed": 42, "b_renamed": "42", "c_new": False},
-            {"a_renamed": 43, "b_renamed": "43", "c_new": False},
-        ]
-
-        attributes = "<columns=[a_renamed;c_new]; rename_columns={a_new=a_renamed;b=b_renamed}>"
-        input_table_with_rename_and_filter = attributes + input_table
-        map(in_=input_table_with_rename_and_filter, out=output_table, command="cat")
-        assert sorted(read_table(output_table), key=lambda r: r["a_renamed"]) == [
-            {"a_renamed": 42, "c_new": False},
-            {"a_renamed": 43, "c_new": False},
-        ]
 
     @authors("evgenstf")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
