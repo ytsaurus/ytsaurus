@@ -495,6 +495,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLoadAdjuster
+    : public ILoadAdjuster
 {
 public:
     TLoadAdjuster(
@@ -506,24 +507,34 @@ public:
         , Logger(std::move(logger))
     { }
 
-    bool ShouldSkipRead(i64 size)
+    bool ShouldSkipRead(i64 size) override
     {
         Adjust();
         SyntheticReadBytes_ += size;
         return RandomNumber<double>() < SkipReadProbability_;
     }
 
-    bool ShouldSkipWrite(i64 size)
+    bool ShouldSkipWrite(i64 size) override
     {
         Adjust();
         SyntheticWrittenBytes_ += size;
         return RandomNumber<double>() < SkipWriteProbability_;
     }
 
-    void ResetStatistics()
+    void ResetStatistics() override
     {
         LastTotalReadBytes_ = IOEngine_->GetTotalReadBytes();
         LastTotalWrittenBytes_ = IOEngine_->GetTotalWrittenBytes();
+    }
+
+    virtual double GetReadProbability() const override
+    {
+        return SkipReadProbability_;
+    }
+
+    virtual double GetWriteProbability() const override
+    {
+        return SkipWriteProbability_;
     }
 
 private:
@@ -615,7 +626,7 @@ public:
         , RandomFileProvider_(std::move(fileProvider))
         , Invoker_(std::move(invoker))
         , ReadToWriteRatio_(GetReadToWriteRatio(Config_, IOEngine_))
-        , LoadAdjuster_(Config_, IOEngine_, Logger)
+        , LoadAdjuster_(CreateLoadAdjuster(Config_, IOEngine_, Logger))
         , Started_(false)
     { }
 
@@ -650,8 +661,8 @@ private:
     const IRandomFileProviderPtr RandomFileProvider_;
     const IInvokerPtr Invoker_;
     const ui8 ReadToWriteRatio_;
-    
-    TLoadAdjuster LoadAdjuster_;
+
+    ILoadAdjusterPtr LoadAdjuster_;
     std::atomic_bool Started_;
     std::vector<TFuture<TDuration>> Results_;
 
@@ -702,7 +713,7 @@ private:
 
         TCongestedState lastState;
         ui64 requestsCounter = 0;
-        LoadAdjuster_.ResetStatistics();
+        LoadAdjuster_->ResetStatistics();
 
         while (Started_) {
             try {
@@ -762,7 +773,7 @@ private:
                     Congested_.Fire(prevWindow);
                     WaitAfterCongested(congestionDetector);
                     lastState = congestionDetector->GetState();
-                    LoadAdjuster_.ResetStatistics();
+                    LoadAdjuster_->ResetStatistics();
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Gentle loader loop failed");
@@ -807,9 +818,12 @@ private:
         }
 
         static const ui8 IOScale = 100;
+
+        i64 desiredWriteIOPS = congestionWindow * (IOScale - ReadToWriteRatio_) / IOScale;
+
         TFuture<TDuration> future = ReadToWriteRatio_ > RandomNumber(IOScale)
             ? SendReadRequest(reader)
-            : SendWriteRequest(writer);
+            : SendWriteRequest(writer, desiredWriteIOPS);
 
         if (future) {
             // Slowing down IOEngine executor for testing purposes.
@@ -832,7 +846,7 @@ private:
     {
         auto readSize = Config_->PacketSize;
 
-        if (LoadAdjuster_.ShouldSkipRead(readSize)) {
+        if (LoadAdjuster_->ShouldSkipRead(readSize)) {
             // Adjusting for background workload.
             return {};
         }
@@ -840,9 +854,19 @@ private:
         return reader.Read(readSize);
     }
 
-    TFuture<TDuration> SendWriteRequest(TRandomWriter& writer)
+    TFuture<TDuration> SendWriteRequest(TRandomWriter& writer, i64 desiredWriteIOPS)
     {
-        if (LoadAdjuster_.ShouldSkipWrite(Config_->PacketSize)) {
+        // Respect max write limmit.
+        i64 maxWriteIOPS = Config_->MaxWriteRate / Config_->PacketSize;
+        YT_VERIFY(maxWriteIOPS >= 0);
+        desiredWriteIOPS = std::max<i64>(desiredWriteIOPS, 1);
+        if (RandomNumber<double>() > static_cast<double>(maxWriteIOPS) / desiredWriteIOPS) {
+            // Skip because we are exceeding write limmit.
+            return {};
+        }
+
+        // Respect background load.
+        if (LoadAdjuster_->ShouldSkipWrite(Config_->PacketSize)) {
             // Adjusting for background workload.
             return {};
         }
@@ -867,8 +891,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IGentleLoaderPtr CreateGentleLoader(
-    const TGentleLoaderConfigPtr& config,
-    const TString& locationRoot,
+    TGentleLoaderConfigPtr config,
+    TString locationRoot,
     IIOEngineWorkloadModelPtr engine,
     IRandomFileProviderPtr fileProvider,
     IInvokerPtr invoker,
@@ -880,6 +904,19 @@ IGentleLoaderPtr CreateGentleLoader(
         std::move(engine),
         std::move(fileProvider),
         std::move(invoker),
+        std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ILoadAdjusterPtr CreateLoadAdjuster(
+    TGentleLoaderConfigPtr config,
+    IIOEngineWorkloadModelPtr engine,
+    NLogging::TLogger logger)
+{
+    return New<TLoadAdjuster>(
+        std::move(config),
+        std::move(engine),
         std::move(logger));
 }
 

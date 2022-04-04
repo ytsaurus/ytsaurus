@@ -102,6 +102,12 @@ public:
         YT_LOG_DEBUG("Starting load test (Location: %v)",
             Location_->GetId());
 
+        // Override max write rate for current location.
+        mediumConfig = CloneYsonSerializable(mediumConfig);
+        if (auto maxWriteRate = Location_->GetMaxWriteRateByDWPD()) {
+            mediumConfig->MaxWriteRate = maxWriteRate;
+        }
+
         auto randomFileProvider = New<TRandomFileProvider>(
             ChunkStore_,
             Location_->GetUuid(),

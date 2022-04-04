@@ -385,6 +385,10 @@ public:
     //! Never throws.
     i64 GetLowWatermarkSpace() const;
 
+    //! Returns max allowed write rate by device warranty.
+    //! Never throws.
+    i64 GetMaxWriteRateByDWPD() const;
+
     //! Checks whether the location is full.
     bool IsFull() const;
 

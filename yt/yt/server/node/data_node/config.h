@@ -120,6 +120,8 @@ public:
     //! Storage device vendor info.
     TString DeviceModel;
 
+    i64 MaxWriteRateByDWPD;
+
     TStoreLocationConfigBase();
 };
 

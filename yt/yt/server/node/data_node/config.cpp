@@ -113,6 +113,9 @@ TStoreLocationConfigBase::TStoreLocationConfigBase()
         .Default("UNKNOWN");
     RegisterParameter("device_model", DeviceModel)
         .Default("UNKNOWN");
+    RegisterParameter("max_write_rate_by_dwpd", MaxWriteRateByDWPD)
+        .GreaterThanOrEqual(0)
+        .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

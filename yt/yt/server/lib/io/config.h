@@ -131,6 +131,8 @@ struct TGentleLoaderConfig
 
     bool UseDirectIO;
 
+    i64 MaxWriteRate;
+
     TGentleLoaderConfig();
 };
 

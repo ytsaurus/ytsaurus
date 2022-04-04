@@ -1133,6 +1133,13 @@ i64 TStoreLocation::GetLowWatermarkSpace() const
     return Config_->LowWatermark;
 }
 
+i64 TStoreLocation::GetMaxWriteRateByDWPD() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Config_->MaxWriteRateByDWPD;
+}
+
 bool TStoreLocation::IsFull() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
