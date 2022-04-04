@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
@@ -380,10 +380,14 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        precision = 10 ** 8
-        self.Env.set_nodes_memory_limit(15 * 10 ** 8)
+        # Restart nodes to decrease footprint.
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        precision = 3 * 10 ** 8
+        self.Env.set_nodes_memory_limit(3 * 10 ** 9)
         wait(
-            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)
+            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 10 ** 9)
             <= precision
         )
         self.Env.set_nodes_memory_limit(2 * 10 ** 9)
