@@ -917,12 +917,13 @@ class TStoreLocation::TIOStatisticsProvider
 {
 public:
     TIOStatisticsProvider(
-        TString deviceName,
+        TStoreLocationConfigPtr config,
         NIO::IIOEnginePtr ioEngine,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NProfiling::TProfiler profiler,
         TLogger logger)
-        : DeviceName_(std::move(deviceName))
+        : DeviceName_(config->DeviceName)
+        , MaxWriteRateByDWPD_(config->MaxWriteRateByDWPD)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
@@ -955,6 +956,7 @@ private:
     };
 
     const TString DeviceName_;
+    const i64 MaxWriteRateByDWPD_;
     const NIO::IIOEnginePtr IOEngine_;
     const TLogger Logger;
     std::atomic<TDuration> UpdateStatisticsTimeout_;
@@ -1048,6 +1050,10 @@ private:
                 "/disk/io_in_progress",
                 diskStat.IOCurrentlyInProgress);
 
+            writer->AddGauge(
+                "/disk/max_write_rate_by_dwpd",
+                MaxWriteRateByDWPD_);
+
         } catch (const std::exception& ex) {
             if (!ErrorLogged_) {
                 YT_LOG_ERROR(ex, "Failed to collect disk statistics");
@@ -1085,7 +1091,7 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         Config_->TrashCheckPeriod))
     , StatisticsProvider_(New<TIOStatisticsProvider>(
-        Config_->DeviceName,
+        Config_,
         GetIOEngine(),
         dynamicConfigManager,
         Profiler_,
