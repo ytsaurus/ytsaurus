@@ -72,6 +72,7 @@ public:
         const NScheduler::TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override;
     void SerializeResources(const NScheduler::TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const override;
+    void SerializeDiskQuota(const NScheduler::TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const override;
 
     void ValidatePoolPermission(
         const NYPath::TYPath& path,

@@ -212,6 +212,11 @@ public:
     {
         YT_ABORT();
     }
+    
+    void SerializeDiskQuota(const TDiskQuota& /*diskQuota*/, NYson::IYsonConsumer* /*consumer*/) const override
+    {
+        YT_ABORT();
+    }
 
     void LogResourceMetering(
         const TMeteringKey& /*key*/,

@@ -1038,6 +1038,8 @@ public:
         TJobId jobId,
         const TJobResources& resources);
 
+    TDiskQuota GetTotalDiskQuota() const;
+
     void UpdatePreemptableJobsList(
         const TResourceVector& fairShare,
         const TJobResources& totalResourceLimits,
@@ -1055,7 +1057,7 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    void AddJob(TJobId jobId, const TJobResources& resourceUsage);
+    void AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
     EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
@@ -1122,11 +1124,14 @@ private:
         TJobIdList::iterator JobIdListIterator;
 
         TJobResources ResourceUsage;
+
+        TDiskQuota DiskQuota;
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobPropertiesMapLock_);
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     TInstant LastScheduleJobSuccessTime_;
+    TDiskQuota TotalDiskQuota_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PreemptionStatusStatisticsLock_);
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
@@ -1233,7 +1238,7 @@ public:
     //! Shared state interface.
     bool OnJobStarted(
         TJobId jobId,
-        const TJobResources& resourceUsage,
+        const TJobResourcesWithQuota& resourceUsage,
         const TJobResources& precommittedResources,
         TControllerEpoch scheduleJobEpoch,
         bool force = false);
@@ -1246,6 +1251,8 @@ public:
 
     EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
     TJobPreemptionStatusMap GetJobPreemptionStatusMap() const;
+
+    TDiskQuota GetTotalDiskQuota() const;
 
     int GetRunningJobCount() const;
     int GetPreemptableJobCount() const;

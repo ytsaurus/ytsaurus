@@ -42,7 +42,7 @@ TNodeResources ToNodeResources(const TJobResources& jobResources)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SerializeDiskQuota(
+void SerializeDiskQuotaImpl(
     const TDiskQuota& quota,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     TFluentMap fluent)
@@ -56,6 +56,14 @@ void SerializeDiskQuota(
         .Item("disk_space_without_medium").Value(quota.DiskSpaceWithoutMedium);
 }
 
+void SerializeDiskQuota(
+    const TDiskQuota& quota,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+    IYsonConsumer* consumer)
+{
+    SerializeDiskQuotaImpl(quota, mediumDirectory, BuildYsonMapFragmentFluently(consumer));
+}
+
 void SerializeJobResourcesWithQuota(
     const TJobResourcesWithQuota& resources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
@@ -66,7 +74,7 @@ void SerializeJobResourcesWithQuota(
             #define XX(name, Name) .Item(#name).Value(resources.Get##Name())
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
-            .Do(std::bind(SerializeDiskQuota, resources.GetDiskQuota(), mediumDirectory, std::placeholders::_1))
+            .Do(std::bind(SerializeDiskQuotaImpl, resources.GetDiskQuota(), mediumDirectory, std::placeholders::_1))
         .EndMap();
 }
 

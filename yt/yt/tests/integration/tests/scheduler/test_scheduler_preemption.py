@@ -1378,6 +1378,9 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         update_pool_tree_config_option("default", "ssd_priority_preemption/enable", True)
         wait(lambda: self._get_op_cpu_usage(op) == 4.0)
 
+        disk_quota_usage = get(scheduler_orchid_operation_path(op.id) + "/disk_quota_usage")
+        assert list(disk_quota_usage["disk_space_per_medium"].keys()) == [TestSsdPriorityPreemption.SSD_MEDIUM]
+
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption_many_operations(self):
         update_pool_tree_config_option("default", "max_unpreemptable_running_job_count", 1)

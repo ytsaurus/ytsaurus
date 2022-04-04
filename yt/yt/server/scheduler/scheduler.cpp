@@ -1910,6 +1910,15 @@ public:
             ->GetMediumDirectory();
         SerializeJobResourcesWithQuota(resources, mediumDirectory, consumer);
     }
+    
+    void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const override
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        NScheduler::SerializeDiskQuota(diskQuota, mediumDirectory, consumer);
+    }
 
     TString FormatHeartbeatResourceUsage(
         const TJobResources& usage,
