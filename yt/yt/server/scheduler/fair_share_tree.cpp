@@ -2656,6 +2656,11 @@ private:
                 ? std::make_optional(element->GetLastNonStarvingTime())
                 : std::nullopt)
             .Item("disk_request_media").Value(element->DiskRequestMedia())
+            .Item("disk_quota_usage").BeginMap()
+                .Do([&] (TFluentMap fluent) {
+                    strategyHost->SerializeDiskQuota(element->GetTotalDiskQuota(), fluent.GetConsumer());
+                })
+            .EndMap()
             .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(element), TFieldsFilter{}));
     }
 

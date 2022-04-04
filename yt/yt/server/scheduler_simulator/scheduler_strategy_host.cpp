@@ -204,6 +204,11 @@ void TSchedulerStrategyHost::SerializeResources(const TJobResourcesWithQuota& re
 {
     return NScheduler::SerializeJobResourcesWithQuota(resources, MediumDirectory_, consumer);
 }
+    
+void TSchedulerStrategyHost::SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const
+{
+    return NScheduler::SerializeDiskQuota(diskQuota, MediumDirectory_, consumer);
+}
 
 void TSchedulerStrategyHost::ValidatePoolPermission(
     const NYPath::TYPath& /*path*/,

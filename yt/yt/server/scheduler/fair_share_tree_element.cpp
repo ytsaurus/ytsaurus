@@ -2282,6 +2282,7 @@ TJobResources TSchedulerOperationElementSharedState::Disable()
         resourceUsage += properties.ResourceUsage;
     }
 
+    TotalDiskQuota_ = {};
     TotalResourceUsage_ = {};
     NonpreemptableResourceUsage_ = {};
     AggressivelyPreemptableResourceUsage_ = {};
@@ -2341,6 +2342,12 @@ TJobResources TSchedulerOperationElementSharedState::SetJobResourceUsage(
     }
 
     return SetJobResourceUsage(GetJobProperties(jobId), resources);
+}
+
+TDiskQuota TSchedulerOperationElementSharedState::GetTotalDiskQuota() const
+{
+    auto guard = ReaderGuard(JobPropertiesMapLock_);
+    return TotalDiskQuota_;
 }
 
 void TSchedulerOperationElementSharedState::UpdatePreemptableJobsList(
@@ -2517,7 +2524,7 @@ int TSchedulerOperationElementSharedState::GetAggressivelyPreemptableJobCount() 
     return AggressivelyPreemptableJobs_.size();
 }
 
-void TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage)
+void TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage)
 {
     auto guard = WriterGuard(JobPropertiesMapLock_);
 
@@ -2535,7 +2542,9 @@ void TSchedulerOperationElementSharedState::AddJob(TJobId jobId, const TJobResou
 
     ++RunningJobCount_;
 
-    SetJobResourceUsage(&it.first->second, resourceUsage);
+    SetJobResourceUsage(&it.first->second, resourceUsage.ToJobResources());
+
+    TotalDiskQuota_ += resourceUsage.GetDiskQuota();
 }
 
 void TSchedulerOperationElementSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
@@ -2774,6 +2783,8 @@ std::optional<TJobResources> TSchedulerOperationElementSharedState::RemoveJob(TJ
 
     auto resourceUsage = properties->ResourceUsage;
     SetJobResourceUsage(properties, TJobResources());
+
+    TotalDiskQuota_ -= properties->DiskQuota;
 
     JobPropertiesMap_.erase(it);
 
@@ -3452,7 +3463,7 @@ TFairShareScheduleJobResult TSchedulerOperationElement::ScheduleJob(TScheduleJob
 
     bool onJobStartedSuccess = OnJobStarted(
         startDescriptor.Id,
-        startDescriptor.ResourceLimits.ToJobResources(),
+        startDescriptor.ResourceLimits,
         precommittedResources,
         scheduleJobEpoch);
     if (!onJobStartedSuccess) {
@@ -3667,6 +3678,11 @@ TJobPreemptionStatusMap TSchedulerOperationElement::GetJobPreemptionStatusMap() 
     return OperationElementSharedState_->GetJobPreemptionStatusMap();
 }
 
+TDiskQuota TSchedulerOperationElement::GetTotalDiskQuota() const
+{
+    return OperationElementSharedState_->GetTotalDiskQuota();
+}
+
 int TSchedulerOperationElement::GetRunningJobCount() const
 {
     return OperationElementSharedState_->GetRunningJobCount();
@@ -3734,7 +3750,7 @@ bool TSchedulerOperationElement::IsGang() const
 
 bool TSchedulerOperationElement::OnJobStarted(
     TJobId jobId,
-    const TJobResources& resourceUsage,
+    const TJobResourcesWithQuota& resourceUsage,
     const TJobResources& precommittedResources,
     int scheduleJobEpoch,
     bool force)
