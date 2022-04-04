@@ -245,6 +245,13 @@ class TestChaos(ChaosTestBase):
     NUM_REMOTE_CLUSTERS = 2
     NUM_TEST_PARTITIONS = 14
 
+    def setup_method(self, method):
+        super(TestChaos, self).setup_method(method)
+
+        primary_cell_tag = get("//sys/@primary_cell_tag")
+        for driver in self._get_drivers():
+            set("//sys/tablet_cell_bundles/default/@options/clock_cluster_tag", primary_cell_tag, driver=driver)
+
     @authors("savrus")
     def test_virtual_maps(self):
         tablet_cell_id = sync_create_cells(1)[0]

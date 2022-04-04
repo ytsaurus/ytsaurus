@@ -43,6 +43,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TTableId, TableId);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, TablePath);
     DEFINE_BYVAL_RW_PROPERTY(TString, TableClusterName);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, CurrentTimestamp);
 
     NChaosClient::TReplicaInfo* FindReplica(NChaosClient::TReplicaId replicaId);
     NChaosClient::TReplicaInfo* GetReplicaOrThrow(NChaosClient::TReplicaId replicaId);

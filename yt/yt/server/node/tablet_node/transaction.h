@@ -67,11 +67,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp, NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, PrepareRevision, NHydra::NullRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, CommitTimestampClusterTag, NObjectClient::InvalidCellTag)
 
     DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTablet*>, LockedTablets);
+
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, TabletsToUpdateReplicationProgress);
+    DEFINE_BYVAL_RW_PROPERTY(bool, SerializationForced);
 
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLockedWriteLog);
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLocklessWriteLog);

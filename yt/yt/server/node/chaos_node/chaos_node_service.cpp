@@ -107,6 +107,7 @@ private:
         ToProto(protoReplicationCard->mutable_table_id(), replicationCard->GetTableId());
         protoReplicationCard->set_table_path(replicationCard->GetTablePath());
         protoReplicationCard->set_table_cluster_name(replicationCard->GetTableClusterName());
+        protoReplicationCard->set_current_timestamp(replicationCard->GetCurrentTimestamp());
 
         std::vector<TCellId> coordinators;
         if (fetchOptions.IncludeCoordinators) {

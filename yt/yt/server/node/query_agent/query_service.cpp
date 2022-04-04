@@ -817,6 +817,8 @@ private:
                         upstreamReplicaId);
                 }
 
+                // NB: We rely on replication progress here instead of barrier timestamp since barrier timestamp could correspond to another era,
+                // e.g. consider sync -> async change when replication porgress is still in sync period and barrier is already in async.
                 auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Load();
 
                 if (upperTimestamp && !IsReplicationProgressGreaterOrEqual(*replicationProgress, upperTimestamp)) {

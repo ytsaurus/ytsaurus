@@ -99,6 +99,9 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, RowsPrepared_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, CommitTimestampClusterTag_);
+    Save(context, SerializationForced_);
+    Save(context, TabletsToUpdateReplicationProgress_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -128,6 +131,12 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, RowsPrepared_);
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= ETabletReign::SerializeReplicationProgress) {
+        Load(context, CommitTimestampClusterTag_);
+        Load(context, SerializationForced_);
+        Load(context, TabletsToUpdateReplicationProgress_);
+    }
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
@@ -185,7 +194,7 @@ TInstant TTransaction::GetStartTime() const
 
 bool TTransaction::IsSerializationNeeded() const
 {
-    return !DelayedLocklessWriteLog_.Empty();
+    return !DelayedLocklessWriteLog_.Empty() || !TabletsToUpdateReplicationProgress_.empty() || SerializationForced_;
 }
 
 TCellTag TTransaction::GetCellTag() const

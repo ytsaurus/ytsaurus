@@ -439,6 +439,8 @@ public:
             transaction->GetPrepareTimestamp(),
             /*canThrow*/ false);
 
+        transaction->SetCommitTimestampClusterTag(commitTimestampClusterTag);
+
         // Make a copy, transaction may die.
         auto identity = transaction->AuthenticationIdentity();
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -474,7 +476,8 @@ public:
         FinishTransaction(transaction);
 
         if (transaction->IsSerializationNeeded()) {
-            auto& heap = SerializingTransactionHeaps_[transaction->GetCellTag()];
+            auto heapTag = GetSerializingTransactionHeapTag(transaction);
+            auto& heap = SerializingTransactionHeaps_[heapTag];
             heap.push_back(transaction);
             AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
@@ -684,7 +687,8 @@ private:
             YT_VERIFY(transaction->GetTransientState() == state);
             YT_VERIFY(state != ETransactionState::Aborted);
             if (state == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
-                SerializingTransactionHeaps_[transaction->GetCellTag()].push_back(transaction);
+                auto heapTag = GetSerializingTransactionHeapTag(transaction);
+                SerializingTransactionHeaps_[heapTag].push_back(transaction);
             }
             if (state == ETransactionState::PersistentCommitPrepared) {
                 RegisterPrepareTimestamp(transaction);
@@ -1147,6 +1151,18 @@ private:
                 timestampClusterTag,
                 ClockClusterTag_);
         }
+    }
+
+    TCellTag GetSerializingTransactionHeapTag(TTransaction* transaction)
+    {
+        // COMPAT(savrus)
+        if (IsOldHydraContext(ETabletReign::SerializeReplicationProgress)) {
+            return transaction->GetCellTag();
+        }
+
+        return transaction->GetCommitTimestampClusterTag() != InvalidCellTag
+            ? transaction->GetCommitTimestampClusterTag()
+            : transaction->GetCellTag();
     }
 
     static bool SerializingTransactionHeapComparer(

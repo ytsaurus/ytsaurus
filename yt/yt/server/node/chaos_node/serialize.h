@@ -16,6 +16,7 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 DEFINE_ENUM(EChaosReign,
     ((LetTheChaosBegin)             (300001)) // savrus
+    ((CurrentTimestamp)             (300002)) // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////
