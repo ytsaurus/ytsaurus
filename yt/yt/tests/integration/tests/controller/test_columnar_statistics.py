@@ -1,25 +1,18 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    alter_table, authors, wait, create, ls, get, set, remove, exists,
+    authors, wait, create, ls, get, set, remove, exists,
     insert_rows, delete_rows,
     write_table, map, merge, vanilla, remote_copy, get_table_columnar_statistics,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_compact_table,
     raises_yt_error)
-
-from yt_type_helpers import (
-    make_schema, make_column,
-    optional_type,
-)
-
-from yt_helpers import skip_if_renaming_disabled
 
 from yt.common import YtError
 
 import pytest
 
 
-class _TestColumnarStatisticsBase(YTEnvSetup):
+class TestColumnarStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -126,8 +119,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             },
         )
 
-
-class TestColumnarStatistics(_TestColumnarStatisticsBase):
     @authors("max42")
     def test_get_table_columnar_statistics(self):
         create("table", "//tmp/t")
@@ -652,95 +643,6 @@ class TestColumnarStatisticsEarlyFinishRpcProxy(TestColumnarStatisticsEarlyFinis
             "node_rpc_timeout": 3000
         },
     }
-
-
-##################################################################
-
-
-class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
-    @authors("levysotsky")
-    def test_get_table_columnar_statistics(self):
-        skip_if_renaming_disabled(self.Env)
-
-        schema1 = make_schema([
-            make_column("a", optional_type("string")),
-            make_column("b", optional_type("int64")),
-            make_column("c", optional_type("double")),
-        ])
-        schema2 = make_schema([
-            make_column("a_new", optional_type("string"), stable_name="a"),
-            make_column("c_new", optional_type("double"), stable_name="c"),
-            make_column("b", optional_type("int64")),
-        ])
-
-        create("table", "//tmp/t", attributes={"schema": schema1})
-
-        write_table("<append=%true>//tmp/t", [{"a": "x" * 100, "b": 42}, {"c": 1.2}])
-
-        alter_table("//tmp/t", schema=schema2)
-
-        write_table("<append=%true>//tmp/t", [{"a_new": "x" * 200}, {"c_new": 6.5}])
-        write_table("<append=%true>//tmp/t", [{"b": None, "c_new": 0.0}, {"a_new": "x" * 1000}])
-
-        self._expect_statistics(2, 2, "a,b,c", [0, 0, 0])  # Note the wrong names.
-        self._expect_statistics(2, 2, "a_new,b,c_new", [0, 0, 0])
-        self._expect_statistics(0, 6, "a,b,c", [0, 8, 0])  # Note the wrong names.
-        self._expect_statistics(0, 6, "a_new,b,c_new", [1300, 8, 24])
-        self._expect_statistics(0, 6, "a_new,c_new,x", [1300, 24, 0])
-        self._expect_statistics(1, 5, "a,b,c", [0, 8, 0])  # Note the wrong names.
-        self._expect_statistics(1, 5, "a_new,b,c_new", [1300, 8, 24])
-        self._expect_statistics(2, 5, "a_new", [1200])
-        self._expect_statistics(1, 4, "", [])
-
-        alter_table("//tmp/t", schema=schema1)
-
-        write_table("<append=%true>//tmp/t", [{"b": None, "c": 0.0}, {"a": "x" * 1000}])
-
-        self._expect_statistics(2, 2, "a,b,c", [0, 0, 0])
-        self._expect_statistics(0, 6, "a,b,c", [1300, 8, 24])
-        self._expect_statistics(0, 6, "a,c,x", [1300, 24, 0])
-        self._expect_statistics(1, 5, "a,b,c", [1300, 8, 24])
-        self._expect_statistics(2, 5, "a", [1200])
-        self._expect_statistics(1, 4, "", [])
-
-    @authors("levysotsky")
-    def test_map_thin_column(self):
-        schema1 = make_schema([
-            make_column("a", "string"),
-            make_column("b", "string"),
-        ])
-        schema2 = make_schema([
-            make_column("b_new", "string", stable_name="b"),
-            make_column("a_new", "string", stable_name="a"),
-        ])
-        create("table", "//tmp/t", attributes={"optimize_for": "scan", "schema": schema1})
-        create("table", "//tmp/d")
-        for i in range(10):
-            a_name = ["a", "a_new"][i % 2]
-            b_name = ["b", "b_new"][i % 2]
-            schema = [schema1, schema2][i % 2]
-            alter_table("//tmp/t", schema=schema)
-            write_table(
-                "<append=%true>//tmp/t",
-                [{a_name: "x" * 90, b_name: "y" * 10} for _ in range(100)],
-            )
-
-        for a_name, b_name, schema in [("a", "b", schema1), ("a_new", "b_new", schema2)]:
-            alter_table("//tmp/t", schema=schema)
-            assert get("//tmp/t/@data_weight") == 101 * 10 ** 3
-            self._expect_statistics(
-                0, 1000,
-                "{},{}".format(a_name, b_name),
-                [90 * 10 ** 3, 10 * 10 ** 3],
-            )
-            op = map(
-                in_="//tmp/t{{{}}}".format(b_name),
-                out="//tmp/d",
-                spec={"data_weight_per_job": 1000},
-                command="echo '{a=1}'",
-            )
-            op.track()
-            assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
 
 ##################################################################

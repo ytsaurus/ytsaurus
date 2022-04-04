@@ -221,15 +221,10 @@ private:
                     .Logger = Logger,
                 });
 
-            Y_VERIFY(OperandSchemas_.size() == ResultStripes_.size());
-            for (const auto& [resultStripe, schema] : Zip(ResultStripes_, OperandSchemas_)) {
-                auto columnStableNames = MapNamesToStableNames(
-                    *schema,
-                    RealColumnNames_,
-                    NonexistentColumnName);
+            for (auto& resultStripe : ResultStripes_) {
                 for (auto& inputDataSlice : resultStripe->DataSlices) {
                     for (auto& inputChunkSlice : inputDataSlice->ChunkSlices) {
-                        columnarStatisticsFetcher->AddChunk(inputChunkSlice->GetInputChunk(), columnStableNames);
+                        columnarStatisticsFetcher->AddChunk(inputChunkSlice->GetInputChunk(), RealColumnNames_);
                     }
                 }
             }

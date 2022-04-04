@@ -4,12 +4,10 @@ from yt_commands import (
     authors, create, ls, get, set, copy, move, remove,
     exists, create_account,
     create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
-    read_table, write_table, alter_table,
+    read_table, write_table,
     map, set_account_disk_space_limit, raises_yt_error)
 
 from yt_type_helpers import make_schema
-
-from yt_helpers import skip_if_renaming_disabled
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -180,12 +178,9 @@ class CheckPermissionBase(YTEnvSetup):
             == "allow"
         )
 
-    @authors("kiselyovp", "levysotsky")
+    @authors("kiselyovp")
     @pytest.mark.parametrize("acl_path", ["//tmp/dir/t", "//tmp/dir"])
-    @pytest.mark.parametrize("rename_columns", [False, True])
-    def test_check_permission_for_columnar_acl(self, acl_path, rename_columns):
-        skip_if_renaming_disabled(self.Env)
-
+    def test_check_permission_for_columnar_acl(self, acl_path):
         create_user("u1")
         create_user("u2")
         create_user("u3")
@@ -204,50 +199,38 @@ class CheckPermissionBase(YTEnvSetup):
             recursive=True,
         )
 
-        if rename_columns:
-            new_schema = [
-                {"name": "a", "type": "string"},
-                {"name": "b_new", "type": "string", "stable_name": "b"},
-                {"name": "c_new", "type": "string", "stable_name": "c"},
-            ]
-            alter_table("//tmp/dir/t", schema=new_schema)
-            names = ["a", "b_new", "c_new"]
-        else:
-            names = ["a", "b", "c"]
-
         set(
             acl_path + "/@acl",
             [
-                make_ace("deny", "u1", "read", columns=names[0]),
-                make_ace("allow", "u2", "read", columns=names[1]),
+                make_ace("deny", "u1", "read", columns="a"),
+                make_ace("allow", "u2", "read", columns="b"),
                 make_ace("deny", "u4", "read"),
             ],
         )
 
-        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=names)
+        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response1["action"] == "allow"
         assert response1["columns"][0]["action"] == "deny"
         assert response1["columns"][1]["action"] == "deny"
         assert response1["columns"][2]["action"] == "allow"
 
-        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=names)
+        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response2["action"] == "allow"
         assert response2["columns"][0]["action"] == "deny"
         assert response2["columns"][1]["action"] == "allow"
         assert response2["columns"][2]["action"] == "allow"
 
-        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=names)
+        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response3["action"] == "allow"
         assert response3["columns"][0]["action"] == "deny"
         assert response3["columns"][1]["action"] == "deny"
         assert response3["columns"][2]["action"] == "allow"
 
-        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=names)
+        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response4["action"] == "deny"
 
-    @authors("babenko", "levysotsky")
-    @pytest.mark.parametrize("rename_columns", [False, True])
-    def test_inaccessible_columns_yt_11619(self, rename_columns):
+    @authors("babenko")
+    def test_inaccessible_columns_yt_11619(self):
         create_user("u")
 
         create(
@@ -267,38 +250,17 @@ class CheckPermissionBase(YTEnvSetup):
             recursive=True,
         )
 
-        if rename_columns:
-            write_table("//tmp/t", [{"a": "a", "b": "b", "c": "c"}])
-
-            new_schema = [
-                {"name": "a", "type": "string"},
-                {"name": "b_new", "type": "string", "stable_name": "b"},
-                {"name": "c_new", "type": "string", "stable_name": "c"},
-            ]
-            alter_table("//tmp/t", schema=new_schema)
-
-            write_table("<append=%true>//tmp/t", [{"a": "a", "b_new": "b_new", "c_new": "c_new"}])
-            names = ["a", "b_new", "c_new"]
-        else:
-            write_table("//tmp/t", [
-                {"a": "a", "b": "b", "c": "c"},
-                {"a": "a", "b": "b_new", "c": "c_new"},
-            ])
-            names = ["a", "b", "c"]
+        write_table("//tmp/t", [{"a": "a", "b": "b", "c": "c"}])
 
         response_parameters = {}
         rows = read_table(
-            "//tmp/t{{ {} }}".format(",".join(names)),
+            "//tmp/t{a,b,c}",
             omit_inaccessible_columns=True,
             response_parameters=response_parameters,
             authenticated_user="u",
         )
-        if rename_columns:
-            assert rows == [{"b_new": "b", "c_new": "c"}, {"b_new": "b_new", "c_new": "c_new"}]
-            assert_items_equal(response_parameters["omitted_inaccessible_columns"], [b"a"])
-        else:
-            assert rows == [{"c": "c"}, {"c": "c_new"}]
-            assert_items_equal(response_parameters["omitted_inaccessible_columns"], [b"a", b"b"])
+        assert rows == [{"c": "c"}]
+        assert_items_equal(response_parameters["omitted_inaccessible_columns"], [b"a", b"b"])
 
 
 class TestCypressAcls(CheckPermissionBase):

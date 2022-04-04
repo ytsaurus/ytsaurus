@@ -98,7 +98,7 @@ struct IObjectTypeHandler
     //! Returns the object ACD or |nullptr| if access is not controlled.
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) = 0;
 
-    //! Returns the full set of column stable names (entities referenced by columnar ACEs)
+    //! Returns the full set of columns (entities referenced by columnar ACEs)
     //! for this object, or null if this type of object has no columns.
     virtual std::optional<std::vector<TString>> ListColumns(TObject* object) = 0;
 

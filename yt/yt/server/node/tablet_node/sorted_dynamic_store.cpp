@@ -779,6 +779,7 @@ public:
                 }
             }
             rows.push_back(row);
+
             ++RowCount_;
             dataWeight += GetDataWeight(row);
         }

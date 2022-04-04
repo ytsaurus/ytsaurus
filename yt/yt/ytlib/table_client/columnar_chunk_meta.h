@@ -27,6 +27,8 @@ public:
 public:
     explicit TColumnarChunkMeta(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
+    void RenameColumns(const TColumnRenameDescriptors& renameDescriptros);
+
     virtual i64 GetMemoryUsage() const;
 
     // Free space if there is prepared meta.

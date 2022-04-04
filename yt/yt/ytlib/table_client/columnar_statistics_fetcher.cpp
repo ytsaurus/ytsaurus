@@ -39,7 +39,7 @@ TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
 
 void TColumnarStatisticsFetcher::ProcessDynamicStore(int chunkIndex)
 {
-    auto statistics = TColumnarStatistics::MakeEmpty(GetColumnStableNames(chunkIndex).size());
+    auto statistics = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
     if (Options_.StoreChunkStatistics) {
         ChunkStatistics_[chunkIndex] = std::move(statistics);
     } else {
@@ -70,8 +70,8 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
 
     for (int chunkIndex : chunkIndexes) {
         auto* subrequest = req->add_subrequests();
-        for (const auto& columnName : GetColumnStableNames(chunkIndex)) {
-            auto columnId = nameTable->GetIdOrRegisterName(columnName.Get());
+        for (const auto& columnName : GetColumnNames(chunkIndex)) {
+            auto columnId = nameTable->GetIdOrRegisterName(columnName);
             subrequest->add_column_ids(columnId);
         }
 
@@ -109,14 +109,14 @@ void TColumnarStatisticsFetcher::OnResponse(
             auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::MissingExtension)) {
                 // This is an old chunk. Process it somehow.
-                statistics = TColumnarStatistics::MakeEmpty(GetColumnStableNames(chunkIndex).size());
+                statistics = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
                 statistics.LegacyChunkDataWeight = Chunks_[chunkIndex]->GetDataWeight();
             } else {
                 OnChunkFailed(nodeId, chunkIndex, error);
             }
         } else {
             statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.data_weights());
-            YT_VERIFY(statistics.ColumnDataWeights.size() == GetColumnStableNames(chunkIndex).size());
+            YT_VERIFY(statistics.ColumnDataWeights.size() == GetColumnNames(chunkIndex).size());
             if (subresponse.has_timestamp_total_weight()) {
                 statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
             }
@@ -205,7 +205,7 @@ void TColumnarStatisticsFetcher::OnFetchingStarted()
     }
 }
 
-void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStableName> columnStableNames)
+void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TString> columnNames)
 {
     if (!ChunkSet_.insert(chunk).second) {
         // We already know about this chunk.
@@ -218,7 +218,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
         }
     }
 
-    if (columnStableNames.empty()) {
+    if (columnNames.empty()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
     } else {
@@ -231,10 +231,10 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
         if (heavyColumnStatistics || Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
             TColumnarStatistics columnarStatistics;
             if (heavyColumnStatistics) {
-                columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnStableNames);
+                columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnNames);
             } else {
                 YT_VERIFY(Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster);
-                columnarStatistics = TColumnarStatistics::MakeEmpty(columnStableNames.size());
+                columnarStatistics = TColumnarStatistics::MakeEmpty(columnNames.size());
                 columnarStatistics.LegacyChunkDataWeight = chunk->GetDataWeight();
             }
             Chunks_.emplace_back(chunk);
@@ -254,10 +254,10 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
         }
     }
 
-    ChunkColumnFilterIds_.emplace_back(ColumnFilterDictionary_.GetIdOrRegisterAdmittedColumns(columnStableNames));
+    ChunkColumnFilterIds_.emplace_back(ColumnFilterDictionary_.GetIdOrRegisterAdmittedColumns(columnNames));
 }
 
-const std::vector<TStableName>& TColumnarStatisticsFetcher::GetColumnStableNames(int chunkIndex) const
+const std::vector<TString>& TColumnarStatisticsFetcher::GetColumnNames(int chunkIndex) const
 {
     return ColumnFilterDictionary_.GetAdmittedColumns(ChunkColumnFilterIds_[chunkIndex]);
 }
