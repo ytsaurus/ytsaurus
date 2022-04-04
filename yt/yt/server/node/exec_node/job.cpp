@@ -352,7 +352,14 @@ void TJob::PrepareArtifact(
             pipePath);
 
         // NB: Open pipe for writing before reply.
-        TFile pipe(pipePath, WrOnly | Seq | CloseOnExec);
+        auto pipeFd = HandleEintr(::open, pipePath.c_str(), O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+        TFile pipe(pipeFd);
+
+        auto fcntlResult = HandleEintr(::fcntl, pipeFd, F_SETFL, O_WRONLY | O_CLOEXEC);
+        if (fcntlResult < 0) {
+            THROW_ERROR_EXCEPTION("Failed to disable O_NONBLOCK for artifact pipe")
+                << TError::FromSystem();
+        }
 
         ValidateJobPhase(EJobPhase::PreparingArtifacts);
 
