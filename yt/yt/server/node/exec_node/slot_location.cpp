@@ -713,7 +713,9 @@ void TSlotLocation::OnArtifactPreparationFailed(
     bool destinationInsideTmpfs = destinationPath && IsInsideTmpfs(*destinationPath);
 
     bool brokenPipe = static_cast<bool>(error.FindMatching(ELinuxErrorCode::PIPE));
-    bool noSpace = static_cast<bool>(error.FindMatching(ELinuxErrorCode::NOSPC));
+    bool noSpace =
+        static_cast<bool>(error.FindMatching(ELinuxErrorCode::NOSPC)) ||
+        static_cast<bool>(error.FindMatching(ELinuxErrorCode::DQUOT));
 
     // NB: Broken pipe error usually means that job proxy exited abnormally during artifact preparation.
     // We silently ignore it and wait for the job proxy exit error.
