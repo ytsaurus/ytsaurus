@@ -2,7 +2,7 @@ from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
-                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug)
+                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug, abort_transaction)
 
 from yt.common import YtError, update_inplace, update
 
@@ -47,6 +47,9 @@ class QueueAgentOrchid:
 
     def queue_agent_orchid_path(self):
         return "//sys/queue_agents/instances/" + self.agent_id + "/orchid"
+
+    def get_active(self):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/active")
 
     def get_poll_index(self):
         return get(self.queue_agent_orchid_path() + "/queue_agent/poll_index")
@@ -344,6 +347,54 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         # Queue error is propagated as consumer error.
         status = orchid.get_consumer_status("primary://tmp/c")
         assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
+
+
+class TestOrchidSelfRedirect(TestQueueAgentBase):
+    NUM_QUEUE_AGENTS = 1
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "cluster_connection": {
+            # Disable cache.
+            "table_mount_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0,
+            },
+        },
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+        },
+        "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 300000,
+            "leader_cache_update_period": 100,
+        },
+    }
+
+    @authors("achulkov2")
+    def test_orchid_self_redirect(self):
+        orchid = QueueAgentOrchid()
+        wait(lambda: orchid.get_active())
+
+        locks = get("//sys/queue_agents/leader_lock/@locks")
+        assert len(locks) == 1
+        assert locks[0]["state"] == "acquired"
+        tx_id = locks[0]["transaction_id"]
+
+        # Give the election manager time to store the current leader into its cache. Just in case.
+        time.sleep(1)
+
+        abort_transaction(tx_id)
+
+        wait(lambda: not orchid.get_active())
+
+        with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
+            orchid.get_queue_status("primary://tmp/q")
 
 
 class TestQueueController(TestQueueAgentBase):

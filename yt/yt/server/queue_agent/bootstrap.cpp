@@ -157,7 +157,8 @@ void TBootstrap::DoRun()
         ClientDirectory_,
         ControlInvoker_,
         DynamicState_,
-        ElectionManager_);
+        ElectionManager_,
+        AgentId_);
 
     CypressSynchronizer_ = CreatePollingCypressSynchronizer(
         Config_->CypressSynchronizer,

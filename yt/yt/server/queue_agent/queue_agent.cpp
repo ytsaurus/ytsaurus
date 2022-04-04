@@ -129,18 +129,20 @@ TQueueAgent::TQueueAgent(
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
-    ICypressElectionManagerPtr electionManager)
+    ICypressElectionManagerPtr electionManager,
+    TString agentId)
     : Config_(std::move(config))
     , DynamicConfig_(New<TQueueAgentDynamicConfig>())
     , ClientDirectory_(std::move(clientDirectory))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
-    , ElectionManager(std::move(electionManager))
+    , ElectionManager_(std::move(electionManager))
     , ControllerThreadPool_(New<TThreadPool>(DynamicConfig_->ControllerThreadCount, "Controller"))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TQueueAgent::Poll, MakeWeak(this)),
         DynamicConfig_->PollPeriod))
+    , AgentId_(std::move(agentId))
     , QueueAgentChannelFactory_(
         CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
 {
@@ -469,16 +471,21 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf qu
         return nullptr;
     }
 
-    auto leaderTransactionAttributes = ElectionManager->GetCachedLeaderTransactionAttributes();
+    auto leaderTransactionAttributes = ElectionManager_->GetCachedLeaderTransactionAttributes();
     if (!leaderTransactionAttributes) {
         THROW_ERROR_EXCEPTION(
-            "Unable to fetch %v, queue agent is not active and leader information is not available yet",
+            "Unable to fetch %v, instance is not active and leader information is not available",
             key);
     }
 
     auto host = leaderTransactionAttributes->Get<TString>("host");
-    YT_LOG_DEBUG("Redirecting orchid request (LeaderHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
+    if (host == AgentId_) {
+        THROW_ERROR_EXCEPTION(
+            "Unable to fetch %v, instance is not active and leader information is stale",
+            key);
+    }
 
+    YT_LOG_DEBUG("Redirecting orchid request (LeaderHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
     auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);
     auto remoteRoot = Format("%v/%v", queryRoot, ToYPathLiteral(key));
     return CreateOrchidYPathService({
