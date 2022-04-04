@@ -29,14 +29,17 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NTransactionClient;
-using namespace NLogging;
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NChaosClient;
 using namespace NClusterNode;
-using namespace NTabletNode::NProto;
 using namespace NCompression;
 using namespace NHydra;
+using namespace NLogging;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTabletNode::NProto;
+using namespace NTransactionClient;
 
 class TTabletCellWriteManager
     : public ITabletCellWriteManager
@@ -189,6 +192,12 @@ public:
                     // transaction any more, so we are safe to lose some of freshly enqueued mutations.
                     *commitResult = VoidFuture;
                     return;
+                }
+
+                if (tablet->GetReplicationCardId() && !versioned) {
+                    // Update replication progress for queue replicas so async replicas can pull from them as fast as possible.
+                    // NB: This replication progress update is a best effort and does not require tablet locking.
+                    transaction->TabletsToUpdateReplicationProgress().insert(tablet->GetId());
                 }
             }
 
@@ -1000,11 +1009,41 @@ private:
         YT_VERIFY(transaction->PrelockedRows().empty());
         YT_VERIFY(transaction->LockedRows().empty());
 
+        auto commitTimestamp = transaction->GetCommitTimestamp();
+
+        for (auto tabletId: transaction->TabletsToUpdateReplicationProgress()) {
+            auto* tablet = Host_->FindTablet(tabletId);
+            if (!tablet) {
+                continue;
+            }
+
+            YT_VERIFY(transaction->Actions().empty());
+
+            auto progress = tablet->RuntimeData()->ReplicationProgress.Load();
+            auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
+            if (maxTimestamp >= commitTimestamp) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Tablet replication progress is beyond current serialized transaction commit timestamp "
+                    "(TabletId: %v, TransactionId: %v, CommitTimestamp: %llx, MaxReplicationProgressTimestamp: %llx, ReplicatiomProgress: %v)",
+                    tabletId,
+                    transaction->GetId(),
+                    commitTimestamp,
+                    maxTimestamp,
+                    static_cast<TReplicationProgress>(*progress));
+            } else {
+                auto newProgress = AdvanceReplicationProgress(*progress, commitTimestamp);
+                progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
+                tablet->RuntimeData()->ReplicationProgress.Store(progress);
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (TabetId: %v, TrnsactionId: %v, ReplicationProgress: %v)",
+                    tabletId,
+                    transaction->GetId(),
+                    static_cast<TReplicationProgress>(*progress));
+            }
+        }
+
         if (transaction->DelayedLocklessWriteLog().Empty()) {
             return;
         }
-
-        auto commitTimestamp = transaction->GetCommitTimestamp();
 
         int rowCount = 0;
         TCompactFlatMap<TTablet*, int, 16> tabletToRowCount;

@@ -62,10 +62,11 @@ struct TReplicationCard
 {
     THashMap<TReplicaId, TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
-    TReplicationEra Era;
+    TReplicationEra Era = InvalidReplicationEra;
     NTableClient::TTableId TableId;
     NYPath::TYPath TablePath;
     TString TableClusterName;
+    NTransactionClient::TTimestamp CurrentTimestamp = NTransactionClient::NullTimestamp;
 
     //! Returns pointer to replica with a given id, nullptr if none.
     TReplicaInfo* FindReplica(TReplicaId replicaId);
@@ -122,6 +123,7 @@ TReplicationProgress LimitReplicationProgressByTimestamp(const TReplicationProgr
 void CanonizeReplicationProgress(TReplicationProgress* progress);
 
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progress);
+NTransactionClient::TTimestamp GetReplicationProgressMaxTimestamp(const TReplicationProgress& progress);
 NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(
     const TReplicationProgress& progress,
     NTableClient::TLegacyKey lower,

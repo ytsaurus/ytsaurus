@@ -331,4 +331,11 @@ message TReqWritePulledRows
     repeated TReplicationRowIndex new_replication_row_indexes = 4;
 }
 
+message TReqAdvanceReplicationProgress
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NChaosClient.NProto.TReplicationProgress new_replication_progress = 2;
+    required bool validate_strict_advance = 3;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

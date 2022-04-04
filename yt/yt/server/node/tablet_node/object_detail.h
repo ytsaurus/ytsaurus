@@ -22,4 +22,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TValue>
+std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTabletNode
+
+#define OBJECT_DETAIL_INL_H_
+#include "object_detail-inl.h"
+#undef OBJECT_DETAIL_INL_H_

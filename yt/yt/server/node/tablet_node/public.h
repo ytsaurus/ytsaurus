@@ -30,8 +30,8 @@ DEFINE_ENUM(EHunkCompactionReason,
 );
 
 DEFINE_ENUM(ETabletWriteMode,
-    (Direct)
-    (Pull)
+    ((Direct)         (0))
+    ((Pull)           (1))
 )
 
 DEFINE_ENUM(EBackupStage,

@@ -100,6 +100,7 @@ struct TSerializableReplicationCard
     TTableId TableId;
     TYPath TablePath;
     TString TableClusterName;
+    NTransactionClient::TTimestamp CurrentTimestamp;
 
     TSerializableReplicationCard()
     {
@@ -113,6 +114,8 @@ struct TSerializableReplicationCard
         RegisterParameter("table_path", TablePath)
             .Default();
         RegisterParameter("table_cluster_name", TableClusterName)
+            .Default();
+        RegisterParameter("current_timestamp", CurrentTimestamp)
             .Default();
     }
 };
@@ -155,6 +158,7 @@ void DeserializeImpl(TReplicationCard& replicationCard, TSerializableReplication
     replicationCard.TableId = serializable->TableId;
     replicationCard.TablePath = serializable->TablePath;
     replicationCard.TableClusterName = serializable->TableClusterName;
+    replicationCard.CurrentTimestamp = serializable->CurrentTimestamp;
 }
 
 void Deserialize(TReplicationProgress& replicationProgress, INodePtr node)
@@ -281,7 +285,8 @@ void Serialize(
         .Item("era").Value(replicationCard.Era)
         .Item("table_id").Value(replicationCard.TableId)
         .Item("table_path").Value(replicationCard.TablePath)
-        .Item("table_cluster_name").Value(replicationCard.TableClusterName);
+        .Item("table_cluster_name").Value(replicationCard.TableClusterName)
+        .Item("current_timestamp").Value(replicationCard.CurrentTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,6 +379,7 @@ void ToProto(
     ToProto(protoReplicationCard->mutable_table_id(), replicationCard.TableId);
     protoReplicationCard->set_table_path(replicationCard.TablePath);
     protoReplicationCard->set_table_cluster_name(replicationCard.TableClusterName);
+    protoReplicationCard->set_current_timestamp(replicationCard.CurrentTimestamp);
 }
 
 void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TReplicationCard& protoReplicationCard)
@@ -388,6 +394,7 @@ void FromProto(TReplicationCard* replicationCard, const NChaosClient::NProto::TR
     replicationCard->TableId = FromProto<TTableId>(protoReplicationCard.table_id());
     replicationCard->TablePath = protoReplicationCard.table_path();
     replicationCard->TableClusterName = protoReplicationCard.table_cluster_name();
+    replicationCard->CurrentTimestamp = protoReplicationCard.current_timestamp();
 }
 
 void ToProto(

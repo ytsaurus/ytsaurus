@@ -228,6 +228,11 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortWritePulledRows, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeWritePulledRows, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress>()),
+            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress>()),
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, MakeStrong(this))));
+        transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCommitUpdateTabletStores, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, MakeStrong(this))));
@@ -2084,7 +2089,7 @@ private:
                 round);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplictionRound: %v",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows prepared (TabletId: %v, TransactionId: %v, ReplictionRound: %v)",
             tabletId,
             transaction->GetId(),
             round);
@@ -2100,10 +2105,10 @@ private:
         }
 
         if (transaction->IsSerializationNeeded()) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, NewReplicationRound: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
                 tabletId,
                 transaction->GetId(),
-                round + 1);
+                round);
             return;
         }
 
@@ -2112,7 +2117,7 @@ private:
 
     void HydraSerializeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
     {
-        FinalizeWritePulledRows(transaction, request, true);
+        FinalizeWritePulledRows(transaction, request, false);
     }
 
     void FinalizeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool inCommit)
@@ -2158,6 +2163,67 @@ private:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
+            tabletId,
+            transaction->GetId());
+    }
+
+    void HydraPrepareAdvanceReplicationProgress(TTransaction* transaction, TReqAdvanceReplicationProgress* request, bool persistent)
+    {
+        YT_VERIFY(persistent);
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = GetTabletOrThrow(tabletId);
+        auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
+
+        auto progress = tablet->RuntimeData()->ReplicationProgress.Load();
+        if (!IsReplicationProgressGreaterOrEqual(newProgress, *progress)) {
+            THROW_ERROR_EXCEPTION("Tablet %v replication progress is not strictly behind",
+                tabletId);
+        }
+
+        transaction->SetSerializationForced(true);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prepared replication progress advance transaction (TabletId: %v, TransactionId: %v)",
+            tabletId,
+            transaction->GetId());
+    }
+
+    void HydraSerializeAdvanceReplicationProgress(TTransaction* transaction, TReqAdvanceReplicationProgress* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
+        bool validateStrictAdvance = request->validate_strict_advance();
+        
+        // NB: It is legitimate for `progress` to be less than `tabletProgress`: tablet progress could have been
+        // updated by some recent transaction while `progress` has been constructed even before `transaction` started.
+        auto tabletProgress = tablet->RuntimeData()->ReplicationProgress.Load();
+        bool isStrictlyAdvanced = IsReplicationProgressGreaterOrEqual(*progress, *tabletProgress);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serializing advance replication progress transaction "
+            "(TabletId: %v, TransactionId: %v, IsStrictlyAdvanced: %v, CurrentProgress: %v, NewProgress: %v)",
+            tabletId,
+            transaction->GetId(),
+            isStrictlyAdvanced,
+            static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
+            static_cast<NChaosClient::TReplicationProgress>(*progress));
+
+        YT_VERIFY(isStrictlyAdvanced || !validateStrictAdvance);
+
+        if (isStrictlyAdvanced) {
+            tablet->RuntimeData()->ReplicationProgress.Store(progress);
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated tablet repication progress (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
+                tabletId,
+                transaction->GetId(),
+                static_cast<NChaosClient::TReplicationProgress>(*progress));
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Serialized replication progress advance transaction (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
     }

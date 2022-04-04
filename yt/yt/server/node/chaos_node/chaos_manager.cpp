@@ -49,6 +49,7 @@ using namespace NObjectClient;
 using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTabletNode;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -72,7 +73,7 @@ public:
         , ChaosCellSynchronizer_(CreateChaosCellSynchronizer(Config_->ChaosCellSynchronizer, slot, bootstrap))
         , CommencerExecutor_(New<TPeriodicExecutor>(
             slot->GetAutomatonInvoker(NChaosNode::EAutomatonThreadQueue::EraCommencer),
-            BIND(&TChaosManager::InvestigateStalledReplicationCards, MakeWeak(this)),
+            BIND(&TChaosManager::PeriodicCurrentTimestampPropagation, MakeWeak(this)),
             Config_->EraCommencingPeriod))
         , ReplicationCardObserver_(CreateReplicationCardObserver(Config_->ReplicationCardObserver, slot))
     {
@@ -103,6 +104,7 @@ public:
         RegisterMethod(BIND(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
+        RegisterMethod(BIND(&TChaosManager::HydraPropagateCurrentTimestamps, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRspGrantShortcuts, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraRspRevokeShortcuts, Unretained(this)));
         RegisterMethod(BIND(&TChaosManager::HydraSuspendCoordinator, Unretained(this)));
@@ -801,10 +803,11 @@ private:
             if (replicationCard->Coordinators().contains(cellId)) {
                 if (strict) {
                     YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Will not grant shortcut since it already is in replication card "
-                        "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v)",
+                        "(ReplicationCardId: %v, Era: %v, CoordinatorCellId: %v, CoordinatorState: %v)",
                         replicationCard->GetId(),
                         replicationCard->GetEra(),
-                        cellId);
+                        cellId,
+                        replicationCard->Coordinators()[cellId].State);
                 }
 
                 continue;
@@ -821,6 +824,46 @@ private:
         }
     }
 
+    void PeriodicCurrentTimestampPropagation(void)
+    {
+        Slot_->GetTimestampProvider()->GenerateTimestamps()
+            .Subscribe(BIND(
+                &TChaosManager::OnCurrentTimestampPropagationGenerated,
+                MakeWeak(this)));
+    }
+
+    void OnCurrentTimestampPropagationGenerated(const TErrorOr<TTimestamp>& timestampOrError)
+    {
+        if (!timestampOrError.IsOK()) {
+            YT_LOG_DEBUG(timestampOrError, "Error generating new current timestamp");
+            return;
+        }
+
+        auto timestamp = timestampOrError.Value();
+        YT_LOG_DEBUG("New current timestamp generated (Timestamp: %llx)",
+            timestamp);
+
+        NChaosNode::NProto::TReqPropagateCurrentTimestamp request;
+        request.set_timestamp(timestamp);
+        CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger);
+    }
+
+    void HydraPropagateCurrentTimestamps(NChaosNode::NProto::TReqPropagateCurrentTimestamp* request)
+    {
+        auto timestamp = request->timestamp();
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Started periodic current timestamp propagation (Timestamp: %llx)",
+            timestamp);
+
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
+            MaybeCommenceNewReplicationEra(replicationCard, timestamp);
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished periodic current timestamp propagation (Timestamp: %llx)",
+            timestamp);
+    }
+
     bool IsReplicationCardInCataclysm(TReplicationCard* replicationCard)
     {
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
@@ -831,21 +874,29 @@ private:
         return false;
     }
 
+    bool IsReplicationCardAtTheBeginningOfNewEra(TReplicationCard* replicationCard, TTimestamp timestamp = NullTimestamp)
+    {
+        auto isCoordinatorListEmpty = replicationCard->Coordinators().empty();
+        auto isCardInCataclysm = IsReplicationCardInCataclysm(replicationCard);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Checking if replication card needs era update "
+            "(ReplicationCardId: %v, Era: %v, IsCoordinatorListEmpty: %v, IsCardInCataclysm: %v, Timestamp: %llx)",
+            replicationCard->GetId(),
+            replicationCard->GetEra(),
+            isCoordinatorListEmpty,
+            isCardInCataclysm,
+            timestamp);
+
+        return isCoordinatorListEmpty && isCardInCataclysm;
+    }
+
     void ScheduleNewEraIfReplicationCardIsReady(TReplicationCard* replicationCard)
     {
         if (!IsLeader()) {
             return;
         }
 
-        auto isCoordinatorListEmpty = replicationCard->Coordinators().empty();
-        auto isCardInCataclysm = IsReplicationCardInCataclysm(replicationCard);
-
-        YT_LOG_DEBUG("Checking if replication card needs era update (ReplicationCardId: %v, IsCoordinatorListEmpty: %v, IsCardInCataclysm: %v)",
-            replicationCard->GetId(),
-            isCoordinatorListEmpty,
-            isCardInCataclysm);
-
-        if (!isCoordinatorListEmpty || !isCardInCataclysm) {
+        if (!IsReplicationCardAtTheBeginningOfNewEra(replicationCard)) {
             return;
         }
 
@@ -890,21 +941,46 @@ private:
         auto replicationCardId = FromProto<NChaosClient::TReplicationCardId>(request->replication_card_id());
         auto era = static_cast<TReplicationEra>(request->replication_era());
 
-        auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
+        auto* replicationCard = FindReplicationCard(replicationCardId);
+        if (!replicationCard) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication era because replication card is not found (ReplicationCardId: %v)",
+                replicationCardId);
+            return;
+        }
+
         if (replicationCard->GetEra() != era) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication card era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will not commence new replication card era because of era mismatch (ReplicationCardId: %v, ExpectedEra: %v, ActualEra: %v)",
                 era,
                 replicationCard->GetEra(),
                 replicationCardId);
             return;
         }
 
-        DoCommenceNewReplicationEra(replicationCard, timestamp);
+        MaybeCommenceNewReplicationEra(replicationCard, timestamp);
     }
 
-    void DoCommenceNewReplicationEra(TReplicationCard *replicationCard, TTimestamp timestamp)
+    void MaybeCommenceNewReplicationEra(TReplicationCard *replicationCard, TTimestamp timestamp)
     {
         YT_VERIFY(HasMutationContext());
+
+        bool willUpdate = timestamp > replicationCard->GetCurrentTimestamp();
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating replication card current timestamp "
+            "(ReplicationCardId: %v, Era: %v, CurrentTimestamp: %llx, NewTimestamp: %llx, WillUpdate: %v)",
+            replicationCard->GetId(),
+            replicationCard->GetEra(),
+            replicationCard->GetCurrentTimestamp(),
+            timestamp,
+            willUpdate);
+
+        if (!willUpdate) {
+            return;
+        }
+
+        replicationCard->SetCurrentTimestamp(timestamp);
+
+        if (!IsReplicationCardAtTheBeginningOfNewEra(replicationCard, timestamp)) {
+            return;
+        }
 
         auto hasSyncQueue = [&] {
             for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas()) {
@@ -1024,7 +1100,7 @@ private:
         newCells = std::vector<TCellId>(newCellsSet.begin(), newCellsSet.end());
         std::sort(newCells.begin(), newCells.end());
 
-        for (auto [_, replicationCard] : ReplicationCardMap_) {
+        for (auto* replicationCard : GetValuesSortedByKey(ReplicationCardMap_)) {
             if (!IsReplicationCardInCataclysm(replicationCard)) {
                 GrantShortcuts(replicationCard, newCells, /*strict*/ false);
             }
@@ -1091,24 +1167,13 @@ private:
                     replica->History.begin(),
                     replica->History.begin() + historyIndex);
 
-                YT_LOG_DEBUG("Forsaken old replica history items (RepliationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Forsaken old replica history items (RepliationCardId: %v, ReplicaId: %v, RetainTimestamp: %v, HistoryItemIndex: %v)",
                     replicationCardId,
                     replicaId,
                     retainTimestamp,
                     historyIndex);
             }
         }
-    }
-
-    void InvestigateStalledReplicationCards()
-    {
-        YT_LOG_DEBUG("Started investigaging for stalled replication cards");
-
-        for (const auto& [replicationCardId, replicationCard] : ReplicationCardMap_) {
-            ScheduleNewEraIfReplicationCardIsReady(replicationCard);
-        }
-
-        YT_LOG_DEBUG("Finished investigaging for stalled replication cards");
     }
 
 

@@ -35,6 +35,11 @@ message TRspRevokeShortcuts
     repeated TShortcut shortcuts = 2;
 }
 
+message TReqPropagateCurrentTimestamp
+{
+    required uint64 timestamp = 1; // NTransactionClient::TTimestamp
+}
+
 message TReqCommenceNewReplicationEra
 {
     required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId

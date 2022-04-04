@@ -88,13 +88,14 @@ TString ToString(const TReplicaInfo& replicaInfo)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v}",
+    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %llx}",
         replicationCard.Era,
         replicationCard.Replicas,
         replicationCard.CoordinatorCellIds,
         replicationCard.TableId,
         replicationCard.TablePath,
-        replicationCard.TableClusterName);
+        replicationCard.TableClusterName,
+        replicationCard.CurrentTimestamp);
 }
 
 TString ToString(const TReplicationCard& replicationCard)
@@ -413,6 +414,15 @@ TTimestamp GetReplicationProgressMinTimestamp(const TReplicationProgress& progre
         minTimestamp = std::min(segment.Timestamp, minTimestamp);
     }
     return minTimestamp;
+}
+
+TTimestamp GetReplicationProgressMaxTimestamp(const TReplicationProgress& progress)
+{
+    auto maxTimestamp = MinTimestamp;
+    for (const auto& segment : progress.Segments) {
+        maxTimestamp = std::max(segment.Timestamp, maxTimestamp);
+    }
+    return maxTimestamp;
 }
 
 std::optional<TTimestamp> FindReplicationProgressTimestampForKey(

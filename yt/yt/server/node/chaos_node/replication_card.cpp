@@ -47,6 +47,7 @@ void TReplicationCard::Save(TSaveContext& context) const
     Save(context, TableId_);
     Save(context, TablePath_);
     Save(context, TableClusterName_);
+    Save(context, CurrentTimestamp_);
 }
 
 void TReplicationCard::Load(TLoadContext& context)
@@ -60,17 +61,22 @@ void TReplicationCard::Load(TLoadContext& context)
     Load(context, TableId_);
     Load(context, TablePath_);
     Load(context, TableClusterName_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= EChaosReign::CurrentTimestamp) {
+        Load(context, CurrentTimestamp_);
+    }
 }
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v}",
+    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %llx}",
         replicationCard.GetId(),
         replicationCard.Replicas(),
         replicationCard.GetEra(),
         replicationCard.GetTableId(),
         replicationCard.GetTablePath(),
-        replicationCard.GetTableClusterName());
+        replicationCard.GetTableClusterName(),
+        replicationCard.GetCurrentTimestamp());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
