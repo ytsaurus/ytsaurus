@@ -75,7 +75,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
 
     bin_path = os.path.join(destination, "bin")
 
-    if force_create_environment and os.path.exists(destination):
+    if (force_create_environment or artifact_components) and os.path.exists(destination):
         shutil.rmtree(destination)
 
     if not os.path.exists(destination):
