@@ -331,6 +331,9 @@ public:
     //! after recovery is complete.
     i64 MaxTotalChangelogSizeForRecovery;
 
+    //! Interval between checkpoint checks.
+    TDuration CheckpointCheckPeriod;
+
     TDistributedHydraManagerConfig();
 };
 

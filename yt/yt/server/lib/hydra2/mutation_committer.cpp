@@ -24,6 +24,8 @@
 
 #include <yt/yt/core/rpc/response_keeper.h>
 
+#include <yt/yt/core/utilex/random.h>
+
 #include <utility>
 
 namespace NYT::NHydra2 {
@@ -130,6 +132,10 @@ TLeaderCommitter::TLeaderCommitter(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::SerializeMutations, MakeWeak(this)),
         Config_->MutationSerializationPeriod))
+    , CheckpointCheckExecutor_(New<TPeriodicExecutor>(
+        EpochContext_->EpochControlInvoker,
+        BIND(&TLeaderCommitter::MaybeCheckpoint, MakeWeak(this)),
+        Config_->CheckpointCheckPeriod))
     , InitialState_(reachableState)
     , CommittedState_(std::move(reachableState))
     , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
@@ -251,7 +257,10 @@ void TLeaderCommitter::Start()
         LastRandomSeed_,
         NextLoggedVersion_);
 
+    UpdateSnapshotBuildDeadline();
+
     SerializeMutationsExecutor_->Start();
+    CheckpointCheckExecutor_->Start();
 }
 
 void TLeaderCommitter::Stop()
@@ -647,11 +656,23 @@ void TLeaderCommitter::MaybeCheckpoint()
         YT_LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
             Changelog_->GetDataSize(),
             Config_->MaxChangelogDataSize);
+    } else if (TInstant::Now() > SnapshotBuildDeadline_) {
+        YT_LOG_INFO("Requesting periodic snapshot (SnapshotBuildPeriod: %v, SnapshotBuildSplay: %v)",
+            Config_->SnapshotBuildPeriod,
+            Config_->SnapshotBuildSplay);
     } else {
         return;
     }
 
     Checkpoint();
+}
+
+void TLeaderCommitter::UpdateSnapshotBuildDeadline()
+{
+    SnapshotBuildDeadline_ =
+        TInstant::Now() +
+        Config_->SnapshotBuildPeriod +
+        RandomDuration(Config_->SnapshotBuildSplay);
 }
 
 void TLeaderCommitter::Checkpoint()
@@ -725,9 +746,11 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOn
     auto result = waitForCompletion
         ? LastSnapshotInfo_->Promise.ToFuture()
         : MakeFuture(LastSnapshotInfo_->SnapshotId);
+
     if (!AcquiringChangelog_) {
         Checkpoint();
     }
+
     return result;
 }
 
@@ -816,6 +839,8 @@ void TLeaderCommitter::OnChangelogAcquired(const TError& error)
     YT_LOG_INFO("Started building snapshot (SnapshotId: %v, SequenceNumber: %v)",
         changelogId,
         snapshotSequenceNumber);
+
+    UpdateSnapshotBuildDeadline();
 
     LastSnapshotInfo_->SequenceNumber = snapshotSequenceNumber;
     LastSnapshotInfo_->Checksums.resize(CellManager_->GetTotalPeerCount());
