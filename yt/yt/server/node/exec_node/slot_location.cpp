@@ -348,7 +348,8 @@ static THashMap<TString, TString> BuildSandboxCopyTags(
         {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
     };
     if (location) {
-        result[FormatIOTag(EAggregateIOTag::LocationId)] = location->GetId();
+        result[FormatIOTag(ERawIOTag::LocationId)] = location->GetId();
+        result[FormatIOTag(EAggregateIOTag::LocationType)] = FormatEnum(location->GetType());
         result[FormatIOTag(EAggregateIOTag::Medium)] = location->GetMediumName();
         result[FormatIOTag(EAggregateIOTag::DiskFamily)] = location->GetDiskFamily();
     }

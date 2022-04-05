@@ -113,7 +113,8 @@ THashMap<TString, TString> MakeWriteIOTags(
     return {
         {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
         {FormatIOTag(ERawIOTag::WriteSessionId), ToString(session->GetId())},
-        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
         {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
@@ -131,7 +132,8 @@ THashMap<TString, TString> MakeReadIOTags(
 {
     THashMap<TString, TString> result{
         {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
-        {FormatIOTag(EAggregateIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
         {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
