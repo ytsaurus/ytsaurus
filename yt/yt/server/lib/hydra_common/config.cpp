@@ -277,6 +277,9 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
         .GreaterThan(0)
         .Default(20_GB);
 
+    RegisterParameter("checkpoint_check_period", CheckpointCheckPeriod)
+        .Default(TDuration::Seconds(15));
+
     RegisterPostprocessor([&] {
         if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");

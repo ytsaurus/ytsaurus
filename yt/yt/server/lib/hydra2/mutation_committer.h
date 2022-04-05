@@ -135,6 +135,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr FlushMutationsExecutor_;
     const NConcurrency::TPeriodicExecutorPtr SerializeMutationsExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr CheckpointCheckExecutor_;
 
     struct TPeerState
     {
@@ -160,6 +161,8 @@ private:
     bool ReadOnly_ = false;
 
     bool AcquiringChangelog_ = false;
+
+    TInstant SnapshotBuildDeadline_ = TInstant::Max();
 
     struct TShapshotInfo
     {
@@ -205,6 +208,7 @@ private:
 
     void MaybeCheckpoint();
     void Checkpoint();
+    void UpdateSnapshotBuildDeadline();
     void OnChangelogAcquired(const TError& result);
 
     void OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<NHydra::TRemoteSnapshotParams>& rspOrError);

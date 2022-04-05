@@ -706,7 +706,6 @@ void TDecoratedAutomaton::OnLeaderRecoveryComplete()
 {
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Leading;
-    UpdateSnapshotBuildDeadline();
 }
 
 void TDecoratedAutomaton::OnStopLeading()
@@ -727,7 +726,6 @@ void TDecoratedAutomaton::OnFollowerRecoveryComplete()
 {
     YT_VERIFY(State_ == EPeerState::FollowerRecovery);
     State_ = EPeerState::Following;
-    UpdateSnapshotBuildDeadline();
 }
 
 void TDecoratedAutomaton::OnStopFollowing()
@@ -1133,13 +1131,6 @@ TReachableState TDecoratedAutomaton::GetReachableState() const
     return {AutomatonVersion_.load().SegmentId, SequenceNumber_.load()};
 }
 
-TInstant TDecoratedAutomaton::GetSnapshotBuildDeadline() const
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    return SnapshotBuildDeadline_;
-}
-
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1218,14 +1209,6 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
 
     auto snapshotId = snapshotInfoOrError.Value().SnapshotId;
     LastSuccessfulSnapshotId_ = std::max(LastSuccessfulSnapshotId_.load(), snapshotId);
-}
-
-void TDecoratedAutomaton::UpdateSnapshotBuildDeadline()
-{
-    SnapshotBuildDeadline_ =
-        TInstant::Now() +
-        Config_->SnapshotBuildPeriod +
-        RandomDuration(Config_->SnapshotBuildSplay);
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()

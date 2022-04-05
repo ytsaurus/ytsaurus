@@ -210,8 +210,6 @@ public:
 
     TReachableState GetReachableState() const;
 
-    TInstant GetSnapshotBuildDeadline() const;
-
     TVersion GetAutomatonVersion() const;
 
     void LoadSnapshot(
@@ -290,7 +288,6 @@ private:
     i64 NextSnapshotSequenceNumber_ = -1;
     TPromise<NHydra::TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
-    TInstant SnapshotBuildDeadline_ = TInstant::Max();
     std::atomic<int> LastSuccessfulSnapshotId_ = NHydra::InvalidSegmentId;
 
     NProfiling::TEventTimer BatchCommitTimer_;
@@ -317,7 +314,6 @@ private:
     bool IsMutationLoggingEnabled() const;
 
     void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<NHydra::TRemoteSnapshotParams>& snapshotInfoOrError);
-    void UpdateSnapshotBuildDeadline();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
