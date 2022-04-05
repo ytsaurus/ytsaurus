@@ -38,20 +38,5 @@ trait E2EYtClient {
 }
 
 object E2EYtClient {
-  lazy val ytProxy: String = {
-    val envProxy = Option(System.getenv("YT_PROXY"))
-    val propProxy = Option(System.getProperty("proxies"))
-    val proxyList = propProxy.orElse(envProxy) match {
-      case Some(value) => value.split(",").toSeq
-      case None => Nil
-    }
-    proxyList match {
-      case Nil =>
-        throw new NoSuchElementException("No testing proxy provided")
-      case proxy +: Nil =>
-        proxy
-      case _ =>
-        throw new IllegalArgumentException(s"Testing on few proxies(${proxyList.mkString(",")}) is not supported")
-    }
-  }
+  lazy val ytProxy: String = System.getProperty("proxies")
 }
