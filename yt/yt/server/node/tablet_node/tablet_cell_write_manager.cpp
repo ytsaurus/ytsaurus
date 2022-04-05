@@ -1011,40 +1011,6 @@ private:
 
         auto commitTimestamp = transaction->GetCommitTimestamp();
 
-        for (auto tabletId: transaction->TabletsToUpdateReplicationProgress()) {
-            auto* tablet = Host_->FindTablet(tabletId);
-            if (!tablet) {
-                continue;
-            }
-
-            YT_VERIFY(transaction->Actions().empty());
-
-            auto progress = tablet->RuntimeData()->ReplicationProgress.Load();
-            auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
-            if (maxTimestamp >= commitTimestamp) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Tablet replication progress is beyond current serialized transaction commit timestamp "
-                    "(TabletId: %v, TransactionId: %v, CommitTimestamp: %llx, MaxReplicationProgressTimestamp: %llx, ReplicatiomProgress: %v)",
-                    tabletId,
-                    transaction->GetId(),
-                    commitTimestamp,
-                    maxTimestamp,
-                    static_cast<TReplicationProgress>(*progress));
-            } else {
-                auto newProgress = AdvanceReplicationProgress(*progress, commitTimestamp);
-                progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
-                tablet->RuntimeData()->ReplicationProgress.Store(progress);
-
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (TabetId: %v, TrnsactionId: %v, ReplicationProgress: %v)",
-                    tabletId,
-                    transaction->GetId(),
-                    static_cast<TReplicationProgress>(*progress));
-            }
-        }
-
-        if (transaction->DelayedLocklessWriteLog().Empty()) {
-            return;
-        }
-
         int rowCount = 0;
         TCompactFlatMap<TTablet*, int, 16> tabletToRowCount;
         TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
@@ -1110,6 +1076,40 @@ private:
                 oldCommittedReplicationRowIndex,
                 newCommittedReplicationRowIndex,
                 tablet->GetTotalRowCount());
+        }
+
+        for (auto tabletId: transaction->TabletsToUpdateReplicationProgress()) {
+            auto* tablet = Host_->FindTablet(tabletId);
+            if (!tablet) {
+                continue;
+            }
+
+            YT_VERIFY(transaction->Actions().empty());
+
+            auto progress = tablet->RuntimeData()->ReplicationProgress.Load();
+            auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
+            if (maxTimestamp >= commitTimestamp) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Tablet replication progress is beyond current serialized transaction commit timestamp "
+                    "(TabletId: %v, TransactionId: %v, CommitTimestamp: %llx, MaxReplicationProgressTimestamp: %llx, ReplicatiomProgress: %v)",
+                    tabletId,
+                    transaction->GetId(),
+                    commitTimestamp,
+                    maxTimestamp,
+                    static_cast<TReplicationProgress>(*progress));
+            } else {
+                auto newProgress = AdvanceReplicationProgress(*progress, commitTimestamp);
+                progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
+                tablet->RuntimeData()->ReplicationProgress.Store(progress);
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replication progress updated (TabetId: %v, TrnsactionId: %v, ReplicationProgress: %v)",
+                    tabletId,
+                    transaction->GetId(),
+                    static_cast<TReplicationProgress>(*progress));
+            }
+        }
+
+        if (transaction->DelayedLocklessWriteLog().Empty()) {
+            return;
         }
 
         UnlockLockedTablets(transaction);
