@@ -2212,14 +2212,18 @@ private:
             static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
             static_cast<NChaosClient::TReplicationProgress>(*progress));
 
-        YT_VERIFY(isStrictlyAdvanced || !validateStrictAdvance);
-
         if (isStrictlyAdvanced) {
             tablet->RuntimeData()->ReplicationProgress.Store(progress);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updated tablet repication progress (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
                 tabletId,
                 transaction->GetId(),
+                static_cast<NChaosClient::TReplicationProgress>(*progress));
+        } else if (validateStrictAdvance) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Failed to advance tablet replication progress because current tablet progress is greater (TabletId: %v, TransactionId: %v, CurrentProgress: %v, NewProgress: %v)",
+                tabletId,
+                transaction->GetId(),
+                static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
                 static_cast<NChaosClient::TReplicationProgress>(*progress));
         }
 
