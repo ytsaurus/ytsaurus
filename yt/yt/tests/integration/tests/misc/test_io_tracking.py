@@ -167,9 +167,13 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["data_node_method@"] == "FinishChunk"
         assert raw_events[0]["direction@"] == "write"
         assert raw_events[0]["chunk_id"] == chunk_id
+        assert raw_events[0]["location_type@"] == "store"
+        assert "location_id" in raw_events[0]
         assert raw_events[1]["data_node_method@"] == "GetBlockSet"
         assert raw_events[1]["direction@"] == "read"
         assert raw_events[1]["chunk_id"] == chunk_id
+        assert raw_events[1]["location_type@"] == "store"
+        assert "location_id" in raw_events[1]
         for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
@@ -371,9 +375,10 @@ class TestMasterJobIOTracking(TestNodeIOTrackingBase):
             has_replication_job = True
             assert raw_events[0]["job_type@"] == "replicate_chunk"
             assert raw_events[0]["user@"] == "root"
+            assert raw_events[0]["location_type@"] == "store"
             assert "job_id" in raw_events[0]
             assert "medium@" in raw_events[0]
-            assert "location_id@" in raw_events[0]
+            assert "location_id" in raw_events[0]
             assert "disk_family@" in raw_events[0]
             assert raw_events[0]["bytes"] > 0
             assert raw_events[0]["io_requests"] > 0
@@ -1226,7 +1231,7 @@ class TestJobIOTracking(TestJobIOTrackingBase):
             ]:
                 assert "medium@" in event
                 assert "disk_family@" in event
-                assert event["location_id@"].find("cache") != -1
+                assert event["location_type@"] == "cache"
             elif descriptor in [
                 ("artifact_download", "read"),
                 ("artifact_bypass_cache", "read"),
@@ -1235,11 +1240,11 @@ class TestJobIOTracking(TestJobIOTrackingBase):
             ]:
                 assert "medium@" in event
                 assert "disk_family@" in event
-                assert event["location_id@"].find("cache") == -1
+                assert event["location_type@"] == "store"
             else:
                 assert "medium@" not in event
                 assert "disk_family@" not in event
-                assert "location_id@" not in event
+                assert "location_type@" not in event
 
             if descriptor not in event_paths:
                 event_paths[descriptor] = []

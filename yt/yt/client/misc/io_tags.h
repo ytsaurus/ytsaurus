@@ -16,6 +16,7 @@ DEFINE_ENUM(ERawIOTag,
     ((ObjectId)       (4))
     ((OperationId)    (5))
     ((ChunkId)        (6))
+    ((LocationId)     (7))
 );
 
 DEFINE_ENUM(EAggregateIOTag,
@@ -23,7 +24,7 @@ DEFINE_ENUM(EAggregateIOTag,
     ((Medium)          (1))
     ((DiskFamily)      (2))
     ((User)            (3))
-    ((LocationId)      (4))
+    ((LocationType)    (4))
     ((DataNodeMethod)  (5))
     ((JobType)         (6))
     ((Account)         (7))
