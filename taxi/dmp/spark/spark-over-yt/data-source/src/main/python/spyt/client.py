@@ -133,6 +133,7 @@ def _configure_client_mode(spark_conf,
     set_conf(spark_conf, base_spark_conf(client=client, discovery=discovery))
     spark_conf.set("spark.master", master)
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
+    os.environ["SPARK_BASE_DISCOVERY_PATH"] = str(discovery.base_discovery_path)
     spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
 
     jar_caching_enabled = spark_conf.get("spark.yt.jarCaching") == 'True'
