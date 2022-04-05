@@ -1,4 +1,5 @@
 import argparse
+import getpass
 import logging
 import os
 import re
@@ -194,6 +195,10 @@ def get_spark_master(discovery, rest, yt_client=None):
     master_path = discovery.master_rest() if rest else discovery.master_spark()
     master = SparkDiscovery.get(master_path, client=yt_client)
     return "spark://{0}".format(master)
+
+
+def default_user():
+    return os.getenv("YT_USER") or getpass.getuser()
 
 
 def default_token():

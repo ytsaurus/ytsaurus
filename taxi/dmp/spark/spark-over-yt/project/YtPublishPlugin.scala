@@ -163,6 +163,18 @@ object YtPublishPlugin extends AutoPlugin {
       }
     }
 
+    def onlyYtProxy: String = {
+      val proxyList = ytProxies
+      proxyList match {
+        case Nil =>
+          throw new NoSuchElementException("No proxy provided")
+        case proxy +: Nil =>
+          proxy
+        case _ =>
+          throw new IllegalArgumentException(s"Few proxies(${proxyList.mkString(",")}) is not supported")
+      }
+    }
+
     val publishYt = taskKey[Unit]("Publish to yt directory")
     val publishYtArtifacts = taskKey[Seq[YtPublishArtifact]]("Yt publish artifacts")
     val publishYtCredentials = settingKey[RpcCredentials]("Yt publish credentials")

@@ -9,6 +9,7 @@ import ru.yandex.spark.yt.wrapper.client.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import java.io.{BufferedReader, InputStreamReader}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -66,7 +67,7 @@ object SubmitTest {
   val userDirPath: String = System.getProperty("e2eTestUDirPath")
 
   private val submitClient = new SubmissionClient(E2EYtClient.ytProxy, s"$basePath/cluster",
-    BuildInfo.spytClientVersion, DefaultRpcCredentials.user, DefaultRpcCredentials.token)
+    System.getProperty("clientVersion"), DefaultRpcCredentials.user, DefaultRpcCredentials.token)
 
   def runJob(testCase: E2ETestCase): Unit = {
     val launcher = testCase.conf

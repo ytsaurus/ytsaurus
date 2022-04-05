@@ -166,8 +166,6 @@ lazy val `file-system` = (project in file("file-system"))
     assembly / test := {}
   )
 
-lazy val e2eTestUDirPath = s"$sparkYtE2ETestPath/${UUID.randomUUID()}"
-
 lazy val `e2e-checker` = (project in file("e2e-checker"))
   .dependsOn(`data-source` % Provided)
   .settings(
@@ -180,25 +178,24 @@ lazy val `e2e-test` = (project in file("e2e-test"))
   .dependsOn(`yt-wrapper`, `file-system`, `data-source`, `spark-submit`, `e2e-checker`,
     `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
-    Test / javaOptions ++= Seq(s"-De2eTestHomePath=$sparkYtE2ETestPath"),
-    Test / javaOptions ++= Seq(s"-De2eTestUDirPath=$e2eTestUDirPath"),
-    Test / javaOptions ++= Option(System.getProperty("proxies")).map(x => s"-Dproxies=$x").toSeq,
     libraryDependencies ++= commonDependencies.value,
     publishYtArtifacts ++= {
       val tempFolder = YtPublishDirectory(e2eTestUDirPath, proxy = None,
         isTtlLimited = true, forcedTTL = Some(e2eDirTTL))
       val checker = YtPublishFile((`e2e-checker` / assembly).value, e2eTestUDirPath,
         proxy = None, Some("check.jar"))
-      val pythonScripts: Seq[YtPublishArtifact] = (sourceDirectory.value / "test" / "python")
+      val pythonScripts: Seq[YtPublishArtifact] = (sourceDirectory.value / "test" / "python" / "scripts")
         .listFiles()
         .map { script =>
-          YtPublishFile(script, s"$e2eTestUDirPath/${script.getName.dropRight(3)}",
-            proxy = None, Some("job.py"))
+          YtPublishFile(script, s"$e2eTestUDirPath/scripts",
+            proxy = None)
         }
       tempFolder +: checker +: pythonScripts
     },
-    buildInfoKeys := Seq[BuildInfoKey](ThisBuild / spytClientVersion),
-    buildInfoPackage := "ru.yandex.spark.yt.e2e"
+    Test / javaOptions ++= Seq(s"-De2eTestHomePath=$sparkYtE2ETestPath"),
+    Test / javaOptions ++= Seq(s"-De2eTestUDirPath=$e2eTestUDirPath"),
+    Test / javaOptions ++= Seq(s"-Dproxies=$onlyYtProxy"),
+    Test / javaOptions ++= Seq(s"-DclientVersion=${clientVersionKey.value}")
   )
 
 lazy val maintenance = (project in file("maintenance"))

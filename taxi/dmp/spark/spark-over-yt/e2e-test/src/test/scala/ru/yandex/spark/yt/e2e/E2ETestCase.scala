@@ -12,10 +12,10 @@ case class E2ETestCase(name: String,
 //                         "spark.eventLog.enabled" -> "true",
                          "spark.yt.read.keyColumnsFilterPushdown.enabled" -> "true"
                        )) {
-  val userDirPath: String = s"${SubmitTest.userDirPath}/$name"
+  val userDirPath: String = s"${SubmitTest.userDirPath}/scala/$name"
   val basePath: String = s"${SubmitTest.basePath}/$name"
 
-  def jobPath: String = s"yt:/$userDirPath/job.py"
+  def jobPath: String = s"yt:/${SubmitTest.userDirPath}/scripts/$name.py"
 
   def inputPath: String = customInputPath.getOrElse(s"$basePath/input")
 
@@ -23,7 +23,7 @@ case class E2ETestCase(name: String,
 
   def expectedPath: String = s"$basePath/expected"
 
-  def checkResultPath: String = s"${SubmitTest.basePath.drop(1)}/$name/check_result"
+  def checkResultPath: String = s"${userDirPath.drop(1)}/check_result"
 
   def withConf(key: String, value: String): E2ETestCase = {
     copy(conf = conf + (key -> value))
