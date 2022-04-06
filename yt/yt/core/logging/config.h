@@ -102,9 +102,6 @@ public:
 
     TLogManagerConfigPtr ApplyDynamic(const TLogManagerDynamicConfigPtr& dynamicConfig) const;
 
-    //! Create a logger, taht writes all events greater or equal to logLevel to stderr and executes but does not save
-    //! all function calls from lower level logs.
-    static TLogManagerConfigPtr CreateStderrLoggerWithLoggingValidation(ELogLevel logLevel);
     static TLogManagerConfigPtr CreateStderrLogger(ELogLevel logLevel);
     static TLogManagerConfigPtr CreateLogFile(const TString& path);
     static TLogManagerConfigPtr CreateDefault();
