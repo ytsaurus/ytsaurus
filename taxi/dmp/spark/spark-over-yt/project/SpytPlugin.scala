@@ -83,7 +83,7 @@ object SpytPlugin extends AutoPlugin {
     spytClusterVersionFile := baseDirectory.value / "cluster_version.sbt",
     spytClientVersionFile := baseDirectory.value / "client_version.sbt",
     spytSparkVersionFile := baseDirectory.value / "spark_version.sbt",
-    spytSparkPomFile := baseDirectory.value / "spark" / "pom.xml",
+    spytSparkPomFile := baseDirectory.value.getParentFile / "spark" / "pom.xml",
     spytSparkDependencyFile := baseDirectory.value / "project" / "SparkForkVersion.scala",
 
     pypiRegistry := "https://pypi.yandex-team.ru/simple",
