@@ -98,6 +98,7 @@ void FormatValue(
     builder->AppendString("{");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        builder->AppendFormat("%v: {", category);
         const auto& histogram = statsByCategory[category];
         const auto& counters = histogram.GetCounters();
         const auto& bins = histogram.GetBins();
@@ -106,6 +107,7 @@ void FormatValue(
                 builder->AppendFormat("%v:%v, ", bins[index], counters[index]);
             }
         }
+        builder->AppendString("}, ");
     }
 
     builder->AppendString("}");
