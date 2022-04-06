@@ -526,6 +526,11 @@ i64 TChunkStoreBase::GetRowCount() const
     return MiscExt_.row_count();
 }
 
+NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
+{
+    return FromProto<NErasure::ECodec>(MiscExt_.erasure_codec());
+}
+
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
 {
     return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.min_timestamp();

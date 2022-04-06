@@ -26,6 +26,7 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/fetcher.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
@@ -564,30 +565,34 @@ private:
             Bootstrap_->GetMasterClient(),
             Logger);
 
+        const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+
+        std::vector<TChunkId> chunkIds;
+        std::vector<TFuture<TAllyReplicasInfo>> replicasFutures;
         {
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(
                 NApi::EMasterChannelKind::Follower,
                 CellTagFromId(tablet->GetId()));
             TChunkServiceProxy proxy(channel);
 
-            auto req = proxy.LocateChunks();
-            req->SetRequestHeavy(true);
-            req->SetResponseHeavy(true);
-
             THashMap<TChunkId, TSortedChunkStorePtr> storeMap;
 
             auto addStore = [&] (const ISortedStorePtr& store) {
-                if (store->GetType() != EStoreType::SortedChunk)
+                if (store->GetType() != EStoreType::SortedChunk) {
                     return;
+                }
 
                 if (store->GetUpperBoundKey() <= partition->GetPivotKey() ||
                     store->GetMinKey() >= partition->GetNextPivotKey())
+                {
                     return;
+                }
 
-                auto chunkId = store->AsSortedChunk()->GetChunkId();
+                auto sortedChunk = store->AsSortedChunk();
+                auto chunkId = sortedChunk->GetChunkId();
                 YT_VERIFY(chunkId);
-                if (storeMap.emplace(chunkId, store->AsSortedChunk()).second) {
-                    ToProto(req->add_subrequests(), chunkId);
+                if (storeMap.emplace(chunkId, sortedChunk).second) {
+                    chunkIds.push_back(chunkId);
                 }
             };
 
@@ -600,44 +605,52 @@ private:
             addStores(partition->Stores());
             addStores(tablet->GetEden()->Stores());
 
-            if (req->subrequests_size() == 0) {
+            if (chunkIds.empty()) {
                 return std::vector<TLegacyKey>();
             }
 
             YT_LOG_INFO("Locating partition chunks (ChunkCount: %v)",
-                req->subrequests_size());
+                chunkIds.size());
 
-            auto rspOrError = WaitFor(req->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating partition chunks");
-            const auto& rsp = rspOrError.Value();
-            YT_VERIFY(req->subrequests_size() == rsp->subresponses_size());
+            replicasFutures = chunkReplicaCache->GetReplicas(chunkIds);
+
+            auto replicasListOrError = WaitFor(AllSucceeded(replicasFutures));
+            THROW_ERROR_EXCEPTION_IF_FAILED(replicasListOrError, "Error locating partition chunks");
+            const auto& replicasList = replicasListOrError.Value();
+            YT_VERIFY(replicasList.size() == chunkIds.size());
 
             YT_LOG_INFO("Partition chunks located");
 
-            nodeDirectory->MergeFrom(rsp->node_directory());
+            for (int index = 0; index < std::ssize(chunkIds); ++index) {
+                auto chunkId = chunkIds[index];
+                const auto& replicas = replicasList[index];
 
-            for (int index = 0; index < rsp->subresponses_size(); ++index) {
-                const auto& subrequest = req->subrequests(index);
-                const auto& subresponse = rsp->subresponses(index);
-
-                auto chunkId = FromProto<TChunkId>(subrequest);
                 const auto& store = GetOrCrash(storeMap, chunkId);
 
                 NChunkClient::NProto::TChunkSpec chunkSpec;
                 ToProto(chunkSpec.mutable_chunk_id(), chunkId);
-                *chunkSpec.mutable_replicas() = subresponse.replicas();
+                ToProto(chunkSpec.mutable_replicas(), replicas.Replicas);
                 *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
                 ToProto(chunkSpec.mutable_lower_limit(), TLegacyReadLimit(partition->GetPivotKey()));
                 ToProto(chunkSpec.mutable_upper_limit(), TLegacyReadLimit(partition->GetNextPivotKey()));
-                chunkSpec.set_erasure_codec(subresponse.erasure_codec());
+                chunkSpec.set_erasure_codec(ToProto<int>(store->GetErasureCodecId()));
 
                 auto inputChunk = New<TInputChunk>(chunkSpec);
                 samplesFetcher->AddChunk(std::move(inputChunk));
             }
         }
 
-        WaitFor(samplesFetcher->Fetch())
-            .ThrowOnError();
+        try {
+            WaitFor(samplesFetcher->Fetch())
+                .ThrowOnError();
+        } catch (const std::exception&) {
+            for (int index = 0; index < std::ssize(chunkIds); ++index) {
+                chunkReplicaCache->DiscardReplicas(
+                    chunkIds[index],
+                    replicasFutures[index]);
+            }
+            throw;
+        }
 
         YT_LOG_DEBUG("Samples fetched");
 
@@ -673,6 +686,8 @@ private:
             partition->GetId());
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IPartitionBalancerPtr CreatePartitionBalancer(IBootstrap* bootstrap)
 {

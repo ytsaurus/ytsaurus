@@ -85,7 +85,7 @@ Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation()
 { }
 
 Y_FORCE_INLINE TChunkReplicaWithLocation::TChunkReplicaWithLocation(
-    TChunkReplicaWithMedium replica, 
+    TChunkReplicaWithMedium replica,
     TChunkLocationUuid locationUuid)
     : TChunkReplicaWithMedium(replica)
     , ChunkLocationUuid_(locationUuid)
