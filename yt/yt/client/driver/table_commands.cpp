@@ -359,7 +359,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     };
 
     auto keepAliveExecutor = New<TPeriodicExecutor>(
-        GetSyncInvoker(),
+        GetCurrentInvoker(),
         BIND(keepAliveCallback),
         TDuration::MilliSeconds(100));
     keepAliveExecutor->Start();
