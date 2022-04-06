@@ -478,9 +478,10 @@ private:
                        ratio > Config_->HighCpuWaitAlertThreshold;
             };
 
-            const TString alertMessage =
+            const TString alertMessage = Format(
                 "Average CPU wait time of some of your job types is significantly high (average CPU wait time ratio greater than %v%%). "
-                "Investigate your process.";
+                "Investigate your process.",
+                Config_->HighCpuWaitAlertThreshold);
 
             AnalyzeProcessingUnitUsage(
                 Config_->HighCpuWaitAlertStatistics,
