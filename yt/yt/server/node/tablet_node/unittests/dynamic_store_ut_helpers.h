@@ -232,9 +232,15 @@ public:
         return CurrentTimestamp_++;
     }
 
-    std::unique_ptr<TTransaction> StartTransaction(TTimestamp startTimestamp = NullTimestamp)
+    std::unique_ptr<TTransaction> StartTransaction(
+        TTimestamp startTimestamp = NullTimestamp,
+        TTransactionId transactionId = NullTransactionId)
     {
-        auto transaction = std::make_unique<TTransaction>(TTransactionId::Create());
+        if (transactionId == NullTransactionId) {
+            transactionId = TTransactionId::Create();
+        }
+
+        auto transaction = std::make_unique<TTransaction>(transactionId);
         transaction->SetStartTimestamp(startTimestamp == NullTimestamp ? GenerateTimestamp() : startTimestamp);
         transaction->SetPersistentState(ETransactionState::Active);
         return transaction;

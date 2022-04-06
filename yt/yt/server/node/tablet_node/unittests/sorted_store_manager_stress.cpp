@@ -150,6 +150,7 @@ public:
         TKey Key;
         TValueFilter ValueFilter;
         TTimestamp Timestamp;
+        TGuid RequestId;
     };
 
     struct TLookupResult
@@ -170,6 +171,7 @@ public:
         , Request_(std::move(request))
         , TabletSnapshot_(Owner_->Tablet_->BuildSnapshot(nullptr))
         , Async_(async)
+        , Wait_(Owner_->Rng() % 3)
         { }
 
         void Run()
@@ -202,6 +204,7 @@ public:
         const TTabletSnapshotPtr TabletSnapshot_;
         const IInvokerPtr Invoker_;
         const bool Async_;
+        const bool Wait_;
 
         const TPromise<TLookupResult> Result_ = NewPromise<TLookupResult>();
 
@@ -220,7 +223,7 @@ public:
 
         void GuardedLookup()
         {
-            if (Async_ && Owner_->Rng() % 3) {
+            if (Async_ && Wait_) {
                 TDelayedExecutor::WaitForDuration(RandomDuration(TDuration::MilliSeconds(10)));
             }
             auto key = TRow{.Key = Request_.Key}.ToKey();
@@ -485,6 +488,7 @@ public:
             for (auto* action : GetShuffledModifications()) {
                 action->Prepare();
             }
+
             Prepared = true;
             return true;
         }
@@ -901,8 +905,6 @@ public:
 
 TEST_P(TSortedStoreManagerStressTest, Test)
 {
-    return; // TODO(gritukan): Fix test and uncomment.
-
     BIND(&TSortedStoreManagerStressTest::RunTest, Unretained(this))
         .AsyncVia(TestQueue_->GetInvoker())
         .Run()
@@ -917,13 +919,13 @@ void TSortedStoreManagerStressTest::RunTest()
     StoreManager_.Reset();
     DoSetUp();
 
-    auto randomElement = [&] (auto set) {
-        int index = Rng() % std::ssize(set);
-        auto it = set.begin();
-        for (int i = 0; i < index; ++i) {
-            ++it;
-        }
-        return *it;
+    auto randomElement = [&] (const THashSet<TTestTransaction*>& set) {
+        std::vector<TTestTransaction*> elements(set.begin(), set.end());
+        SortBy(elements, [&] (TTestTransaction* transaction) {
+            return transaction->Transaction->GetId();
+        });
+
+        return elements[Rng() % elements.size()];
     };
 
     constexpr int Iterations = 10'000;
@@ -954,7 +956,9 @@ void TSortedStoreManagerStressTest::RunTest()
 
             auto transaction = std::make_unique<TTestTransaction>();
             transaction->Self = this;
-            transaction->Transaction = StartTransaction();
+
+            auto transactionId = MakeId(EObjectType::Transaction, 0x10, createdTransactions, 0x42);
+            transaction->Transaction = StartTransaction(NullTimestamp, transactionId);
             ++createdTransactions;
 
             THashSet<int> usedKeys;
@@ -1108,6 +1112,7 @@ void TSortedStoreManagerStressTest::RunTest()
                 .Key = static_cast<TKey>(Rng() % KeyCount),
                 .ValueFilter = {},
                 .Timestamp = CurrentTimestamp_ - TsGap + Rng() % (TsGap + 1),
+                .RequestId = TGuid::Create(),
             };
             for (int index = 0; index < ValueCount; ++index) {
                 request.ValueFilter[index] = (Rng() % 2 == 0);
@@ -1141,7 +1146,10 @@ void TSortedStoreManagerStressTest::RunTest()
                 auto expected = NaiveLookup(lookuper->GetRequest());
 
                 if (expected.Locked) {
-                    EXPECT_FALSE(lookuper->IsCompleted());
+                    if (lookuper->IsCompleted()) {
+                        completedLookupers.push_back(lookuper);
+                        ++delayedLookups;
+                    }
                 } else {
                     auto result = WaitFor(lookuper->GetResult())
                         .ValueOrThrow();
@@ -1191,14 +1199,15 @@ void TSortedStoreManagerStressTest::RunTest()
     }
 
     Cerr << Format("Test passed (CreatedTransactions: %v, CommittedTransactions: %v, Modifications: %v, Conflicts: %v, "
-        "StoreRotations: %v, ImmediateLookups: %v, DelayedLookups: %v)",
+        "StoreRotations: %v, ImmediateLookups: %v, DelayedLookups: %v, State: %v)",
         createdTransactions,
         committedTransactions,
         modifications,
         conflicts,
         storeRotations,
         immediateLookups,
-        delayedLookups) << Endl;
+        delayedLookups,
+        Rng()) << Endl;
 }
 
 INSTANTIATE_TEST_SUITE_P(Instantation,
