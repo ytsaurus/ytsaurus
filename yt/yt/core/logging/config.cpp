@@ -226,6 +226,36 @@ TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
     return config;
 }
 
+TLogManagerConfigPtr TLogManagerConfig::CreateStderrLoggerWithLoggingValidation(ELogLevel logLevel)
+{
+    auto silentRule = New<TRuleConfig>();
+    silentRule->MinLevel = ELogLevel::Debug;
+    silentRule->Writers.push_back(TString("dev_null"));
+
+    auto fileWriterConfig = New<TWriterConfig>();
+    fileWriterConfig->Type = EWriterType::File;
+    fileWriterConfig->FileName = "/dev/null";
+
+    auto stderrRule = New<TRuleConfig>();
+    stderrRule->MinLevel = logLevel;
+    stderrRule->Writers.push_back(TString(DefaultStderrWriterName));
+
+    auto stderrWriterConfig = New<TWriterConfig>();
+    stderrWriterConfig->Type = EWriterType::Stderr;
+
+    auto config = New<TLogManagerConfig>();
+    config->Rules.push_back(silentRule);
+    config->Rules.push_back(stderrRule);
+    config->Writers.emplace(TString("dev_null"), fileWriterConfig);
+    config->Writers.emplace(TString(DefaultStderrWriterName), stderrWriterConfig);
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = 100000;
+    config->LowBacklogWatermark = 100000;
+
+    return config;
+}
+
 TLogManagerConfigPtr TLogManagerConfig::CreateStderrLogger(ELogLevel logLevel)
 {
     auto rule = New<TRuleConfig>();
