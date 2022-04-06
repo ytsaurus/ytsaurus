@@ -162,6 +162,7 @@ public:
 
             TTransaction* transaction = nullptr;
             bool transactionIsFresh = false;
+            bool updateReplicationProgress = false;
             if (atomicity == EAtomicity::Full) {
                 transaction = transactionManager->GetOrCreateTransaction(
                     transactionId,
@@ -194,11 +195,7 @@ public:
                     return;
                 }
 
-                if (tablet->GetReplicationCardId() && !versioned) {
-                    // Update replication progress for queue replicas so async replicas can pull from them as fast as possible.
-                    // NB: This replication progress update is a best effort and does not require tablet locking.
-                    transaction->TabletsToUpdateReplicationProgress().insert(tablet->GetId());
-                }
+                updateReplicationProgress = tablet->GetReplicationCardId() && !versioned;
             }
 
             TWriteContext context;
@@ -258,6 +255,7 @@ public:
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
+                hydraRequest.set_update_replication_progress(updateReplicationProgress);
                 ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
@@ -271,7 +269,8 @@ public:
                     generation,
                     lockless,
                     writeRecord,
-                    identity));
+                    identity,
+                    updateReplicationProgress));
                 mutation->SetCurrentTraceContext();
                 *commitResult = mutation->Commit().As<void>();
 
@@ -413,6 +412,7 @@ private:
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
         const NRpc::TAuthenticationIdentity& identity,
+        bool updateReplicationProgress,
         TMutationContext* /*context*/) noexcept
     {
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -515,6 +515,13 @@ private:
                         immediate,
                         lockless);
                 }
+
+                if (updateReplicationProgress) {
+                    // Update replication progress for queue replicas so async replicas can pull from them as fast as possible.
+                    // NB: This replication progress update is a best effort and does not require tablet locking.
+                    transaction->TabletsToUpdateReplicationProgress().insert(tablet->GetId());
+                }
+
                 break;
             }
 
@@ -571,6 +578,7 @@ private:
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
+        auto updateReplicationProgress = request->update_replication_progress();
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = Host_->FindTablet(tabletId);
@@ -662,6 +670,13 @@ private:
                         transactionId,
                         lockCount);
                 }
+
+                if (updateReplicationProgress) {
+                    // Update replication progress for queue replicas so async replicas can pull from them as fast as possible.
+                    // NB: This replication progress update is a best effort and does not require tablet locking.
+                    transaction->TabletsToUpdateReplicationProgress().insert(tablet->GetId());
+                }
+
                 break;
             }
 
