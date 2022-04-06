@@ -226,6 +226,7 @@ message TReqWriteRows
     optional int64 data_weight = 13;
     optional string user = 14;
     optional string user_tag = 15;
+    optional bool update_replication_progress = 17;
 }
 
 message TReqTrimRows
