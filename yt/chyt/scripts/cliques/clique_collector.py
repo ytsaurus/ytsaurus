@@ -36,7 +36,7 @@ def setup_logging(verbose):
 class Clique:
     ABORTED_JOB_REASONS = ["node_banned", "node_offline", "none", "other", "preemption", "resource_overdraft",
                            "scheduler", "revival_confirmation_timeout", "user_request"]
-    JOB_STATES = ["total", "pending", "running", "completed", "failed", "aborted", "lost"]
+    JOB_STATES = ["total", "pending", "running", "completed", "failed", "aborted", "lost", "suspended", "invalidated", "blocked"]
     COMPONENTS = ["ytserver-clickhouse", "ytserver-log-tailer", "clickhouse-trampoline", "clickhouse", "launcher"]
     RESOURCES = ["memory", "cpu"]
     RESOURCES_TYPE = {"type_name": "struct", "members": [{"name": name, "type": "int64"} for name in RESOURCES]}
@@ -61,10 +61,11 @@ class Clique:
         }},
         {"name": "controller_agent_address", "type_v3": "string"},
         {"name": "previous_operation_id", "type_v3": {"type_name": "optional", "item": "string"}},
-        {"name": "versions", "type_v3": {
-            "type_name": "struct",
-            "members": [{"name": name, "type": {"type_name": "optional", "item": "string"}} for name in COMPONENTS]
-        }},
+        # TODO: return this field
+        # {"name": "versions", "type_v3": {
+        #     "type_name": "struct",
+        #     "members": [{"name": name, "type": {"type_name": "optional", "item": "string"}} for name in COMPONENTS]
+        # }},
         {"name": "preemption_mode", "type_v3": "string"},
         {"name": "instance_resources", "type_v3": RESOURCES_TYPE},
         {"name": "instance_count", "type_v3": "int32"},
@@ -119,17 +120,18 @@ class Clique:
         self.attributes["controller_agent_address"] = op["controller_agent_address"]
         description = op["spec"].get("description", {})
         self.attributes["previous_operation_id"] = description.get("previous_operation_id")
-        self.attributes["versions"] = {
-            "ytserver-clickhouse": description.get("ytserver-clickhouse", {}).get("yt_version"),
-            "ytserver-log-tailer": description.get("ytserver-log-tailer", {}).get("yt_version"),
-            "clickhouse-trampoline": description.get("clickhouse-trampoline", {}).get("yt_version"),
-            "clickhouse": description.get("ytserver-clickhouse", {}).get("ch_version"),
-            "launcher": op["spec"].get("started_by", {}).get("wrapper_version")
-        }
+        # TODO: return this field
+        # self.attributes["versions"] = {
+        #     "ytserver-clickhouse": description.get("ytserver-clickhouse", {}).get("yt_version"),
+        #     "ytserver-log-tailer": description.get("ytserver-log-tailer", {}).get("yt_version"),
+        #     "clickhouse-trampoline": description.get("clickhouse-trampoline", {}).get("yt_version"),
+        #     "clickhouse": description.get("ytserver-clickhouse", {}).get("ch_version"),
+        #     "launcher": op["spec"].get("started_by", {}).get("wrapper_version")
+        # }
         task_spec = op["spec"]["tasks"].get("instances", {}) or op["spec"]["tasks"].get("clickhouse_servers", {})
         self.attributes["instance_resources"] = {
-            "cpu": task_spec["cpu_limit"],
-            "memory": task_spec["memory_limit"],
+            "cpu": int(task_spec["cpu_limit"]),
+            "memory": int(task_spec["memory_limit"]),
         }
         self.attributes["instance_count"] = task_spec["job_count"]
         self.attributes["total_resources"] = {
@@ -137,7 +139,7 @@ class Clique:
             "memory": task_spec["memory_limit"] * task_spec["job_count"],
         }
         self.attributes["preemption_mode"] = op["full_spec"]["preemption_mode"]
-        self.attributes["started_by"] = op["spec"]["started_by"]["command"]
+        self.attributes["started_by"] = op["spec"].get("started_by", {}).get("command", ['Controller'])
 
         config_file_path = None
         for path in task_spec["file_paths"]:
@@ -180,7 +182,9 @@ class Clique:
         self.attributes["memory"] = {
             "uncompressed_block_cache": config["cluster_connection"].get("block_cache", {})
                 .get("uncompressed_data", {}).get("capacity", 0),
-            "clickhouse": config["engine"]["settings"]["max_memory_usage_for_all_queries"],
+            # This is not working anymore. Need normal path for max_memory_usage_for_all_queries
+            "clickhouse": config.get("engine", config.get('clickhouse')).get('settings').get('max_memory_usage_for_all_queries', 0),
+
         }
         self.attributes["memory"]["footprint"] = self.attributes["instance_resources"]["memory"] - \
                                                  sum(self.attributes["memory"].values())
