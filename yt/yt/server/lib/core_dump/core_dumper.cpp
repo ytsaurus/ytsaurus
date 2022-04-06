@@ -124,7 +124,8 @@ public:
                 corePath);
 
             TFile coreInputFile(fd);
-            TUnbufferedFileInput coreInput(coreInputFile);
+            // TFileInput is not move-constructible, so we wrap it with unique_ptr.
+            auto coreInput = std::make_unique<TFileInput>(coreInputFile);
             TFile coreOutputFile(corePath, CreateNew | WrOnly | Seq | CloseOnExec);
 
             auto asyncResult = BIND([
@@ -134,7 +135,7 @@ public:
                 Logger] () mutable {
                     YT_LOG_INFO("Started transferring core dump data");
                     try {
-                        auto size = WriteSparseCoreDump(&coreInput, &coreOutputFile);
+                        auto size = WriteSparseCoreDump(coreInput.get(), &coreOutputFile);
                         YT_LOG_INFO("Finished transferring core dump data (Size: %v)", size);
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(ex, "Error writing core dump");
