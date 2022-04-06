@@ -93,7 +93,7 @@ void TCgroupTracker::CollectSensors(ISensorWriter* writer)
         }
     } catch (const std::exception& ex) {
         if (!CgroupErrorLogged_) {
-            YT_LOG_ERROR(ex, "Failed to collect cgroup cpu statistics");
+            YT_LOG_INFO(ex, "Failed to collect cgroup cpu statistics");
             CgroupErrorLogged_ = true;
         }
     }
