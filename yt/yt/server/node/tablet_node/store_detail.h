@@ -195,6 +195,7 @@ public:
     i64 GetCompressedDataSize() const override;
     i64 GetUncompressedDataSize() const override;
     i64 GetRowCount() const override;
+    NErasure::ECodec GetErasureCodecId() const;
 
     void Save(TSaveContext& context) const override;
     void Load(TLoadContext& context) override;
