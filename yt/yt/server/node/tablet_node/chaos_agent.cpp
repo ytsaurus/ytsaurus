@@ -19,6 +19,8 @@
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
@@ -29,6 +31,7 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NConcurrency;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,6 +101,7 @@ private:
     void FiberMain(TCallback<void()> callback)
     {
         while (true) {
+            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosAgent"));
             NProfiling::TWallTimer timer;
             callback();
             TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());

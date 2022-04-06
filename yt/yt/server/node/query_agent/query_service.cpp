@@ -926,7 +926,7 @@ private:
                 context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v, Progress: %v",
                     responseRowCount,
                     responseDataWeight,
-                    totalRowCount,
+                    readRowCount,
                     endReplicationRowIndex,
                     endProgress);
                 context->Reply();
@@ -1591,16 +1591,22 @@ private:
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
         TTimestamp prevTimestamp = MinTimestamp;
         int timestampCount = 0;
+        int discardedByProgress = 0;
+        auto startRowIndex = *currentRowIndex;
 
         *tooMuch = false;
         while (!*tooMuch) {
             auto batch = reader->Read(rowBatchReadOptions);
             if (!batch) {
+                YT_LOG_DEBUG("Received empty batch from tablet reader (TabletId: %v, StartRowIndex: %v)",
+                    tabletSnapshot->TabletId,
+                    *currentRowIndex);
                 break;
             }
 
             if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
+                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (TabletId: %v, StartRowIndex: %v)",
+                    tabletSnapshot->TabletId,
                     *currentRowIndex);
 
                 WaitFor(reader->GetReadyEvent())
@@ -1635,6 +1641,7 @@ private:
                 if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.BeginKeys(), row.EndKeys());
                     !progressTimestamp || timestamp <= *progressTimestamp)
                 {
+                    ++discardedByProgress;
                     continue;
                 }
 
@@ -1650,6 +1657,18 @@ private:
                         timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
                     {
                         *tooMuch = true;
+
+                        YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
+                            "(TabletId: %v, Timestamp: %llx, UpperTimestamp: %llx, TimestampOverflow: %v, "
+                            "ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
+                            tabletSnapshot->TabletId,
+                            timestamp,
+                            upperTimestamp,
+                            timestamp > upperTimestamp,
+                            *batchRowCount >= mountConfig->MaxRowsPerReplicationCommit,
+                            *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit,
+                            timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit);
+
                         break;
                     }
 
@@ -1665,6 +1684,17 @@ private:
 
             *totalRowCount += readerRows.size();
         }
+
+        YT_LOG_DEBUG("Read replication batch (TabletId: %v, StartRowIndex: %v, EndRowIndex: %v, ReadRowCount: %v, "
+            "ResponseRowCount: %v, ResponseDataWeight: %v, RowsDiscardedByProgress: %v, TimestampCount: %v)",
+            tabletSnapshot->TabletId,
+            startRowIndex,
+            *currentRowIndex,
+            *totalRowCount,
+            *batchRowCount,
+            *batchDataWeight,
+            discardedByProgress,
+            timestampCount);
     }
 
     void OnDynamicConfigChanged(

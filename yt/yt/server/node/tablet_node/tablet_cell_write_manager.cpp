@@ -1071,9 +1071,12 @@ private:
             tablet->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
             tablet->RecomputeReplicaStatuses();
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                "Delayed lockless rows committed (TransactionId: %v, TabletId: %v, DelayedLocklessRowCount: %v -> %v)",
+                "Delayed lockless rows committed (TransactionId: %v, TabletId: %v, DelayedLocklessRowCount: %v -> %v, TotalRowCount: %v)",
                 transaction->GetId(),
-                tablet->GetId());
+                tablet->GetId(),
+                oldDelayedLocklessRowCount,
+                newDelayedLocklessRowCount,
+                tablet->GetTotalRowCount());
         }
 
         for (auto [replicaInfo, rowCount] : replicaToRowCount) {

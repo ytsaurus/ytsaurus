@@ -32,18 +32,21 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
+using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NTableClient;
-using namespace NTabletClient;
-using namespace NTransactionClient;
-using namespace NYPath;
-using namespace NChaosClient;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTracing;
+using namespace NTransactionClient;
+using namespace NYPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -200,6 +203,7 @@ private:
     void FiberMain()
     {
         while (true) {
+            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TablePuller"));
             NProfiling::TWallTimer timer;
             FiberIteration();
             TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
