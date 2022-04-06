@@ -98,10 +98,15 @@ void FormatValue(
     builder->AppendString("{");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        builder->AppendFormat("%v: {", category);
         const auto& histogram = statsByCategory[category];
         const auto& counters = histogram.GetCounters();
         const auto& bins = histogram.GetBins();
+
+        if (std::reduce(counters.begin(), counters.end()) == 0) {
+            continue;
+        }
+
+        builder->AppendFormat("\"%v\": {", category);
         for (int index = 0; index < std::ssize(counters); ++index) {
             if (counters[index]) {
                 builder->AppendFormat("%v:%v, ", bins[index], counters[index]);
