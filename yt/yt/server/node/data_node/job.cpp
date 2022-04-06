@@ -695,7 +695,6 @@ private:
         auto sessionId = TSessionId(ChunkId_, targetMediumIndex);
 
         YT_LOG_INFO("Chunk replication job started (SourceMediumIndex: %v, TargetReplicas: %v)",
-            ChunkId_,
             sourceMediumIndex,
             MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
