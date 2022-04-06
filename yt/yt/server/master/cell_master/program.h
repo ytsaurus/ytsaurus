@@ -117,7 +117,9 @@ protected:
 
         if (dumpSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateSilent();
-        } else if (validateSnapshot || exportSnapshot) {
+        } else if (validateSnapshot) {
+            config->Logging = NLogging::TLogManagerConfig::CreateStderrLoggerWithLoggingValidation(NLogging::ELogLevel::Error);
+        } else if (exportSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
         }
 
