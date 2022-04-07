@@ -54,6 +54,14 @@ public:
         return Request(EMethod::Patch, url, TSharedRef{body}, headers);
     }
 
+    TFuture<IResponsePtr> Put(
+        const TString& url,
+        const TSharedRef& body,
+        const THeadersPtr& headers) override
+    {
+        return Request(EMethod::Put, url, TSharedRef{body}, headers);
+    }
+
 private:
     const TClientConfigPtr Config_;
     const IDialerPtr Dialer_;

@@ -58,6 +58,14 @@ public:
         return Underlying_->Patch(url, body, headers);
     }
 
+    TFuture<IResponsePtr> Put(
+        const TString& url,
+        const TSharedRef& body,
+        const THeadersPtr& headers) override
+    {
+        return Underlying_->Put(url, body, headers);
+    }
+
 private:
     const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IClientPtr Underlying_;
