@@ -1,16 +1,18 @@
 package ru.yandex.spark.launcher
 
 import com.google.common.net.HostAndPort
+import io.circe.{Decoder, Error}
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.parser.parse
-import io.circe.{Decoder, Error}
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.launcher.AutoScaler.SparkState
 import ru.yandex.spark.launcher.SparkStateService.{AppStats, MasterStats, WorkerInfo, WorkerStats}
-import sttp.client.{HttpError, HttpURLConnectionBackend, Identity, NothingT, SttpBackend, UriContext, basicRequest}
+import ru.yandex.spark.launcher.rest.AppStatusesRestClient
+import ru.yandex.spark.launcher.rest.AppStatusesRestClient.AppState
+import sttp.client.{basicRequest, HttpError, HttpURLConnectionBackend, Identity, NothingT, SttpBackend, UriContext}
 import sttp.model.Uri
 
-import java.util.concurrent.{ExecutorService, Executors}
+import java.util.concurrent.{Executors, ExecutorService}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.{Duration, DurationLong}
 import scala.util.{Failure, Try}
@@ -38,6 +40,8 @@ object SparkStateService {
 
   case class AppStats(name: String, cores: Long, runtime: Duration)
 
+  case class AppStatusesStats(runningApps: Long, waitingApps: Long, maxWaitingTimeMs: Long)
+
   case class WorkerInfo(id: String, host: String, port: Int, cores: Int, memory: Int, webUiAddress: String,
                         alive: Boolean, resources: Map[String, ResourceInfo]) {
     def isDriverOp: Boolean = resources.contains("driverop")
@@ -50,6 +54,7 @@ object SparkStateService {
 
   def sparkStateService(webUi: HostAndPort, rest: HostAndPort): SparkStateService =
     new SparkStateService {
+      private val restClient: AppStatusesRestClient = AppStatusesRestClient.create(rest.toString)
       implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
 
       val es: ExecutorService = Executors.newFixedThreadPool(sparkStateQueryThreads)
@@ -69,15 +74,38 @@ object SparkStateService {
           for {
             stats <- allWorkerStats
             master <- masterStats
-            apps <- appStats
+            apps <- queryAppStatuses
           } yield SparkState(ws.size, stats.count(_.coresUsed > 0), master.waitingApps,
             stats.map(_.coresTotal).sum, stats.map(_.coresUsed).sum,
-            apps.filter(_.cores == 0).map(_.runtime.toMillis).reduceLeftOption(_ max _).getOrElse(0L)
+            apps.maxWaitingTimeMs
           )
         })
       }
 
-      override def masterStats: Try[MasterStats] = {
+      def queryAppStatuses: Try[AppStatusesStats] = {
+        for {
+          appStatuses <- restClient.getAppStatuses
+          submissionStatuses <- restClient.getSubmissionStatuses
+        } yield {
+            log.debug(s"app statuses: $appStatuses, submission statuses: $submissionStatuses")
+            val activeApps = appStatuses.filter(!_.state.isFinished)
+            val maxAppWaitingTime = activeApps.filter(_.state == AppState.WAITING)
+                .map(_.runtime())
+                .map(y => { log.info(s"y=$y"); y })
+                .foldLeft(0L)(_ max _)
+            val maxSubmissionWaitingTIme = submissionStatuses.map(_.runtime())
+                .map(x => { log.info(s"x=$x"); x })
+                .foldLeft(0L)(_ max _)
+            log.debug(s"maxAppWaitingTime: $maxAppWaitingTime, maxSubmissionWaitingTime: $maxSubmissionWaitingTIme")
+            AppStatusesStats(
+                runningApps = activeApps.count(_.state == AppState.RUNNING),
+                waitingApps = activeApps.count(_.state == AppState.WAITING),
+                maxWaitingTimeMs = maxAppWaitingTime max maxSubmissionWaitingTIme
+            )
+        }
+      }
+
+        override def masterStats: Try[MasterStats] = {
         val uri = uri"http://$webUi/metrics/master/prometheus"
         log.debug(s"querying $uri")
         basicRequest
@@ -129,7 +157,7 @@ object SparkStateService {
       override def workerStats(workers: Seq[WorkerInfo]): Seq[Try[WorkerStats]] =
         workers.map {
           wi =>
-            log.info(s"querying ${wi.metricsUrl}")
+            log.debug(s"querying ${wi.metricsUrl}")
             basicRequest
               .get(wi.metricsUrl)
               .send()
