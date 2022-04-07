@@ -810,6 +810,8 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
             EnrichStatisticsWithGpuInfo(&statistics);
         }
 
+        EnrichStatisticsWithDiskInfo(&statistics);
+
         EnrichStatisticsWithArtifactsInfo(&statistics);
 
         StatisticsYson_ = ConvertToYsonString(statistics);
@@ -2375,6 +2377,15 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/clocks_sm", totalClocksSm);
     statistics->AddSample("/user_job/gpu/load", totalLoad);
     statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
+}
+        
+void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
+{
+    auto diskStatistics = Slot_->GetDiskStatistics();
+    statistics->AddSample("/user_job/disk/usage", diskStatistics.Usage);
+    if (diskStatistics.Limit) {
+        statistics->AddSample("/user_job/disk/limit", *diskStatistics.Limit);
+    }
 }
 
 void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)

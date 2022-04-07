@@ -391,7 +391,7 @@ private:
     bool IsFatalError(const TError& error);
 
     void EnrichStatisticsWithGpuInfo(TStatistics* statistics);
-
+    void EnrichStatisticsWithDiskInfo(TStatistics* statistics);
     void EnrichStatisticsWithArtifactsInfo(TStatistics* statistics);
 
     void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);

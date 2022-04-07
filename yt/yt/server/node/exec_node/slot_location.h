@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "private.h"
+#include "slot.h"
 
 #include <yt/yt/server/node/data_node/disk_location.h>
 #include <yt/yt/server/node/data_node/public.h>
@@ -75,6 +76,8 @@ public:
 
     TString GetSlotPath(int slotIndex) const;
 
+    TDiskStatistics GetDiskStatistics(int slotIndex) const;
+
     TString GetMediumName() const;
 
     NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
@@ -141,6 +144,7 @@ private:
     std::set<TString> TmpfsPaths_;
     THashSet<int> SlotsWithQuota_;
     THashMap<int, TUserSandboxOptions> SandboxOptionsPerSlot_;
+    THashMap<int, TDiskStatistics> DiskStatisticsPerSlot_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
