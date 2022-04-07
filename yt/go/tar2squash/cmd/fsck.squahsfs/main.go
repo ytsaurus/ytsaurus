@@ -28,6 +28,12 @@ func do() error {
 
 		fmt.Fprintf(os.Stderr, "inode: %#v\n", st)
 
+		xattrs, err := r.ReadXattrs(inode)
+		fmt.Fprintf(os.Stderr, "xattrs: %#v\n", xattrs)
+		if err != nil {
+			return err
+		}
+
 		dir, err := r.ReaddirNoStat(inode)
 		if err != nil {
 			return err

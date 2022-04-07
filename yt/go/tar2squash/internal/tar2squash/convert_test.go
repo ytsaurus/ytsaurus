@@ -2,6 +2,7 @@ package tar2squash
 
 import (
 	"archive/tar"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -68,7 +69,7 @@ func runTest(t *testing.T, setup func(t *testing.T, dir string)) {
 	defer tarFile.Close()
 
 	tarReader := tar.NewReader(tarFile)
-	require.NoError(t, Convert(squashWriter, tarReader))
+	require.NoError(t, Convert(squashWriter, tarReader, Options{}))
 	require.NoError(t, squashFile.Close())
 
 	squashList := exec.Command("unsquashfs", "-ll", squashPath)
@@ -108,15 +109,33 @@ func TestHardLink(t *testing.T) {
 	})
 }
 
+func noError(t *testing.T, err error) {
+	if errors.Is(err, os.ErrPermission) {
+		t.Skipf("%v", err)
+	}
+
+	require.NoError(t, err)
+}
+
 func TestCharDevice(t *testing.T) {
 	runTest(t, func(t *testing.T, dir string) {
-		require.NoError(t, unix.Mknod(filepath.Join(dir, "chardev"), uint32(0666|unix.S_IFCHR), int(unix.Mkdev(0, 0))))
+		noError(t, unix.Mknod(filepath.Join(dir, "chardev"), uint32(0666|unix.S_IFCHR), int(unix.Mkdev(0, 0))))
 	})
 }
 
 func TestXattrs(t *testing.T) {
 	runTest(t, func(t *testing.T, dir string) {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "a"), 0777))
-		require.NoError(t, xattr.Set(filepath.Join(dir, "a"), "trusted.overlay.opaque", []byte("y")))
+
+		noError(t, xattr.Set(filepath.Join(dir, "a"), "trusted.overlay.opaque", []byte("y")))
+	})
+}
+
+func TestMultipleXattrs(t *testing.T) {
+	runTest(t, func(t *testing.T, dir string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "a"), 0777))
+
+		noError(t, xattr.Set(filepath.Join(dir, "a"), "trusted.overlay.opaque", []byte("y")))
+		noError(t, xattr.Set(filepath.Join(dir, "a"), "user.yt", []byte("y")))
 	})
 }
