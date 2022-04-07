@@ -67,32 +67,6 @@ using NYT::ToProto;
 
 namespace {
 
-// COMPAT(ignat): remove after 22.1
-TCounter* GetJobErrorCounter(const TString& treeId, const TString& jobError)
-{
-    static TSyncMap<std::tuple<TString, TString>, TCounter> counters;
-    return counters.FindOrInsert(std::make_tuple(treeId, jobError), [&] {
-        return SchedulerProfiler
-            .WithTag(ProfilingPoolTreeKey, treeId)
-            .WithTag("job_error", jobError)
-            .WithHot()
-            .Counter("/jobs/aborted_job_count_by_error");
-    }).first;
-}
-
-void ProfileAbortedJobErrors(const TJobPtr& job, const TError& error)
-{
-    auto checkErrorCode = [&] (auto errorCode) {
-        if (error.FindMatching(errorCode)) {
-            GetJobErrorCounter(job->GetTreeId(), FormatEnum(errorCode))
-                ->Increment();
-        }
-    };
-
-    checkErrorCode(NRpc::EErrorCode::TransportError);
-    checkErrorCode(NNet::EErrorCode::ResolveTimedOut);
-}
-
 std::optional<EJobPreemptionStatus> GetJobPreemptionStatus(
     const TJobPtr& job,
     const TCachedJobPreemptionStatuses& jobPreemptionStatuses)
@@ -2490,7 +2464,6 @@ void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool bySch
         job->GetState() == EJobState::None)
     {
         auto error = FromProto<TError>(status->result().error());
-        ProfileAbortedJobErrors(job, error);
 
         job->SetAbortReason(GetAbortReason(error));
         SetJobState(job, EJobState::Aborted);
