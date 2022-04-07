@@ -1285,7 +1285,6 @@ private:
             nameTable,
             chunkReadOptions,
             /*columnFilter*/ {},
-            /*sortColumns*/ {},
             /*partitionTag*/ std::nullopt,
             trafficMeter,
             Bootstrap_->GetThrottler(EExecNodeThrottlerKind::ArtifactCacheIn),

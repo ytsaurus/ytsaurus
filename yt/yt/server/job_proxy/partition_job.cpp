@@ -94,7 +94,6 @@ public:
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
-                /*sortColumns*/ {},
                 partitionTag,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),

@@ -121,7 +121,6 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         std::move(nameTable),
         chunkReadOptions,
         columnFilter,
-        /* sortColumns */ {},
         /* partitionTag */ std::nullopt,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
@@ -403,7 +402,6 @@ public:
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
-                sortColumns,
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
@@ -416,9 +414,6 @@ public:
 
         const auto foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
-
-        auto foreignSortColumns = sortColumns;
-        foreignSortColumns.resize(foreignKeyColumnCount);
 
         for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -437,7 +432,6 @@ public:
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
-                foreignSortColumns,
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,

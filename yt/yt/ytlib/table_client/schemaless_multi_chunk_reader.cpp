@@ -139,7 +139,6 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    const TSortColumns& sortColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -204,8 +203,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;
-                        // TODO(gritukan): Rethink it after YT-14154.
-                        int keyColumnCount = std::max<int>(sortColumns.size(), chunkMeta->GetChunkSchema()->GetKeyColumnCount());
+
+                        auto sortColumns = dataSource.Schema() ? dataSource.Schema()->GetSortColumns() : TSortColumns{};
+
+                        int keyColumnCount = sortColumns.size();
                         if (chunkSpec.has_lower_limit()) {
                             FromProto(&readRange.LowerLimit(), chunkSpec.lower_limit(), /* isUpper */ false, keyColumnCount);
                         }
@@ -555,7 +556,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    const TSortColumns& sortColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -589,7 +589,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
-                sortColumns,
                 partitionTag,
                 trafficMeter,
                 std::move(bandwidthThrottler),
@@ -616,7 +615,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TNameTablePtr nameTable,
     const TClientChunkReadOptions& chunkReadOptions,
     const TColumnFilter& columnFilter,
-    const TSortColumns& sortColumns,
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
@@ -650,7 +648,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
-                sortColumns,
                 partitionTag,
                 trafficMeter,
                 std::move(bandwidthThrottler),
@@ -1412,7 +1409,6 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 nameTable,
                 chunkReadOptions,
                 columnFilter,
-                dataSource.Schema()->GetSortColumns(),
                 /*partitionTag*/ std::nullopt,
                 /*trafficMeter*/ nullptr,
                 bandwidthThrottler,
