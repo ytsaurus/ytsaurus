@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/misc/lazy_ptr.h>
 #include <yt/yt/core/misc/singleton.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 #include <stack>
 
@@ -25,7 +26,36 @@ class TSyncInvoker
 public:
     void Invoke(TClosure callback) override
     {
-        callback.Run();
+        auto& state = *FiberState_;
+
+        // We optimize invocation of recursion-free callbacks, i.e. those that do
+        // not invoke anything in our invoker. This is done by introducing the AlreadyInvoking
+        // flag which allows us to handle such case without allocation of the deferred
+        // callback queue.
+
+        if (state.AlreadyInvoking) {
+            // Ensure deferred callback queue exists and push our callback into it.
+            if (!state.DeferredCallbacks) {
+                state.DeferredCallbacks.emplace();
+            }
+            state.DeferredCallbacks->push(std::move(callback));
+        } else {
+            // We are the outermost callback; execute synchronously.
+            state.AlreadyInvoking = true;
+            callback.Run();
+            callback.Reset();
+            // If some callbacks were deferred, execute them until the queue is drained.
+            // Note that some of the callbacks may defer new callbacks, which is perfectly valid.
+            if (state.DeferredCallbacks) {
+                while (!state.DeferredCallbacks->empty()) {
+                    state.DeferredCallbacks->front().Run();
+                    state.DeferredCallbacks->pop();
+                }
+                // Reset queue to reduce fiber memory footprint.
+                state.DeferredCallbacks.reset();
+            }
+            state.AlreadyInvoking = false;
+        }
     }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -39,7 +69,18 @@ public:
         return InvalidThreadId;
     }
 #endif
+
+private:
+    struct TFiberState
+    {
+        bool AlreadyInvoking = false;
+        std::optional<TRingQueue<TClosure>> DeferredCallbacks;
+    };
+
+    static TFls<TFiberState> FiberState_;
 };
+
+TFls<TSyncInvoker::TFiberState> TSyncInvoker::FiberState_;
 
 IInvokerPtr GetSyncInvoker()
 {
