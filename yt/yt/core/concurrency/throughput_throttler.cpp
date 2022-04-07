@@ -267,19 +267,25 @@ private:
         auto now = GetInstant();
         if (limit && *limit > 0) {
             auto lastUpdated = LastUpdated_.load();
-            auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
-            auto deltaAvailable = static_cast<i64>(millisecondsPassed * *limit / 1000);
-            auto newAvailable = Available_.load() + deltaAvailable;
             auto maxAvailable = static_cast<i64>(Period_.load().SecondsFloat()) * *limit;
-            if (newAvailable > maxAvailable) {
+
+            if (lastUpdated == TInstant::Zero()) {
+                Available_ = maxAvailable;                
                 LastUpdated_ = now;
-                newAvailable = maxAvailable;
             } else {
-                LastUpdated_ = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / *limit);
-                // Just in case.
-                LastUpdated_ = std::min(LastUpdated_.load(), now);
+                auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
+                auto deltaAvailable = static_cast<i64>(millisecondsPassed * *limit / 1000);
+                auto newAvailable = Available_.load() + deltaAvailable;
+                if (newAvailable > maxAvailable) {
+                    LastUpdated_ = now;
+                    newAvailable = maxAvailable;
+                } else {
+                    LastUpdated_ = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / *limit);
+                    // Just in case.
+                    LastUpdated_ = std::min(LastUpdated_.load(), now);
+                }
+                Available_ = newAvailable;                
             }
-            Available_ = newAvailable;
         } else {
             Available_ = 0;
             LastUpdated_ = now;
