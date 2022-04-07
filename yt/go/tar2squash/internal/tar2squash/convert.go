@@ -12,17 +12,28 @@ import (
 	"a.yandex-team.ru/yt/go/tar2squash/internal/squashfs"
 )
 
-func buildXattrs(h *tar.Header) []squashfs.Xattr {
-	var xattrs []squashfs.Xattr
-	for k, v := range h.Xattrs {
-		xattrs = append(xattrs, squashfs.XattrFromAttr(k, []byte(v)))
-	}
-	return xattrs
+type Options struct {
+	XattrFilter func(name string) bool
 }
 
-func Convert(out *squashfs.Writer, in *tar.Reader) error {
+func Convert(out *squashfs.Writer, in *tar.Reader, options Options) error {
 	files := map[string]*squashfs.File{}
 	directories := map[string][]*tar.Header{}
+
+	buildXattrs := func(h *tar.Header) []squashfs.Xattr {
+		var xattrs []squashfs.Xattr
+		for k, v := range h.Xattrs {
+			if options.XattrFilter != nil && options.XattrFilter(k) {
+				continue
+			}
+
+			if xattr, ok := squashfs.XattrFromAttr(k, []byte(v)); ok {
+				xattrs = append(xattrs, xattr)
+			}
+		}
+
+		return xattrs
+	}
 
 	var root *tar.Header
 	for {
@@ -88,9 +99,7 @@ func Convert(out *squashfs.Writer, in *tar.Reader) error {
 
 			case tar.TypeDir:
 				subdir := dir.Directory(entryName, e.ModTime)
-				if len(e.Xattrs) != 0 {
-					subdir.SetXattrs(buildXattrs(e))
-				}
+				subdir.SetXattrs(buildXattrs(e))
 
 				if err := flushDir(e.Name, subdir); err != nil {
 					return err
@@ -122,7 +131,7 @@ func Convert(out *squashfs.Writer, in *tar.Reader) error {
 		return dir.Flush()
 	}
 
-	if root != nil && len(root.Xattrs) != 0 {
+	if root != nil {
 		out.Root.SetXattrs(buildXattrs(root))
 	}
 
