@@ -514,9 +514,11 @@ public:
 
         const auto& element = FindOperationElement(operationId);
         for (const auto& job : jobs) {
+            TJobResourcesWithQuota resourceUsageWithQuota = job->ResourceUsage();
+            resourceUsageWithQuota.SetDiskQuota(job->DiskQuota());
             element->OnJobStarted(
                 job->GetId(),
-                job->ResourceUsage(),
+                resourceUsageWithQuota,
                 /*precommittedResources*/ {},
                 // NB: |scheduleJobEpoch| is ignored in case |force| is true.
                 /*scheduleJobEpoch*/ 0,
