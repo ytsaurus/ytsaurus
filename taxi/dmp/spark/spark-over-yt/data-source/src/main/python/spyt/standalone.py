@@ -324,6 +324,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
             driver_op_resources)
         config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = driver_op_discovery_script
         config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = driver_op_discovery_script
+    if extra_metrics_enabled:
+        config["spark_conf"]["spark.ui.prometheus.enabled"] = "true"
 
     worker_command = _launcher_command("Worker", "2g") + \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} " \

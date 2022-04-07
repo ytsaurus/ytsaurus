@@ -59,7 +59,7 @@ class PrometheusServlet(registry: MetricRegistry) extends HttpServlet {
       resp.setContentType("text/plain;charset=utf-8")
       resp.setStatus(HttpServletResponse.SC_OK)
       val metrics = getMetricsSnapshot(req)
-      log.info(s"metrics requested:\n===\n$metrics\n===\n")
+      log.debug(s"metrics requested:\n===\n$metrics\n===\n")
       resp.getWriter.print(metrics)
     } catch {
       case e: IllegalArgumentException =>

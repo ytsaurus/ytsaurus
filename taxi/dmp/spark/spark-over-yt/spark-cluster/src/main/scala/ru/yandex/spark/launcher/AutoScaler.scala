@@ -15,6 +15,7 @@ import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit}
 import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 import scala.language.postfixOps
 import scala.sys.process.ProcessLogger
+import scala.util.control.NonFatal
 
 trait AutoScaler {
   def apply(): Unit
@@ -46,8 +47,8 @@ object AutoScaler {
 
   def registerMetrics(state: State, userSlots: Long): Unit = state match {
     case State(
-    OperationState(_, runningJobs, plannedJobs),
-    SparkState(maxWorkers, busyWorkers, waitingApps, coresTotal, coresUsed, maxAppAwaitTimeMs),
+      OperationState(_, runningJobs, plannedJobs),
+      SparkState(maxWorkers, busyWorkers, waitingApps, coresTotal, coresUsed, maxAppAwaitTimeMs),
     ) =>
       Metrics.userSlots.update(userSlots)
       Metrics.runningJobs.update(runningJobs)
@@ -90,6 +91,7 @@ object AutoScaler {
           discoveryService.discoverAddress().get.restHostAndPort)
 
       override def query: Option[State] = {
+        log.debug("Querying cluster state")
         discoveryService.operations() match {
           case Some(OperationSet(_, children, _)) =>
             if (children.isEmpty) {
@@ -181,8 +183,13 @@ object AutoScaler {
     conf.map { c =>
       log.info(s"Starting autoscaler service: period = ${c.period}")
       val f = scheduler.scheduleAtFixedRate(() => {
-        log.info("Autoscaler called")
-        autoScaler()
+        try {
+          log.debug("Autoscaler called")
+          autoScaler()
+        } catch {
+          case NonFatal(e) =>
+            log.error("Autoscaler failed", e)
+        }
       }, c.period.toNanos, c.period.toNanos, TimeUnit.NANOSECONDS)
       val metricsServer = c.metricsPort.map(p => AutoScalerMetricsServer.start(p, Metrics.metricRegistry))
       val r: Closeable = () => {
