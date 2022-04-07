@@ -27,11 +27,12 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
-#include <yt/yt/ytlib/chunk_client/remote_chunk_reader.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -1006,23 +1007,26 @@ TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
 
 TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId) const
 {
-    auto guard = ReaderGuard(ReaderLock_);
+    const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+    auto replicasList = chunkReplicaCache->FindReplicas({ChunkId_});
+    YT_VERIFY(replicasList.size() == 1);
+    auto replicas = replicasList[0];
 
-    if (CachedReaders_ && !CachedReadersLocal_) {
-        auto* remoteReader = dynamic_cast<IRemoteChunkReader*>(CachedReaders_.ChunkReader.Get());
-        if (remoteReader) {
-            auto remoteReplicas = remoteReader->GetReplicas();
-            if (!remoteReplicas.empty()) {
-                return remoteReplicas;
-            }
+    if (replicas) {
+        TChunkReplicaList result;
+        result.reserve(replicas.Replicas.size());
+        for (const auto& replica : replicas.Replicas) {
+            result.push_back(replica);
         }
-        return {};
+        return result;
     }
 
     // Erasure chunks do not have local readers.
     if (TypeFromId(ChunkId_) != EObjectType::Chunk) {
         return {};
     }
+
+    auto guard = ReaderGuard(ReaderLock_);
 
     auto makeLocalReplicas = [&] {
         TChunkReplicaList replicas;

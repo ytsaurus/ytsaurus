@@ -37,6 +37,32 @@ public:
         ExpirationExecutor_->Start();
     }
 
+    std::vector<TAllyReplicasInfo> FindReplicas(
+        const std::vector<TChunkId>& chunkIds) override
+    {
+        std::vector<TAllyReplicasInfo> replicas(chunkIds.size());
+
+        auto now = TInstant::Now();
+
+        auto mapGuard = ReaderGuard(EntriesLock_);
+        for (int index = 0; index < std::ssize(chunkIds); ++index) {
+            auto chunkId = chunkIds[index];
+            auto it = Entries_.find(chunkId);
+            if (it != Entries_.end()) {
+                auto& entry = *it->second;
+                auto entryGuard = Guard(entry.Lock);
+                if (auto optionalExistingReplicas = entry.Promise.TryGet()) {
+                    if (optionalExistingReplicas->IsOK()) {
+                        entry.LastAccessTime = now;
+                        replicas[index] = optionalExistingReplicas->Value();
+                    }
+                }
+            }
+        }
+
+        return replicas;
+    }
+
     std::vector<TFuture<TAllyReplicasInfo>> GetReplicas(
         const std::vector<TChunkId>& chunkIds) override
     {

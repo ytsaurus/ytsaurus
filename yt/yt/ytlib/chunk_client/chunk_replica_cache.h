@@ -19,6 +19,9 @@ struct IChunkReplicaCache
     : public virtual TRefCounted
 {
 public:
+    virtual std::vector<TAllyReplicasInfo> FindReplicas(
+        const std::vector<TChunkId>& chunkIds) = 0;
+
     virtual std::vector<TFuture<TAllyReplicasInfo>> GetReplicas(
         const std::vector<TChunkId>& chunkIds) = 0;
 
