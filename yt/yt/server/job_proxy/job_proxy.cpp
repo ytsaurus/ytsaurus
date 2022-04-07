@@ -384,18 +384,24 @@ void TJobProxy::DoRun()
 
     // Reliably terminate all async calls before reporting result.
     if (HeartbeatExecutor_) {
+        YT_LOG_INFO("Stopping heartbeat executor");
         WaitFor(HeartbeatExecutor_->Stop())
             .ThrowOnError();
+        YT_LOG_INFO("Heartbeat executor stopped");
     }
 
     if (MemoryWatchdogExecutor_) {
+        YT_LOG_INFO("Stopping memory watchdog executor");
         WaitFor(MemoryWatchdogExecutor_->Stop())
             .ThrowOnError();
+        YT_LOG_INFO("Memory watchdog executor stopped");
     }
 
     if (CpuMonitor_) {
+        YT_LOG_INFO("Stopping CPU monitor");
         WaitFor(CpuMonitor_->Stop())
             .ThrowOnError();
+        YT_LOG_INFO("CPU monitor stopped");
     }
 
     WaitFor(RpcServer_->Stop()
@@ -403,18 +409,19 @@ void TJobProxy::DoRun()
         .ThrowOnError();
 
     FillJobResult(&result);
-
     FillStderrResult(&result);
-
     auto statistics = ConvertToYsonString(GetStatistics());
-
     ReportResult(
         result,
         statistics,
         startTime,
         finishTime);
 
-    Finalize();
+    SetJob(nullptr);
+
+    if (auto tracer = GetGlobalTracer()) {
+        tracer->Stop();
+    }
 }
 
 void TJobProxy::Run()
@@ -659,6 +666,8 @@ void TJobProxy::ReportResult(
     TInstant startTime,
     TInstant finishTime)
 {
+    YT_LOG_INFO("Reporting job result");
+
     if (!SupervisorProxy_) {
         YT_LOG_ERROR("Supervisor channel is not available");
         Abort(EJobProxyExitCode::ResultReportFailed);
@@ -706,6 +715,8 @@ void TJobProxy::ReportResult(
         YT_LOG_ERROR(rspOrError, "Failed to report job result");
         Abort(EJobProxyExitCode::ResultReportFailed);
     }
+
+    YT_LOG_INFO("Job result reported");
 }
 
 TStatistics TJobProxy::GetStatistics() const
@@ -1138,15 +1149,6 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
         stderrBoundaryKeys->set_sorted(true);
         stderrBoundaryKeys->set_unique_keys(true);
         stderrBoundaryKeys->set_empty(true);
-    }
-}
-
-void TJobProxy::Finalize()
-{
-    SetJob(nullptr);
-
-    if (auto tracer = GetGlobalTracer()) {
-        tracer->Stop();
     }
 }
 

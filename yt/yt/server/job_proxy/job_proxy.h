@@ -215,7 +215,6 @@ private:
     void FillJobResult(NJobTrackerClient::NProto::TJobResult* jobResult);
     void FillStderrResult(NJobTrackerClient::NProto::TJobResult* jobResult);
 
-    void Finalize();
     void Abort(EJobProxyExitCode exitCode);
 };
 
