@@ -1151,10 +1151,11 @@ private:
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
-        UpdateNodeCounters(node, -1);
 
         node->SetLocalState(ENodeState::Registered);
         node->ReportedHeartbeats().clear();
+
+        UpdateNodeCounters(node, +1);
 
         if (leaseTransaction) {
             node->SetLeaseTransaction(leaseTransaction);
