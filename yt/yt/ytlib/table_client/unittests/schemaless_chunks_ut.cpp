@@ -237,7 +237,9 @@ protected:
 
 TEST_P(TSchemalessChunksTest, WithoutSampling)
 {
-    int keyColumnCount = std::get<1>(GetParam()).GetKeyColumnCount();
+    auto schema = std::get<1>(GetParam());
+
+    int keyColumnCount = schema.GetKeyColumnCount();
 
     auto readNameTable = New<TNameTable>();
     InitNameTable(readNameTable, 4);
@@ -269,7 +271,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         MemoryReader_,
         readNameTable,
         /* chunkReadOptions */ {},
-        /* sortColumns */ {},
+        /* sortColumns */ schema.GetSortColumns(),
         /* omittedInaccessibleColumns */ {},
         columnFilter,
         TReadRange(lowerReadLimit, upperReadLimit));

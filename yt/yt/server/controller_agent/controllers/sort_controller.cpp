@@ -3578,7 +3578,9 @@ private:
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
-                BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
+                BuildIntermediateDataSourceDirectory(
+                    GetSpec()->IntermediateDataAccount,
+                    {IntermediateChunkSchema_}));
             SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
                 schedulerJobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -4064,7 +4066,7 @@ private:
     void InitIntermediateSchemas() override
     {
         if (!Spec->HasSchemafulIntermediateStreams()) {
-            IntermediateStreamSchemas_ = {New<TTableSchema>()};
+            IntermediateStreamSchemas_ = {TTableSchema::FromSortColumns(Spec->SortBy)};
             IntermediateChunkSchema_ = TTableSchema::FromSortColumns(Spec->SortBy);
             return;
         }

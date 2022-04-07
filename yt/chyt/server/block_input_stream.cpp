@@ -443,7 +443,6 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
-            /*keyColumns*/ {},
             /*partitionTag*/ std::nullopt,
             /*trafficMeter*/ nullptr,
             /*bandwidthThrottler*/ GetUnlimitedThrottler(),

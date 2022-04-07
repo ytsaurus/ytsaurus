@@ -1866,17 +1866,6 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
         omittedInaccessibleColumns,
         virtualRowIndex);
 
-    // For unknown reason chunkSchema.GetKeyColumnCount() > 0 == chunkMeta->Misc().sorted() is not true.
-    // Key bounds can correspond either chunk sort columns or read sort columns.
-    // Someone can create SchemalessRangeChunkReader with read ranges but without sort columns.
-    bool hasKeyBounds = readRange.LowerLimit().KeyBound() || readRange.UpperLimit().KeyBound();
-
-    // TODO(gritukan): Now we use the longest possible keyInfo in order
-    // to properly handle all the comparable entities. Rethink it after YT-14154.
-    if (hasKeyBounds && chunkMeta->GetChunkSchema()->GetKeyColumnCount() >= std::ssize(sortColumns)) {
-        sortColumns = chunkMeta->GetChunkSchema()->GetSortColumns();
-    }
-
     // Check that read ranges suit sortColumns if sortColumns are provided.
     if (readRange.LowerLimit().KeyBound()) {
         YT_VERIFY(readRange.LowerLimit().KeyBound().Prefix.GetCount() <= std::ssize(sortColumns));

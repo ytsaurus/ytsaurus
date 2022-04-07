@@ -75,7 +75,6 @@ public:
                 nameTable,
                 ChunkReadOptions_,
                 /*columnFilter*/ {},
-                /*keyColumns*/ {},
                 /*partitionTag*/ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
