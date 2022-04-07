@@ -26,6 +26,14 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDiskStatistics
+{
+    std::optional<i64> Limit;
+    i64 Usage;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISlot
     : public virtual TRefCounted
 {
@@ -78,6 +86,8 @@ struct ISlot
     virtual NBus::TTcpBusClientConfigPtr GetBusClientConfig() const = 0;
 
     virtual int GetSlotIndex() const = 0;
+
+    virtual TDiskStatistics GetDiskStatistics() const = 0;
 
     virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
 

@@ -180,6 +180,11 @@ public:
     {
         return SlotIndex_;
     }
+    
+    TDiskStatistics GetDiskStatistics() const override
+    {
+        return Location_->GetDiskStatistics(SlotIndex_);
+    }
 
     TString GetSandboxPath(ESandboxKind sandbox) const override
     {

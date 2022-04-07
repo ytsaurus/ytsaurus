@@ -428,6 +428,8 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
         "cpu/context_switches",
         "current_memory/rss",
         "tmpfs_size",
+        "disk/usage",
+        "disk/limit",
         "gpu/utilization_gpu",
         "gpu/utilization_memory",
         "gpu/utilization_power",

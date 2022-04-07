@@ -669,6 +669,13 @@ TString TSlotLocation::GetSlotPath(int slotIndex) const
     return NFS::CombinePaths(LocationPath_, Format("%v", slotIndex));
 }
 
+TDiskStatistics TSlotLocation::GetDiskStatistics(int slotIndex) const
+{
+    auto guard = ReaderGuard(SlotsLock_);
+    auto it = DiskStatisticsPerSlot_.find(slotIndex);
+    return it == DiskStatisticsPerSlot_.end() ? TDiskStatistics{} : it->second;
+}
+
 TString TSlotLocation::GetMediumName() const
 {
     return Config_->MediumName;
@@ -896,6 +903,8 @@ void TSlotLocation::UpdateDiskResources()
             sandboxOptionsPerSlot = SandboxOptionsPerSlot_;
         }
 
+        THashMap<int, TDiskStatistics> diskStatisticsPerSlot;
+
         for (const auto& [slotIndex, sandboxOptions] : sandboxOptionsPerSlot) {
             i64 dirSize = 0;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
@@ -909,6 +918,12 @@ void TSlotLocation::UpdateDiskResources()
                         : NFS::GetDirectorySize(path);
                 }
             }
+            diskStatisticsPerSlot.insert(std::make_pair(
+                slotIndex,
+                TDiskStatistics{
+                    .Limit=sandboxOptions.DiskSpaceLimit,
+                    .Usage=dirSize
+                }));
 
             if (sandboxOptions.DiskSpaceLimit) {
                 diskUsage += *sandboxOptions.DiskSpaceLimit;
@@ -924,6 +939,11 @@ void TSlotLocation::UpdateDiskResources()
             } else {
                 diskUsage += dirSize;
             }
+        }
+        
+        {
+            auto guard = WriterGuard(SlotsLock_);
+            DiskStatisticsPerSlot_ = diskStatisticsPerSlot;
         }
 
         auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
