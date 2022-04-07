@@ -103,9 +103,9 @@ object SpytSnapshot {
           .map(as => (as(0), as(1).trim))
           .toMap
         for {
-          rev <- m.get("revision")
+          hash <- m.get("hash")
           branch <- m.get("branch")
-        } yield VcsInfo(rev, branch, isGit = false)
+        } yield VcsInfo(hash.take(7), branch, isGit = false)
       } catch {
         // arc not found or it is not arc branch
         // let's try git
