@@ -721,7 +721,7 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
     TChunkOwnerBase::CheckInvariants(bootstrap);
 
     auto* chunkList = GetChunkList();
-    if (IsDynamic()) {
+    if (GetDynamic()) {
         if (IsPhysicallySorted()) {
             if (IsObjectAlive(chunkList)) {
                 YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
