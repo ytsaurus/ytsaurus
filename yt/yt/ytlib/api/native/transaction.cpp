@@ -1100,7 +1100,7 @@ private:
                 }
             } else if (HasChaosReplicas()) {
                 for (const auto& [chaosReplicaId, chaosReplicaInfo] : ReplicationCard_->Replicas) {
-                    if (chaosReplicaInfo.Mode == ETableReplicaMode::Sync && chaosReplicaInfo.State == ETableReplicaState::Enabled) {
+                    if (IsReplicaReallySync(chaosReplicaInfo.Mode, chaosReplicaInfo.State)) {
                         auto replicaInfo = New<TTableReplicaInfo>();
                         replicaInfo->ReplicaId = chaosReplicaId;
                         replicaInfo->ClusterName = chaosReplicaInfo.ClusterName;

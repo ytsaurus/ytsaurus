@@ -97,7 +97,7 @@ public:
         for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (!BannedReplicas_.contains(replicaId) &&
                 replicaInfo.ContentType == ETableReplicaContentType::Queue &&
-                replicaInfo.State == ETableReplicaState::Enabled)
+                IsReplicaEnabled(replicaInfo.State))
             {
                 InsertOrCrash(BannedReplicas_, std::make_pair(replicaId, 0));
             }
@@ -422,7 +422,7 @@ private:
             return {};
         }
 
-        if (selfReplicaInfo->State != ETableReplicaState::Enabled) {
+        if (!IsReplicaEnabled(selfReplicaInfo->State)) {
             YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
                 selfReplicaInfo->State);
             return {};
@@ -454,7 +454,7 @@ private:
             return {};
         }
 
-        if (selfReplicaInfo->Mode != ETableReplicaMode::Async) {
+        if (!IsReplicaAsync(selfReplicaInfo->Mode)) {
             YT_LOG_DEBUG("Pulling rows while replica is not async (ReplicaMode: %v)",
                 selfReplicaInfo->Mode);
             // NB: Allow this since sync replica could be catching up.
@@ -467,7 +467,7 @@ private:
                 }
 
                 if (replicaInfo.ContentType != ETableReplicaContentType::Queue ||
-                    replicaInfo.State != ETableReplicaState::Enabled ||
+                    !IsReplicaEnabled(replicaInfo.State) ||
                     replicaInfo.FindHistoryItemIndex(oldestTimestamp) == -1)
                 {
                     continue;
@@ -497,7 +497,7 @@ private:
                     continue;
                 }
 
-                if (replicaInfo.ContentType != ETableReplicaContentType::Queue || replicaInfo.State != ETableReplicaState::Enabled) {
+                if (replicaInfo.ContentType != ETableReplicaContentType::Queue || !IsReplicaEnabled(replicaInfo.State)) {
                     continue;
                 }
 

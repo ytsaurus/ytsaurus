@@ -152,7 +152,7 @@ private:
                 return nullptr;
             }
             if (selfReplica->History.empty()) {
-                YT_VERIFY(selfReplica->State != ETableReplicaState::Enabled);
+                YT_VERIFY(!IsReplicaEnabled(selfReplica->State));
                 YT_LOG_DEBUG("Replica history list is empty");
                 return nullptr;
             }
@@ -194,7 +194,7 @@ private:
             writeMode,
             ReplicationCard_->Era);
 
-        if (selfReplica->State == ETableReplicaState::Disabled) {
+        if (IsReplicaDisabled(selfReplica->State)) {
             return;
         }
 

@@ -179,11 +179,29 @@ TReplicaInfo* TReplicationCard::GetReplicaOrThrow(TReplicaId replicaId, TReplica
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsReplicaSync(ETableReplicaMode mode)
+{
+    return mode == ETableReplicaMode::Sync || mode == ETableReplicaMode::SyncToAsync;
+}
+
+bool IsReplicaAsync(ETableReplicaMode mode)
+{
+    return mode == ETableReplicaMode::Async || mode == ETableReplicaMode::AsyncToSync;
+}
+
+bool IsReplicaEnabled(ETableReplicaState state)
+{
+    return state == ETableReplicaState::Enabled || state == ETableReplicaState::Disabling;
+}
+
+bool IsReplicaDisabled(ETableReplicaState state)
+{
+    return state == ETableReplicaState::Disabled || state == ETableReplicaState::Enabling;
+}
+
 bool IsReplicaReallySync(ETableReplicaMode mode, ETableReplicaState state)
 {
-    return
-        mode == ETableReplicaMode::Sync &&
-        state == ETableReplicaState::Enabled;
+    return IsReplicaSync(mode) && IsReplicaEnabled(state);
 }
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update)

@@ -106,6 +106,10 @@ TString ToString(const TReplicationCard& replicationCard);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsReplicaSync(NTabletClient::ETableReplicaMode mode);
+bool IsReplicaAsync(NTabletClient::ETableReplicaMode mode);
+bool IsReplicaEnabled(NTabletClient::ETableReplicaState state);
+bool IsReplicaDisabled(NTabletClient::ETableReplicaState state);
 bool IsReplicaReallySync(NTabletClient::ETableReplicaMode mode, NTabletClient::ETableReplicaState state);
 
 void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicationProgress& update);
