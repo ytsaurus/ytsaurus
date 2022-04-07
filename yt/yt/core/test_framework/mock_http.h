@@ -58,12 +58,18 @@ public:
         const TString& url,
         const TSharedRef& body,
         const THeadersPtr& headers) override;
+    TFuture<IResponsePtr> Put(
+        const TString& url,
+        const TSharedRef& body,
+        const THeadersPtr& headers) override;
 
     MOCK_METHOD(TMockResponse, Get, (
         const TString& url, const TMockHeaders& headers));
     MOCK_METHOD(TMockResponse, Post, (
         const TString& url, const TString& body, const TMockHeaders& headers));
     MOCK_METHOD(TMockResponse, Patch, (
+        const TString& url, const TString& body, const TMockHeaders& headers));
+    MOCK_METHOD(TMockResponse, Put, (
         const TString& url, const TString& body, const TMockHeaders& headers));
 }; // class TMockClient
 
