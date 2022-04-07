@@ -10,7 +10,6 @@
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_locator.h"
-#include "remote_chunk_reader.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -159,7 +158,6 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReader)
 class TReplicationReader
     : public IChunkReaderAllowingRepair
     , public ILookupReader
-    , public IRemoteChunkReader
 {
 public:
     TReplicationReader(
@@ -278,11 +276,6 @@ public:
         return SlownessChecker_(bytesReceived, timePassed);
     }
 
-    TChunkReplicaList GetReplicas() const override
-    {
-        return LastSeenReplicas_.Load();
-    }
-
 private:
     friend class TSessionBase;
     friend class TReadBlockSetSession;
@@ -312,7 +305,6 @@ private:
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     THashMap<TString, int> PeerBanCountMap_;
-    TAtomicObject<TChunkReplicaList> LastSeenReplicas_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
 
@@ -343,16 +335,6 @@ private:
                 BannedForeverPeers_.erase(*address);
             }
         }
-    }
-
-    void UpdateLastSeenReplicas(const TChunkReplicaWithMediumList& replicas)
-    {
-        TChunkReplicaList lastSeenReplicas;
-        lastSeenReplicas.reserve(replicas.size());
-        for (auto replica : replicas) {
-            lastSeenReplicas.push_back(replica);
-        }
-        LastSeenReplicas_.Store(lastSeenReplicas);
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
@@ -1209,7 +1191,6 @@ private:
         }
 
         SeedReplicas_ = result.Value();
-        reader->UpdateLastSeenReplicas(SeedReplicas_.Replicas);
         if (!SeedReplicas_) {
             RegisterError(TError(
                 NChunkClient::EErrorCode::ChunkIsLost,
@@ -3140,7 +3121,6 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReaderWithOverridenThrottlers)
 class TReplicationReaderWithOverridenThrottlers
     : public IChunkReaderAllowingRepair
     , public ILookupReader
-    , public IRemoteChunkReader
 {
 public:
     TReplicationReaderWithOverridenThrottlers(
@@ -3256,11 +3236,6 @@ public:
     void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
     {
         UnderlyingReader_->SetSlownessChecker(std::move(slownessChecker));
-    }
-
-    TChunkReplicaList GetReplicas() const override
-    {
-        return UnderlyingReader_->GetReplicas();
     }
 
 private:
