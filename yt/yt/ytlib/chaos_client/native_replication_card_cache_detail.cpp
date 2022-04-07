@@ -88,12 +88,11 @@ public:
         const NLogging::TLogger& logger)
         : Owner_(owner)
         , Key_ (key)
-        , Logger(logger)
-    {
-        Logger.WithTag("ReplicationCardId: %v, CacheSessionId: %v",
-            Key_.CardId,
-            TGuid::Create());
-    }
+        , Logger(logger
+            .WithTag("ReplicationCardId: %v, CacheSessionId: %v",
+                Key_.CardId,
+                TGuid::Create()))
+    { }
 
     TReplicationCardPtr Run()
     {
