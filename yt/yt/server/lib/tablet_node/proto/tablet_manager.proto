@@ -327,7 +327,7 @@ message TReqWritePulledRows
     }
 
     required NYT.NProto.TGuid tablet_id = 1;
-    required int32 replication_round = 2;
+    required uint64 replication_round = 2;
     required NYT.NChaosClient.NProto.TReplicationProgress new_replication_progress = 3;
     repeated TReplicationRowIndex new_replication_row_indexes = 4;
 }

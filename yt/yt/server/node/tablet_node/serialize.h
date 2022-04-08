@@ -40,6 +40,7 @@ DEFINE_ENUM(ETabletReign,
     ((MaxClipTimestamp)                   (100403)) // ifsmirnov
     ((SerializeForeign)                   (100404)) // savrus
     ((SerializeReplicationProgress)       (100405)) // savrus
+    ((LongReplicationRound)               (100406)) // savrus
     // Late 22.1 starts here
     ((BackupsOrdered)                     (100450)) // ifsmirnov
     // 22.2 starts here.

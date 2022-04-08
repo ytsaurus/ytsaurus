@@ -197,6 +197,7 @@ private:
     const IThroughputThrottlerPtr Throttler_;
 
     TBannedReplicaTracker BannedReplicaTracker_;
+    ui64 ReplicationRound_ = 0;
 
     TFuture<void> FiberFuture_;
 
@@ -237,6 +238,13 @@ private:
                 return;
             }
 
+            auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound.load();
+            if (replicationRound < ReplicationRound_) {
+                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (ReplicationRound: %v)",
+                    replicationRound);
+            }
+            ReplicationRound_ = replicationRound;
+
             if (auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load(); writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
@@ -266,10 +274,9 @@ private:
                     counters->ErrorCount.Increment();
                 }
             });
-
+            
             const auto& clusterName = queueReplicaInfo->ClusterName;
             const auto& replicaPath = queueReplicaInfo->ReplicaPath;
-            auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound.load();
             TPullRowsResult result;
             {
                 TEventTimerGuard timerGuard(counters->PullRowsTime);
@@ -360,7 +367,7 @@ private:
                 {
                     NProto::TReqWritePulledRows req;
                     ToProto(req.mutable_tablet_id(), TabletId_);
-                    req.set_replication_round(replicationRound);
+                    req.set_replication_round(ReplicationRound_);
                     ToProto(req.mutable_new_replication_progress(), progress);
                     for (const auto [tabletId, endReplicationRowIndex] : endReplicationRowIndexes) {
                         auto protoEndReplicationRowIndex = req.add_new_replication_row_indexes();
@@ -370,8 +377,9 @@ private:
                     localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
                 }
 
-                YT_LOG_DEBUG("Commiting pull rows write transaction (TransactionId: %v)",
-                    localTransaction->GetId());
+                YT_LOG_DEBUG("Commiting pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
+                    localTransaction->GetId(),
+                    ReplicationRound_);
 
                 // NB: 2PC is used here to correctly process transaction signatures (sent by both rows and actions).
                 // TODO(savrus) Discard 2PC.
@@ -382,8 +390,11 @@ private:
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
 
-                YT_LOG_DEBUG("Pull rows write transaction committed (TransactionId: %v)",
-                    localTransaction->GetId());
+                ++ReplicationRound_;
+
+                YT_LOG_DEBUG("Pull rows write transaction committed (TransactionId: %v, NewReplicationRound: %v)",
+                    localTransaction->GetId(),
+                    ReplicationRound_);
             }
 
             tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());

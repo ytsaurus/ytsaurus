@@ -2079,7 +2079,7 @@ private:
         YT_VERIFY(persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto round = request->replication_round();
+        ui64 round = request->replication_round();
         auto* tablet = GetTabletOrThrow(tabletId);
 
         auto replicationRound = tablet->ChaosData()->ReplicationRound.load();
@@ -2098,7 +2098,7 @@ private:
     void HydraCommitWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto round = request->replication_round();
+        ui64 round = request->replication_round();
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
@@ -2123,7 +2123,7 @@ private:
     void FinalizeWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool inCommit)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto round = request->replication_round();
+        ui64 round = request->replication_round();
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
@@ -2915,6 +2915,8 @@ private:
                 .Item("upstream_replica_id").Value(tablet->GetUpstreamReplicaId())
                 .Item("replication_card").Value(tablet->RuntimeData()->ReplicationCard.Load())
                 .Item("replication_progress").Value(tablet->RuntimeData()->ReplicationProgress.Load())
+                .Item("replication_era").Value(tablet->RuntimeData()->ReplicationEra.load())
+                .Item("replication_round").Value(tablet->ChaosData()->ReplicationRound.load())
                 .Item("write_mode").Value(tablet->RuntimeData()->WriteMode.load())
                 .Do([tablet] (auto fluent) {
                     BuildTableSettingsOrchidYson(tablet->GetSettings(), fluent);
