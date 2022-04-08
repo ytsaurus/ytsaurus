@@ -2,8 +2,8 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
-    write_file, write_table, get_job,
-    map, wait_for_nodes)
+    write_file, write_table, get_job, abort_job,
+    run_test_vanilla, map, wait_for_nodes, update_nodes_dynamic_config)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -417,3 +417,64 @@ class TestSquashfsTmpfsLayerCache(TestTmpfsLayerCache):
             }
         },
     }
+
+
+@authors("eshcherbin")
+class TestJobAbortDuringVolumePreparation(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs": True,
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+            "job_abortion_timeout": 5000,
+        },
+    }
+
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/layer", attributes={"replication_factor": 1})
+        file_name = "layers/test.tar.gz"
+        write_file(
+            "//tmp/layer",
+            open(file_name, "rb").read(),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+    def test_job_abort_during_volume_preparation(self):
+        self.setup_files()
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "volume_manager": {
+                    "delay_after_layer_imported": 60000,
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            command="sleep 1",
+            task_patch={"layer_paths": ["//tmp/layer"]},
+        )
+
+        wait(lambda: op.list_jobs())
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        abort_job(job_id)
+        wait(lambda: op.get_job_count("aborted") > 0)
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        for alert in get("//sys/cluster_nodes/{}/@alerts".format(node)):
+            assert "Scheduler jobs disabled" not in alert["message"]
