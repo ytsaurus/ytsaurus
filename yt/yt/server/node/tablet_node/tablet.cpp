@@ -790,7 +790,12 @@ void TTablet::Load(TLoadContext& context)
         TRefCountedReplicationProgressPtr replicationProgress;
         TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
         RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
-        Load(context, ChaosData_->ReplicationRound);
+        // COMPAT(savrus)
+        if (context.GetVersion() >= ETabletReign::LongReplicationRound) {
+            Load(context, ChaosData_->ReplicationRound);
+        } else {
+            ChaosData_->ReplicationRound = Load<int>(context);
+        }
         ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
     }
 

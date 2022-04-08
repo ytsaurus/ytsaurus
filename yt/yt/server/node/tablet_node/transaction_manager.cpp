@@ -937,10 +937,10 @@ private:
 
                 transaction->SetPersistentState(ETransactionState::Serialized);
                 BeforeTransactionSerialized_.Fire(transaction);
-
-                // NB: Explicitly run serialize actions before actual serializing.
-                RunSerializeTransactionActions(transaction);
                 TransactionSerialized_.Fire(transaction);
+
+                // NB: Update replication progress after all rows are serialized and available for pulling.
+                RunSerializeTransactionActions(transaction);
 
                 PersistentTransactionMap_.Remove(transactionId);
 
