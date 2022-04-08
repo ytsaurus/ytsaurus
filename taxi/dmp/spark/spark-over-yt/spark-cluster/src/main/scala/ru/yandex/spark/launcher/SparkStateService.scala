@@ -106,8 +106,8 @@ object SparkStateService {
       }
 
         override def masterStats: Try[MasterStats] = {
-        val uri = uri"http://$webUi/metrics/master/prometheus"
-        log.debug(s"querying $uri")
+        val uri = uri"http://${webUi.getHost}:${webUi.getPort}/metrics/master/prometheus"
+        log.debug(s"querying ${uri.toJavaUri.toString}")
         basicRequest
           .get(uri)
           .send()
@@ -119,8 +119,8 @@ object SparkStateService {
       }
 
       override def appStats: Try[Seq[AppStats]] = {
-        val uri = uri"http://$webUi/metrics/applications/prometheus"
-        log.debug(s"querying $uri")
+        val uri = uri"http://${webUi.getHost}:${webUi.getPort}/metrics/applications/prometheus"
+        log.debug(s"querying ${uri.toJavaUri.toString}")
         basicRequest
           .get(uri)
           .send()
@@ -132,7 +132,7 @@ object SparkStateService {
       }
 
       override def activeWorkers: Try[Seq[WorkerInfo]] = {
-        val uri = uri"http://$rest/v1/submissions/master"
+        val uri = uri"http://${rest.getHost}:${rest.getPort}/v1/submissions/master"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)
