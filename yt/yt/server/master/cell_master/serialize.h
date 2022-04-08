@@ -123,6 +123,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChaosReplicatedTableSchema)                                   (1954))  // savrus
     ((CellAreaAttribute)                                            (1955))  // savrus
     ((TwoPhaseCellBundleCreation)                                   (1956))  // babenko
+    ((MoveSyncSuppressionFlagsToMulticellSyncExt_22_1)              (1957))  // shakurov
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
     ((EnableStripedErasureAttribute)                                (1981))  // gritukan
