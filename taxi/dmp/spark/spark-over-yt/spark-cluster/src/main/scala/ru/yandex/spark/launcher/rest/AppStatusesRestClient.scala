@@ -1,5 +1,6 @@
 package ru.yandex.spark.launcher.rest
 
+import com.google.common.net.HostAndPort
 import io.circe.{Decoder, parser}
 import io.circe.generic.semiauto.deriveDecoder
 import org.slf4j.{Logger, LoggerFactory}
@@ -39,7 +40,7 @@ object AppStatusesRestClient {
     def toAppStatus: AppStatus = AppStatus(appId, AppState(appState), appStartedAt)
   }
 
-  def create(rest: String): AppStatusesRestClient = {
+  def create(rest: HostAndPort): AppStatusesRestClient = {
     implicit val submStatusDecoder: Decoder[SubmissionStatus] = deriveDecoder
     implicit val submStatusesDecoder: Decoder[SubmissionStatusesRestResponse] = deriveDecoder
     implicit val statusDecoder: Decoder[AppStatusRestResponse] = deriveDecoder
@@ -49,7 +50,7 @@ object AppStatusesRestClient {
     log.info(s"Creating AppStatusesRestClient for master $rest")
     new AppStatusesRestClient {
       override def getAppStatuses: Try[Seq[AppStatus]] = {
-        val uri = uri"http://$rest/v1/submissions/getAppStatus"
+        val uri = uri"http://${rest.getHost}:${rest.getPort}/v1/submissions/getAppStatus"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)
@@ -62,7 +63,7 @@ object AppStatusesRestClient {
       }
 
       override def getSubmissionStatuses: Try[Seq[SubmissionStatus]] = {
-        val uri = uri"http://$rest/v1/submissions/status/"
+        val uri = uri"http://${rest.getHost}:${rest.getPort}/v1/submissions/status/"
         log.debug(s"querying $uri")
         basicRequest
           .get(uri)

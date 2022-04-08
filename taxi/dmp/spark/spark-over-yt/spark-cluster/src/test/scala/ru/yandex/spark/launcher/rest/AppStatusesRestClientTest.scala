@@ -1,5 +1,6 @@
 package ru.yandex.spark.launcher.rest
 
+import com.google.common.net.HostAndPort
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.launcher.rest.AppStatusesRestClient.{AppState, AppStatus, SubmissionStatus}
 
@@ -22,7 +23,7 @@ class AppStatusesRestClientTest extends FlatSpec with Matchers {
   }"""
 
   it should "correctly parse app status response" in {
-    val client = AppStatusesRestClient.create("localhost:8080")
+    val client = AppStatusesRestClient.create(HostAndPort.fromString("localhost:8080"))
     client.decodeAppStatuses(appStatusMsg) should be (Success(Seq(
       AppStatus("app-20220405015804-0000", AppState.WAITING, 1649113084242L)
     )))
@@ -44,7 +45,7 @@ class AppStatusesRestClientTest extends FlatSpec with Matchers {
   }"""
 
   it should "correctly parse submission status response" in {
-      val client = AppStatusesRestClient.create("localhost:8080")
+      val client = AppStatusesRestClient.create(HostAndPort.fromString("localhost:8080"))
       client.decodeSubmissionStatuses(submissionStatusMsg) should be (Success(Seq(
             SubmissionStatus("driver-20220406232616-0000", "RUNNING", 1649276776826L),
             SubmissionStatus("driver-20220406232826-0001", "SUBMITTED", 1649276906209L)

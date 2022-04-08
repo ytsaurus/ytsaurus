@@ -54,7 +54,7 @@ object SparkStateService {
 
   def sparkStateService(webUi: HostAndPort, rest: HostAndPort): SparkStateService =
     new SparkStateService {
-      private val restClient: AppStatusesRestClient = AppStatusesRestClient.create(rest.toString)
+      private val restClient: AppStatusesRestClient = AppStatusesRestClient.create(rest)
       implicit val backend: SttpBackend[Identity, Nothing, NothingT] = HttpURLConnectionBackend()
 
       val es: ExecutorService = Executors.newFixedThreadPool(sparkStateQueryThreads)
@@ -107,7 +107,7 @@ object SparkStateService {
 
         override def masterStats: Try[MasterStats] = {
         val uri = uri"http://${webUi.getHost}:${webUi.getPort}/metrics/master/prometheus"
-        log.debug(s"querying ${uri.toJavaUri.toString}")
+        log.debug(s"querying $uri")
         basicRequest
           .get(uri)
           .send()
@@ -120,7 +120,7 @@ object SparkStateService {
 
       override def appStats: Try[Seq[AppStats]] = {
         val uri = uri"http://${webUi.getHost}:${webUi.getPort}/metrics/applications/prometheus"
-        log.debug(s"querying ${uri.toJavaUri.toString}")
+        log.debug(s"querying $uri")
         basicRequest
           .get(uri)
           .send()
