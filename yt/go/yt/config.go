@@ -179,7 +179,7 @@ func (c *Config) GetLogger() log.Structured {
 		lvl = log.DebugLevel
 	}
 
-	config := zaplog.CLIConfig(lvl)
+	config := zaplog.ConsoleConfig(lvl)
 	config.OutputPaths = []string{"stderr"}
 
 	l, err := zaplog.New(config)
