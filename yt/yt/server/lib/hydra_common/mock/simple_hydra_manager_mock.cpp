@@ -96,7 +96,7 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
 
         TMutationContext mutationContext(
             TVersion(0, AppliedSequenceNumber_),
-            request,
+            &request,
             TInstant::Now(),
             /*randomSeed*/ 0,
             /*prevRandomSeed*/ 0,

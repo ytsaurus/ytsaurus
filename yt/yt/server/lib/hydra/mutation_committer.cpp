@@ -134,9 +134,9 @@ public:
             pendingMutation.SequenceNumber,
             pendingMutation.RandomSeed,
             pendingMutation.PrevRandomSeed,
-            pendingMutation.Request.Type,
-            pendingMutation.Request.MutationId,
-            pendingMutation.Request.TraceContext ? pendingMutation.Request.TraceContext->GetTraceId() : NTracing::TTraceId());
+            pendingMutation.Request->Type,
+            pendingMutation.Request->MutationId,
+            pendingMutation.Request->TraceContext ? pendingMutation.Request->TraceContext->GetTraceId() : NTracing::TTraceId());
     }
 
     TFuture<TVersion> GetQuorumFlushFuture() const
@@ -404,13 +404,13 @@ TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
     if (LoggingSuspended_) {
         auto& pendingMutation = PendingMutations_.emplace_back(
             timestamp,
-            std::move(request));
+            std::make_unique<TMutationRequest>(std::move(request)));
         return pendingMutation.CommitPromise;
     }
 
     auto commitFuture = LogLeaderMutation(
         timestamp,
-        std::move(request));
+        std::make_unique<TMutationRequest>(std::move(request)));
 
     if (DecoratedAutomaton_->GetRecordCountSinceLastCheckpoint() >= Config_->MaxChangelogRecordCount) {
         YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
@@ -485,12 +485,12 @@ void TLeaderCommitter::Stop()
 
 TFuture<TMutationResponse> TLeaderCommitter::LogLeaderMutation(
     TInstant timestamp,
-    TMutationRequest&& request)
+    std::unique_ptr<TMutationRequest> request)
 {
     TSharedRef recordData;
     TFuture<void> localFlushFuture;
 
-    TCurrentTraceContextGuard traceContextGuard(request.TraceContext);
+    TCurrentTraceContextGuard traceContextGuard(request->TraceContext);
     const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
         timestamp,
         std::move(request),
