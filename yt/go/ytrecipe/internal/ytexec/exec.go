@@ -42,6 +42,8 @@ type Exec struct {
 	scheduledAt time.Time
 }
 
+const expirationDelay = 3 * time.Hour
+
 func New(c Config) (*Exec, error) {
 	cfg := zap.NewProductionConfig()
 	cfg.OutputPaths = []string{c.Exec.ExecLog}
@@ -100,7 +102,7 @@ func New(c Config) (*Exec, error) {
 			UploadTimeout:    time.Minute,
 			UploadPingPeriod: time.Second * 15,
 			EntryTTL:         c.Operation.BlobTTL,
-			ExpirationDelay:  3 * time.Hour,
+			ExpirationDelay:  expirationDelay,
 		})
 	}
 
