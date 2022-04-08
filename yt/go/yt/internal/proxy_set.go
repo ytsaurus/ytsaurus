@@ -8,6 +8,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"a.yandex-team.ru/library/go/core/log"
 )
 
 type proxyBan struct {
@@ -268,6 +270,8 @@ func (s *ProxySet) removeInactive(proxy string) {
 }
 
 type ProxyBouncer struct {
+	Log log.Structured
+
 	ProxySet *ProxySet
 }
 
@@ -278,6 +282,7 @@ func (b *ProxyBouncer) banProxy(call *Call, err error) {
 
 	var opErr *net.OpError
 	if errors.As(err, &opErr) || isProxyBannedError(err) {
+		b.Log.Debug("banning proxy", log.String("fqdn", call.SelectedProxy), log.Error(err))
 		b.ProxySet.BanProxy(call.SelectedProxy)
 	}
 }
