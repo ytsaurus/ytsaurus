@@ -17,11 +17,23 @@ TDerivedTransaction* ITransaction::As()
 }
 
 template <class TDerivedTransaction>
+TDerivedTransaction* ITransaction::TryAs()
+{
+    return dynamic_cast<TDerivedTransaction*>(this);
+}
+
+template <class TDerivedTransaction>
 const TDerivedTransaction* ITransaction::As() const
 {
     const auto* derived = dynamic_cast<const TDerivedTransaction*>(this);
     YT_VERIFY(derived);
     return derived;
+}
+
+template <class TDerivedTransaction>
+const TDerivedTransaction* ITransaction::TryAs() const
+{
+    return dynamic_cast<const TDerivedTransaction*>(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
