@@ -76,7 +76,9 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
 
 case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
-                             spark_conf: Map[String, String] = Map.empty,
+                             spark_conf: Map[String, String] = Map(
+                               "spark.yt.jarCaching" -> "true"
+                             ),
                              enablers: SpytEnablers = SpytEnablers(),
                              ytserver_proxy_path: Option[String] = None,
                              layer_paths: Seq[String] = SparkLaunchConfig.defaultLayers,
