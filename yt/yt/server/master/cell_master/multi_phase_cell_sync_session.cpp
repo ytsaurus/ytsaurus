@@ -20,11 +20,15 @@ static const auto& Logger = CellMasterLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TMultiPhaseCellSyncSession::TMultiPhaseCellSyncSession(TBootstrap* bootstrap, bool syncWithUpstream, TRequestId requestId)
+TMultiPhaseCellSyncSession::TMultiPhaseCellSyncSession(TBootstrap* bootstrap, TRequestId requestId)
     : Bootstrap_(bootstrap)
-    , SyncWithUpstream_(syncWithUpstream)
     , RequestId_(requestId)
 { }
+
+void TMultiPhaseCellSyncSession::SetSyncWithUpstream(bool syncWithUpstream)
+{
+    SyncWithUpstream_ = syncWithUpstream;
+}
 
 TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std::vector<TFuture<void>> additionalFutures)
 {

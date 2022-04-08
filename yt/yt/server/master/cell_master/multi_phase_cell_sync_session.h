@@ -28,8 +28,9 @@ class TMultiPhaseCellSyncSession
 public:
     TMultiPhaseCellSyncSession(
         TBootstrap* bootstrap,
-        bool syncWithUpstream,
         NRpc::TRequestId requestId); // For logging purposes only.
+
+    void SetSyncWithUpstream(bool syncWithUpstream);
 
     // NB: the #additionalFutures is just to save some allocations and avoid doing this all the time:
     //   auto syncFuture = session->Sync(); // Already calls #AllSucceeded internally.
@@ -40,9 +41,9 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const bool SyncWithUpstream_;
     const NRpc::TRequestId RequestId_;
     int PhaseNumber_ = 0;
+    bool SyncWithUpstream_ = false;
     NObjectClient::TCellTagList SyncedWithCellTags_;
 
     bool RegisterCellToSyncWith(NObjectClient::TCellTag cellTag);

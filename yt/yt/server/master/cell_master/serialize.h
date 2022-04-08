@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistentNodeTouchTime)                                      (2002))  // shakurov
     ((UnconditionallyClearPrerequisitesFromExternalizedRequests)    (2003))  // shakurov
     ((SequoiaObjects)                                               (2004))  // gritukan
+    ((MoveSyncSuppressionFlagsToMulticellSyncExt)                   (2005))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

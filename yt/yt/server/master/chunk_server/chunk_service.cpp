@@ -32,6 +32,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/ytlib/object_client/helpers.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -417,7 +419,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
-        bool suppressUpstreamSync = request->suppress_upstream_sync();
+        // COMPAT(shakurov): remove the former.
+        auto suppressUpstreamSync =
+            request->suppress_upstream_sync() ||
+            GetSuppressUpstreamSync(context->RequestHeader());
 
         context->SetRequestInfo(
             "CreateChunkCount: %v, "

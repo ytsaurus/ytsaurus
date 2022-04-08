@@ -283,7 +283,8 @@ void TTransactionReplicationSessionWithoutBoomerangs::ConstructReplicationReques
 
 TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWithUpstream)
 {
-    auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, syncWithUpstream, InitiatorRequest_.RequestId);
+    auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, InitiatorRequest_.RequestId);
+    syncSession->SetSyncWithUpstream(syncWithUpstream);
     auto cellTags = GetCellTagsToSyncWithDuringInvocation();
     auto asyncResult = InvokeReplicationRequests();
     auto syncFuture = asyncResult
@@ -416,7 +417,8 @@ void TTransactionReplicationSessionWithBoomerangs::SetMutation(std::unique_ptr<T
 
 TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUpstream, const NRpc::IServiceContextPtr& context)
 {
-    auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, syncWithUpstream, InitiatorRequest_.RequestId);
+    auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, InitiatorRequest_.RequestId);
+    syncSession->SetSyncWithUpstream(syncWithUpstream);
     auto cellTags = GetCellTagsToSyncWithBeforeInvocation();
     auto syncFuture = syncSession->Sync(cellTags);
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);

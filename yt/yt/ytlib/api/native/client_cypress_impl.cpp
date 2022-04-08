@@ -1769,6 +1769,8 @@ private:
 
         auto batchReq = proxy->ExecuteBatch();
         NRpc::GenerateMutationId(batchReq);
+        SetSuppressUpstreamSync(&batchReq->Header(), true);
+        // COMPAT(shakurov): prefer proto ext (above).
         batchReq->set_suppress_upstream_sync(true);
 
         auto req = batchReq->add_attach_chunk_trees_subrequests();

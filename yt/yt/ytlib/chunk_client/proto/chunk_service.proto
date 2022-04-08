@@ -296,6 +296,7 @@ message TReqExecuteBatch
 
     repeated TAttachChunkTreesSubrequest attach_chunk_trees_subrequests = 6;
 
+    // COMPAT(shakurov): deprecated, use TMulticellSyncExt instead.
     optional bool suppress_upstream_sync = 7 [default = false];
 }
 

@@ -30,6 +30,30 @@ void AddCellTagToSyncWith(const IClientRequestPtr& request, TObjectId objectId)
     }
 }
 
+bool GetSuppressUpstreamSync(const NRpc::NProto::TRequestHeader& requestHeader)
+{
+    const auto& ext = requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+    return ext.suppress_upstream_sync();
+}
+
+bool GetSuppressTransactionCoordinatorSync(const NRpc::NProto::TRequestHeader& requestHeader)
+{
+    const auto& ext = requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+    return ext.suppress_transaction_coordinator_sync();
+}
+
+void SetSuppressUpstreamSync(NRpc::NProto::TRequestHeader* requestHeader, bool value)
+{
+    auto* ext = requestHeader->MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+    ext->set_suppress_upstream_sync(value);
+}
+
+void SetSuppressTransactionCoordinatorSync(NRpc::NProto::TRequestHeader* requestHeader, bool value)
+{
+    auto* ext = requestHeader->MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+    ext->set_suppress_transaction_coordinator_sync(value);
+}
+
 bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error)
 {
     return

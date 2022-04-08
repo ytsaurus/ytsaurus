@@ -229,7 +229,7 @@ public:
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
-        TSharedRefArray requestMessage,
+        const TSharedRefArray& requestMessage,
         TCellTag cellTag,
         EPeerKind peerKind);
 
@@ -1576,7 +1576,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
 }
 
 TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
-    TSharedRefArray requestMessage,
+    const TSharedRefArray& requestMessage,
     TCellTag cellTag,
     EPeerKind peerKind)
 {
@@ -1604,11 +1604,13 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
 
     auto identity = ParseAuthenticationIdentityFromProto(header);
 
+    auto forwardedRequestMessage = SetRequestHeader(requestMessage, header);
+
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
-    batchReq->AddRequestMessage(std::move(requestMessage));
+    batchReq->AddRequestMessage(std::move(forwardedRequestMessage));
     SetAuthenticationIdentity(batchReq, identity);
 
     YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, %v, Mutating: %v, "
@@ -2437,11 +2439,14 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 }
 
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
-    TSharedRefArray requestMessage,
+    const TSharedRefArray& requestMessage,
     TCellTag cellTag,
     EPeerKind peerKind)
 {
-    return Impl_->ForwardObjectRequest(std::move(requestMessage), cellTag, peerKind);
+    return Impl_->ForwardObjectRequest(
+        requestMessage,
+        cellTag,
+        peerKind);
 }
 
 void TObjectManager::ReplicateObjectCreationToSecondaryMaster(TObject* object, TCellTag cellTag)

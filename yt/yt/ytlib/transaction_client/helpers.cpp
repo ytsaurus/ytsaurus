@@ -50,8 +50,8 @@ void SetSuppressUpstreamSyncs(
     const TObjectServiceProxy::TReqExecuteBatchBasePtr& request,
     const TTransactionalOptions& options)
 {
-    request->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     request->SetSuppressUpstreamSync(options.SuppressUpstreamSync);
+    request->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
 }
 
 TTransactionId MakeTabletTransactionId(

@@ -215,8 +215,7 @@ public:
      */
     TFuture<void> Run(bool syncWithUpstream, const NRpc::IServiceContextPtr& context);
 
-    //! Returns a set of cells the caller must sync with either before
-    //! replication requests.
+    //! Returns a set of cells the caller must sync with before replication requests.
     /*!
      *  Since it's impossible to predict (or control) how fast a boomerang
      *  returns and its mutations applies, syncs must occur strictly before

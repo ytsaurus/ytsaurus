@@ -57,6 +57,8 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/yt/ytlib/object_client/helpers.h>
+
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_reader.h>
@@ -2425,6 +2427,8 @@ private:
         TChunkServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
         GenerateMutationId(batchReq);
+        SetSuppressUpstreamSync(&batchReq->Header(), true);
+        // COMPAT(shakurov): prefer proto ext (above).
         batchReq->set_suppress_upstream_sync(true);
 
         auto* req = batchReq->add_confirm_chunk_subrequests();

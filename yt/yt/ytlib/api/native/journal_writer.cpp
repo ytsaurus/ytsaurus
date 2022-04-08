@@ -668,11 +668,7 @@ private:
             {
                 TEventTimerGuard timingGuard(Counters_.CreateChunkTimer);
 
-                TChunkServiceProxy proxy(UploadMasterChannel_);
-
-                auto batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                batchReq->set_suppress_upstream_sync(true);
+                auto batchReq = CreateExecuteBatchRequest();
                 if (UseOverlayedChunks()) {
                     batchReq->RequireServerFeature(EMasterFeature::OverlayedJournals);
                 }
@@ -806,10 +802,7 @@ private:
             {
                 TEventTimerGuard timingGuard(Counters_.ConfirmChunkTimer);
 
-                TChunkServiceProxy proxy(UploadMasterChannel_);
-                auto batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                batchReq->set_suppress_upstream_sync(true);
+                auto batchReq = CreateExecuteBatchRequest();
 
                 YT_VERIFY(!replicas.empty());
                 YT_VERIFY(session->Nodes.size() == replicas.size());
@@ -854,10 +847,7 @@ private:
             {
                 TEventTimerGuard timingGuard(Counters_.AttachChunkTimer);
 
-                TChunkServiceProxy proxy(UploadMasterChannel_);
-                auto batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                batchReq->set_suppress_upstream_sync(true);
+                auto batchReq = CreateExecuteBatchRequest();
 
                 auto* req = batchReq->add_attach_chunk_trees_subrequests();
                 ToProto(req->mutable_parent_id(), ChunkListId_);
@@ -1149,12 +1139,7 @@ private:
                     sessionId,
                     session->QuorumFlushedRowCount);
 
-                TChunkServiceProxy proxy(UploadMasterChannel_);
-
-                auto batchReq = proxy.ExecuteBatch();
-                GenerateMutationId(batchReq);
-                batchReq->set_suppress_upstream_sync(true);
-
+                auto batchReq = CreateExecuteBatchRequest();
                 auto* req = batchReq->add_seal_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), sessionId.ChunkId);
                 req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
@@ -1833,12 +1818,7 @@ private:
                 return;
             }
 
-            TChunkServiceProxy proxy(UploadMasterChannel_);
-
-            auto batchReq = proxy.ExecuteBatch();
-            GenerateMutationId(batchReq);
-            batchReq->set_suppress_upstream_sync(true);
-
+            auto batchReq = CreateExecuteBatchRequest();
             std::vector<TSessionId> sessionIds;
             while (!IndexToChunkSessionToSeal_.empty() && IndexToChunkSessionToSeal_.begin()->first == FirstUnsealedSessionIndex_) {
                 ++FirstUnsealedSessionIndex_;
@@ -1898,6 +1878,19 @@ private:
         bool EnableChunkPreallocation() const
         {
             return Options_.EnableChunkPreallocation && !Config_->DontPreallocate;
+        }
+
+        TChunkServiceProxy::TReqExecuteBatchPtr CreateExecuteBatchRequest()
+        {
+            TChunkServiceProxy proxy(UploadMasterChannel_);
+
+            auto batchReq = proxy.ExecuteBatch();
+            GenerateMutationId(batchReq);
+            SetSuppressUpstreamSync(&batchReq->Header(), true);
+            // COMPAT(shakurov): prefer proto ext (above).
+            batchReq->set_suppress_upstream_sync(true);
+
+            return batchReq;
         }
     };
 

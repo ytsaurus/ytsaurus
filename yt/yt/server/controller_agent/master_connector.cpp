@@ -937,6 +937,8 @@ private:
         for (const auto& [cellTag, tableInfos] : externalCellTagToTableInfos) {
             auto batchReq = StartChunkBatchRequest(cellTag);
             GenerateMutationId(batchReq);
+            SetSuppressUpstreamSync(&batchReq->Header(), true);
+            // COMPAT(shakurov): prefer proto ext (above).
             batchReq->set_suppress_upstream_sync(true);
 
             std::vector<int> tableIndexToRspIndex;

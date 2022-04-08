@@ -211,7 +211,7 @@ public:
 
     //! Forwards an object request to a given cell.
     TFuture<TSharedRefArray> ForwardObjectRequest(
-        TSharedRefArray requestMessage,
+        const TSharedRefArray& requestMessage,
         TCellTag cellTag,
         NHydra::EPeerKind peerKind);
 
