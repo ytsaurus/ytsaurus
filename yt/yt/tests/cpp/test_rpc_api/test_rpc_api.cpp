@@ -198,26 +198,35 @@ TEST_F(TModifyRowsTest, TestAttachTabletTransaction)
     EXPECT_EQ(proxyAddress, GetStickyProxyAddress(transaction3));
     EXPECT_EQ(transaction->GetId(), transaction3->GetId());
 
-    // Concurrent writes.
-    WriteSimpleRow(transaction, 0, 10, /*sequenceNumber*/ std::nullopt);
-    WriteSimpleRow(transaction2, 1, 11, /*sequenceNumber*/ std::nullopt);
-    WriteSimpleRow(transaction, 2, 12, /*sequenceNumber*/ std::nullopt);
-    WriteSimpleRow(transaction2, 3, 13, /*sequenceNumber*/ std::nullopt);
+    // Independent writes from several sources.
+    std::vector<std::pair<i64, i64>> expectedContent;
 
-    WaitFor(transaction->Flush())
-        .ValueOrThrow();
+    for (int i = 0; i < 10; ++i) {
+        WriteSimpleRow(transaction, 0 + i, 10 + i, /*sequenceNumber*/ std::nullopt);
+        expectedContent.emplace_back(0 + i, 10 + i);
+        WriteSimpleRow(transaction2, 100 + i, 110 + i, /*sequenceNumber*/ std::nullopt);
+        expectedContent.emplace_back(100 + i, 110 + i);
+    }
+
+    // #FlushModifications as opposed to #Flush does not change the transaction state
+    // within RPC proxy allowing to send modifications from the second transaction after that.
+    WaitFor(transaction->As<NRpcProxy::TTransaction>()->FlushModifications())
+        .ThrowOnError();
+
+    for (int i = 0; i < 10; ++i) {
+        expectedContent.emplace_back(200 + i, 220 + i);
+        WriteSimpleRow(transaction2, 200 + i, 220 + i, /*sequenceNumber*/ std::nullopt);
+    }
+
+    // Double-flush.
+    EXPECT_THROW(WaitFor(transaction->As<NRpcProxy::TTransaction>()->FlushModifications()).ThrowOnError(), TErrorException);
 
     ValidateTableContent({});
 
     WaitFor(transaction2->Commit())
         .ValueOrThrow();
 
-    ValidateTableContent({
-        {0, 10},
-        {1, 11},
-        {2, 12},
-        {3, 13},
-    });
+    ValidateTableContent(expectedContent);
 
     // Double-commit.
     WriteSimpleRow(transaction3, 4, 14, /*sequenceNumber*/ std::nullopt);
