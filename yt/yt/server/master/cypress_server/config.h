@@ -73,6 +73,9 @@ public:
 
     double DefaultExternalCellBias;
 
+    // COMPAT(kvk1920)
+    bool EnableRevisionChangingForBuiltinAttributes;
+
     TDynamicCypressManagerConfig();
 };
 
