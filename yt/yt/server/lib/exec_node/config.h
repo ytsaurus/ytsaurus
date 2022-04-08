@@ -714,10 +714,16 @@ class TVolumeManagerDynamicConfig
 public:
     bool EnableAsyncLayerRemoval;
 
+    //! For testing.
+    std::optional<TDuration> DelayAfterLayerImported;
+
     TVolumeManagerDynamicConfig()
     {
         RegisterParameter("enable_async_layer_removal", EnableAsyncLayerRemoval)
             .Default(true);
+
+        RegisterParameter("delay_after_layer_imported", DelayAfterLayerImported)
+            .Default();
     }
 };
 

@@ -779,6 +779,10 @@ private:
 
             DoFinalizeLayerImport(layerMeta, tag);
 
+            if (auto delay = DynamicConfig_->GetConfig()->ExecNode->VolumeManager->DelayAfterLayerImported) {
+                TDelayedExecutor::WaitForDuration(*delay);
+            }
+
             return layerMeta;
         } catch (const std::exception& ex) {
             auto error = TError("Failed to import layer %v", id)
@@ -2025,7 +2029,8 @@ public:
 
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
-        return AllSucceeded(layerFutures)
+        return AllSucceeded(std::move(layerFutures))
+            .ToImmediatelyCancelable()
             .Apply(BIND(
                 &TPortoVolumeManager::CreateVolume,
                 MakeStrong(this),
