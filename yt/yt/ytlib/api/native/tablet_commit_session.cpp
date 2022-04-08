@@ -188,6 +188,7 @@ private:
             auto error = TError("Error sending transaction rows")
                 << TErrorAttribute("table_id", TableInfo_->TableId)
                 << TErrorAttribute("tablet_id", TabletInfo_->TabletId)
+                << TErrorAttribute("cell_id", TabletInfo_->CellId)
                 << rspOrError;
             YT_LOG_DEBUG(error);
             const auto& tableMountCache = Client_->GetTableMountCache();
