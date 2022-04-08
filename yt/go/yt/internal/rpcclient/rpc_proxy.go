@@ -91,7 +91,7 @@ func (b *ProxyBouncer) banProxy(call *Call, err error) {
 		return
 	}
 
-	b.Log.Debug("banning rpc proxy", log.String("fqdn", call.SelectedProxy))
+	b.Log.Debug("banning rpc proxy", log.String("fqdn", call.SelectedProxy), log.Error(err))
 	b.ProxySet.BanProxy(call.SelectedProxy)
 	b.ConnPool.Discard(call.SelectedProxy)
 }

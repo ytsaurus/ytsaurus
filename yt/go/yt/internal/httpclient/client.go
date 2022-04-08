@@ -680,7 +680,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.mutationRetrier = &internal.MutationRetrier{Log: client.log}
 	client.readRetrier = &internal.Retrier{Config: client.config, Log: client.log}
 	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
-	proxyBouncer := &internal.ProxyBouncer{ProxySet: client.proxySet}
+	proxyBouncer := &internal.ProxyBouncer{Log: client.log, ProxySet: client.proxySet}
 	errorWrapper := &internal.ErrorWrapper{}
 
 	client.Encoder.Invoke = client.Encoder.Invoke.
