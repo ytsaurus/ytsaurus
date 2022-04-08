@@ -16,6 +16,8 @@ DEFINE_ENUM(ETransactionState,
     (Committed)
     (Flushing)
     (Flushed)
+    (FlushingModifications)
+    (FlushedModifications)
     (Aborting)
     (Aborted)
     (Detached)
@@ -207,6 +209,15 @@ public:
     //! Empty for non-sticky transactions (e.g.: master) or
     //! if address resolution is not supported by the implementation.
     const TString& GetStickyProxyAddress() const;
+
+    //! Flushes all modifications to RPC proxy.
+    //!
+    //! In contrast to #Flush does not send #FlushTransaction request to RPC proxy and does not change
+    //! the state of the transaction within RPC proxy allowing to work with the transaction after the call
+    //! from a different transaction client.
+    //!
+    //! Useful for sending modifications to the same transaction from several different sources.
+    TFuture<void> FlushModifications();
 
 private:
     const TConnectionPtr Connection_;

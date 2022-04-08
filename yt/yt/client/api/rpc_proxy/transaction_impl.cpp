@@ -872,6 +872,7 @@ TFuture<void> TTransaction::SendPing()
                     auto guard = Guard(SpinLock_);
                     if (State_ != ETransactionState::Committed &&
                         State_ != ETransactionState::Flushed &&
+                        State_ != ETransactionState::FlushedModifications &&
                         State_ != ETransactionState::Aborted &&
                         State_ != ETransactionState::Detached)
                     {
@@ -936,6 +937,8 @@ bool TTransaction::IsPingableState()
         State_ == ETransactionState::Active ||
         State_ == ETransactionState::Flushing ||
         State_ == ETransactionState::Flushed ||
+        State_ == ETransactionState::FlushingModifications ||
+        State_ == ETransactionState::FlushedModifications ||
         State_ == ETransactionState::Committing;
 }
 
@@ -1003,6 +1006,55 @@ TTransactionStartOptions TTransaction::PatchTransactionId(const TTransactionStar
 const TString& TTransaction::GetStickyProxyAddress() const
 {
     return StickyProxyAddress_;
+}
+
+TFuture<void> TTransaction::FlushModifications()
+{
+    std::vector<TFuture<void>> futures;
+    {
+        auto guard = Guard(SpinLock_);
+
+        if (State_ != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Transaction %v is in %Qlv state",
+                GetId(),
+                State_);
+        }
+
+        if (!AlienTransactions_.empty()) {
+            return MakeFuture<void>(TError(
+                NTransactionClient::EErrorCode::AlienTransactionsForbidden,
+                "Cannot flush transaction %v modifications since it has %v alien transaction(s)",
+                GetId(),
+                AlienTransactions_.size()));
+        }
+
+        State_ = ETransactionState::FlushingModifications;
+        futures = FlushModifyRowsRequests();
+    }
+
+    YT_LOG_DEBUG("Flushing transaction modifications");
+
+    return AllSucceeded(futures)
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& rspOrError) {
+            {
+                auto guard = Guard(SpinLock_);
+                if (rspOrError.IsOK() && State_ == ETransactionState::FlushingModifications) {
+                    State_ = ETransactionState::FlushedModifications;
+                } else if (!rspOrError.IsOK()) {
+                    YT_LOG_DEBUG(rspOrError, "Error flushing transaction modifications");
+                    DoAbort(&guard);
+                    THROW_ERROR_EXCEPTION("Error flushing transaction %v modifications",
+                        GetId())
+                        << rspOrError;
+                }
+            }
+
+            YT_LOG_DEBUG("Transaction modifications flushed");
+
+            return TError();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
