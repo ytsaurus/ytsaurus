@@ -119,7 +119,7 @@ class Transaction(object):
         self._stack.init(get_command_param("transaction_id", self._client),
                          get_command_param("ping_ancestor_transactions", self._client))
         if self.transaction_id is None:
-            timeout = get_value(
+            timeout = time_option_to_milliseconds(get_value(
                 timeout,
                 max(
                     # Some legacy logic.
@@ -128,7 +128,7 @@ class Transaction(object):
                         time_option_to_milliseconds(get_config(client)["proxy"]["request_timeout"]),
                     ),
                     time_option_to_milliseconds(get_config(client)["transaction_timeout"]))
-            )
+            ))
             self.transaction_id = start_transaction(timeout=timeout,
                                                     deadline=deadline,
                                                     attributes=attributes,
