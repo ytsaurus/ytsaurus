@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/pprof/profile"
 
-	"a.yandex-team.ru/library/go/core/log"
+	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
@@ -35,11 +35,11 @@ type (
 		tableMetadata ypath.Path
 		yc            yt.Client
 
-		l log.Structured
+		l *logzap.Logger
 	}
 )
 
-func NewTableStorage(yc yt.Client, l log.Structured, path ypath.Path) *TableStorage {
+func NewTableStorage(yc yt.Client, path ypath.Path, l *logzap.Logger) *TableStorage {
 	p := new(TableStorage)
 	p.yc = yc
 	p.tableData = path.Child(ytprof.TableData)

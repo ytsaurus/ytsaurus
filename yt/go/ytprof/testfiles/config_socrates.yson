@@ -1,0 +1,21 @@
+{
+    "cluster" = "socrates";
+    "root" = "//home/kristevalex";
+    "services" = [
+        {
+            "service_type" = "node";
+            "period" = 300000000000;
+            "probability" = 1;
+            "path" = "ytprof/cpu";
+            "resolvers" = [
+                {
+                    "port" = 10012;
+                    "urls" = [
+                        "http://man0-1003-dat-exe-node-socrates.man-pre.yp-c.yandex.net"; 
+                        "http://man0-1014-dat-exe-node-socrates.man-pre.yp-c.yandex.net"
+                    ]
+                }
+            ]
+        }    
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "cluster" = "hume";
+    "root" = "//home/kristevalex";
+    "services" = [
+        {
+            "service_type" = "node";
+            "period" = 300000000000;
+            "probability" = 1;
+            "path" = "ytprof/cpu";
+            "resolvers" = [
+                {
+                    "port" = 10012;
+                    "urls" = [
+                        "http://sas3-4990-tablet-node-hume.man-pre.yp-c.yandex.net"; 
+                        "http://sas3-4992-node-hume.man-pre.yp-c.yandex.net"
+                    ]
+                }
+            ]
+        }    
+    ]
+}
