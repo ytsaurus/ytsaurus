@@ -105,9 +105,13 @@ struct ITransaction
 
     template <class TDerivedTransaction>
     TDerivedTransaction* As();
+    template <class TDerivedTransaction>
+    TDerivedTransaction* TryAs();
 
     template <class TDerivedTransaction>
     const TDerivedTransaction* As() const;
+    template <class TDerivedTransaction>
+    const TDerivedTransaction* TryAs() const;
 
     // Tables.
 
