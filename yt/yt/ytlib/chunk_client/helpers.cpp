@@ -239,6 +239,8 @@ TSessionId CreateChunk(
 
     auto batchReq = proxy.ExecuteBatch();
     GenerateMutationId(batchReq);
+    SetSuppressUpstreamSync(&batchReq->Header(), true);
+    // COMPAT(shakurov): prefer proto ext (above).
     batchReq->set_suppress_upstream_sync(true);
 
     auto* req = batchReq->add_create_chunk_subrequests();

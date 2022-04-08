@@ -333,7 +333,6 @@ public:
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(
             Bootstrap_,
-            !RpcContext_->Request().suppress_upstream_sync(),
             RequestId_))
           // Copy so it doesn't change mid-execution of this particular session.
         , EnableMutationBoomerangs_(Owner_->EnableMutationBoomerangs_)
@@ -493,6 +492,7 @@ private:
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
     TEphemeralObjectPtr<TUser> User_;
+    bool SuppressTransactionCoordinatorSync_ = false;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
 
@@ -538,8 +538,8 @@ private:
             "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v",
             TotalSubrequestCount_,
             request.supports_portals(),
-            request.suppress_upstream_sync(),
-            request.suppress_transaction_coordinator_sync(),
+            GetSuppressUpstreamSync(RpcContext_),
+            GetSuppressTransactionCoordinatorSync(RpcContext_),
             originalRequestId);
 
         if (TotalSubrequestCount_ == 0) {
@@ -571,6 +571,8 @@ private:
 
         auto now = NProfiling::GetInstant();
 
+        auto suppressUpstreamSync = GetSuppressUpstreamSync(RpcContext_);
+        auto suppressTransactionCoordinatorSync = GetSuppressTransactionCoordinatorSync(RpcContext_);
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -611,6 +613,12 @@ private:
             if (!requestHeader.has_start_time()) {
                 requestHeader.set_start_time(ToProto<ui64>(RpcContext_->GetStartTime().value_or(now)));
             }
+            if (GetSuppressUpstreamSync(RpcContext_)) {
+                SetSuppressUpstreamSync(&requestHeader, true);
+            }
+            if (GetSuppressTransactionCoordinatorSync(RpcContext_)) {
+                SetSuppressTransactionCoordinatorSync(&requestHeader, true);
+            }
 
             auto* ypathExt = requestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             subrequest.YPathExt = ypathExt;
@@ -618,6 +626,10 @@ private:
             subrequest.PrerequisitesExt = &requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
             subrequest.MulticellSyncExt = &requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+            suppressUpstreamSync = suppressUpstreamSync ||
+                subrequest.MulticellSyncExt->suppress_upstream_sync();
+            suppressTransactionCoordinatorSync = suppressTransactionCoordinatorSync ||
+                subrequest.MulticellSyncExt->suppress_transaction_coordinator_sync();
 
             // Store original path.
             if (!ypathExt->has_original_target_path()) {
@@ -641,6 +653,9 @@ private:
                 subrequest.ProfilingCounters->TotalReadRequestCounter.Increment();
             }
         }
+
+        CellSyncSession_->SetSyncWithUpstream(!suppressUpstreamSync);
+        SuppressTransactionCoordinatorSync_ = suppressTransactionCoordinatorSync;
     }
 
     void LookupCachedSubrequests()
@@ -731,10 +746,7 @@ private:
             }
         };
 
-        const auto& request = RpcContext_->Request();
-        auto suppressTransactionCoordinatorSync = request.suppress_transaction_coordinator_sync();
-
-        if (!suppressTransactionCoordinatorSync) {
+        if (!SuppressTransactionCoordinatorSync_) {
             switch (syncPhase) {
                 case ESyncPhase::One:
                 case ESyncPhase::Two:
@@ -752,6 +764,11 @@ private:
             }
         }
 
+        const auto& multicellExt = RpcContext_->RequestHeader().GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        for (auto cellTag : multicellExt.cell_tags_to_sync_with()) {
+            addCellTagToSyncWith(cellTag);
+        }
+
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             const auto& subrequest = Subrequests_[subrequestIndex];
             if (subrequest.Type == EExecutionSessionSubrequestType::Undefined && subrequest.TentativelyRemote) {
@@ -765,7 +782,7 @@ private:
                 continue;
             }
 
-            if (!suppressTransactionCoordinatorSync && subrequest.RemoteTransactionReplicationSession) {
+            if (!SuppressTransactionCoordinatorSync_ && subrequest.RemoteTransactionReplicationSession) {
                 addCellTagsToSyncWith(
                     subrequest.RemoteTransactionReplicationSession->GetCellTagsToSyncWithBeforeInvocation());
             }
@@ -1243,13 +1260,9 @@ private:
                 const auto& cellDirectory = Bootstrap_->GetCellDirectory();
                 auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
 
-                const auto& request = RpcContext_->Request();
-
                 TObjectServiceProxy proxy(std::move(channel));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
-                batchReq->SetSuppressUpstreamSync(request.suppress_upstream_sync());
-                batchReq->SetSuppressTransactionCoordinatorSync(request.suppress_transaction_coordinator_sync());
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
                 NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
 
@@ -2147,6 +2160,22 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return TCodicilGuard(CodicilData_);
+    }
+
+    static bool GetSuppressUpstreamSync(const TCtxExecutePtr& rpcContext)
+    {
+        // COMPAT(shakurov): remove the former.
+        return
+            rpcContext->Request().suppress_upstream_sync() ||
+            NObjectClient::GetSuppressUpstreamSync(rpcContext->RequestHeader());
+    }
+
+    static bool GetSuppressTransactionCoordinatorSync(const TCtxExecutePtr& rpcContext)
+    {
+        // COMPAT(shakurov): remove the former.
+        return
+            rpcContext->Request().suppress_transaction_coordinator_sync() ||
+            NObjectClient::GetSuppressTransactionCoordinatorSync(rpcContext->RequestHeader());
     }
 };
 

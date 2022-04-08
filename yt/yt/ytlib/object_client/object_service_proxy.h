@@ -215,6 +215,7 @@ public:
         bool IsSubresponseUncertain(int index) const;
         bool IsSubresponseReceived(int index) const;
         void SetBalancingHeader();
+        void SetMulticellSyncHeader();
 
         TRspExecuteBatchPtr GetFullResponse();
 

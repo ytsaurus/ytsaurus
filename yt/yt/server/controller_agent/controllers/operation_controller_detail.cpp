@@ -2663,6 +2663,8 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 if (!batchReq) {
                     batchReq = proxy.ExecuteBatch();
                     GenerateMutationId(batchReq);
+                    SetSuppressUpstreamSync(&batchReq->Header(), true);
+                    // COMPAT(shakurov): prefer proto ext (above).
                     batchReq->set_suppress_upstream_sync(true);
                 }
                 req = batchReq->add_attach_chunk_trees_subrequests();

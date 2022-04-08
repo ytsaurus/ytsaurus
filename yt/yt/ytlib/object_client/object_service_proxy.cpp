@@ -103,8 +103,11 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeHeaderless() 
     if (OriginalRequestId_) {
         ToProto(req.mutable_original_request_id(), OriginalRequestId_);
     }
+
+    // COMPAT(shakurov): remove in favor of proto ext (see SetMulticellSyncHeader).
     req.set_suppress_upstream_sync(SuppressUpstreamSync_);
     req.set_suppress_transaction_coordinator_sync(SuppressTransactionCoordinatorSync_);
+
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
 
@@ -414,6 +417,12 @@ void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
         stickyGroupSize = std::max(stickyGroupSize, *advisedStickyGroupSize);
     }
     balancingHeaderExt->set_sticky_group_size(stickyGroupSize);
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::SetMulticellSyncHeader()
+{
+    NObjectClient::SetSuppressUpstreamSync(&Header(), SuppressUpstreamSync_);
+    NObjectClient::SetSuppressTransactionCoordinatorSync(&Header(), SuppressTransactionCoordinatorSync_);
 }
 
 std::optional<int> TObjectServiceProxy::TReqExecuteBatch::GetAdvisedStickyGroupSize() const
@@ -844,7 +853,7 @@ TObjectServiceProxy::ExecuteBatchWithRetriesInParallel(
 {
     YT_VERIFY(maxParallelSubbatchCount > 0);
     std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs;
-    for (int i = 0; i < maxParallelSubbatchCount; ++i) {    
+    for (int i = 0; i < maxParallelSubbatchCount; ++i) {
         auto batchReq = ExecuteBatchWithRetries(
             config,
             needRetry,
@@ -888,7 +897,7 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::Invoke()
     for (auto& parallelReq : ParallelReqs_) {
         parallelReqFutures.push_back(parallelReq->Invoke());
     }
-    
+
     return AllSucceeded(std::move(parallelReqFutures)).Apply(
         BIND(&TReqExecuteBatchWithRetriesInParallel::OnParallelResponses, MakeStrong(this)));
 }
@@ -926,8 +935,6 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::OnParallelResponses(
     fullResponse->SetPromise({});
     return fullResponse;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class TBatchReqPtr>
 void TObjectServiceProxy::PrepareBatchRequest(const TBatchReqPtr& batchReq)

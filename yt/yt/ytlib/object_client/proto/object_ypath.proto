@@ -38,6 +38,14 @@ message TMulticellSyncExt
     }
 
     repeated int32 cell_tags_to_sync_with = 1;
+
+    // If |true|, the master responding to the query will make no attempt to
+    // synchronize its state with the upstream servers.
+    optional bool suppress_upstream_sync = 2 [default = false];
+
+    // If |true|, the master responding to the query will make no attempt to
+    // synchronize its state with transaction coordinator servers.
+    optional bool suppress_transaction_coordinator_sync = 3 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

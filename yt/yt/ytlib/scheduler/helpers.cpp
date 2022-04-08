@@ -519,6 +519,8 @@ void SaveJobFiles(
     for (const auto& [externalCellTag, files] : externalCellTagToFiles) {
         TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, externalCellTag));
         auto batchReq = proxy.ExecuteBatch();
+        SetSuppressUpstreamSync(&batchReq->Header(), true);
+        // COMPAT(shakurov): prefer proto ext (above).
         batchReq->set_suppress_upstream_sync(true);
         GenerateMutationId(batchReq);
 

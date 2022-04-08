@@ -29,6 +29,8 @@
 
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
+#include <yt/yt/ytlib/object_client/helpers.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -152,6 +154,8 @@ public:
 
         auto batchReq = proxy.ExecuteBatch();
         GenerateMutationId(batchReq);
+        SetSuppressUpstreamSync(&batchReq->Header(), true);
+        // COMPAT(shakurov): prefer proto ext (above).
         batchReq->set_suppress_upstream_sync(true);
 
         auto* req = batchReq->add_attach_chunk_trees_subrequests();
@@ -795,6 +799,8 @@ private:
 
         auto batchReq = proxy.ExecuteBatch();
         GenerateMutationId(batchReq);
+        SetSuppressUpstreamSync(&batchReq->Header(), true);
+        // COMPAT(shakurov): prefer proto ext (above).
         batchReq->set_suppress_upstream_sync(true);
 
         auto* req = batchReq->add_confirm_chunk_subrequests();
