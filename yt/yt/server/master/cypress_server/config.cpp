@@ -79,6 +79,10 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
     RegisterParameter("default_external_cell_bias", DefaultExternalCellBias)
         .Default(1.0)
         .DontSerializeDefault();
+
+    RegisterParameter("enable_revision_changing_for_builtin_attributes", EnableRevisionChangingForBuiltinAttributes)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
