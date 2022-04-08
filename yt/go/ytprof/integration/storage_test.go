@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 	"a.yandex-team.ru/yt/go/yttest"
@@ -66,7 +67,10 @@ func TestDataAndMetadataTablesSmall(t *testing.T) {
 
 	tmpPath := env.TmpPath()
 	_ = env
-	ts := storage.NewTableStorage(env.YT, env.L, tmpPath)
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	ts := storage.NewTableStorage(env.YT, tmpPath, l)
 	_ = ts
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
@@ -76,7 +80,11 @@ func TestDataAndMetadataTables(t *testing.T) {
 	env := yttest.New(t)
 
 	tmpPath := env.TmpPath()
-	tsData := storage.NewTableStorage(env.YT, env.L, tmpPath)
+
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	tsData := storage.NewTableStorage(env.YT, tmpPath, l)
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
@@ -98,7 +106,11 @@ func TestDataExpr(t *testing.T) {
 	env := yttest.New(t)
 
 	tmpPath := env.TmpPath()
-	tsData := storage.NewTableStorage(env.YT, env.L, tmpPath)
+
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	tsData := storage.NewTableStorage(env.YT, tmpPath, l)
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
@@ -121,7 +133,11 @@ func TestMetadataIdsQuery(t *testing.T) {
 
 	tmpPath := env.TmpPath()
 	dataPath := tmpPath
-	tsData := storage.NewTableStorage(env.YT, env.L, dataPath)
+
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	tsData := storage.NewTableStorage(env.YT, dataPath, l)
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
@@ -140,11 +156,14 @@ func TestMetadataIdsQuery(t *testing.T) {
 func TestMetadataQuery(t *testing.T) {
 	env := yttest.New(t)
 
-	tmpPath := env.TmpPath()
-	dataPath := tmpPath
-	tsData := storage.NewTableStorage(env.YT, env.L, dataPath)
+	dataPath := env.TmpPath()
 
-	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	tsData := storage.NewTableStorage(env.YT, dataPath, l)
+
+	require.NoError(t, ytprof.MigrateTables(env.YT, dataPath))
 
 	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, env.Ctx))
 

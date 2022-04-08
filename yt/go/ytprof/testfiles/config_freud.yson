@@ -1,0 +1,25 @@
+{
+    "cluster" = "freud";
+    "table_path" = "//home/kristevalex/ytprof";
+    "services" = [
+        {
+            "service_type" = "node";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
+            "resolvers" = [
+                {
+                    "port" = 10012;
+                    "urls" = [
+                        "http://man3-1953-node-freud.man.yp-c.yandex.net"; 
+                        "http://man3-1954-node-freud.man.yp-c.yandex.net"; 
+                        "http://man3-1955-node-freud.man.yp-c.yandex.net"; 
+                        "http://man3-1956-node-freud.man.yp-c.yandex.net"; 
+                        "http://man3-1957-node-freud.man.yp-c.yandex.net"; 
+                        "http://man3-1958-node-freud.man.yp-c.yandex.net"
+                    ]
+                }
+            ]
+        }    
+    ]
+}
