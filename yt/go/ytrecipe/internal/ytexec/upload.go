@@ -6,12 +6,15 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/jobfs"
@@ -19,18 +22,26 @@ import (
 )
 
 func (e *Exec) basicUploadFile(ctx context.Context, path, tmpPath ypath.Path, do func(w io.Writer) error) error {
-	ok, err := e.yc.NodeExists(ctx, path, &yt.NodeExistsOptions{
+	var expirationTime yson.Time
+	err := e.yc.GetNode(ctx, path.Attr("expiration_time"), &expirationTime, &yt.GetNodeOptions{
 		MasterReadOptions: &yt.MasterReadOptions{ReadFrom: yt.ReadFromCache},
 	})
-	if err != nil {
+
+	if err != nil && !yterrors.ContainsResolveError(err) {
 		return err
 	}
 
-	if ok {
+	if err == nil && time.Until(time.Time(expirationTime)) > expirationDelay {
 		return nil
 	}
 
-	_, err = e.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+	expiresAt := time.Now().Add(e.config.Operation.BlobTTL)
+	_, err = e.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{
+		Recursive: true,
+		Attributes: map[string]interface{}{
+			"expiration_time": yson.Time(expiresAt),
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -49,7 +60,12 @@ func (e *Exec) basicUploadFile(ctx context.Context, path, tmpPath ypath.Path, do
 		return err
 	}
 
-	_, err = e.yc.MoveNode(ctx, tmpPath, path, &yt.MoveNodeOptions{Recursive: true, Force: true})
+	_, err = e.yc.MoveNode(ctx, tmpPath, path, &yt.MoveNodeOptions{
+		Recursive:              true,
+		Force:                  true,
+		PreserveExpirationTime: ptr.Bool(true),
+	})
+
 	return err
 }
 
