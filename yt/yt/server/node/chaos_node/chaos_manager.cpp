@@ -826,14 +826,23 @@ private:
 
     void PeriodicCurrentTimestampPropagation(void)
     {
+        if (!IsLeader()) {
+            return;
+        }
+
         Slot_->GetTimestampProvider()->GenerateTimestamps()
             .Subscribe(BIND(
                 &TChaosManager::OnCurrentTimestampPropagationGenerated,
-                MakeWeak(this)));
+                MakeWeak(this))
+                .Via(AutomatonInvoker_));
     }
 
     void OnCurrentTimestampPropagationGenerated(const TErrorOr<TTimestamp>& timestampOrError)
     {
+        if (!IsLeader()) {
+            return;
+        }
+
         if (!timestampOrError.IsOK()) {
             YT_LOG_DEBUG(timestampOrError, "Error generating new current timestamp");
             return;
@@ -914,6 +923,10 @@ private:
         TReplicationEra era,
         const TErrorOr<TTimestamp>& timestampOrError)
     {
+        if (!IsLeader()) {
+            return;
+        }
+
         if (!timestampOrError.IsOK()) {
             YT_LOG_DEBUG(timestampOrError, "Error generating new era timestamp (ReplicationCardId: %v, Era: %v)",
                 replicationCardId,
