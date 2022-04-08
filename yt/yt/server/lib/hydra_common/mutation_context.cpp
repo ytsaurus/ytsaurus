@@ -10,7 +10,7 @@ namespace NYT::NHydra {
 
 TMutationContext::TMutationContext(
     TMutationContext* parent,
-    const TMutationRequest& request)
+    const TMutationRequest* request)
     : THydraContext(*parent)
     , Parent_(parent)
     , Request_(request)
@@ -21,7 +21,7 @@ TMutationContext::TMutationContext(
 
 TMutationContext::TMutationContext(
     TVersion version,
-    const TMutationRequest& request,
+    const TMutationRequest* request,
     TInstant timestamp,
     ui64 randomSeed,
     ui64 prevRandomSeed,
@@ -31,7 +31,7 @@ TMutationContext::TMutationContext(
         version,
         timestamp,
         randomSeed,
-        request.Reign)
+        request->Reign)
     , Parent_(nullptr)
     , Request_(request)
     , PrevRandomSeed_(prevRandomSeed)
@@ -41,7 +41,7 @@ TMutationContext::TMutationContext(
 
 const TMutationRequest& TMutationContext::Request() const
 {
-    return Request_;
+    return *Request_;
 }
 
 ui64 TMutationContext::GetPrevRandomSeed() const

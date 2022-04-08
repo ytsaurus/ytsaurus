@@ -877,7 +877,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
     TMutationContext mutationContext(
         AutomatonVersion_,
-        request,
+        &request,
         FromProto<TInstant>(header.timestamp()),
         header.random_seed(),
         header.prev_random_seed(),
@@ -974,7 +974,7 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
 
     TMutationContext mutationContext(
         AutomatonVersion_,
-        mutation->Request,
+        &mutation->Request,
         mutation->Timestamp,
         mutation->RandomSeed,
         mutation->PrevRandomSeed,

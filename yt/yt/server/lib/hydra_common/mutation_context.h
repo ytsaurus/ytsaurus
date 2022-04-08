@@ -50,11 +50,11 @@ class TMutationContext
 public:
     TMutationContext(
         TMutationContext* parent,
-        const TMutationRequest& request);
+        const TMutationRequest* request);
 
     TMutationContext(
         TVersion version,
-        const TMutationRequest& request,
+        const TMutationRequest* request,
         TInstant timestamp,
         ui64 randomSeed,
         ui64 prevRandomSeed,
@@ -77,7 +77,7 @@ public:
 
 private:
     TMutationContext* const Parent_;
-    const TMutationRequest& Request_;
+    const TMutationRequest* const Request_;
 
     TSharedRefArray ResponseData_;
     ui64 PrevRandomSeed_;

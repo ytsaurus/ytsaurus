@@ -1487,12 +1487,13 @@ private:
 
     void ApplyMessage(const TEncapsulatedMessage& message)
     {
-        TMutationRequest request;
-        request.Reign = GetCurrentMutationContext()->Request().Reign;
-        request.Type = message.type();
-        request.Data = TSharedRef::FromString(message.data());
+        TMutationRequest request{
+            .Reign = GetCurrentMutationContext()->Request().Reign,
+            .Type = message.type(),
+            .Data = TSharedRef::FromString(message.data())
+        };
 
-        TMutationContext mutationContext(GetCurrentMutationContext(), request);
+        TMutationContext mutationContext(GetCurrentMutationContext(), &request);
         TMutationContextGuard mutationContextGuard(&mutationContext);
 
         THiveMutationGuard hiveMutationGuard;

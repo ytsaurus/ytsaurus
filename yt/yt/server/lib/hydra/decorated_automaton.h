@@ -210,13 +210,13 @@ public:
     {
         TPendingMutation(
             TVersion version,
-            TMutationRequest&& request,
+            std::unique_ptr<TMutationRequest> request,
             TInstant timestamp,
             ui64 randomSeed,
             ui64 prevRandomSeed,
             i64 sequenceNumber)
             : Version(version)
-            , Request(request)
+            , Request(std::move(request))
             , Timestamp(timestamp)
             , RandomSeed(randomSeed)
             , PrevRandomSeed(prevRandomSeed)
@@ -224,7 +224,7 @@ public:
         { }
 
         TVersion Version;
-        TMutationRequest Request;
+        std::unique_ptr<TMutationRequest> Request;
         TInstant Timestamp;
         ui64 RandomSeed;
         ui64 PrevRandomSeed;
@@ -234,7 +234,7 @@ public:
 
     const TPendingMutation& LogLeaderMutation(
         TInstant timestamp,
-        TMutationRequest&& request,
+        std::unique_ptr<TMutationRequest> request,
         TSharedRef* recordData,
         TFuture<void>* localFlushFuture);
     const TPendingMutation& LogFollowerMutation(

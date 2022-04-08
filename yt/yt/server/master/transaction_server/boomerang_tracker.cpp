@@ -226,16 +226,16 @@ void TBoomerangTracker::RemoveBoomerangWave(TBoomerangWaveId waveId)
 
 void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* request)
 {
-    TMutationRequest mutationRequest;
-    auto reign = GetCurrentMutationContext()->Request().Reign;
-    mutationRequest.Reign = reign;
-    mutationRequest.MutationId = FromProto<TMutationId>(request->boomerang_mutation_id());
-    mutationRequest.Type = request->boomerang_mutation_type();
-    mutationRequest.Data = TSharedRef::FromString(request->boomerang_mutation_data());
+    TMutationRequest mutationRequest{
+        .Reign = GetCurrentMutationContext()->Request().Reign,
+        .Type = request->boomerang_mutation_type(),
+        .Data = TSharedRef::FromString(request->boomerang_mutation_data()),
+        .MutationId = FromProto<TMutationId>(request->boomerang_mutation_id())
+    };
 
     // TODO(shakurov): use mutation idempotizer.
 
-    TMutationContext mutationContext(GetCurrentMutationContext(), mutationRequest);
+    TMutationContext mutationContext(GetCurrentMutationContext(), &mutationRequest);
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
 
     {
@@ -245,9 +245,8 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
         StaticPointerCast<IAutomaton>(automaton)->ApplyMutation(&mutationContext);
     }
 
-    const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-
     if (!mutationContext.GetResponseKeeperSuppressed()) {
+        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
         responseKeeper->EndRequest(
             mutationRequest.MutationId,
             mutationContext.GetResponseData());

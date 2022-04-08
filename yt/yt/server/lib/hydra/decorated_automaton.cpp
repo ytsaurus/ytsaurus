@@ -889,7 +889,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
     TMutationContext mutationContext(
         AutomatonVersion_,
-        request,
+        &request,
         FromProto<TInstant>(header.timestamp()),
         header.random_seed(),
         header.prev_random_seed(),
@@ -901,7 +901,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
 
 const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutation(
     TInstant timestamp,
-    TMutationRequest&& request,
+    std::unique_ptr<TMutationRequest> request,
     TSharedRef* recordData,
     TFuture<void>* localFlushFuture)
 {
@@ -921,19 +921,19 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutat
         GetLastLoggedSequenceNumber() + 1);
 
     MutationHeader_.Clear(); // don't forget to cleanup the pooled instance
-    MutationHeader_.set_reign(pendingMutation.Request.Reign);
-    MutationHeader_.set_mutation_type(pendingMutation.Request.Type);
+    MutationHeader_.set_reign(pendingMutation.Request->Reign);
+    MutationHeader_.set_mutation_type(pendingMutation.Request->Type);
     MutationHeader_.set_timestamp(pendingMutation.Timestamp.GetValue());
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
     MutationHeader_.set_prev_random_seed(pendingMutation.PrevRandomSeed);
     MutationHeader_.set_sequence_number(pendingMutation.SequenceNumber);
-    if (pendingMutation.Request.MutationId) {
-        ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request.MutationId);
+    if (pendingMutation.Request->MutationId) {
+        ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request->MutationId);
     }
 
-    *recordData = SerializeMutationRecord(MutationHeader_, pendingMutation.Request.Data);
+    *recordData = SerializeMutationRecord(MutationHeader_, pendingMutation.Request->Data);
     *localFlushFuture = Changelog_->Append({*recordData});
 
     auto newLoggedVersion = version.Advance();
@@ -980,11 +980,11 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMut
 
     auto version = LoggedVersion_.load();
 
-    TMutationRequest request;
-    request.Reign = MutationHeader_.reign();
-    request.Type = std::move(*MutationHeader_.mutable_mutation_type());
-    request.Data = std::move(mutationData);
-    request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
+    auto request = std::make_unique<TMutationRequest>();
+    request->Reign = MutationHeader_.reign();
+    request->Type = std::move(*MutationHeader_.mutable_mutation_type());
+    request->Data = std::move(mutationData);
+    request->MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
 
     const auto& pendingMutation = PendingMutations_.emplace(
         version,
@@ -1159,12 +1159,15 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 
         RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
-        // Cf. YT-6908; see below.
+        // Cannot access #pendingMutation after the handler has been invoked since the latter
+        // could submit more mutations and cause #PendingMutations_ to be reallocated.
+        // So we'd better make the needed copies right away.
+        // Cf. YT-6908.
         auto commitPromise = pendingMutation.LocalCommitPromise;
 
         TMutationContext mutationContext(
             AutomatonVersion_,
-            pendingMutation.Request,
+            pendingMutation.Request.get(),
             pendingMutation.Timestamp,
             pendingMutation.RandomSeed,
             pendingMutation.PrevRandomSeed,
@@ -1172,10 +1175,11 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
             StateHash_);
 
         {
-            NTracing::TTraceContextGuard traceContextGuard(pendingMutation.Request.TraceContext);
-
+            NTracing::TTraceContextGuard traceContextGuard(mutationContext.Request().TraceContext);
             DoApplyMutation(&mutationContext);
         }
+
+        PendingMutations_.pop();
 
         if (commitPromise) {
             commitPromise.Set(TMutationResponse{
@@ -1183,8 +1187,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 mutationContext.GetResponseData()
             });
         }
-
-        PendingMutations_.pop();
 
         MaybeStartSnapshotBuilder();
 
@@ -1233,13 +1235,6 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
 
     auto automatonVersion = GetAutomatonVersion();
 
-    // Cannot access the request after the handler has been invoked since the latter
-    // could submit more mutations and cause #PendingMutations_ to be reallocated.
-    // So we'd better make the needed copies right away.
-    // Cf. YT-6908.
-    const auto& request = mutationContext->Request();
-    auto mutationId = request.MutationId;
-
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
         Automaton_->ApplyMutation(mutationContext);
@@ -1250,6 +1245,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext)
 
     Timestamp_ = mutationContext->GetTimestamp();
 
+    auto mutationId = mutationContext->Request().MutationId;
     if (Options_.ResponseKeeper &&
         mutationId &&
         !mutationContext->GetResponseKeeperSuppressed() &&
