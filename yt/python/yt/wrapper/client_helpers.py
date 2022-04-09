@@ -1,4 +1,4 @@
-from .common import update
+from .common import update, get_arg_spec
 from .default_config import get_default_config
 
 from yt.packages.decorator import FunctionMaker
@@ -56,10 +56,7 @@ def create_class_method(func):
         func = func.__dict__["__init__"]
         is_class = True
 
-    if PY3:
-        arg_spec = inspect.getfullargspec(func)
-    else:
-        arg_spec = inspect.getargspec(func)
+    arg_spec = get_arg_spec(func)
     arg_names = arg_spec.args
 
     if "client" in arg_names:
@@ -93,12 +90,6 @@ def create_class_method(func):
         argspec_transformer=lambda args: fix_argspec(args, is_class))
 
 def are_signatures_equal(lhs, rhs):
-    def get_arg_spec(func):
-        if PY3:
-            return inspect.getfullargspec(func)
-        else:
-            return inspect.getargspec(func)
-
     return get_arg_spec(lhs) == get_arg_spec(rhs)
 
 def initialize_client(client, proxy, token, config):

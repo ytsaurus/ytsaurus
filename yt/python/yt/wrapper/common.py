@@ -15,6 +15,7 @@ except ImportError:
 import argparse
 import collections
 import getpass
+import inspect
 import os
 import platform
 import random
@@ -587,3 +588,10 @@ def load_certificate(path=None):
         return library.python.resource.find("/yt/YandexInternalRootCA.crt")
 
     return os.path.join(os.path.dirname(__file__), "YandexInternalRootCA.crt")
+
+
+def get_arg_spec(func):
+    if PY3:
+        return inspect.getfullargspec(func)
+    else:
+        return inspect.getargspec(func)

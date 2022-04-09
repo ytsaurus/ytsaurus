@@ -1,4 +1,4 @@
-from .common import YtError, total_seconds
+from .common import YtError, total_seconds, get_arg_spec
 from .errors import YtRetriableError, YtResponseError
 from yt import logger as yt_logger
 
@@ -25,7 +25,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
 
         def except_action(self, exception, attempt):
             if except_action:
-                if len(inspect.getargspec(except_action).args) == 0:
+                if len(get_arg_spec(except_action).args) == 0:
                     except_action()
                 else:
                     except_action(exception)
