@@ -1196,6 +1196,14 @@ void TDecoratedAutomaton::CancelSnapshot(const TError& error)
 
 void TDecoratedAutomaton::StopEpoch()
 {
+    auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+
+    if (Options_.ResponseKeeper) {
+        Options_.ResponseKeeper->CancelPendingRequests(error);
+    }
+
+    CancelSnapshot(error);
+
     EpochContext_.Store(nullptr);
 }
 
