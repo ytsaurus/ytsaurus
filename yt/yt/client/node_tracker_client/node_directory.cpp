@@ -172,25 +172,13 @@ void TNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Addresses_);
+    Persist(context, Host_);
+    Persist(context, Rack_);
+    Persist(context, DataCenter_);
+
     if (context.IsLoad()) {
         DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(Addresses_);
     }
-
-    // COMPAT(gritukan)
-    bool isMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 3000;
-    bool isOldMasterReign = context.GetVersion() >= 1400 && context.GetVersion() < 1808;
-    bool isControllerAgentSnapshotVersion = context.GetVersion() >= 300000 && context.GetVersion() <= 302000;
-    bool isOldControllerAgentSnapshotVersion = context.GetVersion() >= 300000 && context.GetVersion() < 300701;
-
-    // This code should be executed only at masters and controller agents.
-    YT_VERIFY(isMasterReign || isControllerAgentSnapshotVersion);
-
-    if (context.IsSave() || (context.IsLoad() && !isOldMasterReign && !isOldControllerAgentSnapshotVersion)) {
-        Persist(context, Host_);
-    }
-
-    Persist(context, Rack_);
-    Persist(context, DataCenter_);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor, TStringBuf /*spec*/)
