@@ -720,21 +720,17 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
 {
     TChunkOwnerBase::CheckInvariants(bootstrap);
 
-    auto* chunkList = GetChunkList();
-    if (GetDynamic()) {
-        if (IsPhysicallySorted()) {
-            if (IsObjectAlive(chunkList)) {
+    // TODO(gritukan): extend this to non-trunk nodes.
+    if (auto* chunkList = GetChunkList(); IsObjectAlive(chunkList) && IsTrunk()) {
+        if (GetDynamic()) {
+            if (IsPhysicallySorted()) {
                 YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
-            }
-        } else {
-            // Ordered dynamic table.
-            if (IsObjectAlive(chunkList)) {
+            } else {
+                // Ordered dynamic table.
                 YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot);
             }
-        }
-    } else {
-        // Static table.
-        if (IsObjectAlive(chunkList)) {
+        } else {
+            // Static table.
             YT_VERIFY(chunkList->GetKind() == EChunkListKind::Static);
         }
     }
