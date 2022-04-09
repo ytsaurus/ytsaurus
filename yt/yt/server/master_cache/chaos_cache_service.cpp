@@ -58,8 +58,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         : InvalidReplicationEra;
 
     context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v, RefreshEra: %v",
-        fetchOptions,
         replicationCardId,
+        fetchOptions,
         refreshEra);
 
     TGetReplicationCardOptions getCardOptions;
