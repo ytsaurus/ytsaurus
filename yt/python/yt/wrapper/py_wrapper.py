@@ -4,7 +4,7 @@ from . import config
 from .config import get_config
 from .pickling import Pickler
 from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
-                     get_disk_size, is_arcadia_python)
+                     get_disk_size, is_arcadia_python, get_arg_spec)
 from .file_commands import LocalFile
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -398,10 +398,10 @@ def create_modules_archive(tempfiles_manager, custom_python_used, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
     if create_modules_archive_function is not None:
         if inspect.isfunction(create_modules_archive_function):
-            args_spec = inspect.getargspec(create_modules_archive_function)
+            args_spec = get_arg_spec(create_modules_archive_function)
             args_count = len(args_spec.args)
         elif hasattr(create_modules_archive_function, "__call__"):
-            args_spec = inspect.getargspec(create_modules_archive_function.__call__)
+            args_spec = get_arg_spec(create_modules_archive_function.__call__)
             args_count = len(args_spec.args) - 1
         else:
             raise YtError("Cannot determine whether create_modules_archive_function callable or not")
@@ -700,7 +700,7 @@ def raw_io(func):
 def with_context(func):
     """Decorates function to run with control attributes argument."""
     callable = _get_callable_func(func)
-    if "context" not in inspect.getargspec(callable)[0]:
+    if "context" not in get_arg_spec(callable).args:
         raise TypeError('Decorator "with_context" applied to function {0} that has no argument "context"'
                         .format(func.__name__))
     return _set_attribute(func, "with_context", True)
@@ -708,11 +708,11 @@ def with_context(func):
 def with_skiff_schemas(func):
     """Mark python function as skiff-compatible."""
     callable = _get_callable_func(func)
-    if "skiff_input_schemas" not in inspect.getargspec(callable)[0]:
+    if "skiff_input_schemas" not in get_arg_spec(callable).args:
         raise TypeError(
             'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_input_schemas"'
             .format(func.__name__))
-    if "skiff_output_schemas" not in inspect.getargspec(callable)[0]:
+    if "skiff_output_schemas" not in get_arg_spec(callable).args:
         raise TypeError(
             'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_output_schemas"'
             .format(func.__name__))
