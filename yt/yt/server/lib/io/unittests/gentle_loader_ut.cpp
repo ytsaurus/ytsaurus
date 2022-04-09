@@ -369,7 +369,7 @@ TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
     EXPECT_LE(lastResult.IOPS, 10);
 }
 
-TEST_F(TGentleLoaderTest, TestWriteLimmit)
+TEST_F(TGentleLoaderTest, TestWriteLimit)
 {
     GentleLoaderConfig_->MaxWriteRate = GentleLoaderConfig_->PacketSize * 100;
     GentleLoaderConfig_->DefaultReadToWriteRatio =  50; // only writes
