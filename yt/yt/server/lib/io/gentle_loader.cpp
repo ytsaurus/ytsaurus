@@ -856,12 +856,12 @@ private:
 
     TFuture<TDuration> SendWriteRequest(TRandomWriter& writer, i64 desiredWriteIOPS)
     {
-        // Respect max write limmit.
+        // Respect max write limit.
         i64 maxWriteIOPS = Config_->MaxWriteRate / Config_->PacketSize;
         YT_VERIFY(maxWriteIOPS >= 0);
         desiredWriteIOPS = std::max<i64>(desiredWriteIOPS, 1);
         if (RandomNumber<double>() > static_cast<double>(maxWriteIOPS) / desiredWriteIOPS) {
-            // Skip because we are exceeding write limmit.
+            // Skip because we are exceeding write limit.
             return {};
         }
 
