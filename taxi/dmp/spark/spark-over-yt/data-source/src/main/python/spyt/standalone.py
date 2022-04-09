@@ -587,7 +587,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
 
     current_operation_id = SparkDiscovery.getOption(
         spark_discovery.operation(), client=client)
-    if current_operation_id is not None:
+    if current_operation_id is not None and get_operation_state(
+        current_operation_id, client=client).is_running():
         if abort_existing:
             abort_spark_operations(spark_discovery, client)
         else:
