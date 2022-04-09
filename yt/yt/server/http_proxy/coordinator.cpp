@@ -297,6 +297,7 @@ void TCoordinator::UpdateState()
             TCreateNodeOptions options;
             options.Timeout = Config_->CypressTimeout;
             options.SuppressTransactionCoordinatorSync = true;
+            options.SuppressUpstreamSync = true;
             options.Recursive = true;
             options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
                 .BeginMap()
@@ -318,6 +319,7 @@ void TCoordinator::UpdateState()
                 TCreateNodeOptions options;
                 options.Timeout = Config_->CypressTimeout;
                 options.SuppressTransactionCoordinatorSync = true;
+                options.SuppressUpstreamSync = true;
                 options.Recursive = true;
                 options.IgnoreExisting = true;
                 auto attributes = CreateEphemeralAttributes();
@@ -333,6 +335,7 @@ void TCoordinator::UpdateState()
             TMultisetAttributesNodeOptions multisetOptions;
             multisetOptions.Timeout = Config_->CypressTimeout;
             multisetOptions.SuppressTransactionCoordinatorSync = true;
+            multisetOptions.SuppressUpstreamSync = true;
 
             WaitFor(Client_->MultisetAttributesNode(
                 selfPath + "/@",
@@ -357,6 +360,7 @@ void TCoordinator::UpdateState()
             TSetNodeOptions setOptions;
             setOptions.Timeout = Config_->CypressTimeout;
             setOptions.SuppressTransactionCoordinatorSync = true;
+            setOptions.SuppressUpstreamSync = true;
 
             WaitFor(Client_->SetNode(selfPath + "/@liveness", ConvertToYsonString(Self_->Entry->Liveness), setOptions))
                 .ThrowOnError();
