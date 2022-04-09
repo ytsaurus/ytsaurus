@@ -18,14 +18,9 @@ struct TChangelogStoreScanResult
     i64 LastMutationSequenceNumber = -1;
 };
 
-struct TChangelogStoreScanDescriptor
-{
-    int Id;
-    i64 RecordCount;
-};
-
 TChangelogStoreScanResult ScanChangelogStore(
-    const std::vector<TChangelogStoreScanDescriptor>& descriptors,
+    const std::vector<int>& changelogIds,
+    const std::function<i64(int changelogId)> recordCountGetter,
     const std::function<TSharedRef(int changelogId, i64 recordId)>& recordReader);
 
 ////////////////////////////////////////////////////////////////////////////////

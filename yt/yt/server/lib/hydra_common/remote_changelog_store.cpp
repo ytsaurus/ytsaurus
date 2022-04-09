@@ -761,13 +761,16 @@ private:
     {
         ValidateChangelogsSealed();
 
-        std::vector<TChangelogStoreScanDescriptor> descriptors;
+        THashMap<int, i64> changelogIdToRecordCount;
         ListChangelogs({"quorum_row_count"}, [&] (const INodePtr& item, int id) {
-            descriptors.push_back({
-                .Id = id,
-                .RecordCount = item->Attributes().Get<i64>("quorum_row_count")
-            });
+            changelogIdToRecordCount.emplace(
+                id,
+                item->Attributes().Get<i64>("quorum_row_count"));
         });
+
+        auto recordCountGetter = [&] (int changelogId) {
+            return GetOrCrash(changelogIdToRecordCount, changelogId);
+        };
 
         auto recordReader = [&] (int changelogId, i64 recordId) {
             auto path = GetChangelogPath(Path_, changelogId);
@@ -782,7 +785,10 @@ private:
             return recordsData[0];
         };
 
-        return ScanChangelogStore(descriptors, recordReader);
+        return ScanChangelogStore(
+            GetKeys(changelogIdToRecordCount),
+            recordCountGetter,
+            recordReader);
     }
 
     int GetTerm()
