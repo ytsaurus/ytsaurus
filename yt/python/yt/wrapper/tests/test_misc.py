@@ -12,7 +12,7 @@ from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
-from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
+from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split, YPath
 from yt.wrapper.stream import _ChunkStream
 from yt.wrapper.default_config import retries_config as get_default_retries_config
 
@@ -89,6 +89,8 @@ def test_ypath_join():
     assert ypath_join("/a", "/b", "/c") == "/a/b/c"
     assert ypath_join("/a", "/b", "c") == "/a/b/c"
     assert ypath_join("/a", "//b", "c") == "//b/c"
+    assert ypath_join(YPath("//a"), "b") == "//a/b"
+    assert ypath_join("a", YPath("//b")) == "//b"
 
 @authors("ostyakov")
 def test_ypath_split():
