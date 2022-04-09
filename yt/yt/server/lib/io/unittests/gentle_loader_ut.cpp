@@ -229,12 +229,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTestRoundResult
-{
-    // Maximum IO per second when congested.
-    i64 IOPS = 0;
-};
-
 class TGentleLoaderTest
     : public ::testing::Test
 {
@@ -243,9 +237,13 @@ public:
         : GentleLoaderConfig_(New<TGentleLoaderConfig>())
         , ActionQueue_(New<TActionQueue>("TestActionQueue"))
     {
+        GentleLoaderConfig_->CongestionDetector->OverloadThreshold = 70;
+        GentleLoaderConfig_->CongestionDetector->HeavyOverloadThreshold = 90;
         GentleLoaderConfig_->CongestionDetector->ProbeDeadline = TDuration::MilliSeconds(30);
         GentleLoaderConfig_->CongestionDetector->ProbesInterval = TDuration::MilliSeconds(30);
         GentleLoaderConfig_->WaitAfterCongested = TDuration::MilliSeconds(100);
+        GentleLoaderConfig_->WritersCount = 10;
+        GentleLoaderConfig_->ReadersCount = 10;
 
         IOEngineConfig_ = TIOEngineMockConfig{
             .OpenLatency = TDuration::MilliSeconds(1),
@@ -260,7 +258,7 @@ protected:
     TIOEngineMockConfig IOEngineConfig_;
     TActionQueuePtr ActionQueue_;
 
-    std::vector<TTestRoundResult> Run(int roundsCount)
+    std::vector<i64> Run(int roundsCount)
     {
         auto ioEngine = New<TIOEngineMock>(IOEngineConfig_);
         auto gentleLoader = CreateGentleLoader(
@@ -271,17 +269,15 @@ protected:
             ActionQueue_->GetInvoker(),
             Logger);
 
-        TNonblockingQueue<TTestRoundResult> queue;
+        TNonblockingQueue<i64> queue;
 
         gentleLoader->SubscribeCongested(BIND([&] (i64 window) {
-            queue.Enqueue(TTestRoundResult{
-                .IOPS = window,
-            });
+            queue.Enqueue(window);
         }));
 
         gentleLoader->Start();
 
-        std::vector<TTestRoundResult> result;
+        std::vector<i64> result;
 
         for (int index = 0; index < roundsCount; ++index) {
             auto roundResult = queue.Dequeue().Get()
@@ -289,7 +285,7 @@ protected:
             result.push_back(roundResult);
             YT_LOG_INFO("Next congested step (Index: %v, IOPS: %v)",
                 index,
-                roundResult.IOPS);
+                roundResult);
         }
 
         gentleLoader->Stop();
@@ -310,7 +306,8 @@ TEST_F(TGentleLoaderTest, TestSimple)
     EXPECT_EQ(std::ssize(results), 5);
     // 4 threads with 100 IOPS each should get about 400 IOPS
     auto lastResult = results.back();
-    EXPECT_TRUE((lastResult.IOPS > 350) && (lastResult.IOPS < 500));
+    EXPECT_GE(lastResult, 350);
+    EXPECT_LE(lastResult, 500);
 }
 
 TEST_F(TGentleLoaderTest, TestErrorHandling)
@@ -321,14 +318,15 @@ TEST_F(TGentleLoaderTest, TestErrorHandling)
     IOEngineConfig_.OpenFailingProbability = 5;
     IOEngineConfig_.ReadFailingProbability = 5;
     IOEngineConfig_.WriteFailingProbability = 5;
+
     GentleLoaderConfig_->WritersCount = 20;
-    GentleLoaderConfig_->CongestionDetector->OverloadThreshold = 50;
 
     auto results = Run(5);
     EXPECT_EQ(std::ssize(results), 5);
     // Check that we get sane values even in case of errors.
     auto lastResult = results.back();
-    EXPECT_TRUE((lastResult.IOPS > 300) && (lastResult.IOPS < 600));
+    EXPECT_GE(lastResult, 300);
+    EXPECT_LE(lastResult, 600);
 }
 
 TEST_F(TGentleLoaderTest, TestAllFailing)
@@ -346,7 +344,7 @@ TEST_F(TGentleLoaderTest, TestAllFailing)
 
     // Check that we some small IOPS before overload.
     auto lastResult = results.back();
-    EXPECT_LE(lastResult.IOPS, 10);
+    EXPECT_LE(lastResult, 10);
 }
 
 TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
@@ -366,12 +364,12 @@ TEST_F(TGentleLoaderTest, TestInteractiveOverloaded)
     EXPECT_EQ(std::ssize(results), 5);
     // Check that we some small IOPS before overload.
     auto lastResult = results.back();
-    EXPECT_LE(lastResult.IOPS, 10);
+    EXPECT_LE(lastResult, 10);
 }
 
 TEST_F(TGentleLoaderTest, TestWriteLimit)
 {
-    GentleLoaderConfig_->MaxWriteRate = GentleLoaderConfig_->PacketSize * 100;
+    GentleLoaderConfig_->MaxWriteRate = GentleLoaderConfig_->PacketSize * 50;
     GentleLoaderConfig_->DefaultReadToWriteRatio =  50; // only writes
 
     IOEngineConfig_.ThreadsCount = 4;
@@ -381,9 +379,11 @@ TEST_F(TGentleLoaderTest, TestWriteLimit)
     auto results = Run(5);
     EXPECT_EQ(std::ssize(results), 5);
     // 4 threads with 100 IOPS each should get about 400 IOPS
-    // but because we skip most writes we should get about 600 IOPS. 
+    // but because we skip most writes we should get about 650 IOPS. 
     auto lastResult = results.back();
-    EXPECT_TRUE(lastResult.IOPS > 550);
+
+    EXPECT_GE(lastResult, 550);
+    EXPECT_LE(lastResult, 800);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

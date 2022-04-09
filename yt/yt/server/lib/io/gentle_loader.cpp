@@ -665,6 +665,7 @@ private:
     ILoadAdjusterPtr LoadAdjuster_;
     std::atomic_bool Started_;
     std::vector<TFuture<TDuration>> Results_;
+    TInstant YieldTimeCounter_;
 
 
     void Run()
@@ -677,6 +678,12 @@ private:
                 TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
             }
         }
+    }
+
+    void ResetStatistics()
+    {
+        LoadAdjuster_->ResetStatistics();
+        YieldTimeCounter_ = TInstant::Now();
     }
 
     void DoRun()
@@ -713,7 +720,7 @@ private:
 
         TCongestedState lastState;
         ui64 requestsCounter = 0;
-        LoadAdjuster_->ResetStatistics();
+        ResetStatistics();
 
         while (Started_) {
             try {
@@ -773,7 +780,7 @@ private:
                     Congested_.Fire(prevWindow);
                     WaitAfterCongested(congestionDetector);
                     lastState = congestionDetector->GetState();
-                    LoadAdjuster_->ResetStatistics();
+                    ResetStatistics();
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Gentle loader loop failed");
@@ -838,7 +845,8 @@ private:
             Results_.push_back(std::move(future));
         }
 
-        TDuration yieldTimeout = TDuration::Seconds(1) / congestionWindow;
+        YieldTimeCounter_ += TDuration::Seconds(1) / congestionWindow;
+        auto yieldTimeout = std::max(YieldTimeCounter_ - TInstant::Now(), TDuration{});
         TDelayedExecutor::WaitForDuration(yieldTimeout);
     }
 
@@ -860,6 +868,7 @@ private:
         i64 maxWriteIOPS = Config_->MaxWriteRate / Config_->PacketSize;
         YT_VERIFY(maxWriteIOPS >= 0);
         desiredWriteIOPS = std::max<i64>(desiredWriteIOPS, 1);
+
         if (RandomNumber<double>() > static_cast<double>(maxWriteIOPS) / desiredWriteIOPS) {
             // Skip because we are exceeding write limit.
             return {};
