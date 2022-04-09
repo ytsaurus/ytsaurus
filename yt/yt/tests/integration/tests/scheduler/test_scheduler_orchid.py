@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, run_sleeping_vanilla, wait, get, set, exists, ls,
-    create_pool, create_pool_tree, get_driver)
+    authors, run_sleeping_vanilla, wait, get, set, exists, ls, check_permission,
+    create_pool, create_pool_tree, get_driver, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path,
@@ -79,6 +79,16 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         wait(lambda: get(
             scheduler_new_orchid_pool_tree_path("default") + "/pool_count") == get(
                 scheduler_orchid_pool_tree_path("default") + "/pool_count"))
+
+    @authors("ignat")
+    def test_weird_requests(self):
+        # See details in YT-16814
+        assert get(scheduler_new_orchid_pool_tree_path("default") + "/pools/@") == {}
+        assert ls(scheduler_new_orchid_pool_tree_path("default") + "/pools/@") == []
+        with raises_yt_error("Method CheckPermission is not supported"):
+            check_permission("root", "read", scheduler_new_orchid_pool_tree_path("default") + "/pools")
+        with raises_yt_error("Error parsing attribute \"fields\""):
+            get(scheduler_new_orchid_pool_tree_path("default") + "/pools", fields=10)
 
     @authors("pogorelov")
     def test_resource_distribution_info(self):
