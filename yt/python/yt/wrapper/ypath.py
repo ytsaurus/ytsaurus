@@ -65,6 +65,8 @@ def ypath_join(*paths):
 
     result = []
     for path in paths:
+        if isinstance(path, YPath):
+            path = str(path)
         if path.startswith("//") or path == "/":
             result = []
 
