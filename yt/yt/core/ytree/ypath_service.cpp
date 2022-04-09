@@ -225,7 +225,7 @@ public:
         // Try to handle root get requests without constructing ephemeral YTree.
         if (path.empty() && context->GetMethod() == "Get") {
             return TResolveResultHere{path};
-        } else {
+        } else if (context->GetMethod() == "Get") {
             auto typedContext = New<TCtxGet>(context, NRpc::THandlerInvocationOptions{});
             if (!typedContext->DeserializeRequest()) {
                 THROW_ERROR_EXCEPTION("Error deserializing request");
@@ -238,6 +238,8 @@ public:
             }
 
             return TResolveResultThere{BuildNodeFromProducer(options), path};
+        } else {
+            return TResolveResultThere{BuildNodeFromProducer(/*options*/ CreateEphemeralAttributes()), path};
         }
     }
 

@@ -92,7 +92,7 @@ struct IYPathService
     static IYPathServicePtr FromProducer(
         NYson::TYsonProducer producer,
         TDuration cachePeriod = {});
-    
+
     //! Creates a YPath service from an extended YSON producer.
     /*!
      *  Each time a request is executed, producer is called, its output is turned into

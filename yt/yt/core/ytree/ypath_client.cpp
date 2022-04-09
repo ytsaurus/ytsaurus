@@ -355,7 +355,11 @@ void ExecuteVerb(
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
-        context->Reply(ex);
+        // NB: resolve failure may be caused by body serialization error.
+        // In this case error is already set into context.
+        if (!context->IsReplied()) {
+            context->Reply(ex);
+        }
         return;
     }
 
