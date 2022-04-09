@@ -619,7 +619,12 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
-        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        content = [{"key": i, "value": "x" * 1024} for i in range(12)]
+        write_table("//tmp/t1",
+                    content,
+                    table_writer={"block_size": 1024},
+                    driver=self.remote_driver)
 
         set(
             "//sys/@config/chunk_manager/enable_chunk_replicator",
@@ -654,7 +659,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 new_chunk_replicas = get("#{}/@stored_replicas".format(new_chunk_id))
                 replicas = [str(r) for r in new_chunk_replicas]
                 assert len(replicas) == 9 and len({r for r in replicas}) == 9
-            assert read_table("//tmp/t2") == [{"a": "b"}]
+            assert read_table("//tmp/t2") == content
 
         def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
             chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)

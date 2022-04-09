@@ -66,6 +66,8 @@ using namespace NTracing;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobProxyLogger;
@@ -195,7 +197,8 @@ public:
             THROW_ERROR_EXCEPTION_IF_FAILED(finalizeResult, "Error finalizing chunk");
         }
 
-        YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)", OutputChunkListId_);
+        YT_LOG_INFO("Attaching chunks to output chunk list (ChunkListId: %v)",
+            OutputChunkListId_);
         AttachChunksToChunkList(outputChunkIds);
     }
 
@@ -324,15 +327,17 @@ private:
         if (RemoteCopyJobSpecExt_.has_delay_in_copy_chunk()) {
             auto delayInCopyChunk = FromProto<TDuration>(RemoteCopyJobSpecExt_.delay_in_copy_chunk());
             if (delayInCopyChunk > TDuration::Zero()) {
-                YT_LOG_DEBUG("Sleeping in CopyChunk (DelayInCopyChunk: %v)", delayInCopyChunk);
+                YT_LOG_DEBUG("Sleeping in CopyChunk (DelayInCopyChunk: %v)",
+                    delayInCopyChunk);
                 Sleep(delayInCopyChunk);
             }
         }
 
-        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
+        auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
         YT_LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
-            inputChunkId, outputSessionId);
+            inputChunkId,
+            outputSessionId);
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
         if (erasureCodecId != NErasure::ECodec::None) {
@@ -363,9 +368,9 @@ private:
         auto suspendableInvoker = CreateSuspendableInvoker(GetRemoteCopyInvoker());
         auto cancelableInvoker = cancelableContext->CreateInvoker(suspendableInvoker);
 
-        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
+        auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
-        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+        auto inputReplicas = FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
         TDeferredChunkMetaPtr chunkMeta;
 
@@ -428,7 +433,7 @@ private:
 
         std::vector<TFuture<void>> copyFutures;
         copyFutures.reserve(readers.size());
-        for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
+        for (int index = 0; index < std::ssize(readers); ++index) {
             std::vector<i64> blockSizes;
             if (index < erasureCodec->GetDataPartCount()) {
                 int blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
@@ -612,7 +617,8 @@ private:
 
         auto repairPartIndicies = *erasureCodec->GetRepairIndices(erasedPartIndicies);
 
-        YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair (ErasedPartIndicies: %v, RepairPartIndicies: %v)",
+        YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair "
+            "(ErasedPartIndicies: %v, RepairPartIndicies: %v)",
             erasedPartIndicies,
             repairPartIndicies);
 
@@ -635,7 +641,7 @@ private:
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
             Host_->GetClient(),
-            Host_->GetInputNodeDirectory(),
+            nodeDirectory,
             outputSessionId.ChunkId,
             repairSeedReplicas,
             erasureCodec,
@@ -700,8 +706,8 @@ private:
 
     void CopyRegularChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
-        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
-        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+        auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
+        auto inputReplicas = FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
         TDeferredChunkMetaPtr chunkMeta;
 
@@ -779,7 +785,8 @@ private:
         const TChunkReplicaWithLocationList& writtenReplicas,
         const TRefCountedChunkMetaPtr& inputChunkMeta)
     {
-        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)", outputSessionId.ChunkId);
+        YT_LOG_INFO("Confirming output chunk (ChunkId: %v)",
+            outputSessionId.ChunkId);
 
         static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
@@ -881,7 +888,7 @@ private:
 
             // This can happen if we encounter block which is bigger than block buffer size.
             // In this case at least one block should be read (this memory overhead is taken
-            // into account in operation controller)
+            // into account in operation controller).
             if (endBlockIndex == beginBlockIndex) {
                 endBlockIndex += 1;
             }
