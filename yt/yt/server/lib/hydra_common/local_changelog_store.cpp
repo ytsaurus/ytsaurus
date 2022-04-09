@@ -526,7 +526,7 @@ private:
 
     TChangelogStoreScanResult Scan(ui64 epoch)
     {
-        std::vector<TChangelogStoreScanDescriptor> descriptors;
+        std::vector<int> changelogIds;
         auto fileNames = NFS::EnumerateFiles(Config_->Path);
         for (const auto& fileName : fileNames) {
             auto extension = NFS::GetFileExtension(fileName);
@@ -542,14 +542,15 @@ private:
                 continue;
             }
 
-            auto changelog = WaitFor(OpenChangelog(id, epoch))
-                .ValueOrThrow();
+            changelogIds.push_back(id);
 
-            descriptors.push_back({
-                .Id = id,
-                .RecordCount = changelog->GetRecordCount()
-            });
         }
+
+        auto recordCountGetter = [&] (int changelogId) {
+            auto changelog = WaitFor(OpenChangelog(changelogId, epoch))
+                .ValueOrThrow();
+            return changelog->GetRecordCount();
+        };
 
         auto recordReader = [&] (int changelogId, int recordId) {
             auto changelog = WaitFor(OpenChangelog(changelogId, epoch))
@@ -567,7 +568,10 @@ private:
             return recordsData[0];
         };
 
-        return ScanChangelogStore(descriptors, recordReader);
+        return ScanChangelogStore(
+            changelogIds,
+            recordCountGetter,
+            recordReader);
     }
 
     void AcquireLock()
