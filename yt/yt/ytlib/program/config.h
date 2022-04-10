@@ -44,6 +44,22 @@ DEFINE_REFCOUNTED_TYPE(TRpcConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTCMallocConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    i64 BackgroundReleaseRate;
+    int MaxPerCpuCacheSize;
+
+    REGISTER_YSON_STRUCT(TTCMallocConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTCMallocConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // YsonStruct version.
 class TSingletonsConfig
     : public virtual NYTree::TYsonStruct
@@ -62,6 +78,7 @@ public:
     NLogging::TLogManagerConfigPtr Logging;
     NTracing::TJaegerTracerConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
+    TTCMallocConfigPtr TCMalloc;
 
     REGISTER_YSON_STRUCT(TSingletonsConfig);
 
@@ -88,6 +105,7 @@ public:
     NLogging::TLogManagerConfigPtr Logging;
     NTracing::TJaegerTracerConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
+    TTCMallocConfigPtr TCMalloc;
 
     TDeprecatedSingletonsConfig();
 };
@@ -109,6 +127,7 @@ public:
     NLogging::TLogManagerDynamicConfigPtr Logging;
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
+    TTCMallocConfigPtr TCMalloc;
 
     REGISTER_YSON_STRUCT(TSingletonsDynamicConfig);
 
@@ -130,6 +149,7 @@ public:
     NLogging::TLogManagerDynamicConfigPtr Logging;
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
     TRpcConfigPtr Rpc;
+    TTCMallocConfigPtr TCMalloc;
 
     TDeprecatedSingletonsDynamicConfig();
 };
