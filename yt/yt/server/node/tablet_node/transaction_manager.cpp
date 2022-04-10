@@ -642,7 +642,6 @@ private:
         }
 
         LeaseTracker_->UnregisterTransaction(transaction->GetId());
-
         transaction->SetHasLease(false);
     }
 
@@ -759,8 +758,11 @@ private:
         }
         TransientTransactionMap_.Clear();
 
+        LeaseTracker_->Stop();
+
         // Reset all transiently prepared persistent transactions back into active state.
         // Mark all transactions as finished to release pending readers.
+        // Clear all lease flags.
         for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             if (transaction->GetTransientState() == ETransactionState::TransientCommitPrepared) {
                 UnregisterPrepareTimestamp(transaction);
@@ -770,11 +772,9 @@ private:
             transaction->SetTransientSignature(transaction->GetPersistentSignature());
             transaction->SetTransientGeneration(transaction->GetPersistentGeneration());
             transaction->ResetFinished();
+            transaction->SetHasLease(false);
             TransactionTransientReset_.Fire(transaction);
-            CloseLease(transaction);
         }
-
-        LeaseTracker_->Stop();
     }
 
 
