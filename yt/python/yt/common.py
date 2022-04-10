@@ -272,6 +272,10 @@ class YtError(Exception):
         """No such job."""
         return self.contains_code(203)
 
+    def is_no_such_operation(self):
+        """No such operation."""
+        return self.contains_code(1915)
+
     def is_shell_exited(self):
         """Shell exited."""
         return self.contains_code(1800) or self.contains_code(1801)
