@@ -21,6 +21,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/private.h>
 
+#include <tcmalloc/malloc_extension.h>
+
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
@@ -38,6 +40,14 @@ using namespace NConcurrency;
 using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
+{
+    tcmalloc::MallocExtension::SetBackgroundReleaseRate(
+        tcmalloc::MallocExtension::BytesPerSecond{static_cast<size_t>(config->BackgroundReleaseRate)});
+
+    tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(config->MaxPerCpuCacheSize);
+}
 
 template <class TConfig>
 void ConfigureSingletonsImpl(const TConfig& config)
@@ -81,6 +91,8 @@ void ConfigureSingletonsImpl(const TConfig& config)
     if (auto tracingConfig = config->Rpc->Tracing) {
         NTracing::SetTracingConfig(tracingConfig);
     }
+
+    ConfigureTCMalloc(config->TCMalloc);
 }
 
 void ConfigureSingletons(const TSingletonsConfigPtr& config)
@@ -123,6 +135,12 @@ void ReconfigureSingletonsImpl(const TStaticConfig& config, const TDynamicConfig
         NTracing::SetTracingConfig(dynamicConfig->Rpc->Tracing);
     } else if (config->Rpc->Tracing) {
         NTracing::SetTracingConfig(config->Rpc->Tracing);
+    }
+
+    if (dynamicConfig->TCMalloc) {
+        ConfigureTCMalloc(dynamicConfig->TCMalloc);
+    } else if (config->TCMalloc) {
+        ConfigureTCMalloc(config->TCMalloc);
     }
 }
 

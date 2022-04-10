@@ -14,6 +14,16 @@ TRpcConfig::TRpcConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTCMallocConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("background_release_rate", &TThis::BackgroundReleaseRate)
+        .Default(32_MB);
+    registrar.Parameter("max_per_cpu_cache_size", &TThis::MaxPerCpuCacheSize)
+        .Default(3_MB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSingletonsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("spin_wait_slow_path_logging_threshold", &TThis::SpinWaitSlowPathLoggingThreshold)
@@ -41,6 +51,8 @@ void TSingletonsConfig::Register(TRegistrar registrar)
     registrar.Parameter("jaeger", &TThis::Jaeger)
         .DefaultNew();
     registrar.Parameter("rpc", &TThis::Rpc)
+        .DefaultNew();
+    registrar.Parameter("tcmalloc", &TThis::TCMalloc)
         .DefaultNew();
 
     // COMPAT(prime@): backward compatible config for CHYT
@@ -82,6 +94,8 @@ TDeprecatedSingletonsConfig::TDeprecatedSingletonsConfig()
         .DefaultNew();
     RegisterParameter("rpc", Rpc)
         .DefaultNew();
+    RegisterParameter("tcmalloc", TCMalloc)
+        .DefaultNew();
 
     // COMPAT(prime@): backward compatible config for CHYT
     RegisterPostprocessor([this] {
@@ -112,6 +126,8 @@ void TSingletonsDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("rpc", &TThis::Rpc)
         .DefaultNew();
+    registrar.Parameter("tcmalloc", &TThis::TCMalloc)
+        .Optional();
 }
 
 TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
@@ -132,6 +148,8 @@ TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
         .DefaultNew();
     RegisterParameter("rpc", Rpc)
         .DefaultNew();
+    RegisterParameter("tcmalloc", TCMalloc)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
