@@ -12,6 +12,24 @@ import requests
 ##################################################################
 
 
+class JobProxyHider(object):
+    def __init__(self, env_setup):
+        self.bin_path = env_setup.bin_path
+
+    def _job_proxy_path(self):
+        return os.path.join(self.bin_path, "ytserver-job-proxy")
+
+    def __enter__(self):
+        job_proxy_path_hidden = self._job_proxy_path() + ".hidden"
+        print_debug("Hiding {} to {}".format(self._job_proxy_path(), job_proxy_path_hidden))
+        shutil.move(self._job_proxy_path(), job_proxy_path_hidden)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        job_proxy_path_hidden = self._job_proxy_path() + ".hidden"
+        print_debug("Unhiding {} to {}".format(job_proxy_path_hidden, self._job_proxy_path()))
+        shutil.move(job_proxy_path_hidden, self._job_proxy_path())
+
+
 class JobProxyTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -24,19 +42,6 @@ class JobProxyTestBase(YTEnvSetup):
             "safe_online_node_count": 2,
         },
     }
-
-    def _job_proxy_path(self):
-        return os.path.join(self.bin_path, "ytserver-job-proxy")
-
-    def _hide_job_proxy(self):
-        job_proxy_path_hidden = self._job_proxy_path() + ".hidden"
-        print_debug("Moving {} to {}".format(self._job_proxy_path(), job_proxy_path_hidden))
-        shutil.move(self._job_proxy_path(), job_proxy_path_hidden)
-
-    def _unhide_job_proxy(self):
-        job_proxy_path_hidden = self._job_proxy_path() + ".hidden"
-        print_debug("Moving {} to {}".format(job_proxy_path_hidden, self._job_proxy_path()))
-        shutil.move(job_proxy_path_hidden, self._job_proxy_path())
 
 
 class TestJobProxyBinary(JobProxyTestBase):
@@ -79,12 +84,9 @@ class TestJobProxyBinary(JobProxyTestBase):
         assert check_direct(False)
         assert check_discover_versions(False)
 
-        self._hide_job_proxy()
-
-        wait(lambda: check_direct(True))
-        wait(lambda: check_discover_versions(True))
-
-        self._unhide_job_proxy()
+        with JobProxyHider(self):
+            wait(lambda: check_direct(True))
+            wait(lambda: check_discover_versions(True))
 
         wait(lambda: check_direct(False))
         wait(lambda: check_discover_versions(False))
@@ -94,15 +96,12 @@ class TestJobProxyBinary(JobProxyTestBase):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
-        with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 0)
+        with JobProxyHider(self):
+            with Restarter(self.Env, NODES_SERVICE):
+                wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 0)
+                wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 0)
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
             wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 0)
-            self._hide_job_proxy()
-
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 0)
-
-        self._unhide_job_proxy()
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
@@ -135,11 +134,8 @@ class TestUnavailableJobProxy(JobProxyTestBase):
 
         wait(lambda: op.get_job_count("completed") > 0)
 
-        self._hide_job_proxy()
-
-        wait(lambda: op.get_job_count("aborted") > 2)
-
-        self._unhide_job_proxy()
+        with JobProxyHider(self):
+            wait(lambda: op.get_job_count("aborted") > 2)
 
         op.track()
 
