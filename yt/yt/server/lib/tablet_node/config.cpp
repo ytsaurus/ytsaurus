@@ -30,6 +30,24 @@ TTabletHydraManagerConfig::TTabletHydraManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRelativeReplicationThrottlerConfig::TRelativeReplicationThrottlerConfig()
+{
+    RegisterParameter("enable", Enable)
+        .Default(false);
+    RegisterParameter("ratio", Ratio)
+        .GreaterThan(0.0)
+        .Default(2.0);
+    RegisterParameter("activation_threshold", ActivationThreshold)
+        .Default(TDuration::Seconds(60));
+    RegisterParameter("window_size", WindowSize)
+        .Default(TDuration::Seconds(30));
+    RegisterParameter("max_timestamps_to_keep", MaxTimestampsToKeep)
+        .GreaterThan(0)
+        .Default(100);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableMountConfig::TTableMountConfig()
 {
     RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -188,6 +206,8 @@ TTableMountConfig::TTableMountConfig()
     RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
         .Default(128_MB);
     RegisterParameter("replication_throttler", ReplicationThrottler)
+        .DefaultNew();
+    RegisterParameter("relative_replication_throttler", RelativeReplicationThrottler)
         .DefaultNew();
     RegisterParameter("enable_replication_logging", EnableReplicationLogging)
         .Default(false);

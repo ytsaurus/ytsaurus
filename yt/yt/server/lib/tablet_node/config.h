@@ -46,6 +46,33 @@ DEFINE_REFCOUNTED_TYPE(TTabletHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRelativeReplicationThrottlerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+
+    //! Desired ratio of replication speed to lag accumulation speed.
+    double Ratio;
+
+    //! Minimal difference between log row timestamps from successive replication
+    //! batches required to activate the throttler.
+    TDuration ActivationThreshold;
+
+    //! Controls the number of successive replication timestamps used to estimate
+    //! the replication speed.
+    TDuration WindowSize;
+
+    //! Maximum number of replication timestamps to keep.
+    int MaxTimestampsToKeep;
+
+    TRelativeReplicationThrottlerConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
@@ -122,6 +149,7 @@ public:
     int MaxRowsPerReplicationCommit;
     i64 MaxDataWeightPerReplicationCommit;
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationThrottler;
+    TRelativeReplicationThrottlerConfigPtr RelativeReplicationThrottler;
     bool EnableReplicationLogging;
 
     bool EnableProfiling;
