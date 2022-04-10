@@ -1671,14 +1671,12 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         BoomerangTracker_->Stop();
+        LeaseTracker_->Stop();
 
         // Reset all transiently prepared transactions back into active state.
         for (auto [transactionId, transaction] : TransactionMap_) {
             transaction->SetPersistentState(transaction->GetPersistentState());
-            CloseLease(transaction);
         }
-
-        LeaseTracker_->Stop();
 
         OnStopEpoch();
     }

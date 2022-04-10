@@ -390,16 +390,16 @@ private:
 
         TChaosAutomatonPart::OnStopLeading();
 
+        LeaseTracker_->Stop();
+
         // Reset all transiently prepared persistent transactions back into active state.
         for (auto [transactionId, transaction] : TransactionMap_) {
             if (transaction->GetTransientState() == ETransactionState::TransientCommitPrepared) {
                 transaction->SetPrepareTimestamp(NullTimestamp);
             }
             transaction->SetPersistentState(transaction->GetPersistentState());
-            CloseLease(transaction);
+            transaction->SetHasLease(false);
         }
-
-        LeaseTracker_->Stop();
     }
 
 
