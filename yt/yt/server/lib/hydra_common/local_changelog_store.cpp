@@ -543,7 +543,6 @@ private:
             }
 
             changelogIds.push_back(id);
-
         }
 
         auto recordCountGetter = [&] (int changelogId) {

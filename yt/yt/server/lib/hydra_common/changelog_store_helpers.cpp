@@ -24,6 +24,7 @@ TChangelogStoreScanResult ScanChangelogStore(
             result.LatestNonemptyChangelogId != InvalidSegmentId)
         {
             // All done.
+            break;
         }
 
         auto recordCount = recordCountGetter(id);
