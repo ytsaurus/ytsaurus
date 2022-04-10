@@ -139,7 +139,7 @@ TLogManagerConfig::TLogManagerConfig()
         .GreaterThanOrEqual(0)
         .Default(1'000'000);
     RegisterParameter("shutdown_grace_timeout", ShutdownGraceTimeout)
-        .Default(TDuration::Seconds(30));
+        .Default(TDuration::Seconds(1));
 
     RegisterParameter("writers", Writers);
     RegisterParameter("rules", Rules);
