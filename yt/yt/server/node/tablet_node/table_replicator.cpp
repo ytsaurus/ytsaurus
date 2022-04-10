@@ -2,6 +2,7 @@
 
 #include "hint_manager.h"
 #include "private.h"
+#include "relative_replication_throttler.h"
 #include "replication_log.h"
 #include "tablet.h"
 #include "tablet_manager.h"
@@ -108,6 +109,8 @@ public:
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)}))
+        , RelativeThrottler_(CreateRelativeReplicationThrottler(
+            MountConfig_->RelativeReplicationThrottler))
     { }
 
     void Enable()
@@ -152,6 +155,7 @@ private:
     const IReplicationLogParserPtr ReplicationLogParser_;
     const EWorkloadCategory WorkloadCategory_;
     const IThroughputThrottlerPtr Throttler_;
+    const IRelativeReplicationThrottlerPtr RelativeThrottler_;
 
     TFuture<void> FiberFuture_;
 
@@ -204,6 +208,17 @@ private:
                     WaitFor(throttleFuture)
                         .ThrowOnError();
                     YT_LOG_DEBUG("Finished waiting for replication throttling");
+                }
+            }
+
+            {
+                auto throttleFuture = RelativeThrottler_->Throttle();
+                if (!throttleFuture.IsSet()) {
+                    TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
+                    YT_LOG_DEBUG("Started waiting for relative replication throttling");
+                    WaitFor(throttleFuture)
+                        .ThrowOnError();
+                    YT_LOG_DEBUG("Finished waiting for relative replication throttling");
                 }
             }
 
@@ -330,6 +345,8 @@ private:
                     YT_VERIFY(readReplicationBatch());
                 }
             }
+
+            RelativeThrottler_->OnReplicationBatchProcessed(newReplicationTimestamp);
 
             if (replicationRows.empty()) {
                 THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
