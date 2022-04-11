@@ -898,7 +898,7 @@ func (e *Encoder) AlterTableReplica(
 		Atomicity:          nil, // todo
 	}
 
-	call := e.newCall(MethodAlterTable, NewAlterTableReplicaRequest(req), nil)
+	call := e.newCall(MethodAlterTableReplica, NewAlterTableReplicaRequest(req), nil)
 
 	var rsp rpc_proxy.TRspAlterTableReplica
 	err = e.Invoke(ctx, call, &rsp)
