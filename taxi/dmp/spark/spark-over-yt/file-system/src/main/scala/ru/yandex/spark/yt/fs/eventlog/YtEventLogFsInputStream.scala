@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
-import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.IOException
@@ -67,15 +66,26 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
   override def seekToNewSource(targetPos: Long): Boolean = ???
 
   private def loadNewBlocks(count: Int = 1): Unit = {
-    val rows = YtWrapper
-      .selectRows(
-        path,
-        Some(s"""$ID="${details.id}" and $ORDER > $order and $ORDER <= ${order + count}""")
-      )
-      .map(x => YtEventLogBlock(x))
+    val rows = {
+      try {
+        YtWrapper.runWithRetry {
+          transaction =>
+            YtWrapper.selectRows(
+              path,
+              Some(s"""$ID="${details.id}" and $ORDER > $order and $ORDER <= ${order + count}"""),
+              Some(transaction)
+            )
+        }
+      } catch {
+        case e: Throwable =>
+          log.error(s"Logs(id=$ID, $order<order<=$order+$count) loading failed", e)
+          Seq.empty
+      }
+    }
+    val blocks = rows.map(x => YtEventLogBlock(x))
     order += count
-    currentBlock = new Array[Byte](rows.map(_.log.length).sum)
-    rows.foldLeft(0) {
+    currentBlock = new Array[Byte](blocks.map(_.log.length).sum)
+    blocks.foldLeft(0) {
       case (index, next) =>
         System.arraycopy(next.log, 0, currentBlock, index, next.log.length)
         index + next.log.length
@@ -130,10 +140,14 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
   }
 
   override def skip(n: Long): Long = {
-    log.info(s"Skip $n started, $details, $finished $order $globalPos")
-    val oldPos = getPos
-    seek(n + oldPos)
-    getPos - oldPos
+    log.debugLazy(s"Skip $n started, $details, $finished $order $globalPos")
+    if (finished && n > 0) {
+      throw new IOException(s"Try to skip $n in $details, but data is finished")
+    } else {
+      val oldPos = getPos
+      seek(n + oldPos)
+      getPos - oldPos
+    }
   }
 
   def copyAvailable(b: Array[Byte], off: Int, len: Int): Int = {

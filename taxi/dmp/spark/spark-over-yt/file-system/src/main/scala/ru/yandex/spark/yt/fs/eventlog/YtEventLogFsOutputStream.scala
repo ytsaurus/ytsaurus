@@ -56,28 +56,39 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
 
   private var state = State(0, rowSize, 0, 0, 0)
   private val id = s"${UUID.randomUUID()}"
+  private var started = false
 
   open()
 
   def open(): Unit = {
-    YtWrapper.createDynTableAndMount(path, schema)
-    YtWrapper.createDynTableAndMount(metaPath, metaSchema)
-    YtWrapper.runWithRetry(transaction => updateInfo(Some(transaction)))
+    try {
+      YtWrapper.createDynTableAndMount(path, schema)
+      YtWrapper.createDynTableAndMount(metaPath, metaSchema)
+      YtWrapper.runWithRetry(transaction => updateInfo(Some(transaction)))
+      started = true
+    } catch {
+      case e: Throwable => log.error(s"Initialization failed, all logs will be lost", e)
+    }
   }
 
   override def write(b: Int): Unit = {
-    writeImpl(b)
+    if (started) {
+      writeImpl(b)
+    }
   }
 
   override def write(event: Array[Byte], off: Int, len: Int): Unit = {
-    writeImpl(event, off, len)
+    if (started) {
+      writeImpl(event, off, len)
+    }
   }
 
   @tailrec
   private def writeImpl(b: Int): Unit = {
     if (state.currentBlockIsFull()) {
-      flush()
-      writeImpl(b)
+      if (flushImpl()) {
+        writeImpl(b)
+      } // else loss of events
     } else {
       buffer(state.bufferPos) = b.toByte
       state = state.incBufferPos()
@@ -91,8 +102,9 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
     System.arraycopy(event, off, buffer, state.bufferPos, copyLen)
     state = state.incBufferPos(copyLen)
     if (free < len) {
-      flush()
-      writeImpl(event, off + free, len - free)
+      if (flushImpl()) {
+        writeImpl(event, off + free, len - free)
+      } // else loss of events
     }
   }
 
@@ -107,45 +119,59 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
     }
   }
 
-  private def writeNewBlock(data: Array[Byte]): Unit = {
+  private def writeNewBlock(data: Array[Byte]): Boolean = {
+    var success = false
     tryWithConsistentState {
-      YtWrapper.runWithRetry{ transaction =>
-        YtWrapper.insertRows(path, schema,
-          List(new YtEventLogBlock(id, state.blockCount + 1, data).toList),
-          Some(transaction)
+      state = State(
+        bufferPos = state.nextBlockStartPos,
+        lastFlushPos = state.bufferPos,
+        flushedDataSize = state.flushedDataSize + state.newDataSize,
+        blockCount = state.blockCount + 1,
+        blockUpdateCount = 0
+      )
+      updateWithRetry { transaction =>
+        YtWrapper.insertRows(
+          path, schema, List(new YtEventLogBlock(id, state.blockCount, data).toList), Some(transaction)
         )
-        state = State(
-          bufferPos = state.nextBlockStartPos,
-          lastFlushPos = state.bufferPos,
-          flushedDataSize = state.flushedDataSize + state.newDataSize,
-          blockCount = state.blockCount + 1,
-          blockUpdateCount = 0
-        )
-        updateInfo(Some(transaction))
       }
+      success = true
+    }
+    success
+  }
+
+  private def updateBlock(data: Array[Byte]): Boolean = {
+    var success = false
+    tryWithConsistentState {
+      state = State(
+        bufferPos = state.nextBlockStartPos,
+        lastFlushPos = state.bufferPos,
+        flushedDataSize = state.flushedDataSize + state.newDataSize,
+        blockCount = state.blockCount,
+        blockUpdateCount = state.blockUpdateCount + 1
+      )
+      updateWithRetry { transaction =>
+        YtWrapper.updateRow(
+          path, schema, new YtEventLogBlock(id, state.blockCount, data).toJavaMap, Some(transaction)
+        )
+      }
+      success = true
+    }
+    success
+  }
+
+  private def updateWithRetry(code: ApiServiceTransaction => Unit): Unit = {
+    var tryCount = 0
+    YtWrapper.runWithRetry { transaction =>
+      tryCount += 1
+      code(transaction)
+      updateInfo(Some(transaction))
+    }
+    if (tryCount > 1) {
+      log.info(s"$id was updated using $tryCount tries")
     }
   }
 
-  private def updateBlock(data: Array[Byte]): Unit = {
-    tryWithConsistentState {
-      YtWrapper.runWithRetry{ transaction =>
-        YtWrapper.updateRow(path, schema,
-          new YtEventLogBlock(id, state.blockCount, data).toJavaMap,
-          Some(transaction)
-        )
-        state = State(
-          bufferPos = state.nextBlockStartPos,
-          lastFlushPos = state.bufferPos,
-          flushedDataSize = state.flushedDataSize + state.newDataSize,
-          blockCount = state.blockCount,
-          blockUpdateCount = state.blockUpdateCount + 1
-        )
-        updateInfo(Some(transaction))
-      }
-    }
-  }
-
-  private def flushImpl(forced: Boolean): Unit = {
+  private def flushImpl(forced: Boolean = false): Boolean = {
     if (state.hasNewData) {
       val data =
         if (state.currentBlockIsFull()) buffer
@@ -153,15 +179,21 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
       if (state.prevFlushWasPartial()) {
         if (state.blockUpdateCount < 3 || forced || state.currentBlockIsFull()) {
           updateBlock(data)
+        } else {
+          false
         }
       } else {
         writeNewBlock(data)
       }
+    } else {
+      false
     }
   }
 
   override def flush(): Unit = {
-    flushImpl(false)
+    if (started) {
+      flushImpl()
+    }
   }
 
   private def updateInfo(transaction: Option[ApiServiceTransaction] = None): Unit = {
@@ -176,6 +208,8 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
   }
 
   override def close(): Unit = {
-    flushImpl(true)
+    if (started) {
+      flushImpl(true)
+    }
   }
 }
