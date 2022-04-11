@@ -25,6 +25,8 @@ type (
 		yc          yt.Client
 		tableYTPath ypath.Path
 
+		storage *storage.TableStorage
+
 		services []ServiceFetcher
 
 		l *logzap.Logger
@@ -49,6 +51,7 @@ func NewFetcher(yc yt.Client, config Config, l *logzap.Logger) *Fetcher {
 	f.config = config
 	f.l = l
 	f.tableYTPath = ypath.Path(config.TablePath)
+	f.storage = storage.NewTableStorage(yc, f.tableYTPath, l)
 
 	f.services = make([]ServiceFetcher, len(config.Services))
 	for id, service := range config.Services {
@@ -80,6 +83,17 @@ func NewResolverFetcher(resolver Resolver, sf *ServiceFetcher) *ResolverFetcher 
 }
 
 func (f *Fetcher) RunFetcherContinious() error {
+	err := ytprof.MigrateTables(f.yc, f.tableYTPath)
+
+	if err != nil {
+		f.l.Fatal("migraton failed", log.Error(err), log.String("table_path", f.tableYTPath.String()))
+		return err
+	}
+
+	f.l.Debug("migraton succeded", log.String("table_path", f.tableYTPath.String()))
+
+	rand.Seed(time.Now().UnixMicro())
+
 	for _, service := range f.services {
 		go service.runServiceFetcherContinious()
 	}
@@ -88,15 +102,6 @@ func (f *Fetcher) RunFetcherContinious() error {
 }
 
 func (sf *ServiceFetcher) runServiceFetcherContinious() {
-	err := ytprof.MigrateTables(sf.f.yc, sf.f.tableYTPath)
-
-	if err != nil {
-		sf.f.l.Fatal("migraton failed", log.Error(err), log.String("table_path", sf.f.tableYTPath.String()))
-		return
-	}
-
-	sf.f.l.Debug("migraton succeded", log.String("table_path", sf.f.tableYTPath.String()))
-
 	for {
 		go sf.fetchService()
 
@@ -145,8 +150,7 @@ func (sf *ServiceFetcher) fetchService() {
 	}
 
 	sf.f.l.Debug("getting ready to push data", log.Int("data_size", len(resultslice)))
-	storage := storage.NewTableStorage(sf.f.yc, sf.f.tableYTPath, sf.f.l)
-	err := storage.PushData(resultslice, context.Background())
+	err := sf.f.storage.PushData(resultslice, context.Background())
 	if err != nil {
 		sf.f.l.Error("error while storing profiles", log.String("cluster", sf.f.config.Cluster), log.Error(err))
 	}
@@ -155,7 +159,6 @@ func (sf *ServiceFetcher) fetchService() {
 func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
 	var usedIDs []int
 
-	rand.Float64()
 	for i := 0; i < len(rf.resolver.Urls); i++ {
 		result := rand.Float64()
 		if result < rf.sf.service.Probability {
@@ -185,9 +188,9 @@ func (rf *ResolverFetcher) fetchURL(id int) (*profile.Profile, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	requestText := fmt.Sprintf("%v:%d/%v", rf.resolver.Urls[id], rf.resolver.Port, rf.sf.service.ProfilePath)
-	rf.sf.f.l.Debug("sending request", log.String("request_text", requestText))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestText, nil)
+	requestURL := fmt.Sprintf("%v:%d/%v", rf.resolver.Urls[id], rf.resolver.Port, rf.sf.service.ProfilePath)
+	rf.sf.f.l.Debug("sending request", log.String("request_url", requestURL))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return nil, err
 	}
