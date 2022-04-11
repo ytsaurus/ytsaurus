@@ -2264,8 +2264,12 @@ std::optional<EAbortReason> TJob::GetAbortReason()
                 case EJobProxyExitCode::ResourceOverdraft:
                     return EAbortReason::ResourceOverdraft;
 
-                default:
+                default: {
+                    if (DynamicConfig_->TreatJobProxyFailureAsAbort) {
+                        return EAbortReason::JobProxyFailed;
+                    }
                     break;
+                }
             }
         }
     }
