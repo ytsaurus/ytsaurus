@@ -154,6 +154,7 @@ public class TemporaryClusterErrorsTest {
             try {
                 var getFuture = client.getNode("//tmp/data-node");
                 assertThat(getFuture.join(), is(dataNode));
+                break;
             } catch (CompletionException ex) {
                 try {
                     Thread.sleep(100, 0);
