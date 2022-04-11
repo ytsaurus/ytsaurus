@@ -361,7 +361,7 @@ private:
         }
 
         for (int partIndex = 0; partIndex < DataPartCount_; ++partIndex) {
-            if (!PartIndexToRegularRequestIndices_.empty()) {
+            if (!PartIndexToRegularRequestIndices_[partIndex].empty()) {
                 if (Replicas_[partIndex]) {
                     RegularPlan_.PeerIndices.push_back(partIndex);
                 } else {
