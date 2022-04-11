@@ -750,6 +750,8 @@ public:
 
     bool AbortOnJobsDisabled;
 
+    bool TreatJobProxyFailureAsAbort;
+
     TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
 
     TExecNodeDynamicConfig()
@@ -776,6 +778,9 @@ public:
             .Default();
 
         RegisterParameter("abort_on_jobs_disabled", AbortOnJobsDisabled)
+            .Default(false);
+
+        RegisterParameter("treat_job_proxy_failure_as_abort", TreatJobProxyFailureAsAbort)
             .Default(false);
 
         RegisterParameter("user_job_monitoring", UserJobMonitoring)
