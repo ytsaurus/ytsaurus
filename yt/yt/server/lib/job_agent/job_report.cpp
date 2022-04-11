@@ -19,6 +19,8 @@ using namespace NCoreDump;
 using NYT::ToProto;
 using NYT::FromProto;
 
+using namespace NControllerAgent;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTimeStatistics::Persist(const TStreamPersistenceContext& context)
@@ -340,10 +342,10 @@ TJobReport TJobReport::ExtractProfile() const
 
 bool TJobReport::IsEmpty() const
 {
-    bool somethingSpecified = 
+    bool somethingSpecified =
         Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
         Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
-        CoreInfos_ || HasCompetitors_ || MonitoringDescriptor_ || ExecAttributes_;
+        CoreInfos_ || HasCompetitors_ || HasProbingCompetitors_ || MonitoringDescriptor_ || ExecAttributes_;
     return !somethingSpecified;
 }
 
@@ -359,9 +361,18 @@ TControllerJobReport TControllerJobReport::JobId(NJobTrackerClient::TJobId jobId
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors)
+TControllerJobReport TControllerJobReport::MarkHasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType)
 {
-    HasCompetitors_ = hasCompetitors;
+    switch (competitionType) {
+        case EJobCompetitionType::Speculative:
+            HasCompetitors_ = hasCompetitors;
+            break;
+        case EJobCompetitionType::Probing:
+            HasProbingCompetitors_ = hasCompetitors;
+            break;
+        default:
+            YT_ABORT();
+    }
     return std::move(*this);
 }
 
@@ -503,6 +514,11 @@ void TNodeJobReport::SetFinishTime(TInstant finishTime)
 void TNodeJobReport::SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitionId)
 {
     JobCompetitionId_ = jobCompetitionId;
+}
+
+void TNodeJobReport::SetProbingJobCompetitionId(NJobTrackerClient::TJobId probingJobCompetitionId)
+{
+    ProbingJobCompetitionId_ = probingJobCompetitionId;
 }
 
 void TNodeJobReport::SetTaskName(const TString& taskName)

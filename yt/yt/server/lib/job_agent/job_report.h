@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/controller_agent/public.h>
+
 #include <yt/yt/server/lib/core_dump/helpers.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
@@ -102,7 +104,9 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<TJobProfile>, Profile)
     DEFINE_BYREF_RO_PROPERTY(std::optional<NCoreDump::TCoreInfos>, CoreInfos)
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId)
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, ProbingJobCompetitionId)
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors)
+    DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasProbingCompetitors)
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ExecAttributes);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TaskName);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
@@ -117,7 +121,7 @@ struct TControllerJobReport
 {
     TControllerJobReport OperationId(NJobTrackerClient::TOperationId operationId);
     TControllerJobReport JobId(NJobTrackerClient::TJobId jobId);
-    TControllerJobReport HasCompetitors(bool hasCompetitors);
+    TControllerJobReport MarkHasCompetitors(bool hasCompetitors, NControllerAgent::EJobCompetitionType);
 };
 
 struct TNodeJobReport
@@ -147,6 +151,7 @@ struct TNodeJobReport
     void SetStartTime(TInstant startTime);
     void SetFinishTime(TInstant finishTime);
     void SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitionId);
+    void SetProbingJobCompetitionId(NJobTrackerClient::TJobId CompetitionId);
     void SetTaskName(const TString& taskName);
 };
 
@@ -165,7 +170,7 @@ struct TExecAttributes
 
     //! Absolute path to job sandbox directory.
     TString SandboxPath;
-    
+
     //! Medium of disk acquired by slot.
     TString MediumName;
 

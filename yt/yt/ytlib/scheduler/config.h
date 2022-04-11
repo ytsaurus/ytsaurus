@@ -376,6 +376,10 @@ public:
     //! If TentativePoolTrees is not empty, PoolTrees must not be empty, too.
     std::optional<THashSet<TString>> TentativePoolTrees;
 
+    //! Probing pool tree to schedule probing jobs in.
+    //! Scheduler will occasionally launch probing jobs in this tree.
+    std::optional<TString> ProbingPoolTree;
+
     //! Enables using default tentative pool trees from scheduler config. It has effect only if TentativePoolTrees is not specified.
     bool UseDefaultTentativePoolTrees;
 
@@ -390,6 +394,9 @@ public:
     std::optional<int> MaxUnpreemptableRunningJobCount;
 
     int MaxSpeculativeJobCountPerTask;
+    int MaxProbingJobCountPerTask;
+
+    std::optional<double> ProbingRatio;
 
     EPreemptionMode PreemptionMode;
 
@@ -1628,6 +1635,7 @@ public:
 
     // Cannot be specified by user.
     bool Tentative;
+    bool Probing;
     std::optional<TString> SchedulingSegmentModule;
 
     REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParameters);

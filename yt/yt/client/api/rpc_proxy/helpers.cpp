@@ -898,8 +898,14 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.JobCompetitionId) {
         ToProto(protoJob->mutable_job_competition_id(), job.JobCompetitionId);
     }
+    if (job.ProbingJobCompetitionId) {
+        ToProto(protoJob->mutable_probing_job_competition_id(), job.ProbingJobCompetitionId);
+    }
     if (job.HasCompetitors) {
         protoJob->set_has_competitors(*job.HasCompetitors);
+    }
+    if (job.HasProbingCompetitors) {
+        protoJob->set_has_probing_competitors(*job.HasProbingCompetitors);
     }
     if (job.IsStale) {
         protoJob->set_is_stale(*job.IsStale);
@@ -1005,10 +1011,20 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
     } else {
         job->JobCompetitionId = {};
     }
+    if (protoJob.has_probing_job_competition_id()) {
+        FromProto(&job->ProbingJobCompetitionId, protoJob.probing_job_competition_id());
+    } else {
+        job->ProbingJobCompetitionId = {};
+    }
     if (protoJob.has_has_competitors()) {
         job->HasCompetitors = protoJob.has_competitors();
     } else {
         job->HasCompetitors = false;
+    }
+    if (protoJob.has_has_probing_competitors()) {
+        job->HasProbingCompetitors = protoJob.has_probing_competitors();
+    } else {
+        job->HasProbingCompetitors = false;
     }
     if (protoJob.has_is_stale()) {
         job->IsStale = protoJob.is_stale();

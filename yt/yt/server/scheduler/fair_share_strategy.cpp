@@ -73,7 +73,7 @@ public:
             Host->GetFairShareLoggingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
             Config->FairShareLogPeriod);
-        
+
         AccumulatedUsageLoggingExecutor_ = New<TPeriodicExecutor>(
             Host->GetFairShareLoggingInvoker(),
             BIND(&TFairShareStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
@@ -245,6 +245,7 @@ public:
                 TPoolTreeControllerSettings{
                     .SchedulingTagFilter = tree->GetNodesFilter(),
                     .Tentative = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Tentative,
+                    .Probing = GetSchedulingOptionsPerPoolTree(state->GetHost(), treeName)->Probing,
                     .MainResource = tree->GetConfig()->MainResource,
                 });
         }
@@ -608,6 +609,7 @@ public:
                 treeParams->ResourceLimits = spec->ResourceLimits;
             }
             treeParams->Tentative = poolTreeDescription.Tentative;
+            treeParams->Probing = poolTreeDescription.Probing;
             YT_VERIFY(runtimeParameters->SchedulingOptionsPerPoolTree.emplace(poolTreeDescription.Name, std::move(treeParams)).second);
         }
     }
@@ -1291,7 +1293,8 @@ private:
     struct TPoolTreeDescription
     {
         TString Name;
-        bool Tentative;
+        bool Tentative = false;
+        bool Probing = false;
     };
 
     std::vector<TPoolTreeDescription> ParsePoolTrees(const TOperationSpecBasePtr& spec, EOperationType operationType) const
@@ -1324,10 +1327,7 @@ private:
         std::vector<TPoolTreeDescription> result;
         if (spec->PoolTrees) {
             for (const auto& treeName : *spec->PoolTrees) {
-                result.push_back(TPoolTreeDescription{
-                    .Name = treeName,
-                    .Tentative = false
-                });
+                result.push_back(TPoolTreeDescription{ .Name = treeName });
             }
         } else {
             if (!DefaultTreeId_) {
@@ -1336,10 +1336,7 @@ private:
                     "Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
-            result.push_back(TPoolTreeDescription{
-                .Name = *DefaultTreeId_,
-                .Tentative = false
-            });
+            result.push_back(TPoolTreeDescription{ .Name = *DefaultTreeId_ });
         }
 
         if (result.empty()) {
@@ -1365,6 +1362,25 @@ private:
                 if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
                     THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
                 }
+            }
+        }
+
+        if (spec->ProbingPoolTree) {
+            for (const auto& desc : result) {
+                if (desc.Name == *spec->ProbingPoolTree) {
+                    THROW_ERROR_EXCEPTION("Probing pool tree must not be in regular or tentative pool tree lists")
+                        << TErrorAttribute("pool_tree", desc.Name)
+                        << TErrorAttribute("is_tentative", desc.Tentative);
+                }
+            }
+
+            if (auto tree = FindTree(spec->ProbingPoolTree.value())) {
+                result.push_back(TPoolTreeDescription{
+                    .Name = *spec->ProbingPoolTree,
+                    .Probing = true
+                });
+            } else {
+                THROW_ERROR_EXCEPTION("Probing pool tree %Qv not found", spec->ProbingPoolTree.value());
             }
         }
 

@@ -76,6 +76,7 @@ message TPoolTreeControllerSettings
     required string scheduling_tag_filter = 2;
     required bool tentative = 3;
     optional int32 main_resource = 4;
+    optional bool probing = 5;
 }
 
 message TPoolTreeControllerSettingsMap

@@ -422,7 +422,7 @@ public:
     bool CanInterruptJobs() const override;
     void InterruptJob(TJobId jobId, EInterruptReason reason) override;
 
-    void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
+    void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
 
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const override;
 
@@ -744,7 +744,7 @@ protected:
     const TScheduleJobStatisticsPtr& GetScheduleJobStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedFinishedJobStatistics() const override;
     const TAggregatedJobStatistics& GetAggregatedRunningJobStatistics() const override;
-    
+
     std::unique_ptr<IHistogram> ComputeFinalPartitionSizeHistogram() const override;
 
     //! Called before snapshot downloading to check if revival is allowed
@@ -1334,14 +1334,14 @@ private:
     void ProcessJobFinishedResult(const TJobFinishedResult& result);
 
     void BuildJobAttributes(
-        const TJobInfoPtr& job,
+        const TJobletPtr& joblet,
         EJobState state,
         bool outputStatistics,
         i64 stderrSize,
         NYTree::TFluentMap fluent) const;
 
     void BuildFinishedJobAttributes(
-        const TJobInfoPtr& jobInfo,
+        const TJobletPtr& jobInfo,
         TJobSummary* jobSummary,
         bool outputStatistics,
         bool hasStderr,
@@ -1362,6 +1362,7 @@ private:
     void ReleaseJobs(const std::vector<TJobId>& jobIds);
 
     bool IsTreeTentative(const TString& treeId) const;
+    bool IsTreeProbing(const TString& treeId) const;
     void MaybeBanInTentativeTree(const TString& treeId);
 
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
@@ -1370,7 +1371,7 @@ private:
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
 
-    void MarkJobHasCompetitors(const TJobletPtr& joblet);
+    void MarkJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
     template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
     void FetchTableSchemas(

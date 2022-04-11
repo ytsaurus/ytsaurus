@@ -2,11 +2,12 @@
 
 #include "private.h"
 
-#include "competitive_job_manager.h"
+#include "speculative_job_manager.h"
 #include "data_flow_graph.h"
+#include "extended_job_resources.h"
 #include "job_splitter.h"
 #include "helpers.h"
-#include "extended_job_resources.h"
+#include "probing_job_manager.h"
 #include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -54,7 +55,7 @@ struct TJobFinishedResult
 
 class TTask
     : public TRefCounted
-    , public IPersistent
+    , public ICompetitiveJobManagerHost
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, DelayedTime);
@@ -141,10 +142,11 @@ public:
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
+        bool treeIsProbing,
         NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
     bool TryRegisterSpeculativeJob(const TJobletPtr& joblet);
-    std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet);
+    std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet);
 
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
@@ -389,7 +391,8 @@ private:
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;
 
-    TCompetitiveJobManager CompetitiveJobManager_;
+    TSpeculativeJobManager SpeculativeJobManager_;
+    TProbingJobManager ProbingJobManager_;
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
@@ -427,9 +430,9 @@ private:
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
-    void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
+    virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) override;
 
-    void OnSpeculativeJobScheduled(const TJobletPtr& joblet);
+    virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) override;
 
     double GetJobProxyMemoryReserveFactor() const;
 

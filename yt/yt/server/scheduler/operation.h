@@ -121,7 +121,7 @@ struct IOperationStrategyHost
 
     virtual EOperationState GetState() const = 0;
 
-    virtual std::optional<EUnschedulableReason> CheckUnschedulable() const = 0;
+    virtual std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId = std::nullopt) const = 0;
 
     virtual TInstant GetStartTime() const = 0;
 
@@ -326,7 +326,7 @@ public:
     bool IsFinishingState() const;
 
     //! Checks whether current operation state doesn't allow starting new jobs.
-    std::optional<EUnschedulableReason> CheckUnschedulable() const override;
+    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
 
     IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 

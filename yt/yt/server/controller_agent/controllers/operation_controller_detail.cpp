@@ -3041,7 +3041,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     }
 
     // Controller should abort job if its competitor has already completed.
-    auto maybeAbortReason = joblet->Task->ShouldAbortJob(joblet);
+    auto maybeAbortReason = joblet->Task->ShouldAbortCompletingJob(joblet);
     if (maybeAbortReason) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
         OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason), /* byScheduler */ false);
@@ -3298,7 +3298,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto abortReason = jobSummary->AbortReason;
 
-    YT_LOG_DEBUG("Job aborted (JobId: %v)", jobId);
+    YT_LOG_DEBUG("Job aborted (JobId: %v, AbortReason: %v)", jobId, abortReason);
 
     auto joblet = GetJoblet(jobId);
 
@@ -3456,7 +3456,7 @@ void TOperationControllerBase::FinalizeJoblet(
 }
 
 void TOperationControllerBase::BuildJobAttributes(
-    const TJobInfoPtr& job,
+    const TJobletPtr& joblet,
     EJobState state,
     bool outputStatistics,
     i64 stderrSize,
@@ -3465,30 +3465,34 @@ void TOperationControllerBase::BuildJobAttributes(
     static const auto EmptyMapYson = TYsonString(TStringBuf("{}"));
 
     fluent
-        .Item("job_type").Value(job->JobType)
+        .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
-        .Item("address").Value(job->NodeDescriptor.Address)
-        .Item("start_time").Value(job->StartTime)
-        .Item("account").Value(job->DebugArtifactsAccount)
-        .Item("progress").Value(job->Progress)
+        .Item("address").Value(joblet->NodeDescriptor.Address)
+        .Item("start_time").Value(joblet->StartTime)
+        .Item("account").Value(joblet->DebugArtifactsAccount)
+        .Item("progress").Value(joblet->Progress)
 
         // We use Int64 for `stderr_size' to be consistent with
         // compressed_data_size / uncompressed_data_size attributes.
         .Item("stderr_size").Value(stderrSize)
         .Item("brief_statistics")
-            .Value(job->BriefStatistics)
+            .Value(joblet->BriefStatistics)
         .DoIf(outputStatistics, [&] (TFluentMap fluent) {
             fluent.Item("statistics")
-                .Value(job->StatisticsYson ? job->StatisticsYson : EmptyMapYson);
+                .Value(joblet->StatisticsYson ? joblet->StatisticsYson : EmptyMapYson);
         })
-        .Item("suspicious").Value(job->Suspicious)
-        .Item("job_competition_id").Value(job->JobCompetitionId)
-        .Item("has_competitors").Value(job->HasCompetitors)
-        .Item("task_name").Value(job->TaskName);
+        .Item("suspicious").Value(joblet->Suspicious)
+        .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
+        .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
+        .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
+        .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
+        .Item("probing").Value(joblet->CompetitionType == EJobCompetitionType::Probing)
+        .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
+        .Item("task_name").Value(joblet->TaskName);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
-    const TJobInfoPtr& jobInfo,
+    const TJobletPtr& joblet,
     TJobSummary* jobSummary,
     bool outputStatistics,
     bool hasStderr,
@@ -3497,15 +3501,15 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
 {
     auto stderrSize = hasStderr
         // Report nonzero stderr size as we are sure it is saved.
-        ? std::max(jobInfo->StderrSize, static_cast<i64>(1))
+        ? std::max(joblet->StderrSize, static_cast<i64>(1))
         : 0;
 
     i64 failContextSize = hasFailContext ? 1 : 0;
 
-    BuildJobAttributes(jobInfo, jobSummary->State, outputStatistics, stderrSize, fluent);
+    BuildJobAttributes(joblet, jobSummary->State, outputStatistics, stderrSize, fluent);
 
     fluent
-        .Item("finish_time").Value(jobInfo->FinishTime)
+        .Item("finish_time").Value(joblet->FinishTime)
         .DoIf(jobSummary->State == EJobState::Failed, [&] (TFluentMap fluent) {
             auto error = FromProto<TError>(jobSummary->Result.error());
             fluent.Item("error").Value(error);
@@ -3533,8 +3537,10 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("statistics").Value(jobSummary.Statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
-        .Item("job_competition_id").Value(joblet->JobCompetitionId)
-        .Item("has_competitors").Value(joblet->HasCompetitors)
+        .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
+        .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
+        .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
+        .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
         .Item("tree_id").Value(joblet->TreeId);
 }
 
@@ -4063,7 +4069,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
             break;
         }
     }
-    
+
     if (foundMatching) {
         AvailableExecNodesObserved_ = true;
     }
@@ -4443,7 +4449,7 @@ void TOperationControllerBase::TryScheduleJob(
             break;
         }
 
-        task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
+        task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), IsTreeProbing(treeId), scheduleJobResult);
         if (scheduleJobResult->StartDescriptor) {
             RegisterTestingSpeculativeJobIfNeeded(task, scheduleJobResult->StartDescriptor->Id);
             UpdateTask(task);
@@ -4457,6 +4463,11 @@ void TOperationControllerBase::TryScheduleJob(
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
 {
     return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Tentative;
+}
+
+bool TOperationControllerBase::IsTreeProbing(const TString& treeId) const
+{
+    return GetOrCrash(PoolTreeControllerSettingsMap_, treeId).Probing;
 }
 
 void TOperationControllerBase::MaybeBanInTentativeTree(const TString& treeId)
@@ -9723,23 +9734,23 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reaso
     Host->InterruptJob(jobId, reason);
 }
 
-void TOperationControllerBase::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
+void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
 {
-    MarkJobHasCompetitors(joblet);
+    MarkJobHasCompetitors(joblet, competitionType);
     // Original job could be finished and another speculative still running.
-    if (auto originalJob = FindJoblet(joblet->JobCompetitionId)) {
-        MarkJobHasCompetitors(originalJob);
+    if (auto originalJob = FindJoblet(joblet->CompetitionIds[competitionType])) {
+        MarkJobHasCompetitors(originalJob, competitionType);
     }
 }
 
-void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
+void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType)
 {
-    if (!joblet->HasCompetitors) {
-        joblet->HasCompetitors = true;
+    if (!joblet->HasCompetitors[competitionType]) {
+        joblet->HasCompetitors[competitionType] = true;
         auto jobReport = NJobAgent::TControllerJobReport()
             .OperationId(OperationId)
             .JobId(joblet->JobId)
-            .HasCompetitors(true);
+            .MarkHasCompetitors(/*hasCompetitors*/ true, competitionType);
         Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
     }
 }
@@ -9756,7 +9767,7 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
             needLaunchSpeculativeJob = joblet->JobIndex == 0;
             break;
         case ETestingSpeculativeLaunchMode::Always:
-            needLaunchSpeculativeJob = !joblet->Speculative;
+            needLaunchSpeculativeJob = !joblet->CompetitionType;
             break;
         default:
             YT_ABORT();

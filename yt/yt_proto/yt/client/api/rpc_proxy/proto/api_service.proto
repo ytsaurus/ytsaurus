@@ -2294,6 +2294,8 @@ message TJob
     optional string task_name = 22;
     optional string pool_tree = 23;
     optional string pool = 24;
+    optional NYT.NProto.TGuid probing_job_competition_id = 25;
+    optional bool has_probing_competitors = 26;
 }
 
 message TListJobsStatistics

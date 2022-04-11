@@ -150,7 +150,7 @@ struct ITaskHost
     virtual bool CanInterruptJobs() const = 0;
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
 
-    virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) = 0;
+    virtual void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) = 0;
 
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const = 0;
 

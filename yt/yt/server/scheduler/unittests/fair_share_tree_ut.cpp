@@ -353,7 +353,7 @@ public:
     }
 
 
-    std::optional<EUnschedulableReason> CheckUnschedulable() const override
+    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& /* treeId */) const override
     {
         return std::nullopt;
     }

@@ -56,6 +56,7 @@ void ToProto(
         protoTreeSettings->set_tree_name(treeName);
         ToProto(protoTreeSettings->mutable_scheduling_tag_filter(), settings.SchedulingTagFilter);
         protoTreeSettings->set_tentative(settings.Tentative);
+        protoTreeSettings->set_probing(settings.Probing);
         protoTreeSettings->set_main_resource(static_cast<int>(settings.MainResource));
     }
 }
@@ -72,6 +73,7 @@ void FromProto(
             TPoolTreeControllerSettings{
                 .SchedulingTagFilter = filter,
                 .Tentative = protoTreeSettings.tentative(),
+                .Probing = protoTreeSettings.probing(),
                 .MainResource = protoTreeSettings.has_main_resource()
                     ? static_cast<EJobResourceType>(protoTreeSettings.main_resource())
                     : EJobResourceType::Cpu,

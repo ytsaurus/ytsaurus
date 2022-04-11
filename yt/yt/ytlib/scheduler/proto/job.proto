@@ -342,6 +342,8 @@ message TSchedulerJobSpecExt
     optional bytes testing_options = 31 [(NYT.NYson.NProto.yson_string) = true];
 
     optional NYT.NYTree.NProto.TAttributeDictionary io_tags = 32;
+
+    optional NYT.NProto.TGuid probing_job_competition_id = 33;
 }
 
 message TSchedulerJobResultExt

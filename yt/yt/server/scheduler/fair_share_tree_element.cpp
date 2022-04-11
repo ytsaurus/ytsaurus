@@ -3802,7 +3802,7 @@ bool TSchedulerOperationElement::IsSchedulable() const
 
 std::optional<EUnschedulableReason> TSchedulerOperationElement::ComputeUnschedulableReason() const
 {
-    auto result = OperationHost_->CheckUnschedulable();
+    auto result = OperationHost_->CheckUnschedulable(TreeId_);
     if (!result && IsMaxScheduleJobCallsViolated()) {
         result = EUnschedulableReason::MaxScheduleJobCallsViolated;
     }
@@ -3947,7 +3947,7 @@ TControllerScheduleJobResultPtr TSchedulerOperationElement::DoScheduleJob(
 
 TJobResources TSchedulerOperationElement::ComputeResourceDemand() const
 {
-    auto maybeUnschedulableReason = OperationHost_->CheckUnschedulable();
+    auto maybeUnschedulableReason = OperationHost_->CheckUnschedulable(TreeId_);
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
         return ResourceUsageAtUpdate_;
     }

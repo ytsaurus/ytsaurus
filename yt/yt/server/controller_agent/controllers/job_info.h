@@ -56,8 +56,8 @@ struct TJobInfoBase
     i64 StderrSize = 0;
     NYson::TYsonString StatisticsYson;
     EJobPhase Phase = EJobPhase::Missing;
-    TJobId JobCompetitionId;
-    bool HasCompetitors = false;
+    TEnumIndexedVector<EJobCompetitionType, TJobId> CompetitionIds;
+    TEnumIndexedVector<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
 
     virtual void Persist(const TPersistenceContext& context);
@@ -99,7 +99,7 @@ public:
     i64 StartRowIndex = -1;
     bool Restarted = false;
     bool Revived = false;
-    bool Speculative = false;
+    std::optional<EJobCompetitionType> CompetitionType;
 
     // It is necessary to store tree id here since it is required to
     // create job metrics updater after revive.

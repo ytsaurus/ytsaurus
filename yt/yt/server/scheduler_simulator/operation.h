@@ -25,7 +25,7 @@ public:
     NScheduler::TOperationId GetId() const override;
     NScheduler::EOperationType GetType() const override;
     NScheduler::EOperationState GetState() const override;
-    std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable() const override;
+    std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
     TInstant GetStartTime() const override;
     TString GetAuthenticatedUser() const override;
 
@@ -44,13 +44,13 @@ public:
     NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
     bool IsTreeErased(const TString& treeId) const override;
-    
+
     void EraseTrees(const std::vector<TString>& treeIds) override;
 
     std::optional<NScheduler::TJobResources> GetInitialAggregatedMinNeededResources() const override;
 
     bool SetCompleting();
-    
+
     void SetState(NScheduler::EOperationState state);
 
 private:

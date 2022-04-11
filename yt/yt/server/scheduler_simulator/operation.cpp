@@ -32,10 +32,21 @@ NScheduler::EOperationState TOperation::GetState() const
     return State_;
 }
 
-std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable() const
+std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
 {
-    if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
-        return NScheduler::EUnschedulableReason::NoPendingJobs;
+    if (treeId) {
+        if (Controller_->GetNeededResources().GetNeededResourcesForTree(treeId.value()).GetUserSlots() == 0) {
+            return NScheduler::EUnschedulableReason::NoPendingJobs;
+        }
+    } else if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
+        // Check needed resources of all trees.
+        bool noPendingJobs = true;
+        for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTree) {
+            noPendingJobs = noPendingJobs && neededResources.GetUserSlots() == 0;
+        }
+        if (noPendingJobs) {
+            return NScheduler::EUnschedulableReason::NoPendingJobs;
+        }
     }
 
     return std::nullopt;

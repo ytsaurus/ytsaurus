@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
+#include <yt/yt/server/lib/controller_agent/helpers.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,40 +13,50 @@ namespace NYT::NControllerAgent::NControllers {
 DEFINE_ENUM(ECompetitionStatus,
     (SingleJobOnly)
     (TwoCompetitiveJobs)
-    (CompetitionCompleted)
+    (HasCompletedJob)
 )
 
-class TCompetitiveJobManager
+////////////////////////////////////////////////////////////////////////////////
+
+class ICompetitiveJobManagerHost
+    : public IPersistent
+{
+public:
+    virtual void OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitonType) = 0;
+    virtual void AbortJobViaScheduler(TJobId jobId, NScheduler::EAbortReason abortReason) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCompetitiveJobManagerBase
 {
 public:
     //! Used only for persistence.
-    TCompetitiveJobManager() = default;
+    TCompetitiveJobManagerBase() = default;
 
-    TCompetitiveJobManager(
-        std::function<void(const TJobletPtr&)> onSpeculativeJobScheduled,
-        std::function<void(TJobId, EAbortReason)> abortJobCallback,
+    TCompetitiveJobManagerBase(
+        ICompetitiveJobManagerHost* host,
         NLogging::TLogger logger,
-        int maxSpeculativeJobCount);
+        int maxSecondaryJobCount,
+        EJobCompetitionType competitionType);
 
-    bool TryRegisterSpeculativeCandidate(const TJobletPtr& joblet);
+    //! This method may be called either by derived class (in case of probing) or by external code (in case of speculative).
+    bool TryAddCompetitiveJob(const TJobletPtr& joblet);
 
-    int GetPendingSpeculativeJobCount() const;
+    i64 GetPendingCandidatesDataWeight() const;
 
-    int GetTotalSpeculativeJobCount() const;
+    int GetPendingJobCount() const;
 
-    NChunkPools::IChunkPoolOutput::TCookie PeekSpeculativeCandidate() const;
+    int GetTotalJobCount() const;
+
+    NChunkPools::IChunkPoolOutput::TCookie PeekJobCandidate() const;
 
     void OnJobScheduled(const TJobletPtr& joblet);
-    void OnJobCompleted(const TJobletPtr& joblet);
 
-    // Next two methods return whether we must return cookie to chunk pool or not.
     bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason);
     bool OnJobFailed(const TJobletPtr& joblet);
 
-    // If competitive job of this joblet completed we should abort the joblet even if it has completed.
-    std::optional<EAbortReason> ShouldAbortJob(const TJobletPtr& joblet) const;
-
-    i64 GetPendingCandidatesDataWeight() const;
+    bool IsRelevant(const TJobletPtr& joblet) const;
 
     bool IsFinished() const;
 
@@ -52,45 +64,50 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
-private:
+protected:
     struct TCompetition
         : public TRefCounted
     {
         ECompetitionStatus Status = ECompetitionStatus::SingleJobOnly;
         std::vector<TJobId> Competitors;
         TJobId JobCompetitionId;
-        i64 PendingDataWeight;
+        i64 PendingDataWeight = 0;
         TProgressCounterGuard ProgressCounterGuard;
+        bool IsNonTrivial = false;
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
+        void Persist(const TPersistenceContext& context);
 
-            Persist(context, Status);
-            Persist(context, Competitors);
-            Persist(context, JobCompetitionId);
-            Persist(context, PendingDataWeight);
-            Persist(context, ProgressCounterGuard);
-        }
+        TJobId GetCompetitorFor(TJobId jobId);
     };
-    DEFINE_REFCOUNTED_TYPE(TCompetition)
 
-    std::function<void(TJobId, EAbortReason)> AbortJobCallback_;
-    std::function<void(const TJobletPtr&)> OnSpeculativeJobScheduled_;
+    using TCompetitionPtr = TIntrusivePtr<TCompetition>;
+
+    ICompetitiveJobManagerHost* Host_;
+
+protected:
+    void OnJobFinished(const TJobletPtr& joblet);
+    void MarkCompetitionAsCompleted(const TJobletPtr& joblet);
+
+    const TCompetitionPtr& GetCompetition(const TJobletPtr& joblet) const;
+    TCompetitionPtr FindCompetition(const TJobletPtr& joblet) const;
+
+private:
     TProgressCounterPtr JobCounter_;
 
-    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TIntrusivePtr<TCompetition>> CookieToCompetition_;
-    THashSet<NChunkPools::IChunkPoolOutput::TCookie> SpeculativeCandidates_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCompetitionPtr> CookieToCompetition_;
+    THashSet<NChunkPools::IChunkPoolOutput::TCookie> CompetitionCandidates_;
+
+    NLogging::TSerializableLogger Logger;
 
     i64 PendingDataWeight_ = 0;
-    int MaxSpeculativeJobCount_ = -1;
+    int MaxCompetitiveJobCount_ = -1;
 
-    NLogging::TLogger Logger;
+    EJobCompetitionType CompetitionType_;
 
-    void OnJobFinished(const TJobletPtr& joblet);
-    bool OnUnsuccessfulJobFinish(
+    //! Return value indicates whether an appropriate cookie must be returned to chunk pool.
+    virtual bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(TProgressCounterGuard*)>& updateJobCounter);
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

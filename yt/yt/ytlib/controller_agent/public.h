@@ -90,6 +90,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((TentativeSpeculativeForbidden) (22))
     ((OperationIsNotAlive)           (23))
     ((NewJobsForbidden)              (24))
+    ((NoPendingProbingJobs)          (25))
 );
 
 YT_DEFINE_ERROR_ENUM(
