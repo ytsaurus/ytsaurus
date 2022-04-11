@@ -214,7 +214,10 @@ void TLeaderCommitter::SerializeMutations()
             auto error = TError(
                 EErrorCode::ReadOnly,
                 "Read-only mode is active");
-            mutationDraft.Promise.Set(error);
+            mutationDraft.Promise.Set(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot commit a mutation at the moment")
+                << error);
             continue;
         }
 
