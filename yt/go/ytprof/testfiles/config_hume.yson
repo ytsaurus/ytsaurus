@@ -1,18 +1,22 @@
 {
     "cluster" = "hume";
-    "root" = "//home/kristevalex";
+    "table_path" = "//home/kristevalex/ytprof";
     "services" = [
         {
             "service_type" = "node";
             "period" = 300000000000;
-            "probability" = 1;
-            "path" = "ytprof/cpu";
+            "probability" = 0.5;
+            "path" = "ytprof/profile";
             "resolvers" = [
                 {
                     "port" = 10012;
                     "urls" = [
-                        "http://sas3-4990-tablet-node-hume.man-pre.yp-c.yandex.net"; 
-                        "http://sas3-4992-node-hume.man-pre.yp-c.yandex.net"
+                        "http://sas3-4992-node-hume.man-pre.yp-c.yandex.net"; 
+                        "http://sas3-4993-node-hume.man-pre.yp-c.yandex.net"; 
+                        "http://sas3-4994-node-hume.man-pre.yp-c.yandex.net"; 
+                        "http://sas3-4995-node-hume.man-pre.yp-c.yandex.net"; 
+                        "http://sas4-5256-node-hume.man-pre.yp-c.yandex.net"; 
+                        "http://sas3-4997-node-hume.man-pre.yp-c.yandex.net"
                     ]
                 }
             ]

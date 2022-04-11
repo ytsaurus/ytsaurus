@@ -63,12 +63,13 @@ func checkTestProfiles(t *testing.T, checkProfiles []*profile.Profile) {
 }
 
 func TestDataAndMetadataTablesSmall(t *testing.T) {
-	env := yttest.New(t)
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
 
 	tmpPath := env.TmpPath()
 	_ = env
-	l, err := ytlog.New()
-	require.NoError(t, err)
 
 	ts := storage.NewTableStorage(env.YT, tmpPath, l)
 	_ = ts
@@ -77,12 +78,12 @@ func TestDataAndMetadataTablesSmall(t *testing.T) {
 }
 
 func TestDataAndMetadataTables(t *testing.T) {
-	env := yttest.New(t)
-
-	tmpPath := env.TmpPath()
-
 	l, err := ytlog.New()
 	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
+
+	tmpPath := env.TmpPath()
 
 	tsData := storage.NewTableStorage(env.YT, tmpPath, l)
 
@@ -103,12 +104,12 @@ func TestDataAndMetadataTables(t *testing.T) {
 }
 
 func TestDataExpr(t *testing.T) {
-	env := yttest.New(t)
-
-	tmpPath := env.TmpPath()
-
 	l, err := ytlog.New()
 	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
+
+	tmpPath := env.TmpPath()
 
 	tsData := storage.NewTableStorage(env.YT, tmpPath, l)
 
@@ -129,13 +130,13 @@ func TestDataExpr(t *testing.T) {
 }
 
 func TestMetadataIdsQuery(t *testing.T) {
-	env := yttest.New(t)
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
 
 	tmpPath := env.TmpPath()
 	dataPath := tmpPath
-
-	l, err := ytlog.New()
-	require.NoError(t, err)
 
 	tsData := storage.NewTableStorage(env.YT, dataPath, l)
 
@@ -154,12 +155,12 @@ func TestMetadataIdsQuery(t *testing.T) {
 }
 
 func TestMetadataQuery(t *testing.T) {
-	env := yttest.New(t)
-
-	dataPath := env.TmpPath()
-
 	l, err := ytlog.New()
 	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
+
+	dataPath := env.TmpPath()
 
 	tsData := storage.NewTableStorage(env.YT, dataPath, l)
 
