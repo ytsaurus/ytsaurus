@@ -83,6 +83,7 @@ public:
 
         TYsonString coreInfosYsonString;
         TString jobCompetitionIdString;
+        TString probingJobCompetitionIdString;
         TString statisticsLz4;
         TYsonString briefStatisticsYsonString;
 
@@ -143,8 +144,15 @@ public:
             jobCompetitionIdString = ToString(Statistics_.JobCompetitionId());
             builder.AddValue(MakeUnversionedStringValue(jobCompetitionIdString, index.JobCompetitionId));
         }
+        if (Statistics_.ProbingJobCompetitionId()) {
+            probingJobCompetitionIdString = ToString(Statistics_.ProbingJobCompetitionId());
+            builder.AddValue(MakeUnversionedStringValue(probingJobCompetitionIdString, index.ProbingJobCompetitionId));
+        }
         if (Statistics_.HasCompetitors().has_value()) {
             builder.AddValue(MakeUnversionedBooleanValue(Statistics_.HasCompetitors().value(), index.HasCompetitors));
+        }
+        if (Statistics_.HasProbingCompetitors().has_value()) {
+            builder.AddValue(MakeUnversionedBooleanValue(Statistics_.HasProbingCompetitors().value(), index.HasProbingCompetitors));
         }
         if (Statistics_.ExecAttributes()) {
             builder.AddValue(MakeUnversionedAnyValue(*Statistics_.ExecAttributes(), index.ExecAttributes));
@@ -306,7 +314,7 @@ public:
         builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
         builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
         builder.AddValue(MakeUnversionedStringValue(*Statistics_.FailContext(), index.FailContext));
-        
+
         return builder.FinishRow();
     }
 
@@ -347,7 +355,7 @@ public:
         builder.AddValue(MakeUnversionedStringValue(profile->Type, index.ProfileType));
         builder.AddValue(MakeUnversionedStringValue(profile->Blob, index.ProfileBlob));
         builder.AddValue(MakeUnversionedDoubleValue(profile->ProfilingProbability, index.ProfilingProbability));
-        
+
         return builder.FinishRow();
     }
 
@@ -488,7 +496,7 @@ public:
             JobFailContextHandler_->QueueIsTooLarge() ||
             JobProfileHandler_->QueueIsTooLarge();
     }
-    
+
     void UpdateConfig(const TJobReporterConfigPtr& config)
     {
         JobHandler_->SetEnabled(config->EnableJobReporter);
@@ -497,7 +505,7 @@ public:
         JobProfileHandler_->SetEnabled(config->EnableJobProfileReporter);
         JobFailContextHandler_->SetEnabled(config->EnableJobFailContextReporter);
     }
-    
+
     void OnDynamicConfigChanged(
         const TJobReporterDynamicConfigPtr& /* oldConfig */,
         const TJobReporterDynamicConfigPtr& newConfig)
@@ -567,14 +575,14 @@ bool TJobReporter::GetQueueIsTooLarge()
     }
     return false;
 }
-    
+
 void TJobReporter::UpdateConfig(const TJobReporterConfigPtr& config)
 {
     if (Impl_) {
         Impl_->UpdateConfig(config);
     }
 }
-    
+
 void TJobReporter::OnDynamicConfigChanged(
     const TJobReporterDynamicConfigPtr& oldConfig,
     const TJobReporterDynamicConfigPtr& newConfig)

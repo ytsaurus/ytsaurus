@@ -2462,6 +2462,9 @@ TNodeJobReport TJob::MakeDefaultJobReport()
     if (SchedulerJobSpecExt_->has_job_competition_id()) {
         report.SetJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->job_competition_id()));
     }
+    if (SchedulerJobSpecExt_->has_probing_job_competition_id()) {
+        report.SetProbingJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->probing_job_competition_id()));
+    }
     if (SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_task_name()) {
         report.SetTaskName(SchedulerJobSpecExt_->task_name());
     }

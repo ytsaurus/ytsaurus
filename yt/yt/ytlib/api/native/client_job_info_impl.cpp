@@ -1189,7 +1189,9 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto hasSpecIndex = findColumnIndex("has_spec");
     auto failContextSizeIndex = findColumnIndex("fail_context_size");
     auto jobCompetitionIdIndex = findColumnIndex("job_competition_id");
+    auto probingJobCompetitionIdIndex = findColumnIndex("probing_job_competition_id");
     auto hasCompetitorsIndex = findColumnIndex("has_competitors");
+    auto hasProbingCompetitorsIndex = findColumnIndex("has_probing_competitors");
     auto execAttributesIndex = findColumnIndex("exec_attributes");
     auto taskNameIndex = findColumnIndex("task_name");
     auto coreInfosIndex = findColumnIndex("core_infos");
@@ -1257,11 +1259,23 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.JobCompetitionId = FromUnversionedValue<TGuid>(row[*jobCompetitionIdIndex]);
         }
 
+        if (probingJobCompetitionIdIndex && row[*probingJobCompetitionIdIndex].Type != EValueType::Null) {
+            job.ProbingJobCompetitionId = FromUnversionedValue<TGuid>(row[*probingJobCompetitionIdIndex]);
+        }
+
         if (hasCompetitorsIndex) {
             if (row[*hasCompetitorsIndex].Type != EValueType::Null) {
                 job.HasCompetitors = FromUnversionedValue<bool>(row[*hasCompetitorsIndex]);
             } else {
                 job.HasCompetitors = false;
+            }
+        }
+
+        if (hasProbingCompetitorsIndex) {
+            if (row[*hasProbingCompetitorsIndex].Type != EValueType::Null) {
+                job.HasProbingCompetitors = FromUnversionedValue<bool>(row[*hasProbingCompetitorsIndex]);
+            } else {
+                job.HasProbingCompetitors = false;
             }
         }
 
@@ -1488,7 +1502,9 @@ static void ParseJobsFromControllerAgentResponse(
     auto needStderrSize = attributes.contains("stderr_size");
     auto needBriefStatistics = attributes.contains("brief_statistics");
     auto needJobCompetitionId = attributes.contains("job_competition_id");
+    auto needProbingJobCompetitionId = attributes.contains("probing_job_competition_id");
     auto needHasCompetitors = attributes.contains("has_competitors");
+    auto needHasProbingCompetitors = attributes.contains("has_probing_competitors");
     auto needError = attributes.contains("error");
     auto needTaskName = attributes.contains("task_name");
     auto needCoreInfos = attributes.contains("core_infos");
@@ -1544,10 +1560,20 @@ static void ParseJobsFromControllerAgentResponse(
                 job.JobCompetitionId = ConvertTo<TJobId>(child);
             }
         }
+        if (needProbingJobCompetitionId) {
+            if (auto child = jobMapNode->FindChild("probing_job_competition_id")) {
+                job.ProbingJobCompetitionId = ConvertTo<TJobId>(child);
+            }
+        }
         if (needHasCompetitors) {
             //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
             if (auto child = jobMapNode->FindChild("has_competitors")) {
                 job.HasCompetitors = ConvertTo<bool>(child);
+            }
+        }
+        if (needHasProbingCompetitors) {
+            if (auto child = jobMapNode->FindChild("has_probing_competitors")) {
+                job.HasProbingCompetitors = ConvertTo<bool>(child);
             }
         }
         if (needError) {
@@ -1802,7 +1828,9 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::InputPaths);
     mergeNullableField(&TJob::CoreInfos);
     mergeNullableField(&TJob::JobCompetitionId);
+    mergeNullableField(&TJob::ProbingJobCompetitionId);
     mergeNullableField(&TJob::HasCompetitors);
+    mergeNullableField(&TJob::HasProbingCompetitors);
     mergeNullableField(&TJob::ExecAttributes);
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);

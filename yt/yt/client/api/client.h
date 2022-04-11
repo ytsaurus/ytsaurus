@@ -1255,7 +1255,9 @@ struct TJob
     std::optional<ui64> FailContextSize;
     std::optional<bool> HasSpec;
     std::optional<bool> HasCompetitors;
+    std::optional<bool> HasProbingCompetitors;
     NJobTrackerClient::TJobId JobCompetitionId;
+    NJobTrackerClient::TJobId ProbingJobCompetitionId;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;
     NYson::TYsonString Statistics;

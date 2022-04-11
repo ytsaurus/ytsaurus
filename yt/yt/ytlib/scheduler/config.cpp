@@ -1996,6 +1996,14 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("max_speculative_job_count_per_task", &TThis::MaxSpeculativeJobCountPerTask)
         .Default(10);
+    registrar.Parameter("max_probing_job_count_per_task", &TThis::MaxProbingJobCountPerTask)
+        .Default(10);
+    registrar.Parameter("probing_ratio", &TThis::ProbingRatio)
+        .InRange(0, 1)
+        .Default();
+    registrar.Parameter("probing_pool_tree", &TThis::ProbingPoolTree)
+        .Default();
+
     // TODO(ignat): move it to preemption settings.
     registrar.Parameter("preemption_mode", &TThis::PreemptionMode)
         .Default(EPreemptionMode::Normal);
@@ -2039,6 +2047,8 @@ void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
     registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
         .Default(false);
     registrar.Parameter("tentative", &TThis::Tentative)
+        .Default(false);
+    registrar.Parameter("probing", &TThis::Probing)
         .Default(false);
     registrar.Parameter("scheduling_segment_module", &TThis::SchedulingSegmentModule)
         .Alias("scheduling_segment_data_center")

@@ -1355,6 +1355,7 @@ public:
             std::vector<TString> treeIdsToUnregister;
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
                 YT_VERIFY(!treeRuntimeParameters->Tentative);
+                YT_VERIFY(!treeRuntimeParameters->Probing);
                 if (treeId != chosenTree) {
                     treeIdsToUnregister.emplace_back(treeId);
                 }

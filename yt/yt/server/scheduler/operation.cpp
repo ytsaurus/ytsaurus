@@ -297,7 +297,7 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
-std::optional<EUnschedulableReason> TOperation::CheckUnschedulable() const
+std::optional<EUnschedulableReason> TOperation::CheckUnschedulable(const std::optional<TString>& treeId) const
 {
     if (State_ != EOperationState::Running) {
         return EUnschedulableReason::IsNotRunning;
@@ -307,8 +307,19 @@ std::optional<EUnschedulableReason> TOperation::CheckUnschedulable() const
         return EUnschedulableReason::Suspended;
     }
 
-    if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
-        return EUnschedulableReason::NoPendingJobs;
+    if (treeId) {
+        if (Controller_->GetNeededResources().GetNeededResourcesForTree(treeId.value()).GetUserSlots() == 0) {
+            return EUnschedulableReason::NoPendingJobs;
+        }
+    } else if (Controller_->GetNeededResources().DefaultResources.GetUserSlots() == 0) {
+        // Check needed resources of all trees.
+        bool noPendingJobs = true;
+        for (const auto& [treeId, neededResources] : Controller_->GetNeededResources().ResourcesByPoolTree) {
+            noPendingJobs = noPendingJobs && neededResources.GetUserSlots() == 0;
+        }
+        if (noPendingJobs) {
+            return EUnschedulableReason::NoPendingJobs;
+        }
     }
 
     return std::nullopt;

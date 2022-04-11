@@ -24,6 +24,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((LowGpuPowerUsageOnWindow)             (300808))
     // 22.1 but cherry-pick later
     ((StripedErasureTables)                 (300858))
+    ((ProbingJobs)                          (300859))
     // 22.2 start here
     ((MajorUpdateTo22_2)                    (300901))
 );

@@ -63,11 +63,6 @@ TTask::TTask()
     : Logger(ControllerLogger)
     , CachedPendingJobCount_{.DefaultCount = -1}
     , CachedTotalJobCount_(-1)
-    , CompetitiveJobManager_(
-        std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
-        std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),
-        Logger,
-        0)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors)
@@ -77,11 +72,16 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescrip
     , InputChunkMapping_(New<TInputChunkMapping>(EChunkMappingMode::Sorted))
     , CachedPendingJobCount_{}
     , CachedTotalJobCount_(0)
-    , CompetitiveJobManager_(
-        std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
-        std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),
+    , SpeculativeJobManager_(
+        this,
         Logger,
         taskHost->GetSpec()->MaxSpeculativeJobCountPerTask)
+    , ProbingJobManager_(
+        this,
+        Logger,
+        taskHost->GetSpec()->MaxProbingJobCountPerTask,
+        taskHost->GetSpec()->ProbingRatio,
+        taskHost->GetSpec()->ProbingPoolTree)
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
@@ -147,8 +147,14 @@ TCompositePendingJobCount TTask::GetPendingJobCount() const
         return TCompositePendingJobCount{};
     }
 
-    int jobCount = GetChunkPoolOutput()->GetJobCounter()->GetPending() + CompetitiveJobManager_.GetPendingSpeculativeJobCount();
-    return TCompositePendingJobCount{.DefaultCount = jobCount, .CountByPoolTree = TentativeTreeEligibility_.GetPendingJobCount()};
+    TCompositePendingJobCount result;
+
+    result.DefaultCount = GetChunkPoolOutput()->GetJobCounter()->GetPending() +
+        SpeculativeJobManager_.GetPendingJobCount();
+
+    ProbingJobManager_.UpdatePendingJobCount(&result);
+
+    return result;
 }
 
 TCompositePendingJobCount TTask::GetPendingJobCountDelta()
@@ -170,7 +176,9 @@ int TTask::GetTotalJobCount() const
         return 0;
     }
 
-    return GetChunkPoolOutput()->GetJobCounter()->GetTotal() + CompetitiveJobManager_.GetTotalSpeculativeJobCount();
+    return GetChunkPoolOutput()->GetJobCounter()->GetTotal() +
+        SpeculativeJobManager_.GetTotalJobCount() +
+        ProbingJobManager_.GetTotalJobCount();
 }
 
 int TTask::GetTotalJobCountDelta()
@@ -209,9 +217,9 @@ TCompositeNeededResources TTask::GetTotalNeededResources() const
         result.DefaultResources = GetMinNeededResources().ToJobResources() * static_cast<i64>(jobCount.DefaultCount);
     }
     for (const auto& [tree, count] : jobCount.CountByPoolTree) {
-        if (count != 0) {
-            result.ResourcesByPoolTree[tree] = GetMinNeededResources().ToJobResources() * static_cast<i64>(count);
-        }
+        result.ResourcesByPoolTree[tree] = count == 0
+            ? TJobResources{}
+            : GetMinNeededResources().ToJobResources() * static_cast<i64>(count);
     }
     return result;
 }
@@ -349,7 +357,11 @@ void TTask::DoRegisterInGraph()
 
     TaskHost_->GetDataFlowGraph()->RegisterCounter(
         GetVertexDescriptor(),
-        CompetitiveJobManager_.GetProgressCounter(),
+        SpeculativeJobManager_.GetProgressCounter(),
+        GetJobType());
+    TaskHost_->GetDataFlowGraph()->RegisterCounter(
+        GetVertexDescriptor(),
+        ProbingJobManager_.GetProgressCounter(),
         GetJobType());
 }
 
@@ -363,7 +375,8 @@ void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
 void TTask::RegisterCounters(const TProgressCounterPtr& parent)
 {
     GetChunkPoolOutput()->GetJobCounter()->AddParent(parent);
-    CompetitiveJobManager_.GetProgressCounter()->AddParent(parent);
+    SpeculativeJobManager_.GetProgressCounter()->AddParent(parent);
+    ProbingJobManager_.GetProgressCounter()->AddParent(parent);
 }
 
 void TTask::CheckCompleted()
@@ -408,6 +421,7 @@ void TTask::ScheduleJob(
     const TJobResources& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
+    bool treeIsProbing,
     TControllerScheduleJobResult* scheduleJobResult)
 {
     if (auto failReason = GetScheduleFailReason(context)) {
@@ -436,10 +450,14 @@ void TTask::ScheduleJob(
     auto nodeId = context->GetNodeDescriptor().Id;
     const auto& address = context->GetNodeDescriptor().Address;
 
-    if (speculative) {
-        joblet->Speculative = true;
-        joblet->OutputCookie = CompetitiveJobManager_.PeekSpeculativeCandidate();
+    if (treeIsProbing) {
+        joblet->CompetitionType = EJobCompetitionType::Probing;
+        joblet->OutputCookie = ProbingJobManager_.PeekJobCandidate();
+    } else if (speculative) {
+        joblet->CompetitionType = EJobCompetitionType::Speculative;
+        joblet->OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
     } else {
+        joblet->CompetitionType = std::nullopt;
         auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
         joblet->OutputCookie = ExtractCookie(localityNodeId);
         if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
@@ -450,7 +468,7 @@ void TTask::ScheduleJob(
     }
 
     auto abortJob = [&] (EScheduleJobFailReason jobFailReason, EAbortReason abortReason) {
-        if (!joblet->Speculative) {
+        if (!joblet->CompetitionType) {
             chunkPoolOutput->Aborted(joblet->OutputCookie, abortReason);
         }
         scheduleJobResult->RecordFail(jobFailReason);
@@ -525,7 +543,8 @@ void TTask::ScheduleJob(
 
     joblet->JobId = context->GetJobId();
 
-    CompetitiveJobManager_.OnJobScheduled(joblet);
+    SpeculativeJobManager_.OnJobScheduled(joblet);
+    ProbingJobManager_.OnJobScheduled(joblet);
 
     // Job is restarted if LostJobCookieMap contains at least one entry with this output cookie.
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
@@ -566,7 +585,7 @@ void TTask::ScheduleJob(
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v, JobSpeculationTimeout: %v)",
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
         joblet->JobType,
@@ -585,7 +604,7 @@ void TTask::ScheduleJob(
         joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor,
         FormatResources(neededResources),
-        joblet->Speculative,
+        joblet->CompetitionType,
         joblet->JobSpeculationTimeout);
 
     SetStreamDescriptors(joblet);
@@ -608,7 +627,7 @@ void TTask::ScheduleJob(
     TaskHost_->CustomizeJoblet(joblet);
 
     TaskHost_->RegisterJoblet(joblet);
-    if (!joblet->Speculative) {
+    if (!joblet->CompetitionType) {
         TaskHost_->AddValueToEstimatedHistogram(joblet);
         if (EstimatedInputDataWeightHistogram_) {
             EstimatedInputDataWeightHistogram_->AddValue(joblet->InputStripeList->TotalDataWeight);
@@ -651,7 +670,7 @@ void TTask::ScheduleJob(
 
 bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 {
-    return CompetitiveJobManager_.TryRegisterSpeculativeCandidate(joblet);
+    return SpeculativeJobManager_.TryAddCompetitiveJob(joblet);
 }
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
@@ -661,7 +680,8 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .Item("job_type").Value(GetJobType())
         .Item("has_user_job").Value(HasUserJob())
         .Item("job_counter").Value(GetJobCounter())
-        .Item("speculative_job_counter").Value(CompetitiveJobManager_.GetProgressCounter())
+        .Item("speculative_job_counter").Value(SpeculativeJobManager_.GetProgressCounter())
+        .Item("probing_job_counter").Value(ProbingJobManager_.GetProgressCounter())
         .Item("input_finished").Value(GetChunkPoolInput() && GetChunkPoolInput()->IsFinished())
         .Item("completed").Value(IsCompleted())
         .Item("min_needed_resources").Value(GetMinNeededResources())
@@ -709,14 +729,20 @@ IChunkPoolOutput::TCookie TTask::ExtractCookie(TNodeId nodeId)
     return GetChunkPoolOutput()->Extract(nodeId);
 }
 
-std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
+std::optional<EAbortReason> TTask::ShouldAbortCompletingJob(const TJobletPtr& joblet)
 {
-    return CompetitiveJobManager_.ShouldAbortJob(joblet);
+    if (auto result = SpeculativeJobManager_.ShouldAbortCompletingJob(joblet)) {
+        return result;
+    }
+    return ProbingJobManager_.ShouldAbortCompletingJob(joblet);
 }
 
 bool TTask::IsCompleted() const
 {
-    return IsActive() && GetChunkPoolOutput()->IsCompleted() && CompetitiveJobManager_.IsFinished();
+    return IsActive()
+        && GetChunkPoolOutput()->IsCompleted()
+        && SpeculativeJobManager_.IsFinished()
+        && ProbingJobManager_.IsFinished();
 }
 
 bool TTask::IsActive() const
@@ -736,7 +762,9 @@ i64 TTask::GetCompletedDataWeight() const
 
 i64 TTask::GetPendingDataWeight() const
 {
-    return GetChunkPoolOutput()->GetDataWeightCounter()->GetPending() + CompetitiveJobManager_.GetPendingCandidatesDataWeight();
+    return GetChunkPoolOutput()->GetDataWeightCounter()->GetPending() +
+        SpeculativeJobManager_.GetPendingCandidatesDataWeight() +
+        ProbingJobManager_.GetPendingCandidatesDataWeight();
 }
 
 i64 TTask::GetInputDataSliceCount() const
@@ -779,7 +807,8 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, TaskJobIndexGenerator_);
 
-    Persist(context, CompetitiveJobManager_);
+    Persist(context, SpeculativeJobManager_);
+    Persist(context, ProbingJobManager_);
 
     Persist(context, StartTime_);
     Persist(context, CompletionTime_);
@@ -872,7 +901,8 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
-    CompetitiveJobManager_.OnJobCompleted(joblet);
+    SpeculativeJobManager_.OnJobCompleted(joblet);
+    ProbingJobManager_.OnJobCompleted(joblet);
 
     YT_VERIFY(jobSummary.Statistics);
     const auto& statistics = *jobSummary.Statistics;
@@ -963,7 +993,7 @@ void TTask::ReinstallJob(std::function<void()> releaseOutputCookie)
 
 void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
 {
-    if (!joblet->Speculative) {
+    if (!joblet->CompetitionType) {
         TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
         if (EstimatedInputDataWeightHistogram_) {
             EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
@@ -985,8 +1015,9 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
 
     ReleaseJobletResources(joblet, /* waitForSnapshot */ false);
-    bool returnCookie = CompetitiveJobManager_.OnJobFailed(joblet);
-    if (returnCookie) {
+    auto mayReturnCookieByCompetitiveManager = SpeculativeJobManager_.OnJobFailed(joblet);
+    auto mayReturnCookieByProbingManager = ProbingJobManager_.OnJobFailed(joblet);
+    if (mayReturnCookieByCompetitiveManager && mayReturnCookieByProbingManager) {
         ReinstallJob(BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
     }
 
@@ -1015,8 +1046,9 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
     ReleaseJobletResources(joblet, /* waitForSnapshot */ true);
 
-    bool returnCookie = CompetitiveJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
-    if (returnCookie) {
+    auto mayReturnCookieByCompetitiveManager = SpeculativeJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
+    auto mayReturnCookieByProbingManager = ProbingJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
+    if (mayReturnCookieByCompetitiveManager && mayReturnCookieByProbingManager) {
         ReinstallJob(BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
     }
 
@@ -1501,8 +1533,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
         THROW_ERROR(error);
     }
 
-    YT_VERIFY(joblet->JobCompetitionId);
-    ToProto(schedulerJobSpecExt->mutable_job_competition_id(), joblet->JobCompetitionId);
+    ToProto(schedulerJobSpecExt->mutable_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Speculative]);
+    ToProto(schedulerJobSpecExt->mutable_probing_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Probing]);
 
     schedulerJobSpecExt->set_task_name(GetVertexDescriptor());
     schedulerJobSpecExt->set_tree_id(joblet->TreeId);
@@ -1776,9 +1808,9 @@ void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
     GetTaskHost()->AbortJobViaScheduler(jobId, reason);
 }
 
-void TTask::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
+void TTask::OnSecondaryJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
 {
-    GetTaskHost()->OnSpeculativeJobScheduled(joblet);
+    GetTaskHost()->OnCompetitiveJobScheduled(joblet, competitionType);
 }
 
 double TTask::GetJobProxyMemoryReserveFactor() const

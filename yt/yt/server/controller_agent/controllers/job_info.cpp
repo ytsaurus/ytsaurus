@@ -124,7 +124,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, JobMetrics);
     Persist(context, TreeId);
     Persist(context, TreeIsTentative);
-    Persist(context, Speculative);
+    Persist(context, CompetitionType);
     Persist(context, JobSpeculationTimeout);
     Persist(context, StreamDescriptors);
     Persist(context, DiskQuota);
@@ -153,7 +153,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     // NB(max42): JobStatistics is not persisted intentionally since
     // it can increase the size of snapshot significantly.
     Persist(context, Phase);
-    Persist(context, JobCompetitionId);
+    Persist(context, CompetitionIds);
     Persist(context, HasCompetitors);
     Persist(context, TaskName);
 }

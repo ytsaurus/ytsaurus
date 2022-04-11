@@ -112,7 +112,9 @@ struct TJobTableDescriptor
         const int FailContextSize;
         const int CoreInfos;
         const int JobCompetitionId;
+        const int ProbingJobCompetitionId;
         const int HasCompetitors;
+        const int HasProbingCompetitors;
         const int ExecAttributes;
         const int TaskName;
         const int PoolTree;
