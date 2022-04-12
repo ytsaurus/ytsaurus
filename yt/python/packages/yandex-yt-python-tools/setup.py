@@ -8,7 +8,6 @@ def main():
     requires = ["yandex-yt >= 0.8.43", "sh", "subprocess32"]
 
     scripts, data_files = prepare_files([
-        "yt/tools/bin/yt_add_user.py",
         "yt/tools/bin/yt_set_account.py",
         "yt/tools/bin/yt_lock.py",
         "yt/tools/bin/yt_checksum.py",
