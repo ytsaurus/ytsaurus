@@ -1164,7 +1164,16 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
         replicationFactorOverride,
         chunkRequisitionRegistry);
 
-    maxReplicasPerDataCenter = std::min<int>(maxReplicasPerDataCenter, maxReplicasPerFailureDomain);
+    // Typically it's impossible to store chunk in such a way that after data center loss it is still
+    // available when one data center is already banned, so we do not consider data center as a failure
+    // domain when there are banned data centers.
+    // Consider a cluster with 3 data centers and chunk with erasure codec RS(6, 3). When one data center
+    // is lost, at least one data center will store at least 5 of its replicas which is too much to repair
+    // chunk from the rest parts.
+    if (!BannedStorageDataCenters_.empty()) {
+        maxReplicasPerDataCenter = std::min<int>(maxReplicasPerDataCenter, maxReplicasPerFailureDomain);
+    }
+
     return maxReplicasPerDataCenter;
 }
 
