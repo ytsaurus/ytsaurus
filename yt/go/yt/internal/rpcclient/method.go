@@ -26,6 +26,7 @@ const (
 	MethodFreezeTable               Method = "FreezeTable"
 	MethodUnfreezeTable             Method = "UnfreezeTable"
 	MethodAlterTableReplica         Method = "AlterTableReplica"
+	MethodGetInSyncReplicas         Method = "GetInSyncReplicas"
 	MethodStartTransaction          Method = "StartTransaction"
 	MethodPingTransaction           Method = "PingTransaction"
 	MethodAbortTransaction          Method = "AbortTransaction"

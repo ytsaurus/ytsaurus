@@ -1676,5 +1676,28 @@ func (e *Encoder) GetInSyncReplicas(
 	keys []interface{},
 	opts *yt.GetInSyncReplicasOptions,
 ) (ids []yt.NodeID, err error) {
-	return nil, xerrors.New("implement me")
+	attachments, descriptor, err := encodeToWire(keys)
+	if err != nil {
+		err = xerrors.Errorf("unable to encode request into wire format: %w", err)
+		return
+	}
+
+	req := &rpc_proxy.TReqGetInSyncReplicas{
+		Path:             ptr.String(path.YPath().String()),
+		Timestamp:        convertTimestamp(&ts),
+		RowsetDescriptor: descriptor,
+	}
+
+	call := e.newCall(MethodGetInSyncReplicas, NewGetInSyncReplicasRequest(req), attachments)
+
+	var rsp rpc_proxy.TRspGetInSyncReplicas
+	if err := e.Invoke(ctx, call, &rsp); err != nil {
+		return nil, err
+	}
+
+	for _, id := range rsp.GetReplicaIds() {
+		ids = append(ids, makeNodeID(id))
+	}
+
+	return ids, nil
 }
