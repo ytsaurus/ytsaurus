@@ -5,7 +5,9 @@
 
 #include <util/folder/dirut.h>
 #include <util/folder/tempdir.h>
+
 #include <util/stream/file.h>
+
 #include <util/system/env.h>
 
 namespace NYT::NClient::NHedging {
@@ -47,7 +49,8 @@ TEST(TClientOptionsTest, TokenFromYtTokenPath)
     EXPECT_EQ("BBBB-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", *clientOptions.Token);
 }
 
-TEST(TClientOptionsTest, TokenFromEnv) {
+TEST(TClientOptionsTest, TokenFromEnv)
+{
     NTesting::TScopedEnvironment tokenGuard("YT_TOKEN", "BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
     const auto& clientOptions = GetClientOpsFromEnv();
     EXPECT_TRUE(clientOptions.Token);

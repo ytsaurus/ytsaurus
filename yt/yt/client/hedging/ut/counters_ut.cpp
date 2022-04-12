@@ -4,15 +4,19 @@
 #include <yt/yt/client/unittests/mock/client.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/testing.h>
 #include <yt/yt/library/profiling/solomon/registry.h>
 
 #include <library/cpp/iterator/zip.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 #include <util/generic/vector.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NClient::NHedging::NRpc {
@@ -23,7 +27,7 @@ using ::testing::StrictMock;
 
 using namespace NYT::NProfiling;
 
-using TStrictMockClient = StrictMock<NYT::NApi::TMockClient>;
+using TStrictMockClient = StrictMock<NApi::TMockClient>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

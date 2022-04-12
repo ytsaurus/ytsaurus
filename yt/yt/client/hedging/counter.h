@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/yt/core/misc/ref_counted.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <util/generic/hash.h>
@@ -14,16 +15,16 @@ namespace NYT::NClient::NHedging::NRpc {
 // ! Counters which will be collected from yt-client.
 struct TCounter final
 {
-    TCounter(const TString& clusterName);
-    TCounter(const NYT::NProfiling::TTagSet& tagSet);
-    TCounter(const NYT::NProfiling::TRegistry& registry);
+    explicit TCounter(const TString& clusterName);
+    explicit TCounter(const NProfiling::TTagSet& tagSet);
+    explicit TCounter(const NProfiling::TRegistry& registry);
 
-    NYT::NProfiling::TCounter SuccessRequestCount;
-    NYT::NProfiling::TCounter CancelRequestCount;
-    NYT::NProfiling::TCounter ErrorRequestCount;
-    NYT::NProfiling::TTimeGauge EffectivePenalty;
-    NYT::NProfiling::TTimeGauge ExternalPenalty;
-    NYT::NProfiling::TEventTimer RequestDuration;
+    NProfiling::TCounter SuccessRequestCount;
+    NProfiling::TCounter CancelRequestCount;
+    NProfiling::TCounter ErrorRequestCount;
+    NProfiling::TTimeGauge EffectivePenalty;
+    NProfiling::TTimeGauge ExternalPenalty;
+    NProfiling::TEventTimer RequestDuration;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCounter);
@@ -33,13 +34,13 @@ DEFINE_REFCOUNTED_TYPE(TCounter);
 // ! Counters for TReplicaionLagPenaltyProvider.
 struct TLagPenaltyProviderCounters final
 {
-    TLagPenaltyProviderCounters(const NYT::NProfiling::TRegistry& registry, const TVector<TString>& clusters);
+    TLagPenaltyProviderCounters(const NProfiling::TRegistry& registry, const TVector<TString>& clusters);
     TLagPenaltyProviderCounters(const TString& tablePath, const TVector<TString>& replicaClusters);
 
-    NYT::NProfiling::TCounter SuccessRequestCount;
-    NYT::NProfiling::TCounter ErrorRequestCount;
-    THashMap<TString, NYT::NProfiling::TGauge> LagTabletsCount; // cluster -> # of tablets
-    NYT::NProfiling::TGauge TotalTabletsCount;
+    NProfiling::TCounter SuccessRequestCount;
+    NProfiling::TCounter ErrorRequestCount;
+    THashMap<TString, NProfiling::TGauge> LagTabletsCount; // cluster -> # of tablets
+    NProfiling::TGauge TotalTabletsCount;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLagPenaltyProviderCounters);

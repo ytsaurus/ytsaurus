@@ -5,20 +5,27 @@
 #include "logger.h"
 
 #include <yt/yt/client/api/client.h>
+
 #include <yt/yt/client/hedging/rpc.h>
 #include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
+
 #include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <library/cpp/iterator/enumerate.h>
 #include <library/cpp/iterator/zip.h>
 
 #include <util/datetime/base.h>
+
 #include <util/generic/va_args.h>
+
 #include <util/system/compiler.h>
 
 namespace NYT::NClient::NHedging::NRpc {
@@ -27,17 +34,16 @@ namespace NYT::NClient::NHedging::NRpc {
 
 namespace {
 
-using namespace NYT::NClient::NHedging::NRpc;
-
 using namespace NYT;
 using namespace NApi;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TClientBuilder = std::function<NYT::NApi::IClientPtr(const TConfig&)>;
+using TClientBuilder = std::function<NApi::IClientPtr(const TConfig&)>;
 
-[[noreturn]] void unsupported(TStringBuf n) {
+[[noreturn]] void unsupported(TStringBuf n)
+{
     ythrow yexception() << "Not supported operation: " << n;
 }
 
@@ -77,7 +83,7 @@ using TClientBuilder = std::function<NYT::NApi::IClientPtr(const TConfig&)>;
 
 #define RETRYABLE_METHOD(ReturnType, MethodName, Args)                                      \
     ReturnType MethodName(Y_METHOD_USED_ARGS_DECLARATION(Args)) override {                  \
-        return Executor_->DoWithHedging<typename ReturnType::TValueType>(BIND([=](IClientPtr client) { \
+        return Executor_->DoWithHedging<typename ReturnType::TValueType>(BIND([=] (IClientPtr client) { \
             return client->MethodName(Y_PASS_METHOD_USED_ARGS(Args));                       \
         }));                                                                                \
     } Y_SEMICOLON_GUARD
@@ -89,7 +95,7 @@ class THedgingClient
 {
 public:
     THedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider)
-        : Executor_(NYT::New<THedgingExecutor>(options, penaltyProvider))
+        : Executor_(New<THedgingExecutor>(options, penaltyProvider))
     {
     }
 
@@ -102,10 +108,10 @@ public:
     RETRYABLE_METHOD(TFuture<IUnversionedRowsetPtr>, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TLookupRowsOptions&));
     RETRYABLE_METHOD(TFuture<IVersionedRowsetPtr>, VersionedLookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TVersionedLookupRowsOptions&));
     RETRYABLE_METHOD(TFuture<TSelectRowsResult>, SelectRows, (const TString&, const TSelectRowsOptions&));
-    RETRYABLE_METHOD(TFuture<NYT::NYson::TYsonString>, ExplainQuery, (const TString&, const TExplainQueryOptions&));
+    RETRYABLE_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (const TString&, const TExplainQueryOptions&));
     RETRYABLE_METHOD(TFuture<ITableReaderPtr>, CreateTableReader, (const NYPath::TRichYPath&, const TTableReaderOptions&));
-    RETRYABLE_METHOD(TFuture<NYT::NYson::TYsonString>, GetNode, (const NYPath::TYPath&, const TGetNodeOptions&));
-    RETRYABLE_METHOD(TFuture<NYT::NYson::TYsonString>, ListNode, (const NYPath::TYPath&, const TListNodeOptions&));
+    RETRYABLE_METHOD(TFuture<NYson::TYsonString>, GetNode, (const NYPath::TYPath&, const TGetNodeOptions&));
+    RETRYABLE_METHOD(TFuture<NYson::TYsonString>, ListNode, (const NYPath::TYPath&, const TListNodeOptions&));
     RETRYABLE_METHOD(TFuture<bool>, NodeExists, (const NYPath::TYPath&, const TNodeExistsOptions&));
     RETRYABLE_METHOD(TFuture<IFileReaderPtr>, CreateFileReader, (const NYPath::TYPath&, const TFileReaderOptions&));
     RETRYABLE_METHOD(TFuture<std::vector<IUnversionedRowsetPtr>>, MultiLookup, (const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&));
@@ -113,7 +119,7 @@ public:
     // Unsupported methods.
     UNSUPPORTED_METHOD(TFuture<ITransactionPtr>, StartTransaction, (NTransactionClient::ETransactionType, const TTransactionStartOptions&));
     UNSUPPORTED_METHOD(TFuture<ITableWriterPtr>, CreateTableWriter, (const NYPath::TRichYPath&, const TTableWriterOptions&));
-    UNSUPPORTED_METHOD(TFuture<void>, SetNode, (const NYPath::TYPath&, const NYT::NYson::TYsonString&, const TSetNodeOptions&));
+    UNSUPPORTED_METHOD(TFuture<void>, SetNode, (const NYPath::TYPath&, const NYson::TYsonString&, const TSetNodeOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, MultisetAttributesNode, (const NYPath::TYPath&, const NYTree::IMapNodePtr&, const TMultisetAttributesNodeOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, RemoveNode, (const NYPath::TYPath&, const TRemoveNodeOptions&));
     UNSUPPORTED_METHOD(TFuture<NCypressClient::TNodeId>, CreateNode, (const NYPath::TYPath&, NObjectClient::EObjectType, const TCreateNodeOptions&));
@@ -154,7 +160,7 @@ public:
     UNSUPPORTED_METHOD(TFuture<std::vector<NTabletClient::TTabletActionId>>, BalanceTabletCells, (const TString&, const std::vector<NYPath::TYPath>&, const TBalanceTabletCellsOptions&));
     UNSUPPORTED_METHOD(TFuture<TSkynetSharePartsLocationsPtr>, LocateSkynetShare, (const NYPath::TRichYPath&, const TLocateSkynetShareOptions&));
     UNSUPPORTED_METHOD(TFuture<std::vector<NTableClient::TColumnarStatistics>>, GetColumnarStatistics, (const std::vector<NYPath::TRichYPath>&, const TGetColumnarStatisticsOptions&));
-    UNSUPPORTED_METHOD(TFuture<NYT::NYson::TYsonString>, GetTablePivotKeys, (const NYPath::TYPath&, const TGetTablePivotKeysOptions&));
+    UNSUPPORTED_METHOD(TFuture<NYson::TYsonString>, GetTablePivotKeys, (const NYPath::TYPath&, const TGetTablePivotKeysOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, CreateTableBackup, (const TBackupManifestPtr&, const TCreateTableBackupOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, RestoreTableBackup, (const TBackupManifestPtr&, const TRestoreTableBackupOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, TruncateJournal, (const NYPath::TYPath&, i64, const TTruncateJournalOptions&));
@@ -166,24 +172,24 @@ public:
     UNSUPPORTED_METHOD(TFuture<TCheckPermissionByAclResult>, CheckPermissionByAcl, (const std::optional<TString>&, NYTree::EPermission, NYTree::INodePtr, const TCheckPermissionByAclOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, TransferAccountResources, (const TString&, const TString&, NYTree::INodePtr, const TTransferAccountResourcesOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, TransferPoolResources, (const TString&, const TString&, const TString&, NYTree::INodePtr, const TTransferPoolResourcesOptions&));
-    UNSUPPORTED_METHOD(TFuture<NScheduler::TOperationId>, StartOperation, (NScheduler::EOperationType, const NYT::NYson::TYsonString&, const TStartOperationOptions&));
+    UNSUPPORTED_METHOD(TFuture<NScheduler::TOperationId>, StartOperation, (NScheduler::EOperationType, const NYson::TYsonString&, const TStartOperationOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, AbortOperation, (const NScheduler::TOperationIdOrAlias&, const TAbortOperationOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, SuspendOperation, (const NScheduler::TOperationIdOrAlias&, const TSuspendOperationOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, ResumeOperation, (const NScheduler::TOperationIdOrAlias&, const TResumeOperationOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, CompleteOperation, (const NScheduler::TOperationIdOrAlias&, const TCompleteOperationOptions&));
-    UNSUPPORTED_METHOD(TFuture<void>, UpdateOperationParameters, (const NScheduler::TOperationIdOrAlias&, const NYT::NYson::TYsonString&, const TUpdateOperationParametersOptions&));
+    UNSUPPORTED_METHOD(TFuture<void>, UpdateOperationParameters, (const NScheduler::TOperationIdOrAlias&, const NYson::TYsonString&, const TUpdateOperationParametersOptions&));
     UNSUPPORTED_METHOD(TFuture<TOperation>, GetOperation, (const NScheduler::TOperationIdOrAlias&, const TGetOperationOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, DumpJobContext, (NJobTrackerClient::TJobId, const NYPath::TYPath&, const TDumpJobContextOptions&));
     UNSUPPORTED_METHOD(TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr>, GetJobInput, (NJobTrackerClient::TJobId, const TGetJobInputOptions&));
-    UNSUPPORTED_METHOD(TFuture<NYT::NYson::TYsonString>, GetJobInputPaths, (NJobTrackerClient::TJobId, const TGetJobInputPathsOptions&));
-    UNSUPPORTED_METHOD(TFuture<NYT::NYson::TYsonString>, GetJobSpec, (NJobTrackerClient::TJobId, const TGetJobSpecOptions&));
+    UNSUPPORTED_METHOD(TFuture<NYson::TYsonString>, GetJobInputPaths, (NJobTrackerClient::TJobId, const TGetJobInputPathsOptions&));
+    UNSUPPORTED_METHOD(TFuture<NYson::TYsonString>, GetJobSpec, (NJobTrackerClient::TJobId, const TGetJobSpecOptions&));
     UNSUPPORTED_METHOD(TFuture<TSharedRef>, GetJobStderr, (const NScheduler::TOperationIdOrAlias&, NJobTrackerClient::TJobId, const TGetJobStderrOptions&));
     UNSUPPORTED_METHOD(TFuture<TSharedRef>, GetJobFailContext, (const NScheduler::TOperationIdOrAlias&, NJobTrackerClient::TJobId, const TGetJobFailContextOptions&));
     UNSUPPORTED_METHOD(TFuture<TListOperationsResult>, ListOperations, (const TListOperationsOptions&));
     UNSUPPORTED_METHOD(TFuture<TListJobsResult>, ListJobs, (const NScheduler::TOperationIdOrAlias&, const TListJobsOptions&));
-    UNSUPPORTED_METHOD(TFuture<NYT::NYson::TYsonString>, GetJob, (const NScheduler::TOperationIdOrAlias&, NJobTrackerClient::TJobId, const TGetJobOptions&));
+    UNSUPPORTED_METHOD(TFuture<NYson::TYsonString>, GetJob, (const NScheduler::TOperationIdOrAlias&, NJobTrackerClient::TJobId, const TGetJobOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, AbandonJob, (NJobTrackerClient::TJobId, const TAbandonJobOptions&));
-    UNSUPPORTED_METHOD(TFuture<TPollJobShellResponse>, PollJobShell, (NJobTrackerClient::TJobId, const std::optional<TString>&, const NYT::NYson::TYsonString&, const TPollJobShellOptions&));
+    UNSUPPORTED_METHOD(TFuture<TPollJobShellResponse>, PollJobShell, (NJobTrackerClient::TJobId, const std::optional<TString>&, const NYson::TYsonString&, const TPollJobShellOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, AbortJob, (NJobTrackerClient::TJobId, const TAbortJobOptions&));
     UNSUPPORTED_METHOD(TFuture<TClusterMeta>, GetClusterMeta, (const TGetClusterMetaOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, CheckClusterLiveness, (const TCheckClusterLivenessOptions&));
@@ -210,28 +216,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options)
+NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options)
 {
-    return NYT::New<THedgingClient>(options, CreateDummyPenaltyProvider());
+    return New<THedgingClient>(options, CreateDummyPenaltyProvider());
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options,
+NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options,
                                           const IPenaltyProviderPtr& penaltyProvider)
 {
-    return NYT::New<THedgingClient>(options, penaltyProvider);
+    return New<THedgingClient>(options, penaltyProvider);
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config)
+NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config)
 {
     return CreateHedgingClient(GetHedgingClientOptions(config));
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache)
+NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache)
 {
     return CreateHedgingClient(GetHedgingClientOptions(config, clientsCache));
 }
 
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config,
+NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config,
                                           const IClientsCachePtr& clientsCache,
                                           const IPenaltyProviderPtr& penaltyProvider)
 {
@@ -244,10 +250,10 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
     options.BanPenalty = TDuration::MilliSeconds(config.GetBanPenalty());
     options.BanDuration = TDuration::MilliSeconds(config.GetBanDuration());
 
-    NYT::NProfiling::TTagSet counterTagSet;
+    NProfiling::TTagSet counterTagSet;
 
     for (const auto& [tagName, tagValue] : config.GetTags()) {
-        counterTagSet.AddTag(NYT::NProfiling::TTag(tagName, tagValue));
+        counterTagSet.AddTag(NProfiling::TTag(tagName, tagValue));
     }
 
     options.Clients.reserve(config.GetClients().size());
@@ -256,21 +262,21 @@ THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config
             clientBuilder(client.GetClientConfig()),
             client.GetClientConfig().GetClusterName(),
             TDuration::MilliSeconds(client.GetInitialPenalty()),
-            NYT::New<TCounter>(counterTagSet.WithTag(NYT::NProfiling::TTag("yt_cluster", client.GetClientConfig().GetClusterName()))));
+            New<TCounter>(counterTagSet.WithTag(NProfiling::TTag("yt_cluster", client.GetClientConfig().GetClusterName()))));
     }
     return options;
 }
 
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config)
 {
-    return GetHedgingClientOptions(config, [](const auto& clientConfig) {
-        return NYT::NClient::NHedging::NRpc::CreateClient(clientConfig);
+    return GetHedgingClientOptions(config, [] (const auto& clientConfig) {
+        return CreateClient(clientConfig);
     });
 }
 
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache) 
 {
-    return GetHedgingClientOptions(config, [clientsCache](const auto& clientConfig) {
+    return GetHedgingClientOptions(config, [clientsCache] (const auto& clientConfig) {
         return clientsCache->GetClient(clientConfig.GetClusterName());
     });
 }

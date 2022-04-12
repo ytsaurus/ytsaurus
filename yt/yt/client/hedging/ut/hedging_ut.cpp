@@ -4,14 +4,17 @@
 #include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/client/unittests/mock/client.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <library/cpp/iterator/zip.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 #include <util/generic/vector.h>
@@ -202,7 +205,7 @@ TEST(THedgingClientTest, GetSecondClientResultWhenFirstClientIsSleeping)
     auto secondMockClient = New<TStrictMockClient>();
 
     EXPECT_CALL(*firstMockClient, ListNode(path, _))
-        .WillOnce(Return(NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)).Apply(BIND([=]() { return firstClientResult; }))));
+        .WillOnce(Return(NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(2)).Apply(BIND([=] () { return firstClientResult; }))));
     EXPECT_CALL(*secondMockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(secondClientResult)));
 
@@ -226,7 +229,7 @@ TEST(THedgingClientTest, FirstClientIsBannedBecauseResponseWasCancelled)
     auto secondMockClient = New<TStrictMockClient>();
 
     EXPECT_CALL(*firstMockClient, ListNode(path, _))
-        .WillOnce(Return(NConcurrency::TDelayedExecutor::MakeDelayed(SleepQuantum * 2).Apply(BIND([=]() { return firstClientResult; }))))
+        .WillOnce(Return(NConcurrency::TDelayedExecutor::MakeDelayed(SleepQuantum * 2).Apply(BIND([=] () { return firstClientResult; }))))
         .WillRepeatedly(Return(MakeFuture(firstClientResult)));
     EXPECT_CALL(*secondMockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(secondClientResult)));
@@ -266,10 +269,10 @@ TEST(THedgingClientTest, AmnestyBanPenaltyIfClientSucceeded)
         .WillRepeatedly(Return(MakeFuture(firstClientResult)));
     EXPECT_CALL(*secondMockClient, ListNode(path, _))
         .WillOnce(Return(MakeFuture(secondClientResult)))
-        .WillOnce(Return(NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(100)).Apply(BIND([=]() { return secondClientResult; }))))
+        .WillOnce(Return(NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(100)).Apply(BIND([=] () { return secondClientResult; }))))
         .WillRepeatedly(Return(MakeFuture(secondClientResult)));
     EXPECT_CALL(*thirdMockClient, ListNode(path, _))
-        .WillRepeatedly(Return(NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(100)).Apply(BIND([=]() { return thirdClientResult; }))));
+        .WillRepeatedly(Return(NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(100)).Apply(BIND([=] () { return thirdClientResult; }))));
 
     auto client = CreateTestHedgingClient(SleepQuantum * 2, TDuration::Seconds(30),
                                           {firstMockClient, secondMockClient, thirdMockClient},
@@ -308,9 +311,9 @@ TEST(THedgingClientTest, MultiThread)
     NYson::TYsonString firstClientResult(TStringBuf("FirstClientData"));
     NYson::TYsonString secondClientResult(TStringBuf("SecondClientData"));
 
-    EXPECT_CALL(*firstMockClient, ListNode(path, _)).WillRepeatedly([=](const NYPath::TYPath&, const NApi::TListNodeOptions& options) {
+    EXPECT_CALL(*firstMockClient, ListNode(path, _)).WillRepeatedly([=] (const NYPath::TYPath&, const NApi::TListNodeOptions& options) {
         if (options.Timeout) {
-            return NConcurrency::TDelayedExecutor::MakeDelayed(*options.Timeout).Apply(BIND([=]() {
+            return NConcurrency::TDelayedExecutor::MakeDelayed(*options.Timeout).Apply(BIND([=] () {
                 return firstClientResult;
             }));
         }
@@ -325,7 +328,7 @@ TEST(THedgingClientTest, MultiThread)
     auto tp = New<NConcurrency::TThreadPool>(10, "test");
     TVector<TFuture<void>> futures(Reserve(100));
     for (int i = 0; i < 100; ++i) {
-        futures.emplace_back(BIND([=]() {
+        futures.emplace_back(BIND([=] () {
             for (int j = 0; j < 100; ++j) {
                 NApi::TListNodeOptions options;
                 // on each 5-th request for 1-st and 2-nd thread, the first client will timeout

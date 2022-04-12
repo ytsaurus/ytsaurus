@@ -39,20 +39,20 @@ struct THedgingClientOptions;
 ////////////////////////////////////////////////////////////////////////////////
 
 // @brief Method for creating HedgingClient with given options.
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options);
+NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options);
 
 // @brief Method for creating HedgingClient with given options and abilty to use penalty updater policy.
 //        Currently for experimental usage.
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider);
+NApi::IClientPtr CreateHedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider);
 
 // @brief Method for creating HedgingClient with given rpc clients config.
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config);
+NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config);
 
 // @brief Method for creating HedgingClient with given rpc clients config and preinitialized clients.
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache);
+NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache);
 
 // @brief Method for creating HedgingClient with given rpc clients config, preinitialized clients and PenaltyProvider.
-NYT::NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache, const IPenaltyProviderPtr& penaltyProvider);
+NApi::IClientPtr CreateHedgingClient(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache, const IPenaltyProviderPtr& penaltyProvider);
 
 // @brief Method for creating HedgingClient options from given config and preinitialized clients.
 THedgingClientOptions GetHedgingClientOptions(const THedgingClientConfig& config, const IClientsCachePtr& clientsCache);

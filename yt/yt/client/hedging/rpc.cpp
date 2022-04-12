@@ -4,10 +4,12 @@
 #include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
 
 #include <yt/yt/client/api/client.h>
+
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
 #include <util/string/strip.h>
+
 #include <util/system/env.h>
 
 namespace NYT::NClient::NHedging::NRpc {
@@ -46,9 +48,9 @@ void SetClusterUrl(TConfig& config, TStringBuf clusterUrl)
     config.SetClusterName(ToString(cluster));
 }
 
-NYT::NApi::IClientPtr CreateClient(const TConfig& config, const NYT::NApi::TClientOptions& options)
+NApi::IClientPtr CreateClient(const TConfig& config, const NApi::TClientOptions& options)
 {
-    auto ytConfig = NYT::New<NYT::NApi::NRpcProxy::TConnectionConfig>();
+    auto ytConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     ytConfig->SetDefaults();
     ytConfig->ClusterUrl = ExpandClusterName(config.GetClusterName());
 
@@ -88,20 +90,20 @@ NYT::NApi::IClientPtr CreateClient(const TConfig& config, const NYT::NApi::TClie
         ytConfig->RetryingChannel->RetryTimeout = TDuration::MilliSeconds(config.GetRetryTimeout());
     }
     ytConfig->Postprocess();
-    return NYT::NApi::NRpcProxy::CreateConnection(ytConfig)->CreateClient(options);
+    return NApi::NRpcProxy::CreateConnection(ytConfig)->CreateClient(options);
 }
 
-NYT::NApi::IClientPtr CreateClient(const TConfig& config)
+NApi::IClientPtr CreateClient(const TConfig& config)
 {
     return CreateClient(config, GetClientOpsFromEnvStatic());
 }
 
-NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl)
+NApi::IClientPtr CreateClient(TStringBuf clusterUrl)
 {
     return CreateClient(clusterUrl, GetClientOpsFromEnvStatic());
 }
 
-NYT::NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole)
+NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole)
 {
     TConfig config;
     config.SetClusterName(ToString(cluster));
@@ -111,12 +113,12 @@ NYT::NApi::IClientPtr CreateClient(TStringBuf cluster, TStringBuf proxyRole)
     return CreateClient(config);
 }
 
-NYT::NApi::IClientPtr CreateClient()
+NApi::IClientPtr CreateClient()
 {
     return CreateClient(Strip(GetEnv("YT_PROXY")));
 }
 
-NYT::NApi::IClientPtr CreateClient(TStringBuf clusterUrl, const NYT::NApi::TClientOptions& options)
+NApi::IClientPtr CreateClient(TStringBuf clusterUrl, const NApi::TClientOptions& options)
 {
     TConfig config;
     SetClusterUrl(config, clusterUrl);

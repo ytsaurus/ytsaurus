@@ -15,10 +15,10 @@ class TClustersConfig;
 
 //! Cache of  clients per cluster.
 class IClientsCache
-    : public NYT::TRefCounted
+    : public TRefCounted
 {
 public:
-    virtual NYT::NApi::IClientPtr GetClient(TStringBuf clusterUrl) = 0;
+    virtual NApi::IClientPtr GetClient(TStringBuf clusterUrl) = 0;
 };
 
 DECLARE_REFCOUNTED_TYPE(IClientsCache);
@@ -27,16 +27,16 @@ DEFINE_REFCOUNTED_TYPE(IClientsCache);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates clients cache which explicitly given config. Server name is always overwritten with requested.
-IClientsCachePtr CreateClientsCache(const TClustersConfig& config, const NYT::NApi::TClientOptions& options);
+IClientsCachePtr CreateClientsCache(const TClustersConfig& config, const NApi::TClientOptions& options);
 
 //! Creates clients cache which shares same config (except server name).
-IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options);
+IClientsCachePtr CreateClientsCache(const TConfig& config, const NApi::TClientOptions& options);
 
 //! Shortcut to use client options from env.
 IClientsCachePtr CreateClientsCache(const TConfig& config);
 
 //! Shortcut to create cache with custom options and proxy role.
-IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options);
+IClientsCachePtr CreateClientsCache(const NApi::TClientOptions& options);
 
 //! Shortcut to create cache with default config.
 IClientsCachePtr CreateClientsCache();

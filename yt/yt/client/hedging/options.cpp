@@ -2,17 +2,19 @@
 
 #include <util/folder/dirut.h>
 #include <util/folder/path.h>
+
 #include <util/stream/file.h>
 #include <util/string/strip.h>
+
 #include <util/system/env.h>
 
 namespace NYT::NClient::NHedging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYT::NApi::TClientOptions GetClientOpsFromEnv()
+NApi::TClientOptions GetClientOpsFromEnv()
 {
-    NYT::NApi::TClientOptions options;
+    NApi::TClientOptions options;
 
     auto user = Strip(GetEnv("YT_USER"));
     if (!user.empty()) {
@@ -36,9 +38,9 @@ NYT::NApi::TClientOptions GetClientOpsFromEnv()
     return options;
 }
 
-const NYT::NApi::TClientOptions& GetClientOpsFromEnvStatic()
+const NApi::TClientOptions& GetClientOpsFromEnvStatic()
 {
-    static const NYT::NApi::TClientOptions options = GetClientOpsFromEnv();
+    static const NApi::TClientOptions options = GetClientOpsFromEnv();
     return options;
 }
 

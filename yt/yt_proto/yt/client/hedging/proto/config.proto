@@ -1,13 +1,14 @@
 package NYT.NClient.NHedging.NRpc;
 
-// connection options
-message TConfig {
+// Connection options.
+message TConfig
+{
     optional string ClusterName = 1;
     optional string ProxyRole = 2;
     optional uint32 ChannelPoolSize = 3;
     optional uint32 ChannelPoolRebalanceIntervalSeconds = 4;
 
-    // all timeouts in milliseconds
+    // All timeouts in milliseconds.
     optional uint32 DefaultTransactionTimeout = 5;
     optional uint32 DefaultSelectRowsTimeout = 6;
     optional uint32 DefaultTotalStreamingTimeout = 7;
@@ -21,7 +22,8 @@ message TConfig {
     optional uint32 RetryTimeout = 15;
 };
 
-message TClustersConfig {
+message TClustersConfig
+{
     // In DefaultConfig and ClusterConfigs field .ClusterName is ignored
     // and field .ProxyRole can be overwritten with explicitly provided in cluster url one.
 
@@ -31,20 +33,22 @@ message TClustersConfig {
     map<string, TConfig> ClusterConfigs = 2;
 };
 
-message THedgingClientConfig {
-    // all timeouts also in milliseconds
+message THedgingClientConfig
+{
+    // All timeouts also in milliseconds.
     message TClientOptions {
         optional TConfig ClientConfig = 1;
         optional uint32 InitialPenalty = 2;
     };
 
     repeated TClientOptions Clients = 1;
-    optional uint32 BanPenalty = 2 [default = 1];  // the penalty increment during ban
-    optional uint32 BanDuration = 3 [default = 50]; // how long need to ban cllent after error
-    map<string, string> Tags = 4;  // tags for profiling
+    optional uint32 BanPenalty = 2 [default = 1];  // The penalty increment during ban.
+    optional uint32 BanDuration = 3 [default = 50]; // How long need to ban cllent after error.
+    map<string, string> Tags = 4;  // Tags for profiling.
 }
 
-message TReplicaionLagPenaltyProviderConfig {
+message TReplicaionLagPenaltyProviderConfig
+{
     repeated string ReplicaClusters = 1; // Clusters that need checks for replication lag.
     optional string TablePath = 2; // Table that needs checks for replication lag.
     optional uint32 LagPenalty = 3 [default = 10]; // penalty in milliseconds, same as BanPenalty in THedgingClientConfig.
