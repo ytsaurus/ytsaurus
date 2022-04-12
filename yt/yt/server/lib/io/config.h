@@ -47,6 +47,8 @@ DEFINE_REFCOUNTED_TYPE(TIOTrackerConfig)
 struct TCongestionDetectorConfig
     : public NYTree::TYsonSerializable
 {
+    bool ProbesEnabled;
+
     // How many probes to make before making decision.
     i32 ProbesPerRound;
 
@@ -122,6 +124,9 @@ struct TGentleLoaderConfig
     // Subfolder to create temporary files.
     TString WritersFolder;
 
+    // Cleanup written files after testing finished.
+    bool RemoveWrittenFiles;
+
     // Don't send load request for this period after congested.
     TDuration WaitAfterCongested;
 
@@ -131,7 +136,13 @@ struct TGentleLoaderConfig
 
     bool UseDirectIO;
 
+    // Max write rate limmit (mb/s)
     i64 MaxWriteRate;
+
+    // The followings are very low-level settings (do not use if unsure).
+    i32 InitialWindowSize;
+    i32 InitialSlowStartThreshold;
+    TDuration WindowVerificationPeriod;
 
     TGentleLoaderConfig();
 };

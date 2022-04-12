@@ -61,6 +61,7 @@ public:
                     return TReadFileInfo{
                         .Handle = handle,
                         .FileSize = file->DiskSpace,
+                        .FilePath = file->Path,
                     };
                 }));
             futures.push_back(future);
@@ -73,6 +74,11 @@ public:
         for (const auto& result : results) {
             if (result.IsOK()) {
                 filesToRead.push_back(result.Value());
+                YT_LOG_TRACE("Opened file for read (FilePath: %v, FileHandle: %v, FileSize: %v, FileLen: %v)",
+                    result.Value().FilePath,
+                    static_cast<FHANDLE>(*result.Value().Handle),
+                    result.Value().FileSize,
+                    result.Value().Handle->GetLength());
             }
         }
 
@@ -93,6 +99,7 @@ private:
     {
         TIOEngineHandlePtr Handle;
         i64 FileSize = 0;
+        TString FilePath;
     };
 
     const TGentleLoaderConfigPtr Config_;
@@ -181,7 +188,10 @@ public:
         for (auto& info : FilesToWrite_) {
             try {
                 info.Handle->Close();
-                NFS::Remove(info.FilePath);
+
+                if (Config_->RemoveWrittenFiles) {
+                    NFS::Remove(info.FilePath);
+                }
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to close benchmark file (FilePath: %v)", info.FilePath);
             }
@@ -314,11 +324,13 @@ private:
         auto quantiles = ComputeHistogramSumary(userReadLatency);
         auto q99Latency = TDuration::MilliSeconds(quantiles.P99);
 
-        YT_LOG_DEBUG("User interactive request congestion status (Count: %v, 90p: %v ms, 99p: %v ms, 99.9p: %v ms)",
-            quantiles.TotalCount,
-            quantiles.P90,
-            quantiles.P99,
-            quantiles.P99_9);
+        if (quantiles.TotalCount) {
+            YT_LOG_DEBUG("User interactive request congestion status (Count: %v, 90p: %v ms, 99p: %v ms, 99.9p: %v ms)",
+                quantiles.TotalCount,
+                quantiles.P90,
+                quantiles.P99,
+                quantiles.P99_9);
+        }
 
         if (q99Latency > Config_->UserRequestHeavyOverloadThreshold) {
             return ECongestedStatus::HeavyOverload;
@@ -352,7 +364,9 @@ public:
             BIND(&TProbesCongestionDetector::DoProbe, MakeWeak(this)),
             Config_->ProbesInterval))
     {
-        ProbesExecutor_->Start();
+        if (Config_->ProbesEnabled) {
+            ProbesExecutor_->Start();
+        }
     }
 
     ~TProbesCongestionDetector()
@@ -376,9 +390,12 @@ public:
             .Value();
 
         int failedRequestCount = 0;
+        std::vector<TDuration> timings;
         for (const auto& result : results) {
             if (!result.IsOK()) {
                 YT_LOG_DEBUG(result, "Probe is failed");
+            } else {
+                timings.push_back(result.Value());
             }
             if (!result.IsOK() || result.Value() > Config_->ProbeDeadline) {
                 ++failedRequestCount;
@@ -386,10 +403,12 @@ public:
         }
         int failedRequestsPercentage = failedRequestCount * 100 / lastProbes.size();
 
-        YT_LOG_DEBUG("Probes congested status (Count: %v, Failed: %v, Percentage: %v)",
+        YT_LOG_DEBUG("Probes congested status (Count: %v, Failed: %v, Percentage: %v, TotalCount: %v, Timings: %v)",
             lastProbes.size(),
             failedRequestCount,
-            failedRequestsPercentage);
+            failedRequestsPercentage,
+            Probes_.size(),
+            timings);
 
         if (failedRequestsPercentage > Config_->HeavyOverloadThreshold) {
             return ECongestedStatus::HeavyOverload;
@@ -574,7 +593,7 @@ private:
         i64 readExtraDebt = std::max<i64>(0, totalReadDelta - SyntheticReadBytes_);
         i64 writeExtraDebt = std::max<i64>(0, totalWrittenDelta - SyntheticWrittenBytes_);
 
-        YT_LOG_DEBUG("Adjusting for background load "
+        YT_LOG_TRACE("Adjusting for background load "
             "(TotalRead: %v, TotalWritten: %v, SyntheticRead: %v, SyntheticWritten: %v, "
             "ReadSkip: %v, WriteSkip: %v, ReadDebt: %v, WriteDebt: %v)",
             totalReadDelta,
@@ -652,6 +671,7 @@ public:
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(i64 /*currentWindow*/), Congested);
+    DEFINE_SIGNAL_OVERRIDE(void(i64 /*currentWindow*/), ProbesRoundFinished);
 
 private:
     const TGentleLoaderConfigPtr Config_;
@@ -709,14 +729,17 @@ private:
             randomReader,
             Logger);
 
-        const i32 initialWindow = Config_->SegmentSize;
+        const i32 initialWindow = Config_->InitialWindowSize;
 
         // State variable that limits the amount of data to send to medium.
         i32 congestionWindow = initialWindow;
+        auto congestionWindowChanged = TInstant::Now();
 
         // State variable determines whether the slow start or congestion avoidance algorithm
         // is used to control data transmission
-        i32 slowStartThreshold = Config_->MaxWindowSize;
+        i32 slowStartThreshold = Config_->InitialSlowStartThreshold
+            ? Config_->InitialSlowStartThreshold
+            : Config_->MaxWindowSize;
 
         TCongestedState lastState;
         ui64 requestsCounter = 0;
@@ -733,11 +756,17 @@ private:
                 }
                 lastState = state;
                 auto prevWindow = congestionWindow;
+                auto windowTime = TInstant::Now() - congestionWindowChanged;
 
                 randomReader->OpenNewFiles();
 
                 switch (state.Status) {
                     case ECongestedStatus::OK:
+                        if (windowTime < Config_->WindowVerificationPeriod) {
+                            // It is too early to increase window.
+                            break;
+                        }
+
                         if (congestionWindow >= slowStartThreshold) {
                             // Congestion avoidance algorithm.
                             congestionWindow += Config_->SegmentSize;
@@ -764,7 +793,11 @@ private:
 
                 // Keeping window in sane limits.
                 congestionWindow = std::min(Config_->MaxWindowSize, congestionWindow);
-                congestionWindow = std::max(1, congestionWindow);
+                congestionWindow = std::max(initialWindow, congestionWindow);
+
+                if (prevWindow != congestionWindow) {
+                    congestionWindowChanged = TInstant::Now();
+                }
 
                 YT_LOG_DEBUG("New congestion message received"
                     "(Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestsCounter: %v)",
@@ -774,10 +807,13 @@ private:
                     slowStartThreshold,
                     requestsCounter);
 
-                // If congested wait all inflight events before starting new round.
+                // Signal probing round finished.
+                ProbesRoundFinished_.Fire(prevWindow);
+
                 if (state.Status != ECongestedStatus::OK) {
                     // Signal congested.
                     Congested_.Fire(prevWindow);
+                    // If congested wait all inflight events before starting new round.
                     WaitAfterCongested(congestionDetector);
                     lastState = congestionDetector->GetState();
                     ResetStatistics();
