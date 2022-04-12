@@ -41,6 +41,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/hydra/public.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
@@ -1350,7 +1352,7 @@ private:
                             batch.BatchReq->GetRequestId(),
                             batch.Indexes);
 
-                        if (!IsRetriableError(forwardingError)) {
+                        if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                             YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
                                 batch.Indexes);
                             Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
@@ -1960,7 +1962,7 @@ private:
                 YT_VERIFY(wrapperError.InnerErrors().size() == 1);
 
                 const auto& forwardingError = wrapperError.InnerErrors()[0];
-                if (!IsRetriableError(forwardingError)) {
+                if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                     YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndex: %v)",
                         index);
                     RpcContext_->Reply(wrapperError);
