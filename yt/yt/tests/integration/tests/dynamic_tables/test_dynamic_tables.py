@@ -3061,33 +3061,3 @@ class TestTabletOrchid(DynamicTablesBase):
         assert table_stat["tablet_dynamic"]["backing"] > 0
         assert table_stat["tablet_static"]["usage"] > 0
         assert table_stat["row_cache"]["usage"] > 0
-
-
-##################################################################
-
-
-class TestDynamicTablesSingleCellWithCellBalancer(TestDynamicTablesSingleCell):
-    NUM_CELL_BALANCERS = 1
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "tablet_manager": {
-            "enable_cell_tracker": False,
-            "leader_reassignment_timeout": 2000,
-            "peer_revocation_timeout": 3000,
-        }
-    }
-
-
-##################################################################
-
-
-class TestDynamicTablesMulticellWithCellBalancer(TestDynamicTablesMulticell):
-    NUM_CELL_BALANCERS = 1
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "tablet_manager": {
-            "enable_cell_tracker": False,
-            "leader_reassignment_timeout": 2000,
-            "peer_revocation_timeout": 3000,
-        }
-    }
