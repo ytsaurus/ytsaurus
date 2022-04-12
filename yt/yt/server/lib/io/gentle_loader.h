@@ -38,6 +38,9 @@ struct IGentleLoader
 
     //! Raised when disk overload is detected.
     DECLARE_INTERFACE_SIGNAL(void(i64 /*currentIOPS*/), Congested);
+
+    //! Raised on new congestion detection round.
+    DECLARE_INTERFACE_SIGNAL(void(i64 /*currentIOPS*/), ProbesRoundFinished);
 };
 
 DEFINE_REFCOUNTED_TYPE(IGentleLoader);

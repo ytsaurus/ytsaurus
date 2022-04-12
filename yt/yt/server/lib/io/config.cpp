@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/core/misc/fs.h>
+
 namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +28,9 @@ TIOTrackerConfig::TIOTrackerConfig()
 
 TCongestionDetectorConfig::TCongestionDetectorConfig()
 {
+    RegisterParameter("probes_enabled", ProbesEnabled)
+        .Default(true);
+
     RegisterParameter("probes_per_round", ProbesPerRound)
         .GreaterThan(0)
         .Default(10);
@@ -112,6 +117,9 @@ TGentleLoaderConfig::TGentleLoaderConfig()
         .NonEmpty()
         .Default("writes_bench");
 
+    RegisterParameter("remove_written_files", RemoveWrittenFiles)
+        .Default(true);
+
     RegisterParameter("wait_after_congested", WaitAfterCongested)
         .Default(TDuration::Seconds(10));
 
@@ -124,6 +132,15 @@ TGentleLoaderConfig::TGentleLoaderConfig()
     RegisterParameter("max_write_rate", MaxWriteRate)
         .GreaterThan(0)
         .Default(96_MB);
+
+    RegisterParameter("initial_window_size", InitialWindowSize)
+        .Default(1);
+
+    RegisterParameter("initial_slow_start_threshold", InitialSlowStartThreshold)
+        .Default(0);
+
+    RegisterParameter("window_verification_period", WindowVerificationPeriod)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
