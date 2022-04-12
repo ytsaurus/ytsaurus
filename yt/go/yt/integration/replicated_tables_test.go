@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"os"
 	"reflect"
 	"testing"
@@ -14,35 +15,40 @@ import (
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yttest"
 )
 
-func TestGetInSyncReplicas(t *testing.T) {
+func TestReplicatedTables(t *testing.T) {
+	suite := NewSuite(t)
+
+	RunClientTests(t, []ClientTest{
+		{Name: "GetInSyncReplicas", Test: suite.TestGetInSyncReplicas},
+	})
+}
+
+func (s *Suite) TestGetInSyncReplicas(t *testing.T, yc yt.Client) {
 	t.Parallel()
 
-	env := yttest.New(t)
-
-	tablePath := env.TmpPath()
-	_, err := createReplicatedTable(env, tablePath)
+	tablePath := tmpPath()
+	_, err := createReplicatedTable(s.Ctx, yc, tablePath)
 	require.NoError(t, err)
 
-	replicaPath1 := env.TmpPath()
-	replicaID1, err := createTableReplica(env, tablePath, replicaPath1)
+	replicaPath1 := tmpPath()
+	replicaID1, err := createTableReplica(s.Ctx, yc, tablePath, replicaPath1)
 	require.NoError(t, err)
 
-	replicaPath2 := env.TmpPath()
-	replicaID2, err := createTableReplica(env, tablePath, replicaPath2)
+	replicaPath2 := tmpPath()
+	replicaID2, err := createTableReplica(s.Ctx, yc, tablePath, replicaPath2)
 	require.NoError(t, err)
 
-	_, err = createReplicaTable(env, replicaPath1, replicaID1)
+	_, err = createReplicaTable(s.Ctx, yc, replicaPath1, replicaID1)
 	require.NoError(t, err)
-	_, err = createReplicaTable(env, replicaPath2, replicaID2)
+	_, err = createReplicaTable(s.Ctx, yc, replicaPath2, replicaID2)
 	require.NoError(t, err)
 
-	require.NoError(t, ensureTableReplicaEnabled(env, replicaID1))
+	require.NoError(t, ensureTableReplicaEnabled(s.Ctx, yc, replicaID1))
 
-	require.Equal(t, "enabled", getTableReplicaState(env, replicaID1))
-	require.Equal(t, "disabled", getTableReplicaState(env, replicaID2))
+	require.Equal(t, "enabled", getTableReplicaState(s.Ctx, yc, replicaID1))
+	require.Equal(t, "disabled", getTableReplicaState(s.Ctx, yc, replicaID2))
 
 	keys := []interface{}{
 		&testKey{"foo"},
@@ -54,19 +60,19 @@ func TestGetInSyncReplicas(t *testing.T) {
 		&testRow{"bar", "2"},
 	}
 
-	require.NoError(t, env.YT.InsertRows(env.Ctx, tablePath, rows, &yt.InsertRowsOptions{
+	require.NoError(t, yc.InsertRows(s.Ctx, tablePath, rows, &yt.InsertRowsOptions{
 		RequireSyncReplica: ptr.Bool(false),
 	}))
 
-	ts, err := env.YT.GenerateTimestamp(env.Ctx, nil)
+	ts, err := yc.GenerateTimestamp(s.Ctx, nil)
 	require.NoError(t, err)
 
-	ids, err := env.YT.GetInSyncReplicas(env.Ctx, tablePath, ts, nil, nil)
+	ids, err := yc.GetInSyncReplicas(s.Ctx, tablePath, ts, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, NodeIDSlice{replicaID1, replicaID2}.MakeSet(), NodeIDSlice(ids).MakeSet())
 
 	require.True(t, WaitFor(time.Second*60, func() bool {
-		ids, err = env.YT.GetInSyncReplicas(env.Ctx, tablePath, ts, keys, nil)
+		ids, err = yc.GetInSyncReplicas(s.Ctx, tablePath, ts, keys, nil)
 		require.NoError(t, err)
 		return reflect.DeepEqual([]yt.NodeID{replicaID1}, ids)
 	}), "replicas sync timed out")
@@ -84,8 +90,8 @@ func (s NodeIDSlice) MakeSet() NodeIDSet {
 	return ret
 }
 
-func createReplicatedTable(env *yttest.Env, path ypath.Path) (id yt.NodeID, err error) {
-	id, err = env.YT.CreateNode(env.Ctx, path, yt.NodeReplicatedTable, &yt.CreateNodeOptions{
+func createReplicatedTable(ctx context.Context, yc yt.Client, path ypath.Path) (id yt.NodeID, err error) {
+	id, err = yc.CreateNode(ctx, path, yt.NodeReplicatedTable, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"schema":                     schema.MustInfer(&testRow{}),
 			"enable_replication_logging": true,
@@ -95,12 +101,12 @@ func createReplicatedTable(env *yttest.Env, path ypath.Path) (id yt.NodeID, err 
 	if err != nil {
 		return
 	}
-	err = migrate.MountAndWait(env.Ctx, env.YT, path)
+	err = migrate.MountAndWait(ctx, yc, path)
 	return
 }
 
-func createTableReplica(env *yttest.Env, tablePath, replicaPath ypath.Path) (yt.NodeID, error) {
-	return env.YT.CreateObject(env.Ctx, yt.NodeTableReplica, &yt.CreateObjectOptions{
+func createTableReplica(ctx context.Context, yc yt.Client, tablePath, replicaPath ypath.Path) (yt.NodeID, error) {
+	return yc.CreateObject(ctx, yt.NodeTableReplica, &yt.CreateObjectOptions{
 		Attributes: map[string]interface{}{
 			"cluster_name": os.Getenv("YT_ID"),
 			"table_path":   tablePath,
@@ -109,8 +115,8 @@ func createTableReplica(env *yttest.Env, tablePath, replicaPath ypath.Path) (yt.
 	})
 }
 
-func createReplicaTable(env *yttest.Env, path ypath.Path, replicaID yt.NodeID) (id yt.NodeID, err error) {
-	id, err = env.YT.CreateNode(env.Ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
+func createReplicaTable(ctx context.Context, yc yt.Client, path ypath.Path, replicaID yt.NodeID) (id yt.NodeID, err error) {
+	id, err = yc.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"schema":              schema.MustInfer(&testRow{}),
 			"dynamic":             true,
@@ -120,31 +126,31 @@ func createReplicaTable(env *yttest.Env, path ypath.Path, replicaID yt.NodeID) (
 	if err != nil {
 		return
 	}
-	err = migrate.MountAndWait(env.Ctx, env.YT, path)
+	err = migrate.MountAndWait(ctx, yc, path)
 	return
 }
 
-func ensureTableReplicaEnabled(env *yttest.Env, id yt.NodeID) error {
-	if err := env.YT.AlterTableReplica(env.Ctx, id, &yt.AlterTableReplicaOptions{
+func ensureTableReplicaEnabled(ctx context.Context, yc yt.Client, id yt.NodeID) error {
+	if err := yc.AlterTableReplica(ctx, id, &yt.AlterTableReplicaOptions{
 		Enabled: ptr.Bool(true),
 	}); err != nil {
 		return err
 	}
-	return waitTableReplicaState(env, id, "enabled")
+	return waitTableReplicaState(ctx, yc, id, "enabled")
 }
 
-func waitTableReplicaState(env *yttest.Env, id yt.NodeID, target string) error {
+func waitTableReplicaState(ctx context.Context, yc yt.Client, id yt.NodeID, target string) error {
 	if !WaitFor(time.Second*60, func() bool {
-		return getTableReplicaState(env, id) == target
+		return getTableReplicaState(ctx, yc, id) == target
 	}) {
 		return xerrors.Errorf("table replica state wait timed out")
 	}
 	return nil
 }
 
-func getTableReplicaState(env *yttest.Env, id yt.NodeID) string {
+func getTableReplicaState(ctx context.Context, yc yt.Client, id yt.NodeID) string {
 	var state string
-	if err := env.YT.GetNode(env.Ctx, id.YPath().Attr("state"), &state, nil); err != nil {
+	if err := yc.GetNode(ctx, id.YPath().Attr("state"), &state, nil); err != nil {
 		return ""
 	}
 	return state
