@@ -8,6 +8,9 @@ type Resolver struct {
 	// Port of Url(s)
 	Port int `yson:"port"`
 
+	// Mode2 is activated if 'YPEndpoint' is not empty
+	// Mode2 deletes old 'Urls'	and sets 'Urls' to relevant reloved list
+
 	// Urls to fetch
 	// -mode1
 	Urls []string `yson:"urls,omitempty"`

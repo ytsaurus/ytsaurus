@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/pprof/profile"
 
+	"a.yandex-team.ru/infra/yp_service_discovery/golang/resolver"
+	"a.yandex-team.ru/infra/yp_service_discovery/golang/resolver/httpresolver"
 	"a.yandex-team.ru/library/go/core/log"
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -41,6 +43,7 @@ type (
 
 	ResolverFetcher struct {
 		resolver Resolver
+		r        *httpresolver.Resolver
 		sf       *ServiceFetcher
 	}
 )
@@ -78,6 +81,12 @@ func NewResolverFetcher(resolver Resolver, sf *ServiceFetcher) *ResolverFetcher 
 	rf := new(ResolverFetcher)
 	rf.resolver = resolver
 	rf.sf = sf
+
+	var err error
+	rf.r, err = httpresolver.New()
+	if err != nil {
+		rf.sf.f.l.Fatal("error while creating httpresolver", log.Error(err))
+	}
 
 	return rf
 }
@@ -158,8 +167,38 @@ func (sf *ServiceFetcher) fetchService() {
 
 func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
 	var usedIDs []int
+	var resp *resolver.ResolveEndpointsResponse
+	sizeURL := len(rf.resolver.Urls)
 
-	for i := 0; i < len(rf.resolver.Urls); i++ {
+	if len(rf.resolver.YPEndpoint) > 0 {
+		var err error
+		ctx := context.Background()
+		resp, err = rf.r.ResolveEndpoints(ctx, rf.resolver.YPCluster, rf.resolver.YPEndpoint)
+		if err != nil {
+			rf.sf.f.l.Error("error while resolving endpoint", log.Error(err))
+			return nil, nil
+		}
+
+		if resp.ResolveStatus != resolver.StatusEndpointOK {
+			rf.sf.f.l.Error("not ok response status", log.Int("status", resp.ResolveStatus))
+			return nil, nil
+		}
+
+		rf.resolver.Urls = make([]string, 0, len(resp.EndpointSet.Endpoints))
+
+		sizeURL = len(resp.EndpointSet.Endpoints)
+
+		for _, epoint := range resp.EndpointSet.Endpoints {
+			rf.resolver.Urls = append(rf.resolver.Urls, fmt.Sprintf("http://%v", epoint.FQDN))
+		}
+
+		rf.sf.f.l.Debug("url resolving finished",
+			log.String("cluster", rf.resolver.YPCluster),
+			log.String("endpoint", rf.resolver.YPEndpoint),
+			log.Int("resolve_status", resp.ResolveStatus))
+	}
+
+	for i := 0; i < sizeURL; i++ {
 		result := rand.Float64()
 		if result < rf.sf.service.Probability {
 			usedIDs = append(usedIDs, i)
@@ -174,7 +213,13 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
 	for i := 0; i < len(usedIDs); i++ {
 		go func(id int) {
 			defer wg.Done()
-			results[id], errs[id] = rf.fetchURL(usedIDs[id])
+			var url string
+			if resp == nil {
+				url = rf.resolver.Urls[usedIDs[id]]
+			} else {
+				url = fmt.Sprintf("http://%v", resp.EndpointSet.Endpoints[usedIDs[id]].FQDN)
+			}
+			results[id], errs[id] = rf.fetchURL(url)
 		}(i)
 	}
 
@@ -184,11 +229,11 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
 	return results, errs
 }
 
-func (rf *ResolverFetcher) fetchURL(id int) (*profile.Profile, error) {
+func (rf *ResolverFetcher) fetchURL(url string) (*profile.Profile, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	requestURL := fmt.Sprintf("%v:%d/%v", rf.resolver.Urls[id], rf.resolver.Port, rf.sf.service.ProfilePath)
+	requestURL := fmt.Sprintf("%v:%d/%v", url, rf.resolver.Port, rf.sf.service.ProfilePath)
 	rf.sf.f.l.Debug("sending request", log.String("request_url", requestURL))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
