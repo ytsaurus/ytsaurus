@@ -5,7 +5,7 @@ from yt_commands import (
     exists, ls, get, set, create, remove,
     write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
-    set_node_banned)
+    build_master_snapshots, set_node_banned)
 
 import yt_error_codes
 
@@ -17,6 +17,7 @@ from time import sleep
 
 import shutil
 import os
+import time
 
 ##################################################################
 
@@ -240,6 +241,29 @@ class TestNodeTracker(YTEnvSetup):
         assert per_medium_io["default"]["filesystem_write_rate"] > 0
 
         wait(lambda: get("//sys/cluster_nodes/@io_statistics")["disk_read_capacity"] > 0, timeout=60)
+
+    @authors("gritukan")
+    def test_do_not_unregister_on_master_update(self):
+        lease_txs = {}
+        for node in ls("//sys/cluster_nodes"):
+            lease_tx = get("//sys/cluster_nodes/{}/@lease_transaction_id".format(node))
+            lease_txs[node] = lease_tx
+
+        # Build snapshots with read only and wait a bit.
+        build_master_snapshots(set_read_only=True)
+        time.sleep(3)
+
+        # Shutdown masters and wait a bit.
+        with Restarter(self.Env, MASTERS_SERVICE):
+            time.sleep(3)
+
+        # Wait a bit after "update".
+        time.sleep(3)
+
+        # Nodes should not reregister.
+        for node in ls("//sys/cluster_nodes"):
+            lease_tx = get("//sys/cluster_nodes/{}/@lease_transaction_id".format(node))
+            assert lease_txs[node] == lease_tx
 
 
 ##################################################################
