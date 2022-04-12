@@ -18,6 +18,11 @@
                         "http://sas4-5256-node-hume.man-pre.yp-c.yandex.net"; 
                         "http://sas3-4997-node-hume.man-pre.yp-c.yandex.net"
                     ]
+                };
+                {
+                    "port" = 10012;
+                    "endpoint" = "yt_hume__node";
+                    "cluster" = "man-pre"
                 }
             ]
         }    
