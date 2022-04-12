@@ -4,12 +4,12 @@ namespace NYT::NClient::NHedging::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto HedgingClientProfiler = NYT::NProfiling::TRegistry{"/hedging_client"}.WithHot();
-static const auto LagPenaltyProviderProfiler = NYT::NProfiling::TRegistry{"/lag_penalty_provider"}.WithHot();
+static const auto HedgingClientProfiler = NProfiling::TRegistry{"/hedging_client"}.WithHot();
+static const auto LagPenaltyProviderProfiler = NProfiling::TRegistry{"/lag_penalty_provider"}.WithHot();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCounter::TCounter(const NYT::NProfiling::TRegistry& registry)
+TCounter::TCounter(const NProfiling::TRegistry& registry)
     : SuccessRequestCount(registry.Counter("/requests_success"))
     , CancelRequestCount(registry.Counter("/requests_cancel"))
     , ErrorRequestCount(registry.Counter("/requests_error"))
@@ -24,14 +24,14 @@ TCounter::TCounter(const TString& clusterName)
 {
 }
 
-TCounter::TCounter(const NYT::NProfiling::TTagSet& tagSet)
+TCounter::TCounter(const NProfiling::TTagSet& tagSet)
     : TCounter(HedgingClientProfiler.WithTags(tagSet))
 {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLagPenaltyProviderCounters::TLagPenaltyProviderCounters(const NYT::NProfiling::TRegistry& registry, const TVector<TString>& clusters)
+TLagPenaltyProviderCounters::TLagPenaltyProviderCounters(const NProfiling::TRegistry& registry, const TVector<TString>& clusters)
     : SuccessRequestCount(registry.Counter("/update_success"))
     , ErrorRequestCount(registry.Counter("/update_error"))
     , TotalTabletsCount(registry.Gauge("/tablets_total"))

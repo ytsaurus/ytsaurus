@@ -29,12 +29,12 @@ class TClientsCache
     : public IClientsCache
 {
 public:
-    TClientsCache(const TClustersConfig& config, const NYT::NApi::TClientOptions& options)
+    TClientsCache(const TClustersConfig& config, const NApi::TClientOptions& options)
         : ClustersConfig_(config)
         , Options_(options)
     {}
 
-    NYT::NApi::IClientPtr GetClient(TStringBuf clusterUrl) override
+    NApi::IClientPtr GetClient(TStringBuf clusterUrl) override
     {
         {
             auto guard = ReaderGuard(Lock_);
@@ -52,21 +52,21 @@ public:
 
 private:
     TClustersConfig ClustersConfig_;
-    NYT::NApi::TClientOptions Options_;
-    NYT::NThreading::TReaderWriterSpinLock Lock_;
-    THashMap<TString, NYT::NApi::IClientPtr> Clients_;
+    NApi::TClientOptions Options_;
+    NThreading::TReaderWriterSpinLock Lock_;
+    THashMap<TString, NApi::IClientPtr> Clients_;
 };
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClientsCachePtr CreateClientsCache(const TClustersConfig& config, const NYT::NApi::TClientOptions& options)
+IClientsCachePtr CreateClientsCache(const TClustersConfig& config, const NApi::TClientOptions& options)
 {
-    return NYT::New<TClientsCache>(config, options);
+    return New<TClientsCache>(config, options);
 }
 
-IClientsCachePtr CreateClientsCache(const TConfig& config, const NYT::NApi::TClientOptions& options)
+IClientsCachePtr CreateClientsCache(const TConfig& config, const NApi::TClientOptions& options)
 {
     TClustersConfig clustersConfig;
     *clustersConfig.MutableDefaultConfig() = config;
@@ -78,7 +78,7 @@ IClientsCachePtr CreateClientsCache(const TConfig& config)
     return CreateClientsCache(config, GetClientOpsFromEnvStatic());
 }
 
-IClientsCachePtr CreateClientsCache(const NYT::NApi::TClientOptions& options)
+IClientsCachePtr CreateClientsCache(const NApi::TClientOptions& options)
 {
     return CreateClientsCache(TClustersConfig{}, options);
 }

@@ -6,9 +6,9 @@
 
 namespace NYT::NClient::NHedging {
 
-class TMockClientsCache : public NYT::NClient::NHedging::NRpc::IClientsCache {
+class TMockClientsCache : public NRpc::IClientsCache {
 public:
-    MOCK_METHOD(NYT::NApi::IClientPtr, GetClient, (TStringBuf url), (override));
+    MOCK_METHOD(NApi::IClientPtr, GetClient, (TStringBuf url), (override));
 };
 
 } // namespace NYT::NClient::NHedging

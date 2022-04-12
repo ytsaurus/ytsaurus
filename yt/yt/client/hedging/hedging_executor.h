@@ -7,13 +7,16 @@
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
 #include <util/datetime/base.h>
+
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
+
 #include <util/system/spinlock.h>
 
 
@@ -26,16 +29,16 @@ struct THedgingClientOptions
 {
     struct TClientOptions
     {
-        TClientOptions(NYT::NApi::IClientPtr client,
+        TClientOptions(NApi::IClientPtr client,
                       TString clusterName,
                       TDuration initialPenalty,
                       TCounterPtr counter = {});
 
-        TClientOptions(NYT::NApi::IClientPtr client,
+        TClientOptions(NApi::IClientPtr client,
                        TDuration initialPenalty,
                        TCounterPtr counter = {});
 
-        NYT::NApi::IClientPtr Client;
+        NApi::IClientPtr Client;
         TString ClusterName;
         TDuration InitialPenalty;
         TCounterPtr Counter;
@@ -55,13 +58,13 @@ class THedgingExecutor final
 public:
     THedgingExecutor(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider);
 
-    NYT::NApi::IConnectionPtr GetConnection();
+    NApi::IConnectionPtr GetConnection();
 
     template <typename T>
-    NYT::TFuture<T> DoWithHedging(NYT::TCallback<NYT::TFuture<T>(NYT::NApi::IClientPtr)> callback)
+    TFuture<T> DoWithHedging(TCallback<TFuture<T>(NApi::IClientPtr)> callback)
     {
-        NYT::NProfiling::TCpuInstant now = NYT::NProfiling::GetCpuInstant();
-        auto clients = [=]() -> auto {
+        NProfiling::TCpuInstant now = NProfiling::GetCpuInstant();
+        auto clients = [=] () -> auto {
             TGuard guard(SpinLock_);
             for (auto& client : Clients_) {
                 if (client.BanUntil < now) {
@@ -72,56 +75,56 @@ public:
             return Clients_;
         }();
 
-        NYT::NProfiling::TCpuDuration minInitialPenalty = Max<i64>();
+        NProfiling::TCpuDuration minInitialPenalty = Max<i64>();
         for (auto& client : clients) {
             client.ExternalPenalty = PenaltyProvider_->Get(client.ClusterName);
-            NYT::NProfiling::TCpuDuration currentInitialPenalty = client.InitialPenalty + client.AdaptivePenalty + client.ExternalPenalty;
+            NProfiling::TCpuDuration currentInitialPenalty = client.InitialPenalty + client.AdaptivePenalty + client.ExternalPenalty;
             minInitialPenalty = Min(minInitialPenalty, currentInitialPenalty);
         }
 
-        TVector<NYT::TFuture<T>> futures(Reserve(clients.size()));
+        TVector<TFuture<T>> futures(Reserve(clients.size()));
         for (auto [i, client] : Enumerate(clients)) {
-            TDuration effectivePenalty = NYT::NProfiling::CpuDurationToDuration(client.InitialPenalty + client.AdaptivePenalty + client.ExternalPenalty - minInitialPenalty);
+            TDuration effectivePenalty = NProfiling::CpuDurationToDuration(client.InitialPenalty + client.AdaptivePenalty + client.ExternalPenalty - minInitialPenalty);
             if (effectivePenalty) {
-                auto delayedFuture = NYT::NConcurrency::TDelayedExecutor::MakeDelayed(effectivePenalty, NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker());
+                auto delayedFuture = NConcurrency::TDelayedExecutor::MakeDelayed(effectivePenalty, NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker());
                 futures.push_back(delayedFuture.Apply(BIND(callback, client.Client)));
             } else {
                 futures.push_back(callback(client.Client));
             }
-            futures.back().Subscribe(BIND(&THedgingExecutor::OnFinishRequest, NYT::MakeWeak(this), i, effectivePenalty, client.AdaptivePenalty, client.ExternalPenalty, now));
+            futures.back().Subscribe(BIND(&THedgingExecutor::OnFinishRequest, MakeWeak(this), i, effectivePenalty, client.AdaptivePenalty, client.ExternalPenalty, now));
         }
 
-        return NYT::AnySucceeded(std::move(futures));
+        return AnySucceeded(std::move(futures));
     }
 
 private:
     void OnFinishRequest(
         size_t clientIndex,
         TDuration effectivePenalty,
-        NYT::NProfiling::TCpuDuration adaptivePenalty,
-        NYT::NProfiling::TCpuDuration externalPenalty,
-        NYT::NProfiling::TCpuInstant start,
-        const NYT::TError& r);
+        NProfiling::TCpuDuration adaptivePenalty,
+        NProfiling::TCpuDuration externalPenalty,
+        NProfiling::TCpuInstant start,
+        const TError& r);
 
     struct TEntry
     {
-        TEntry(NYT::NApi::IClientPtr client,
-               NYT::NProfiling::TCpuDuration initialPenalty,
+        TEntry(NApi::IClientPtr client,
+               NProfiling::TCpuDuration initialPenalty,
                TCounterPtr counter,
                TString clusterName);
 
-        NYT::NApi::IClientPtr Client;
+        NApi::IClientPtr Client;
         TString ClusterName;
-        NYT::NProfiling::TCpuDuration AdaptivePenalty;
-        NYT::NProfiling::TCpuDuration InitialPenalty;
-        NYT::NProfiling::TCpuDuration ExternalPenalty;
-        NYT::NProfiling::TCpuInstant BanUntil;
+        NProfiling::TCpuDuration AdaptivePenalty;
+        NProfiling::TCpuDuration InitialPenalty;
+        NProfiling::TCpuDuration ExternalPenalty;
+        NProfiling::TCpuInstant BanUntil;
         TCounterPtr Counter;
     };
 
     TVector<TEntry> Clients_;
-    NYT::NProfiling::TCpuDuration BanPenalty_;
-    NYT::NProfiling::TCpuDuration BanDuration_;
+    NProfiling::TCpuDuration BanPenalty_;
+    NProfiling::TCpuDuration BanDuration_;
     IPenaltyProviderPtr PenaltyProvider_;
     TSpinLock SpinLock_;
 };
