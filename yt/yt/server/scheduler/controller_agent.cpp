@@ -172,6 +172,8 @@ void TControllerAgent::Cancel(const TError& error)
 {
     CancelableContext_->Cancel(error);
 
+    MaybeError_ = error;
+
     for (const auto& [_, promise] : CounterToFullHeartbeatProcessedPromise_) {
         promise.TrySet(error);
     }
@@ -199,6 +201,10 @@ void TControllerAgent::SetMemoryStatistics(TControllerAgentMemoryStatistics memo
 TFuture<void> TControllerAgent::GetFullHeartbeatProcessed()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (MaybeError_) {
+        return MakeFuture(*MaybeError_);
+    }
 
     auto it = CounterToFullHeartbeatProcessedPromise_.find(HeartbeatCounter_ + 2);
     if (it == CounterToFullHeartbeatProcessedPromise_.end()) {

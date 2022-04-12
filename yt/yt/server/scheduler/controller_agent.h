@@ -183,6 +183,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
 
+    std::optional<TError> MaybeError_;
+
     i64 HeartbeatCounter_ = 0;
     std::map<i64, TPromise<void>> CounterToFullHeartbeatProcessedPromise_;
 };
