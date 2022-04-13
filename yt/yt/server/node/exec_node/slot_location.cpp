@@ -906,14 +906,14 @@ void TSlotLocation::UpdateDiskResources()
         THashMap<int, TDiskStatistics> diskStatisticsPerSlot;
 
         for (const auto& [slotIndex, sandboxOptions] : sandboxOptionsPerSlot) {
-            i64 dirSize = 0;
+            i64 slotDiskUsage = 0;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (NFS::Exists(path)) {
                     // We have to calculate user directory size as root,
                     // because user job could have set restricted permissions for files and
                     // directories inside sandbox.
-                    dirSize += (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
+                    slotDiskUsage += (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
                         ? RunTool<TGetDirectorySizeAsRootTool>(path)
                         : NFS::GetDirectorySize(path);
                 }
@@ -922,22 +922,30 @@ void TSlotLocation::UpdateDiskResources()
                 slotIndex,
                 TDiskStatistics{
                     .Limit=sandboxOptions.DiskSpaceLimit,
-                    .Usage=dirSize
+                    .Usage=slotDiskUsage
                 }));
 
             if (sandboxOptions.DiskSpaceLimit) {
-                diskUsage += *sandboxOptions.DiskSpaceLimit;
-                if (dirSize > *sandboxOptions.DiskSpaceLimit) {
+                i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
+                diskUsage += slotDiskLimit;
+                YT_LOG_DEBUG("Slot disk usage info (Path: %v, SlotIndex: %v, Usage: %v, Limit: %v)",
+                    Config_->Path,
+                    slotIndex,
+                    slotDiskUsage,
+                    slotDiskLimit);
+                if (slotDiskUsage > slotDiskLimit) {
                     auto error = TError("Disk usage overdrafted: %v > %v",
-                        dirSize,
-                        *sandboxOptions.DiskSpaceLimit);
+                        slotDiskUsage,
+                        slotDiskLimit);
 
-                    YT_LOG_DEBUG(error, "Slot disk usage overdrafted (SlotIndex: %v)", slotIndex);
+                    YT_LOG_INFO(error, "Slot disk usage overdrafted (Path: %v, SlotIndex: %v)",
+                        Config_->Path,
+                        slotIndex);
                     sandboxOptions.DiskOverdraftCallback
                         .Run(error);
                 }
             } else {
-                diskUsage += dirSize;
+                diskUsage += slotDiskUsage;
             }
         }
         
