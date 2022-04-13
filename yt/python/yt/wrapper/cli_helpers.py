@@ -111,4 +111,3 @@ def populate_argument_help(parser):
         return old_add_argument(*args, **kwargs)
     parser.add_argument = add_argument
     return parser
-
