@@ -97,7 +97,10 @@ class TProxyConfig
 public:
     //! Proxy-to-master connection.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
+
+    //! Initial config for API service.
     TApiServiceConfigPtr ApiService;
+
     TDiscoveryServiceConfigPtr DiscoveryService;
     //! Known RPC proxy addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;

@@ -95,6 +95,10 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
 
+    registrar.Preprocessor([] (TThis* config) {
+        config->DynamicConfigManager->IgnoreConfigAbsence = true;
+    });
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->GrpcServer && config->GrpcServer->Addresses.size() > 1) {
             THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");

@@ -79,31 +79,38 @@ class TSecurityManager::TImpl
 {
 public:
     TImpl(
-        TSecurityManagerConfigPtr config,
+        TSecurityManagerDynamicConfigPtr config,
         IBootstrap* bootstrap,
         TLogger logger)
-        : Config_(std::move(config))
-        , UserCache_(New<TUserCache>(
-            Config_->UserCache,
+        : UserCache_(New<TUserCache>(
+            config->UserCache,
             bootstrap,
             std::move(logger)))
     { }
 
     void ValidateUser(const TString& user)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         WaitFor(UserCache_->Get(user))
             .ThrowOnError();
     }
 
+    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        UserCache_->Reconfigure(config->UserCache);
+    }
+
 private:
-    const TSecurityManagerConfigPtr Config_;
     const TUserCachePtr UserCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TSecurityManager(
-    TSecurityManagerConfigPtr config,
+    TSecurityManagerDynamicConfigPtr config,
     IBootstrap* bootstrap,
     TLogger logger)
     : Impl_(New<TImpl>(
@@ -114,10 +121,14 @@ TSecurityManager::TSecurityManager(
 
 TSecurityManager::~TSecurityManager() = default;
 
-void TSecurityManager::ValidateUser(
-    const TString& user)
+void TSecurityManager::ValidateUser(const TString& user)
 {
     Impl_->ValidateUser(user);
+}
+
+void TSecurityManager::Reconfigure(const TSecurityManagerDynamicConfigPtr& config)
+{
+    Impl_->Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

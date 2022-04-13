@@ -39,9 +39,7 @@ public:
     // IBootstrap implementation.
     const IInvokerPtr& GetWorkerInvoker() const override;
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const override;
-    TApiServiceConfigPtr GetConfigApiService() const override;
     NAuth::TAuthenticationManagerConfigPtr GetConfigAuthenticationManager() const override;
-    TApiServiceDynamicConfigPtr GetDynamicConfigApiService() const override;
     const NTracing::TSamplerPtr& GetTraceSampler() const override;
     const IProxyCoordinatorPtr& GetProxyCoordinator() const override;
     const IAccessCheckerPtr& GetAccessChecker() const override;
@@ -49,7 +47,6 @@ public:
     const NApi::NNative::IClientPtr& GetNativeClient() const override;
 
     const TProxyConfigPtr& GetConfig() const;
-    TProxyDynamicConfigPtr GetDynamicConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
     const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
@@ -60,15 +57,13 @@ private:
     const TProxyConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
-    TAtomicObject<TProxyDynamicConfigPtr> DynamicConfig_ = New<TProxyDynamicConfig>();
-
     const NConcurrency::TActionQueuePtr ControlQueue_;
     const NConcurrency::TThreadPoolPtr WorkerPool_;
     const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
-    NRpc::IServicePtr ApiService_;
+    IApiServicePtr ApiService_;
     NRpc::IServicePtr DiscoveryService_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IServerPtr GrpcServer_;

@@ -185,11 +185,20 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
 
-    ApiService_ = CreateApiService(this, RpcProxyLogger, RpcProxyProfiler);
-    RpcServer_->RegisterService(ApiService_);
-
     DynamicConfigManager_->Initialize();
     DynamicConfigManager_->Start();
+
+    YT_LOG_INFO("Waiting for dynamic config");
+    WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
+        .ThrowOnError();
+
+    ApiService_ = CreateApiService(
+        this,
+        RpcProxyLogger,
+        Config_->ApiService,
+        DynamicConfigManager_->GetConfig()->Api,
+        RpcProxyProfiler);
+    RpcServer_->RegisterService(ApiService_);
 
     if (Config_->DiscoveryService->Enable) {
         DiscoveryService_ = CreateDiscoveryService(this);
@@ -205,6 +214,8 @@ void TBootstrap::DoRun()
             GrpcServer_->RegisterService(DiscoveryService_);
         }
     }
+
+    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), /*coreDumper*/ nullptr));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -237,19 +248,9 @@ const IAuthenticatorPtr& TBootstrap::GetRpcAuthenticator() const
     return AuthenticationManager_->GetRpcAuthenticator();
 }
 
-TApiServiceConfigPtr TBootstrap::GetConfigApiService() const
-{
-    return Config_->ApiService;
-}
-
 NAuth::TAuthenticationManagerConfigPtr TBootstrap::GetConfigAuthenticationManager() const
 {
     return Config_;
-}
-
-TApiServiceDynamicConfigPtr TBootstrap::GetDynamicConfigApiService() const
-{
-    return GetDynamicConfig()->Api;
 }
 
 const NTracing::TSamplerPtr& TBootstrap::GetTraceSampler() const
@@ -284,11 +285,6 @@ const TProxyConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-TProxyDynamicConfigPtr TBootstrap::GetDynamicConfig() const
-{
-    return DynamicConfig_.Load();
-}
-
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
@@ -316,7 +312,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     NativeConnection_->Reconfigure(newConfig->ClusterConnection);
 
-    DynamicConfig_.Store(newConfig);
+    ApiService_->OnDynamicConfigChanged(newConfig->Api);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

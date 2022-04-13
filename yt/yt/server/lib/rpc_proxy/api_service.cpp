@@ -71,6 +71,7 @@
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/misc/cast.h>
+#include <yt/yt/core/misc/cache_config.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/mpl.h>
@@ -547,6 +548,7 @@ DECLARE_REFCOUNTED_CLASS(TApiService)
 
 class TApiService
     : public TServiceBase
+    , public IApiService
 {
 public:
     template <class TRequestMessage, class TResponseMessage>
@@ -555,6 +557,8 @@ public:
     TApiService(
         IBootstrap* bootstrap,
         NLogging::TLogger logger,
+        TApiServiceConfigPtr config,
+        TApiServiceDynamicConfigPtr dynamicConfig,
         TProfiler profiler,
         IStickyTransactionPoolPtr stickyTransactionPool)
         : TServiceBase(
@@ -565,15 +569,15 @@ public:
             bootstrap->GetRpcAuthenticator())
         , Bootstrap_(bootstrap)
         , Profiler_(std::move(profiler))
-        , Config_(Bootstrap_->GetConfigApiService())
+        , Config_(dynamicConfig)
         , Coordinator_(Bootstrap_->GetProxyCoordinator())
         , AccessChecker_(Bootstrap_->GetAccessChecker())
-        , SecurityManager_(Config_->SecurityManager, Bootstrap_, Logger)
+        , SecurityManager_(config->SecurityManager, Bootstrap_, Logger)
         , StickyTransactionPool_(stickyTransactionPool
             ? stickyTransactionPool
             : CreateStickyTransactionPool(Logger))
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
-            Config_->ClientCache,
+            config->ClientCache,
             Bootstrap_->GetNativeConnection()))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
@@ -700,10 +704,28 @@ public:
         }
     }
 
+    void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto oldConfig = Config_.Load();
+
+        YT_LOG_DEBUG(
+            "Updating API service config (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(config, EYsonFormat::Text));
+
+        AuthenticatedClientCache_->Reconfigure(config->ClientCache);
+
+        SecurityManager_.Reconfigure(config->SecurityManager);
+
+        Config_.Store(config);
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const TProfiler Profiler_;
-    const TApiServiceConfigPtr Config_;
+    TAtomicObject<TApiServiceDynamicConfigPtr> Config_;
     const IProxyCoordinatorPtr Coordinator_;
     const IAccessCheckerPtr AccessChecker_;
 
@@ -730,7 +752,9 @@ private:
             return;
         }
 
-        if (Config_->ForceTracing) {
+        const auto& config = Config_.Load();
+
+        if (config->ForceTracing) {
             traceContext->SetSampled();
         }
 
@@ -767,12 +791,14 @@ private:
 
         // Finally, setup structured logging messages to be emitted.
 
-        auto shouldEmit = [method = context->GetMethod()] (const TStructuredLoggingTopicConfigPtr& config) {
+        auto shouldEmit = [method = context->GetMethod()] (const TStructuredLoggingTopicDynamicConfigPtr& config) {
             return config->Enable && !config->SuppressedMethods.contains(method);
         };
 
+        const auto& config = Config_.Load();
+
         // NB: we try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
-        if (shouldEmit(Config_->StructuredLoggingMainTopic)) {
+        if (shouldEmit(config->StructuredLoggingMainTopic)) {
             TString requestYson;
             TStringOutput requestOutput(requestYson);
             TYsonWriter requestYsonWriter(&requestOutput, EYsonFormat::Text);
@@ -784,7 +810,7 @@ private:
             context->SetupMainMessage(TYsonString(std::move(requestYson)));
         }
 
-        if (shouldEmit(Config_->StructuredLoggingErrorTopic)) {
+        if (shouldEmit(config->StructuredLoggingErrorTopic)) {
             context->SetupErrorMessage();
         }
     }
@@ -803,8 +829,10 @@ private:
 
         Coordinator_->ValidateOperable();
 
+        const auto& config = Config_.Load();
+
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
-        if (Config_->VerboseLogging) {
+        if (config->VerboseLogging) {
             YT_LOG_DEBUG("RequestId: %v, RequestBody: %v",
                 context->GetRequestId(),
                 request->ShortDebugString());
@@ -2301,7 +2329,8 @@ private:
 
         {
             auto user = context->GetAuthenticationIdentity().User;
-            auto formatConfigs = Bootstrap_->GetDynamicConfigApiService()->Formats;
+            const auto& config = Config_.Load();
+            const auto& formatConfigs = config->Formats;
             TFormatManager formatManager(formatConfigs, user);
             auto specNode = ConvertToNode(specYson);
             formatManager.ValidateAndPatchOperationSpec(specNode, type);
@@ -3376,7 +3405,7 @@ private:
                     ToProto(protoReplicationRowIndex->mutable_tablet_id(), tabletId);
                     protoReplicationRowIndex->set_row_index(rowIndex);
                 }
-    
+
                 response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
 
                 context->SetResponseInfo("RowCount: %v",
@@ -3559,7 +3588,7 @@ private:
             FromProto(&options.UpstreamReplicaId, request.upstream_replica_id());
         }
 
-        if (Config_->EnableModifyRowsRequestReordering &&
+        if (Config_.Load()->EnableModifyRowsRequestReordering &&
             request.has_sequence_number())
         {
             options.SequenceNumber = request.sequence_number();
@@ -4163,6 +4192,8 @@ private:
 
         bool finished = false;
 
+        const auto& config = Config_.Load();
+
         HandleInputStreamingRequest(
             context,
             [&] {
@@ -4171,8 +4202,8 @@ private:
                 }
 
                 TRowBatchReadOptions options{
-                    .MaxRowsPerRead = Config_->ReadBufferRowCount,
-                    .MaxDataWeightPerRead = Config_->ReadBufferDataWeight,
+                    .MaxRowsPerRead = config->ReadBufferRowCount,
+                    .MaxDataWeightPerRead = config->ReadBufferDataWeight,
                     .Columnar = IsColumnarRowsetFormat(request->desired_rowset_format())
                 };
                 auto batch = WaitForRowBatch(tableReader, options);
@@ -4427,15 +4458,19 @@ DEFINE_REFCOUNTED_TYPE(TApiService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateApiService(
+IApiServicePtr CreateApiService(
     IBootstrap* bootstrap,
     NLogging::TLogger logger,
+    TApiServiceConfigPtr config,
+    TApiServiceDynamicConfigPtr dynamicConfig,
     TProfiler profiler,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
     return New<TApiService>(
         bootstrap,
         std::move(logger),
+        std::move(config),
+        std::move(dynamicConfig),
         std::move(profiler),
         std::move(stickyTransactionPool));
 }
