@@ -279,7 +279,9 @@ bool ExpectsJobInfoFromNode(const TJobSummary& jobSummary) noexcept
 
 bool ExpectsJobInfoFromNode(const TAbortedJobSummary& jobSummary) noexcept
 {
-    return !jobSummary.AbortedByController && ExpectsJobInfoFromNode(static_cast<const TJobSummary&>(jobSummary));
+    return !jobSummary.AbortedByScheduler &&
+        !jobSummary.AbortedByController &&
+        ExpectsJobInfoFromNode(static_cast<const TJobSummary&>(jobSummary));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

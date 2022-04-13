@@ -5605,8 +5605,7 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
                 std::move(schedulerSummary),
                 std::move(nodeSummary),
                 needMergeJobSummaries);
-            const bool abortedByScheduler = abortedJobSummary->AbortedByScheduler;
-            SafeOnJobAborted(std::move(abortedJobSummary), abortedByScheduler);
+            SafeOnJobAborted(std::move(abortedJobSummary), /*byScheduler*/ false);
             break;
         }
         default:
