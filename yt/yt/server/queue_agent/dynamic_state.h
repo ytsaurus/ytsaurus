@@ -46,6 +46,7 @@ public:
     TFuture<std::vector<TRow>> Select(TStringBuf columns = "*", TStringBuf where = "1 = 1") const;
 
     TFuture<NApi::TTransactionCommitResult> Insert(std::vector<TRow> rows) const;
+    TFuture<NApi::TTransactionCommitResult> Delete(std::vector<TRow> keys) const;
 
 private:
     NYPath::TYPath Path_;
@@ -72,6 +73,7 @@ struct TQueueTableRow
         const NTableClient::TTableSchema& schema);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueTableRow> rows);
+    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueTableRow> keys);
 
     static std::vector<TString> GetCypressAttributeNames();
 
@@ -119,6 +121,7 @@ struct TConsumerTableRow
         const NTableClient::TTableSchema& schema);
 
     static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerTableRow> rows);
+    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerTableRow> keys);
 
     static std::vector<TString> GetCypressAttributeNames();
 

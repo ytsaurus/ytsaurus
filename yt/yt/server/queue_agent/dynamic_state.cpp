@@ -87,11 +87,23 @@ TFuture<std::vector<TRow>> TTableBase<TRow>::Select(TStringBuf columns, TStringB
 template <class TRow>
 TFuture<TTransactionCommitResult> TTableBase<TRow>::Insert(std::vector<TRow> rows) const
 {
-    return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet).Apply(BIND([rows = std::move(rows), path = Path_] (const ITransactionPtr& transaction) {
-        auto rowset = TRow::InsertRowRange(rows);
-        transaction->WriteRows(path, rowset->GetNameTable(), rowset->GetSharedRange());
-        return transaction->Commit();
-    }));
+    return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
+        .Apply(BIND([rows = std::move(rows), path = Path_] (const ITransactionPtr& transaction) {
+            auto rowset = TRow::InsertRowRange(rows);
+            transaction->WriteRows(path, rowset->GetNameTable(), rowset->GetSharedRange());
+            return transaction->Commit();
+        }));
+}
+
+template <class TRow>
+TFuture<TTransactionCommitResult> TTableBase<TRow>::Delete(std::vector<TRow> keys) const
+{
+    return Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet)
+        .Apply(BIND([keys = std::move(keys), path = Path_] (const ITransactionPtr& transaction) {
+            auto rowset = TRow::DeleteRowRange(keys);
+            transaction->DeleteRows(path, rowset->GetNameTable(), rowset->GetSharedRange());
+            return transaction->Commit();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +204,22 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
         if (row.Sorted) {
             rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Sorted, nameTable->GetIdOrThrow("sorted")));
         }
+        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+    }
+
+    return CreateRowset(TQueueTableDescriptor::Schema, rowsBuilder.Build());
+}
+
+NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow> keys)
+{
+    auto nameTable = TNameTable::FromSchema(*TQueueTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : keys) {
+        TUnversionedOwningRowBuilder rowBuilder;
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Cluster, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Queue.Path, nameTable->GetIdOrThrow("path")));
+
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
 
@@ -372,6 +400,22 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         if (row.Owner) {
             rowBuilder.AddValue(MakeUnversionedStringValue(*row.Owner, nameTable->GetIdOrThrow("owner")));
         }
+
+        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+    }
+
+    return CreateRowset(TConsumerTableDescriptor::Schema, rowsBuilder.Build());
+}
+
+NApi::IUnversionedRowsetPtr TConsumerTableRow::DeleteRowRange(TRange<TConsumerTableRow> keys)
+{
+    auto nameTable = TNameTable::FromSchema(*TConsumerTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : keys) {
+        TUnversionedOwningRowBuilder rowBuilder;
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Cluster, nameTable->GetIdOrThrow("cluster")));
+        rowBuilder.AddValue(MakeUnversionedStringValue(row.Consumer.Path, nameTable->GetIdOrThrow("path")));
 
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }

@@ -31,6 +31,11 @@ DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECypressSynchronizerPolicy,
+    (Polling)
+    (Watching)
+);
+
 class TCypressSynchronizerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -40,6 +45,12 @@ public:
 
     //! Flag for disabling cypress synchronizer entirely; used primarily for tests.
     bool Enable;
+
+    //! Policy used for following updates to queues/consumers.
+    ECypressSynchronizerPolicy Policy;
+
+    //! Clusters polled by the watching version of the synchronizer.
+    std::vector<TString> Clusters;
 
     REGISTER_YSON_STRUCT(TCypressSynchronizerDynamicConfig);
 

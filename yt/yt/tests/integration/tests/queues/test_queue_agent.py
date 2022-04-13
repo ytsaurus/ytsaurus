@@ -1019,7 +1019,7 @@ class CypressSynchronizerOrchid:
         return YtError.from_dict(get(self.queue_agent_orchid_path() + "/cypress_synchronizer/poll_error"))
 
 
-class TestCypressSynchronizer(TestQueueAgentBase):
+class TestCypressSynchronizerBase(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
     DELTA_QUEUE_AGENT_CONFIG = {
@@ -1031,15 +1031,6 @@ class TestCypressSynchronizer(TestQueueAgentBase):
                 "expire_after_access_time": 0,
                 "refresh_time": 0,
             },
-        },
-    }
-
-    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
-        "queue_agent": {
-            "poll_period": 100,
-        },
-        "cypress_synchronizer": {
-            "poll_period": 100
         },
     }
 
@@ -1056,15 +1047,21 @@ class TestCypressSynchronizer(TestQueueAgentBase):
     QUEUE_REGISTRY = []
     CONSUMER_REGISTRY = []
 
-    def _create_and_register_queue(self, path):
+    def _create_queue_object(self, path):
         create("table",
                path,
                attributes={"dynamic": True,
                            "schema": [{"name": "useless", "type": "string"}]},
                force=True)
         self.QUEUE_REGISTRY.append(path)
+        assert path not in self.LAST_REVISIONS
+        self.LAST_REVISIONS[path] = 0
+
+    def _create_and_register_queue(self, path):
+        self._create_queue_object(path)
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
+        assert self.LAST_REVISIONS[path] == 0
         self.LAST_REVISIONS[path] = 1
 
     def _drop_queues(self):
@@ -1073,7 +1070,7 @@ class TestCypressSynchronizer(TestQueueAgentBase):
             del self.LAST_REVISIONS[queue]
         self.QUEUE_REGISTRY.clear()
 
-    def _create_and_register_consumer(self, path):
+    def _create_consumer_object(self, path):
         create("table",
                path,
                attributes={"dynamic": True,
@@ -1082,9 +1079,14 @@ class TestCypressSynchronizer(TestQueueAgentBase):
                            "treat_as_queue_consumer": True},
                force=True)
         self.CONSUMER_REGISTRY.append(path)
+        assert path not in self.LAST_REVISIONS
+        self.LAST_REVISIONS[path] = 0
+
+    def _create_and_register_consumer(self, path):
+        self._create_consumer_object(path)
         insert_rows("//sys/queue_agents/consumers",
                     [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
-        assert path not in self.LAST_REVISIONS
+        assert self.LAST_REVISIONS[path] == 0
         self.LAST_REVISIONS[path] = 1
 
     def _drop_consumers(self):
@@ -1131,6 +1133,18 @@ class TestCypressSynchronizer(TestQueueAgentBase):
         assert self.LAST_REVISIONS[row["path"]] < row["row_revision"]
         self.LAST_REVISIONS[row["path"]] = row["row_revision"]
 
+
+class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            "policy": "polling"
+        },
+    }
+
     @authors("achulkov2")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
@@ -1159,7 +1173,6 @@ class TestCypressSynchronizer(TestQueueAgentBase):
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
         consumers = self._get_consumers_and_check_invariants(expected_count=2)
-        set(c2 + "/@treat_as_queue_consumer", False)
         for queue in queues:
             if queue["path"] == q1:
                 self._assert_constant_revision(queue)
@@ -1172,9 +1185,8 @@ class TestCypressSynchronizer(TestQueueAgentBase):
                 self._assert_increased_revision(consumer)
                 assert not consumer["vital"]
 
-        set(c2 + "/@treat_as_queue_consumer", True)
-        set(c2 + "/@target_queue", "a_cluster:a_path")
         set(c2 + "/@vital_queue_consumer", False)
+        set(c2 + "/@target_queue", "a_cluster:a_path")
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -1195,8 +1207,8 @@ class TestCypressSynchronizer(TestQueueAgentBase):
         assert_yt_error(orchid.get_poll_error(), yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
-        set(c2 + "/@target_queue", "another_cluster:another_path")
         set(c2 + "/@vital_queue_consumer", True)
+        set(c2 + "/@target_queue", "another_cluster:another_path")
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -1211,6 +1223,112 @@ class TestCypressSynchronizer(TestQueueAgentBase):
                 assert consumer["target_cluster"] == "another_cluster"
                 assert consumer["target_path"] == "another_path"
                 assert consumer["vital"]
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
+
+
+class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "policy": "watching",
+            "clusters": ["primary"],
+            "poll_period": 100,
+        },
+    }
+
+    @authors("achulkov2")
+    def test_basic(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        q2 = self._get_queue_name("b")
+        c1 = self._get_consumer_name("a")
+        c2 = self._get_consumer_name("b")
+
+        self._create_queue_object(q1)
+        self._create_consumer_object(c1)
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
+        for queue in queues:
+            self._assert_increased_revision(queue)
+        for consumer in consumers:
+            self._assert_increased_revision(consumer)
+
+        self._create_queue_object(q2)
+        self._create_consumer_object(c2)
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        for queue in queues:
+            if queue["path"] == q1:
+                self._assert_constant_revision(queue)
+            elif queue["path"] == q2:
+                self._assert_increased_revision(queue)
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                self._assert_constant_revision(consumer)
+            elif consumer["path"] == c2:
+                self._assert_increased_revision(consumer)
+                assert not consumer["vital"]
+
+        set(c2 + "/@vital_queue_consumer", False)
+        set(c2 + "/@target_queue", "a_cluster:a_path")
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        for queue in queues:
+            self._assert_constant_revision(queue)
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                self._assert_constant_revision(consumer)
+            elif consumer["path"] == c2:
+                self._assert_increased_revision(consumer)
+                assert consumer["target_cluster"] == "a_cluster"
+                assert consumer["target_path"] == "a_path"
+                assert not consumer["vital"]
+
+        sync_unmount_table("//sys/queue_agents/queues")
+        orchid.wait_fresh_poll()
+        assert_yt_error(orchid.get_poll_error(), yt_error_codes.TabletNotMounted)
+
+        sync_mount_table("//sys/queue_agents/queues")
+        set(c2 + "/@vital_queue_consumer", True)
+        set(c2 + "/@target_queue", "another_cluster:another_path")
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=2)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2)
+        for queue in queues:
+            self._assert_constant_revision(queue)
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                self._assert_constant_revision(consumer)
+            elif consumer["path"] == c2:
+                self._assert_increased_revision(consumer)
+                assert consumer["target_cluster"] == "another_cluster"
+                assert consumer["target_path"] == "another_path"
+                assert consumer["vital"]
+
+        set(c1 + "/@treat_as_queue_consumer", False)
+        orchid.wait_fresh_poll()
+
+        self._get_consumers_and_check_invariants(expected_count=1)
+
+        remove(q2)
+        orchid.wait_fresh_poll()
+
+        self._get_queues_and_check_invariants(expected_count=1)
 
         self._drop_queues()
         self._drop_consumers()

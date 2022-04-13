@@ -28,6 +28,11 @@ static const auto& Logger = CypressSynchronizerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ECypressSyncObjectType,
+    (Queue)
+    (Consumer)
+);
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,17 +46,12 @@ TRowRevision NextRowRevision(const std::optional<TRowRevision> rowRevision)
 
 } // namespace
 
-DEFINE_ENUM(ECypressSyncObjectType,
-    (Queue)
-    (Consumer)
-);
-
 struct TObject
 {
     //! The location (cluster, path) of the object in question.
     TCrossClusterReference Object;
     ECypressSyncObjectType Type;
-    //! The revision of the corresponding cypress node.
+    //! The revision of the corresponding Cypress node.
     std::optional<NHydra::TRevision> Revision;
     //! The internal revision of the corresponding dynamic state row.
     std::optional<TRowRevision> RowRevision;
@@ -59,11 +59,11 @@ struct TObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPollingCypressSynchronizer
+class TCypressSynchronizer
     : public ICypressSynchronizer
 {
 public:
-    TPollingCypressSynchronizer(
+    TCypressSynchronizer(
         TCypressSynchronizerConfigPtr config,
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState,
@@ -75,9 +75,9 @@ public:
         , ClientDirectory_(std::move(clientDirectory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
-            BIND(&TPollingCypressSynchronizer::Poll, MakeWeak(this)),
+            BIND(&TCypressSynchronizer::Poll, MakeWeak(this)),
             DynamicConfig_->PollPeriod))
-        , OrchidService_(IYPathService::FromProducer(BIND(&TPollingCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
+        , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
     { }
 
     IYPathServicePtr GetOrchidService() const override
@@ -120,8 +120,9 @@ public:
         YT_LOG_DEBUG("Polling round started (PollIndex: %v)", PollIndex_);
         try {
             auto objectMaps = FetchObjectMaps();
-            auto modifiedObjects = ListModifiedObjectsByCluster(objectMaps);
-            auto updatedAttributes = FetchAttributes(modifiedObjects);
+            auto objectChanges = ListObjectChanges(objectMaps);
+            DeleteObjects(objectChanges.ObjectsToDelete);
+            auto updatedAttributes = FetchAttributes(objectChanges.ClusterToModifiedObjects);
             WriteRows(updatedAttributes);
             PollError_ = TError();
         } catch (const std::exception& ex) {
@@ -142,7 +143,7 @@ public:
         SyncExecutor_->SetPeriod(newConfig->PollPeriod);
 
         YT_LOG_DEBUG(
-            "Updated cypress synchronizer dynamic config (OldConfig: %v, NewConfig: %v)",
+            "Updated Cypress synchronizer dynamic config (OldConfig: %v, NewConfig: %v)",
             ConvertToYsonString(oldConfig, EYsonFormat::Text),
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
@@ -167,21 +168,31 @@ private:
 
     using TObjectMap = THashMap<TString, std::vector<TObject>>;
 
-    //! Fetch revisions for all objects in the dynamic state and return the ones with a new cypress revision.
-    TObjectMap ListModifiedObjectsByCluster(const TObjectMap& clusterToObjects) const
+    struct TObjectChanges
     {
-        // Fetch cypress revisions for all objects in dynamic state.
+        TObjectMap ClusterToModifiedObjects;
+        std::vector<TObject> ObjectsToDelete;
+    };
+
+    TObjectChanges ListObjectChanges(const TObjectMap& clusterToObjects) const
+    {
+        switch (DynamicConfig_->Policy) {
+            case ECypressSynchronizerPolicy::Polling:
+                return ListObjectChangesPolling(clusterToObjects);
+            case ECypressSynchronizerPolicy::Watching:
+                return ListObjectChangesWatching(clusterToObjects);
+        }
+    }
+
+    //! Fetch revisions for all objects in the dynamic state and return the ones with a new Cypress revision.
+    TObjectChanges ListObjectChangesPolling(const TObjectMap& clusterToObjects) const
+    {
+        // Fetch Cypress revisions for all objects in dynamic state.
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         std::vector<TString> clusters;
         for (const auto& [cluster, objects] : clusterToObjects) {
-            IChannelPtr channel;
-            try {
-                auto client = AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
-                channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error connecting to cluster %v", cluster) << ex;
-            }
+            const auto& channel = GetMasterChannelOrThrow(cluster);
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : objects) {
@@ -194,7 +205,7 @@ private:
         auto combinedResults = WaitFor(AllSet(asyncResults))
             .ValueOrThrow();
 
-        // Collect all objects for which the current cypress revision is larger than the stored revision.
+        // Collect all objects for which the current Cypress revision is larger than the stored revision.
 
         TObjectMap clusterToModifiedObjects;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
@@ -211,7 +222,7 @@ private:
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
             for (int objectIndex = 0; objectIndex < std::ssize(responses); ++objectIndex) {
                 const auto& responseOrError = responses[objectIndex];
-                auto object = clusterToObjects.at(cluster)[objectIndex];
+                const auto& object = GetOrCrash(clusterToObjects, cluster)[objectIndex];
                 if (!responseOrError.IsOK()) {
                     // TODO(achulkov2): Propagate this error to the object for later introspection.
                     YT_LOG_DEBUG(
@@ -234,18 +245,143 @@ private:
                 }
                 if (!object.Revision || *object.Revision < *revision) {
                     YT_LOG_DEBUG(
-                        "Object cypress revision changed (PollIndex: %v, Object: %v, Revision: %v -> %v)",
+                        "Object Cypress revision changed (PollIndex: %v, Object: %v, Revision: %llx -> %llx)",
                         PollIndex_,
                         object.Object,
                         object.Revision,
                         revision);
-                    object.Revision = revision;
-                    clusterToModifiedObjects[cluster].push_back(std::move(object));
+                    clusterToModifiedObjects[cluster].push_back(object);
                 }
             }
         }
 
-        return clusterToModifiedObjects;
+        return {.ClusterToModifiedObjects = clusterToModifiedObjects};
+    }
+
+    struct TCypressWatchlist
+        : public TYsonStructLite
+    {
+        THashMap<TString, NHydra::TRevision> Queues;
+        THashMap<TString, NHydra::TRevision> Consumers;
+
+        THashMap<TString, NHydra::TRevision>& ObjectsByType(ECypressSyncObjectType type)
+        {
+            switch (type) {
+                case ECypressSyncObjectType::Queue:
+                    return Queues;
+                case ECypressSyncObjectType::Consumer:
+                    return Consumers;
+            }
+        }
+
+        REGISTER_YSON_STRUCT_LITE(TCypressWatchlist);
+
+        static void Register(TRegistrar registrar)
+        {
+            registrar.Parameter("queues", &TThis::Queues)
+                .Default();
+            registrar.Parameter("consumers", &TThis::Consumers)
+                .Default();
+        }
+    };
+
+    TObjectChanges ListObjectChangesWatching(const TObjectMap& clusterToObjects) const
+    {
+        // First, we collect all queue agent objects from the corresponding master watchlist in each watched cluster.
+
+        std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
+        // NB: Saving a copy due to a later context switch during which the config might change.
+        auto clusters = DynamicConfig_->Clusters;
+        for (const auto& cluster : clusters) {
+            const auto& channel = GetMasterChannelOrThrow(cluster);
+            TObjectServiceProxy proxy(channel);
+            asyncResults.push_back(proxy.Execute(
+                TYPathProxy::Get("//sys/@queue_agent_object_revisions")));
+        }
+
+        auto combinedResults = WaitFor(AllSet(asyncResults))
+            .ValueOrThrow();
+
+        TObjectChanges objectChanges;
+
+        for (int index = 0; index < std::ssize(combinedResults); ++index) {
+            const auto& rspOrError = combinedResults[index];
+            const auto& cluster = clusters[index];
+
+            if (!rspOrError.IsOK()) {
+                YT_LOG_ERROR(
+                    rspOrError,
+                    "Error retrieving queue agent object revisions from cluster (PollIndex: %v, Cluster: %v)",
+                    PollIndex_,
+                    cluster);
+                continue;
+            }
+
+            // TODO(achulkov2): Improve once YT-16793 is completed.
+            auto cypressWatchlist = TCypressWatchlist::Create();
+            Deserialize(cypressWatchlist, ConvertToNode(TYsonString(rspOrError.Value()->value())));
+
+            InferChangesFromClusterWatchlist(
+                cluster,
+                std::move(cypressWatchlist),
+                clusterToObjects,
+                objectChanges);
+        }
+
+        return objectChanges;
+    }
+
+    void InferChangesFromClusterWatchlist(
+        const TString& cluster,
+        TCypressWatchlist cypressWatchlist,
+        const TObjectMap& clusterToObjects,
+        TObjectChanges& objectChanges) const
+    {
+        // First, we collect all dynamic state objects for which the current Cypress revision
+        // is larger than the stored revision.
+
+        if (auto clusterToObjectsIt = clusterToObjects.find(cluster); clusterToObjectsIt != clusterToObjects.end()) {
+            for (const auto& object : clusterToObjectsIt->second) {
+                auto& relevantCypressWatchlist = cypressWatchlist.ObjectsByType(object.Type);
+                auto cypressObjectIt = relevantCypressWatchlist.find(object.Object.Path);
+                if (cypressObjectIt != relevantCypressWatchlist.end()) {
+                    if (!object.Revision || cypressObjectIt->second > *object.Revision) {
+                        YT_LOG_DEBUG(
+                            "Object Cypress revision changed (PollIndex: %v, Object: %v, Revision: %llx -> %llx)",
+                            PollIndex_,
+                            object.Object,
+                            object.Revision,
+                            cypressObjectIt->second);
+                        objectChanges.ClusterToModifiedObjects[cluster].push_back(object);
+                    }
+                    relevantCypressWatchlist.erase(cypressObjectIt);
+                } else {
+                    YT_LOG_DEBUG(
+                        "Object was not found in corresponding watchlist (PollIndex: %v, Object: %v)",
+                        PollIndex_,
+                        object.Object);
+                    objectChanges.ObjectsToDelete.push_back(object);
+                }
+            }
+        }
+
+        // The remaining objects are not present in the current dynamic state, thus they are all new and modified.
+
+        for (const auto& type : TEnumTraits<ECypressSyncObjectType>::GetDomainValues()) {
+            for (const auto& [object, revision] : cypressWatchlist.ObjectsByType(type)) {
+                TCrossClusterReference objectRef{cluster, object};
+                YT_LOG_DEBUG(
+                    "Discovered object (PollIndex: %v, Object: %v, Revision: %llx)",
+                    PollIndex_,
+                    objectRef,
+                    revision);
+                objectChanges.ClusterToModifiedObjects[cluster].push_back({
+                    .Object = objectRef,
+                    .Type = type,
+                    .Revision = revision,
+                });
+            }
+        }
     }
 
     //! List all objects that appear in the dynamic state.
@@ -257,7 +393,7 @@ private:
             .ThrowOnError();
 
         TObjectMap clusterToObjects;
-        for (const auto& queue: asyncQueues.Get().Value()) {
+        for (const auto& queue : asyncQueues.Get().Value()) {
             clusterToObjects[queue.Queue.Cluster].push_back({
                 queue.Queue,
                 ECypressSyncObjectType::Queue,
@@ -288,44 +424,47 @@ private:
     {
         std::vector<TQueueTableRow> queueRows;
         std::vector<TConsumerTableRow> consumerRows;
+
+        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes)
+        {
+            switch (object.Type) {
+                case ECypressSyncObjectType::Queue:
+                    queueRows.push_back(TQueueTableRow::FromAttributeDictionary(
+                        object.Object,
+                        NextRowRevision(object.RowRevision),
+                        attributes));
+                    break;
+                case ECypressSyncObjectType::Consumer:
+                    consumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
+                        object.Object,
+                        NextRowRevision(object.RowRevision),
+                        attributes));
+                    break;
+            }
+        }
+
+        void AppendObjectKey(const TObject& object)
+        {
+            switch (object.Type) {
+                case ECypressSyncObjectType::Queue:
+                    queueRows.push_back({.Queue = object.Object});
+                    break;
+                case ECypressSyncObjectType::Consumer:
+                    consumerRows.push_back({.Consumer = object.Object});
+                    break;
+            }
+        }
     };
 
-    static void AppendObjectToObjectRowList(
-        const TObject& object,
-        const IAttributeDictionaryPtr& attributes,
-        TObjectRowList& objectRowList)
-    {
-        switch (object.Type) {
-            case ECypressSyncObjectType::Queue:
-                objectRowList.queueRows.push_back(TQueueTableRow::FromAttributeDictionary(
-                    object.Object,
-                    NextRowRevision(object.RowRevision),
-                    attributes));
-                break;
-            case ECypressSyncObjectType::Consumer:
-                objectRowList.consumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
-                    object.Object,
-                    NextRowRevision(object.RowRevision),
-                    attributes));
-                break;
-        }
-    }
-
     //! Fetch attributes for the specified objects and update the corresponding dynamic state rows.
-    virtual TObjectRowList FetchAttributes(const TObjectMap& clusterToModifiedObjects) const
+    TObjectRowList FetchAttributes(const TObjectMap& clusterToModifiedObjects) const
     {
         // Fetch attributes for modified objects via batch requests to each cluster.
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         std::vector<TString> clusters;
         for (const auto& [cluster, modifiedObjects] : clusterToModifiedObjects) {
-            IChannelPtr channel;
-            try {
-                auto client = AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
-                channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error connecting to cluster %v", cluster) << ex;
-            }
+            const auto& channel = GetMasterChannelOrThrow(cluster);
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : modifiedObjects) {
@@ -358,7 +497,7 @@ private:
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
             for (int objectIndex = 0; objectIndex < std::ssize(responses); ++objectIndex) {
                 const auto& responseOrError = responses[objectIndex];
-                const auto& object = clusterToModifiedObjects.at(cluster)[objectIndex];
+                const auto& object = GetOrCrash(clusterToModifiedObjects, cluster)[objectIndex];
                 if (!responseOrError.IsOK()) {
                     // TODO(achulkov2): Propagate this error to the object for later introspection.
                     YT_LOG_ERROR(
@@ -373,7 +512,7 @@ private:
                     object.Object,
                     ConvertToYsonString(attributes, EYsonFormat::Text));
 
-                AppendObjectToObjectRowList(object, attributes, objectRowList);
+                objectRowList.AppendObject(object, attributes);
             }
         }
 
@@ -394,6 +533,44 @@ private:
             .ThrowOnError();
     }
 
+    //! Delete objects from dynamic state.
+    void DeleteObjects(const std::vector<TObject>& objects)
+    {
+        TObjectRowList objectsToDelete;
+        for (const auto& object : objects) {
+            objectsToDelete.AppendObjectKey(object);
+        }
+        DeleteRows(objectsToDelete);
+    }
+
+    //! Delete key rows from dynamic state.
+    void DeleteRows(const TObjectRowList& objectRowList)
+    {
+        if (objectRowList.consumerRows.empty() && objectRowList.queueRows.empty()) {
+            return;
+        }
+
+        YT_LOG_DEBUG(
+            "Deleting rows (PollIndex: %v, QueueCount: %v, ConsumerCount: %v)",
+            PollIndex_,
+            objectRowList.queueRows.size(),
+            objectRowList.consumerRows.size());
+        WaitFor(AllSucceeded(std::vector{
+            DynamicState_->Consumers->Delete(objectRowList.consumerRows),
+            DynamicState_->Queues->Delete(objectRowList.queueRows)}))
+            .ThrowOnError();
+    }
+
+    IChannelPtr GetMasterChannelOrThrow(const TString& cluster) const
+    {
+        try {
+            const auto& client = AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
+            return client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error creating channel for cluster %v", cluster) << ex;
+        }
+    }
+
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -407,15 +584,15 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TPollingCypressSynchronizer)
+DEFINE_REFCOUNTED_TYPE(TCypressSynchronizer)
 
-ICypressSynchronizerPtr CreatePollingCypressSynchronizer(
+ICypressSynchronizerPtr CreateCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
     TClientDirectoryPtr clientDirectory)
 {
-    return New<TPollingCypressSynchronizer>(
+    return New<TCypressSynchronizer>(
         std::move(config),
         std::move(controlInvoker),
         std::move(dynamicState),
