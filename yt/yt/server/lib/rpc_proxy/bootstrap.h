@@ -22,9 +22,7 @@ struct IBootstrap
 
     virtual const IInvokerPtr& GetWorkerInvoker() const = 0;
     virtual const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const = 0;
-    virtual TApiServiceConfigPtr GetConfigApiService() const = 0;
     virtual NAuth::TAuthenticationManagerConfigPtr GetConfigAuthenticationManager() const = 0;
-    virtual TApiServiceDynamicConfigPtr GetDynamicConfigApiService() const = 0;
     virtual const NTracing::TSamplerPtr& GetTraceSampler() const = 0;
     virtual const IProxyCoordinatorPtr& GetProxyCoordinator() const = 0;
     virtual const IAccessCheckerPtr& GetAccessChecker() const = 0;

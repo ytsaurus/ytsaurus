@@ -14,13 +14,13 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerConfig
+class TSecurityManagerDynamicConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
     TAsyncExpiringCacheConfigPtr UserCache;
 
-    TSecurityManagerConfig()
+    TSecurityManagerDynamicConfig()
     {
         RegisterParameter("user_cache", UserCache)
             .DefaultNew();
@@ -31,11 +31,11 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStructuredLoggingTopicConfig
+class TStructuredLoggingTopicDynamicConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
@@ -45,7 +45,7 @@ public:
     //! List of methods for which structured logging is not emitted.
     THashSet<TString> SuppressedMethods;
 
-    TStructuredLoggingTopicConfig(THashSet<TString> defaultSuppressedMethods = {})
+    TStructuredLoggingTopicDynamicConfig(THashSet<TString> defaultSuppressedMethods = {})
     {
         RegisterParameter("enable", Enable)
             .Default(true);
@@ -55,7 +55,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicConfig)
+DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,30 +63,58 @@ class TApiServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TSlruCacheConfigPtr ClientCache;
+
+    TSecurityManagerDynamicConfigPtr SecurityManager;
+
+    static constexpr int DefaultClientCacheCapacity = 1000;
+
+    TApiServiceConfig()
+    {
+        RegisterParameter("client_cache", ClientCache)
+            .DefaultNew();
+        RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            ClientCache->Capacity = DefaultClientCacheCapacity;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TApiServiceDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
     bool VerboseLogging;
     bool EnableModifyRowsRequestReordering;
     bool ForceTracing;
 
-    TSlruCacheConfigPtr ClientCache;
-
+    TSlruCacheDynamicConfigPtr ClientCache;
     i64 ReadBufferRowCount;
     i64 ReadBufferDataWeight;
 
-    TSecurityManagerConfigPtr SecurityManager;
+    TSecurityManagerDynamicConfigPtr SecurityManager;
 
-    TStructuredLoggingTopicConfigPtr StructuredLoggingMainTopic;
-    TStructuredLoggingTopicConfigPtr StructuredLoggingErrorTopic;
+    TStructuredLoggingTopicDynamicConfigPtr StructuredLoggingMainTopic;
+    TStructuredLoggingTopicDynamicConfigPtr StructuredLoggingErrorTopic;
 
-    TApiServiceConfig()
+    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    TApiServiceDynamicConfig()
     {
+        RegisterParameter("client_cache", ClientCache)
+            .DefaultNew();
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default(false);
         RegisterParameter("enable_modify_rows_request_reordering", EnableModifyRowsRequestReordering)
             .Default(true);
         RegisterParameter("force_tracing", ForceTracing)
             .Default(false);
-        RegisterParameter("client_cache", ClientCache)
-            .DefaultNew();
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
             .Default(10000);
         RegisterParameter("read_buffer_data_weight", ReadBufferDataWeight)
@@ -97,25 +125,6 @@ public:
             .DefaultNew(THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"});
         RegisterParameter("structured_logging_error_topic", StructuredLoggingErrorTopic)
             .DefaultNew();
-
-        RegisterPreprocessor([&] {
-            ClientCache->Capacity = 1000;
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TApiServiceDynamicConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
-
-    TApiServiceDynamicConfig()
-    {
         RegisterParameter("formats", Formats)
             .Default();
     }

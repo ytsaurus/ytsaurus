@@ -163,33 +163,38 @@ def read_structured_log(path, from_barrier=None, to_barrier=None, format=None, c
     has_start_barrier = from_barrier is None
     lines = []
 
-    with open(path, "r") as fd:
-        for line in fd:
-            try:
-                if format == "json":
+    def json_generator(path):
+        with open(path, "r") as fd:
+            for line in fd:
+                try:
                     parsed_line = json.loads(line)
-                elif format == "yson":
-                    parsed_line = yson.loads(line)
-            except ValueError:
-                continue
-
-            if parsed_line.get("system_event_kind") == "barrier":
-                barrier_id = parsed_line["barrier_id"]
-                if barrier_id == from_barrier:
-                    assert not has_start_barrier, "Start barrier appeared twice"
-                    has_start_barrier = True
+                    yield parsed_line
+                except ValueError:
                     continue
-                if barrier_id == to_barrier:
-                    assert has_start_barrier, "End barrier appeared before start barrier"
-                    return lines
 
-            if not has_start_barrier:
+    def yson_generator(path):
+        return yson.load(open(path, "rb"), yson_type="list_fragment")
+
+    generator = json_generator if format == "json" else yson_generator
+
+    for parsed_line in generator(path):
+        if parsed_line.get("system_event_kind") == "barrier":
+            barrier_id = parsed_line["barrier_id"]
+            if barrier_id == from_barrier:
+                assert not has_start_barrier, "Start barrier appeared twice"
+                has_start_barrier = True
                 continue
-            if category_filter is not None and parsed_line.get("category") not in category_filter:
-                continue
-            if row_filter is not None and not row_filter(parsed_line):
-                continue
-            lines.append(parsed_line)
+            if barrier_id == to_barrier:
+                assert has_start_barrier, "End barrier appeared before start barrier"
+                return lines
+
+        if not has_start_barrier:
+            continue
+        if category_filter is not None and parsed_line.get("category") not in category_filter:
+            continue
+        if row_filter is not None and not row_filter(parsed_line):
+            continue
+        lines.append(parsed_line)
 
     assert to_barrier is None, "End barrier not found"
     return lines

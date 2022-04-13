@@ -8,16 +8,19 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Thread affinity: any.
 class TSecurityManager
 {
 public:
     TSecurityManager(
-        TSecurityManagerConfigPtr config,
+        TSecurityManagerDynamicConfigPtr config,
         IBootstrap* bootstrap,
         NLogging::TLogger logger);
     ~TSecurityManager();
 
     void ValidateUser(const TString& user);
+
+    void Reconfigure(const TSecurityManagerDynamicConfigPtr& config);
 
 private:
     class TImpl;
