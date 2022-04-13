@@ -20,7 +20,7 @@ DECLARE_REFCOUNTED_CLASS(TQueueControllerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
-DECLARE_REFCOUNTED_CLASS(TPollingCypressSynchronizer)
+DECLARE_REFCOUNTED_CLASS(TCypressSynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerDynamicConfig)
 

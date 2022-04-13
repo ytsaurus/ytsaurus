@@ -160,7 +160,7 @@ void TBootstrap::DoRun()
         ElectionManager_,
         AgentId_);
 
-    CypressSynchronizer_ = CreatePollingCypressSynchronizer(
+    CypressSynchronizer_ = CreateCypressSynchronizer(
         Config_->CypressSynchronizer,
         ControlInvoker_,
         DynamicState_,

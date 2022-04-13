@@ -27,7 +27,7 @@ struct ICypressSynchronizer
 
 DEFINE_REFCOUNTED_TYPE(ICypressSynchronizer)
 
-ICypressSynchronizerPtr CreatePollingCypressSynchronizer(
+ICypressSynchronizerPtr CreateCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,

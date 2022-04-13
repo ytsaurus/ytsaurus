@@ -23,6 +23,10 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(2));
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
+    registrar.Parameter("policy", &TThis::Policy)
+        .Default(ECypressSynchronizerPolicy::Polling);
+    registrar.Parameter("clusters", &TThis::Clusters)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
