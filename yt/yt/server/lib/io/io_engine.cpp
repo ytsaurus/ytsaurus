@@ -2279,16 +2279,6 @@ public:
         return VoidFuture;
     }
 
-    TFuture<void> Allocate(
-        TAllocateRequest request,
-        EWorkloadCategory /*category*/) override
-    {
-        auto uringRequest = std::make_unique<TAllocateUringRequest>();
-        uringRequest->Type = EUringRequestType::Allocate;
-        uringRequest->AllocateRequest = std::move(request);
-        return SubmitRequest<void>(std::move(uringRequest));
-    }
-
 private:
     const TConfigPtr Config_;
 
