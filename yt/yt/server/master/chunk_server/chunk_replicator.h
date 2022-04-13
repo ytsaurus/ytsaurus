@@ -139,8 +139,11 @@ private:
         // NB: there's no actual need to have medium index in context of this
         // per-medium class. This is just for convenience.
         TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> DecommissionedRemovalReplicas;
-         //! Indexes of replicas whose removal is advised for balancing.
+        //! Indexes of replicas whose removal is advised for balancing.
         TCompactVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
+
+        //! Any replica that violates failure domain placement.
+        TNodePtrWithIndexes UnsafelyPlacedReplica;
     };
 
     struct TChunkStatistics
@@ -241,7 +244,7 @@ private:
         const TNodePtrWithIndexesList& decommissionedReplicas,
         bool hasSealedReplica,
         bool totallySealed,
-        bool hasUnsafelyPlacedReplica,
+        TNodePtrWithIndexes unsafelyPlacedReplica,
         TNodePtrWithIndexes inconsistentlyPlacedReplica);
     void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
@@ -262,7 +265,7 @@ private:
         NErasure::ICodec* codec,
         TReplicationPolicy replicationPolicy,
         const std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,
-        int unsafelyPlacedSealedReplicaIndex,
+        TNodePtrWithIndexes unsafelyPlacedSealedReplica,
         const std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>& inconsistentlyPlacedSealedReplicas,
         NErasure::TPartIndexSet& erasedIndexes,
         bool totallySealed);

@@ -445,7 +445,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
 
     // An arbitrary replica collocated with too may others within a single rack - per medium.
-    TMediumIntMap unsafelyPlacedSealedReplicaIndexes;
+    TMediumMap<TNodePtrWithIndexes> unsafelyPlacedSealedReplicas;
     // An arbitrary replica that violates consistent placement requirements - per medium.
     TMediumMap<std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>> inconsistentlyPlacedSealedReplicas;
 
@@ -463,7 +463,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
     const auto chunkReplication = GetChunkAggregatedReplication(chunk);
     for (const auto& entry : chunkReplication) {
         auto mediumIndex = entry.GetMediumIndex();
-        unsafelyPlacedSealedReplicaIndexes[mediumIndex] = -1;
+        unsafelyPlacedSealedReplicas[mediumIndex] = {};
         inconsistentlyPlacedSealedReplicas[mediumIndex] = {};
         totalReplicaCounts[mediumIndex] = 0;
         totalDecommissionedReplicaCounts[mediumIndex] = 0;
@@ -503,14 +503,14 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
             auto replicasPerRack = ++perRackReplicaCounters[mediumIndex][rackIndex];
             if (replicasPerRack > maxReplicasPerRack && isReplicaSealed) {
-                unsafelyPlacedSealedReplicaIndexes[mediumIndex] = replicaIndex;
+                unsafelyPlacedSealedReplicas[mediumIndex] = replica;
             }
 
             if (auto* dataCenter = rack->GetDataCenter()) {
                 auto maxReplicasPerDataCenter = ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
                 auto replicasPerDataCenter = ++perDataCenterReplicaCounters[mediumIndex][dataCenter];
                 if (replicasPerDataCenter > maxReplicasPerDataCenter && isReplicaSealed) {
-                    unsafelyPlacedSealedReplicaIndexes[mediumIndex] = replicaIndex;
+                    unsafelyPlacedSealedReplicas[mediumIndex] = replica;
                 }
             }
         }
@@ -565,7 +565,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             codec,
             replicationPolicy,
             decommissionedReplicas[mediumIndex],
-            unsafelyPlacedSealedReplicaIndexes[mediumIndex],
+            unsafelyPlacedSealedReplicas[mediumIndex],
             inconsistentlyPlacedSealedReplicas[mediumIndex],
             mediumToErasedIndexes[mediumIndex],
             totallySealed);
@@ -637,7 +637,7 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
     NErasure::ICodec* codec,
     TReplicationPolicy replicationPolicy,
     const std::array<TNodePtrWithIndexesList, ChunkReplicaIndexBound>& decommissionedReplicas,
-    int unsafelyPlacedSealedReplicaIndex,
+    TNodePtrWithIndexes unsafelyPlacedSealedReplica,
     const std::array<TNodePtrWithIndexes, ChunkReplicaIndexBound>& inconsistentlyPlacedSealedReplicas,
     NErasure::TPartIndexSet& erasedIndexes,
     bool totallySealed)
@@ -721,12 +721,13 @@ void TChunkReplicator::ComputeErasureChunkStatisticsForMedium(
         result.Status |= EChunkStatus::Lost;
     }
 
-    if (unsafelyPlacedSealedReplicaIndex != -1 &&
+    if (unsafelyPlacedSealedReplica &&
         None(result.Status & EChunkStatus::Overreplicated))
     {
         result.Status |= EChunkStatus::UnsafelyPlaced;
         if (result.ReplicationIndexes.empty()) {
-            result.ReplicationIndexes.push_back(unsafelyPlacedSealedReplicaIndex);
+            result.ReplicationIndexes.push_back(unsafelyPlacedSealedReplica.GetReplicaIndex());
+            result.UnsafelyPlacedReplica = unsafelyPlacedSealedReplica;
         }
     }
 
@@ -882,7 +883,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics results;
 
-    TMediumSet hasUnsafelyPlacedReplica;
+    TMediumMap<TNodePtrWithIndexes> unsafelyPlacedReplicas;
     TMediumMap<std::array<ui8, RackIndexBound>> perRackReplicaCounters;
     // TODO(gritukan): YT-16557.
     TMediumMap<THashMap<const TDataCenter*, ui8>> perDataCenterReplicaCounters;
@@ -926,13 +927,13 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             int rackIndex = rack->GetIndex();
             auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
             if (++perRackReplicaCounters[mediumIndex][rackIndex] > maxReplicasPerRack) {
-                hasUnsafelyPlacedReplica[mediumIndex] = true;
+                unsafelyPlacedReplicas[mediumIndex] = replica;
             }
 
             if (const auto* dataCenter = rack->GetDataCenter()) {
                 auto maxReplicasPerDataCenter = ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
                 if (++perDataCenterReplicaCounters[mediumIndex][dataCenter] > maxReplicasPerDataCenter) {
-                    hasUnsafelyPlacedReplica[mediumIndex] = true;
+                    unsafelyPlacedReplicas[mediumIndex] = replica;
                 }
             }
         }
@@ -995,7 +996,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             decommissionedReplicas[mediumIndex],
             hasSealedReplica[mediumIndex],
             totallySealed,
-            hasUnsafelyPlacedReplica[mediumIndex],
+            unsafelyPlacedReplicas[mediumIndex],
             inconsistentlyPlacedReplica[mediumIndex]);
 
         allMediaTransient = allMediaTransient && mediumTransient;
@@ -1041,7 +1042,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     const TNodePtrWithIndexesList& decommissionedReplicas,
     bool hasSealedReplica,
     bool totallySealed,
-    bool hasUnsafelyPlacedReplica,
+    TNodePtrWithIndexes unsafelyPlacedReplica,
     TNodePtrWithIndexes inconsistentlyPlacedReplica)
 {
     auto replicationFactor = replicationPolicy.GetReplicationFactor();
@@ -1084,8 +1085,9 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
         }
     }
 
-    if (replicationFactor > 1 && hasUnsafelyPlacedReplica && None(result.Status & EChunkStatus::Overreplicated)) {
+    if (replicationFactor > 1 && unsafelyPlacedReplica && None(result.Status & EChunkStatus::Overreplicated)) {
         result.Status |= EChunkStatus::UnsafelyPlaced;
+        result.UnsafelyPlacedReplica = unsafelyPlacedReplica;
     }
 
     if (inconsistentlyPlacedReplica && None(result.Status & EChunkStatus::Overreplicated)) {
@@ -1234,7 +1236,8 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         replicasNeeded,
         1,
         std::nullopt,
-        ESessionType::Replication);
+        ESessionType::Replication,
+        mediumStatistics.UnsafelyPlacedReplica);
 
     if (targetNodes.empty()) {
         return false;
