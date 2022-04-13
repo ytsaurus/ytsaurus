@@ -439,7 +439,7 @@ private:
 
                 return cookie;
             } else {
-                YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, PrimatyDataWeight: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
+                YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),

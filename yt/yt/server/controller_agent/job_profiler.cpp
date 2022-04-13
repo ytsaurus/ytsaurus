@@ -60,7 +60,7 @@ void TJobProfiler::DoProfileStartedJob(TStartedJobCounterKey key)
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/started_job_count");
-        
+
         it = StartedJobCounter_.emplace(
             std::move(key),
             std::move(counter)).first;
@@ -95,7 +95,7 @@ void TJobProfiler::DoProfileCompletedJob(TCompletedJobCounterKey key, const TDur
             .WithTag("interrupt_reason", FormatEnum(interruptReason))
             .WithTag(ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/completed_job_count");
-        
+
         it = CompletedJobCounter_.emplace(
             std::move(key),
             std::move(counter)).first;
@@ -128,7 +128,7 @@ void TJobProfiler::DoProfileFailedJob(TFailedJobCounterKey key, const TDuration 
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/failed_job_count");
-        
+
         it = FailedJobCounter_.emplace(
             std::move(key),
             std::move(counter)).first;
@@ -143,7 +143,10 @@ void TJobProfiler::ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSum
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto abortReason = jobSummary.AbortReason;
-    auto error = NYT::FromProto<TError>(jobSummary.Result.error());
+    // Job result may be missing if the job summary is synthetic.
+    auto error = jobSummary.Result
+        ? NYT::FromProto<TError>(jobSummary.GetJobResult().error())
+        : TError();
 
     const auto jobType = joblet.JobType;
     const auto& treeId = joblet.TreeId;
@@ -167,7 +170,7 @@ void TJobProfiler::DoProfileAbortedJob(TAbortedJobCounterKey key, const TDuratio
             .WithTag("abort_reason", FormatEnum(abortReason))
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .Counter("/jobs/aborted_job_count");
-        
+
         it = AbortedJobCounter_.emplace(
             key,
             std::move(counter)).first;

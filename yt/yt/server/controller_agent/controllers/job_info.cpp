@@ -160,6 +160,13 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFinishedJobInfo::TFinishedJobInfo(ECombinationState combinationState, std::unique_ptr<TJobSummary> jobSummary)
+    : JobSummary(std::move(jobSummary))
+    , CombinationState(combinationState)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCompletedJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

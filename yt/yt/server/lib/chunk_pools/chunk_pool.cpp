@@ -217,6 +217,7 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     // so do not affect splittability of anybody.
     YT_LOG_DEBUG(
         "Input row count extracted from job summary (OutputCookie: %v, InputRowCount: %v)",
+        cookie,
         inputRowCount);
     if (!inputRowCount || *inputRowCount != 0) {
         return;

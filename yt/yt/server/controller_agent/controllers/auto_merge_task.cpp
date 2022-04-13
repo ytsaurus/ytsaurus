@@ -392,7 +392,7 @@ TJobFinishedResult TAutoMergeTask::OnJobCompleted(TJobletPtr joblet, TCompletedJ
     // discount them in auto merge director.
     TaskHost_->ReleaseIntermediateStripeList(joblet->InputStripeList);
 
-    RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+    RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
     return result;
 }

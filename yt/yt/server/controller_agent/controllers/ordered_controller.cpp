@@ -238,7 +238,7 @@ protected:
                 key = TOutputOrder::TEntry(joblet->OutputCookie);
             }
 
-            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet, key, /* processEmptyStripes */ true);
+            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /* processEmptyStripes */ true);
 
             return result;
         }

@@ -321,7 +321,7 @@ protected:
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
     std::vector<NChunkPools::TChunkStripePtr> BuildOutputChunkStripes(
-        NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt,
+        NScheduler::NProto::TSchedulerJobResultExt& schedulerJobResult,
         const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
         google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeys);
 
@@ -342,15 +342,15 @@ protected:
     void AdjustOutputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
 
     //! This method processes `chunkListIds`, forming the chunk stripes (maybe with boundary
-    //! keys taken from `jobResult` if they are present) and sends them to the destination pools
+    //! keys taken from `schedulerJobResult` if they are present) and sends them to the destination pools
     //! depending on the table index.
     //!
     //! If destination pool requires the recovery info, `joblet` should be non-null since it is used
     //! in the recovery info, otherwise it is not used.
     //!
-    //! This method steals output chunk specs for `jobResult`.
+    //! This method steals output chunk specs for `schedulerJobResult`.
     void RegisterOutput(
-        NJobTrackerClient::NProto::TJobResult* jobResult,
+        TCompletedJobSummary& completedJobSummary,
         const std::vector<NChunkClient::TChunkListId>& chunkListIds,
         TJobletPtr joblet,
         const NChunkPools::TChunkStripeKey& key = NChunkPools::TChunkStripeKey(),

@@ -282,7 +282,7 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
             TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
 
-            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
             return result;
         }

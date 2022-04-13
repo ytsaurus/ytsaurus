@@ -233,8 +233,21 @@ private: \
         BuildJobSpecProto,
         (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec),
         (joblet, scheduleJobSpec),
-        false
-    )
+        false)
+
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnJobInfoReceivedFromNode,
+        (std::unique_ptr<TJobSummary> jobSummary),
+        (std::move(jobSummary)),
+        true)
+
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        AbortJobWithPartiallyReceivedJobInfo,
+        (TJobId jobId),
+        (jobId),
+        true)
 
 #undef IMPLEMENT_SAFE_METHOD
 
@@ -1380,7 +1393,6 @@ private:
         TTransactionIdFunc tableToTransactionId,
         TCellTagFunc tableToCellTag) const;
 
-    void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override;
     void StartWaitingJobInfoFromNode(std::unique_ptr<TJobSummary> jobSummary);
 
     void ProcessJobSummaryFromScheduler(std::unique_ptr<TJobSummary> jobSummary);
@@ -1400,8 +1412,6 @@ private:
     void BuildFeatureYson(NYTree::TFluentAny fluent) const;
 
     void UpdateRunningJobStatistics(TJobletPtr joblet, std::unique_ptr<TRunningJobSummary> jobStatus);
-
-    void AbortJobWithPartiallyReceivedJobInfo(TJobId jobId);
 
     template <class TJobSummaryType>
     std::unique_ptr<TJobSummaryType> MergeJobSummariesIfNeeded(
