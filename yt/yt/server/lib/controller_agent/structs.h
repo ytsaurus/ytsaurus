@@ -28,6 +28,8 @@ struct TStartedJobSummary
     TInstant StartTime;
 };
 
+// TODO(max42): does this need to belong to server/lib?
+// TODO(max42): make this structure non-copyable.
 struct TJobSummary
 {
     TJobSummary() = default;
@@ -39,7 +41,23 @@ struct TJobSummary
 
     void Persist(const TPersistenceContext& context);
 
-    NJobTrackerClient::NProto::TJobResult Result;
+    //! Crashes if job result is not combined yet.
+    NJobTrackerClient::NProto::TJobResult& GetJobResult();
+    const NJobTrackerClient::NProto::TJobResult& GetJobResult() const;
+
+    //! Crashes if job result is not combined yet or it misses a scheduler job result extension.
+    NScheduler::NProto::TSchedulerJobResultExt& GetSchedulerJobResult();
+    const NScheduler::NProto::TSchedulerJobResultExt& GetSchedulerJobResult() const;
+
+    //! Crashes if job result is not combined yet, and returns nullptr if scheduler job
+    //! result extension is missing.
+    const NScheduler::NProto::TSchedulerJobResultExt* FindSchedulerJobResult() const;
+
+    // NB: may be nullopt or may miss scheduler job result extension while job
+    // result is being combined from scheduler and node parts.
+    // Prefer using GetJobResult() and GetSchedulerJobResult() helpers.
+    std::optional<NJobTrackerClient::NProto::TJobResult> Result;
+
     TJobId Id;
     EJobState State = EJobState::None;
     EJobPhase Phase = EJobPhase::Missing;
@@ -89,9 +107,9 @@ struct TAbortedJobSummary
 
     EAbortReason AbortReason = EAbortReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-    bool AbortedByScheduler{};
+    bool AbortedByScheduler = false;
 
-    bool AbortedByController{};
+    bool AbortedByController = false;
 
     inline static constexpr EJobState ExpectedState = EJobState::Aborted;
 };

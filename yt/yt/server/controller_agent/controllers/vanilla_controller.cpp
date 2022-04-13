@@ -124,7 +124,7 @@ public:
     {
         auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-        RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+        RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
         // When restart_completed_jobs = %true, job completion may create new pending jobs in same task.
         UpdateTask();

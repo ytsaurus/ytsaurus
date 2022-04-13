@@ -952,7 +952,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     if (jobSummary.InterruptReason != EInterruptReason::None) {
         auto isSplittable = GetChunkPoolOutput()->IsSplittable(joblet->OutputCookie);
         jobSummary.SplitJobCount = isSplittable ? EstimateSplitJobCount(jobSummary, joblet) : 1;
-        YT_LOG_DEBUG("Job interrupted (JobId: %v, OutputCookie: %v, InterruptReason: %v, UnreadDataSliceCount: %v, IsSplittable: %v, SplitJobCount: %v)",
+        YT_LOG_DEBUG("Deciding job splitting (JobId: %v, OutputCookie: %v, InterruptReason: %v, UnreadDataSliceCount: %v, IsSplittable: %v, SplitJobCount: %v)",
             jobSummary.Id,
             joblet->OutputCookie,
             jobSummary.InterruptReason,
@@ -1018,7 +1018,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     auto mayReturnCookieByCompetitiveManager = SpeculativeJobManager_.OnJobFailed(joblet);
     auto mayReturnCookieByProbingManager = ProbingJobManager_.OnJobFailed(joblet);
     if (mayReturnCookieByCompetitiveManager && mayReturnCookieByProbingManager) {
-        ReinstallJob(BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
+        ReinstallJob([&] { GetChunkPoolOutput()->Failed(joblet->OutputCookie); });
     }
 
     JobSplitter_->OnJobFailed(jobSummary);
@@ -1049,7 +1049,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     auto mayReturnCookieByCompetitiveManager = SpeculativeJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
     auto mayReturnCookieByProbingManager = ProbingJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
     if (mayReturnCookieByCompetitiveManager && mayReturnCookieByProbingManager) {
-        ReinstallJob(BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
+        ReinstallJob([&] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); });
     }
 
     if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
@@ -1570,17 +1570,22 @@ void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources)
 }
 
 void TTask::RegisterOutput(
-    NJobTrackerClient::NProto::TJobResult* jobResult,
+    TCompletedJobSummary& completedJobSummary,
     const std::vector<NChunkClient::TChunkListId>& chunkListIds,
     TJobletPtr joblet,
     const NChunkPools::TChunkStripeKey& key,
     bool processEmptyStripes)
 {
-    auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    if (completedJobSummary.Abandoned) {
+        return;
+    }
+
+    auto& schedulerJobResult = completedJobSummary.GetSchedulerJobResult();
+
     auto outputStripes = BuildOutputChunkStripes(
-        schedulerJobResultExt,
+        schedulerJobResult,
         chunkListIds,
-        schedulerJobResultExt->output_boundary_keys());
+        schedulerJobResult.output_boundary_keys());
     PropagatePartitions(
         joblet->StreamDescriptors,
         joblet->InputStripeList,
@@ -1761,11 +1766,11 @@ TChunkStripePtr TTask::BuildIntermediateChunkStripe(
 }
 
 std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
-    TSchedulerJobResultExt* schedulerJobResultExt,
+    TSchedulerJobResultExt& schedulerJobResult,
     const std::vector<NChunkClient::TChunkTreeId>& chunkTreeIds,
     google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
 {
-    auto stripes = BuildChunkStripes(schedulerJobResultExt->mutable_output_chunk_specs(), chunkTreeIds.size());
+    auto stripes = BuildChunkStripes(schedulerJobResult.mutable_output_chunk_specs(), chunkTreeIds.size());
     // Some stream descriptors do not require boundary keys to be returned,
     // so they are skipped in `boundaryKeysPerTable`.
     int boundaryKeysIndex = 0;

@@ -1822,10 +1822,10 @@ NLogging::TLogger TOperationControllerBase::GetLogger() const
     return Logger;
 }
 
-void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId jobId)
+void TOperationControllerBase::SafeAbortJobWithPartiallyReceivedJobInfo(const TJobId jobId)
 {
     try {
-        YT_LOG_DEBUG("Abort job since job info has not been received from node (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Aborting job since job info has not been received from node (JobId: %v)", jobId);
         auto finishedJobInfo = FindFinishedJobInfo(jobId);
         // Finished job info may be already deleted for job, because of race caused by TDelayedExecutor::Cancel.
         if (!finishedJobInfo) {
@@ -1834,19 +1834,21 @@ void TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo(const TJobId
             return;
         }
 
-        if (finishedJobInfo->State == TFinishedJobInfo::EState::FullyReceived ||
-            finishedJobInfo->State == TFinishedJobInfo::EState::Released) {
+        if (finishedJobInfo->CombinationState == ECombinationState::FullyReceived ||
+            finishedJobInfo->CombinationState == ECombinationState::Released)
+        {
             YT_LOG_DEBUG("Finished job info is already received, abort skipped (JobId: %v)", jobId);
             return;
         }
 
-        finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
+        finishedJobInfo->CombinationState = ECombinationState::FullyReceived;
 
-        auto abortJobSummary = std::make_unique<TAbortedJobSummary>(
-            finishedJobInfo->JobSummary->Id, EAbortReason::JobStatisticsWaitTimeout);
-        SafeOnJobAborted(std::move(abortJobSummary), /*byScheduler*/ false);
+        auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(
+            jobId,
+            EAbortReason::JobStatisticsWaitTimeout);
+        SafeOnJobAborted(std::move(abortedJobSummary), /*byScheduler*/ false);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Fail to abort job (JobId: %v)", jobId);
+        YT_LOG_WARNING(ex, "Failed to abort job with partially received job info (JobId: %v)", jobId);
     }
 }
 
@@ -2965,11 +2967,20 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TCompletedJobSummary>(jobId);
         } else {
+            YT_LOG_DEBUG("Waiting for finished job info from node (JobId: %v)", jobId);
             return;
         }
     } else {
         YT_VERIFY(HasFullFinishedJobInfo(jobId) || abandoned);
     }
+
+    YT_LOG_DEBUG(
+        "Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v)",
+        jobId,
+        jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
+        jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt,
+        jobSummary->Abandoned,
+        jobSummary->InterruptReason);
 
     const auto defferedRemoveFinishedJobInfo = Finally([this, jobId] {
         RemoveFinishedJobInfo(jobId);
@@ -2985,16 +2996,15 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
 
     auto joblet = GetJoblet(jobId);
 
-    const auto& result = jobSummary->Result;
-
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
-    {
+    // TODO(max42): this code is overcomplicated, rethink it.
+    if (!abandoned) {
+        const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
         bool restartNeeded = false;
-        if (schedulerResultExt.has_restart_needed()) {
-            restartNeeded = schedulerResultExt.restart_needed();
+        // TODO(max42): always send restart_needed?
+        if (schedulerJobResult.has_restart_needed()) {
+            restartNeeded = schedulerJobResult.restart_needed();
         } else {
-            restartNeeded = schedulerResultExt.unread_chunk_specs_size() > 0;
+            restartNeeded = schedulerJobResult.unread_chunk_specs_size() > 0;
         }
 
         if (restartNeeded) {
@@ -3002,41 +3012,51 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
                 jobSummary->InterruptReason = EInterruptReason::Unknown;
+                YT_LOG_DEBUG(
+                    "Overriding job interrupt reason due to revival (JobId: %v, InterruptReason: %v)",
+                    jobId,
+                    jobSummary->InterruptReason);
+            } else {
+                YT_LOG_DEBUG("Job restart is needed (JobId: %v)", jobId);
             }
-        } else {
+        } else if (jobSummary->InterruptReason != EInterruptReason::None) {
             jobSummary->InterruptReason = EInterruptReason::None;
+            YT_LOG_DEBUG(
+                "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptReason: %v)",
+                jobId,
+                jobSummary->InterruptReason);
         }
 
         YT_VERIFY(
-            (jobSummary->InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptReason == EInterruptReason::None && schedulerJobResult.unread_chunk_specs_size() == 0) ||
             (jobSummary->InterruptReason != EInterruptReason::None && (
-                schedulerResultExt.unread_chunk_specs_size() != 0 ||
-                schedulerResultExt.restart_needed())));
-    }
+                schedulerJobResult.unread_chunk_specs_size() != 0 ||
+                schedulerJobResult.restart_needed())));
 
-    // Validate all node ids of the output chunks and populate the local node directory.
-    // In case any id is not known, abort the job.
-    const auto& globalNodeDirectory = Host->GetNodeDirectory();
-    for (const auto& chunkSpec : schedulerResultExt.output_chunk_specs()) {
-        auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
-        for (auto replica : replicas) {
-            auto nodeId = replica.GetNodeId();
-            if (InputNodeDirectory_->FindDescriptor(nodeId)) {
-                continue;
+        // Validate all node ids of the output chunks and populate the local node directory.
+        // In case any id is not known, abort the job.
+        const auto& globalNodeDirectory = Host->GetNodeDirectory();
+        for (const auto& chunkSpec : schedulerJobResult.output_chunk_specs()) {
+            auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
+            for (auto replica : replicas) {
+                auto nodeId = replica.GetNodeId();
+                if (InputNodeDirectory_->FindDescriptor(nodeId)) {
+                    continue;
+                }
+
+                const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
+                if (!descriptor) {
+                    YT_LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
+                        "(JobId: %v, NodeId: %v)",
+                        jobId,
+                        nodeId);
+                    auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
+                    OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
+                    return;
+                }
+
+                InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
             }
-
-            const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
-            if (!descriptor) {
-                YT_LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
-                    "(JobId: %v, NodeId: %v)",
-                    jobId,
-                    nodeId);
-                auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
-                OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
-                return;
-            }
-
-            InputNodeDirectory_->AddDescriptor(nodeId, *descriptor);
         }
     }
 
@@ -3063,13 +3083,14 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
             CompletedJobIdsReleaseQueue_.Push(jobId);
         }
 
-        YT_LOG_DEBUG("Job completed (JobId: %v, StatisticsSize: %v, ResultSize: %v)",
-            jobId,
-            jobSummary->StatisticsYson ? jobSummary->StatisticsYson.AsStringBuf().size() : 0,
-            jobSummary->Result.ByteSizeLong());
-
         if (jobSummary->InterruptReason != EInterruptReason::None) {
             ExtractInterruptDescriptor(*jobSummary, joblet);
+            YT_LOG_DEBUG(
+                "Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, ReadDataSliceCount: %v)",
+                jobId,
+                jobSummary->InterruptReason,
+                jobSummary->UnreadInputDataSlices.size(),
+                jobSummary->ReadInputDataSlices.size());
         }
 
         ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
@@ -3158,9 +3179,12 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TFailedJobSummary>(jobId);
         } else {
+            YT_LOG_DEBUG("Waiting for finished job info from node (JobId: %v)", jobId);
             return;
         }
     }
+
+    YT_LOG_DEBUG("Job failed (JobId: %v)", jobId);
 
     const auto defferedRemoveFinishedJobInfo = Finally([this, jobId] {
         RemoveFinishedJobInfo(jobId);
@@ -3177,7 +3201,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    const auto& result = jobSummary->Result;
+    const auto& result = jobSummary->GetJobResult();
 
     TJobFinishedResult taskJobResult;
     TError error;
@@ -3288,6 +3312,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TAbortedJobSummary>(jobId);
         } else {
+            YT_LOG_DEBUG("Waiting for finished job info from node (JobId: %v)", jobId);
             return;
         }
     }
@@ -3298,7 +3323,12 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     auto abortReason = jobSummary->AbortReason;
 
-    YT_LOG_DEBUG("Job aborted (JobId: %v, AbortReason: %v)", jobId, abortReason);
+    YT_LOG_DEBUG(
+        "Job aborted (JobId: %v, AbortReason: %v, AbortedByScheduler: %v, AbortedByController: %v)",
+        jobId,
+        abortReason,
+        jobSummary->AbortedByScheduler,
+        jobSummary->AbortedByController);
 
     auto joblet = GetJoblet(jobId);
 
@@ -3333,9 +3363,8 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ true);
 
         if (abortReason == EAbortReason::FailedChunks) {
-            const auto& result = jobSummary->Result;
-            const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerResultExt.failed_chunk_ids());
+            const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
+            failedChunkIds = FromProto<std::vector<TChunkId>>(schedulerJobResult.failed_chunk_ids());
         }
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
@@ -3511,14 +3540,14 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
     fluent
         .Item("finish_time").Value(joblet->FinishTime)
         .DoIf(jobSummary->State == EJobState::Failed, [&] (TFluentMap fluent) {
-            auto error = FromProto<TError>(jobSummary->Result.error());
+            auto error = FromProto<TError>(jobSummary->Result->error());
             fluent.Item("error").Value(error);
         })
-        .DoIf(jobSummary->Result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
+        .DoIf(jobSummary->GetJobResult().HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
             [&] (TFluentMap fluent)
         {
-            const auto& schedulerResultExt = jobSummary->Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            fluent.Item("core_infos").Value(schedulerResultExt.core_infos());
+            const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
+            fluent.Item("core_infos").Value(schedulerJobResult.core_infos());
         })
         .Item("fail_context_size").Value(failContextSize);
 }
@@ -4898,13 +4927,20 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
 {
     auto jobId = summary->Id;
 
-    const auto& schedulerResultExt = summary->Result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    // TODO(max42): historically, this code accessed a default-constructed scheduler job result extension
+    // in case when job summary missed it or even missed job result. We keep it as is, but this is a terrible
+    // behavior that should be refactored.
+    // const auto& schedulerJobResult = summary->GetSchedulerJobResult();
+    TSchedulerJobResultExt schedulerJobResult;
+    if (summary->Result) {
+        schedulerJobResult = summary->GetJobResult().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    }
 
     bool hasStderr = false;
-    if (schedulerResultExt.has_has_stderr()) {
-        hasStderr = schedulerResultExt.has_stderr();
+    if (schedulerJobResult.has_has_stderr()) {
+        hasStderr = schedulerJobResult.has_stderr();
     } else {
-        auto stderrChunkId = FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id());
+        auto stderrChunkId = FromProto<TChunkId>(schedulerJobResult.stderr_chunk_id());
         if (stderrChunkId) {
             Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
         }
@@ -4912,14 +4948,14 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     }
 
     bool hasFailContext = false;
-    if (schedulerResultExt.has_has_fail_context()) {
-        hasFailContext = schedulerResultExt.has_fail_context();
+    if (schedulerJobResult.has_has_fail_context()) {
+        hasFailContext = schedulerJobResult.has_fail_context();
     } else {
-        auto failContextChunkId = FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id());
+        auto failContextChunkId = FromProto<TChunkId>(schedulerJobResult.fail_context_chunk_id());
         hasFailContext = static_cast<bool>(failContextChunkId);
     }
 
-    auto coreInfoCount = schedulerResultExt.core_infos().size();
+    auto coreInfoCount = schedulerJobResult.core_infos().size();
 
     auto joblet = GetJoblet(jobId);
     // Job is not actually started.
@@ -5501,22 +5537,22 @@ void TOperationControllerBase::FetchTableSchemas(
     }
 }
 
-void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary)
+void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
-    YT_LOG_DEBUG(
-        "Job info received (JobId: %v, JobState: %v)",
-        jobSummary->Id,
-        jobSummary->State);
-
     const auto jobId = jobSummary->Id;
+
+    YT_LOG_DEBUG(
+        "Job info received from node (JobId: %v, JobState: %v, FinishTime: %v)",
+        jobId,
+        jobSummary->State,
+        jobSummary->FinishTime);
 
     if (const auto joblet = FindJoblet(jobId); !joblet) {
         YT_LOG_DEBUG(
-            "Received job info for unknown job (JobId: %v, JobState: %v)",
-            jobId,
-            jobSummary->State);
+            "Received job info for unknown job (JobId: %v)",
+            jobId);
         return;
     }
 
@@ -5527,38 +5563,36 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
 
     auto finishedJobInfo = FindFinishedJobInfo(jobId);
     if (!finishedJobInfo) {
-        const auto jobState = jobSummary->State;
-        auto newFinishedJobInfo = New<TFinishedJobInfo>();
-        newFinishedJobInfo->State = TFinishedJobInfo::EState::ReceivedFromNode;
-        newFinishedJobInfo->JobSummary = std::move(jobSummary);
+        auto newFinishedJobInfo = New<TFinishedJobInfo>(ECombinationState::ReceivedFromNode, std::move(jobSummary));
         YT_VERIFY(FinishedJobs_.emplace(jobId, std::move(newFinishedJobInfo)).second);
 
         YT_LOG_DEBUG(
-            "Start waiting finished job event from scheduler (JobId: %v, JobState: %v)",
-            jobId,
-            jobState);
+            "No finished job info; waiting for job info from scheduler (JobId: %v)",
+            jobId);
         return;
     }
 
-    if (finishedJobInfo->State == TFinishedJobInfo::EState::Released) {
+    YT_LOG_DEBUG("Found finished job info (JobId: %v, CombinationState: %v)", jobId, finishedJobInfo->CombinationState);
+
+    if (finishedJobInfo->CombinationState == ECombinationState::Released) {
         // TODO(pogorelov): Remove log after node heartbeats become stable.
-        YT_LOG_DEBUG("Finished job info has already been received, ignore job info (JobId: %v)", jobId);
+        YT_LOG_DEBUG("Finished job info has already been released, ignore job info (JobId: %v)", jobId);
         return;
     }
 
-    // There is no fiber yeilding between setting FullyReceived and release, so if this violates, something strange happens.
-    YT_VERIFY(finishedJobInfo->State != TFinishedJobInfo::EState::FullyReceived);
+    // There is no fiber yielding between setting FullyReceived and release, so if this is violated, something strange happens.
+    YT_VERIFY(finishedJobInfo->CombinationState != ECombinationState::FullyReceived);
 
     if (!finishedJobInfo->JobSummary) {
         YT_LOG_FATAL("Empty job summary in finished job info (JobId: %v)", jobId);
     }
 
-    if (finishedJobInfo->State == TFinishedJobInfo::EState::ReceivedFromNode) {
+    if (finishedJobInfo->CombinationState == ECombinationState::ReceivedFromNode) {
         YT_LOG_WARNING(
-            "Received multiple finished job info from node (JobId: %v, PreviouslyReceivedState: %v, CurrentlyReceivedState: %v)",
+            "Received multiple finished job info from node (JobId: %v, PreviousJobState: %v, PreviousFinishTime: %v)",
             jobSummary->Id,
             finishedJobInfo->JobSummary->State,
-            jobSummary->State);
+            finishedJobInfo->JobSummary->FinishTime);
 
         if (jobSummary->FinishTime > finishedJobInfo->JobSummary->FinishTime) {
             finishedJobInfo->JobSummary = std::move(jobSummary);
@@ -5570,12 +5604,14 @@ void TOperationControllerBase::OnJobInfoReceivedFromNode(std::unique_ptr<TJobSum
 
     TDelayedExecutor::Cancel(finishedJobInfo->JobAbortCookie);
 
-    finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
+    finishedJobInfo->CombinationState = ECombinationState::FullyReceived;
+
+    YT_LOG_DEBUG("Job info is fully received (JobId: %v)", jobId);
 
     bool needMergeJobSummaries = true;
     if (schedulerSummary->State != nodeSummary->State) {
         YT_LOG_WARNING(
-            "Job states received from scheduler and node differ (JobId: %v, StateFromNode: %v, StateFromScheduler: %v)",
+            "Job states received from scheduler and node differ (JobId: %v, NodeJobState: %v, SchedulerJobState: %v)",
             jobId,
             nodeSummary->State,
             schedulerSummary->State);
@@ -5618,6 +5654,13 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
 
     const auto jobId = jobSummary->Id;
+
+    YT_LOG_DEBUG(
+        "Job info received from scheduler (JobId: %v, JobState: %v, FinishTime: %v)",
+        jobId,
+        jobSummary->State,
+        jobSummary->FinishTime);
+
     const auto finishedJobInfo = FindFinishedJobInfo(jobId);
 
     if (!finishedJobInfo) {
@@ -5625,12 +5668,15 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
         return;
     }
 
-    if (finishedJobInfo->State == TFinishedJobInfo::EState::ReceivedFromScheduler ||
-        finishedJobInfo->State == TFinishedJobInfo::EState::FullyReceived ||
-        finishedJobInfo->State == TFinishedJobInfo::EState::Released)
+    YT_LOG_DEBUG("Found finished job info (JobId: %v, CombinationState: %v)", jobId, finishedJobInfo->CombinationState);
+
+    // Here we assume that scheduler never re-sends events.
+    if (finishedJobInfo->CombinationState == ECombinationState::ReceivedFromScheduler ||
+        finishedJobInfo->CombinationState == ECombinationState::FullyReceived ||
+        finishedJobInfo->CombinationState == ECombinationState::Released)
     {
         YT_LOG_FATAL(
-            "Received multiple finished job events from scheduler (JobId: %v, PreviousState: %v, CurrentState: %v)",
+            "Received multiple finished job events from scheduler (JobId: %v, PreviousJobState: %v, CurrentJobState: %v)",
             jobId,
             finishedJobInfo->JobSummary ? finishedJobInfo->JobSummary->State : EJobState::None,
             jobSummary->State);
@@ -5639,11 +5685,13 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
     auto& schedulerSummary = jobSummary;
     auto& nodeSummary = finishedJobInfo->JobSummary;
 
-    finishedJobInfo->State = TFinishedJobInfo::EState::FullyReceived;
+    finishedJobInfo->CombinationState = ECombinationState::FullyReceived;
+
+    YT_LOG_DEBUG("Job info is fully received (JobId: %v)", jobId);
 
     if (nodeSummary->State != schedulerSummary->State) {
         YT_LOG_DEBUG(
-            "Job states received from scheduler and node differ (JobId: %v, StateFromNode: %v, StateFromScheduler: %v)",
+            "Job states received from scheduler and node differ (JobId: %v, NodeJobState: %v, SchedulerJobState: %v)",
             jobId,
             nodeSummary->State,
             schedulerSummary->State);
@@ -5660,22 +5708,24 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
 bool TOperationControllerBase::HasFullFinishedJobInfo(const TJobId jobId) const noexcept
 {
     const auto jobInfo = FindFinishedJobInfo(jobId);
-    return jobInfo && jobInfo->State == TFinishedJobInfo::EState::FullyReceived;
+    return jobInfo && jobInfo->CombinationState == ECombinationState::FullyReceived;
 }
 
 template <class TJobSummaryType>
 std::unique_ptr<TJobSummaryType> TOperationControllerBase::ReleaseFullJobSummary(const TJobId jobId) noexcept
 {
     const auto jobInfo = FindFinishedJobInfo(jobId);
-    YT_VERIFY(jobInfo);
+    YT_VERIFY(jobInfo && jobInfo->CombinationState == ECombinationState::FullyReceived);
 
-    jobInfo->State = TFinishedJobInfo::EState::Released;
+    jobInfo->CombinationState = ECombinationState::Released;
     auto result = SummaryCast<TJobSummaryType>(std::move(jobInfo->JobSummary));
+    YT_LOG_DEBUG("Releasing finished job info (JobId: %v)", jobId);
     return result;
 }
 
 void TOperationControllerBase::RemoveFinishedJobInfo(const TJobId jobId) noexcept
 {
+    YT_LOG_DEBUG("Removing finished job info (JobId: %v)", jobId);
     FinishedJobs_.erase(jobId);
 }
 
@@ -5688,11 +5738,9 @@ TFinishedJobInfoPtr TOperationControllerBase::FindFinishedJobInfo(const TJobId j
 void TOperationControllerBase::StartWaitingJobInfoFromNode(std::unique_ptr<TJobSummary> jobSummary)
 {
     const auto jobId = jobSummary->Id;
-    YT_LOG_DEBUG("Start waiting job info from node (JobId: %v, Timeout: %v)", jobId, Config->FullJobInfoWaitTimeout);
+    YT_LOG_DEBUG("Waiting job info from node (JobId: %v, Timeout: %v)", jobId, Config->FullJobInfoWaitTimeout);
 
-    auto finishedJobInfo = New<TFinishedJobInfo>();
-    finishedJobInfo->JobSummary = std::move(jobSummary);
-    finishedJobInfo->State = TFinishedJobInfo::EState::ReceivedFromScheduler;
+    auto finishedJobInfo = New<TFinishedJobInfo>(ECombinationState::ReceivedFromScheduler, std::move(jobSummary));
     finishedJobInfo->JobAbortCookie = TDelayedExecutor::Submit(
         BIND(&TOperationControllerBase::AbortJobWithPartiallyReceivedJobInfo, MakeWeak(this), jobId),
         Config->FullJobInfoWaitTimeout,
@@ -7379,24 +7427,23 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
 {
     std::vector<TLegacyDataSlicePtr> dataSliceList;
 
-    const auto& result = jobSummary.Result;
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
 
     std::vector<TDataSliceDescriptor> unreadDataSliceDescriptors;
     std::vector<TDataSliceDescriptor> readDataSliceDescriptors;
-    if (schedulerResultExt.unread_chunk_specs_size() > 0) {
+    if (schedulerJobResult.unread_chunk_specs_size() > 0) {
         FromProto(
             &unreadDataSliceDescriptors,
-            schedulerResultExt.unread_chunk_specs(),
-            schedulerResultExt.chunk_spec_count_per_unread_data_slice(),
-            schedulerResultExt.virtual_row_index_per_unread_data_slice());
+            schedulerJobResult.unread_chunk_specs(),
+            schedulerJobResult.chunk_spec_count_per_unread_data_slice(),
+            schedulerJobResult.virtual_row_index_per_unread_data_slice());
     }
-    if (schedulerResultExt.read_chunk_specs_size() > 0) {
+    if (schedulerJobResult.read_chunk_specs_size() > 0) {
         FromProto(
             &readDataSliceDescriptors,
-            schedulerResultExt.read_chunk_specs(),
-            schedulerResultExt.chunk_spec_count_per_read_data_slice(),
-            schedulerResultExt.virtual_row_index_per_read_data_slice());
+            schedulerJobResult.read_chunk_specs(),
+            schedulerJobResult.chunk_spec_count_per_read_data_slice(),
+            schedulerJobResult.virtual_row_index_per_read_data_slice());
     }
 
     auto extractDataSlice = [&] (const TDataSliceDescriptor& dataSliceDescriptor) {
@@ -7602,16 +7649,12 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     YT_VERIFY(StderrTable_);
 
     const auto& chunkListId = joblet->StderrTableChunkListId;
-    const auto& result = jobSummary.Result;
 
-    if (!result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
-        return;
-    }
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
 
-    YT_VERIFY(schedulerResultExt.has_stderr_table_boundary_keys());
+    YT_VERIFY(schedulerJobResult.has_stderr_table_boundary_keys());
 
-    const auto& boundaryKeys = schedulerResultExt.stderr_table_boundary_keys();
+    const auto& boundaryKeys = schedulerJobResult.stderr_table_boundary_keys();
     if (boundaryKeys.empty()) {
         return;
     }
@@ -7641,14 +7684,10 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     YT_VERIFY(CoreTable_);
 
     const auto& chunkListId = joblet->CoreTableChunkListId;
-    const auto& result = jobSummary.Result;
 
-    if (!result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
-        return;
-    }
-    const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
 
-    for (const auto& coreInfo : schedulerResultExt.core_infos()) {
+    for (const auto& coreInfo : schedulerJobResult.core_infos()) {
         YT_LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v, Cuda: %v)",
             joblet->JobId,
             coreInfo.process_id(),
@@ -7658,10 +7697,10 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             coreInfo.cuda());
     }
 
-    if (!schedulerResultExt.has_core_table_boundary_keys()) {
+    if (!schedulerJobResult.has_core_table_boundary_keys()) {
         return;
     }
-    const auto& boundaryKeys = schedulerResultExt.core_table_boundary_keys();
+    const auto& boundaryKeys = schedulerJobResult.core_table_boundary_keys();
     if (boundaryKeys.empty()) {
         return;
     }

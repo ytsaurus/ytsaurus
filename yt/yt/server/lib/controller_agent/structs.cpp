@@ -16,6 +16,7 @@ using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
+using NScheduler::NProto::TSchedulerJobResultExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +59,9 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     , LogAndProfile(event->log_and_profile())
 {
     auto* status = event->mutable_status();
-    Result.Swap(status->mutable_result());
+    if (status->has_result()) {
+        Result = std::move(*status->mutable_result());
+    }
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
         StatisticsYson = TYsonString(status->statistics());
@@ -78,7 +81,7 @@ TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
     : Id(FromProto<TJobId>(status->job_id()))
     , State(CheckedEnumCast<EJobState>(status->state()))
 {
-    Result.Swap(status->mutable_result());
+    Result = std::move(*status->mutable_result());
     TimeStatistics = FromProto<NJobAgent::TTimeStatistics>(status->time_statistics());
     if (status->has_statistics()) {
         StatisticsYson = TYsonString(status->statistics());
@@ -94,6 +97,7 @@ TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
 void TJobSummary::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
+
     Persist(context, Result);
     Persist(context, Id);
     Persist(context, State);
@@ -104,6 +108,40 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, ReleaseFlags);
     Persist(context, Phase);
     Persist(context, TimeStatistics);
+}
+
+TJobResult& TJobSummary::GetJobResult()
+{
+    YT_VERIFY(Result);
+    return *Result;
+}
+
+const TJobResult& TJobSummary::GetJobResult() const
+{
+    YT_VERIFY(Result);
+    return *Result;
+}
+
+TSchedulerJobResultExt& TJobSummary::GetSchedulerJobResult()
+{
+    YT_VERIFY(Result);
+    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext));
+    return *Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+}
+
+const TSchedulerJobResultExt& TJobSummary::GetSchedulerJobResult() const
+{
+    YT_VERIFY(Result);
+    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext));
+    return Result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+}
+
+const TSchedulerJobResultExt* TJobSummary::FindSchedulerJobResult() const
+{
+    YT_VERIFY(Result);
+    return Result->HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)
+        ? &Result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext)
+        : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

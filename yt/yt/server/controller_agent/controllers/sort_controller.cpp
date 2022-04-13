@@ -826,9 +826,8 @@ protected:
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             // COMPAT(gritukan, levysotsky): Remove it when nodes will be fresh enough.
-            auto* jobResult = &jobSummary.Result;
-            auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto* outputChunkSpecs = schedulerJobResultExt->mutable_output_chunk_specs();
+            auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
+            auto* outputChunkSpecs = schedulerJobResult.mutable_output_chunk_specs();
             for (int chunkSpecIndex = 0; chunkSpecIndex < outputChunkSpecs->size(); ++chunkSpecIndex) {
                 auto* chunkSpec = outputChunkSpecs->Mutable(chunkSpecIndex);
                 if (chunkSpec->table_index() == -1) {
@@ -836,7 +835,7 @@ protected:
                 }
             }
 
-            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
@@ -1156,9 +1155,8 @@ protected:
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             // COMPAT(gritukan, levysotsky): Remove it when nodes will be fresh enough.
-            auto* jobResult = &jobSummary.Result;
-            auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto* outputChunkSpecs = schedulerJobResultExt->mutable_output_chunk_specs();
+            auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
+            auto* outputChunkSpecs = schedulerJobResult.mutable_output_chunk_specs();
             for (int chunkSpecIndex = 0; chunkSpecIndex < outputChunkSpecs->size(); ++chunkSpecIndex) {
                 auto* chunkSpec = outputChunkSpecs->Mutable(chunkSpecIndex);
                 if (chunkSpec->table_index() == -1) {
@@ -1171,14 +1169,14 @@ protected:
             if (IsFinalSort_) {
                 Controller_->AccountRows(jobSummary.Statistics);
 
-                RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+                RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
             } else {
                 int inputStreamIndex = CurrentInputStreamIndex_++;
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                auto* resultExt = jobSummary.Result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
+                auto& schedulerJobResult = jobSummary.GetSchedulerJobResult();
+                auto stripe = BuildIntermediateChunkStripe(schedulerJobResult.mutable_output_chunk_specs());
 
                 for (const auto& dataSlice : stripe->DataSlices) {
                     // NB: intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
@@ -1768,7 +1766,7 @@ protected:
             for (auto& jobOutputs : JobOutputs_) {
                 for (auto& jobOutput : jobOutputs) {
                     Controller_->AccountRows(jobOutput.JobSummary.Statistics);
-                    RegisterOutput(&jobOutput.JobSummary.Result, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
+                    RegisterOutput(jobOutput.JobSummary, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
                 }
             }
         }
@@ -1975,7 +1973,7 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             Controller_->AccountRows(jobSummary.Statistics);
-            RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
+            RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
             // TODO(gritukan): It seems to be the easiest way to distgunish data sent from partition task
             // to intermediate sort and to final sort. Do it more generic way.
