@@ -60,10 +60,7 @@ class YtClient(ClientState):
                 func = func.__dict__["__init__"]
                 is_class = True
 
-            if PY3:
-                arg_spec = inspect.getfullargspec(func)
-            else:
-                arg_spec = inspect.getargspec(func)
+            arg_spec = inspect.getfullargspec(func)
             var_args = arg_spec.varargs
             var_kwargs = arg_spec.varkw
             defaults = arg_spec.defaults
