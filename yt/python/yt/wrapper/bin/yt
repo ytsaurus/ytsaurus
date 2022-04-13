@@ -1891,18 +1891,23 @@ def add_find_spark_cluster_parser(add_parser):
                                                  "SPARK_YT_DISCOVERY_PATH env variable is used by default")
 
 def add_subparser(subparsers, params_argument=True):
-    def extract_help(help, function):
-        if not help:
-            help = function.__doc__.split("\n")[0]
+    def extract_help(function):
+        if function.__doc__ is None:
+            return ""
+        help = function.__doc__.split("\n")[0]
         pythonic_help = help.strip(" .")
         pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
         return pythonic_help
 
     def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
         if pythonic_help is None:
-            pythonic_help = extract_help(help, function)
+            pythonic_help = extract_help(function)
+        if help is not None:
+            description = "{}. {}".format(pythonic_help, help)
+        else:
+            description = pythonic_help
         parser = populate_argument_help(
-            subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
+            subparsers.add_parser(command_name, *args, description=description, help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
 
         if params_argument:
