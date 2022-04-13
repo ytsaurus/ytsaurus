@@ -1,11 +1,11 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, get,
-    lookup_rows,
-    map, get_singular_chunk_id, update_scheduler_config, set_banned_flag,
+    authors, wait, get, complete_op,
+    lookup_rows, with_breakpoint, release_breakpoint,
+    map, vanilla, get_singular_chunk_id, update_scheduler_config, set_banned_flag,
     create_test_tables, sync_create_cells,
-    list_operations, get_operation)
+    list_operations, get_operation, update_op_parameters, make_ace)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -266,6 +266,57 @@ class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
 
             assert alert_events[1]["alert_type"] == "lost_input_chunks"
             assert alert_events[1]["error"]["code"] == 0
+
+    @authors("egor-gutrov")
+    def test_acl_in_history(self):
+        create_test_tables(force=True)
+        op = map(
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            track=False,
+        )
+        wait(lambda: op.get_state() == "running")
+        update_op_parameters(
+            op.id,
+            parameters={"acl": [make_ace("allow", "missing_user", ["read", "manage"])]},
+        )
+        _wait_for_alert_events(op, 1)
+        time.sleep(0.1)  # make sure next invalid_acl occurs later
+        update_op_parameters(
+            op.id,
+            parameters={"acl": [make_ace("allow", "another_missing_user", ["read", "manage"])]},
+        )
+        update_op_parameters(op.id, parameters={"acl": []})
+        wait(lambda: not op.get_alerts())
+        _wait_for_alert_events(op, 2)
+        release_breakpoint()
+
+        alert_events = get_operation(op.id, attributes=["alert_events"])["alert_events"]
+
+        assert len(alert_events) == 2
+        assert alert_events[0]["alert_type"] == "invalid_acl"
+        assert alert_events[0]["error"]["code"] != 0
+        assert alert_events[0]["time"] != alert_events[0]["error"]["attributes"]["datetime"]
+
+        assert alert_events[1]["alert_type"] == "invalid_acl"
+        assert alert_events[1]["error"]["code"] == 0
+
+    @authors("egor-gutrov")
+    def test_completed_by_user_request(self):
+        op = vanilla(
+            spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}}},
+            track=False,
+        )
+        wait(lambda: get(op.get_path() + "/@state") == "running")
+        complete_op(op.id)
+        assert get(op.get_path() + "/@state") == "completed"
+        _wait_for_alert_events(op, 1)
+        alert_events = get_operation(op.id, attributes=["alert_events"])["alert_events"]
+
+        assert len(alert_events) == 1
+        assert alert_events[0]["alert_type"] == "operation_completed_by_user_request"
+        assert alert_events[0]["error"]["code"] != 0
 
 
 class TestAlertsHistoryInApiRpcProxy(TestAlertsHistoryInApi):

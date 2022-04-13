@@ -598,12 +598,12 @@ public:
             auto controllerRuntimeDataError = CheckControllerRuntimeData(operationInfo.ControllerRuntimeData);
             if (controllerRuntimeDataError.IsOK()) {
                 operation->GetController()->SetControllerRuntimeData(operationInfo.ControllerRuntimeData);
-                operation->ResetAlert(EOperationAlertType::InvalidControllerRuntimeData);
+                scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, TError());
             } else {
                 auto error = TError("Controller agent reported invalid data for operation")
                     << TErrorAttribute("operation_id", operation->GetId())
                     << std::move(controllerRuntimeDataError);
-                operation->SetAlert(EOperationAlertType::InvalidControllerRuntimeData, error);
+                scheduler->SetOperationAlert(operationId, EOperationAlertType::InvalidControllerRuntimeData, error);
             }
         }
 
