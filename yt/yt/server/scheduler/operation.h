@@ -354,10 +354,13 @@ public:
 
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
-    bool SetAlert(EOperationAlertType alertType, const TError& error);
-    void ResetAlert(EOperationAlertType alertType);
-    void SetAlertResetCookie(EOperationAlertType alertType, NConcurrency::TDelayedExecutorCookie cookie);
     bool HasAlertResetCookie(EOperationAlertType alertType) const;
+
+    // NB: These methods does not save alert events to archive.
+    // Probably you should use TScheduler::SetOperationAlert().
+    bool SetAlertWithoutArchivation(EOperationAlertType alertType, const TError& error);
+    void ResetAlertWithoutArchivation(EOperationAlertType alertType);
+    void SetAlertResetCookie(EOperationAlertType alertType, NConcurrency::TDelayedExecutorCookie cookie);
 
     //! Returns a control invoker corresponding to this operation.
     const IInvokerPtr& GetControlInvoker();

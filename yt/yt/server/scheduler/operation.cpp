@@ -423,7 +423,14 @@ bool TOperation::HasAlert(EOperationAlertType alertType) const
     return Alerts_.find(alertType) != Alerts_.end();
 }
 
-bool TOperation::SetAlert(EOperationAlertType alertType, const TError& error)
+bool TOperation::HasAlertResetCookie(EOperationAlertType alertType) const
+{
+    auto it = Alerts_.find(alertType);
+    YT_VERIFY(it != Alerts_.end());
+    return static_cast<bool>(it->second.ResetCookie);
+}
+
+bool TOperation::SetAlertWithoutArchivation(EOperationAlertType alertType, const TError& error)
 {
     auto& alert = Alerts_[alertType];
 
@@ -437,7 +444,7 @@ bool TOperation::SetAlert(EOperationAlertType alertType, const TError& error)
     return true;
 }
 
-void TOperation::ResetAlert(EOperationAlertType alertType)
+void TOperation::ResetAlertWithoutArchivation(EOperationAlertType alertType)
 {
     auto it = Alerts_.find(alertType);
     if (it == Alerts_.end()) {
@@ -454,13 +461,6 @@ void TOperation::SetAlertResetCookie(EOperationAlertType alertType, NConcurrency
     YT_VERIFY(it != Alerts_.end());
     YT_VERIFY(!it->second.ResetCookie);
     it->second.ResetCookie = cookie;
-}
-
-bool TOperation::HasAlertResetCookie(EOperationAlertType alertType) const
-{
-    auto it = Alerts_.find(alertType);
-    YT_VERIFY(it != Alerts_.end());
-    return static_cast<bool>(it->second.ResetCookie);
 }
 
 const IInvokerPtr& TOperation::GetCancelableControlInvoker()

@@ -1738,14 +1738,17 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(aclBatchRspOrError);
 
                 auto rspOrErr = aclBatchRspOrError.Value()->GetResponse("set_acl");
+                auto scheduler = Bootstrap_->GetScheduler();
                 if (!rspOrErr.IsOK()) {
                     auto error = TError("Failed to set operation ACL")
                         << TErrorAttribute("operation_id", operation->GetId())
                         << rspOrErr;
-                    operation->SetAlert(EOperationAlertType::InvalidAcl, error);
+                    WaitFor(scheduler->SetOperationAlert(operation->GetId(), EOperationAlertType::InvalidAcl, error))
+                        .ThrowOnError();
                     YT_LOG_INFO(error);
                 } else {
-                    operation->ResetAlert(EOperationAlertType::InvalidAcl);
+                    WaitFor(scheduler->SetOperationAlert(operation->GetId(), EOperationAlertType::InvalidAcl, TError()))
+                        .ThrowOnError();
                 }
             }
 

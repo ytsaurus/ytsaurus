@@ -702,7 +702,8 @@ public:
         IdToStartingOperation_.emplace(operationId, operation);
 
         if (!spec->Owners.empty()) {
-            operation->SetAlert(
+            // TODO(egor-gutrov): this is compat alert, remove it
+            operation->SetAlertWithoutArchivation(
                 EOperationAlertType::OwnersInSpecIgnored,
                 TError("\"owners\" field in spec ignored as it was specified simultaneously with \"acl\""));
         }
@@ -845,7 +846,7 @@ public:
             .ThrowOnError();
 
         operation->SetSuspended(false);
-        operation->ResetAlert(EOperationAlertType::OperationSuspended);
+        DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
 
         YT_LOG_INFO("Operation resumed (OperationId: %v)",
             operation->GetId());
@@ -883,7 +884,8 @@ public:
             operation->GetId(),
             operation->GetState());
 
-        operation->SetAlert(
+        DoSetOperationAlert(
+            operation->GetId(),
             EOperationAlertType::OperationCompletedByUserRequest,
             TError("Operation completed by user request")
                 << TErrorAttribute("user", user));
@@ -2135,14 +2137,14 @@ private:
 
         if (alert.IsOK()) {
             if (operation->HasAlert(alertType)) {
-                operation->ResetAlert(alertType);
+                operation->ResetAlertWithoutArchivation(alertType);
                 OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
 
                 YT_LOG_DEBUG("Operation alert reset (OperationId: %v, Type: %v)",
                     operationId,
                     alertType);
             }
-        } else if (operation->SetAlert(alertType, alert)) {
+        } else if (operation->SetAlertWithoutArchivation(alertType, alert)) {
             OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
 
             // NB: we don't want to recreate reset action if we already have one
@@ -3700,7 +3702,7 @@ private:
         }
 
         if (setAlert) {
-            operation->SetAlert(EOperationAlertType::OperationSuspended, error);
+            DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, error);
         }
 
         YT_LOG_INFO(error, "Operation suspended (OperationId: %v)",
