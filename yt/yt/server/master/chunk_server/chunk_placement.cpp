@@ -44,7 +44,8 @@ public:
         const TChunk* chunk,
         std::optional<int> replicationFactorOverride,
         bool allowMultipleReplicasPerNode,
-        const TNodeList* forbiddenNodes)
+        const TNodeList* forbiddenNodes,
+        TNodePtrWithIndexes unsafelyPlacedReplica)
         : ChunkPlacement_(chunkPlacement)
         , Medium_(medium)
         , Chunk_(chunk)
@@ -63,7 +64,14 @@ public:
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
-                if (!replica.GetPtr()->GetDecommissioned()) {
+
+                // NB: When running replication job for unsafely placed chunk we do not increment
+                // counters for unsafely placed replica because it will be removed anyway. Otherwise
+                // it is possible that no feasible replica will be found. Consider case with three
+                // storage data centers and RS(3, 3) chunk. Data center replica count limit forbids to
+                // put more than two replicas in every data center, so it's impossible to allocate extra
+                // replica to move unsafely placed replica there.
+                if (!replica.GetPtr()->GetDecommissioned() && replica != unsafelyPlacedReplica) {
                     IncreaseRackUsage(node);
                     IncreaseDataCenterUsage(node);
                 }
@@ -398,7 +406,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
     bool forceRackAwareness,
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
-    const std::optional<TString>& preferredHostName)
+    const std::optional<TString>& preferredHostName,
+    TNodePtrWithIndexes unsafelyPlacedReplica)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
 
@@ -434,7 +443,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
         chunk,
         replicationFactorOverride,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
-        forbiddenNodes);
+        forbiddenNodes,
+        unsafelyPlacedReplica);
 
     auto tryAdd = [&] (TNode* node, bool enableRackAwareness, bool enableDataCenterAwareness) {
         if (!IsValidWriteTargetToAllocate(
@@ -699,7 +709,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int desiredCount,
     int minCount,
     std::optional<int> replicationFactorOverride,
-    ESessionType sessionType)
+    ESessionType sessionType,
+    TNodePtrWithIndexes unsafelyPlacedReplica)
 {
     auto targetNodes = GetWriteTargets(
         medium,
@@ -708,7 +719,10 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         desiredCount,
         minCount,
         sessionType == ESessionType::Replication,
-        replicationFactorOverride);
+        replicationFactorOverride,
+        /*forbiddenNodes*/ nullptr,
+        /*preferredHostName*/ std::nullopt,
+        unsafelyPlacedReplica);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, medium->GetIndex(), sessionType);
@@ -871,7 +885,8 @@ TNode* TChunkPlacement::GetBalancingTarget(
         chunk,
         /*replicationFactorOverride*/ std::nullopt,
         Config_->AllowMultipleErasurePartsPerNode && chunk->IsErasure(),
-        nullptr);
+        nullptr,
+        /*unsafelyPlacedReplica*/ TNodePtrWithIndexes());
 
     PrepareFillFactorIterator(medium);
     for ( ; FillFactorToNodeIterator_.IsValid(); ++FillFactorToNodeIterator_) {

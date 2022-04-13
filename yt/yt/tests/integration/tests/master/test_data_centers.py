@@ -435,6 +435,48 @@ class TestDataCenters(YTEnvSetup):
         set("//sys/@config/chunk_manager/banned_storage_data_centers", ["d0"])
         wait(lambda: has_alert("Banned data center \"d0\" is not a storage data center"))
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_replicate_unsafely_placed_chunk(self, erasure):
+        self._init_data_center_aware_replicator()
+
+        if erasure:
+            chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
+        else:
+            chunk_id = self._create_chunk(replication_factor=6)
+        replicas = builtins.set(self._get_replica_nodes(chunk_id))
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+        wait(lambda: not get("//sys/@chunk_replicator_enabled"))
+
+        set("//sys/media/default/@config/max_replicas_per_rack", 1)
+
+        node_to_dc = {}
+        for node in ls("//sys/cluster_nodes"):
+            node_to_dc[node] = get("//sys/cluster_nodes/{}/@data_center".format(node))
+
+        solid_racks = {"d0": "r0", "d1": "r1", "d2": "r2"}
+        hollow_racks = {"d0": "r3", "d1": "r4", "d2": "r5"}
+
+        for dc, rack in solid_racks.items():
+            set("//sys/racks/{}/@data_center".format(rack), dc)
+        for dc, rack in hollow_racks.items():
+            set("//sys/racks/{}/@data_center".format(rack), dc)
+        for node in ls("//sys/cluster_nodes"):
+            dc = node_to_dc[node]
+            if node in replicas:
+                rack = solid_racks[dc]
+            else:
+                rack = hollow_racks[dc]
+            set("//sys/cluster_nodes/{}/@rack".format(node), rack)
+
+        assert get("#{}/@replication_status/default/unsafely_placed".format(chunk_id))
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+
+        wait(lambda: not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id)))
+
+
 ##################################################################
 
 

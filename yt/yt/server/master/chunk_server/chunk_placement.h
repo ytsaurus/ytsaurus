@@ -120,7 +120,8 @@ public:
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
-        NChunkClient::ESessionType sessionType);
+        NChunkClient::ESessionType sessionType,
+        TNodePtrWithIndexes unsafelyPlacedReplica = TNodePtrWithIndexes());
 
     TNodeList GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex);
 
@@ -203,7 +204,8 @@ private:
         bool forceRackAwareness,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes = nullptr,
-        const std::optional<TString>& preferredHostName = std::nullopt);
+        const std::optional<TString>& preferredHostName = std::nullopt,
+        TNodePtrWithIndexes unsafelyPlacedReplica = TNodePtrWithIndexes());
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TMedium* medium,
