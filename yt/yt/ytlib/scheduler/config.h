@@ -1658,6 +1658,7 @@ public:
     NSecurityClient::TSerializableAccessControlList Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
+    TString ControllerAgentTag;
 
     // Erased trees of operation, should be used only for information purposes.
     std::vector<TString> ErasedTrees;
@@ -1698,6 +1699,7 @@ public:
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<NYTree::IMapNodePtr> Annotations;
+    std::optional<TString> ControllerAgentTag;
 
     bool ContainsPool() const;
 

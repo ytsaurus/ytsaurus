@@ -2074,6 +2074,7 @@ void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* con
                 SerializeHeavyRuntimeParameters(fluent, parameters);
             })
             .Item("erased_trees").Value(parameters.ErasedTrees)
+            .Item("controller_agent_tag").Value(parameters.ControllerAgentTag)
         .EndMap();
 }
 
@@ -2102,6 +2103,11 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     }
     if (auto erasedTrees = mapNode->FindChild("erased_trees")) {
         Deserialize(parameters.ErasedTrees, erasedTrees);
+    }
+    if (auto controllerAgentTag = mapNode->FindChild("controller_agent_tag")) {
+        Deserialize(parameters.ControllerAgentTag, controllerAgentTag);
+    } else {
+        parameters.ControllerAgentTag = "default";
     }
     ValidateOperationAcl(parameters.Acl);
     ProcessAclAndOwnersParameters(&parameters.Acl, &parameters.Owners);
@@ -2147,6 +2153,8 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
         .Default();
     registrar.Parameter("annotations", &TThis::Annotations)
+        .Optional();
+    registrar.Parameter("controller_agent_tag", &TThis::ControllerAgentTag)
         .Optional();
 
     registrar.Postprocessor([] (TOperationRuntimeParametersUpdate* update) {

@@ -2133,6 +2133,8 @@ private:
         }
         runtimeParameters->Annotations = annotations;
 
+        runtimeParameters->ControllerAgentTag = spec->ControllerAgentTag;
+
         Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user, operationType);
     }
 
@@ -2157,6 +2159,10 @@ private:
             } else {
                 result->Annotations = NYTree::PatchNode(result->Annotations, annotationsPatch)->AsMap();
             }
+        }
+
+        if (update->ControllerAgentTag) {
+            result->ControllerAgentTag = *update->ControllerAgentTag;
         }
 
         Strategy_->UpdateRuntimeParameters(result, update, user);

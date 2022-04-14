@@ -6,8 +6,8 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, release_breakpoint, wait, wait_breakpoint, with_breakpoint, create, ls, get,
-    set, exists,
+    authors, print_debug, release_breakpoint, remove, wait, wait_breakpoint, with_breakpoint, create, ls, get,
+    set, exists, update_op_parameters,
     write_table, map, reduce, map_reduce, merge, erase, run_sleeping_vanilla, run_test_vanilla, get_operation, raises_yt_error)
 
 from yt.common import YtError
@@ -450,59 +450,64 @@ class TestControllerAgentTags(YTEnvSetup):
             config["controller_agent"]["tags"] = [controller_agent_tag]
         config["controller_agent"]["controller_static_orchid_update_period"] = 100
 
-    @authors("gritukan")
-    def test_controller_agent_tags(self):
-        foo_agent = None
-        bar_agent = None
-        default_agent = None
+    def _wait_for_tags_loaded(self):
+        for agent in get("//sys/controller_agents/instances").keys():
+            tags_path = "//sys/controller_agents/instances/{}/@tags".format(agent)
+            wait(lambda: len(get(tags_path)) > 0)
 
-        def wait_for_tags_loaded():
-            for agent in get("//sys/controller_agents/instances").keys():
-                tags_path = "//sys/controller_agents/instances/{}/@tags".format(agent)
-                wait(lambda: len(get(tags_path)) > 0)
-
-        wait_for_tags_loaded()
+    def _get_controller_tags(self):
+        result = {}
         for agent in get("//sys/controller_agents/instances").keys():
             agent_tags = get("//sys/controller_agents/instances/{}/@tags".format(agent))
             assert len(agent_tags) == 1
             agent_tag = agent_tags[0]
-            if agent_tag == "foo":
-                foo_agent = agent
-            elif agent_tag == "bar":
-                bar_agent = agent
-            else:
-                assert agent_tag == "default"
-                default_agent = agent
+            result[agent_tag] = agent
+        return result
 
-        assert foo_agent is not None
-        assert bar_agent is not None
-        assert default_agent is not None
+    def _get_controller_agent(self, op):
+        attr_path = op.get_path() + "/@controller_agent_address"
+        return get(attr_path, default=None)
 
-        def get_controller_agent(op):
-            attr_path = op.get_path() + "/@controller_agent_address"
-            return get(attr_path, default=None)
+    def _run_with_tag(self, tag):
+        if tag is None:
+            spec = {}
+        else:
+            spec = {"controller_agent_tag": tag}
+        return run_test_vanilla("sleep 1000", job_count=1, spec=spec, track=False)
 
-        def run_with_tag(tag):
-            if tag is None:
-                spec = {}
-            else:
-                spec = {"controller_agent_tag": tag}
-            return run_test_vanilla("sleep 1000", job_count=1, spec=spec, track=False)
+    def _reset_tags(self):
+        for agent in get("//sys/controller_agents/instances").keys():
+            if exists("//sys/controller_agents/instances/{}/@tags_override".format(agent)):
+                remove("//sys/controller_agents/instances/{}/@tags_override".format(agent))
+            remove("//sys/controller_agents/instances/{}/@tags".format(agent))
 
-        def check_assignment(tag, agent):
-            op = run_with_tag(tag)
-            wait(lambda: get_controller_agent(op) == agent)
+        # NB. We need to restart controller agents to apply the tags
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
 
-        def check_no_agent(tag):
-            op = run_with_tag(tag)
-            wait(lambda: op.get_state() == "waiting_for_agent")
-            time.sleep(1)
-            assert get_controller_agent(op) is None
+    def _check_assignment(self, tag, agent):
+        op = self._run_with_tag(tag)
+        wait(lambda: self._get_controller_agent(op) == agent)
 
-        check_assignment("foo", foo_agent)
-        check_assignment("bar", bar_agent)
-        check_assignment(None, default_agent)
-        check_no_agent("baz")
+    def _check_no_agent(self, tag):
+        op = self._run_with_tag(tag)
+        wait(lambda: op.get_state() == "waiting_for_agent")
+        time.sleep(1)
+        assert self._get_controller_agent(op) is None
+
+    @authors("gritukan")
+    def test_controller_agent_tags(self):
+        self._reset_tags()
+        self._wait_for_tags_loaded()
+        tags = self._get_controller_tags()
+        foo_agent = tags["foo"]
+        bar_agent = tags["bar"]
+        default_agent = tags["default"]
+
+        self._check_assignment("foo", foo_agent)
+        self._check_assignment("bar", bar_agent)
+        self._check_assignment(None, default_agent)
+        self._check_no_agent("baz")
 
         # foo -> foo
         # bar -> baz
@@ -515,7 +520,7 @@ class TestControllerAgentTags(YTEnvSetup):
                 ["boo", "booo"],
             )
 
-        wait_for_tags_loaded()
+        self._wait_for_tags_loaded()
         assert get("//sys/controller_agents/instances/{}/@tags".format(foo_agent)) == ["foo"]
         assert get("//sys/controller_agents/instances/{}/@tags".format(baz_agent)) == ["baz"]
         assert get("//sys/controller_agents/instances/{}/@tags".format(boo_agent)) == [
@@ -523,12 +528,29 @@ class TestControllerAgentTags(YTEnvSetup):
             "booo",
         ]
 
-        check_assignment("foo", foo_agent)
-        check_assignment("baz", baz_agent)
-        check_assignment("boo", boo_agent)
-        check_assignment("booo", boo_agent)
-        check_no_agent(None)
-        check_no_agent("bar")
+        self._check_assignment("foo", foo_agent)
+        self._check_assignment("baz", baz_agent)
+        self._check_assignment("boo", boo_agent)
+        self._check_assignment("booo", boo_agent)
+        self._check_no_agent(None)
+        self._check_no_agent("bar")
+
+    @authors("gepardo")
+    def test_controller_agent_tags_reassign(self):
+        self._reset_tags()
+        self._wait_for_tags_loaded()
+        tags = self._get_controller_tags()
+        foo_agent = tags["foo"]
+        bar_agent = tags["bar"]
+
+        op = self._run_with_tag("foo")
+        wait(lambda: self._get_controller_agent(op) == foo_agent)
+        update_op_parameters(op.id, parameters={"controller_agent_tag": "bar"})
+        time.sleep(2.0)
+        assert self._get_controller_agent(op) == foo_agent
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+        wait(lambda: self._get_controller_agent(op) == bar_agent)
 
 
 ##################################################################
