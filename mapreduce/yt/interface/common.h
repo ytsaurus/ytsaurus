@@ -406,6 +406,7 @@ public:
     TColumnSchema();
 
     TColumnSchema(const TColumnSchema&) = default;
+    TColumnSchema& operator=(const TColumnSchema&) = default;
 
     FLUENT_FIELD_ENCAPSULATED(TString, Name);
 
