@@ -199,9 +199,30 @@ struct TChownChmodTool
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetDirectorySizeAsRootConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Path;
+    bool IgnoreUnavailableFiles;
+    bool DeduplicateByINodes;
+
+    TGetDirectorySizeAsRootConfig()
+    {
+        RegisterParameter("path", Path)
+            .NonEmpty();
+        RegisterParameter("ignore_unavailable_files", IgnoreUnavailableFiles)
+            .Default(true);
+        RegisterParameter("deduplicate_by_inodes", DeduplicateByINodes)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TGetDirectorySizeAsRootConfig)
+
 struct TGetDirectorySizeAsRootTool
 {
-    i64 operator()(const TString& path) const;
+    i64 operator()(const TGetDirectorySizeAsRootConfigPtr& config) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -106,6 +106,7 @@ void MakeDirRecursive(const TString& path, int mode = 0777);
 struct TFileStatistics
 {
     i64 Size = -1;
+    std::optional<ui64> INode;
     TInstant ModificationTime;
     TInstant AccessTime;
 };
@@ -114,7 +115,7 @@ struct TFileStatistics
 TFileStatistics GetFileStatistics(const TString& path);
 
 //! Recursively calculates size of all regular files inside the directory.
-i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles = true);
+i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles = true, bool deduplicateByINodes = false);
 
 //! Sets the access and modification times to now.
 void Touch(const TString& path);
