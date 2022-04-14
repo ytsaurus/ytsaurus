@@ -49,7 +49,7 @@ def get_job_count_profiling(tree="default"):
     start_time = datetime.now()
 
     # Enable verbose for debugging.
-    for projection in scheduler_profiler.get_all("scheduler/allocations/running_allocation_count", {}, verbose=False):
+    for projection in scheduler_profiler.get_all("scheduler/jobs/running_job_count", {}, verbose=False):
         if ("state" not in projection["tags"]) or ("job_type" in projection["tags"]):
             continue
         job_count["state"][projection["tags"]["state"]] = int(projection["value"])

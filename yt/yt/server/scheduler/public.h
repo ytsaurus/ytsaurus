@@ -53,16 +53,4 @@ DECLARE_REFCOUNTED_CLASS(TControllerRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: Please keep the range of values small as this type
-// is used as a key of TEnumIndexedVector.
-DEFINE_ENUM(EAllocationState,
-    ((Scheduled)  (0))
-    ((Waiting)    (1))
-    ((Running)    (2))
-    ((Finishing)  (3))
-    ((Finished)   (4))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NScheduler

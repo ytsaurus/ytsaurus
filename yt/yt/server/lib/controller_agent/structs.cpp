@@ -3,11 +3,7 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
-#include <yt/yt/server/lib/exec_node/public.h>
-
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
-
-#include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -79,13 +75,6 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     }
 
     JobExecutionCompleted = status->job_execution_completed();
-
-    if (event->has_preempted()) {
-        Preempted = event->preempted();
-    }
-    if (event->has_preemption_reason()) {
-        PreemptionReason = std::move(event->preemption_reason());
-    }
 }
 
 TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
@@ -267,18 +256,6 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
     std::unique_ptr<TAbortedJobSummary> nodeJobSummary)
 {
     MergeJobSummaries(*schedulerJobSummary, std::move(*nodeJobSummary));
-    if (!schedulerJobSummary->AbortedByScheduler && schedulerJobSummary->Preempted.value_or(false)) {
-        auto error = FromProto<TError>(schedulerJobSummary->Result.error());
-        if (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
-            error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared))
-        {
-            auto error = TError("Job preempted")
-                << TErrorAttribute("abort_reason", EAbortReason::Preemption)
-                << TErrorAttribute("preemption_reason", schedulerJobSummary->PreemptionReason);
-            schedulerJobSummary->Result = NJobTrackerClient::NProto::TJobResult{};
-            ToProto(schedulerJobSummary->Result.mutable_error(), error);
-        }
-    }
     return schedulerJobSummary;
 }
 

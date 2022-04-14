@@ -40,7 +40,8 @@ class TJobMetrics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAllocationCounter = THashMap<EAllocationState, std::pair<i64, NProfiling::TGauge>>;
+// COMPAT(ignat)
+using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NProfiling::TGauge>>;
 
 using TNonOwningOperationElementMap = THashMap<TOperationId, TSchedulerOperationElement*>;
 using TOperationElementMap = THashMap<TOperationId, TSchedulerOperationElementPtr>;

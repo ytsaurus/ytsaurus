@@ -654,10 +654,6 @@ public:
                     if (event.PreemptedFor) {
                         ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
                     }
-                    protoEvent->set_preempted(event.Preempted);
-                    if (event.PreemptionReason) {
-                        ToProto(protoEvent->mutable_preemption_reason(), *event.PreemptionReason);
-                    }
                 },
                 Config_->MaxMessageJobEventCount);
 

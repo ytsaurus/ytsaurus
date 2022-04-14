@@ -114,8 +114,6 @@ message TSchedulerToAgentJobEvent
     // for Aborted
     optional int32 abort_reason = 9;
     optional TPreemptedFor preempted_for = 12;
-    optional bool preempted = 14;
-    optional string preemption_reason = 15;
 
     // for Completed
     optional int32 interrupt_reason = 10; // EInterruptReason

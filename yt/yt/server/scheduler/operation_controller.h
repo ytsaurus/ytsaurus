@@ -197,27 +197,31 @@ struct IOperationController
      */
     virtual bool OnJobStarted(const TJobPtr& job) = 0;
 
-    //! Called during heartbeat processing to notify the controller that a job has finished.
+    //! Called during heartbeat processing to notify the controller that a job has completed.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void OnJobFinished(
+    virtual void OnJobCompleted(
+        const TJobPtr& job,
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool abandoned) = 0;
+
+    //! Called during heartbeat processing to notify the controller that a job has failed.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void OnJobFailed(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
-    
-    //! Called to notify the controller that a job has been aborted by scheduler.
+
+    //! Called during heartbeat processing to notify the controller that a job has been aborted.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void AbortJob(
+    virtual void OnJobAborted(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) = 0;
-    
-    //! Called to notify the controller that a job has been abandoned.
-    /*!
-     *  \note Thread affinity: any
-     */
-    virtual void AbandonJob(const TJobPtr& job) = 0;
+        NJobTrackerClient::NProto::TJobStatus* status,
+        bool byScheduler) = 0;
 
     // These methods should be called only by controller agent tracker.
 

@@ -35,8 +35,6 @@ struct TSchedulerToAgentJobEvent
     std::optional<EInterruptReason> InterruptReason;
     std::optional<bool> AbortedByScheduler;
     std::optional<TPreemptedFor> PreemptedFor;
-    bool Preempted;
-    std::optional<TString> PreemptionReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
