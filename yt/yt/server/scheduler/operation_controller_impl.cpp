@@ -1,9 +1,12 @@
 #include "operation_controller_impl.h"
 #include "bootstrap.h"
 #include "controller_agent_tracker.h"
+#include "helpers.h"
 #include "node_shard.h"
 #include "private.h"
 #include "scheduler.h"
+
+#include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
@@ -12,6 +15,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/job_proxy/public.h>
 
 namespace NYT::NScheduler {
 
@@ -458,6 +463,32 @@ bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
     return true;
 }
 
+void TOperationControllerImpl::OnJobFinished(
+    const TJobPtr& job,
+    NJobTrackerClient::NProto::TJobStatus* status)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (ShouldSkipJobEvent(job)) {
+        return;
+    }
+
+    switch (EJobState{status->state()})
+    {
+        case EJobState::Completed:
+            OnJobCompleted(job, status, false);
+            break;
+        case EJobState::Aborted:
+            OnJobAborted(job, status, false);
+            break;
+        case EJobState::Failed:
+            OnJobFailed(job, status);
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
 void TOperationControllerImpl::OnJobCompleted(
     const TJobPtr& job,
     NJobTrackerClient::NProto::TJobStatus* status,
@@ -472,6 +503,7 @@ void TOperationControllerImpl::OnJobCompleted(
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
     event.Abandoned = abandoned;
     event.InterruptReason = job->GetInterruptReason();
+    event.Status->set_state(static_cast<int>(EJobState::Completed));
     auto result = EnqueueJobEvent(std::move(event));
     YT_LOG_TRACE("Job completion notification %v (JobId: %v)",
         result ? "enqueued" : "dropped",
@@ -487,6 +519,9 @@ void TOperationControllerImpl::OnJobFailed(
     if (ShouldSkipJobEvent(job)) {
         return;
     }
+
+    YT_VERIFY(status);
+    status->set_state(static_cast<int>(EJobState::Failed));
 
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
     auto result = EnqueueJobEvent(std::move(event));
@@ -506,8 +541,23 @@ void TOperationControllerImpl::OnJobAborted(
         return;
     }
 
+    YT_VERIFY(status);
+    status->set_state(static_cast<int>(EJobState::Aborted));
+
+    auto error = FromProto<TError>(status->result().error());
+
+    if (job->GetPreempted() &&
+        (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
+            error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
+    {
+        auto error = TError("Job preempted")
+            << TErrorAttribute("abort_reason", EAbortReason::Preemption)
+            << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
+        ToProto(status->mutable_result()->mutable_error(), error);
+    }
+
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
-    event.AbortReason = job->GetAbortReason();
+    event.AbortReason = GetAbortReason(error);
     event.AbortedByScheduler = byScheduler;
     event.PreemptedFor = job->GetPreemptedFor();
 
@@ -547,11 +597,27 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
         .InterruptReason = {},
         .AbortedByScheduler = {},
         .PreemptedFor = {},
+        .Preempted = false,
+        .PreemptionReason = {},
     };
     auto result = EnqueueJobEvent(std::move(event));
     YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
         result ? "enqueued" : "dropped",
         jobId);
+}
+
+void TOperationControllerImpl::AbortJob(
+    const TJobPtr& job,
+    NJobTrackerClient::NProto::TJobStatus* status)
+{
+    OnJobAborted(job, status, /*byScheduler*/ true);
+}
+
+void TOperationControllerImpl::AbandonJob(const TJobPtr& job)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    OnJobCompleted(job, /*status*/ nullptr, /*abandoned*/ true);
 }
 
 void TOperationControllerImpl::OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError)
@@ -815,7 +881,6 @@ TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
     ToProto(statusHolder->mutable_job_id(), job->GetId());
     ToProto(statusHolder->mutable_operation_id(), job->GetOperationId());
     statusHolder->set_job_type(static_cast<int>(job->GetType()));
-    statusHolder->set_state(static_cast<int>(job->GetState()));
     return TSchedulerToAgentJobEvent{
         .EventType = eventType,
         .OperationId = OperationId_,
@@ -829,6 +894,8 @@ TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
         .InterruptReason = {},
         .AbortedByScheduler = {},
         .PreemptedFor = {},
+        .Preempted = job->GetPreempted(),
+        .PreemptionReason = job->GetPreemptionReason(),
     };
 }
 
