@@ -140,7 +140,7 @@ public class YtClientTest {
         }
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void executeSomeOperations() {
         final YPath table = YPath.simple(path + "/dir1/table1");
 
@@ -175,7 +175,7 @@ public class YtClientTest {
         ), rows);
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void readTable() throws Exception {
         final YPath writePath = YPath.simple(path + "/dir1/table2");
 
@@ -184,7 +184,7 @@ public class YtClientTest {
         readWriteImpl(writePath, readPath, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void readTableWithRange() throws Exception {
         final YPath writePath = YPath.simple(path + "/dir1/table3");
 
@@ -198,7 +198,7 @@ public class YtClientTest {
         readWriteImpl(writePath, readPath, new MappedObject(1, "test1"));
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void alterTable() throws Exception {
         final YPath writePath = YPath.simple(path + "/dir1/table4");
         final YPath readPath = YPath.simple(writePath.toString());
@@ -218,7 +218,7 @@ public class YtClientTest {
                 .join();
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void selectRowsWithKnownPool() {
         final YPath table = YPath.simple(path + "/dir1/table5");
 
@@ -236,7 +236,7 @@ public class YtClientTest {
         Assert.assertEquals(0, client.selectRows(request).join().getRows().size());
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void lookupRowsDefault() throws ExecutionException, InterruptedException {
         final YPath table = YPath.simple(path + "/dir1/table6");
         createDynamicTable(client, table);
@@ -269,7 +269,7 @@ public class YtClientTest {
 
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void lookupRowsMapped() throws ExecutionException, InterruptedException {
         final YPath table = YPath.simple(path + "/dir1/table7");
         createDynamicTable(client, table);
@@ -325,7 +325,7 @@ public class YtClientTest {
         Assert.assertEquals(List.of(objects.get(1), objects.get(0)), result4);
     }
 
-    @Test(timeout = 10000)
+    @Test
     public void earlyReaderClose() throws IOException {
         String table = path + "/table";
 
