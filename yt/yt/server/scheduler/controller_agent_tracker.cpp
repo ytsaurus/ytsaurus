@@ -180,7 +180,7 @@ void ProcessScheduleJobResponses(
 
     AllSet(std::move(futures))
         .Subscribe(
-            BIND([context = std::move(context)] (const TError&) { 
+            BIND([context = std::move(context)] (const TError&) {
                 auto request = std::move(context->Request());
                 Y_UNUSED(request);
             })
@@ -247,7 +247,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto controllerAgentTag = operation->Spec()->ControllerAgentTag;
+        auto controllerAgentTag = operation->GetRuntimeParameters()->ControllerAgentTag;
 
         if (!AgentTagsFetched_ || TagsWithTooFewAgents_.contains(controllerAgentTag)) {
             YT_LOG_DEBUG(
@@ -1241,7 +1241,7 @@ void TControllerAgentTracker::UnregisterOperationFromAgent(const TOperationPtr& 
 {
     Impl_->UnregisterOperationFromAgent(operation);
 }
-    
+
 const TControllerAgentTrackerConfigPtr& TControllerAgentTracker::GetConfig() const
 {
     return Impl_->GetConfig();
