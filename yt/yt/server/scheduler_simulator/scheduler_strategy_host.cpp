@@ -240,7 +240,7 @@ void TSchedulerStrategyHost::FlushOperationNode(TOperationId /*operationId*/)
 void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, TDuration /*interruptTimeout*/)
 {
     YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
-    job->SetState(NJobTrackerClient::EJobState::Aborted);
+    job->SetAllocationState(EAllocationState::Finished);
 }
 
 NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()

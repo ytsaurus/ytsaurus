@@ -122,7 +122,7 @@ void FromProto(
             /*schedulingStage*/ std::nullopt,
             jobProto.node_id(),
             jobProto.node_address());
-        job->SetState(EJobState::Running);
+        job->SetAllocationState(EAllocationState::Running);
         result->RevivedJobs.push_back(job);
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
