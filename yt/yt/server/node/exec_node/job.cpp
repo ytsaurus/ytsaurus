@@ -2244,7 +2244,8 @@ std::optional<EAbortReason> TJob::GetAbortReason()
         resultError.FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout) ||
         resultError.FindMatching(NExecNode::EErrorCode::JobPreparationTimeout) ||
         resultError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) ||
-        resultError.FindMatching(NExecNode::EErrorCode::GpuLayerNotFetched))
+        resultError.FindMatching(NExecNode::EErrorCode::GpuLayerNotFetched) ||
+        resultError.FindMatching(NJobProxy::EErrorCode::JobNotRunning))
     {
         return EAbortReason::Other;
     }
