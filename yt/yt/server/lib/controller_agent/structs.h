@@ -75,9 +75,6 @@ struct TJobSummary
 
     TInstant LastStatusUpdateTime;
     bool JobExecutionCompleted = false;
-
-    std::optional<bool> Preempted;
-    std::optional<TString> PreemptionReason;
 };
 
 struct TCompletedJobSummary

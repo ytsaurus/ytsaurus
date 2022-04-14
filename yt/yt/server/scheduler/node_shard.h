@@ -252,7 +252,8 @@ private:
     std::atomic<int> JobReporterWriteFailuresCount_ = {0};
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
 
-    TAllocationCounter AllocationCounter_;
+    // TODO(pogorelov): Move job counter to CA.
+    TJobCounter JobCounter_;
 
     NProfiling::TCounter HardConcurrentHeartbeatLimitReachedCounter_;
     NProfiling::TCounter SoftConcurrentHeartbeatLimitReachedCounter_;
@@ -364,12 +365,13 @@ private:
         const TExecNodePtr& node,
         const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus);
+        TJobStatus* jobStatus,
+        bool nodeSupportsWaitingJobFail);
 
     void UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs, TInstant now);
 
-    using TAllocationStateToJobList = TEnumIndexedVector<EAllocationState, std::vector<TJobPtr>>;
-    void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const;
+    using TJobStateToJobList = TEnumIndexedVector<EJobState, std::vector<TJobPtr>>;
+    void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TJobStateToJobList& ongoingJobsByJobState) const;
 
     void SubtractNodeResources(const TExecNodePtr& node);
     void AddNodeResources(const TExecNodePtr& node);
@@ -388,14 +390,15 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 
-    void OnJobFinished(const TJobPtr& job, TJobStatus* status);
-    void DoAbortJob(const TJobPtr& job, TJobStatus* status);
+    void OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler);
+    void OnJobFinished(const TJobPtr& job);
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
-    void DoAbandonJob(const TJobPtr& job);
+    void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
+    void OnJobFailed(const TJobPtr& job, TJobStatus* status);
 
     void UpdateProfilingCounter(const TJobPtr& job, int value);
 
-    void SetAllocationState(const TJobPtr& job, EAllocationState state);
+    void SetJobState(const TJobPtr& job, EJobState state);
 
     void RegisterJob(const TJobPtr& job);
     void UnregisterJob(const TJobPtr& job, bool enableLogging = true);
@@ -439,8 +442,6 @@ private:
         const TError& error = TError());
 
     void RemoveOperationScheduleJobEntries(TOperationId operationId);
-
-    void SetFinishedState(const TJobPtr& job);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

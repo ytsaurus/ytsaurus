@@ -92,31 +92,6 @@ void SetControllerAgentInfo(const TControllerAgentPtr& agent, auto proto)
     ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
 }
 
-EAllocationState JobStateToAllocationState(const EJobState jobState) noexcept
-{
-    switch (jobState) {
-        case EJobState::None:
-            return EAllocationState::Scheduled;
-        case EJobState::Waiting:
-            return EAllocationState::Waiting;
-        case EJobState::Running:
-            return EAllocationState::Running;
-        case EJobState::Aborting:
-            return EAllocationState::Finishing;
-        case EJobState::Completed:
-        case EJobState::Failed:
-        case EJobState::Aborted:
-            return EAllocationState::Finished;
-        default:
-            YT_ABORT();
-    }
-}
-
-EAllocationState ParseAllocationStateFromJobStatus(const TJobStatus* jobStatus) noexcept
-{
-    return JobStateToAllocationState(EJobState{jobStatus->state()});
-}
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,7 +234,7 @@ void TNodeShard::DoCleanup()
 
     ActiveJobCount_ = 0;
 
-    AllocationCounter_.clear();
+    JobCounter_.clear();
 
     JobsToSubmitToStrategy_.clear();
 
@@ -597,7 +572,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             auto status = JobStatusFromError(
                 TError("Node without user slots")
                     << TErrorAttribute("abort_reason", EAbortReason::NodeWithZeroUserSlots));
-            DoAbortJob(job, &status);
+            OnJobAborted(job, &status, /* byScheduler */ true);
         }
     }
 
@@ -959,7 +934,7 @@ void TNodeShard::AbortOperationJobs(TOperationId operationId, const TError& abor
     for (const auto& [jobId, job] : jobs) {
         auto status = JobStatusFromError(abortError);
         YT_LOG_DEBUG(abortError, "Aborting job (JobId: %v, OperationId: %v)", jobId, operationId);
-        DoAbortJob(job, &status);
+        OnJobAborted(job, &status, /* byScheduler */ true);
     }
 
     for (const auto& job : operationState->Jobs) {
@@ -1078,16 +1053,15 @@ void TNodeShard::AbandonJob(TJobId jobId, const TString& user)
                 job->GetType());
     }
 
-    if (auto allocationState = job->GetAllocationState();
-        allocationState != EAllocationState::Running &&
-        allocationState != EAllocationState::Waiting)
+    if (job->GetState() != EJobState::Running &&
+        job->GetState() != EJobState::Waiting)
     {
         THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it is not running",
             job->GetId(),
             job->GetOperationId());
     }
 
-    DoAbandonJob(job);
+    OnJobCompleted(job, nullptr /* jobStatus */, true /* abandoned */);
 }
 
 void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
@@ -1101,9 +1075,8 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
     WaitFor(Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage)))
         .ThrowOnError();
 
-    if (const auto allocationState = job->GetAllocationState();
-        allocationState != EAllocationState::Running &&
-        allocationState != EAllocationState::Waiting)
+    if (job->GetState() != EJobState::Running &&
+        job->GetState() != EJobState::Waiting)
     {
         THROW_ERROR_EXCEPTION("Cannot abort job %v of operation %v since it is not running",
             jobId,
@@ -1174,7 +1147,7 @@ void TNodeShard::AbortJob(TJobId jobId, const TError& error)
         job->GetOperationId());
 
     auto status = JobStatusFromError(error);
-    DoAbortJob(job, &status);
+    OnJobAborted(job, &status, /* byScheduler */ true);
 }
 
 void TNodeShard::AbortJobs(const std::vector<TJobId>& jobIds, const TError& error)
@@ -1686,7 +1659,7 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reaso
         auto status = JobStatusFromError(
             TError("All jobs on the node were aborted by scheduler")
                 << TErrorAttribute("abort_reason", reason));
-        DoAbortJob(job, &status);
+        OnJobAborted(job, &status, /* byScheduler */ true);
     }
 
     if (reason == EAbortReason::NodeFairShareTreeChanged && !node->GetSchedulingSegmentFrozen()) {
@@ -1732,7 +1705,7 @@ void TNodeShard::AbortUnconfirmedJobs(
         YT_LOG_DEBUG("Aborting revived job that was not confirmed (OperationId: %v, JobId: %v)",
             operationId,
             job->GetId());
-        DoAbortJob(job, &status);
+        OnJobAborted(job, &status, /* byScheduler */ true);
         if (auto node = job->GetNode()) {
             ResetJobWaitingForConfirmation(job);
         }
@@ -1838,8 +1811,10 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
+    const bool nodeSupportsWaitingJobFail = request->suports_waiting_jobs_fail();
+
     // Used for debug logging.
-    TAllocationStateToJobList ongoingJobsByAllocationState;
+    TJobStateToJobList ongoingJobsByJobState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
     i64 totalJobStatisticsSize = 0;
     i64 totalJobResultSize = 0;
@@ -1861,20 +1836,21 @@ void TNodeShard::ProcessHeartbeatJobs(
             node,
             recentlyFinishedJobIdsToRemove,
             response,
-            &jobStatus);
+            &jobStatus,
+            nodeSupportsWaitingJobFail);
         if (job) {
             if (checkMissingJobs) {
                 job->SetFoundOnNode(true);
             }
-            switch (job->GetAllocationState()) {
-                case EAllocationState::Running: {
+            switch (job->GetState()) {
+                case EJobState::Running: {
                     runningJobs->push_back(job);
-                    ongoingJobsByAllocationState[job->GetAllocationState()].push_back(job);
+                    ongoingJobsByJobState[job->GetState()].push_back(job);
                     break;
                 }
-                case EAllocationState::Waiting:
+                case EJobState::Waiting:
                     *hasWaitingJobs = true;
-                    ongoingJobsByAllocationState[job->GetAllocationState()].push_back(job);
+                    ongoingJobsByJobState[job->GetState()].push_back(job);
                     break;
                 default:
                     break;
@@ -1907,7 +1883,7 @@ void TNodeShard::ProcessHeartbeatJobs(
         recentlyFinishedJobIdsToLog);
 
     if (shouldLogOngoingJobs) {
-        LogOngoingJobsAt(CpuInstantToInstant(now), node, ongoingJobsByAllocationState);
+        LogOngoingJobsAt(CpuInstantToInstant(now), node, ongoingJobsByJobState);
     }
 
     if (checkMissingJobs) {
@@ -1936,7 +1912,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                 TError("Job vanished")
                     << TErrorAttribute("abort_reason", EAbortReason::Vanished));
             YT_LOG_DEBUG("Aborting vanished job (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
-            DoAbortJob(job, &status);
+            OnJobAborted(job, &status, /* byScheduler */ true);
         }
     }
 
@@ -1952,7 +1928,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             TError("Job not confirmed by node")
                 << TErrorAttribute("abort_reason", EAbortReason::Unconfirmed));
         YT_LOG_DEBUG("Aborting unconfirmed job (JobId: %v, OperationId: %v)", jobId, job->GetOperationId());
-        DoAbortJob(job, &status);
+        OnJobAborted(job, &status, /* byScheduler */ true);
 
         ResetJobWaitingForConfirmation(job);
     }
@@ -1981,12 +1957,12 @@ void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std:
     node->SetRunningJobStatistics(runningJobStatistics);
 }
 
-void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const
+void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TJobStateToJobList& ongoingJobsByJobState) const
 {
     auto cachedJobPreemptionStatuses =
         Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
-    for (const auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
-        const auto& jobs = ongoingJobsByAllocationState[allocationState];
+    for (auto jobState : TEnumTraits<EJobState>::GetDomainValues()) {
+        const auto& jobs = ongoingJobsByJobState[jobState];
 
         if (jobs.empty()) {
             continue;
@@ -2003,7 +1979,7 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
         }
 
         YT_LOG_DEBUG("Jobs are %lv (JobIdsByPreemptionStatus: %v, UnknownStatusJobIds: %v, TimeSinceLastPreemptionStatusUpdateSeconds: %v)",
-            allocationState,
+            jobState,
             jobIdsByPreemptionStatus,
             unknownStatusJobIds,
             (now - cachedJobPreemptionStatuses.UpdateTime).SecondsFloat());
@@ -2014,22 +1990,23 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
     NJobTrackerClient::NProto::TRspHeartbeat* response,
-    TJobStatus* jobStatus)
+    TJobStatus* jobStatus,
+    const bool nodeSupportsWaitingJobFail)
 {
     auto jobId = FromProto<TJobId>(jobStatus->job_id());
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
-
-    auto allocationState = ParseAllocationStateFromJobStatus(jobStatus);
+    auto state = EJobState(jobStatus->state());
     const auto& address = node->GetDefaultAddress();
+
 
     auto job = FindJob(jobId, node);
     if (!job) {
         auto operation = FindOperationState(operationId);
-        auto Logger = SchedulerLogger.WithTag("Address: %v, JobId: %v, OperationId: %v, AllocationState: %v",
+        auto Logger = SchedulerLogger.WithTag("Address: %v, JobId: %v, OperationId: %v, State: %v",
             address,
             jobId,
             operationId,
-            allocationState);
+            state);
 
         // We can decide what to do with the job of an operation only when all
         // TJob structures of the operation are materialized. Also we should
@@ -2049,25 +2026,34 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
             return nullptr;
         }
 
-        switch (allocationState) {
-            case EAllocationState::Finished:
-                YT_LOG_DEBUG(
-                    "Unknown job has finished, removal scheduled");
+        switch (state) {
+            case EJobState::Completed:
+                YT_LOG_DEBUG("Unknown job has completed, removal scheduled");
                 ToProto(response->add_jobs_to_remove(), {jobId});
                 break;
 
-            case EAllocationState::Running:
+            case EJobState::Failed:
+                YT_LOG_DEBUG("Unknown job has failed, removal scheduled");
+                ToProto(response->add_jobs_to_remove(), {jobId});
+                break;
+
+            case EJobState::Aborted:
+                YT_LOG_DEBUG(FromProto<TError>(jobStatus->result().error()), "Job aborted, removal scheduled");
+                ToProto(response->add_jobs_to_remove(), {jobId});
+                break;
+
+            case EJobState::Running:
                 YT_LOG_DEBUG("Unknown job is running, abort scheduled");
                 AddJobToAbort(response, {jobId});
                 break;
 
-            case EAllocationState::Waiting:
+            case EJobState::Waiting:
                 YT_LOG_DEBUG("Unknown job is waiting, abort scheduled");
                 AddJobToAbort(response, {jobId});
                 break;
-            
-            case EAllocationState::Finishing:
-                YT_LOG_DEBUG("Unknown job is finishing, abort scheduled");
+
+            case EJobState::Aborting:
+                YT_LOG_DEBUG("Job is aborting");
                 break;
 
             default:
@@ -2083,76 +2069,106 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     // Check if the job is running on a proper node.
     if (node->GetId() != job->GetNode()->GetId()) {
         // Job has moved from one node to another. No idea how this could happen.
-        switch (allocationState) {
-            case EAllocationState::Finishing:
-                // Job is already finishing, do nothing.
-                break;
-            case EAllocationState::Finished:
-                ToProto(response->add_jobs_to_remove(), {jobId});
-                YT_LOG_WARNING("Job status report was expected from %v, removal scheduled",
-                    node->GetDefaultAddress());
-                break;
-            case EAllocationState::Waiting:
-            case EAllocationState::Running:
-                AddJobToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
-                YT_LOG_WARNING("Job status report was expected from %v, abort scheduled",
-                    node->GetDefaultAddress());
-                break;
-            default:
-                YT_ABORT();
+        if (state == EJobState::Aborting) {
+            // Do nothing, job is already terminating.
+        } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
+            ToProto(response->add_jobs_to_remove(), {jobId});
+            YT_LOG_WARNING("Job status report was expected from unexpected node %v, removal scheduled (State: %v)",
+                node->GetDefaultAddress(),
+                state);
+        } else {
+            AddJobToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
+            YT_LOG_WARNING("Job status report was expected from unexpected node %v, abort scheduled (State: %v)",
+                node->GetDefaultAddress(),
+                state);
         }
         return nullptr;
     }
 
     if (job->GetWaitingForConfirmation()) {
-        YT_LOG_DEBUG("Job confirmed (AllocationState: %v)", allocationState);
+        YT_LOG_DEBUG("Job confirmed (State: %v)", state);
         ResetJobWaitingForConfirmation(job);
     }
 
-    bool stateChanged = allocationState != job->GetAllocationState();
+    bool stateChanged = (state != job->GetState());
 
-    switch (allocationState) {
-        case EAllocationState::Finished: {
-            YT_LOG_DEBUG("Job finished, storage scheduled");
+    switch (state) {
+        case EJobState::Completed: {
+            YT_LOG_DEBUG("Job completed, storage scheduled");
             AddRecentlyFinishedJob(job);
-            OnJobFinished(job, jobStatus);
+            OnJobCompleted(job, jobStatus);
             ToProto(response->add_jobs_to_store(), jobId);
             break;
         }
 
-        case EAllocationState::Running:
-        case EAllocationState::Waiting:
-            SetAllocationState(job, allocationState);
-            switch (allocationState) {
-                case EAllocationState::Running:
-                    YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
-                    OnJobRunning(job, jobStatus);
-                    break;
-                
-                case EAllocationState::Waiting:
-                    YT_LOG_DEBUG_IF(stateChanged, "Job is now waiting");
-                    break;
-                default:
-                    YT_ABORT();
-            }
+        case EJobState::Failed: {
+            auto error = FromProto<TError>(jobStatus->result().error());
+            YT_LOG_DEBUG(error, "Job failed, storage scheduled");
+            AddRecentlyFinishedJob(job);
+            OnJobFailed(job, jobStatus);
+            ToProto(response->add_jobs_to_store(), jobId);
+            break;
+        }
 
-            if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
-                YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
-                    CpuInstantToInstant(job->GetInterruptDeadline()));
-                AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
-            } else if (job->GetFailRequested()) {
-                if (allocationState == EAllocationState::Running) { 
-                    YT_LOG_DEBUG("Job fail requested");
-                    ToProto(response->add_jobs_to_fail(), jobId);
+        case EJobState::Aborted: {
+            auto error = FromProto<TError>(jobStatus->result().error());
+            YT_LOG_DEBUG(error, "Job aborted on node, storage scheduled");
+            AddRecentlyFinishedJob(job);
+            if (job->GetPreempted() &&
+                (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
+                error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
+            {
+                auto error = TError("Job preempted")
+                    << TErrorAttribute("abort_reason", EAbortReason::Preemption)
+                    << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
+                auto status = JobStatusFromError(error);
+                OnJobAborted(job, &status, /* byScheduler */ false);
+            } else {
+                OnJobAborted(job, jobStatus, /* byScheduler */ false);
+            }
+            ToProto(response->add_jobs_to_store(), jobId);
+            break;
+        }
+
+        case EJobState::Running:
+        case EJobState::Waiting:
+            if (job->GetState() == EJobState::Aborted) {
+                // NB(eshcherbin): Should never happen.
+                YT_LOG_DEBUG("Aborting job");
+                AddJobToAbort(response, {jobId});
+            } else {
+                SetJobState(job, state);
+                switch (state) {
+                    case EJobState::Running:
+                        YT_LOG_DEBUG_IF(stateChanged, "Job is now running");
+                        OnJobRunning(job, jobStatus);
+                        break;
+
+                    case EJobState::Waiting:
+                        YT_LOG_DEBUG_IF(stateChanged, "Job is now waiting", state);
+                        break;
+
+                    default:
+                        YT_ABORT();
                 }
-            } else if (job->GetInterruptReason() != EInterruptReason::None) {
-                ToProto(response->add_jobs_to_interrupt(), jobId);
-            }
 
+                if (job->GetInterruptDeadline() != 0 && GetCpuInstant() > job->GetInterruptDeadline()) {
+                    YT_LOG_DEBUG("Interrupted job deadline reached, aborting (InterruptDeadline: %v)",
+                        CpuInstantToInstant(job->GetInterruptDeadline()));
+                    AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
+                } else if (job->GetFailRequested()) {
+                    if (state == EJobState::Running || nodeSupportsWaitingJobFail) { 
+                        YT_LOG_DEBUG("Job fail requested");
+                        ToProto(response->add_jobs_to_fail(), jobId);
+                    }
+                } else if (job->GetInterruptReason() != EInterruptReason::None) {
+                    ToProto(response->add_jobs_to_interrupt(), jobId);
+                }
+            }
             break;
 
-        case EAllocationState::Finishing:
-            YT_LOG_DEBUG("Job is finishing");
+        case EJobState::Aborting:
+            YT_LOG_DEBUG("Job is aborting");
             break;
 
         default:
@@ -2315,6 +2331,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         }
 
         RegisterJob(job);
+        UpdateProfilingCounter(job, 1);
 
         auto* startInfo = response->add_jobs_to_start();
         ToProto(startInfo->mutable_job_id(), job->GetId());
@@ -2385,73 +2402,87 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
     }
 }
 
-void TNodeShard::OnJobFinished(const TJobPtr& job, TJobStatus* status)
+void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned)
+{
+    YT_VERIFY(abandoned == !status);
+
+    if (job->GetState() == EJobState::Running ||
+        job->GetState() == EJobState::Waiting ||
+        job->GetState() == EJobState::None)
+    {
+        // The value of status may be nullptr on abandoned jobs.
+        if (!status) {
+            job->SetInterruptReason(EInterruptReason::None);
+        }
+
+        SetJobState(job, EJobState::Completed);
+
+        OnJobFinished(job);
+
+        auto* operationState = FindOperationState(job->GetOperationId());
+        if (operationState) {
+            const auto& controller = operationState->Controller;
+            controller->OnJobCompleted(job, status, abandoned);
+        }
+
+        UnregisterJob(job);
+    }
+}
+
+void TNodeShard::OnJobFailed(const TJobPtr& job, TJobStatus* status)
 {
     YT_VERIFY(status);
 
-    if (const auto allocationState = job->GetAllocationState();
-        allocationState == EAllocationState::Finishing ||
-        allocationState == EAllocationState::Finished)
+    if (job->GetState() == EJobState::Running ||
+        job->GetState() == EJobState::Waiting ||
+        job->GetState() == EJobState::None)
     {
-        return;
+        SetJobState(job, EJobState::Failed);
+
+        OnJobFinished(job);
+
+        auto* operationState = FindOperationState(job->GetOperationId());
+        if (operationState) {
+            const auto& controller = operationState->Controller;
+            controller->OnJobFailed(job, status);
+        }
+
+        UnregisterJob(job);
     }
-
-    SetFinishedState(job);
-    job->SetFinishTime(TInstant::Now());
-
-    auto* operationState = FindOperationState(job->GetOperationId());
-    if (operationState) {
-        const auto& controller = operationState->Controller;
-        controller->OnJobFinished(job, status);
-    }
-
-    UnregisterJob(job);
 }
 
-void TNodeShard::DoAbortJob(const TJobPtr& job, TJobStatus* const status)
+void TNodeShard::OnJobAborted(const TJobPtr& job, TJobStatus* status, bool byScheduler)
 {
     YT_VERIFY(status);
 
-    if (const auto allocationState = job->GetAllocationState();
-        allocationState == EAllocationState::Finishing ||
-        allocationState == EAllocationState::Finished)
+    // Only update the status for the first time.
+    // Typically the scheduler decides to abort the job on its own.
+    // In this case we should ignore the status returned from the node
+    // and avoid notifying the controller twice.
+    if (job->GetState() == EJobState::Running ||
+        job->GetState() == EJobState::Waiting ||
+        job->GetState() == EJobState::None)
     {
-        return;
+        auto error = FromProto<TError>(status->result().error());
+
+        job->SetAbortReason(GetAbortReason(error));
+        SetJobState(job, EJobState::Aborted);
+
+        OnJobFinished(job);
+
+        auto* operationState = FindOperationState(job->GetOperationId());
+        if (operationState) {
+            const auto& controller = operationState->Controller;
+            controller->OnJobAborted(job, status, byScheduler);
+        }
+
+        UnregisterJob(job);
     }
-
-    SetFinishedState(job);
-    job->SetFinishTime(TInstant::Now());
-
-    auto* operationState = FindOperationState(job->GetOperationId());
-    if (operationState) {
-        const auto& controller = operationState->Controller;
-        controller->AbortJob(job, status);
-    }
-
-    UnregisterJob(job);
 }
 
-void TNodeShard::DoAbandonJob(const TJobPtr& job)
+void TNodeShard::OnJobFinished(const TJobPtr& job)
 {
-    if (const auto allocationState = job->GetAllocationState();
-        allocationState == EAllocationState::Finishing ||
-        allocationState == EAllocationState::Finished)
-    {
-        return;
-    }
-
-    job->SetInterruptReason(EInterruptReason::None);
-
-    SetFinishedState(job);
     job->SetFinishTime(TInstant::Now());
-
-    auto* operationState = FindOperationState(job->GetOperationId());
-    if (operationState) {
-        const auto& controller = operationState->Controller;
-        controller->AbandonJob(job);
-    }
-
-    UnregisterJob(job);
 }
 
 void TNodeShard::SubmitJobsToStrategy()
@@ -2485,25 +2516,28 @@ void TNodeShard::SubmitJobsToStrategy()
 
 void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 {
-    const auto allocationState = job->GetAllocationState();
-
-    // Decrement started job counter here when it will be moved to CA.
-    if (allocationState == EAllocationState::Scheduled) {
+    auto jobState = job->GetState();
+    if (jobState == EJobState::Aborted ||
+        jobState == EJobState::Completed ||
+        jobState == EJobState::Failed ||
+	    jobState == EJobState::None)
+    {
         return;
     }
-    YT_VERIFY(allocationState == EAllocationState::Running || allocationState == EAllocationState::Waiting);
 
     auto createGauge = [&] {
         return SchedulerProfiler.WithTags(TTagSet(TTagList{
+                {"job_type", FormatEnum(job->GetType())},
                 {ProfilingPoolTreeKey, job->GetTreeId()},
-                {"state", FormatEnum(allocationState)}}))
-            .Gauge("/allocations/running_allocation_count");
+                {"state", FormatEnum(jobState)}}))
+            .Gauge("/jobs/running_job_count");
     };
 
-    auto it = AllocationCounter_.find(allocationState);
-    if (it == AllocationCounter_.end()) {
-        it = AllocationCounter_.emplace(
-            allocationState,
+    auto key = std::make_tuple(job->GetType(), jobState);
+    auto it = JobCounter_.find(key);
+    if (it == JobCounter_.end()) {
+        it = JobCounter_.emplace(
+            key,
             std::make_pair(
                 0,
                 createGauge())).first;
@@ -2514,19 +2548,11 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
     gauge.Update(count);
 }
 
-void TNodeShard::SetAllocationState(const TJobPtr& job, const EAllocationState state)
+void TNodeShard::SetJobState(const TJobPtr& job, EJobState state)
 {
-    YT_VERIFY(state != EAllocationState::Scheduled);
-    
     UpdateProfilingCounter(job, -1);
-    job->SetAllocationState(state);
+    job->SetState(state);
     UpdateProfilingCounter(job, 1);
-}
-
-void TNodeShard::SetFinishedState(const TJobPtr& job)
-{
-    UpdateProfilingCounter(job, -1);
-    job->SetAllocationState(EAllocationState::Finished);
 }
 
 void TNodeShard::RegisterJob(const TJobPtr& job)
@@ -2578,13 +2604,15 @@ void TNodeShard::UnregisterJob(const TJobPtr& job, bool enableLogging)
                 job->GetNode()->GetInfinibandCluster()};
         operationState->JobsToSubmitToStrategy.insert(job->GetId());
 
-        YT_LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v)",
+        YT_LOG_DEBUG_IF(enableLogging, "Job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
-            job->GetOperationId());
+            job->GetOperationId(),
+            job->GetState());
     } else {
-        YT_LOG_DEBUG_IF(enableLogging, "Dangling job unregistered (JobId: %v, OperationId: %v)",
+        YT_LOG_DEBUG_IF(enableLogging, "Dangling job unregistered (JobId: %v, OperationId: %v, State: %v)",
             job->GetId(),
-            job->GetOperationId());
+            job->GetOperationId(),
+            job->GetState());
     }
 }
 
