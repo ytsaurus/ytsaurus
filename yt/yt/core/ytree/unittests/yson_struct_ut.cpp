@@ -796,6 +796,14 @@ TEST(TYsonStructTest, NewLiteInitedWithDefaults)
     EXPECT_EQ(config.Subconfig->MyInt, 100);
 }
 
+TEST(TYsonStructTest, TestConvertToLite)
+{
+    auto deserialized = ConvertTo<TTestLiteWithDefaults>(TYsonString(TStringBuf("{}")));
+    EXPECT_EQ(deserialized.MyString, "y");
+    EXPECT_EQ(deserialized.MyInt, 10);
+    EXPECT_NE(deserialized.Subconfig, nullptr);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestConfigWithAliases

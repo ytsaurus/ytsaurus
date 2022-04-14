@@ -150,7 +150,7 @@ IAttributeDictionaryPtr ConvertToAttributes(const T& value)
 template <class TTo>
 TTo ConvertTo(INodePtr node)
 {
-    TTo result;
+    TTo result = ConstructYTreeConvertableObject<TTo>();
     Deserialize(result, node);
     return result;
 }
@@ -169,7 +169,8 @@ TTo ConvertTo(const TFrom& value)
         TMemoryInput input(value.AsStringBuf());
         NYson::TYsonPullParser parser(&input, type);
         NYson::TYsonPullParserCursor cursor(&parser);
-        TTo result;
+        TTo result = ConstructYTreeConvertableObject<TTo>();
+
         Deserialize(result, &cursor);
         if (!cursor->IsEndOfStream()) {
             THROW_ERROR_EXCEPTION("Expected end of stream after parsing YSON, found %Qlv",
@@ -213,6 +214,20 @@ IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui16)
 IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui8)
 
 #undef IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+T ConstructYTreeConvertableObject()
+{
+    if constexpr (std::is_constructible_v<T>) {
+        return T();
+    } else {
+        return T::Create();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 

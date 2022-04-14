@@ -47,6 +47,9 @@ TTo ConvertTo(INodePtr node);
 template <class TTo, class TFrom>
 TTo ConvertTo(const TFrom& value);
 
+template <class T>
+T ConstructYTreeConvertableObject();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree
