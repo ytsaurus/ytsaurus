@@ -27,7 +27,7 @@ static const auto& Logger = SchedulerSimulatorLogger;
 
 namespace {
 
-NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentJobEvent(const TJobPtr& job)
+NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentCompletedJobEvent(const TJobPtr& job)
 {
     NScheduler::NProto::TSchedulerToAgentJobEvent jobEvent;
     jobEvent.set_event_type(static_cast<int>(ESchedulerToAgentJobEventType::Completed));
@@ -35,7 +35,8 @@ NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentJobEvent(cons
     ToProto(jobEvent.mutable_status()->mutable_job_id(), job->GetId());
     ToProto(jobEvent.mutable_status()->mutable_operation_id(), job->GetOperationId());
     jobEvent.set_log_and_profile(true);
-    jobEvent.mutable_status()->set_state(static_cast<int>(job->GetState()));
+    // It is needed here, because TCompletedJobSummary verifies job state.
+    jobEvent.mutable_status()->set_state(static_cast<int>(EJobState::Completed));
     jobEvent.set_start_time(ToProto<ui64>(job->GetStartTime()));
     jobEvent.set_finish_time(ToProto<ui64>(*job->GetFinishTime()));
     jobEvent.set_abandoned(false);
@@ -185,7 +186,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         const auto& duration = GetOrCrash(context->GetStartedJobsDurations(), job->GetId());
 
         // Notify scheduler.
-        job->SetState(EJobState::Running);
+        job->SetAllocationState(EAllocationState::Running);
 
         YT_LOG_DEBUG("Job started (VirtualTimestamp: %v, JobId: %v, OperationId: %v, FinishTime: %v, NodeId: %v)",
             event.Time,
@@ -264,7 +265,7 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
 
     // When job is aborted by scheduler, events list is not updated, so aborted
     // job will still have corresponding JobFinished event that should be ignored.
-    if (job->GetState() != EJobState::Running) {
+    if (job->GetAllocationState() != EAllocationState::Running) {
         return;
     }
 
@@ -279,14 +280,14 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
 
     JobAndOperationCounter_->OnJobFinished();
 
-    job->SetState(EJobState::Completed);
+    job->SetAllocationState(EAllocationState::Finished);
     job->SetFinishTime(event.Time);
 
     if (Config_->EnableFullEventLog) {
         LogFinishedJobFluently(ELogEventType::JobCompleted, job);
     }
 
-    auto jobEvent = BuildSchedulerToAgentJobEvent(job);
+    auto jobEvent = BuildSchedulerToAgentCompletedJobEvent(job);
 
     // Notify scheduler.
     auto operation = RunningOperationsMap_->Get(job->GetOperationId());

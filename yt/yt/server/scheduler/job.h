@@ -62,14 +62,11 @@ class TJob
     //! True if job was already unregistered.
     DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);
 
-    //! Current state of the job.
-    DEFINE_BYVAL_RW_PROPERTY(EJobState, State, EJobState::None);
+    //! Current state of the allocation.
+    DEFINE_BYVAL_RW_PROPERTY(EAllocationState, AllocationState, EAllocationState::Scheduled);
 
     //! Fair-share tree this job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TString, TreeId);
-
-    //! Abort reason saved if job was aborted.
-    DEFINE_BYVAL_RW_PROPERTY(EAbortReason, AbortReason);
 
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);

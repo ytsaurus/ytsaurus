@@ -38,22 +38,29 @@ public:
     TFuture<void> UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update) override;
 
     bool OnJobStarted(const TJobPtr& job) override;
+    void OnJobFinished(
+        const TJobPtr& job,
+        NJobTrackerClient::NProto::TJobStatus* status) override;
     void OnJobCompleted(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
-        bool abandoned) override;
+        bool abandoned);
     void OnJobFailed(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) override;
+        NJobTrackerClient::NProto::TJobStatus* status);
     void OnJobAborted(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
-        bool byScheduler) override;
+        bool byScheduler);
     void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
         const TString& treeId,
         TControllerEpoch jobEpoch) override;
+    void AbortJob(
+        const TJobPtr& job,
+        NJobTrackerClient::NProto::TJobStatus* status) override;
+    void AbandonJob(const TJobPtr& job) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
