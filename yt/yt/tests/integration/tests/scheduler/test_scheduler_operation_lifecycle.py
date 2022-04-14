@@ -63,8 +63,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "operation_time_limit": 1000000,
             "operation_time_limit_check_period": 100,
-            "operation_controller_fail_timeout": 3000,
         }
     }
 
@@ -338,6 +338,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.track()
 
     @authors("ignat")
+    @flaky(max_runs=3)
     def test_fail_context_saved_on_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -346,11 +347,13 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op = map(
             track=False,
-            command="sleep 1000.0; cat >/dev/null",
+            command=with_breakpoint("BREAKPOINT"),
             in_=["//tmp/in"],
             out="//tmp/out",
-            spec={"time_limit": 2000},
         )
+
+        wait_breakpoint()
+        update_controller_agent_config("operation_time_limit", 100)
 
         wait(lambda: op.get_state() == "failed")
         wait(lambda: op.list_jobs())
@@ -745,7 +748,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operation_time_limit_check_period": 100,
-            "operation_controller_fail_timeout": 3000,
         }
     }
 
@@ -1064,7 +1066,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operation_time_limit_check_period": 100,
-            "operation_controller_fail_timeout": 3000,
             "operation_job_metrics_push_period": 1000000000,
             "job_metrics_report_period": 100,
             "custom_job_metrics": [
