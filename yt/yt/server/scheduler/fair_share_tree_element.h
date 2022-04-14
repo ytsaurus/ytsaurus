@@ -456,7 +456,7 @@ public:
     const NLogging::TLogger& GetLogger() const override;
     bool AreDetailedLogsEnabled() const override;
 
-    virtual TString GetLoggingString() const;
+    TString GetLoggingString() const;
 
     TSchedulerCompositeElement* GetMutableParent();
     const TSchedulerCompositeElement* GetParent() const;
@@ -582,7 +582,7 @@ protected:
         const TError& alert,
         std::optional<TDuration> timeout);
 
-    TString GetLoggingAttributesString() const;
+    virtual void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const;
 
     //! Pre update methods.
     TJobResources ComputeSchedulingTagFilterResourceLimits() const;
@@ -1201,7 +1201,7 @@ public:
     TString GetId() const override;
     TOperationId GetOperationId() const;
 
-    TString GetLoggingString() const override;
+    void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
     bool AreDetailedLogsEnabled() const final;
 
     ESchedulableStatus GetStatus(bool atUpdate = true) const override;
