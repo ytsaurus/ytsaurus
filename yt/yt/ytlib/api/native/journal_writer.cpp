@@ -1446,10 +1446,10 @@ private:
                     break;
                 }
 
-                if (flushRowCount + batch->RowCount > Config_->MaxFlushRowCount) {
+                if (flushRowCount > 0 && flushRowCount + batch->RowCount > Config_->MaxFlushRowCount) {
                     break;
                 }
-                if (flushDataSize + batch->DataSize > Config_->MaxFlushDataSize) {
+                if (flushDataSize > 0 && flushDataSize + batch->DataSize > Config_->MaxFlushDataSize) {
                     break;
                 }
 
