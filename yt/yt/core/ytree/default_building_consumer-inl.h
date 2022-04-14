@@ -6,6 +6,7 @@
 
 #include "ephemeral_node_factory.h"
 #include "tree_builder.h"
+#include "convert.h"
 
 #include <yt/yt/core/yson/forwarding_consumer.h>
 
@@ -56,7 +57,7 @@ public:
                 break;
         }
 
-        T result;
+        T result = ConstructYTreeConvertableObject<T>();
         Deserialize(result, TreeBuilder_->EndTree());
         return result;
     }
