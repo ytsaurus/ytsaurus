@@ -256,14 +256,12 @@ struct ISchedulerStrategy
     virtual void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const NSecurityClient::TSerializableAccessControlList& baseAcl,
         const TString& user,
         EOperationType operationType) = 0;
 
-    //! Return new runtime parameters applying |update| to |origin|.
-    //! |origin| object is not changed.
+    //! Apply |update| to |origin|, changing |origin|.
     //! NOTE: |origin| can not be |nullptr|.
-    virtual TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+    virtual void UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
         const TString& user) = 0;

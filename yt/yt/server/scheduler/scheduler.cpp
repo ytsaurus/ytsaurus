@@ -678,7 +678,7 @@ public:
             GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag());
 
         auto runtimeParameters = New<TOperationRuntimeParameters>();
-        Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
+        InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
 
         auto operation = New<TOperation>(
             operationId,
@@ -1075,7 +1075,7 @@ public:
         // Perform asynchronous validation of the new runtime parameters.
         {
             ValidateOperationRuntimeParametersUpdate(operation, update);
-            auto newParams = Strategy_->UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
+            auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
             WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool()))
                 .ThrowOnError();
             if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideValidateRuntimeParameters) {
@@ -1084,7 +1084,7 @@ public:
         }
 
         // We recalculate params, since original runtime params may change during asynchronous validation.
-        auto newParams = Strategy_->UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
+        auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update, operation->GetAuthenticatedUser());
         if (update->ContainsPool()) {
             Strategy_->ValidatePoolLimits(operation.Get(), newParams);
         }
@@ -1921,7 +1921,7 @@ public:
             ->GetMediumDirectory();
         SerializeJobResourcesWithQuota(resources, mediumDirectory, consumer);
     }
-    
+
     void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const override
     {
         auto mediumDirectory = Bootstrap_
@@ -2109,6 +2109,60 @@ private:
     TExperimentAssigner ExperimentsAssigner_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    void InitOperationRuntimeParameters(
+        const TOperationRuntimeParametersPtr& runtimeParameters,
+        const TOperationSpecBasePtr& spec,
+        const TSerializableAccessControlList& baseAcl,
+        const TString& user,
+        EOperationType operationType)
+    {
+        runtimeParameters->Acl = baseAcl;
+        runtimeParameters->Acl.Entries.insert(
+            runtimeParameters->Acl.Entries.end(),
+            spec->Acl.Entries.begin(),
+            spec->Acl.Entries.end());
+
+        auto annotations = spec->Annotations;
+        auto description = spec->Description;
+        if (description) {
+            if (!annotations) {
+                annotations = GetEphemeralNodeFactory()->CreateMap();
+            }
+            annotations->AddChild("description", description);
+        }
+        runtimeParameters->Annotations = annotations;
+
+        Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, user, operationType);
+    }
+
+    TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+        const TOperationRuntimeParametersPtr& origin,
+        const TOperationRuntimeParametersUpdatePtr& update,
+        const TString& user)
+    {
+        YT_VERIFY(origin);
+        auto result = CloneYsonStruct(origin);
+
+        if (update->Acl) {
+            result->Acl = *update->Acl;
+        }
+
+        if (update->Annotations) {
+            auto annotationsPatch = *update->Annotations;
+            if (!result->Annotations) {
+                result->Annotations = annotationsPatch;
+            } else if (!annotationsPatch) {
+                result->Annotations = nullptr;
+            } else {
+                result->Annotations = NYTree::PatchNode(result->Annotations, annotationsPatch)->AsMap();
+            }
+        }
+
+        Strategy_->UpdateRuntimeParameters(result, update, user);
+
+        return result;
+    }
 
     void DoAttachJobContext(
         const NYTree::TYPath& path,

@@ -225,7 +225,6 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     SchedulerStrategy_->InitOperationRuntimeParameters(
         runtimeParameters,
         NYTree::ConvertTo<TOperationSpecBasePtr>(description.Spec),
-        NSecurityClient::TSerializableAccessControlList(),
         description.AuthenticatedUser,
         description.Type);
     auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
