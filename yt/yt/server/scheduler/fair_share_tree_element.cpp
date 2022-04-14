@@ -15,6 +15,7 @@
 #include <yt/yt/core/misc/heap.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
+#include <yt/yt/core/misc/string_builder.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -554,40 +555,34 @@ const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
     return EmptySchedulingTagFilter;
 }
 
-TString TSchedulerElement::GetLoggingAttributesString() const
+void TSchedulerElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
-    return Format(
-        "Status: %v, "
-        "DominantResource: %v, "
-        "DemandShare: %.6g, "
-        "UsageShare: %.6g, "
-        "LimitsShare: %.6g, "
-        "StrongGuaranteeShare: %.6g, "
-        "FairShare: %.6g, "
-        "Satisfaction: %.4lg, "
-        "LocalSatisfaction: %.4lg, "
-        "PromisedFairShare: %.6g, "
-        "StarvationStatus: %v, "
-        "Weight: %v, "
-        "Volume: %v",
-        GetStatus(),
-        Attributes_.DominantResource,
-        Attributes_.DemandShare,
-        Attributes_.UsageShare,
-        Attributes_.LimitsShare,
-        Attributes_.StrongGuaranteeShare,
-        Attributes_.FairShare,
-        Attributes_.SatisfactionRatio,
-        Attributes_.LocalSatisfactionRatio,
-        Attributes_.PromisedFairShare,
-        GetStarvationStatus(),
-        GetWeight(),
-        GetAccumulatedResourceRatioVolume());
+    delimitedBuilder->AppendFormat("Status: %v", GetStatus());
+    delimitedBuilder->AppendFormat("DominantResource: %v", Attributes_.DominantResource);
+    delimitedBuilder->AppendFormat("DemandShare: %.6g", Attributes_.DemandShare);
+    delimitedBuilder->AppendFormat("UsageShare: %.6g", Attributes_.UsageShare);
+    delimitedBuilder->AppendFormat("LimitsShare: %.6g", Attributes_.LimitsShare);
+    delimitedBuilder->AppendFormat("StrongGuaranteeShare: %.6g", Attributes_.StrongGuaranteeShare);
+    delimitedBuilder->AppendFormat("FairShare: %.6g", Attributes_.FairShare);
+    delimitedBuilder->AppendFormat("Satisfaction: %.4lg", Attributes_.SatisfactionRatio);
+    delimitedBuilder->AppendFormat("LocalSatisfaction: %.4lg", Attributes_.LocalSatisfactionRatio);
+    delimitedBuilder->AppendFormat("PromisedFairShare: %.6g", Attributes_.PromisedFairShare);
+    delimitedBuilder->AppendFormat("StarvationStatus: %v", GetStarvationStatus());
+    delimitedBuilder->AppendFormat("Weight: %v", GetWeight());
+    delimitedBuilder->AppendFormat("Volume: %v", GetAccumulatedResourceRatioVolume());
 }
 
 TString TSchedulerElement::GetLoggingString() const
 {
-    return Format("Scheduling info for tree %Qv = {%v}", GetTreeId(), GetLoggingAttributesString());
+    TStringBuilder builder;
+    builder.AppendFormat("Scheduling info for tree %Qv = {", GetTreeId());
+
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+    BuildLoggingStringAttributes(delimitedBuilder);
+
+    builder.AppendString("}");
+
+    return builder.Flush();
 }
 
 TJobResources TSchedulerElement::GetCurrentResourceUsage(const TDynamicAttributesList& dynamicAttributesList) const
@@ -3220,24 +3215,19 @@ bool TSchedulerOperationElement::HasAggressivelyStarvingElements(TScheduleJobsCo
     return PersistentAttributes_.StarvationStatus == EStarvationStatus::AggressivelyStarving;
 }
 
-TString TSchedulerOperationElement::GetLoggingString() const
+void TSchedulerOperationElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
-    return Format(
-        "Scheduling info for tree %Qv = {%v, "
-        "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, SchedulingSegmentModule: %v, "
-        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, "
-        "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v}",
-        GetTreeId(),
-        GetLoggingAttributesString(),
-        PendingJobCount_,
-        AggregatedMinNeededJobResources_,
-        SchedulingSegment(),
-        PersistentAttributes_.SchedulingSegmentModule,
-        GetPreemptableJobCount(),
-        GetAggressivelyPreemptableJobCount(),
-        GetPreemptionStatusStatistics(),
-        GetDeactivationReasons(),
-        GetMinNeededResourcesUnsatisfiedCount());
+    TSchedulerElement::BuildLoggingStringAttributes(delimitedBuilder);
+
+    delimitedBuilder->AppendFormat("PendingJobs: %v", PendingJobCount_);
+    delimitedBuilder->AppendFormat("AggregatedMinNeededResources: %v", AggregatedMinNeededJobResources_);
+    delimitedBuilder->AppendFormat("SchedulingSegment: %v", SchedulingSegment());
+    delimitedBuilder->AppendFormat("SchedulingSegmentModule: %v", PersistentAttributes_.SchedulingSegmentModule);
+    delimitedBuilder->AppendFormat("PreemptableRunningJobs: %v", GetPreemptableJobCount());
+    delimitedBuilder->AppendFormat("AggressivelyPreemptableRunningJobs: %v", GetAggressivelyPreemptableJobCount());
+    delimitedBuilder->AppendFormat("PreemptionStatusStatistics: %v", GetPreemptionStatusStatistics());
+    delimitedBuilder->AppendFormat("DeactivationReasons: %v", GetDeactivationReasons());
+    delimitedBuilder->AppendFormat("MinNeededResourcesUnsatisfiedCount: %v", GetMinNeededResourcesUnsatisfiedCount());
 }
 
 bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
