@@ -7,7 +7,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, map_reduce, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, map_reduce, print_debug, update_op_parameters, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
     get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, map, vanilla, run_test_vanilla, suspend_op,
@@ -300,8 +300,7 @@ class TestSchedulerRestart(YTEnvSetup):
 
         assert brief_spec == get(op.get_path() + "/@brief_spec")
 
-    # COMPAT(gritukan)
-    @authors("gritukan")
+    @authors("gritukan", "gepardo")
     def test_description_after_revival(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"foo": 0}])
@@ -340,9 +339,18 @@ class TestSchedulerRestart(YTEnvSetup):
         wait(check_cypress)
         wait(check_get_operation)
 
+        update_op_parameters(op.id, parameters={
+            "annotations": {
+                "abc": "ghi",
+            }
+        })
+        required_annotations["abc"] = "ghi"
+
+        wait(check_cypress)
+        wait(check_get_operation)
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            remove(annotations_path)
-            assert not exists(annotations_path)
+            pass
 
         wait(check_cypress)
         wait(check_get_operation)

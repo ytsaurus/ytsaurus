@@ -182,20 +182,6 @@ TOperation::TOperation(
     , Alerts_(alerts.begin(), alerts.end())
     , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
 {
-    // COMPAT(gritukan)
-    auto annotations = Spec_->Annotations;
-    auto description = Spec_->Description;
-    if (description) {
-        if (!annotations) {
-            annotations = GetEphemeralNodeFactory()->CreateMap();
-        }
-        annotations->AddChild("description", description);
-    }
-
-    if (annotations && !RuntimeParameters_->Annotations) {
-        RuntimeParameters_->Annotations = annotations;
-    }
-
     YT_VERIFY(SpecString_);
     Restart(TError()); // error is fake
 }

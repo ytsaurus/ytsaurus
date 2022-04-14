@@ -583,17 +583,10 @@ public:
     void InitOperationRuntimeParameters(
         const TOperationRuntimeParametersPtr& runtimeParameters,
         const TOperationSpecBasePtr& spec,
-        const TSerializableAccessControlList& baseAcl,
         const TString& user,
         EOperationType operationType) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        runtimeParameters->Acl = baseAcl;
-        runtimeParameters->Acl.Entries.insert(
-            runtimeParameters->Acl.Entries.end(),
-            spec->Acl.Entries.begin(),
-            spec->Acl.Entries.end());
 
         auto poolTrees = ParsePoolTrees(spec, operationType);
         for (const auto& poolTreeDescription : poolTrees) {
@@ -614,17 +607,14 @@ public:
         }
     }
 
-    TOperationRuntimeParametersPtr UpdateRuntimeParameters(
+    void UpdateRuntimeParameters(
         const TOperationRuntimeParametersPtr& origin,
         const TOperationRuntimeParametersUpdatePtr& update,
         const TString& user) override
     {
         YT_VERIFY(origin);
-        auto result = CloneYsonStruct(origin);
-        if (update->Acl) {
-            result->Acl = *update->Acl;
-        }
-        for (auto& [poolTree, treeParams] : result->SchedulingOptionsPerPoolTree) {
+
+        for (auto& [poolTree, treeParams] : origin->SchedulingOptionsPerPoolTree) {
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
                 treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdateIt->second);
@@ -638,19 +628,6 @@ public:
                 treeParams->Pool = GetTree(poolTree)->CreatePoolName(*update->Pool, user);
             }
         }
-
-        if (update->Annotations) {
-            auto annotationsPatch = *update->Annotations;
-            if (!result->Annotations) {
-                result->Annotations = annotationsPatch;
-            } else if (!annotationsPatch) {
-                result->Annotations = nullptr;
-            } else {
-                result->Annotations = NYTree::PatchNode(result->Annotations, annotationsPatch)->AsMap();
-            }
-        }
-
-        return result;
     }
 
     TFuture<void> ValidateOperationRuntimeParameters(
