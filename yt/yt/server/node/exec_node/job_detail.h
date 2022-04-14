@@ -414,8 +414,8 @@ private:
 
     bool NeedGpu();
 
-    void ProfileSensor(const TUserJobSensorPtr& sensor, NProfiling::ISensorWriter* writer, i64 value);
-    void ProfileSensor(const TString& sensorName, NProfiling::ISensorWriter* writer, i64 value);
+    void ProfileSensor(const TUserJobSensorPtr& sensor, NProfiling::ISensorWriter* writer, double value);
+    void ProfileSensor(const TString& sensorName, NProfiling::ISensorWriter* writer, double value);
 
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
     void CollectSensorsFromGpuInfo(NProfiling::ISensorWriter* writer);

@@ -2532,11 +2532,11 @@ bool TJob::NeedGpu()
     return GetResourceUsage().gpu() > 0;
 }
 
-void TJob::ProfileSensor(const TUserJobSensorPtr& sensor, ISensorWriter* writer, i64 value)
+void TJob::ProfileSensor(const TUserJobSensorPtr& sensor, ISensorWriter* writer, double value)
 {
     switch (sensor->Type) {
         case EMetricType::Counter:
-            writer->AddCounter(sensor->ProfilingName, value);
+            writer->AddCounter(sensor->ProfilingName, std::max<i64>(0, static_cast<i64>(value)));
             return;
         case EMetricType::Gauge:
             writer->AddGauge(sensor->ProfilingName, value);
@@ -2546,7 +2546,7 @@ void TJob::ProfileSensor(const TUserJobSensorPtr& sensor, ISensorWriter* writer,
     }
 }
 
-void TJob::ProfileSensor(const TString& sensorName, ISensorWriter* writer, i64 value)
+void TJob::ProfileSensor(const TString& sensorName, ISensorWriter* writer, double value)
 {
     ProfileSensor(GetOrCrash(SupportedMonitoringSensors_, sensorName), writer, value);
 }
