@@ -15,7 +15,7 @@ import pytest
 
 class TestNodeFlavors(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 5
+    NUM_NODES = 6
     NUM_SCHEDULERS = 1
     # TODO(gritukan): Chaos Node has all flavors.
     NUM_CHAOS_NODES = 1
@@ -35,6 +35,7 @@ class TestNodeFlavors(YTEnvSetup):
             ["tablet"],
             ["data", "exec"],
             ["data", "tablet"],
+            ["exec", "tablet"],
         ]
 
         if not hasattr(cls, "node_counter"):
@@ -61,7 +62,7 @@ class TestNodeFlavors(YTEnvSetup):
         assert len(data_nodes) == 3
 
         exec_nodes = get_exec_nodes()
-        assert len(exec_nodes) == 2
+        assert len(exec_nodes) == 3
 
         create("table", "//tmp/t")
         for i in range(5):
@@ -74,7 +75,7 @@ class TestNodeFlavors(YTEnvSetup):
     @authors("gritukan")
     def test_exec_nodes(self):
         exec_nodes = get_exec_nodes()
-        assert len(exec_nodes) == 2
+        assert len(exec_nodes) == 3
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=2)
         job_ids = wait_breakpoint(job_count=2)
@@ -85,7 +86,7 @@ class TestNodeFlavors(YTEnvSetup):
     @authors("gritukan")
     def test_tablet_nodes(self):
         tablet_nodes = get_tablet_nodes()
-        assert len(tablet_nodes) == 2
+        assert len(tablet_nodes) == 3
 
         sync_create_cells(2)
         for cell_id in ls("//sys/tablet_cells"):
