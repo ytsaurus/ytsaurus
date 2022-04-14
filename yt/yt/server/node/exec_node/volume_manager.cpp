@@ -763,7 +763,12 @@ private:
                         << ex;
                 }
 
-                layerSize = RunTool<TGetDirectorySizeAsRootTool>(layerDirectory);
+                auto config = New<TGetDirectorySizeAsRootConfig>();
+                config->Path = layerDirectory;
+                config->IgnoreUnavailableFiles = true;
+                config->DeduplicateByINodes = false;
+                
+                layerSize = RunTool<TGetDirectorySizeAsRootTool>(config);
                 YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
                     id,
                     layerSize,

@@ -913,9 +913,13 @@ void TSlotLocation::UpdateDiskResources()
                     // We have to calculate user directory size as root,
                     // because user job could have set restricted permissions for files and
                     // directories inside sandbox.
+                    auto config = New<TGetDirectorySizeAsRootConfig>();
+                    config->Path = path;
+                    config->IgnoreUnavailableFiles = true;
+                    config->DeduplicateByINodes = true;
                     slotDiskUsage += (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
-                        ? RunTool<TGetDirectorySizeAsRootTool>(path)
-                        : NFS::GetDirectorySize(path);
+                        ? RunTool<TGetDirectorySizeAsRootTool>(config)
+                        : NFS::GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
                 }
             }
             diskStatisticsPerSlot.insert(std::make_pair(

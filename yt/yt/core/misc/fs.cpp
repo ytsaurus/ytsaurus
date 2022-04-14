@@ -386,6 +386,7 @@ TFileStatistics GetFileStatistics(const TString& path)
     statistics.Size = static_cast<i64>(fileStat.st_size);
     statistics.ModificationTime = TInstant::Seconds(fileStat.st_mtime);
     statistics.AccessTime = TInstant::Seconds(fileStat.st_atime);
+    statistics.INode = fileStat.st_ino;
 #else
     ::FindClose(handle);
     statistics.Size = (static_cast<i64>(findData.nFileSizeHigh) << 32) + static_cast<i64>(findData.nFileSizeLow);
@@ -396,10 +397,12 @@ TFileStatistics GetFileStatistics(const TString& path)
     return statistics;
 }
 
-i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles)
+i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool deduplicateByINodes)
 {
     std::queue<TString> directories;
     directories.push(path);
+
+    THashSet<ui64> visitedInodes;
 
     i64 size = 0;
 
@@ -439,6 +442,13 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles)
         for (const auto& file : files) {
             wrapNoEntryError([&] () {
                 auto fileStatistics = GetFileStatistics(CombinePaths(directory, file));
+                if (deduplicateByINodes && fileStatistics.INode) {
+                    if (visitedInodes.contains(*fileStatistics.INode)) {
+                        return;
+                    } else {
+                        visitedInodes.insert(*fileStatistics.INode);
+                    }
+                }
                 if (fileStatistics.Size > 0) {
                     size += fileStatistics.Size;
                 }
