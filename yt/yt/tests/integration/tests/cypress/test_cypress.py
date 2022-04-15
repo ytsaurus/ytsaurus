@@ -1922,6 +1922,32 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
         assert exists("//tmp/t2")
 
+    @authors("egor-gutrov")
+    def test_copy_preserve_expiration_timeout(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"expiration_timeout": 1000},
+        )
+        copy("//tmp/t1", "//tmp/t2", preserve_expiration_timeout=True)
+        assert exists("//tmp/t2/@expiration_timeout")
+        time.sleep(2)
+        assert not exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+
+    @authors("egor-gutrov")
+    def test_copy_dont_preserve_expiration_timeout(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"expiration_timeout": 1000},
+        )
+        copy("//tmp/t1", "//tmp/t2")
+        assert not exists("//tmp/t2/@expiration_timeout")
+        time.sleep(2)
+        assert not exists("//tmp/t1")
+        assert exists("//tmp/t2")
+
     @authors("babenko")
     def test_copy_preserve_expiration_time_in_tx1(self):
         create(
