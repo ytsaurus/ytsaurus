@@ -443,10 +443,9 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool dedu
             wrapNoEntryError([&] () {
                 auto fileStatistics = GetFileStatistics(CombinePaths(directory, file));
                 if (deduplicateByINodes && fileStatistics.INode) {
-                    if (visitedInodes.contains(*fileStatistics.INode)) {
+                    auto insertResult = visitedInodes.insert(*fileStatistics.INode);
+                    if (!insertResult.second) { // File already visited
                         return;
-                    } else {
-                        visitedInodes.insert(*fileStatistics.INode);
                     }
                 }
                 if (fileStatistics.Size > 0) {
