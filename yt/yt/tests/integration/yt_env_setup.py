@@ -614,6 +614,8 @@ class YTEnvSetup(object):
 
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
+            config["ref_counted_tracker_dump_period"] = 5000
+
             config = cls.update_timestamp_provider_config(cluster_index, config)
             configs["node"][index] = config
             cls.modify_node_config(configs["node"][index])
