@@ -861,6 +861,7 @@ struct TPutFileToCacheOptions
     , public TTransactionalOptions
 {
     NYPath::TYPath CachePath;
+    bool PreserveExpirationTimeout = false;
     int RetryCount = 10;
 };
 

@@ -9,6 +9,7 @@ from yt.common import date_string_to_datetime, YtError
 
 import hashlib
 import pytest
+import time
 
 ##################################################################
 
@@ -180,6 +181,39 @@ class TestFileCache(YTEnvSetup):
 
         assert not exists(path)
 
+    @authors("egor-gutrov")
+    def test_dont_preserve_expiration_timeout(self):
+        content = b"abacaba"
+        content_md5 = hashlib.md5(content).hexdigest()
+
+        create("map_node", "//tmp/cache")
+        create("file", "//tmp/file")
+        write_file("//tmp/file", content, compute_md5=True)
+        set("//tmp/file/@expiration_timeout", 1000)
+        path = put_file_to_cache("//tmp/file", content_md5, cache_path="//tmp/cache")
+        assert exists("//tmp/file/@expiration_timeout")
+        assert not exists(path + "/@expiration_timeout")
+
+    @authors("egor-gutrov")
+    def test_preserve_expiration_timeout(self):
+        content = b"abacaba"
+        content_md5 = hashlib.md5(content).hexdigest()
+
+        create("map_node", "//tmp/cache")
+        create("file", "//tmp/file")
+        write_file("//tmp/file", content, compute_md5=True)
+        set("//tmp/file/@expiration_timeout", 1000)
+        path = put_file_to_cache(
+            "//tmp/file",
+            content_md5,
+            cache_path="//tmp/cache",
+            preserve_expiration_timeout=True,
+        )
+        assert exists("//tmp/file/@expiration_timeout")
+        assert exists(path + "/@expiration_timeout")
+        time.sleep(2)
+        assert not exists("//tmp/file")
+        assert not exists(path)
 
 ##################################################################
 

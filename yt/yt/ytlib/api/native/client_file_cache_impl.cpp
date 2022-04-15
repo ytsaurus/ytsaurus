@@ -234,6 +234,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
         copyOptions.IgnoreExisting = true;
         copyOptions.PrerequisiteRevisions = options.PrerequisiteRevisions;
         copyOptions.PrerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+        copyOptions.PreserveExpirationTimeout = options.PreserveExpirationTimeout;
 
         WaitFor(fileCacheClient->CopyNode(objectIdPath, destination, copyOptions))
             .ThrowOnError();

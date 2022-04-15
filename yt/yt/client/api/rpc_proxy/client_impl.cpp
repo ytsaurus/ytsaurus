@@ -1287,6 +1287,7 @@ TFuture<TPutFileToCacheResult> TClient::PutFileToCache(
     req->set_path(path);
     req->set_md5(expectedMD5);
     req->set_cache_path(options.CachePath);
+    req->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
 
     ToProto(req->mutable_prerequisite_options(), options);
     ToProto(req->mutable_master_read_options(), options);
