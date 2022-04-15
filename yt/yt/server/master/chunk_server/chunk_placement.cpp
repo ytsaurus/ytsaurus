@@ -1185,7 +1185,7 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
     // Consider a cluster with 3 data centers and chunk with erasure codec RS(6, 3). When one data center
     // is lost, at least one data center will store at least 5 of its replicas which is too much to repair
     // chunk from the rest parts.
-    if (!BannedStorageDataCenters_.empty()) {
+    if (BannedStorageDataCenters_.empty()) {
         maxReplicasPerDataCenter = std::min<int>(maxReplicasPerDataCenter, maxReplicasPerFailureDomain);
     }
 
