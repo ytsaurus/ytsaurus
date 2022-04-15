@@ -411,6 +411,9 @@ TTabletManagerConfig::TTabletManagerConfig()
 
     RegisterParameter("sleep_before_post_to_master", SleepBeforePostToMaster)
         .Default();
+
+    RegisterParameter("shuffle_locked_rows", ShuffleLockedRows)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

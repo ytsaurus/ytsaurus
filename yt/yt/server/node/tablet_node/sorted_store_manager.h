@@ -48,7 +48,13 @@ public:
     void LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef);
     void ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
-    void CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
+
+    // Returns false if key obtained from wire protocol differs from key obtained from #rowRef.
+    bool CommitRow(
+        TTransaction* transaction,
+        const NTableClient::TWireProtocolWriteCommand& command,
+        const TSortedDynamicRowRef& rowRef);
+
     void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
     void Mount(

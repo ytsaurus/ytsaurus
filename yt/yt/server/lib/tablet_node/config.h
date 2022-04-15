@@ -285,6 +285,10 @@ public:
     //! Testing option. Time to (synchronously) sleep before sending a hive message to master.
     std::optional<TDuration> SleepBeforePostToMaster;
 
+    //! Testing options. If true, locked rows of transaction are shuffled, simulating violation
+    //! of the invariant of isomorphism of locked rows list and write log.
+    bool ShuffleLockedRows;
+
     TTabletManagerConfig();
 };
 

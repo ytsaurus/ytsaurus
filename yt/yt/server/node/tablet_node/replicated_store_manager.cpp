@@ -74,54 +74,32 @@ bool TReplicatedStoreManager::ExecuteWrites(
 
     YT_ASSERT(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
-        auto command = reader->ReadCommand();
-        switch (command) {
-            case EWireProtocolCommand::WriteRow: {
-                auto row = reader->ReadUnversionedRow(false);
+        auto modifyRow = [&] (
+            const TUnversionedRow& row,
+            ERowModificationType modificationType)
+        {
+            LogStoreManager_->WriteRow(
+                BuildLogRow(row, modificationType, tableSchema, &LogRowBuilder_),
+                context);
+        };
+
+        auto command = reader->ReadWriteCommand(
+            Tablet_->TableSchemaData(),
+            /*captureValues*/ false);
+
+        Visit(command,
+            [&] (const TWriteRowCommand& command) { modifyRow(command.Row, ERowModificationType::Write); },
+            [&] (const TDeleteRowCommand& command) { modifyRow(command.Row, ERowModificationType::Delete); },
+            [&] (const TWriteAndLockRowCommand& command) { modifyRow(command.Row, ERowModificationType::Write); },
+            [&] (const TVersionedWriteRowCommand& command) {
                 LogStoreManager_->WriteRow(
-                    BuildLogRow(row, ERowModificationType::Write, tableSchema, &LogRowBuilder_),
+                    BuildLogRow(command.VersionedRow, tableSchema, &LogRowBuilder_),
                     context);
-                break;
-            }
-
-            case EWireProtocolCommand::ReadLockWriteRow:
-            case EWireProtocolCommand::WriteAndLockRow: {
-                if (command == EWireProtocolCommand::ReadLockWriteRow) {
-                    reader->ReadLegacyLockBitmap();
-                }
-
-                auto row = reader->ReadUnversionedRow(false);
-
-                if (command == EWireProtocolCommand::WriteAndLockRow) {
-                    reader->ReadLockMask();
-                }
-
-                LogStoreManager_->WriteRow(
-                    BuildLogRow(row, ERowModificationType::Write, tableSchema, &LogRowBuilder_),
-                    context);
-                break;
-            }
-
-            case EWireProtocolCommand::DeleteRow: {
-                auto key = reader->ReadUnversionedRow(false);
-                LogStoreManager_->WriteRow(
-                    BuildLogRow(key, ERowModificationType::Delete, tableSchema, &LogRowBuilder_),
-                    context);
-                break;
-            }
-
-            case EWireProtocolCommand::VersionedWriteRow: {
-                auto row = reader->ReadVersionedRow(Tablet_->TableSchemaData(), false);
-                LogStoreManager_->WriteRow(
-                    BuildLogRow(row, tableSchema, &LogRowBuilder_),
-                    context);
-                break;
-            }
-
-            default:
+            },
+            [&] (const auto& command) {
                 THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                    command);
-        }
+                    GetWireProtocolCommand(command));
+            });
     }
     return true;
 }

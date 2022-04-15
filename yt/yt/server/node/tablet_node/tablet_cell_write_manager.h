@@ -27,6 +27,7 @@ struct ITabletCellWriteManagerHost
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
     virtual TTablet* FindTablet(const TTabletId& id) const = 0;
+    virtual TTablet* GetTablet(const TTabletId& id) const = 0;
     virtual const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const = 0;
 
     virtual TTransactionManagerPtr GetTransactionManager() const = 0;
@@ -36,6 +37,7 @@ struct ITabletCellWriteManagerHost
     virtual void ValidateMemoryLimit(const std::optional<TString>& poolTag) = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() const = 0;
 
+    virtual bool ValidateRowRef(const TSortedDynamicRowRef& rowRef) = 0;
     virtual bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& rowRef) = 0;
 
     virtual void AdvanceReplicatedTrimmedRowCount(TTablet* tablet, TTransaction* transaction) = 0;

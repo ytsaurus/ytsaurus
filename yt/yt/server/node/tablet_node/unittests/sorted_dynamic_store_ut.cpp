@@ -48,6 +48,16 @@ protected:
         TLockMask LockMask;
     };
 
+    void WriteRow(TTransaction* transaction, TSortedDynamicRowWithLock dynamicRow, TUnversionedRow row)
+    {
+        Store_->WriteRow(transaction, dynamicRow, row);
+    }
+
+    void DeleteRow(TTransaction* transaction, TSortedDynamicRowWithLock dynamicRow)
+    {
+        Store_->DeleteRow(transaction, dynamicRow);
+    }
+
     void CommitRow(TTransaction* transaction, TSortedDynamicRowWithLock row)
     {
         Store_->CommitRow(transaction, row, row.LockMask);
@@ -148,6 +158,7 @@ protected:
         PrepareTransaction(transaction.get());
         PrepareRow(transaction.get(), dynamicRow);
         auto ts = CommitTransaction(transaction.get());
+        WriteRow(transaction.get(), dynamicRow, row);
         CommitRow(transaction.get(), dynamicRow);
         return ts;
     }
@@ -193,6 +204,7 @@ protected:
         PrepareTransaction(transaction.get());
         PrepareRow(transaction.get(), row);
         auto ts = CommitTransaction(transaction.get());
+        DeleteRow(transaction.get(), row);
         CommitRow(transaction.get(), row);
         return ts;
     }
@@ -255,7 +267,6 @@ protected:
                      list;
                      list = list.GetSuccessor())
                 {
-                    EXPECT_FALSE(list.HasUncommitted());
                     for (int j = 0; j < list.GetSize(); ++j) {
                         const auto& dynamicValue = list[j];
                         TVersionedValue versionedValue;
@@ -270,7 +281,6 @@ protected:
             auto dumpTimestamps = [&] (TRevisionList list) {
                 builder.AppendChar('[');
                 while (list) {
-                    EXPECT_FALSE(list.HasUncommitted());
                     for (int i = list.GetSize() - 1; i >= 0; --i) {
                         auto timestamp = Store_->TimestampFromRevision(list[i]);
                         builder.AppendFormat(" %v", timestamp);
@@ -369,6 +379,7 @@ public:
         PrepareTransaction(transaction.get());
         PrepareRow(transaction.get(), dynamicRow);
         CommitTransaction(transaction.get());
+        WriteRow(transaction.get(), dynamicRow, row);
         CommitRow(transaction.get(), dynamicRow);
         return dynamicRow;
     }
@@ -721,6 +732,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockWriteAndCommit)
     PrepareRow(transaction.get(), row);
 
     auto ts = CommitTransaction(transaction.get());
+    WriteRow(transaction.get(), row, BuildRow(rowString));
     CommitRow(transaction.get(), row);
 
     ASSERT_FALSE(row.GetDeleteLockFlag());
@@ -760,6 +772,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockDeleteAndCommit)
     PrepareRow(transaction.get(), row);
 
     auto ts2 = CommitTransaction(transaction.get());
+    DeleteRow(transaction.get(), row);
     CommitRow(transaction.get(), row);
 
     ASSERT_FALSE(row.GetDeleteLockFlag());
@@ -787,13 +800,15 @@ TEST_F(TSingleLockSortedDynamicStoreTest, PrelockManyWritesAndCommit)
             EXPECT_TRUE(AreRowsEqual(LookupRow(key, transaction->GetStartTimestamp()), "key=1;a=" + ToString(i - 1)));
         }
 
-        auto row = WriteRow(transaction.get(), BuildRow("key=1;a=" + ToString(i)), false);
+        auto row = BuildRow("key=1;a=" + ToString(i));
+        auto dynamicRow = WriteRow(transaction.get(), row, false);
 
         PrepareTransaction(transaction.get());
-        PrepareRow(transaction.get(), row);
+        PrepareRow(transaction.get(), dynamicRow);
 
         auto ts = CommitTransaction(transaction.get());
-        CommitRow(transaction.get(), row);
+        WriteRow(transaction.get(), dynamicRow, row);
+        CommitRow(transaction.get(), dynamicRow);
 
         timestamps.push_back(ts);
     }
@@ -854,6 +869,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteDelete)
     PrepareRow(transaction2.get(), row);
 
     auto ts2 = CommitTransaction(transaction2.get());
+    DeleteRow(transaction2.get(), row);
     CommitRow(transaction2.get(), row);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;c=value"));
@@ -870,17 +886,19 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteWrite)
 
     auto transaction2 = StartTransaction();
 
-    auto row = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14"), false);
+    auto newRow = BuildRow("key=1;b=3.14");
+    auto dynamicRow = WriteRow(transaction2.get(), newRow, false);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;a=1"));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1"));
 
     PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), row);
+    PrepareRow(transaction2.get(), dynamicRow);
 
     auto ts2 = CommitTransaction(transaction2.get());
-    CommitRow(transaction2.get(), row);
+    WriteRow(transaction2.get(), dynamicRow, newRow);
+    CommitRow(transaction2.get(), dynamicRow);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1"));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;b=3.14"));
@@ -980,13 +998,15 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteWriteConflict2)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    auto row = WriteRow(transaction1.get(), BuildRow("key=1;a=1"), true);
+    auto row = BuildRow("key=1;a=1");
+    auto dynamicRow = WriteRow(transaction1.get(), row, true);
 
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row);
+    PrepareRow(transaction1.get(), dynamicRow);
 
     CommitTransaction(transaction1.get());
-    CommitRow(transaction1.get(), row);
+    WriteRow(transaction1.get(), dynamicRow, row);
+    CommitRow(transaction1.get(), dynamicRow);
 
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction2.get(), BuildRow("key=1;a=2"), true));
 }
@@ -1065,6 +1085,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict2)
     auto transaction2 = StartTransaction();
     TLockMask lockMask;
     lockMask.Set(PrimaryLockIndex, ELockType::SharedStrong);
+    auto row = BuildRow("key=1", false);
     auto lockedRow = LockRow(transaction2.get(), BuildRow("key=1", false), true, lockMask);
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction1.get(), BuildRow("key=1;c=test2"), true));
 
@@ -1073,6 +1094,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadWriteConflict2)
     PrepareTransaction(transaction2.get());
     PrepareRow(transaction2.get(), lockedRow);
     CommitTransaction(transaction2.get());
+    WriteRow(transaction2.get(), lockedRow, row);
     CommitRow(transaction2.get(), lockedRow);
 
     EXPECT_EQ(TSortedDynamicRow(), WriteRow(transaction3.get(), BuildRow("key=1;c=test3"), true));
@@ -1132,17 +1154,19 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedCommit)
 
     auto transaction = StartTransaction();
 
-    auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
+    auto row = BuildRow("key=1;a=1");
+    auto dynamicRow = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
 
     PrepareTransaction(transaction.get());
-    PrepareRow(transaction.get(), row);
+    PrepareRow(transaction.get(), dynamicRow);
 
     bool blocked = false;
     Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
         EXPECT_EQ(PrimaryLockIndex, lockIndex);
-        EXPECT_EQ(blockedRow, row);
+        EXPECT_EQ(blockedRow, dynamicRow);
         CommitTransaction(transaction.get());
-        CommitRow(transaction.get(), row);
+        WriteRow(transaction.get(), dynamicRow, row);
+        CommitRow(transaction.get(), dynamicRow);
         blocked = true;
     }));
 
@@ -1474,22 +1498,28 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot5)
 TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot_YT2591)
 {
     auto transaction1 = StartTransaction();
-    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;b=2.7", false), false);
-    auto row2 = WriteRow(transaction1.get(), BuildRow("key=2;b=3.1", false), false);
+    auto row1 = BuildRow("key=1;b=2.7", false);
+    auto dynamicRow1 = WriteRow(transaction1.get(), row1, false);
+    auto row2 = BuildRow("key=2;b=3.1", false);
+    auto dynamicRow2 = WriteRow(transaction1.get(), row2, false);
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row1);
-    PrepareRow(transaction1.get(), row2);
+    PrepareRow(transaction1.get(), dynamicRow1);
+    PrepareRow(transaction1.get(), dynamicRow2);
     CommitTransaction(transaction1.get());
-    CommitRow(transaction1.get(), row1);
-    CommitRow(transaction1.get(), row2);
+    WriteRow(transaction1.get(), dynamicRow1, row1);
+    CommitRow(transaction1.get(), dynamicRow1);
+    WriteRow(transaction1.get(), dynamicRow2, row2);
+    CommitRow(transaction1.get(), dynamicRow2);
 
     auto transaction2 = StartTransaction();
-    auto row1_ = WriteRow(transaction2.get(), BuildRow("key=1;a=1", false), false);
-    EXPECT_EQ(row1, row1_);
+    auto row1_ = BuildRow("key=1;a=1", false);
+    auto dynamicRow1_ = WriteRow(transaction2.get(), row1_, false);
+    EXPECT_EQ(dynamicRow1, dynamicRow1_);
     PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), row1);
+    PrepareRow(transaction2.get(), dynamicRow1);
     CommitTransaction(transaction2.get());
-    CommitRow(transaction2.get(), row1);
+    WriteRow(transaction2.get(), dynamicRow1, row1_);
+    CommitRow(transaction2.get(), dynamicRow1);
 
     auto dump = DumpStore();
     ReserializeStore();
@@ -1583,33 +1613,37 @@ TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites1)
     auto key = BuildKey("1");
 
     auto transaction1 = StartTransaction();
-    auto row = WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), true, LockMask1);
+    auto row = BuildRow("key=1;a=1", false);
+    auto dynamicRow = WriteRow(transaction1.get(), row, true, LockMask1);
 
     auto transaction2 = StartTransaction();
-    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
-    EXPECT_EQ(row, row2);
+    auto row2 = BuildRow("key=1;b=3.14", false);
+    auto dynamicRow2 = WriteRow(transaction2.get(), row2, true, LockMask2);
+    EXPECT_EQ(dynamicRow, dynamicRow2);
 
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row);
+    PrepareRow(transaction1.get(), dynamicRow);
 
     auto ts1 = CommitTransaction(transaction1.get());
-    CommitRow(transaction1.get(), row);
+    WriteRow(transaction1.get(), dynamicRow, row);
+    CommitRow(transaction1.get(), dynamicRow);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1"));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
-    EXPECT_EQ(ts1, GetLastCommitTimestamp(row, 1));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow));
+    EXPECT_EQ(ts1, GetLastCommitTimestamp(dynamicRow, 1));
 
     PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), row2);
+    PrepareRow(transaction2.get(), dynamicRow2);
 
     auto ts2 = CommitTransaction(transaction2.get());
-    CommitRow(transaction2.get(), row2);
+    WriteRow(transaction2.get(), dynamicRow2, row2);
+    CommitRow(transaction2.get(), dynamicRow2);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1"));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;a=1;b=3.14"));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
-    EXPECT_EQ(ts1, GetLastCommitTimestamp(row, 1));
-    EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow));
+    EXPECT_EQ(ts1, GetLastCommitTimestamp(dynamicRow, 1));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(dynamicRow, 2));
 }
 
 TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites2)
@@ -1619,33 +1653,37 @@ TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites2)
     auto transaction1 = StartTransaction();
 
     auto transaction2 = StartTransaction();
-    auto row = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
+    auto row = BuildRow("key=1;b=3.14", false);
+    auto dynamicRow = WriteRow(transaction2.get(), row, true, LockMask2);
 
     PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), row);
+    PrepareRow(transaction2.get(), dynamicRow);
 
     auto ts2 = CommitTransaction(transaction2.get());
-    CommitRow(transaction2.get(), row);
+    WriteRow(transaction2.get(), dynamicRow, row);
+    CommitRow(transaction2.get(), dynamicRow);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;b=3.14"));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row, 1));
-    EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow, 1));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(dynamicRow, 2));
 
-    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), true, LockMask1);
-    EXPECT_EQ(row, row1);
+    auto row1 = BuildRow("key=1;a=1", false);
+    auto dynamicRow1 = WriteRow(transaction1.get(), row1, true, LockMask1);
+    EXPECT_EQ(dynamicRow, dynamicRow1);
 
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row1);
+    PrepareRow(transaction1.get(), dynamicRow1);
 
     auto ts1 = CommitTransaction(transaction1.get());
-    CommitRow(transaction1.get(), row1);
+    WriteRow(transaction1.get(), dynamicRow1, row1);
+    CommitRow(transaction1.get(), dynamicRow1);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1;b=3.14"));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;b=3.14"));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
-    EXPECT_EQ(ts1, GetLastCommitTimestamp(row, 1));
-    EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow));
+    EXPECT_EQ(ts1, GetLastCommitTimestamp(dynamicRow, 1));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(dynamicRow, 2));
 }
 
 TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites3)
@@ -1655,25 +1693,28 @@ TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites3)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
+    auto row1 = BuildRow("key=1;b=3.14", false);
+    auto dynamicRow1 = WriteRow(transaction1.get(), row1, true, LockMask2);
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row1);
+    PrepareRow(transaction1.get(), dynamicRow1);
 
-    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;a=1", false), true, LockMask1);
-    EXPECT_EQ(row1, row2);
+    auto row2 = BuildRow("key=1;a=1", false);
+    auto dynamicRow2 = WriteRow(transaction2.get(), row2, true, LockMask1);
+    EXPECT_EQ(dynamicRow1, dynamicRow2);
     PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), row2);
+    PrepareRow(transaction2.get(), dynamicRow2);
 
     AbortTransaction(transaction1.get());
-    AbortRow(transaction1.get(), row1);
+    AbortRow(transaction1.get(), dynamicRow1);
 
     auto ts2 = CommitTransaction(transaction2.get());
-    CommitRow(transaction2.get(), row2);
+    WriteRow(transaction2.get(), dynamicRow2, row2);
+    CommitRow(transaction2.get(), dynamicRow2);
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;a=1"));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row2));
-    EXPECT_EQ(ts2, GetLastCommitTimestamp(row2, 1));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row2, 2));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow2));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(dynamicRow2, 1));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow2, 2));
 }
 
 TEST_F(TMultiLockSortedDynamicStoreTest, WriteWriteConflict1)
@@ -1786,23 +1827,27 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), false, LockMask1);
-    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), false, LockMask2);
-    EXPECT_EQ(row1, row2);
-    auto row = row1;
+    auto row1 = BuildRow("key=1;a=1", false);
+    auto dynamicRow1 = WriteRow(transaction1.get(), row1, false, LockMask1);
+    auto row2 = BuildRow("key=1;b=3.14", false);
+    auto dynamicRow2 = WriteRow(transaction2.get(), row2, false, LockMask2);
+    EXPECT_EQ(dynamicRow1, dynamicRow2);
+    auto dynamicRow = dynamicRow1;
 
     // Mind the order!
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row1);
+    PrepareRow(transaction1.get(), dynamicRow1);
 
     PrepareTransaction(transaction2.get());
-    PrepareRow(transaction2.get(), row2);
+    PrepareRow(transaction2.get(), dynamicRow2);
 
     auto ts2 = CommitTransaction(transaction2.get());
-    CommitRow(transaction2.get(), row2);
+    WriteRow(transaction2.get(), dynamicRow2, row2);
+    CommitRow(transaction2.get(), dynamicRow2);
 
     auto ts1 = CommitTransaction(transaction1.get());
-    CommitRow(transaction1.get(), row1);
+    WriteRow(transaction1.get(), dynamicRow1, row1);
+    CommitRow(transaction1.get(), dynamicRow1);
 
     EXPECT_LE(ts2, ts1);
 
@@ -1810,9 +1855,9 @@ TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1;b=3.14"));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;b=3.14"));
-    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
-    EXPECT_EQ(ts1, GetLastCommitTimestamp(row, 1));
-    EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(dynamicRow));
+    EXPECT_EQ(ts1, GetLastCommitTimestamp(dynamicRow, 1));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(dynamicRow, 2));
 
     {
         auto reader = Store_->CreateSnapshotReader();

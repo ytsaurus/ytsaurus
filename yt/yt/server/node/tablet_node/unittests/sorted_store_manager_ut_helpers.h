@@ -94,6 +94,7 @@ public:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
+
         return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, TLockMask(), &context);
     }
 
@@ -130,7 +131,11 @@ public:
         StoreManager_->PrepareRow(transaction.get(), rowRef);
 
         CommitTransaction(transaction.get());
-        StoreManager_->CommitRow(transaction.get(), rowRef);
+
+        NTableClient::TWriteRowCommand command{
+            .Row = row
+        };
+        StoreManager_->CommitRow(transaction.get(), command, rowRef);
     }
 
     TSortedDynamicRowRef DeleteRow(
@@ -141,6 +146,7 @@ public:
         TWriteContext context;
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
+
         return StoreManager_->ModifyRow(row, ERowModificationType::Delete, TLockMask(), &context);
     }
 
@@ -157,7 +163,11 @@ public:
         StoreManager_->PrepareRow(transaction.get(), rowRef);
 
         CommitTransaction(transaction.get());
-        StoreManager_->CommitRow(transaction.get(), rowRef);
+
+        NTableClient::TDeleteRowCommand command{
+            .Row = key
+        };
+        StoreManager_->CommitRow(transaction.get(), command, rowRef);
     }
 
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
@@ -165,9 +175,12 @@ public:
         StoreManager_->PrepareRow(transaction, rowRef);
     }
 
-    void CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
+    void CommitRow(
+        TTransaction* transaction,
+        const NTableClient::TWireProtocolWriteCommand& command,
+        const TSortedDynamicRowRef& rowRef)
     {
-        StoreManager_->CommitRow(transaction, rowRef);
+        StoreManager_->CommitRow(transaction, command, rowRef);
     }
 
     void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)

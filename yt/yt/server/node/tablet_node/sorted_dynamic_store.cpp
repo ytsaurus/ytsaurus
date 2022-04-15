@@ -82,7 +82,6 @@ bool AllocateListForPushIfNeeded(
     TChunkedMemoryPool* pool)
 {
     if (*list) {
-        YT_ASSERT(!list->HasUncommitted());
         if (list->GetSize() < list->GetCapacity()) {
             return false;
         }
@@ -848,8 +847,8 @@ TSortedDynamicStore::TSortedDynamicStore(
     // Reserve the vector to prevent reallocations and thus enable accessing
     // it from arbitrary threads.
     RevisionToTimestamp_.ReserveChunks(MaxRevisionChunks);
-    RevisionToTimestamp_.PushBack(UncommittedTimestamp);
-    YT_VERIFY(TimestampFromRevision(UncommittedRevision) == UncommittedTimestamp);
+    RevisionToTimestamp_.PushBack(NullTimestamp);
+    RevisionToTimestamp_[NullRevision] = NullTimestamp;
 
     if (Tablet_->GetHashTableSize() > 0) {
         LookupHashTable_ = std::make_unique<TLookupHashTable>(
@@ -962,20 +961,15 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     auto commitTimestamp = context->CommitTimestamp;
 
     ui32 revision = commitTimestamp == NullTimestamp
-        ? UncommittedRevision
+        ? InvalidRevision
         : RegisterRevision(commitTimestamp);
 
-    auto addValues = [&] (TSortedDynamicRow dynamicRow) {
-        for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
-            const auto& value = row[index];
-            auto list = PrepareFixedValue(dynamicRow, value.Id);
-            auto& uncommittedValue = list.GetUncommitted();
-            uncommittedValue.Revision = revision;
-            CaptureUnversionedValue(&uncommittedValue, value);
-            if (commitTimestamp != NullTimestamp) {
-                CommitValue(dynamicRow, list, value.Id);
-            }
+    auto maybeWriteRow = [&] (TSortedDynamicRow dynamicRow) {
+        if (commitTimestamp == NullTimestamp) {
+            return;
         }
+
+        WriteRow(dynamicRow, row, revision);
     };
 
     auto newKeyProvider = [&] () -> TSortedDynamicRow {
@@ -992,7 +986,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
         }
 
          // Copy values.
-        addValues(dynamicRow);
+        maybeWriteRow(dynamicRow);
 
         InsertIntoLookupHashTable(row.Begin(), dynamicRow);
 
@@ -1021,7 +1015,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
         }
 
         // Copy values.
-        addValues(dynamicRow);
+        maybeWriteRow(dynamicRow);
 
         result = dynamicRow;
     };
@@ -1092,26 +1086,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
         TDynamicValue dynamicValue;
         CaptureUnversionedValue(&dynamicValue, *value);
         dynamicValue.Revision = revision;
-
-        int index = value->Id;
-        auto currentList = result.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-        if (currentList && currentList.HasUncommitted()) {
-            // This case was originally discovered in YT-10304 and fixed incorrectly.
-            // After YT-15606 this must not happen.
-            YT_LOG_ALERT("Performing a versioned write into a row that is locked by an unversioned write (Row: %v)",
-                row);
-
-            // XXX(babenko): drop this after a while.
-            auto oldUncommittedValue = currentList.GetUncommitted();
-            currentList.GetUncommitted() = dynamicValue;
-            CommitValue(result, currentList, index);
-            auto newList = PrepareFixedValue(result, index);
-            newList.GetUncommitted() = oldUncommittedValue;
-        } else {
-            auto newList = PrepareFixedValue(result, index);
-            newList.GetUncommitted() = dynamicValue;
-            CommitValue(result, newList, index);
-        }
+        AddValue(result, value->Id, std::move(dynamicValue));
     }
 
     std::sort(
@@ -1158,7 +1133,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
     YT_ASSERT(FlushRevision_ != MaxRevision);
 
-    auto migrateLocksAndValues = [&] (TSortedDynamicRow migratedRow) {
+    auto migrateLocks = [&] (TSortedDynamicRow migratedRow) {
         auto* locks = row.BeginLocks(KeyColumnCount_);
         auto* migratedLocks = migratedRow.BeginLocks(KeyColumnCount_);
 
@@ -1199,18 +1174,6 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
             }
         }
 
-        // Migrate fixed values.
-        for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
-            int lockIndex = ColumnIndexToLockIndex_[columnIndex];
-            if (locks[lockIndex].WriteTransaction == transaction) {
-                auto list = row.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
-                if (list.HasUncommitted()) {
-                    auto migratedList = PrepareFixedValue(migratedRow, columnIndex);
-                    CaptureUncommittedValue(&migratedList.GetUncommitted(), list.GetUncommitted(), columnIndex);
-                }
-            }
-        }
-
         Lock();
     };
 
@@ -1222,7 +1185,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
         // Migrate keys.
         SetKeys(migratedRow, row);
 
-        migrateLocksAndValues(migratedRow);
+        migrateLocks(migratedRow);
 
         InsertIntoLookupHashTable(RowToKey(row).Begin(), migratedRow);
 
@@ -1232,7 +1195,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
     auto existingKeyConsumer = [&] (TSortedDynamicRow migratedRow) {
         result = migratedRow;
 
-        migrateLocksAndValues(migratedRow);
+        migrateLocks(migratedRow);
     };
 
     Rows_->Insert(
@@ -1271,47 +1234,26 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
     auto commitTimestamp = transaction->GetCommitTimestamp();
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
-    auto* locks = row.BeginLocks(KeyColumnCount_);
+    auto* lock = row.BeginLocks(KeyColumnCount_);
+    auto* lockEnd = lock + ColumnLockCount_;
 
-    if (row.GetDeleteLockFlag()) {
-        AddDeleteRevision(row, commitRevision);
-    } else {
-        for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-            auto& lock = locks[ColumnIndexToLockIndex_[index]];
-            if (lock.WriteTransaction == transaction) {
-                auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-                if (list.HasUncommitted()) {
-                    list.GetUncommitted().Revision = commitRevision;
-                    CommitValue(row, list, index);
-                }
+    for (int index = 0; lock < lockEnd; ++lock, ++index) {
+        auto lockType = lockMask.Get(index);
+        if (lock->WriteTransaction == transaction) {
+            // Write Lock
+            YT_ASSERT(lockType == ELockType::Exclusive);
+            if (!row.GetDeleteLockFlag()) {
+                AddWriteRevision(*lock, commitRevision);
             }
-        }
-    }
-
-    // NB: Add write timestamp _after_ the values are committed.
-    // See remarks in TReaderBase.
-    {
-        auto* lock = row.BeginLocks(KeyColumnCount_);
-        auto* lockEnd = lock + ColumnLockCount_;
-
-        for (int index = 0; lock < lockEnd; ++lock, ++index) {
-            auto lockType = lockMask.Get(index);
-            if (lock->WriteTransaction == transaction) {
-                // Write Lock
-                YT_ASSERT(lockType == ELockType::Exclusive);
-                if (!row.GetDeleteLockFlag()) {
-                    AddWriteRevision(*lock, commitRevision);
-                }
-                lock->WriteTransaction = nullptr;
-                lock->PrepareTimestamp = NotPreparedTimestamp;
-            } else if (lockType == ELockType::SharedWeak) {
-                YT_ASSERT(lock->ReadLockCount > 0);
-                --lock->ReadLockCount;
-            } else if (lockType == ELockType::SharedStrong) {
-                YT_ASSERT(lock->ReadLockCount > 0);
-                --lock->ReadLockCount;
-                lock->LastReadLockTimestamp = std::max(lock->LastReadLockTimestamp, commitTimestamp);
-            }
+            lock->WriteTransaction = nullptr;
+            lock->PrepareTimestamp = NotPreparedTimestamp;
+        } else if (lockType == ELockType::SharedWeak) {
+            YT_ASSERT(lock->ReadLockCount > 0);
+            --lock->ReadLockCount;
+        } else if (lockType == ELockType::SharedStrong) {
+            YT_ASSERT(lock->ReadLockCount > 0);
+            --lock->ReadLockCount;
+            lock->LastReadLockTimestamp = std::max(lock->LastReadLockTimestamp, commitTimestamp);
         }
     }
 
@@ -1326,21 +1268,6 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
 {
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
     YT_ASSERT(FlushRevision_ != MaxRevision);
-
-    auto* locks = row.BeginLocks(KeyColumnCount_);
-
-    if (!row.GetDeleteLockFlag()) {
-        // Fixed values.
-        for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-            const auto& lock = locks[ColumnIndexToLockIndex_[index]];
-            if (lock.WriteTransaction == transaction) {
-                auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-                if (list.HasUncommitted()) {
-                    list.Abort();
-                }
-            }
-        }
-    }
 
     auto* lock = row.BeginLocks(KeyColumnCount_);
     auto* lockEnd = lock + ColumnLockCount_;
@@ -1362,6 +1289,28 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
     row.SetDeleteLockFlag(false);
 
     Unlock();
+}
+
+void TSortedDynamicStore::DeleteRow(TTransaction* transaction, TSortedDynamicRow dynamicRow)
+{
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(FlushRevision_ != MaxRevision);
+
+    auto commitTimestamp = transaction->GetCommitTimestamp();
+    auto commitRevision = RegisterRevision(commitTimestamp);
+
+    AddDeleteRevision(dynamicRow, commitRevision);
+}
+
+void TSortedDynamicStore::WriteRow(TTransaction* transaction, TSortedDynamicRow dynamicRow, TUnversionedRow row)
+{
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(FlushRevision_ != MaxRevision);
+
+    auto commitTimestamp = transaction->GetCommitTimestamp();
+    auto commitRevision = RegisterRevision(commitTimestamp);
+
+    WriteRow(dynamicRow, row, commitRevision);
 }
 
 TSortedDynamicRow TSortedDynamicStore::FindRow(TLegacyKey key)
@@ -1581,19 +1530,6 @@ void TSortedDynamicStore::AcquireRowLocks(
     Lock();
 }
 
-TValueList TSortedDynamicStore::PrepareFixedValue(TSortedDynamicRow row, int index)
-{
-    YT_ASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
-
-    auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
-        row.SetFixedValueList(index, list, KeyColumnCount_, ColumnLockCount_);
-    }
-    ++StoreValueCount_;
-    list.Prepare();
-    return list;
-}
-
 void TSortedDynamicStore::AddDeleteRevision(TSortedDynamicRow row, ui32 revision)
 {
     auto list = row.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
@@ -1665,14 +1601,35 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
     }
 }
 
-void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, int index)
+void TSortedDynamicStore::AddValue(TSortedDynamicRow row, int index, TDynamicValue value)
 {
-    row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetWireType(), list.GetUncommitted());
-    list.Commit();
+    YT_ASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
+
+    auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
+    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
+        row.SetFixedValueList(index, list, KeyColumnCount_, ColumnLockCount_);
+    }
+
+    row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetWireType(), value);
+    list.Push(std::move(value));
+
+    ++StoreValueCount_;
 
     if (static_cast<ssize_t>(row.GetDataWeight()) > MaxDataWeight_) {
         MaxDataWeight_ = row.GetDataWeight();
         MaxDataWeightWitness_ = row;
+    }
+}
+
+void TSortedDynamicStore::WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision)
+{
+    for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
+        const auto& value = row[index];
+
+        TDynamicValue dynamicValue;
+        CaptureUnversionedValue(&dynamicValue, value);
+        dynamicValue.Revision = revision;
+        AddValue(dynamicRow, value.Id, std::move(dynamicValue));
     }
 }
 
@@ -1703,9 +1660,9 @@ void TSortedDynamicStore::LoadRow(
         int lockIndex = ColumnIndexToLockIndex_[index];
         // Values are ordered by descending timestamps but we need ascending ones here.
         for (const auto* value = endValue - 1; value >= beginValue; --value) {
-            auto list = PrepareFixedValue(dynamicRow, index);
-            ui32 revision = CaptureVersionedValue(&list.GetUncommitted(), *value, timestampToRevision);
-            CommitValue(dynamicRow, list, index);
+            TDynamicValue dynamicValue;
+            ui32 revision = CaptureVersionedValue(&dynamicValue, *value, timestampToRevision);
+            AddValue(dynamicRow, index, std::move(dynamicValue));
             scratchData->WriteRevisions[lockIndex].push_back(revision);
         }
 
@@ -1772,17 +1729,6 @@ ui32 TSortedDynamicStore::CaptureVersionedValue(
     dst->Revision = revision;
     CaptureUnversionedValue(dst, src);
     return revision;
-}
-
-void TSortedDynamicStore::CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index)
-{
-    YT_ASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
-    YT_ASSERT(src.Revision == UncommittedRevision);
-
-    *dst = src;
-    if (!src.Null && IsStringLikeType(Schema_->Columns()[index].GetWireType())) {
-        dst->Data = CaptureStringValue(src.Data);
-    }
 }
 
 void TSortedDynamicStore::CaptureUnversionedValue(

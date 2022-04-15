@@ -350,7 +350,35 @@ public:
 
         void Commit()
         {
-            Self->CommitRow(Transaction, RowRef);
+            switch (*Type) {
+                case ERowModificationType::Write: {
+                    auto row = Row.ToRow();
+                    TWriteRowCommand command{
+                        .Row = row
+                    };
+                    Self->CommitRow(Transaction, command, RowRef);
+                    break;
+                }
+                case ERowModificationType::Delete: {
+                    auto row = Row.ToRow();
+                    TDeleteRowCommand command{
+                        .Row = row
+                    };
+                    Self->CommitRow(Transaction, command, RowRef);
+                    break;
+                }
+                case ERowModificationType::WriteAndLock: {
+                    auto row = Row.ToRow();
+                    TWriteAndLockRowCommand command{
+                        .Row = row,
+                        .LockMask = LockMask
+                    };
+                    Self->CommitRow(Transaction, command, RowRef);
+                    break;
+                }
+                default:
+                    YT_ABORT();
+            }
         }
 
         void Abort()

@@ -1760,6 +1760,30 @@ class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
 class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "timestamp_provider": {
+                "update_period": 100
+            }
+        },
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 1 * 1024 * 1024
+                }
+            }
+        },
+        "tablet_node": {
+            "tablet_manager": {
+                # This options is not related to portals, but we want to test
+                # modes both with and without row shuffle, so we do shuffle in
+                # this test.
+                "shuffle_locked_rows": True,
+            }
+        }
+    }
+
 
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     DRIVER_BACKEND = "rpc"

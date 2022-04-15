@@ -59,11 +59,7 @@ struct TEditListHeader
     //! Only updated _after_ the slot is written to.
     std::atomic<ui16> Size;
 
-    //! Number of uncommitted slots in the list (following the committed ones).
-    //! Either 0 or 1.
-    ui16 UncommittedSize;
-
-    //! Sum of (committed) sizes of all successors.
+    //! Sum of sizes of all successors.
     ui16 SuccessorsSize;
 
     //! Number of slots in the list.
@@ -150,8 +146,7 @@ public:
 
     void SetSuccessor(TEditList successor)
     {
-        YT_ASSERT(!HasUncommitted());
-        YT_ASSERT(successor && !successor.HasUncommitted());
+        YT_ASSERT(successor);
         Header_->Successor = successor.Header_;
         Header_->SuccessorsSize = successor.GetFullSize();
     }
@@ -227,20 +222,6 @@ public:
         return Begin()[index];
     }
 
-
-    const T& GetUncommitted() const
-    {
-        YT_ASSERT(HasUncommitted());
-        return (*this)[GetSize()];
-    }
-
-    T& GetUncommitted()
-    {
-        YT_ASSERT(HasUncommitted());
-        return (*this)[GetSize()];
-    }
-
-
     void Push(T value)
     {
         YT_ASSERT(Header_->Size < Header_->Capacity);
@@ -248,36 +229,10 @@ public:
         ++Header_->Size;
     }
 
-    void Prepare()
-    {
-        YT_ASSERT(Header_->UncommittedSize == 0);
-        YT_ASSERT(Header_->Size < Header_->Capacity);
-        ++Header_->UncommittedSize;
-    }
-
-    bool HasUncommitted() const
-    {
-        return Header_ && Header_->UncommittedSize > 0;
-    }
-
-    void Commit()
-    {
-        YT_ASSERT(Header_->UncommittedSize == 1);
-        Header_->UncommittedSize = 0;
-        ++Header_->Size;
-    }
-
-    void Abort()
-    {
-        YT_ASSERT(Header_->UncommittedSize == 1);
-        Header_->UncommittedSize = 0;
-    }
-
 private:
-    friend class  TSortedDynamicRow;
+    friend class TSortedDynamicRow;
 
     TEditListHeader* Header_;
-
 };
 
 static_assert(

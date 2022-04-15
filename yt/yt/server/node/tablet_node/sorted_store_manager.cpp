@@ -131,50 +131,28 @@ bool TSortedStoreManager::ExecuteWrites(
     while (!reader->IsFinished()) {
         TSortedDynamicRowRef rowRef;
         auto readerCheckpoint = reader->GetCurrent();
-        auto command = reader->ReadCommand();
 
-        switch (command) {
-            case EWireProtocolCommand::WriteRow: {
-                auto row = reader->ReadUnversionedRow(false);
-                rowRef = ModifyRow(row, ERowModificationType::Write, TLockMask(), context);
-                break;
-            }
+        auto command = reader->ReadWriteCommand(
+            Tablet_->TableSchemaData(),
+            /*captureValues*/ false);
 
-            case EWireProtocolCommand::DeleteRow: {
-                auto key = reader->ReadUnversionedRow(false);
-                rowRef = ModifyRow(key, ERowModificationType::Delete, TLockMask(), context);
-                break;
-            }
-
-            case EWireProtocolCommand::VersionedWriteRow: {
-                auto row = reader->ReadVersionedRow(Tablet_->TableSchemaData(), false);
-                rowRef = ModifyRow(row, context);
-                break;
-            }
-
-            case EWireProtocolCommand::ReadLockWriteRow:
-            case EWireProtocolCommand::WriteAndLockRow: {
-                TLockMask locks;
-                if (command == EWireProtocolCommand::ReadLockWriteRow) {
-                    TLegacyLockMask legacyLocks(reader->ReadLegacyLockBitmap());
-                    for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
-                        locks.Set(index, legacyLocks.Get(index));
-                    }
-                }
-
-                auto key = reader->ReadUnversionedRow(false);
-
-                if (command == EWireProtocolCommand::WriteAndLockRow) {
-                    locks = reader->ReadLockMask();
-                }
-
-                rowRef = ModifyRow(key, ERowModificationType::WriteAndLock, locks, context);
-                break;
-            }
-
-            default:
-                YT_ABORT();
-        }
+        Visit(command,
+            [&] (const TWriteRowCommand& command) {
+                rowRef = ModifyRow(command.Row, ERowModificationType::Write, TLockMask(), context);
+            },
+            [&] (const TDeleteRowCommand& command) {
+                rowRef = ModifyRow(command.Row, ERowModificationType::Delete, TLockMask(), context);
+            },
+            [&] (const TVersionedWriteRowCommand& command) {
+                rowRef = ModifyRow(command.VersionedRow, context);
+            },
+            [&] (const TWriteAndLockRowCommand& command) {
+                rowRef = ModifyRow(command.Row, ERowModificationType::WriteAndLock, command.LockMask, context);
+            },
+            [&] (const auto& command) {
+                THROW_ERROR_EXCEPTION("Unsupported write command %v",
+                    GetWireProtocolCommand(command));
+            });
 
         if (!rowRef) {
             reader->SetCurrent(readerCheckpoint);
@@ -273,16 +251,53 @@ void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDyn
     rowRef.Store->PrepareRow(transaction, rowRef.Row);
 }
 
-void TSortedStoreManager::CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
+bool TSortedStoreManager::CommitRow(
+    TTransaction* transaction,
+    const NTableClient::TWireProtocolWriteCommand& command,
+    const TSortedDynamicRowRef& rowRef)
 {
+    bool keyDiffers = false;
+    auto validateWireKey = [&] (const TUnversionedRow& row) {
+        const auto& comparer = ActiveStore_->GetRowKeyComparer();
+        if (comparer(rowRef.Row, ToKeyRef(row, KeyColumnCount_)) != 0) {
+            keyDiffers = true;
+        }
+    };
+
+    Visit(command,
+        [&] (const TWriteRowCommand& command) { validateWireKey(command.Row); },
+        [&] (const TDeleteRowCommand& command) { validateWireKey(command.Row); },
+        [&] (const TWriteAndLockRowCommand& command) { validateWireKey(command.Row); },
+        [&] (auto) { YT_ABORT(); });
+
+    if (keyDiffers) {
+        return false;
+    }
+
+    auto applyCommand = [&] (
+        const TSortedDynamicStorePtr& store,
+        TSortedDynamicRow dynamicRow)
+    {
+        Visit(command,
+            [&] (const TWriteRowCommand& command) { store->WriteRow(transaction, dynamicRow, command.Row); },
+            [&] (TDeleteRowCommand) { store->DeleteRow(transaction, dynamicRow); },
+            [&] (const TWriteAndLockRowCommand& command) { store->WriteRow(transaction, dynamicRow, command.Row); },
+            [&] (auto) { YT_ABORT(); });
+    };
+
     if (rowRef.Store == ActiveStore_) {
+        applyCommand(ActiveStore_, rowRef.Row);
         ActiveStore_->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
     } else {
         auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row, rowRef.LockMask);
+        applyCommand(rowRef.Store, rowRef.Row);
         rowRef.Store->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
         CheckForUnlockedStore(rowRef.Store);
+        applyCommand(ActiveStore_, migratedRow);
         ActiveStore_->CommitRow(transaction, migratedRow, rowRef.LockMask);
     }
+
+    return true;
 }
 
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)

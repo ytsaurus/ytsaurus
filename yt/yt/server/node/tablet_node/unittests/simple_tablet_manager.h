@@ -45,12 +45,14 @@ public:
     void OnTabletRowUnlocked(TTablet* tablet) override;
     TTablet* GetTabletOrThrow(TTabletId id) override;
     TTablet* FindTablet(const TTabletId& id) const override;
+    TTablet* GetTablet(const TTabletId& id) const override;
     const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const override;
     TTransactionManagerPtr GetTransactionManager() const override;
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const override;
     TTabletManagerConfigPtr GetConfig() const override;
     void ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/) override;
     TTimestamp GetLatestTimestamp() const override;
+    bool ValidateRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
     bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
     void AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/) override;
     TCellId GetCellId() const override;
