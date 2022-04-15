@@ -398,7 +398,7 @@ class TestDataCenters(YTEnvSetup):
         chunk_id = self._create_chunk(erasure_codec="isa_reed_solomon_3_3")
         assert self._get_replica_data_centers(chunk_id) == ["d2"] * 6
 
-        wait(lambda: chunk_id in ls("//sys/unsafely_placed_chunks"))
+        assert not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id))
 
     @authors("gritukan")
     def test_ban_all_data_centers(self):
