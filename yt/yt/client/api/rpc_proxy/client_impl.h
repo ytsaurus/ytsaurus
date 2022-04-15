@@ -107,6 +107,10 @@ public:
         const std::vector<int>& tabletIndexes,
         const NApi::TGetTabletInfosOptions& options) override;
 
+    TFuture<TGetTabletErrorsResult> GetTabletErrors(
+        const NYPath::TYPath& path,
+        const NApi::TGetTabletErrorsOptions& options) override;
+
     TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
         const TString& tabletCellBundle,
         const std::vector<NYPath::TYPath>& movableTables,

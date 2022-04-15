@@ -24,7 +24,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
-    AsyncLastCommittedTimestamp, create_medium, raises_yt_error)
+    AsyncLastCommittedTimestamp, create_medium, raises_yt_error, get_tablet_errors)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
@@ -1692,10 +1692,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         assert get("#" + tablet_id + "/@table_path") == "//tmp/t"
 
-    @authors("ifsmirnov")
+    @authors("ifsmirnov", "alexelexa")
     def test_tablet_error_attributes(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [33], [66]])
         sync_mount_table("//tmp/t")
 
         # Decommission all unused nodes to make flush fail due to
@@ -1712,15 +1713,17 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@replication_factor", 10)
 
+        tablet_count = 3
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        rows = [{"key": i * 40, "value": str(i)} for i in range(tablet_count)]
+        insert_rows("//tmp/t", rows)
         unmount_table("//tmp/t")
 
-        def check_orchid():
+        def check_orchid(tablet_index):
             if get("//tmp/t/@tablet_error_count") == 0:
                 return False
 
-            tablet = get("//tmp/t/@tablets/0/tablet_id")
+            tablet = get("//tmp/t/@tablets/{}/tablet_id".format(tablet_index))
             address = get_tablet_leader_address(tablet)
             orchid = self._find_tablet_orchid(address, tablet)
             errors = orchid["errors"]
@@ -1729,13 +1732,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 and errors[0]["attributes"]["background_activity"] == "flush"
                 and errors[0]["attributes"]["tablet_id"] == tablet
                 and get("#" + tablet + "/@state") == "unmounting"
-                and get("//tmp/t/@tablets/0/error_count") == 1
-                and get("//tmp/t/@tablet_error_count") == 1
+                and get("//tmp/t/@tablets/{}/error_count".format(tablet_index)) == 1
+                and get("//tmp/t/@tablet_error_count") == tablet_count
             )
 
-        def check_get_tablet_infos():
-            tablet = get("//tmp/t/@tablets/0/tablet_id")
-            tablet_infos = get_tablet_infos("//tmp/t", [0], request_errors=True)
+        def check_get_tablet_infos(tablet_index):
+            tablet = get("//tmp/t/@tablets/{}/tablet_id".format(tablet_index))
+            tablet_infos = get_tablet_infos("//tmp/t", [tablet_index], request_errors=True)
             errors = tablet_infos["tablets"][0]["tablet_errors"]
             return (
                 len(errors) == 1
@@ -1743,8 +1746,23 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 and errors[0]["attributes"]["tablet_id"] == tablet
             )
 
-        wait(check_orchid)
-        wait(check_get_tablet_infos)
+        def check_get_tablet_errors(tablet_index, limit=None):
+            tablet = get("//tmp/t/@tablets/{}/tablet_id".format(tablet_index))
+            if limit is not None:
+                tablet_errors = get_tablet_errors("//tmp/t", limit=limit)["tablet_errors"]
+            else:
+                tablet_errors = get_tablet_errors("//tmp/t")["tablet_errors"]
+            return (
+                len(tablet_errors) == (tablet_count if limit is None else limit)
+                and tablet in tablet_errors
+                and len(tablet_errors[tablet]) == 1
+                and tablet_errors[tablet][0]["attributes"]["background_activity"] == "flush"
+                and tablet_errors[tablet][0]["attributes"]["tablet_id"] == tablet
+            )
+
+        wait(lambda: all(check_orchid(idx) for idx in range(tablet_count)))
+        wait(lambda: all(check_get_tablet_infos(idx) for idx in range(tablet_count)))
+        assert all(check_get_tablet_errors(idx) for idx in range(tablet_count))
 
     @authors("ifsmirnov")
     def test_tablet_error_count(self):

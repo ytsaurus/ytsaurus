@@ -431,6 +431,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetTabletErrorsCommand
+    : public TTypedCommand<NApi::TGetTabletErrorsOptions>
+{
+public:
+    TGetTabletErrorsCommand();
+
+private:
+    NYPath::TYPath Path;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetTablePivotKeysCommand
     : public TTypedCommand<NApi::TGetTablePivotKeysOptions>
 {

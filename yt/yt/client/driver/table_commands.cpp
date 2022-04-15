@@ -1310,4 +1310,40 @@ void TGetTabletInfosCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetTabletErrorsCommand::TGetTabletErrorsCommand()
+{
+    RegisterParameter("path", Path);
+    RegisterParameter("limit", Options.Limit)
+        .Default()
+        .GreaterThan(0);
+}
+
+void TGetTabletErrorsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto client = context->GetClient();
+    auto asyncErrors = client->GetTabletErrors(Path, Options);   
+    auto errors = WaitFor(asyncErrors)
+        .ValueOrThrow();
+
+    ProduceOutput(context, [&] (IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("tablet_errors").DoMapFor(errors.TabletErrors, [] (auto fluent, const auto& pair) {
+                    fluent
+                        .Item(ToString(pair.first)).DoListFor(pair.second, [] (auto fluent, const auto& error) {
+                            fluent.Item().Value(error);
+                        });
+                })
+                .Item("replication_errors").DoMapFor(errors.ReplicationErrors, [] (auto fluent, const auto& pair) {
+                    fluent
+                        .Item(ToString(pair.first)).DoListFor(pair.second, [] (auto fluent, const auto& error) {
+                            fluent.Item().Value(error);
+                        });
+                })
+            .EndMap();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

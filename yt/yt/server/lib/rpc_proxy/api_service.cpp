@@ -649,6 +649,7 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -3505,9 +3506,9 @@ private:
             context,
             [=] {
                 return client->GetTabletInfos(
-                path,
-                tabletIndexes,
-                options);
+                    path,
+                    tabletIndexes,
+                    options);
             },
             [] (const auto& context, const auto& tabletInfos) {
                 auto* response = &context->Response();
@@ -3531,6 +3532,40 @@ private:
                             ToProto(protoReplicaInfo->mutable_replication_error(), replicaInfo.ReplicationError);
                         }
                     }
+                }
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTabletErrors)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+        context->SetRequestInfo("Path: %v", path);
+
+        TGetTabletErrorsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_limit()) {
+            options.Limit = request->limit();
+        }
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetTabletErrors(
+                    path,
+                    options);
+            },
+            [] (const auto& context, const auto& tabletErrors) {
+                auto* response = &context->Response();
+                for (const auto& [tabletId, errors] : tabletErrors.TabletErrors) {
+                    ToProto(response->add_tablet_ids(), tabletId);
+                    ToProto(response->add_tablet_errors()->mutable_errors(), errors);
+                }
+
+                for (const auto& [replicaId, errors] : tabletErrors.ReplicationErrors) {
+                    ToProto(response->add_replica_ids(), replicaId);
+                    ToProto(response->add_replication_errors()->mutable_errors(), errors);
                 }
             });
     }

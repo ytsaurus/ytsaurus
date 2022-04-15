@@ -847,6 +847,11 @@ def get_tablet_infos(path, tablet_indexes, **kwargs):
     return execute_command("get_tablet_infos", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
+def get_tablet_errors(path, **kwargs):
+    kwargs["path"] = path
+    return execute_command("get_tablet_errors", kwargs, parse_yson=True, unwrap_v4_result=False)
+
+
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
 

@@ -151,6 +151,10 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(0)
         .Default(1000);
 
+    RegisterParameter("default_get_tablet_errors_limit", DefaultGetTabletErrorsLimit)
+        .Default(5)
+        .GreaterThan(0);
+
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
     RegisterParameter("function_registry_cache", FunctionRegistryCache)

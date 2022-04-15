@@ -128,6 +128,8 @@ public:
     NCompression::ECodec LookupRowsResponseCodec;
     int MaxRowsPerLookupRequest;
 
+    int DefaultGetTabletErrorsLimit;
+
     NYPath::TYPath UdfRegistryPath;
     TAsyncExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
