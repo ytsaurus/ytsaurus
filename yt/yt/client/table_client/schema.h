@@ -44,7 +44,8 @@ public:
 
     TLegacyLockBitmap GetBitmap() const;
 
-    TLegacyLockMask& operator = (const TLegacyLockMask& other) = default;
+    TLegacyLockMask(const TLegacyLockMask& other) = default;
+    TLegacyLockMask& operator= (const TLegacyLockMask& other) = default;
 
     static constexpr int BitsPerType = 2;
     static constexpr TLegacyLockBitmap TypeMask = (1 << BitsPerType) - 1;
