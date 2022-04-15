@@ -300,7 +300,7 @@ public:
     //! it will restart automatically.
     TDuration LeaderSwitchTimeout;
 
-    //! Maximum amount of mutations stored in leader's mutation queue.
+    //! Maximum number of mutations stored in leader's mutation queue.
     int MaxQueuedMutationCount;
 
     //! Leader's mutation queue data size limit, in bytes.
@@ -333,6 +333,10 @@ public:
 
     //! Interval between checkpoint checks.
     TDuration CheckpointCheckPeriod;
+
+    //! Maximum number of changelogs to be created during changelog acquisition if
+    //! there is a gap between the last changelog and changelog being acquired.
+    int MaxChangelogsToCreateDuringAcquisition;
 
     TDistributedHydraManagerConfig();
 };

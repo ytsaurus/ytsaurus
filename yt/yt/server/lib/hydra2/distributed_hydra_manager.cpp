@@ -1333,7 +1333,8 @@ private:
                 .ThrowOnError();
         }
 
-        for (int id = currentChangelogId + 1; id <= changelogId; ++id) {
+        auto startChangelogId = std::max(currentChangelogId + 1, changelogId - Config_->MaxChangelogsToCreateDuringAcquisition);
+        for (int id = startChangelogId; id <= changelogId; ++id) {
             auto changelog = WaitFor(changelogStore->CreateChangelog(id, {}))
                 .ValueOrThrow();
             epochContext->FollowerCommitter->RegisterNextChangelog(id, changelog);

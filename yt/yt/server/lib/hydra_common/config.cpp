@@ -280,6 +280,9 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
     RegisterParameter("checkpoint_check_period", CheckpointCheckPeriod)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("max_changelogs_to_create_during_acquisition", MaxChangelogsToCreateDuringAcquisition)
+        .Default(10);
+
     RegisterPostprocessor([&] {
         if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
