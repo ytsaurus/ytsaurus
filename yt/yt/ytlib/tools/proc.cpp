@@ -197,10 +197,20 @@ void TChownChmodTool::operator()(TChownChmodConfigPtr config) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TGetDirectorySizeAsRootTool::operator()(const TGetDirectorySizeAsRootConfigPtr& config) const
+std::vector<i64> TGetDirectorySizesAsRootTool::operator()(const TGetDirectorySizesAsRootConfigPtr& config) const
 {
     TrySetUid(0);
-    return NFS::GetDirectorySize(config->Path, config->IgnoreUnavailableFiles, config->DeduplicateByINodes);
+
+    const auto& paths = config->Paths;
+
+    std::vector<i64> sizes;
+    sizes.reserve(paths.size());
+    for (const auto& path : paths) {
+        auto size = NFS::GetDirectorySize(path, config->IgnoreUnavailableFiles, config->DeduplicateByINodes);
+        sizes.push_back(size);
+    }
+
+    return sizes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
