@@ -238,7 +238,7 @@ public:
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
-        , TreeScheduler_(New<TFairShareTreeJobScheduler>(treeId, StrategyHost_, Config_, TreeProfiler_))
+        , TreeScheduler_(New<TFairShareTreeJobScheduler>(TreeId_, StrategyHost_, Config_, TreeProfiler_))
         , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
