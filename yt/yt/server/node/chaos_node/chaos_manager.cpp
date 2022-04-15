@@ -421,19 +421,21 @@ private:
     void HydraPrepareCreateReplicationCard(
         TTransaction* /*transaction*/,
         NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
-        bool /*persistent*/)
+        const TTransactionPrepareOptions& /*options*/)
     { }
 
     void HydraCommitCreateReplicationCard(
         TTransaction* /*transaction*/,
-        NChaosClient::NProto::TReqCreateReplicationCard* request)
+        NChaosClient::NProto::TReqCreateReplicationCard* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         CreateReplicationCardImpl(request);
     }
 
     void HydraAbortCreateReplicationCard(
         TTransaction* /*transaction*/,
-        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/)
+        NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
+        const TTransactionAbortOptions& /*options*/)
     { }
 
     void HydraRemoveReplicationCard(

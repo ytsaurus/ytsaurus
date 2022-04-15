@@ -129,14 +129,16 @@ public:
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp,
-        TClusterTag prepareTimestampClusterTag,
-        const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/) override
+        const TTransactionPrepareOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        ValidateTimestampClusterTag(transactionId, prepareTimestampClusterTag, prepareTimestamp);
+        ValidateTimestampClusterTag(
+            transactionId,
+            options.PrepareTimestampClusterTag,
+            options.PrepareTimestamp);
+
+        auto persistent = options.Persistent;
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         auto state = transaction->GetState(persistent);
@@ -158,7 +160,7 @@ public:
 
         if (state == ETransactionState::Active) {
             YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
-            transaction->SetPrepareTimestamp(prepareTimestamp);
+            transaction->SetPrepareTimestamp(options.PrepareTimestamp);
 
             if (persistent) {
                 transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -166,18 +168,20 @@ public:
                 transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
             }
 
-            RunPrepareTransactionActions(transaction, persistent);
+            RunPrepareTransactionActions(transaction, options);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %llx@%v)",
                 transactionId,
                 persistent,
-                prepareTimestamp,
-                prepareTimestampClusterTag);
+                options.PrepareTimestamp,
+                options.PrepareTimestampClusterTag);
         }
     }
 
-    void PrepareTransactionAbort(TTransactionId transactionId, bool force) override
+    void PrepareTransactionAbort(
+        TTransactionId transactionId,
+        const NHiveServer::TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -185,7 +189,7 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (transaction->GetTransientState() != ETransactionState::Active && !force) {
+        if (transaction->GetTransientState() != ETransactionState::Active && !options.Force) {
             transaction->ThrowInvalidState();
         }
 
@@ -199,14 +203,16 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp,
-        TClusterTag commitTimestampClusterTag) override
+        const NHiveServer::TTransactionCommitOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        ValidateTimestampClusterTag(transactionId, commitTimestampClusterTag, transaction->GetPrepareTimestamp());
+        ValidateTimestampClusterTag(
+            transactionId,
+            options.CommitTimestampClusterTag,
+            transaction->GetPrepareTimestamp());
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
@@ -225,25 +231,28 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetCommitTimestamp(commitTimestamp);
+        transaction->SetCommitTimestamp(options.CommitTimestamp);
         transaction->SetPersistentState(ETransactionState::Committed);
 
-        RunCommitTransactionActions(transaction);
+        RunCommitTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx@%v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Transaction committed (TransactionId: %v, CommitTimestamp: %llx@%v)",
             transactionId,
-            commitTimestamp,
-            commitTimestampClusterTag);
+            options.CommitTimestamp,
+            options.CommitTimestampClusterTag);
     }
 
-    void AbortTransaction(TTransactionId transactionId, bool force) override
+    void AbortTransaction(
+        TTransactionId transactionId,
+        const NHiveServer::TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         auto state = transaction->GetPersistentState();
-        if (state == ETransactionState::PersistentCommitPrepared && !force) {
+        if (state == ETransactionState::PersistentCommitPrepared && !options.Force) {
             transaction->ThrowInvalidState();
         }
 
@@ -253,11 +262,11 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
-        RunAbortTransactionActions(transaction);
+        RunAbortTransactionActions(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
-            force);
+            options.Force);
 
         TransactionMap_.Remove(transactionId);
     }

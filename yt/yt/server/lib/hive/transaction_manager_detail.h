@@ -33,10 +33,9 @@ protected:
     THashMap<TString, TTransactionAbortActionHandler<TTransaction>> AbortActionHandlerMap_;
     THashMap<TString, TTransactionSerializeActionHandler<TTransaction>> SerializeActionHandlerMap_;
 
-
-    void RunPrepareTransactionActions(TTransaction* transaction, bool persistent);
-    void RunCommitTransactionActions(TTransaction* transaction);
-    void RunAbortTransactionActions(TTransaction* transaction);
+    void RunPrepareTransactionActions(TTransaction* transaction, const TTransactionPrepareOptions& options);
+    void RunCommitTransactionActions(TTransaction* transaction, const TTransactionCommitOptions& options);
+    void RunAbortTransactionActions(TTransaction* transaction, const TTransactionAbortOptions& options);
     void RunSerializeTransactionActions(TTransaction* transaction);
 };
 

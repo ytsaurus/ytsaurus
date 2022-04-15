@@ -77,20 +77,23 @@ TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
 
 void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTransactionCommit* request)
 {
+    TTransactionPrepareOptions options{
+        .Persistent = request->persistent(),
+        .PrepareTimestamp = FromProto<TTimestamp>(request->prepare_timestamp()),
+    };
     TransactionManager_->PrepareTransactionCommit(
         FromProto<TGuid>(request->transaction_id()),
-        request->persistent(),
-        request->prepare_timestamp(),
-        InvalidCellTag,
-        /*prerequisiteTransactionIds*/ {});
+        options);
 }
 
 void TSimpleTransactionSupervisor::HydraCommitTransaction(TReqCommitTransaction* request)
 {
+    TTransactionCommitOptions options{
+        .CommitTimestamp = FromProto<TTimestamp>(request->commit_timestamp())
+    };
     TransactionManager_->CommitTransaction(
         FromProto<TGuid>(request->transaction_id()),
-        request->commit_timestamp(),
-        InvalidCellTag);
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

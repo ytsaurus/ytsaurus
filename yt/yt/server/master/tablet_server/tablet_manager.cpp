@@ -5956,9 +5956,12 @@ private:
             tablet->GetId());
     }
 
-    void HydraPrepareUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request, bool persistent)
+    void HydraPrepareUpdateTabletStores(
+        TTransaction* transaction,
+        NProto::TReqUpdateTabletStores* request,
+        const TTransactionPrepareOptions& options)
     {
-        YT_VERIFY(persistent);
+        YT_VERIFY(options.Persistent);
 
         const auto& dynamicConfig = GetDynamicConfig();
         if ((request->hunk_chunks_to_add_size() > 0 || request->hunk_chunks_to_remove_size() > 0) && !dynamicConfig->EnableHunks) {
@@ -6188,7 +6191,10 @@ private:
         }
     }
 
-    void HydraCommitUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request)
+    void HydraCommitUpdateTabletStores(
+        TTransaction* transaction,
+        NProto::TReqUpdateTabletStores* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -6477,7 +6483,10 @@ private:
             updateReason);
     }
 
-    void HydraAbortUpdateTabletStores(TTransaction* transaction, NProto::TReqUpdateTabletStores* request)
+    void HydraAbortUpdateTabletStores(
+        TTransaction* transaction,
+        NProto::TReqUpdateTabletStores* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);

@@ -1006,12 +1006,16 @@ private:
         try {
             // Any exception thrown here is replied to the client.
             auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
+
+            TTransactionPrepareOptions options{
+                .Persistent = false,
+                .PrepareTimestamp = prepareTimestamp,
+                .PrepareTimestampClusterTag = SelfClockClusterTag_,
+                .PrerequisiteTransactionIds = commit->PrerequisiteTransactionIds()
+            };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
-                /*persistent*/ false,
-                prepareTimestamp,
-                SelfClockClusterTag_,
-                commit->PrerequisiteTransactionIds());
+                options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, %v)",
                 transactionId,
@@ -1071,8 +1075,11 @@ private:
         auto asyncResponseMessage = abort->GetAsyncResponseMessage();
 
         try {
-            // Any exception thrown here is caught below..
-            TransactionManager_->PrepareTransactionAbort(transactionId, force);
+            // Any exception thrown here is caught below.
+            TTransactionAbortOptions options{
+                .Force = force
+            };
+            TransactionManager_->PrepareTransactionAbort(transactionId, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error preparing transaction abort (TransactionId: %v, Force: %v, %v)",
                 transactionId,
@@ -1161,7 +1168,11 @@ private:
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commitTimestamps.GetTimestamp(CellTagFromId(SelfCellId_));
-            TransactionManager_->CommitTransaction(transactionId, commitTimestamp, SelfClockClusterTag_);
+            TTransactionCommitOptions options{
+                .CommitTimestamp = commitTimestamp,
+                .CommitTimestampClusterTag = SelfClockClusterTag_
+            };
+            TransactionManager_->CommitTransaction(transactionId, options);
         } catch (const std::exception& ex) {
             if (commit) {
                 SetCommitFailed(commit, ex);
@@ -1208,7 +1219,7 @@ private:
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
-        auto prepareTimestampClusterTag = request->prepare_timestamp_cluster_tag();
+        auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -1255,12 +1266,16 @@ private:
             // Any exception thrown here is caught below.
             const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
             YT_VERIFY(prerequisiteTransactionIds.empty());
+
+            TTransactionPrepareOptions options{
+                .Persistent = true,
+                .PrepareTimestamp = prepareTimestamp,
+                .PrepareTimestampClusterTag = prepareTimestampClusterTag,
+                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
+            };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
-                /*persistent*/ true,
-                prepareTimestamp,
-                prepareTimestampClusterTag,
-                prerequisiteTransactionIds);
+                options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1269,7 +1284,10 @@ private:
             SetCommitFailed(commit, ex);
             RemovePersistentCommit(commit);
             try {
-                TransactionManager_->AbortTransaction(transactionId, true);
+                TTransactionAbortOptions options{
+                    .Force = true
+                };
+                TransactionManager_->AbortTransaction(transactionId, options);
             } catch (const std::exception& ex) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, %v)",
                     transactionId,
@@ -1356,7 +1374,10 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->AbortTransaction(transactionId, true);
+            TTransactionAbortOptions options{
+                .Force = true
+            };
+            TransactionManager_->AbortTransaction(transactionId, options);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1387,7 +1408,10 @@ private:
 
         try {
             // All exceptions thrown here are caught below.
-            TransactionManager_->AbortTransaction(transactionId, force);
+            TTransactionAbortOptions options{
+                .Force = force
+            };
+            TransactionManager_->AbortTransaction(transactionId, options);
         } catch (const std::exception& ex) {
             SetAbortFailed(abort, ex);
             RemoveAbort(abort);
@@ -1443,19 +1467,21 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
-        auto prepareTimestampClusterTag = request->prepare_timestamp_cluster_tag();
+        auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         try {
             // Any exception thrown here is caught below.
+            TTransactionPrepareOptions options{
+                .Persistent = true,
+                .PrepareTimestamp = prepareTimestamp,
+                .PrepareTimestampClusterTag = prepareTimestampClusterTag,
+            };
             TransactionManager_->PrepareTransactionCommit(
                 transactionId,
-                /*persistent*/ true,
-                prepareTimestamp,
-                prepareTimestampClusterTag,
-                /*prerequisiteTransactionIds*/ {});
+                options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1474,14 +1500,18 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
-        auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
+        auto commitTimestampClusterTag = FromProto<TClusterTag>(request->commit_timestamp_cluster_tag());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->CommitTransaction(transactionId, commitTimestamp, commitTimestampClusterTag);
+            TTransactionCommitOptions options{
+                .CommitTimestamp = commitTimestamp,
+                .CommitTimestampClusterTag = commitTimestampClusterTag
+            };
+            TransactionManager_->CommitTransaction(transactionId, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1505,7 +1535,10 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->AbortTransaction(transactionId, true);
+            TTransactionAbortOptions options{
+                .Force = true
+            };
+            TransactionManager_->AbortTransaction(transactionId, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1669,7 +1702,11 @@ private:
         try {
             // Any exception thrown here is caught below.
             auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
-            TransactionManager_->CommitTransaction(transactionId, commitTimestamp, SelfClockClusterTag_);
+            TTransactionCommitOptions options{
+                .CommitTimestamp = commitTimestamp,
+                .CommitTimestampClusterTag = SelfClockClusterTag_
+            };
+            TransactionManager_->CommitTransaction(transactionId, options);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator success (TransactionId: %v, State: %v, %v)",
                 transactionId,

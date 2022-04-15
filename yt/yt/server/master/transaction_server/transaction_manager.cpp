@@ -462,7 +462,7 @@ public:
 
     void CommitTransaction(
         TTransaction* transaction,
-        TTimestamp commitTimestamp)
+        const TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -492,7 +492,7 @@ public:
             temporaryRefTimestampHolder = true;
             CreateOrRefTimestampHolder(transactionId);
 
-            SetTimestampHolderTimestamp(transactionId, commitTimestamp);
+            SetTimestampHolderTimestamp(transactionId, options.CommitTimestamp);
         }
 
         TCompactVector<TTransaction*, 16> nestedTransactions(
@@ -503,7 +503,10 @@ public:
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
-            AbortTransaction(nestedTransaction, true);
+            TTransactionAbortOptions options{
+                .Force = true,
+            };
+            AbortTransaction(nestedTransaction, options);
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
 
@@ -512,7 +515,7 @@ public:
         if (!transaction->ReplicatedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(commitTimestamp);
+            request.set_commit_timestamp(options.CommitTimestamp);
             const auto* mutationContext = NHydra::GetCurrentMutationContext();
             request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
             multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
@@ -521,7 +524,7 @@ public:
         if (!transaction->ExternalizedToCellTags().empty()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_commit_timestamp(commitTimestamp);
+            request.set_commit_timestamp(options.CommitTimestamp);
             const auto* mutationContext = NHydra::GetCurrentMutationContext();
             request.set_native_commit_mutation_revision(mutationContext->GetVersion().ToRevision());
             multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
@@ -539,7 +542,7 @@ public:
             UnrefTimestampHolder(transactionId);
         }
 
-        RunCommitTransactionActions(transaction);
+        RunCommitTransactionActions(transaction, options);
 
         if (auto* parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
@@ -568,10 +571,12 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %llx, WallTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %llx@%v, WallTime: %v)",
             transactionId,
             user->GetName(),
-            commitTimestamp,
+            options.CommitTimestamp,
+            options.CommitTimestampClusterTag,
             time);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -580,7 +585,7 @@ public:
 
     void AbortTransaction(
         TTransaction* transaction,
-        bool force,
+        const TTransactionAbortOptions& options,
         bool validatePermissions = true)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -594,7 +599,7 @@ public:
             return;
         }
 
-        if (state == ETransactionState::PersistentCommitPrepared && !force ||
+        if (state == ETransactionState::PersistentCommitPrepared && !options.Force ||
             state == ETransactionState::Committed)
         {
             transaction->ThrowInvalidState();
@@ -610,7 +615,10 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
         for (auto* nestedTransaction : nestedTransactions) {
-            AbortTransaction(nestedTransaction, true, false);
+            TTransactionAbortOptions options{
+                .Force = true,
+            };
+            AbortTransaction(nestedTransaction, options, /*validatePermissions*/ false);
         }
         YT_VERIFY(transaction->NestedTransactions().empty());
 
@@ -638,7 +646,7 @@ public:
 
         TransactionAborted_.Fire(transaction);
 
-        RunAbortTransactionActions(transaction);
+        RunAbortTransactionActions(transaction, options);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -663,7 +671,7 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, WallTime: %v)",
             transactionId,
             user->GetName(),
-            force,
+            options.Force,
             time);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -973,13 +981,12 @@ public:
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp,
-        const std::vector<TTransactionId>& prerequisiteTransactionIds)
+        const TTransactionPrepareOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+        auto persistent = options.Persistent;
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         // This check applies not only to #transaction itself but also to all of its ancestors.
@@ -1002,11 +1009,11 @@ public:
             return;
         }
 
-        for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+        for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
             ValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
-        RunPrepareTransactionActions(transaction, persistent);
+        RunPrepareTransactionActions(transaction, options);
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -1014,17 +1021,20 @@ public:
             transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx@%v)",
             transactionId,
             persistent,
-            prepareTimestamp);
+            options.PrepareTimestamp,
+            options.PrepareTimestampClusterTag);
     }
 
-    void PrepareTransactionAbort(TTransactionId transactionId, bool force)
+    void PrepareTransactionAbort(TTransactionId transactionId, const TTransactionAbortOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
+        auto force = options.Force;
 
         auto state = transaction->GetTransientState();
         if (state != ETransactionState::Active && !force) {
@@ -1047,24 +1057,24 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp,
+        const TTransactionCommitOptions& options,
         NHydra::TRevision nativeCommitMutationRevision)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
-        CommitTransaction(transaction, commitTimestamp);
+        CommitTransaction(transaction, options);
     }
 
     void AbortTransaction(
         TTransactionId transactionId,
-        bool force)
+        const TTransactionAbortOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
-        AbortTransaction(transaction, force);
+        AbortTransaction(transaction, options);
     }
 
     void PingTransaction(
@@ -1318,7 +1328,11 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
-        PrepareTransactionCommit(transactionId, true, prepareTimestamp, {});
+        TTransactionPrepareOptions options{
+            .Persistent = true,
+            .PrepareTimestamp = prepareTimestamp,
+        };
+        PrepareTransactionCommit(transactionId, options);
     }
 
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
@@ -1326,14 +1340,21 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
         auto nativeCommitMutationRevision = request->native_commit_mutation_revision();
-        CommitTransaction(transactionId, commitTimestamp, nativeCommitMutationRevision);
+
+        TTransactionCommitOptions options{
+            .CommitTimestamp = commitTimestamp,
+        };
+        CommitTransaction(transactionId, options, nativeCommitMutationRevision);
     }
 
     void HydraAbortTransaction(NProto::TReqAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        bool force = request->force();
-        AbortTransaction(transactionId, force);
+
+        TTransactionAbortOptions options{
+            .Force = request->force(),
+        };
+        AbortTransaction(transactionId, options);
     }
 
     void HydraReplicateTransactions(
@@ -1490,7 +1511,10 @@ public:
             YT_LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
                 dependentTransaction->GetId(),
                 transaction->GetId());
-            AbortTransaction(dependentTransaction, true, false);
+            TTransactionAbortOptions options{
+                .Force = true,
+            };
+            AbortTransaction(dependentTransaction, options, /*validatePermissions*/ false);
         }
         transaction->DependentTransactions().clear();
 
@@ -1829,16 +1853,16 @@ TTransaction* TTransactionManager::StartUploadTransaction(
 
 void TTransactionManager::CommitTransaction(
     TTransaction* transaction,
-    TTimestamp commitTimestamp)
+    const TTransactionCommitOptions& options)
 {
-    Impl_->CommitTransaction(transaction, commitTimestamp);
+    Impl_->CommitTransaction(transaction, options);
 }
 
 void TTransactionManager::AbortTransaction(
     TTransaction* transaction,
-    bool force)
+    const TTransactionAbortOptions& options)
 {
-    Impl_->AbortTransaction(transaction, force);
+    Impl_->AbortTransaction(transaction, options);
 }
 
 TTransactionId TTransactionManager::ExternalizeTransaction(TTransaction* transaction, TCellTagList dstCellTags)
@@ -1946,34 +1970,30 @@ TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(
 
 void TTransactionManager::PrepareTransactionCommit(
     TTransactionId transactionId,
-    bool persistent,
-    TTimestamp prepareTimestamp,
-    TClusterTag /*prepareTimestampClusterTag*/,
-    const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    const TTransactionPrepareOptions& options)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prerequisiteTransactionIds);
+    Impl_->PrepareTransactionCommit(transactionId, options);
 }
 
 void TTransactionManager::PrepareTransactionAbort(
     TTransactionId transactionId,
-    bool force)
+    const TTransactionAbortOptions& options)
 {
-    Impl_->PrepareTransactionAbort(transactionId, force);
+    Impl_->PrepareTransactionAbort(transactionId, options);
 }
 
 void TTransactionManager::CommitTransaction(
     TTransactionId transactionId,
-    TTimestamp commitTimestamp,
-    TClusterTag /*commitTimestampClusterTag*/)
+    const TTransactionCommitOptions& options)
 {
-    Impl_->CommitTransaction(transactionId, commitTimestamp, NHydra::NullRevision);
+    Impl_->CommitTransaction(transactionId, options, /*nativeCommitMutationRevision*/ NullRevision);
 }
 
 void TTransactionManager::AbortTransaction(
     TTransactionId transactionId,
-    bool force)
+    const TTransactionAbortOptions& options)
 {
-    Impl_->AbortTransaction(transactionId, force);
+    Impl_->AbortTransaction(transactionId, options);
 }
 
 void TTransactionManager::PingTransaction(

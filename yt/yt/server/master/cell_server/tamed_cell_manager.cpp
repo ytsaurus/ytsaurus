@@ -2421,8 +2421,11 @@ private:
         // NB: Make a copy, transaction will die soon.
         auto transactionId = transaction->GetId();
 
+        TTransactionAbortOptions options{
+            .Force = true
+        };
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->AbortTransaction(transaction, true);
+        transactionManager->AbortTransaction(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell prerequisite transaction aborted (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),

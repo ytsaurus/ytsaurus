@@ -16,6 +16,29 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionPrepareOptions
+{
+    bool Persistent = false;
+
+    TTimestamp PrepareTimestamp = NHiveClient::NullTimestamp;
+    NApi::TClusterTag PrepareTimestampClusterTag = NObjectClient::InvalidCellTag;
+
+    std::vector<TTransactionId> PrerequisiteTransactionIds;
+};
+
+struct TTransactionCommitOptions
+{
+    TTimestamp CommitTimestamp = NHiveClient::NullTimestamp;
+    NApi::TClusterTag CommitTimestampClusterTag = NObjectClient::InvalidCellTag;
+};
+
+struct TTransactionAbortOptions
+{
+    bool Force = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ITransactionManager
     : public virtual TRefCounted
 {
@@ -25,24 +48,20 @@ struct ITransactionManager
 
     virtual void PrepareTransactionCommit(
         TTransactionId transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp,
-        NApi::TClusterTag prepareTimestampClusterTag,
-        const std::vector<TTransactionId>& prerequisiteTransactionIds) = 0;
+        const TTransactionPrepareOptions& options) = 0;
 
     virtual void PrepareTransactionAbort(
         TTransactionId transactionId,
-        bool force) = 0;
+        const TTransactionAbortOptions& options) = 0;
 
     //! Once #PrepareTransactionCommit succeeded, #CommitTransaction cannot throw.
     virtual void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp,
-        NApi::TClusterTag commitTimestampClusterTag) = 0;
+        const TTransactionCommitOptions& options) = 0;
 
     virtual void AbortTransaction(
         TTransactionId transactionId,
-        bool force) = 0;
+        const TTransactionAbortOptions& options) = 0;
 
     virtual void PingTransaction(
         TTransactionId transactionId,

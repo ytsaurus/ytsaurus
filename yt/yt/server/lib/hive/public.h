@@ -28,6 +28,12 @@ using NHiveClient::TMessageId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionPrepareOptions;
+struct TTransactionCommitOptions;
+struct TTransactionAbortOptions;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
@@ -39,11 +45,11 @@ using TMailboxList = TCompactVector<TMailbox*, TypicalMailboxCount>;
 DECLARE_REFCOUNTED_STRUCT(TSerializedMessage)
 
 template <class TTransaction>
-using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const TString&, bool persistent)>;
+using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const TString&, const TTransactionPrepareOptions&)>;
 template <class TTransaction>
-using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const TString&)>;
+using TTransactionCommitActionHandler = TCallback<void(TTransaction*, const TString&, const TTransactionCommitOptions&)>;
 template <class TTransaction>
-using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const TString&)>;
+using TTransactionAbortActionHandler = TCallback<void(TTransaction*, const TString&, const TTransactionAbortOptions&)>;
 template <class TTransaction>
 using TTransactionSerializeActionHandler = TCallback<void(TTransaction*, const TString&)>;
 

@@ -1767,7 +1767,7 @@ void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction*
         if (IsObjectAlive(previousTransaction)) {
             // It does not matter whether we commit or abort this transaction.
             // (Except it does because of OnTransactionAborted.)
-            transactionManager->CommitTransaction(previousTransaction, NullTimestamp);
+            transactionManager->CommitTransaction(previousTransaction, /*options*/ {});
         }
     }
 
