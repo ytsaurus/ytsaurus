@@ -22,6 +22,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MaxClipTimestamp)                     (300806))
     ((StripedErasureChunks)                 (300807))
     ((LowGpuPowerUsageOnWindow)             (300808))
+    ((OptionalJobResults)                   (300809))
     // 22.1 but cherry-pick later
     ((StripedErasureTables)                 (300858))
     ((ProbingJobs)                          (300859))
