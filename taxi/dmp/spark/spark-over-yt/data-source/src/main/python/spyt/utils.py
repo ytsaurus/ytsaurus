@@ -19,16 +19,20 @@ logger = logging.getLogger(__name__)
 
 class SparkCluster(object):
     def __init__(self, master_endpoint, master_web_ui_url, master_rest_endpoint, operation_id, shs_url,
-                 spark_cluster_version):
+                 spark_cluster_version, children_operation_ids):
         self.master_endpoint = master_endpoint
         self.master_web_ui_url = master_web_ui_url
         self.master_rest_endpoint = master_rest_endpoint
         self.operation_id = operation_id
         self.shs_url = shs_url
         self.spark_cluster_version = spark_cluster_version
+        self.children_operation_ids = children_operation_ids
 
     def operation_url(self, client=None):
         return get_operation_url(self.operation_id, client=client)
+
+    def children_operation_urls(self, client=None):
+        return [get_operation_url(id, client=client) for id in self.children_operation_ids]
 
 
 class SparkDiscovery(object):

@@ -20,6 +20,8 @@ def main():
     print("Master Web UI: http://{}/".format(spark_cluster.master_web_ui_url))
     print("Master REST API Endpoint: {}".format(spark_cluster.master_rest_endpoint))
     print("Operation: {}".format(spark_cluster.operation_url(client=client)))
+    for url in spark_cluster.children_operation_urls(client=client):
+        print("+- operation: {}".format(url))
     print("Spark History Server: http://{}/".format(spark_cluster.shs_url))
     print("Spark Cluster version: {}".format(spark_cluster.spark_cluster_version))
 

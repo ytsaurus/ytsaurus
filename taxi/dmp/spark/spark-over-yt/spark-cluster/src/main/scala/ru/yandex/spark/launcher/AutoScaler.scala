@@ -1,6 +1,6 @@
 package ru.yandex.spark.launcher
 
-import com.codahale.metrics.{Histogram, MetricRegistry, UniformReservoir}
+import com.codahale.metrics.{Gauge, MetricRegistry}
 import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.inside.yt.kosher.common.GUID
@@ -11,6 +11,7 @@ import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.GetOperation
 
 import java.io.Closeable
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit}
 import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 import scala.language.postfixOps
@@ -23,44 +24,59 @@ trait AutoScaler {
 
 object AutoScaler {
   private val log: Logger = LoggerFactory.getLogger(getClass)
+
   private object Metrics {
+    private case class MetricsState(state: State, userSlots: Long)
+    private val currentState: AtomicReference[MetricsState] = new AtomicReference()
+
     val metricRegistry: MetricRegistry = new MetricRegistry()
-    val userSlots = new Histogram(new UniformReservoir())
-    val runningJobs = new Histogram(new UniformReservoir())
-    val plannedJobs = new Histogram(new UniformReservoir())
-    val maxWorkers = new Histogram(new UniformReservoir())
-    val busyWorkers = new Histogram(new UniformReservoir())
-    val waitingApps = new Histogram(new UniformReservoir())
-    val coresTotal = new Histogram(new UniformReservoir())
-    val coresUsed = new Histogram(new UniformReservoir())
-    val maxAppWaitTimeMs = new Histogram(new UniformReservoir())
-    metricRegistry.register("user_slots", userSlots)
-    metricRegistry.register("running_jobs", runningJobs)
-    metricRegistry.register("planned_jobs", plannedJobs)
-    metricRegistry.register("max_workers", maxWorkers)
-    metricRegistry.register("busy_workers", busyWorkers)
-    metricRegistry.register("waiting_apps", waitingApps)
-    metricRegistry.register("cores_total", coresTotal)
-    metricRegistry.register("cores_used", coresUsed)
-    metricRegistry.register("max_wait_app_time_ms", maxAppWaitTimeMs)
-  }
 
-  def registerMetrics(state: State, userSlots: Long): Unit = state match {
-    case State(
-      OperationState(_, runningJobs, plannedJobs),
-      SparkState(maxWorkers, busyWorkers, waitingApps, coresTotal, coresUsed, maxAppAwaitTimeMs),
-    ) =>
-      Metrics.userSlots.update(userSlots)
-      Metrics.runningJobs.update(runningJobs)
-      Metrics.plannedJobs.update(plannedJobs)
-      Metrics.maxWorkers.update(maxWorkers)
-      Metrics.busyWorkers.update(busyWorkers)
-      Metrics.waitingApps.update(waitingApps)
-      Metrics.coresTotal.update(coresTotal)
-      Metrics.coresUsed.update(coresUsed)
-      Metrics.maxAppWaitTimeMs.update(maxAppAwaitTimeMs)
-  }
+    def updateState(state: State, userSlots: Long): Unit = {
+      if (currentState.get() == null) {
+        registerMetrics()
+      }
+      currentState.set(MetricsState(state, userSlots))
+    }
 
+    def registerMetrics(): Unit = {
+        metricRegistry.register("user_slots", new Gauge[Long] {
+            override def getValue: Long = currentState.get().userSlots
+        })
+
+        metricRegistry.register("running_jobs", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.operationState.runningJobs
+        })
+
+        metricRegistry.register("planned_jobs", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.operationState.plannedJobs
+        })
+
+        metricRegistry.register("max_workers", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.sparkState.maxWorkers
+        })
+
+        metricRegistry.register("busy_workers", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.sparkState.busyWorkers
+        })
+
+        metricRegistry.register("waiting_apps", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.sparkState.waitingApps
+        })
+
+        metricRegistry.register("cores_total", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.sparkState.coresTotal
+        })
+
+        metricRegistry.register("cores_used", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.sparkState.coresUsed
+        })
+
+        metricRegistry.register("max_wait_app_time_ms", new Gauge[Long] {
+            override def getValue: Long = currentState.get().state.sparkState.maxAppAwaitTimeMs
+        })
+    }
+
+  }
 
   private val processLogger = new ProcessLogger {
     override def out(s: => String): Unit = log.debug(s)
@@ -122,7 +138,7 @@ object AutoScaler {
               for {
                 st <- state
                 sl <- currentUserSlots.orElse(Some(st.operationState.maxJobs))
-              } registerMetrics(st, sl)
+              } Metrics.updateState(st, sl)
               state
             }
           case None =>

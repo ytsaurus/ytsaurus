@@ -671,7 +671,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         driver_args = args.copy()
         driver_args['job_types'] = ['driver']
         driver_args['worker'] = driver
-        driver_args['driver_op_resources'] = 100
+        driver_args['driver_op_resources'] = driver.cores
         driver_args['driver_op_discovery_script'] = '/slot/sandbox/tmpfs/spark/bin/driver-op-discovery.sh'
         driver_builder = build_spark_operation_spec(**driver_args)
         op_driver = run_operation(driver_builder, sync=False, client=client)
@@ -702,5 +702,7 @@ def find_spark_cluster(discovery_path=None, client=None):
             discovery.operation(), client=client),
         shs_url=SparkDiscovery.getOption(discovery.shs(), client=client),
         spark_cluster_version=SparkDiscovery.getOption(
-            discovery.spark_cluster_version(), client=client)
+            discovery.spark_cluster_version(), client=client),
+        children_operation_ids=SparkDiscovery.getOptions(
+            discovery.children_operations(), client=client)
     )
