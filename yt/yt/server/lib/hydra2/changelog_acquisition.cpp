@@ -124,8 +124,9 @@ private:
                 currentChangelogId));
         }
 
+        auto startChangelogId = std::max(currentChangelogId + 1, changelogId - Config_->MaxChangelogsToCreateDuringAcquisition);
         std::vector<TFuture<void>> futures;
-        for (int id = currentChangelogId + 1; id <= changelogId; ++id) {
+        for (int id = startChangelogId; id <= changelogId; ++id) {
             futures.push_back(CreateAndCloseChangelog(id));
         }
 
