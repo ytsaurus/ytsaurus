@@ -29,6 +29,7 @@ namespace NYT::NChaosNode {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NChaosClient;
 using namespace NTransactionClient;
@@ -345,9 +346,12 @@ private:
             }));
     }
 
-    void HydraPrepareReplicatedCommit(TTransaction* transaction, NChaosClient::NProto::TReqReplicatedCommit* request, bool persistent)
+    void HydraPrepareReplicatedCommit(
+        TTransaction* transaction,
+        NChaosClient::NProto::TReqReplicatedCommit* request,
+        const TTransactionPrepareOptions& options)
     {
-        YT_VERIFY(persistent);
+        YT_VERIFY(options.Persistent);
 
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         TReplicationEra era = request->replication_era();
@@ -376,7 +380,10 @@ private:
             transaction->GetId());
     }
 
-    void HydraCommitReplicatedCommit(TTransaction* transaction, NChaosClient::NProto::TReqReplicatedCommit* request)
+    void HydraCommitReplicatedCommit(
+        TTransaction* transaction,
+        NChaosClient::NProto::TReqReplicatedCommit* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         DiscardAliveTransaction(replicationCardId, transaction->GetId(), false);
@@ -386,7 +393,10 @@ private:
             transaction->GetId());
     }
 
-    void HydraAbortReplicatedCommit(TTransaction* transaction, NChaosClient::NProto::TReqReplicatedCommit* request)
+    void HydraAbortReplicatedCommit(
+        TTransaction* transaction,
+        NChaosClient::NProto::TReqReplicatedCommit* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
         DiscardAliveTransaction(replicationCardId, transaction->GetId(), true);

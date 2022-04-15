@@ -65,10 +65,10 @@ public:
         TTransactionId hintId);
     void CommitTransaction(
         TTransaction* transaction,
-        TTimestamp commitTimestamp);
+        const NHiveServer::TTransactionCommitOptions& options);
     void AbortTransaction(
         TTransaction* transaction,
-        bool force);
+        const NHiveServer::TTransactionAbortOptions& options);
     TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
         NObjectClient::TCellTagList dstCellTags);
@@ -174,20 +174,16 @@ private:
         const std::vector<NElection::TCellId>& cellIdsToSyncWith) override;
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp,
-        NApi::TClusterTag prepareTimestampClusterTag,
-        const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
+        const NHiveServer::TTransactionPrepareOptions& options) override;
     void PrepareTransactionAbort(
         TTransactionId transactionId,
-        bool force) override;
+        const NHiveServer::TTransactionAbortOptions& options) override;
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp,
-        NApi::TClusterTag commitTimestampClusterTag) override;
+        const NHiveServer::TTransactionCommitOptions& options) override;
     void AbortTransaction(
         TTransactionId transactionId,
-        bool force) override;
+        const NHiveServer::TTransactionAbortOptions& options) override;
     void PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) override;

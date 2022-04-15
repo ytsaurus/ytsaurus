@@ -499,7 +499,7 @@ private:
                 // of doing something.
                 PreviousTransactionId_ = {};
                 // Actually it doesn't matter whether to commit or abort previous transaction.
-                transactionManager->CommitTransaction(previousTransaction, NullTimestamp);
+                transactionManager->CommitTransaction(previousTransaction, /*commitOptions*/ {});
             }
         }
 

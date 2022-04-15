@@ -38,7 +38,7 @@ void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     TTransaction* transaction,
-    bool persistent)
+    const TTransactionPrepareOptions& options)
 {
     for (const auto& action : transaction->Actions()) {
         try {
@@ -47,7 +47,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Run(transaction, action.Value, persistent);
+            it->second.Run(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Prepare action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -58,7 +58,9 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
 }
 
 template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransaction* transaction)
+void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
+    TTransaction* transaction,
+    const TTransactionCommitOptions& options)
 {
     for (const auto& action : transaction->Actions()) {
         try {
@@ -67,7 +69,7 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransac
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Run(transaction, action.Value);
+            it->second.Run(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -77,7 +79,9 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(TTransac
 }
 
 template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransaction* transaction)
+void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
+    TTransaction* transaction,
+    const TTransactionAbortOptions& options)
 {
     for (const auto& action : transaction->Actions()) {
         try {
@@ -86,7 +90,7 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(TTransact
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Run(transaction, action.Value);
+            it->second.Run(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),

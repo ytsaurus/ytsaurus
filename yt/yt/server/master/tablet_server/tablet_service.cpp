@@ -125,7 +125,10 @@ private:
     }
 
 
-    void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool /*persistent*/)
+    void HydraPrepareMountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqMount* request,
+        const TTransactionPrepareOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -197,7 +200,10 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "PrepareMount");
     }
 
-    void HydraCommitMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request)
+    void HydraCommitMountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqMount* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -245,7 +251,10 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "CommitMount");
     }
 
-    void HydraAbortMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request)
+    void HydraAbortMountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqMount* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -279,7 +288,10 @@ private:
         YT_LOG_ACCESS(tableId, request->path(), transaction, "AbortMount");
     }
 
-    void HydraPrepareUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request, bool /*persistent*/)
+    void HydraPrepareUnmountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqUnmount* request,
+        const TTransactionPrepareOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -328,7 +340,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnmount");
     }
 
-    void HydraCommitUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
+    void HydraCommitUnmountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqUnmount* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -365,7 +380,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnmount");
     }
 
-    void HydraAbortUnmountTable(TTransaction* transaction, NTabletClient::NProto::TReqUnmount* request)
+    void HydraAbortUnmountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqUnmount* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -393,7 +411,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
     }
 
-    void HydraPrepareFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request, bool /*persistent*/)
+    void HydraPrepareFreezeTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqFreeze* request,
+        const TTransactionPrepareOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -434,7 +455,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareFreeze");
     }
 
-    void HydraCommitFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
+    void HydraCommitFreezeTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqFreeze* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -468,7 +492,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitFreeze");
     }
 
-    void HydraAbortFreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqFreeze* request)
+    void HydraAbortFreezeTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqFreeze* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -494,7 +521,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
     }
 
-    void HydraPrepareUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request, bool /*persistent*/)
+    void HydraPrepareUnfreezeTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqUnfreeze* request,
+        const TTransactionPrepareOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -535,7 +565,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnfreeze");
     }
 
-    void HydraCommitUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
+    void HydraCommitUnfreezeTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqUnfreeze* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -570,7 +603,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitUnfreeze");
     }
 
-    void HydraAbortUnfreezeTable(TTransaction* transaction, NTabletClient::NProto::TReqUnfreeze* request)
+    void HydraAbortUnfreezeTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqUnfreeze* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -596,7 +632,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
     }
 
-    void HydraPrepareRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request, bool /*persistent*/)
+    void HydraPrepareRemountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqRemount* request,
+        const TTransactionPrepareOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -637,7 +676,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareRemount");
     }
 
-    void HydraCommitRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)
+    void HydraCommitRemountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqRemount* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -669,7 +711,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitRemount");
     }
 
-    void HydraAbortRemountTable(TTransaction* transaction, NTabletClient::NProto::TReqRemount* request)
+    void HydraAbortRemountTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqRemount* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -695,7 +740,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
     }
 
-    void HydraPrepareReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request, bool /*persistent*/)
+    void HydraPrepareReshardTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqReshard* request,
+        const TTransactionPrepareOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -742,7 +790,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "PrepareReshard");
     }
 
-    void HydraCommitReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request)
+    void HydraCommitReshardTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqReshard* request,
+        const TTransactionCommitOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
@@ -782,7 +833,10 @@ private:
         YT_LOG_ACCESS(tableId, cypressManager->GetNodePath(table, nullptr), transaction, "CommitReshard");
     }
 
-    void HydraAbortReshardTable(TTransaction* transaction, NTabletClient::NProto::TReqReshard* request)
+    void HydraAbortReshardTable(
+        TTransaction* transaction,
+        NTabletClient::NProto::TReqReshard* request,
+        const TTransactionAbortOptions& /*options*/)
     {
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();

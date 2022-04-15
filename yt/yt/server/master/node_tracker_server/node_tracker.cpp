@@ -1934,7 +1934,10 @@ private:
                 const auto& transactionManager = Bootstrap_->GetTransactionManager();
                 // NB: This will trigger OnTransactionFinished, however we've already evicted the
                 // lease so the latter call is no-op.
-                transactionManager->AbortTransaction(transaction, true);
+                TTransactionAbortOptions options{
+                    .Force = true
+                };
+                transactionManager->AbortTransaction(transaction, options);
             }
 
             UpdateNodeCounters(node, -1);

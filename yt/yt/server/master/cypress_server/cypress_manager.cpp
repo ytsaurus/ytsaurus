@@ -1928,7 +1928,10 @@ public:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         for (auto* transaction : transactions) {
-            transactionManager->AbortTransaction(transaction, true);
+            NHiveServer::TTransactionAbortOptions options{
+                .Force = true
+            };
+            transactionManager->AbortTransaction(transaction, options);
         }
     }
 

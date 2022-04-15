@@ -229,8 +229,10 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeWritePulledRows, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, MakeStrong(this))),
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress>()),
-            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress>()),
+            MakeTransactionActionHandlerDescriptor(
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NHiveServer::TTransactionCommitOptions&>()),
+            MakeTransactionActionHandlerDescriptor(
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NHiveServer::TTransactionAbortOptions&>()),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
@@ -1404,9 +1406,12 @@ private:
         }
     }
 
-    void HydraPrepareUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request, bool persistent)
+    void HydraPrepareUpdateTabletStores(
+        TTransaction* transaction,
+        TReqUpdateTabletStores* request,
+        const TTransactionPrepareOptions& options)
     {
-        YT_VERIFY(persistent);
+        YT_VERIFY(options.Persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
@@ -1543,7 +1548,10 @@ private:
         }
     }
 
-    void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
+    void HydraAbortUpdateTabletStores(
+        TTransaction* transaction,
+        TReqUpdateTabletStores* request,
+        const NHiveServer::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1610,7 +1618,10 @@ private:
             tablet->GetSettings().MountConfig->BackingStoreRetentionTime != TDuration::Zero();
     }
 
-    void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
+    void HydraCommitUpdateTabletStores(
+        TTransaction* transaction,
+        TReqUpdateTabletStores* request,
+        const NHiveServer::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2074,9 +2085,12 @@ private:
             preserveTimestamps);
     }
 
-    void HydraPrepareWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request, bool persistent)
+    void HydraPrepareWritePulledRows(
+        TTransaction* transaction,
+        TReqWritePulledRows* request,
+        const TTransactionPrepareOptions& options)
     {
-        YT_VERIFY(persistent);
+        YT_VERIFY(options.Persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         ui64 round = request->replication_round();
@@ -2095,7 +2109,10 @@ private:
             round);
     }
 
-    void HydraCommitWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
+    void HydraCommitWritePulledRows(
+        TTransaction* transaction,
+        TReqWritePulledRows* request,
+        const NHiveServer::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         ui64 round = request->replication_round();
@@ -2154,7 +2171,10 @@ private:
             replicationRound + 1);
     }
 
-    void HydraAbortWritePulledRows(TTransaction* transaction, TReqWritePulledRows* request)
+    void HydraAbortWritePulledRows(
+        TTransaction* transaction,
+        TReqWritePulledRows* request,
+        const NHiveServer::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2167,9 +2187,12 @@ private:
             transaction->GetId());
     }
 
-    void HydraPrepareAdvanceReplicationProgress(TTransaction* transaction, TReqAdvanceReplicationProgress* request, bool persistent)
+    void HydraPrepareAdvanceReplicationProgress(
+        TTransaction* transaction,
+        TReqAdvanceReplicationProgress* request,
+        const TTransactionPrepareOptions& options)
     {
-        YT_VERIFY(persistent);
+        YT_VERIFY(options.Persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
@@ -2232,9 +2255,12 @@ private:
             transaction->GetId());
     }
 
-    void HydraPrepareReplicateRows(TTransaction* transaction, TReqReplicateRows* request, bool persistent)
+    void HydraPrepareReplicateRows(
+        TTransaction* transaction,
+        TReqReplicateRows* request,
+        const TTransactionPrepareOptions& options)
     {
-        YT_VERIFY(persistent);
+        YT_VERIFY(options.Persistent);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
@@ -2303,7 +2329,10 @@ private:
 
     }
 
-    void HydraCommitReplicateRows(TTransaction* transaction, TReqReplicateRows* request)
+    void HydraCommitReplicateRows(
+        TTransaction* transaction,
+        TReqReplicateRows* request,
+        const NHiveServer::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2379,7 +2408,10 @@ private:
             tablet->GetTotalRowCount());
     }
 
-    void HydraAbortReplicateRows(TTransaction* transaction, TReqReplicateRows* request)
+    void HydraAbortReplicateRows(
+        TTransaction* transaction,
+        TReqReplicateRows* request,
+        const NHiveServer::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -3588,7 +3620,7 @@ private:
                 tablet->GetLoggingTag(),
                 transaction->GetId());
 
-            TTransactionCommitOptions commitOptions{
+            NApi::TTransactionCommitOptions commitOptions{
                 .GeneratePrepareTimestamp = false
             };
 

@@ -329,23 +329,22 @@ public:
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        bool persistent,
-        TTimestamp prepareTimestamp,
-        TClusterTag prepareTimestampClusterTag,
-        const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/)
+        const TTransactionPrepareOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         ValidateTimestampClusterTag(
             transactionId,
-            prepareTimestampClusterTag,
-            prepareTimestamp,
+            options.PrepareTimestampClusterTag,
+            options.PrepareTimestamp,
             /*canThrow*/ true);
+
+        auto persistent = options.Persistent;
 
         TTransaction* transaction;
         ETransactionState state;
         TTransactionSignature signature;
-        if (persistent) {
+        if (options.Persistent) {
             transaction = GetPersistentTransactionOrThrow(transactionId);
             state = transaction->GetPersistentState();
             signature = transaction->GetPersistentSignature();
@@ -381,7 +380,7 @@ public:
 
         if (state == ETransactionState::Active) {
             YT_VERIFY(transaction->GetPrepareTimestamp() == NullTimestamp);
-            transaction->SetPrepareTimestamp(prepareTimestamp);
+            transaction->SetPrepareTimestamp(options.PrepareTimestamp);
             RegisterPrepareTimestamp(transaction);
 
             if (persistent) {
@@ -391,18 +390,20 @@ public:
             }
 
             TransactionPrepared_.Fire(transaction, persistent);
-            RunPrepareTransactionActions(transaction, persistent);
+            RunPrepareTransactionActions(transaction, options);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %llx@%v)",
                 transactionId,
                 persistent,
-                prepareTimestamp,
-                prepareTimestampClusterTag);
+                options.PrepareTimestamp,
+                options.PrepareTimestampClusterTag);
         }
     }
 
-    void PrepareTransactionAbort(TTransactionId transactionId, bool force)
+    void PrepareTransactionAbort(
+        TTransactionId transactionId,
+        const NHiveServer::TTransactionAbortOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -412,7 +413,7 @@ public:
 
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
 
-        if (transaction->GetTransientState() != ETransactionState::Active && !force) {
+        if (transaction->GetTransientState() != ETransactionState::Active && !options.Force) {
             transaction->ThrowInvalidState();
         }
 
@@ -426,8 +427,7 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp,
-        TClusterTag commitTimestampClusterTag)
+        const NHiveServer::TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -435,11 +435,11 @@ public:
 
         ValidateTimestampClusterTag(
             transactionId,
-            commitTimestampClusterTag,
+            options.CommitTimestampClusterTag,
             transaction->GetPrepareTimestamp(),
             /*canThrow*/ false);
 
-        transaction->SetCommitTimestampClusterTag(commitTimestampClusterTag);
+        transaction->SetCommitTimestampClusterTag(options.CommitTimestampClusterTag);
 
         // Make a copy, transaction may die.
         auto identity = transaction->AuthenticationIdentity();
@@ -462,16 +462,16 @@ public:
             CloseLease(transaction);
         }
 
-        transaction->SetCommitTimestamp(commitTimestamp);
+        transaction->SetCommitTimestamp(options.CommitTimestamp);
         transaction->SetPersistentState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
-        RunCommitTransactionActions(transaction);
+        RunCommitTransactionActions(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx@%v)",
             transactionId,
-            commitTimestamp,
-            commitTimestampClusterTag);
+            options.CommitTimestamp,
+            options.CommitTimestampClusterTag);
 
         FinishTransaction(transaction);
 
@@ -488,7 +488,9 @@ public:
         }
     }
 
-    void AbortTransaction(TTransactionId transactionId, bool force)
+    void AbortTransaction(
+        TTransactionId transactionId,
+        const NHiveServer::TTransactionAbortOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -499,7 +501,7 @@ public:
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         auto state = transaction->GetPersistentState();
-        if (state == ETransactionState::PersistentCommitPrepared && !force) {
+        if (state == ETransactionState::PersistentCommitPrepared && !options.Force) {
             transaction->ThrowInvalidState();
         }
 
@@ -510,11 +512,11 @@ public:
         transaction->SetPersistentState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
-        RunAbortTransactionActions(transaction);
+        RunAbortTransactionActions(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
-            force);
+            options.Force);
 
         FinishTransaction(transaction);
         PersistentTransactionMap_.Remove(transactionId);
@@ -1274,30 +1276,30 @@ TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(
 
 void TTransactionManager::PrepareTransactionCommit(
     TTransactionId transactionId,
-    bool persistent,
-    TTimestamp prepareTimestamp,
-    TClusterTag prepareTimestampClusterTag,
-    const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    const TTransactionPrepareOptions& options)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prepareTimestampClusterTag, prerequisiteTransactionIds);
+    Impl_->PrepareTransactionCommit(transactionId, options);
 }
 
-void TTransactionManager::PrepareTransactionAbort(TTransactionId transactionId, bool force)
+void TTransactionManager::PrepareTransactionAbort(
+    TTransactionId transactionId,
+    const NHiveServer::TTransactionAbortOptions& options)
 {
-    Impl_->PrepareTransactionAbort(transactionId, force);
+    Impl_->PrepareTransactionAbort(transactionId, options);
 }
 
 void TTransactionManager::CommitTransaction(
     TTransactionId transactionId,
-    TTimestamp commitTimestamp,
-    TClusterTag commitTimestampClusterTag)
+    const NHiveServer::TTransactionCommitOptions& options)
 {
-    Impl_->CommitTransaction(transactionId, commitTimestamp, commitTimestampClusterTag);
+    Impl_->CommitTransaction(transactionId, options);
 }
 
-void TTransactionManager::AbortTransaction(TTransactionId transactionId, bool force)
+void TTransactionManager::AbortTransaction(
+    TTransactionId transactionId,
+    const NHiveServer::TTransactionAbortOptions& options)
 {
-    Impl_->AbortTransaction(transactionId, force);
+    Impl_->AbortTransaction(transactionId, options);
 }
 
 void TTransactionManager::PingTransaction(TTransactionId transactionId, bool pingAncestors)
