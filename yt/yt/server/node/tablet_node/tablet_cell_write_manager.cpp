@@ -899,20 +899,158 @@ private:
         auto commitTimestamp = transaction->GetCommitTimestamp();
 
         YT_VERIFY(transaction->PrelockedRows().empty());
-        auto& lockedRows = transaction->LockedRows();
+
         int lockedRowCount = 0;
-        for (const auto& rowRef : lockedRows) {
-            if (!Host_->ValidateAndDiscardRowRef(rowRef)) {
-                continue;
+
+        if (!transaction->LockedRows().empty()) {
+            std::optional<int> keyMismatchIndex;
+            auto shuffleLockedRows = Host_->GetConfig()->ShuffleLockedRows;
+
+            auto& lockedRows = transaction->LockedRows();
+
+            if (shuffleLockedRows) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Shuffling locked rows (TransactionId: %v, LockedRowCount: %v)",
+                    transaction->GetId(),
+                    lockedRows.size());
+
+                if (std::ssize(lockedRows) == 2) {
+                    std::reverse(lockedRows.begin(), lockedRows.end());
+                } else {
+                    std::reverse(lockedRows.begin() + std::ssize(lockedRows) / 2, lockedRows.end());
+                }
             }
 
-            ++lockedRowCount;
-            FinishTabletCommit(rowRef.Store->GetTablet(), transaction, commitTimestamp);
-            auto* tablet = rowRef.StoreManager->GetTablet();
-            rowRef.StoreManager->CommitRow(transaction, rowRef);
-            Host_->OnTabletRowUnlocked(tablet);
+            const auto& writeLog = transaction->ImmediateLockedWriteLog();
+            auto writeLogIterator = writeLog.Begin();
+            auto writeLogReader = std::make_unique<TWireProtocolReader>((*writeLogIterator).Data);
+
+            for (int index = 0; index < std::ssize(lockedRows); ++index) {
+                const auto& rowRef = lockedRows[index];
+                while (writeLogReader->IsFinished()) {
+                    ++writeLogIterator;
+                    YT_VERIFY(writeLogIterator != writeLog.End());
+                    writeLogReader = std::make_unique<TWireProtocolReader>((*writeLogIterator).Data);
+                }
+
+                auto* tablet = rowRef.StoreManager->GetTablet();
+                auto command = writeLogReader->ReadWriteCommand(
+                    tablet->TableSchemaData(),
+                    /*captureValues*/ false);
+
+                if (!Host_->ValidateAndDiscardRowRef(rowRef)) {
+                    continue;
+                }
+
+                if (!rowRef.StoreManager->CommitRow(transaction, command, rowRef)) {
+                    keyMismatchIndex = index;
+                    break;
+                }
+
+                ++lockedRowCount;
+                FinishTabletCommit(tablet, transaction, commitTimestamp);
+
+                Host_->OnTabletRowUnlocked(tablet);
+            }
+
+            if (keyMismatchIndex) {
+                if (!shuffleLockedRows) {
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                        "Key mismatch between locked row list and immediate locked write log detected "
+                        "(TransactionId: %v, MismatchIndex: %v)",
+                        transaction->GetId(),
+                        *keyMismatchIndex);
+                }
+
+                using TCommandList =
+                    std::vector<
+                        std::pair<
+                            TRange<TUnversionedValue>,
+                            TWireProtocolWriteCommand
+                        >
+                    >;
+                THashMap<TTabletId, TCommandList> tabletIdToCommands;
+
+                auto rowBuffer = New<TRowBuffer>();
+                for (const auto& writeRecord : transaction->ImmediateLockedWriteLog()) {
+                    auto tabletId = writeRecord.TabletId;
+                    auto* tablet = Host_->FindTablet(tabletId);
+                    if (!tablet) {
+                        // NB: Tablet could be missing if it was, e.g., forcefully removed.
+                        continue;
+                    }
+
+                    auto keyColumnCount = tablet->GetPhysicalSchema()->GetKeyColumnCount();
+                    auto getKey = [&] (const TUnversionedRow& row) {
+                        YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
+                        return ToKeyRef(row, keyColumnCount);
+                    };
+
+                    TWireProtocolReader reader(writeRecord.Data, rowBuffer);
+                    while (!reader.IsFinished()) {
+                        auto command = reader.ReadWriteCommand(
+                            tablet->TableSchemaData(),
+                            /*captureValues*/ true);
+
+                        TRange<TUnversionedValue> key;
+                        Visit(command,
+                            [&] (const TWriteRowCommand& command) { key = getKey(command.Row); },
+                            [&] (const TDeleteRowCommand& command) { key = getKey(command.Row); },
+                            [&] (const TWriteAndLockRowCommand& command) { key = getKey(command.Row); },
+                            [&] (auto) { YT_ABORT(); });
+                        tabletIdToCommands[tabletId].emplace_back(key, command);
+                    }
+                }
+
+                for (auto& [tabletId, commands] : tabletIdToCommands) {
+                    auto* tablet = Host_->GetTablet(tabletId);
+                    const auto& comparer = tablet->GetRowKeyComparer();
+
+                    std::sort(commands.begin(), commands.end(), [&] (const auto& lhs, const auto& rhs) {
+                        return comparer(lhs.first, rhs.first) < 0;
+                    });
+                    for (int index = 0; index + 1 < std::ssize(commands); ++index) {
+                        const auto& key = commands[index].first;
+                        const auto& nextKey = commands[index + 1].first;
+                        // All keys must be different.
+                        YT_VERIFY(comparer(key, nextKey) < 0);
+                    }
+                }
+
+                for (int index = *keyMismatchIndex; index < std::ssize(lockedRows); ++index) {
+                    const auto& lockedRow = lockedRows[index];
+                    if (!Host_->ValidateAndDiscardRowRef(lockedRow)) {
+                        continue;
+                    }
+
+                    auto* tablet = lockedRow.StoreManager->GetTablet();
+                    const auto& row = lockedRow.Row;
+
+                    const auto& comparer = tablet->GetRowKeyComparer();
+
+                    const auto& commandList = GetOrCrash(tabletIdToCommands, tablet->GetId());
+                    auto commandIt = std::lower_bound(
+                        commandList.begin(),
+                        commandList.end(),
+                        row,
+                        [&] (const auto& command, const auto& row) {
+                            return comparer(command.first, row) < 0;
+                        });
+
+                    const auto& [commandKey, command] = *commandIt;
+                    // All keys must be different.
+                    YT_VERIFY(comparer(commandKey, row) == 0);
+
+                    YT_VERIFY(lockedRow.StoreManager->CommitRow(transaction, command, lockedRow));
+
+                    ++lockedRowCount;
+                    FinishTabletCommit(tablet, transaction, commitTimestamp);
+                    Host_->OnTabletRowUnlocked(tablet);
+                }
+            }
+
+            lockedRows.clear();
         }
-        lockedRows.clear();
 
         int locklessRowCount = 0;
         TCompactVector<TTablet*, 16> locklessTablets;

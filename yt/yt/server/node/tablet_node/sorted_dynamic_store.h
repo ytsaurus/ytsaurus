@@ -96,6 +96,8 @@ public:
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
     void CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask readLockMask);
     void AbortRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask readLockMask);
+    void DeleteRow(TTransaction* transaction, TSortedDynamicRow row);
+    void WriteRow(TTransaction* transaction, TSortedDynamicRow dynamicRow, TUnversionedRow row);
 
     // The following functions are made public for unit-testing.
     TSortedDynamicRow FindRow(NTableClient::TUnversionedRow key);
@@ -209,12 +211,13 @@ private:
         bool isDelete,
         TWriteContext* context);
 
-    TValueList PrepareFixedValue(TSortedDynamicRow row, int index);
     void AddDeleteRevision(TSortedDynamicRow row, ui32 revision);
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
-    void CommitValue(TSortedDynamicRow row, TValueList list, int index);
+    void AddValue(TSortedDynamicRow row, int index, TDynamicValue value);
+
+    void WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision);
 
     struct TLoadScratchData
     {
@@ -226,7 +229,6 @@ private:
     ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
     ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
 
-    void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);

@@ -133,6 +133,14 @@ TTablet* TSimpleTabletManager::FindTablet(const TTabletId& id) const
     return TabletMap_.Get(id);
 }
 
+TTablet* TSimpleTabletManager::GetTablet(const TTabletId& id) const
+{
+    auto* tablet = FindTablet(id);
+    YT_VERIFY(tablet);
+
+    return tablet;
+}
+
 const NHydra::TReadOnlyEntityMap<TTablet>& TSimpleTabletManager::Tablets() const
 {
     return TabletMap_;
@@ -160,6 +168,11 @@ TTimestamp TSimpleTabletManager::GetLatestTimestamp() const
 {
     // TODO(max42): use the same value with tablet slot.
     return TTimestamp();
+}
+
+bool TSimpleTabletManager::ValidateRowRef(const TSortedDynamicRowRef& /*rowRef*/)
+{
+    return true;
 }
 
 bool TSimpleTabletManager::ValidateAndDiscardRowRef(const TSortedDynamicRowRef& /*rowRef*/)

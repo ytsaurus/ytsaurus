@@ -107,19 +107,17 @@ bool TOrderedStoreManager::ExecuteWrites(
 
     YT_VERIFY(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
-        auto command = reader->ReadCommand();
-        switch (command) {
-            case EWireProtocolCommand::WriteRow:
-            case EWireProtocolCommand::VersionedWriteRow: {
-                auto row = reader->ReadUnversionedRow(false);
-                WriteRow(row, context);
-                break;
-            }
-
-            default:
+        auto command = reader->ReadWriteCommand(
+            Tablet_->TableSchemaData(),
+            /*captureValues*/ false,
+            /*versionedWriteIsUnversioned*/ true);
+        Visit(command,
+            [&] (const TWriteRowCommand& command) { WriteRow(command.Row, context); },
+            [&] (const TVersionedWriteRowCommand& command) { WriteRow(command.UnversionedRow, context); },
+            [&] (const auto& command) {
                 THROW_ERROR_EXCEPTION("Unsupported write command %v",
-                    command);
-        }
+                    GetWireProtocolCommand(command));
+            });
     }
     return true;
 }

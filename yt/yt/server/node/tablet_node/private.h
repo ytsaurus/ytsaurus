@@ -23,7 +23,7 @@ class TReqWriteRows;
 struct TWriteContext;
 struct TSortedDynamicRowRef;
 
-static constexpr ui32 UncommittedRevision = 0;
+static constexpr ui32 NullRevision = 0;
 static constexpr ui32 InvalidRevision = std::numeric_limits<ui32>::max();
 static constexpr ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
 

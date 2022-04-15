@@ -505,7 +505,7 @@ public:
     // DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet) here.
 
     TTablet* FindTablet(const TTabletId& id) const override;
-    TTablet* GetTablet(const TTabletId& id) const;
+    TTablet* GetTablet(const TTabletId& id) const override;
     const TReadOnlyEntityMap<TTablet>& Tablets() const override;
 
 private:
@@ -2561,7 +2561,7 @@ private:
         }
     }
 
-    bool ValidateRowRef(const TSortedDynamicRowRef& rowRef)
+    bool ValidateRowRef(const TSortedDynamicRowRef& rowRef) override
     {
         auto* store = rowRef.Store;
         return store->GetStoreState() != EStoreState::Orphaned;

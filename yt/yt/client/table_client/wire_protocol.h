@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "schema.h"
 
 #include <yt/yt/client/api/public.h>
 
@@ -8,6 +9,8 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 #include <yt/yt/core/misc/enum.h>
 #include <yt/yt/core/misc/range.h>
@@ -75,6 +78,7 @@ DEFINE_ENUM(EWireProtocolCommand,
 
     ((ReadLockWriteRow)(103))
     // Take primary read lock and optionally modify row
+    // Deprecated.
     //
     // Input:
     //   * Key
@@ -90,6 +94,46 @@ DEFINE_ENUM(EWireProtocolCommand,
     // Output:
     //   None
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TWriteRowCommand
+{
+    TUnversionedRow Row;
+};
+
+struct TDeleteRowCommand
+{
+    TUnversionedRow Row;
+};
+
+struct TVersionedWriteRowCommand
+{
+    // Versioned write uses versioned rows for sorted tables
+    // and unversioned rows for ordered tables.
+    union
+    {
+        TUnversionedRow UnversionedRow;
+        TVersionedRow VersionedRow;
+    };
+};
+
+struct TWriteAndLockRowCommand
+{
+    TUnversionedRow Row;
+    TLockMask LockMask;
+};
+
+using TWireProtocolWriteCommand = std::variant<
+    TWriteRowCommand,
+    TDeleteRowCommand,
+    TVersionedWriteRowCommand,
+    TWriteAndLockRowCommand
+>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+EWireProtocolCommand GetWireProtocolCommand(const TWireProtocolWriteCommand& command);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,6 +270,11 @@ public:
         const TSchemaData& schemaData,
         bool captureValues,
         const TIdMapping* valueIdMapping = nullptr);
+
+    TWireProtocolWriteCommand ReadWriteCommand(
+        const TSchemaData& schemaData,
+        bool captureValues,
+        bool versionedWriteIsUnversioned = false);
 
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,

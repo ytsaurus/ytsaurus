@@ -29,6 +29,12 @@ int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TRange<TUnve
         DUComparer(lhs.GetNullKeyMask(), lhs.BeginKeys(), rhs.Begin(), rhs.Size()));
 }
 
+int TSortedDynamicRowKeyComparer::operator()(TRange<TUnversionedValue> lhs, TSortedDynamicRow rhs) const
+{
+    return -GetCompareSign(
+        DUComparer(rhs.GetNullKeyMask(), rhs.BeginKeys(), lhs.Begin(), lhs.Size()));
+}
+
 int TSortedDynamicRowKeyComparer::operator()(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs) const
 {
     return CompareKeys(lhs, rhs, UUComparer.Get());

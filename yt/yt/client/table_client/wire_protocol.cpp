@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <library/cpp/yt/misc/variant.h>
+
 #include <util/system/sanitizers.h>
 
 #include <google/protobuf/io/coded_stream.h>
@@ -31,6 +33,8 @@ using NYT::FromProto;
 using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const static NLogging::TLogger Logger("WireProtocol");
 
 struct TWireProtocolWriterTag
 { };
@@ -52,6 +56,21 @@ static_assert(sizeof(TUnversionedValueData) == 8, "sizeof(TUnversionedValueData)
 static_assert(sizeof(TUnversionedRowHeader) == 8, "sizeof(TUnversionedRowHeader) != 8");
 static_assert(sizeof(TVersionedValue) == 24, "sizeof(TVersionedValue) != 24");
 static_assert(sizeof(TVersionedRowHeader) == 16, "sizeof(TVersionedRowHeader) != 16");
+
+////////////////////////////////////////////////////////////////////////////////
+
+EWireProtocolCommand GetWireProtocolCommand(const TWireProtocolWriteCommand& command)
+{
+    EWireProtocolCommand result;
+    Visit(command,
+        [&] (TWriteRowCommand) { result = EWireProtocolCommand::WriteRow; },
+        [&] (TDeleteRowCommand) { result = EWireProtocolCommand::DeleteRow; },
+        [&] (TVersionedWriteRowCommand) { result = EWireProtocolCommand::VersionedWriteRow; },
+        [&] (TWriteAndLockRowCommand) { result = EWireProtocolCommand::WriteAndLockRow; },
+        [&] (auto) { YT_ABORT(); });
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -778,6 +797,66 @@ public:
         return captureValues ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
+    TWireProtocolWriteCommand ReadWriteCommand(
+        const TSchemaData& schemaData,
+        bool captureValues,
+        bool versionedWriteIsUnversioned)
+    {
+        auto command = ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                auto row = ReadUnversionedRow(captureValues, /*idMapping*/ nullptr);
+                return TWriteRowCommand{
+                    .Row = row
+                };
+            }
+            case EWireProtocolCommand::DeleteRow: {
+                auto row = ReadUnversionedRow(captureValues, /*idMapping*/ nullptr);
+                return TDeleteRowCommand{
+                    .Row = row
+                };
+            }
+            case EWireProtocolCommand::VersionedWriteRow: {
+                if (versionedWriteIsUnversioned) {
+                    auto unversionedRow = ReadUnversionedRow(captureValues, /*idMapping*/ nullptr);
+                    return TVersionedWriteRowCommand{
+                        .UnversionedRow = unversionedRow
+                    };
+                } else {
+                    auto versionedRow = ReadVersionedRow(schemaData, captureValues, /*valueIdMapping*/ nullptr);
+                    return TVersionedWriteRowCommand{
+                        .VersionedRow = versionedRow
+                    };
+                }
+            }
+            // COMPAT(gritukan)
+            case EWireProtocolCommand::ReadLockWriteRow: {
+                TLockMask lockMask;
+                TLegacyLockMask legacyLocks(ReadLegacyLockBitmap());
+                for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
+                    lockMask.Set(index, legacyLocks.Get(index));
+                }
+
+                auto row = ReadUnversionedRow(captureValues, /*idMapping*/ nullptr);
+                return TWriteAndLockRowCommand{
+                    .Row = row,
+                    .LockMask = std::move(lockMask)
+                };
+            }
+            case EWireProtocolCommand::WriteAndLockRow: {
+                auto row = ReadUnversionedRow(captureValues, /*idMapping*/ nullptr);
+                auto lockMask = ReadLockMask();
+                return TWriteAndLockRowCommand{
+                    .Row = row,
+                    .LockMask = std::move(lockMask)
+                };
+            }
+            default:
+                YT_LOG_FATAL("Unknown write command (Command: %v)",
+                    command);
+        }
+    }
+
 private:
     const TRowBufferPtr RowBuffer_;
 
@@ -1120,6 +1199,17 @@ TSharedRange<TVersionedRow> TWireProtocolReader::ReadVersionedRowset(
     const TIdMapping* valueIdMapping)
 {
     return Impl_->ReadVersionedRowset(schemaData, captureValues, valueIdMapping);
+}
+
+TWireProtocolWriteCommand TWireProtocolReader::ReadWriteCommand(
+    const TSchemaData& schemaData,
+    bool captureValues,
+    bool versionedWriteIsUnversioned)
+{
+    return Impl_->ReadWriteCommand(
+        schemaData,
+        captureValues,
+        versionedWriteIsUnversioned);
 }
 
 auto TWireProtocolReader::GetSchemaData(

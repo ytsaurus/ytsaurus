@@ -25,6 +25,7 @@ public:
 
     int operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const;
     int operator()(TSortedDynamicRow lhs, TRange<TUnversionedValue> rhs) const;
+    int operator()(TRange<TUnversionedValue> lhs, TSortedDynamicRow rhs) const;
     int operator()(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs) const;
     int operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
 };
