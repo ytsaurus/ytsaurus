@@ -17,7 +17,7 @@ class TRelativeReplicationThrottler
     : public IRelativeReplicationThrottler
 {
 public:
-    TRelativeReplicationThrottler(TRelativeReplicationThrottlerConfigPtr config)
+    explicit TRelativeReplicationThrottler(TRelativeReplicationThrottlerConfigPtr config)
         : Config_(std::move(config))
     { }
 
