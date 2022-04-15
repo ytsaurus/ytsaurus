@@ -906,27 +906,34 @@ void TSlotLocation::UpdateDiskResources()
         THashMap<int, TDiskStatistics> diskStatisticsPerSlot;
 
         for (const auto& [slotIndex, sandboxOptions] : sandboxOptionsPerSlot) {
-            i64 slotDiskUsage = 0;
+            auto config = New<TGetDirectorySizesAsRootConfig>();
+            config->IgnoreUnavailableFiles = true;
+            config->DeduplicateByINodes = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (NFS::Exists(path)) {
-                    // We have to calculate user directory size as root,
-                    // because user job could have set restricted permissions for files and
-                    // directories inside sandbox.
-                    auto config = New<TGetDirectorySizeAsRootConfig>();
-                    config->Path = path;
-                    config->IgnoreUnavailableFiles = true;
-                    config->DeduplicateByINodes = true;
-                    slotDiskUsage += (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
-                        ? RunTool<TGetDirectorySizeAsRootTool>(config)
-                        : NFS::GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
+                    config->Paths.push_back(path);
                 }
             }
+
+            i64 slotDiskUsage = 0;
+            if (Bootstrap_->IsSimpleEnvironment()) {
+                for (const auto& path : config->Paths) {
+                    slotDiskUsage += NFS::GetDirectorySize(path, /*ignoreUnavailableFiles*/ true, /*deduplicateByINodes*/ true);
+                }
+            } else {
+                // We have to calculate user directory sizes as root,
+                // because user job could have set restricted permissions for files and
+                // directories inside sandbox.
+                auto sizes = RunTool<TGetDirectorySizesAsRootTool>(std::move(config));
+                slotDiskUsage = std::accumulate(sizes.begin(), sizes.end(), 0ll);
+            }
+
             diskStatisticsPerSlot.insert(std::make_pair(
                 slotIndex,
                 TDiskStatistics{
-                    .Limit=sandboxOptions.DiskSpaceLimit,
-                    .Usage=slotDiskUsage
+                    .Limit = sandboxOptions.DiskSpaceLimit,
+                    .Usage = slotDiskUsage,
                 }));
 
             if (sandboxOptions.DiskSpaceLimit) {

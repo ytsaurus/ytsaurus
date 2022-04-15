@@ -31,7 +31,7 @@ REGISTER_TOOL(TSetThreadPriorityAsRootTool)
 REGISTER_TOOL(TFSQuotaTool)
 REGISTER_TOOL(TChownChmodTool)
 REGISTER_TOOL(TCopyDirectoryContentTool)
-REGISTER_TOOL(TGetDirectorySizeAsRootTool)
+REGISTER_TOOL(TGetDirectorySizesAsRootTool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
