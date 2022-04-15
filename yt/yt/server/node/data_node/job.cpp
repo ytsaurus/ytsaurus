@@ -2292,12 +2292,15 @@ private:
             writerConfig->UploadReplicationFactor = 1;
             writerConfig->MinUploadReplicationFactor = 1;
 
+            auto writerOptions = New<TRemoteWriterOptions>();
+            writerOptions->AllowAllocatingNewTargetNodes = false;
+
             std::vector<TChunkWriterWithIndex> writers;
             writers.reserve(ReplicationFactor_);
             for (int index = 0; index < ReplicationFactor_; ++index) {
                 auto writer = CreateReplicationWriter(
                     writerConfig,
-                    New<TRemoteWriterOptions>(),
+                    writerOptions,
                     writeSessionId,
                     {writeTargets[index]},
                     NodeDirectory_,
