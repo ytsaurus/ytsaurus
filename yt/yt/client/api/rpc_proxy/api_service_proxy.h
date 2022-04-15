@@ -71,6 +71,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PullRows);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetInSyncReplicas);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTabletInfos);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTabletErrors);
 
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BalanceTabletCells);
 

@@ -356,6 +356,44 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
 
+    return GetTabletInfosImpl(tableInfo, tabletIndexes, options);
+}
+
+std::vector<TTabletInfo> TClient::GetTabletInfosByTabletIds(
+    const TYPath& path,
+    const std::vector<TTabletId>& tabletIds,
+    const TGetTabletInfosOptions& options)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+        .ValueOrThrow();
+
+    THashMap<TTabletId, int> tabletIdToTabletIndex;
+    for (int tabletIndex = 0; tabletIndex < std::ssize(tableInfo->Tablets); ++tabletIndex) {
+        tabletIdToTabletIndex[tableInfo->Tablets[tabletIndex]->TabletId] = tabletIndex;
+    }
+
+    std::vector<int> tabletIndexes;
+    for (const auto& tabletId : tabletIds) {
+        auto tabletIndex = tabletIdToTabletIndex.find(tabletId);
+
+        // TODO(alexelex): retry due to reshard
+        if (tabletIndex == tabletIdToTabletIndex.end()) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "No such tablet %v",
+                tabletId);
+        }
+        tabletIndexes.push_back(tabletIndex->second);
+    }
+    return GetTabletInfosImpl(tableInfo, tabletIndexes, options);
+}
+
+std::vector<TTabletInfo> TClient::GetTabletInfosImpl(
+    const TTableMountInfoPtr& tableInfo,
+    const std::vector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
     tableInfo->ValidateDynamic();
 
     struct TSubrequest
@@ -426,6 +464,73 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
         }
     }
     return results;
+}
+
+TGetTabletErrorsResult TClient::DoGetTabletErrors(
+    const TYPath& path,
+    const TGetTabletErrorsOptions& options)
+{
+    auto masterReadOptions = TMasterReadOptions{
+        .ReadFrom = EMasterChannelKind::Cache
+    };
+
+    auto proxy = CreateReadProxy<TObjectServiceProxy>(masterReadOptions);
+    auto req = TTableYPathProxy::Get(path + "/@tablets");
+    SetCachingHeader(req, masterReadOptions);
+
+    auto tablets = WaitFor(proxy->Execute(req))
+        .ValueOrThrow();
+    auto tabletsNode = ConvertToNode(TYsonString(tablets->value()))->AsList();
+
+    i64 errorCount = 0;
+    i64 replicationErrorCount = 0;
+    i64 limit = options.Limit.value_or(Connection_->GetConfig()->DefaultGetTabletErrorsLimit);
+    std::vector<TTabletId> tabletIdsToRequest;
+    for (const auto& tablet : tabletsNode->GetChildren()) {
+        auto tabletNode = tablet->AsMap();
+        auto tabletId = ConvertTo<TTabletId>(tabletNode->GetChildOrThrow("tablet_id"));
+
+        if (errorCount < limit &&
+            tabletNode->GetChildOrThrow("error_count")->AsInt64()->GetValue() > 0)
+        {
+            ++errorCount;
+            tabletIdsToRequest.push_back(tabletId);
+        }
+
+        if (replicationErrorCount < limit &&
+            tabletNode->GetChildOrThrow("replication_error_count")->AsInt64()->GetValue() > 0)
+        {
+            ++replicationErrorCount;
+            if (tabletIdsToRequest.empty() || tabletIdsToRequest.back() != tabletId) {
+                tabletIdsToRequest.push_back(tabletId);
+            }
+        }
+
+        if (replicationErrorCount == limit && errorCount == limit) {
+            break;
+        }
+    }
+
+    auto tabletInfos = GetTabletInfosByTabletIds(
+        path,
+        tabletIdsToRequest,
+        TGetTabletInfosOptions{{.Timeout = options.Timeout}, /*RequestErrors*/ true});
+
+    TGetTabletErrorsResult result;
+    for (int resultIndex = 0; resultIndex < std::ssize(tabletInfos); ++resultIndex) {
+        if (!tabletInfos[resultIndex].TabletErrors.empty()) {
+            result.TabletErrors[tabletIdsToRequest[resultIndex]] = std::move(tabletInfos[resultIndex].TabletErrors);
+        }
+        if (tabletInfos[resultIndex].TableReplicaInfos) {
+            for (auto& replicaInfo : tabletInfos[resultIndex].TableReplicaInfos.value()) {
+                if (!replicaInfo.ReplicationError.IsOK()) {
+                    result.ReplicationErrors[replicaInfo.ReplicaId].push_back(std::move(replicaInfo.ReplicationError));
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 TClient::TEncoderWithMapping TClient::GetLookupRowsEncoder() const

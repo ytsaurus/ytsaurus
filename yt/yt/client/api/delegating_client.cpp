@@ -379,6 +379,13 @@ TFuture<std::vector<TTabletInfo>> TDelegatingClient::GetTabletInfos(
     return Underlying_->GetTabletInfos(path, tabletIndexes, options);
 }
 
+TFuture<TGetTabletErrorsResult> TDelegatingClient::GetTabletErrors(
+    const NYPath::TYPath& path,
+    const TGetTabletErrorsOptions& options)
+{
+    return Underlying_->GetTabletErrors(path, options);
+}
+
 TFuture<std::vector<NTabletClient::TTabletActionId>> TDelegatingClient::BalanceTabletCells(
     const TString& tabletCellBundle,
     const std::vector<NYPath::TYPath>& movableTables,

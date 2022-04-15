@@ -664,6 +664,27 @@ message TRspGetTabletInfos
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetTabletErrors
+{
+    required string path = 1;
+    optional int64 limit = 2;
+}
+
+message TRspGetTabletErrors
+{
+    message TErrorList
+    {
+        repeated NYT.NProto.TError errors = 1;
+    }
+
+    repeated NYT.NProto.TGuid tablet_ids = 1;
+    repeated TErrorList tablet_errors = 2;
+    repeated NYT.NProto.TGuid replica_ids = 3;
+    repeated TErrorList replication_errors = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqModifyRows
 {
     // Modifications are sent asynchronously. Sequential numbering is

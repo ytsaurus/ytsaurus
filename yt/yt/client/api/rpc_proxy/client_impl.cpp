@@ -615,6 +615,43 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
     }));
 }
 
+TFuture<TGetTabletErrorsResult> TClient::GetTabletErrors(
+    const TYPath& path,
+    const TGetTabletErrorsOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetTabletErrors();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+    if (options.Limit) {
+        req->set_limit(*options.Limit);
+    }
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspGetTabletErrorsPtr>& rspOrError) {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        TGetTabletErrorsResult tabletErrors;
+
+        for (i64 index = 0; index != rsp->tablet_ids_size(); ++index) {
+            std::vector<TError> errors;
+            for (const auto& protoError : rsp->tablet_errors(index).errors()) {
+                errors.push_back(FromProto<TError>(protoError));
+            }
+            tabletErrors.TabletErrors[FromProto<TTabletId>(rsp->tablet_ids(index))] = std::move(errors);
+        }
+
+        for (i64 index = 0; index != rsp->replica_ids_size(); ++index) {
+            std::vector<TError> errors;
+            for (const auto& protoError : rsp->replication_errors(index).errors()) {
+                errors.push_back(FromProto<TError>(protoError));
+            }
+            tabletErrors.ReplicationErrors[FromProto<TTableReplicaId>(rsp->replica_ids(index))] = std::move(errors);
+        }
+        return tabletErrors;
+    }));
+}
+
 TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     const TString& tabletCellBundle,
     const std::vector<NYPath::TYPath>& movableTables,

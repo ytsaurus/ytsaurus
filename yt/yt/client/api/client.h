@@ -307,6 +307,18 @@ struct TTabletInfo
     std::vector<TError> TabletErrors;
 };
 
+struct TGetTabletErrorsOptions
+    : public TTimeoutOptions
+{
+    std::optional<i64> Limit;
+};
+
+struct TGetTabletErrorsResult
+{
+    THashMap<NTabletClient::TTabletId, std::vector<TError>> TabletErrors;
+    THashMap<NTabletClient::TTableReplicaId, std::vector<TError>> ReplicationErrors;
+};
+
 struct TBalanceTabletCellsOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -1686,6 +1698,10 @@ struct IClient
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options = {}) = 0;
+
+    virtual TFuture<TGetTabletErrorsResult> GetTabletErrors(
+        const NYPath::TYPath& path,
+        const TGetTabletErrorsOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTabletActionId>> BalanceTabletCells(
         const TString& tabletCellBundle,

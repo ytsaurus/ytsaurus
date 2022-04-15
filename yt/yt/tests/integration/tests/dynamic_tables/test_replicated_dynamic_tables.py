@@ -9,7 +9,7 @@ from yt_commands import (
     make_ace, start_transaction, abort_transaction, commit_transaction, lock, insert_rows, select_rows, lookup_rows,
     delete_rows, lock_rows,
     reshard_table, generate_timestamp, get_tablet_infos, get_tablet_leader_address, sync_create_cells,
-    sync_mount_table, sync_unmount_table, sync_freeze_table, alter_table,
+    sync_mount_table, sync_unmount_table, sync_freeze_table, alter_table, get_tablet_errors,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
     get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id)
@@ -216,49 +216,93 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         if schema is self.SIMPLE_SCHEMA_SORTED:
             delete_rows("//tmp/t", [{"key": 2}], require_sync_replica=False)
 
-    @authors("babenko", "gridem")
+    @authors("babenko", "gridem", "alexelexa")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replication_error(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
+
+        tablet_count = 3
+        singular_row = [{"key": 99, "value1": "test1"}]
+        rows = [{"key": i * 40, "value1": str(i)} for i in range(tablet_count)]
+
+        sync_unmount_table("//tmp/t")
+        if schema == SIMPLE_SCHEMA_SORTED:
+            reshard_table("//tmp/t", [[], [33], [66]])
+        else:
+            reshard_table("//tmp/t", tablet_count)
+
+            singular_row[0]["$tablet_index"] = 2
+            for i in range(tablet_count):
+                rows[i]["$tablet_index"] = i
+
+        sync_mount_table("//tmp/t")
+
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema, mount=False)
         sync_enable_table_replica(replica_id)
 
         tablets = get("//tmp/t/@tablets")
-        assert len(tablets) == 1
-        tablet_id = tablets[0]["tablet_id"]
+        assert len(tablets) == tablet_count
+        tablet_ids = [tablets[i]["tablet_id"] for i in range(tablet_count)]
 
-        def error_contains_message(error, message):
-            if error["message"] == message:
-                return True
-            for inner_error in error["inner_errors"]:
-                if error_contains_message(inner_error, message):
-                    return True
-            return False
-
-        def check_error(message=None):
+        def check_error(tablet_id, expected_error_count=0, expected_error_message=None):
             error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
             if error_count != get("#{}/@error_count".format(replica_id)):
                 return False
-            if error_count != int(get("#{}/@tablets/0/has_error".format(replica_id))):
+            if (error_count != sum(int(get("#{}/@tablets/{}/has_error".format(replica_id, tablet_index)))
+                                   for tablet_index in range(tablet_count))):
                 return False
 
-            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
-            errors = orchid["replication_errors"]
-
-            if message is None:
-                return error_count == 0 and len(errors) == 0
+            errors = get("//sys/tablets/{}/orchid/replication_errors".format(tablet_id))
+            if expected_error_message is None:
+                return error_count == expected_error_count and len(errors) == 0
             else:
-                return error_count == 1 and len(errors) == 1 and error_contains_message(errors[replica_id], message)
+                return error_count == expected_error_count and len(errors) == 1 and YtError.from_dict(errors[replica_id]).contains_text(expected_error_message)
 
-        assert check_error()
+        def check_tablet_errors(tablet_ids, expected_error_message=None, limit=None):
+            errors = get_tablet_errors("//tmp/t") if limit is None else get_tablet_errors("//tmp/t", limit=limit)
+            if len(errors["replication_errors"]) != int(expected_error_message is not None):
+                return False
 
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
-        wait(lambda: check_error("Table //tmp/r has no mounted tablets"))
+            error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
+            expected_error_count = error_count if limit is None else min(error_count, limit)
+            replica_errors = errors["replication_errors"].get(replica_id, [])
+            if len(replica_errors) != expected_error_count:
+                return False
+
+            actual_tablet_ids = builtins.set(error["attributes"]["tablet_id"] for error in replica_errors)
+            tablet_with_error_count = min(limit if limit is not None else len(tablet_ids), error_count)
+            if len(actual_tablet_ids) != tablet_with_error_count:
+                return False
+
+            for error in replica_errors:
+                if not YtError.from_dict(error).contains_text(expected_error_message):
+                    return False
+
+                if error["attributes"]["tablet_id"] not in tablet_ids:
+                    return False
+            return True
+
+        assert all(check_error(tablet_id) for tablet_id in tablet_ids)
+
+        insert_rows("//tmp/t", singular_row, require_sync_replica=False)
+        wait(lambda: check_error(tablet_ids[2], 1, expected_error_message="Table //tmp/r has no mounted tablets"))
 
         sync_mount_table("//tmp/r", driver=self.replica_driver)
-        wait(lambda: check_error())
+        wait(lambda: all(check_error(tablet_id) for tablet_id in tablet_ids))
+
+        sync_unmount_table("//tmp/r", driver=self.replica_driver)
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+        wait(lambda: all(check_error(tablet_id, tablet_count, expected_error_message="Table //tmp/r has no mounted tablets") for tablet_id in tablet_ids))
+
+        assert check_tablet_errors(tablet_ids, expected_error_message="Table //tmp/r has no mounted tablets")
+        assert check_tablet_errors(tablet_ids, expected_error_message="Table //tmp/r has no mounted tablets", limit=2)
+
+        sync_mount_table("//tmp/r", driver=self.replica_driver)
+        wait(lambda: all(check_error(tablet_id) for tablet_id in tablet_ids))
+        assert check_tablet_errors(tablet_ids)
 
     @authors("gridem")
     def test_replicated_in_memory_fail(self):
