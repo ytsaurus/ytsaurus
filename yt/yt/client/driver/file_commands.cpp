@@ -153,6 +153,8 @@ TPutFileToCacheCommand::TPutFileToCacheCommand()
     RegisterParameter("path", Path);
     RegisterParameter("md5", MD5);
     RegisterParameter("cache_path", Options.CachePath);
+    RegisterParameter("preserve_expiration_timeout", Options.PreserveExpirationTimeout)
+        .Optional();
 }
 
 void TPutFileToCacheCommand::DoExecute(ICommandContextPtr context)

@@ -4381,6 +4381,9 @@ private:
         SetMutatingOptions(&options, request, context.Get());
 
         options.CachePath = request->cache_path();
+        if (request->has_preserve_expiration_timeout()) {
+            options.PreserveExpirationTimeout = request->preserve_expiration_timeout();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
