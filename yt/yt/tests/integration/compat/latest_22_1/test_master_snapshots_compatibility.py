@@ -1,7 +1,7 @@
-from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     ls, exists, get, authors, print_debug, build_master_snapshots, create, start_transaction,
-    commit_transaction)
+    commit_transaction, sync_create_cells, wait_for_cells)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -109,3 +109,55 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
         for s in checker_state_list:
             with pytest.raises(StopIteration):
                 next(s)
+
+
+class TestTabletCellsSnapshotsCompatibility(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 5
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "incremental_heartbeat_period": 100,
+        },
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 1
+            }
+        }
+    }
+
+    ARTIFACT_COMPONENTS = {
+        "22_1": ["master", "node"],
+        "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "exec", "tools"],
+    }
+
+    def teardown_method(self, method):
+        node_path = os.path.join(self.bin_path, "ytserver-node")
+        if os.path.exists(node_path + "__BACKUP"):
+            print_debug("Removing symlink {}".format(node_path))
+            os.remove(node_path)
+            print_debug("Renaming {} to {}".format(node_path + "__BACKUP", node_path))
+            os.rename(node_path + "__BACKUP", node_path)
+        super(TestTabletCellsSnapshotsCompatibility, self).teardown_method(method)
+
+    @authors("aleksandra-zh")
+    def test(self):
+        cell_ids = sync_create_cells(1)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            nodes_path = os.path.join(self.bin_path, "ytserver-node")
+            ytserver_all_trunk_path = yatest.common.binary_path("yt/yt/packages/tests_package/ytserver-all")
+            print_debug("Renaming {} to {}".format(nodes_path, nodes_path + "__BACKUP"))
+            os.rename(nodes_path, nodes_path + "__BACKUP")
+            print_debug("Symlinking {} to {}".format(ytserver_all_trunk_path, nodes_path))
+            os.symlink(ytserver_all_trunk_path, nodes_path)
+
+        wait_for_cells(cell_ids)

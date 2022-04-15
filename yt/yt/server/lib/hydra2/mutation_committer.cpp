@@ -290,7 +290,11 @@ void TLeaderCommitter::Stop()
     MutationQueueDataSize_ = 0;
     MutationQueueSummaryDataSize_.Record(0);
 
-    LastSnapshotInfo_ = std::nullopt;
+    if (LastSnapshotInfo_) {
+        LastSnapshotInfo_->Promise.TrySet(error);
+        LastSnapshotInfo_ = std::nullopt;
+    }
+
     PeerStates_.clear();
 }
 
@@ -710,8 +714,8 @@ void TLeaderCommitter::OnSnapshotsComplete()
     // TODO(aleksandra-zh): remove when we stop building snapshots on all peers.
     if (successCount < CellManager_->GetQuorumPeerCount()) {
         YT_LOG_ALERT("Not enough successfull snapshots built (SnapshotId: %v, SuccessCount: %v)",
-        LastSnapshotInfo_->SnapshotId,
-        successCount);
+            LastSnapshotInfo_->SnapshotId,
+            successCount);
     }
 
     if (checksumMismatch) {
@@ -724,6 +728,13 @@ void TLeaderCommitter::OnSnapshotsComplete()
                     *checksum);
             }
         }
+    }
+
+    if (successCount == 0) {
+        LastSnapshotInfo_->Promise.TrySet(TError("Error building snapshot")
+            << TErrorAttribute("snapshot_id", LastSnapshotInfo_->SnapshotId));
+    } else {
+        LastSnapshotInfo_->Promise.TrySet(LastSnapshotInfo_->SnapshotId);
     }
 
     LastSnapshotInfo_ = std::nullopt;
@@ -788,9 +799,9 @@ void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemo
         YT_VERIFY(!LastSnapshotInfo_->Checksums[selfId]);
         YT_VERIFY(snapshotParams.SnapshotId == snapshotId);
         LastSnapshotInfo_->Checksums[selfId] = snapshotParams.Checksum;
-        LastSnapshotInfo_->Promise.Set(snapshotParams.SnapshotId);
     } else {
-        LastSnapshotInfo_->Promise.Set(rspOrError);
+        YT_LOG_WARNING(rspOrError, "Error building snapshot locally (SnapshotId: %v)",
+            snapshotId);
     }
 
     OnSnapshotReply(selfId);
