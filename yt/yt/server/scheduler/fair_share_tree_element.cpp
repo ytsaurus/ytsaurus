@@ -3158,7 +3158,7 @@ void TSchedulerOperationElement::CheckForDeactivation(
                     YT_ABORT();
             }
         }();
-        onOperationDeactivated(deactivationReason);
+        onOperationDeactivated(deactivationReason, /*considerInOperationCounter*/ false);
         return;
     }
 
