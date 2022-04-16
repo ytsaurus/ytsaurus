@@ -672,3 +672,13 @@ def get_tablet_infos(path, tablet_indexes, format=None, client=None):
     """TODO"""
     params = {"path": path, "tablet_indexes": tablet_indexes}
     return make_formatted_request("get_tablet_infos", params, format=format, client=client)
+
+def get_tablet_errors(path, limit=None, format=None, client=None):
+    """Gets dynamic table tablet and replication errors.
+    :param str path: path to table
+    :param int limit: maximum number of returned errors of any kind
+    """
+    params = {"path": path}
+    set_param(params, "limit", limit)
+
+    return make_formatted_request("get_tablet_errors", params, format=format, client=client)

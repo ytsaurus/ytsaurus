@@ -555,6 +555,15 @@ class YtClient(ClientState):
         """
         return client_api.get_table_columnar_statistics(paths, client=self)
 
+    def get_tablet_errors(self, path, limit=None, format=None):
+        """
+        Gets dynamic table tablet and replication errors.
+        :param str path: path to table
+        :param int limit: maximum number of returned errors of any kind
+
+        """
+        return client_api.get_tablet_errors(path, client=self, limit=limit, format=format)
+
     def get_tablet_infos(self, path, tablet_indexes, format=None):
         """
         TODO

@@ -51,7 +51,7 @@ Table commands:
 Dynamic table commands:
     mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
     reshard-table, reshard-table-automatic, balance-tablet-cells, trim-rows, alter-table-replica,
-    select-rows, explain-query, lookup-rows, insert-rows, delete-rows
+    select-rows, explain-query, lookup-rows, insert-rows, delete-rows, get-tablet-errors
 Run operation commands:
     erase, merge, sort, map, reduce, join-reduce, remote-copy, vanilla, map-reduce
 Operation commands:
@@ -835,6 +835,19 @@ def add_get_tablet_infos_parser(add_parser):
     parser = add_parser("get-tablet-infos", get_tablet_infos)
     add_ypath_argument(parser, "--path", required=True, help="path to dynamic table")
     parser.add_argument("--tablet-indexes", nargs="+", type=int)
+    add_structured_format_argument(parser)
+
+@copy_docstring_from(yt.get_tablet_errors)
+def get_tablet_errors(**kwargs):
+    result = yt.get_tablet_errors(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+def add_get_tablet_errors_parser(add_parser):
+    parser = add_parser("get-tablet-errors", get_tablet_errors)
+    add_ypath_argument(parser, "--path", required=True, help="path to dynamic table")
+    parser.add_argument("--limit", type=int, help="number of tablets with errors")
     add_structured_format_argument(parser)
 
 @copy_docstring_from(yt.reshard_table)
@@ -1995,6 +2008,7 @@ def main():
     add_freeze_table_parser(add_parser)
     add_unfreeze_table_parser(add_parser)
     add_get_tablet_infos_parser(add_parser)
+    add_get_tablet_errors_parser(add_parser)
 
     add_alter_table_replica_parser(add_parser)
 
