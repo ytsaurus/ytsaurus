@@ -444,6 +444,11 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
     @authors("renadeen", "ignat")
     def test_strategy_with_slow_controller(self):
+        update_pool_tree_config(
+            "default",
+            {
+                "allowed_resource_usage_staleness": 0,
+            })
         slow_spec = {"testing": {"controller_scheduling_delay": 1000, "controller_scheduling_delay_type": "async"}}
 
         create_pool("pool")

@@ -1448,6 +1448,7 @@ TFairShareScheduleJobResult TSchedulerCompositeElement::ScheduleJob(TScheduleJob
 
     TSchedulerOperationElement* bestLeafDescendant = nullptr;
 
+    TSchedulerOperationElement* lastConsideredBestLeafDescendant = nullptr;
     while (bestLeafDescendant == nullptr) {
         if (!attributes.Active) {
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -1460,8 +1461,9 @@ TFairShareScheduleJobResult TSchedulerCompositeElement::ScheduleJob(TScheduleJob
             bestLeafDescendant = nullptr;
             continue;
         }
-        if (bestLeafDescendant->IsUsageOutdated(context)) {
+        if (lastConsideredBestLeafDescendant != bestLeafDescendant && bestLeafDescendant->IsUsageOutdated(context)) {
             bestLeafDescendant->UpdateCurrentResourceUsage(context);
+            lastConsideredBestLeafDescendant = bestLeafDescendant;
             bestLeafDescendant = nullptr;
             continue;
         }
