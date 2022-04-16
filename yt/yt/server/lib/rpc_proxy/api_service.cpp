@@ -806,7 +806,11 @@ private:
             TProtobufParserOptions parserOptions{
                 .SkipUnknownFields = true,
             };
-            WriteProtobufMessage(&requestYsonWriter, context->Request(), parserOptions);
+            if (static_cast<i64>(context->Request().ByteSizeLong()) <= config->StructuredLoggingMaxRequestByteSize) {
+                WriteProtobufMessage(&requestYsonWriter, context->Request(), parserOptions);
+            } else {
+                requestYsonWriter.OnEntity();
+            }
 
             context->SetupMainMessage(TYsonString(std::move(requestYson)));
         }

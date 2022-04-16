@@ -102,6 +102,8 @@ public:
 
     TStructuredLoggingTopicDynamicConfigPtr StructuredLoggingMainTopic;
     TStructuredLoggingTopicDynamicConfigPtr StructuredLoggingErrorTopic;
+    //! If request byte size exceeds this value, it will be logged as # in main topic.
+    i64 StructuredLoggingMaxRequestByteSize;
 
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
 
@@ -125,6 +127,8 @@ public:
             .DefaultNew(THashSet<TString>{"ModifyRows", "BatchModifyRows", "LookupRows", "VersionedLookupRows"});
         RegisterParameter("structured_logging_error_topic", StructuredLoggingErrorTopic)
             .DefaultNew();
+        RegisterParameter("structured_logging_max_request_byte_size", StructuredLoggingMaxRequestByteSize)
+            .Default(10_KB);
         RegisterParameter("formats", Formats)
             .Default();
     }
