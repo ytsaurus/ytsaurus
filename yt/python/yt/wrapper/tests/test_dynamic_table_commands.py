@@ -430,3 +430,20 @@ class TestDynamicTableCommands(object):
         ts_kwargs.pop("retention_timestamp")
         assert rows1 + rows2 == list(yt.lookup_rows(table, keys, **ts_kwargs))
         assert rows1 + rows2 == list(yt.select_rows("* from [{}] order by x limit 10".format(table), **ts_kwargs))
+
+    @authors("alexelexa")
+    def test_get_tablet_errors(self):
+        if get_api_version() != "v4":
+            pytest.skip()
+
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/dyntable_tablet_errors"
+        self._create_dynamic_table(table)
+        yt.mount_table(table, sync=True)
+
+        errors = yt.get_tablet_errors(table)
+        errors_with_limit = yt.get_tablet_errors(table, limit=4)
+        assert len(errors["tablet_errors"]) == 0
+        assert len(errors["replication_errors"]) == 0
+        assert len(errors_with_limit["tablet_errors"]) == 0
+        assert len(errors_with_limit["replication_errors"]) == 0
