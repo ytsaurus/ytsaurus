@@ -55,22 +55,6 @@ class TestRpcProxy(YTEnvSetup):
         },
     }
 
-    @classmethod
-    def modify_rpc_proxy_config(cls, config):
-        config[0]["logging"]["rules"].append(
-            {
-                "min_level": "debug",
-                "writers": ["main"],
-                "include_categories": ["RpcProxyStructuredMain", "Barrier"],
-                "message_format": "structured",
-            }
-        )
-        config[0]["logging"]["writers"]["main"] = {
-            "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
-            "format": "yson",
-        }
-
     @authors("shakurov")
     def test_non_sticky_transactions_dont_stick(self):
         tx = start_transaction(timeout=1000)
@@ -90,45 +74,6 @@ class TestRpcProxy(YTEnvSetup):
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
-
-    @authors("max42")
-    def test_structured_logging(self):
-        proxy_address = ls("//sys/rpc_proxies")[0]
-
-        query = "* from [//path/to/table]"
-
-        native_config = deepcopy(self.Env.configs["driver"])
-        native_config["connection_type"] = "native"
-        native_config["api_version"] = 3
-        native_driver = Driver(native_config)
-
-        b1 = write_log_barrier(proxy_address, driver=native_driver)
-
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
-            select_rows(query)
-
-        b2 = write_log_barrier(proxy_address, driver=native_driver)
-
-        set("//sys/rpc_proxies/@config", {
-            "api": {"structured_logging_main_topic": {"suppressed_methods": ["SelectRows"]}}
-        })
-        time.sleep(0.5)
-
-        with raises_yt_error(yt_error_codes.ResolveErrorCode):
-            select_rows(query)
-
-        b3 = write_log_barrier(proxy_address, driver=native_driver)
-
-        rpc_proxy_log_file = self.path_to_run + "/logs/rpc-proxy-0.main.yson.log"
-
-        def lookup_entry(needle, from_barrier=None, to_barrier=None):
-            for line in read_structured_log(rpc_proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier):
-                if needle in line.get("request", {}).get("query", ""):
-                    return True
-            return False
-
-        assert lookup_entry(query, from_barrier=b1, to_barrier=b2)
-        assert not lookup_entry(query, from_barrier=b2, to_barrier=b3)
 
     @authors("gritukan")
     def test_access_checker(self):
@@ -182,7 +127,108 @@ class TestRpcProxy(YTEnvSetup):
         wait(lambda: not check_access("u"))
 
 
-##################################################################
+class TestRpcProxyStructuredLogging(YTEnvSetup):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    NUM_RPC_PROXIES = 1
+
+    @classmethod
+    def modify_rpc_proxy_config(cls, config):
+        config[0]["logging"]["rules"].append(
+            {
+                "min_level": "debug",
+                "writers": ["main"],
+                "include_categories": ["RpcProxyStructuredMain", "Barrier"],
+                "message_format": "structured",
+            }
+        )
+        config[0]["logging"]["writers"]["main"] = {
+            "type": "file",
+            "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
+            "format": "yson",
+        }
+
+    def setup_method(self, method):
+        super(TestRpcProxyStructuredLogging, self).setup_method(method)
+        self.proxy_address = ls("//sys/rpc_proxies")[0]
+
+        native_config = deepcopy(self.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 3
+        self.native_driver = Driver(native_config)
+
+        self.rpc_proxy_log_file = self.path_to_run + "/logs/rpc-proxy-0.main.yson.log"
+
+    def _write_log_barrier(self):
+        return write_log_barrier(self.proxy_address, driver=self.native_driver)
+
+    @authors("max42")
+    def test_logging_dynamic_config(self):
+        query = "* from [//path/to/table]"
+
+        set("//sys/rpc_proxies/@config", {})
+        time.sleep(0.5)
+
+        b1 = self._write_log_barrier()
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows(query)
+
+        b2 = self._write_log_barrier()
+
+        set("//sys/rpc_proxies/@config", {
+            "api": {"structured_logging_main_topic": {"suppressed_methods": ["SelectRows"]}},
+        })
+        time.sleep(0.5)
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows(query)
+
+        b3 = self._write_log_barrier()
+
+        def contains_entry(needle, from_barrier=None, to_barrier=None):
+            for line in read_structured_log(self.rpc_proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier):
+                if needle in line.get("request", {}).get("query", ""):
+                    return True
+            return False
+
+        assert contains_entry(query, from_barrier=b1, to_barrier=b2)
+        assert not contains_entry(query, from_barrier=b2, to_barrier=b3)
+
+    @authors("max42")
+    def test_max_request_byte_size(self):
+        long_table_name = "//" + "a" * 4096
+        query = "* from [" + long_table_name + "]"
+
+        set("//sys/rpc_proxies/@config", {})
+        time.sleep(0.5)
+
+        b1 = self._write_log_barrier()
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows(query)
+
+        b2 = self._write_log_barrier()
+
+        set("//sys/rpc_proxies/@config", {
+            "api": {"structured_logging_max_request_byte_size": 1024},
+        })
+        time.sleep(0.5)
+
+        with raises_yt_error(yt_error_codes.ResolveErrorCode):
+            select_rows(query)
+
+        b3 = self._write_log_barrier()
+
+        def get_select_entry(from_barrier=None, to_barrier=None):
+            for line in read_structured_log(self.rpc_proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier):
+                if line.get("method", None) == "SelectRows":
+                    return line
+            return None
+
+        assert get_select_entry(from_barrier=b1, to_barrier=b2)["request"]["query"] == query
+        assert get_select_entry(from_barrier=b2, to_barrier=b3)["request"] == yson.YsonEntity()
 
 
 class TestRpcProxyBase(YTEnvSetup):
