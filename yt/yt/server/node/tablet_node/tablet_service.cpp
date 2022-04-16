@@ -85,7 +85,6 @@ private:
     const ITabletSlotPtr Slot_;
     IBootstrap* const Bootstrap_;
 
-
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
         ValidatePeer(EPeerKind::Leader);
@@ -136,90 +135,96 @@ private:
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
-        if (tabletSnapshot->Atomicity != atomicity) {
-            THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
-                atomicity,
-                tabletSnapshot->Atomicity);
-        }
-
-        if (versioned && context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName) {
-            THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
-                NSecurityClient::ReplicatorUserName);
-        }
-
-        auto checkUpstreamReplicaId = versioned || tabletSnapshot->UpstreamReplicaId;
-
-        if (checkUpstreamReplicaId) {
-            if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
-                THROW_ERROR_EXCEPTION("Table is not bound to any upstream replica but replica %v was given",
-                    upstreamReplicaId);
-            } else if (!upstreamReplicaId && tabletSnapshot->UpstreamReplicaId) {
-                THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
-                    tabletSnapshot->UpstreamReplicaId);
-            } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
-                THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
-                    tabletSnapshot->UpstreamReplicaId,
-                    upstreamReplicaId);
+        try {
+            if (tabletSnapshot->Atomicity != atomicity) {
+                THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
+                    atomicity,
+                    tabletSnapshot->Atomicity);
             }
-        }
 
-        auto era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
-        if (replicationEra && *replicationEra != era) {
-            if (era == InvalidReplicationEra) {
-                THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is identifying replication era");
+            if (versioned && context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName) {
+                THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
+                    NSecurityClient::ReplicatorUserName);
             }
-            THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
-                era,
-                *replicationEra);
-        }
 
-        auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
-        if (writeMode != ETabletWriteMode::Direct &&
-            context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName)
-        {
-            THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is probably catching up")
-                << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId);
-        }
+            auto checkUpstreamReplicaId = versioned || tabletSnapshot->UpstreamReplicaId;
 
-        const auto& resourceLimitsManager = Bootstrap_->GetResourceLimitsManager();
-        const auto& tabletCellBundleName = Slot_->GetTabletCellBundleName();
+            if (checkUpstreamReplicaId) {
+                if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
+                    THROW_ERROR_EXCEPTION("Table is not bound to any upstream replica but replica %v was given",
+                        upstreamReplicaId);
+                } else if (!upstreamReplicaId && tabletSnapshot->UpstreamReplicaId) {
+                    THROW_ERROR_EXCEPTION("Table is bound to upstream replica %v; direct modifications are forbidden",
+                        tabletSnapshot->UpstreamReplicaId);
+                } else if (upstreamReplicaId != tabletSnapshot->UpstreamReplicaId) {
+                    THROW_ERROR_EXCEPTION("Mismatched upstream replica: expected %v, got %v",
+                        tabletSnapshot->UpstreamReplicaId,
+                        upstreamReplicaId);
+                }
+            }
 
-        {
-            auto* counters = tabletSnapshot->TableProfiler->GetWriteCounters(GetCurrentProfilingUser());
-            NProfiling::TEventTimerGuard timerGuard(counters->ValidateResourceWallTime);
+            auto era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+            if (replicationEra && *replicationEra != era) {
+                if (era == InvalidReplicationEra) {
+                    THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is identifying replication era");
+                }
+                THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
+                    era,
+                    *replicationEra);
+            }
 
+            auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
+            if (writeMode != ETabletWriteMode::Direct &&
+                context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName)
+            {
+                THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is probably catching up")
+                    << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId);
+            }
+
+            const auto& resourceLimitsManager = Bootstrap_->GetResourceLimitsManager();
+            const auto& tabletCellBundleName = Slot_->GetTabletCellBundleName();
+
+            {
+                auto* counters = tabletSnapshot->TableProfiler->GetWriteCounters(GetCurrentProfilingUser());
+                NProfiling::TEventTimerGuard timerGuard(counters->ValidateResourceWallTime);
+
+                resourceLimitsManager->ValidateResourceLimits(
+                    tabletSnapshot->Settings.StoreWriterOptions->Account,
+                    tabletSnapshot->Settings.StoreWriterOptions->MediumName,
+                    tabletCellBundleName,
+                    tabletSnapshot->Settings.MountConfig->InMemoryMode);
+
+                resourceLimitsManager->ValidateResourceLimits(
+                    tabletSnapshot->Settings.HunkWriterOptions->Account,
+                    tabletSnapshot->Settings.HunkWriterOptions->MediumName,
+                    tabletCellBundleName,
+                    EInMemoryMode::None);
+            }
+
+            auto slotOptions = Slot_->GetOptions();
             resourceLimitsManager->ValidateResourceLimits(
-                tabletSnapshot->Settings.StoreWriterOptions->Account,
-                tabletSnapshot->Settings.StoreWriterOptions->MediumName,
-                tabletCellBundleName,
-                tabletSnapshot->Settings.MountConfig->InMemoryMode);
-
+                slotOptions->ChangelogAccount,
+                slotOptions->ChangelogPrimaryMedium);
             resourceLimitsManager->ValidateResourceLimits(
-                tabletSnapshot->Settings.HunkWriterOptions->Account,
-                tabletSnapshot->Settings.HunkWriterOptions->MediumName,
-                tabletCellBundleName,
-                EInMemoryMode::None);
-        }
+                slotOptions->SnapshotAccount,
+                slotOptions->SnapshotPrimaryMedium);
 
-        auto slotOptions = Slot_->GetOptions();
-        resourceLimitsManager->ValidateResourceLimits(
-            slotOptions->ChangelogAccount,
-            slotOptions->ChangelogPrimaryMedium);
-        resourceLimitsManager->ValidateResourceLimits(
-            slotOptions->SnapshotAccount,
-            slotOptions->SnapshotPrimaryMedium);
+            auto throttlerKind = ETabletDistributedThrottlerKind::Write;
+            const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[throttlerKind];
+            if (writeThrottler && !writeThrottler->TryAcquire(dataWeight)) {
+                tabletSnapshot->TableProfiler->GetThrottlerCounter(throttlerKind)
+                    ->Increment();
 
-        auto throttlerKind = ETabletDistributedThrottlerKind::Write;
-        const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[throttlerKind];
-        if (writeThrottler && !writeThrottler->TryAcquire(dataWeight)) {
-            tabletSnapshot->TableProfiler->GetThrottlerCounter(throttlerKind)
-                ->Increment();
-
-            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
-                "%v to tablet %v is throttled",
-                throttlerKind,
-                tabletId)
-                << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalCount());
+                THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
+                    "%v to tablet %v is throttled",
+                    throttlerKind,
+                    tabletId)
+                    << TErrorAttribute("queue_total_count", writeThrottler->GetQueueTotalCount());
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR ex
+                << TErrorAttribute("tablet_id", tabletId)
+                << TErrorAttribute("table_path", tabletSnapshot->TablePath);
         }
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
