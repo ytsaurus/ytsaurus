@@ -793,6 +793,9 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
     RegisterParameter("chunk_repair_job", ChunkRepairJob)
         .DefaultNew();
 
+    RegisterParameter("medium_io_engine", MediumIOEngine)
+        .Default();
+
     RegisterParameter("medium_io_config", MediumIOConfig)
         .Default();
 

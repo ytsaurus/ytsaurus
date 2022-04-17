@@ -1497,6 +1497,11 @@ public:
         StopThreads();
     }
 
+    void Configure(const TUringIOEngineConfigPtr& config)
+    {
+        Y_UNUSED(config);
+    }
+
     void SubmitRequest(TUringRequestPtr request)
     {
         YT_LOG_TRACE("Request enqueued (Request: %v, Type: %v)",
@@ -2187,10 +2192,10 @@ public:
             std::move(locationId),
             std::move(profiler),
             std::move(logger))
-        , Config_(std::move(config))
+        , StaticConfig_(std::move(config))
         , ThreadPool_(std::make_unique<TUringThreadPool>(
             Format("IOU:%v", LocationId_),
-            Config_,
+            StaticConfig_,
             Sensors_))
     { }
 
@@ -2217,7 +2222,7 @@ public:
 
         auto [handles, ioRequests] = uringRequest->ReadRequestCombiner.Combine(
             std::move(requests),
-            Config_->DirectIOPageSize,
+            StaticConfig_->DirectIOPageSize,
             tagCookie);
         YT_VERIFY(handles.size() == ioRequests.size());
 
@@ -2232,7 +2237,7 @@ public:
             uringRequest->PaddedBytes += GetPaddedSize(
                 ioRequest.Offset,
                 ioRequest.Size,
-                handles[index]->IsOpenForDirectIO() ? Config_->DirectIOPageSize : DefaultPageSize);
+                handles[index]->IsOpenForDirectIO() ? StaticConfig_->DirectIOPageSize : DefaultPageSize);
             uringRequest->ReadSubrequests.push_back({
                 .Handle = std::move(handles[index]),
                 .Offset = ioRequest.Offset,
@@ -2280,7 +2285,7 @@ public:
     }
 
 private:
-    const TConfigPtr Config_;
+    const TConfigPtr StaticConfig_;
 
     TUringThreadPoolPtr ThreadPool_;
 
@@ -2295,7 +2300,9 @@ private:
 
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
-        Y_UNUSED(node);
+        auto config = UpdateYsonSerializable(StaticConfig_, node);
+
+        ThreadPool_->Configure(config);
     }
 };
 

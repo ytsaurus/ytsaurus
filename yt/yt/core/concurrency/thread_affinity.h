@@ -12,8 +12,6 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-
 /*!
  * Allows to annotate certain functions with thread affinity.
  * The checks are performed at run-time to ensure that each function
@@ -50,6 +48,8 @@ public:
 private:
     std::atomic<TThreadId> BoundId_ = {InvalidThreadId};
 };
+
+#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 
 #define DECLARE_THREAD_AFFINITY_SLOT(slot) \
     mutable ::NYT::NConcurrency::TThreadAffinitySlot PP_CONCAT(slot, _Slot)

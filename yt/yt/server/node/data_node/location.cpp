@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/io_workload_model.h>
+#include <yt/yt/server/lib/io/dynamic_io_engine.h>
 
 #include <yt/yt/ytlib/chunk_client/format.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
@@ -171,20 +172,23 @@ TChunkLocation::TChunkLocation(
     Profiler_ = LocationProfiler
         .WithSparse()
         .WithTag("location_type", FormatEnum(Type_))
-        .WithTag("medium", GetMediumName(), -1)
+        .WithTag("disk_family", Config_->DiskFamily, -1)
         .WithTag("location_id", Id_, -1)
         .WithExtensionTag("device_name", Config_->DeviceName, -1)
         .WithExtensionTag("device_model", Config_->DeviceModel, -1);
 
+    UpdateMediumTag();
+
     PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
-    auto engine = CreateIOEngine(
+    auto engine = CreateDynamicIOEngine(
         Config_->IOEngineType,
         Config_->IOConfig,
         id,
         Profiler_,
         DataNodeLogger.WithTag("LocationId: %v", id));
 
+    DynamicIOEngine_ = engine;
     IOEngineModel_ = CreateIOModelInterceptor(id, engine, DataNodeLogger.WithTag("IOModel: %v", id));
     IOEngine_ = IOEngineModel_;
 
@@ -218,6 +222,11 @@ const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
     return IOEngine_;
 }
 
+void TChunkLocation::UpdateIOEngineType(NIO::EIOEngineType type)
+{
+    DynamicIOEngine_->ReconfigureType(type);
+}
+
 const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -230,6 +239,13 @@ ELocationType TChunkLocation::GetType() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Type_;
+}
+
+const TStoreLocationConfigBasePtr& TChunkLocation::GetConfig() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Config_;
 }
 
 TChunkLocationUuid TChunkLocation::GetUuid() const
@@ -849,6 +865,19 @@ void TChunkLocation::DoStart()
     HealthChecker_->Start();
 }
 
+void TChunkLocation::UpdateMediumTag()
+{
+    MediumTag_ = LocationProfiler
+        .WithSparse()
+        .WithTag("location_type", FormatEnum(Type_))
+        .WithTag("medium", GetMediumName(), -1)
+        .WithTag("location_id", Id_, -1)
+        .WithExtensionTag("device_name", Config_->DeviceName, -1)
+        .WithExtensionTag("device_model", Config_->DeviceModel, -1)
+        .Gauge("/medium");
+    MediumTag_.Update(1);
+}
+
 void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -862,6 +891,7 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         return;
     }
 
+    UpdateMediumTag();
     if (ChunkStore_ && !onInitialize && newDescriptor.Index != oldDescriptor.Index) {
         ChunkStore_->ChangeLocationMedium(this, oldDescriptor.Index);
     }

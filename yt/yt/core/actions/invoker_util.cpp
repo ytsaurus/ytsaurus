@@ -58,7 +58,6 @@ public:
         }
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
@@ -68,7 +67,6 @@ public:
     {
         return InvalidThreadId;
     }
-#endif
 
 private:
     struct TFiberState
@@ -96,7 +94,6 @@ public:
     void Invoke(TClosure /*callback*/) override
     { }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
     {
         return false;
@@ -106,7 +103,6 @@ public:
     {
         return InvalidThreadId;
     }
-#endif
 };
 
 IInvokerPtr GetNullInvoker()

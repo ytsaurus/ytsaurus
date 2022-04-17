@@ -56,7 +56,6 @@ struct TBucket
         Queue.clear();
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     NConcurrency::TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
@@ -66,7 +65,6 @@ struct TBucket
     {
         return invoker.Get() == this;
     }
-#endif
 
     ~TBucket();
 

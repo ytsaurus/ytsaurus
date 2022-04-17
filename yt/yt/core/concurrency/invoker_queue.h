@@ -94,10 +94,8 @@ public:
         int profilingTag,
         NYTProf::TProfilerTagPtr profilerTag);
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
-#endif
 
     void Shutdown();
 

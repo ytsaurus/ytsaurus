@@ -17,7 +17,6 @@ struct IInvoker
     //! Schedules invocation of a given callback.
     virtual void Invoke(TClosure callback) = 0;
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     //! Returns the thread id this invoker is bound to.
     //! For invokers not bound to any particular thread,
     //! returns |InvalidThreadId|.
@@ -26,7 +25,6 @@ struct IInvoker
     //! Returns |true| if this invoker is either equal to #invoker or wraps it,
     //! in some sense.
     virtual bool CheckAffinity(const IInvokerPtr& invoker) const = 0;
-#endif
 };
 
 DEFINE_REFCOUNTED_TYPE(IInvoker)

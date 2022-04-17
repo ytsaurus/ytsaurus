@@ -52,7 +52,6 @@ public:
         Queue.clear();
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     NConcurrency::TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
@@ -62,7 +61,6 @@ public:
     {
         return invoker.Get() == this;
     }
-#endif
 
     ~TBucket();
 

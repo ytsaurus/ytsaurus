@@ -87,6 +87,37 @@ class TestIoEngine(YTEnvSetup):
         write_table("//tmp/sick", [{"a": i} for i in range(100)])
         wait(lambda: get_sick_count() > 0)
 
+    @authors("prime")
+    def test_dynamic_io_engine(self):
+        create("table", "//tmp/table")
+
+        def use_engine(name):
+            update_nodes_dynamic_config({
+                "data_node": {
+                    "medium_io_engine": {
+                        "default": name
+                    }
+                }
+            })
+
+            def enabled_engines():
+                return sum(
+                    profiler_factory().at_node(node).gauge(name="location/engine_enabled", fixed_tags={"location_type": "store", "engine_type": name}).get()
+                    for node in ls("//sys/cluster_nodes")
+                )
+
+            wait(lambda: enabled_engines() == self.NUM_NODES)
+
+            write_table("//tmp/table", [{"a": i} for i in range(100)])
+
+        use_engine("thread_pool")
+        use_engine("fair_share_thread_pool")
+        if not is_uring_supported() or is_uring_disabled():
+            return
+
+        return  # uring is broken in CI
+        use_engine("uring")
+
 
 def parse_version(vstring):
     pattern = r'^(\d+)\.(\d+)\.(\d+).*'

@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/ytree/ephemeral_node_factory.h>
+
 #include <util/random/random.h>
 
 #include <limits>
@@ -149,6 +151,38 @@ void TChunkStore::Shutdown()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     Locations_.clear();
+}
+
+void TChunkStore::ReconfigureLocation(const TChunkLocationPtr& location)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+
+    auto config = DynamicConfig_;
+    if (!config) {
+        return;
+    }
+
+    if (auto it = config->MediumIOConfig.find(location->GetMediumName()); it != config->MediumIOConfig.end()) {
+        location->GetIOEngine()->Reconfigure(it->second);
+    } else {
+        location->GetIOEngine()->Reconfigure(NYTree::GetEphemeralNodeFactory()->CreateMap());
+    }
+
+    if (auto it = config->MediumIOEngine.find(location->GetMediumName()); it != config->MediumIOEngine.end()) {
+        location->UpdateIOEngineType(it->second);
+    } else {
+        location->UpdateIOEngineType(location->GetConfig()->IOEngineType);
+    }
+}
+
+void TChunkStore::UpdateConfig(const TDataNodeDynamicConfigPtr& config)
+{
+    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    DynamicConfig_ = config;
+
+    for (const auto& location : Locations_) {
+        ReconfigureLocation(location);
+    }
 }
 
 void TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
@@ -387,7 +421,9 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
 void TChunkStore::ChangeLocationMedium(const TChunkLocationPtr& location, int oldMediumIndex)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ReconfigureLocation(location);
 
     auto guard = ReaderGuard(ChunkMapLock_);
     for (const auto& [chunkId, chunkEntry] : ChunkMap_) {

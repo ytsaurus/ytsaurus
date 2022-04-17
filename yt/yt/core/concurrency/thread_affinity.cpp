@@ -10,8 +10,6 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
-
 void TThreadAffinitySlot::Check(TThreadId threadId)
 {
     auto expectedId = InvalidThreadId;
@@ -47,8 +45,6 @@ bool VerifyInvokerPoolAffinity(const IInvokerPoolPtr& invokerPool)
     }
     return false;
 }
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
