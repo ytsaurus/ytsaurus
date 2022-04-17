@@ -2221,7 +2221,7 @@ private:
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         bool validateStrictAdvance = request->validate_strict_advance();
-        
+
         // NB: It is legitimate for `progress` to be less than `tabletProgress`: tablet progress could have been
         // updated by some recent transaction while `progress` has been constructed even before `transaction` started.
         auto tabletProgress = tablet->RuntimeData()->ReplicationProgress.Load();
@@ -2936,6 +2936,7 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
+                .Item("lock_count").Value(tablet->GetTabletLockCount())
                 .Item("hash_table_size").Value(tablet->GetHashTableSize())
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
                 .Item("dynamic_store_count").Value(tablet->GetDynamicStoreCount())
