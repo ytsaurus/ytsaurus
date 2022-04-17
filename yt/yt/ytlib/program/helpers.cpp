@@ -6,6 +6,7 @@
 #include <yt/yt/core/ytalloc/bindings.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/lazy_ptr.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
@@ -33,6 +34,8 @@
 #include <yt/yt/core/threading/spin_wait_slow_path_logger.h>
 
 #include <library/cpp/yt/threading/spin_wait_hook.h>
+
+#include <util/string//split.h>
 
 namespace NYT {
 
@@ -159,28 +162,34 @@ void StartDiagnosticDumpImpl(const TConfig& config)
 {
     static NLogging::TLogger Logger("DiagDump");
 
-    static TPeriodicExecutorPtr YTAllocPeriodicExecutor;
-    if (!YTAllocPeriodicExecutor && config->YTAllocDumpPeriod) {
-        YTAllocPeriodicExecutor = New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            BIND([&] {
-                YT_LOG_DEBUG("YTAlloc dump:\n%v",
-                    NYTAlloc::FormatAllocationCounters());
-            }),
-            config->YTAllocDumpPeriod);
-        YTAllocPeriodicExecutor->Start();
+    auto logDumpString = [&] (TStringBuf banner, const TString& str) {
+        for (const auto& line : StringSplitter(str).Split('\n')) {
+            YT_LOG_DEBUG("%v %v", banner, line.Token());
+        }
+    };
+
+    if (config->YTAllocDumpPeriod) {
+        static const TLazyIntrusivePtr<TPeriodicExecutor> Executor(BIND([&] {
+            return New<TPeriodicExecutor>(
+                NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                BIND([&] {
+                    logDumpString("YTAlloc", NYTAlloc::FormatAllocationCounters());
+                }));
+        }));
+        Executor->SetPeriod(config->YTAllocDumpPeriod);
+        Executor->Start();
     }
 
-    static TPeriodicExecutorPtr RefCountedTrackerPeriodicExecutor;
-    if (!RefCountedTrackerPeriodicExecutor && config->RefCountedTrackerDumpPeriod) {
-        RefCountedTrackerPeriodicExecutor = New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            BIND([&] {
-                YT_LOG_DEBUG("RefCountedTracker dump:\n%v",
-                    TRefCountedTracker::Get()->GetDebugInfo());
-            }),
-            config->RefCountedTrackerDumpPeriod);
-        RefCountedTrackerPeriodicExecutor->Start();
+    if (config->RefCountedTrackerDumpPeriod) {
+        static const TLazyIntrusivePtr<TPeriodicExecutor> Executor(BIND([&] {
+            return New<TPeriodicExecutor>(
+                NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+                BIND([&] {
+                    logDumpString("RCT", TRefCountedTracker::Get()->GetDebugInfo());
+                }));
+        }));
+        Executor->SetPeriod(config->RefCountedTrackerDumpPeriod);
+        Executor->Start();
     }
 }
 
