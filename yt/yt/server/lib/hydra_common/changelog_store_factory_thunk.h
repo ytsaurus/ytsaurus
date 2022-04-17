@@ -2,6 +2,8 @@
 
 #include "changelog.h"
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,12 +17,7 @@ public:
     void SetUnderlying(IChangelogStoreFactoryPtr underlying);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    IChangelogStoreFactoryPtr Underlying_;
-
-
-    IChangelogStoreFactoryPtr GetUnderlying();
-
+    TAtomicObject<IChangelogStoreFactoryPtr> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChangelogStoreFactoryThunk)
