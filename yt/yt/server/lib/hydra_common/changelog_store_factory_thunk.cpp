@@ -6,19 +6,12 @@ namespace NYT::NHydra {
 
 TFuture<IChangelogStorePtr> TChangelogStoreFactoryThunk::Lock()
 {
-    return GetUnderlying()->Lock();
+    return Underlying_.Load()->Lock();
 }
 
 void TChangelogStoreFactoryThunk::SetUnderlying(IChangelogStoreFactoryPtr underlying)
 {
-    auto guard = Guard(SpinLock_);
-    Underlying_ = underlying;
-}
-
-IChangelogStoreFactoryPtr TChangelogStoreFactoryThunk::GetUnderlying()
-{
-    auto guard = Guard(SpinLock_);
-    return Underlying_;
+    Underlying_.Store(std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

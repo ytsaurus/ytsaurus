@@ -2,6 +2,8 @@
 
 #include "snapshot.h"
 
+#include <yt/yt/core/misc/atomic_object.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,12 +19,7 @@ public:
     void SetUnderlying(ISnapshotStorePtr underlying);
 
 private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    ISnapshotStorePtr Underlying_;
-
-
-    ISnapshotStorePtr GetUnderlying();
-
+    TAtomicObject<ISnapshotStorePtr> Underlying_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSnapshotStoreThunk)
