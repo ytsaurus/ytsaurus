@@ -56,7 +56,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TPromise<TChangelogInfo> Promise_ = NewPromise<TChangelogInfo>();
+    const TPromise<TChangelogInfo> Promise_ = NewPromise<TChangelogInfo>();
 
     void DoRun()
     {
@@ -182,9 +182,9 @@ private:
 
     std::vector<int> RecordCountsLo_;
     std::vector<int> RecordCountsHi_;
-    // Consider actually using this.
+    // TODO(aleksandra-zh): Consider actually using this.
     std::vector<TError> InnerErrors_;
-    TPromise<TChangelogQuorumInfo> Promise_ = NewPromise<TChangelogQuorumInfo>();
+    const TPromise<TChangelogQuorumInfo> Promise_ = NewPromise<TChangelogQuorumInfo>();
 
 
     void RegisterSuccess(int recordCount)
@@ -331,6 +331,7 @@ private:
     int SuccessCount_ = 0;
 
     std::vector<TError> InnerErrors_;
+
 
     void RegisterSuccess(int changelogId, int term)
     {
