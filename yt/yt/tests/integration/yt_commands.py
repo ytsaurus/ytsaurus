@@ -2783,3 +2783,17 @@ def get_active_primary_master_follower_address(env_setup):
         for rpc_address in env_setup.Env.configs["master"][0]["primary_master"]["addresses"]:
             if is_active_primary_master_follower(rpc_address):
                 return rpc_address
+
+
+def get_node_alive_object_counts(address, types):
+    result = {type: 0 for type in types}
+    for item in get("//sys/cluster_nodes/{}/orchid/monitoring/ref_counted/statistics".format(address), verbose=False, default=[]):
+        type = item["name"]
+        if type in types:
+            result[type] = item["objects_alive"]
+    print_debug("Found alive object(s) at node {}: {}".format(address, result))
+    return result
+
+
+def wait_for_node_alive_object_counts(address, type_to_expected_count):
+    wait(lambda: get_node_alive_object_counts(address, type_to_expected_count.keys()) == type_to_expected_count)

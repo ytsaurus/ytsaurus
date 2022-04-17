@@ -176,25 +176,31 @@ class TDecoratedAutomaton::TSystemInvoker
     : public TInvokerWrapper
 {
 public:
-    explicit TSystemInvoker(TDecoratedAutomaton* decoratedAutomaton)
+    explicit TSystemInvoker(
+        TDecoratedAutomatonPtr decoratedAutomaton)
         : TInvokerWrapper(decoratedAutomaton->AutomatonInvoker_)
         , Owner_(decoratedAutomaton)
     { }
 
     void Invoke(TClosure callback) override
     {
-        auto lockGuard = TSystemLockGuard::Acquire(Owner_);
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            return;
+        }
+
+        auto lockGuard = TSystemLockGuard::Acquire(owner);
 
         auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this_);
-            callback.Run();
+            callback();
         };
 
         UnderlyingInvoker_->Invoke(BIND(doInvoke, Passed(std::move(lockGuard))));
     }
 
 private:
-    TDecoratedAutomaton* const Owner_;
+    const TWeakPtr<TDecoratedAutomaton> Owner_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,28 +218,32 @@ public:
 
     void Invoke(TClosure callback) override
     {
-        auto lockGuard = TUserLockGuard::TryAcquire(Owner_);
+        auto owner = Owner_.Lock();
+        if (!owner) {
+            return;
+        }
+
+        auto lockGuard = TUserLockGuard::TryAcquire(owner);
         if (!lockGuard) {
             return;
         }
 
         auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
-            if (Owner_->GetState() != EPeerState::Leading &&
-                Owner_->GetState() != EPeerState::Following)
-            {
+            auto state = owner->GetState();
+            if (state != EPeerState::Leading && state != EPeerState::Following) {
                 return;
             }
 
-            TCurrentEpochIdGuard guard1(Owner_->GetEpochId());
+            TCurrentEpochIdGuard guard1(owner->GetEpochId());
             TCurrentInvokerGuard guard2(this_);
-            callback.Run();
+            callback();
         };
 
         UnderlyingInvoker_->Invoke(BIND(doInvoke));
     }
 
 private:
-    const TDecoratedAutomatonPtr Owner_;
+    const TWeakPtr<TDecoratedAutomaton> Owner_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

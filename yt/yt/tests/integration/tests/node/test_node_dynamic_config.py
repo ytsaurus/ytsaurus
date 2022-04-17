@@ -13,6 +13,7 @@ from yt_commands import (
     run_test_vanilla,
     get_applied_node_dynamic_config,
     sync_create_cells,
+    wait_for_node_alive_object_counts
 )
 
 from yt_helpers import profiler_factory
@@ -363,6 +364,36 @@ class TestNodeDynamicConfig(YTEnvSetup):
             assert not exists("//sys/cluster_nodes/dynamic_config_manager/applied_config")
             assert len(get("//sys/cluster_nodes/{0}/@alerts".format(node))) == 0
 
+    def _get_used_celler_slot_count(self, address):
+        cellars = get("//sys/cluster_nodes/{}/@cellars".format(address))
+        used_slot_count = 0
+        for _, cellar in cellars.items():
+            for slot in cellar:
+                if slot["state"] != "none":
+                    used_slot_count += 1
+        return used_slot_count
+
+    def _check_tablet_node_rct(self, address):
+        used_slot_count = self._get_used_celler_slot_count(address)
+        wait_for_node_alive_object_counts(
+            address,
+            {
+                "NYT::NTabletNode::TTabletSlot" : used_slot_count,
+                "NYT::NHydra2::TDistributedHydraManager" : used_slot_count,
+                "NYT::NHydra2::TDecoratedAutomaton" : used_slot_count,
+                "NYT::NHydra2::TLeaderCommitter" : used_slot_count,
+                "NYT::NHydra2::TRecovery" : used_slot_count,
+                "NYT::NHydra2::TLeaseTracker" : used_slot_count,
+                "NYT::NHydra2::TEpochContext" : used_slot_count,
+                "NYT::NHydra::TRemoteChangelogStore" : used_slot_count,
+                "NYT::NHydra::TRemoteSnapshotStore" : used_slot_count,
+                "NYT::NApi::NNative::TJournalWriter" : used_slot_count,
+            })
+
+    def _check_tablet_nodes_rct(self):
+        for address in ls("//sys/cluster_nodes"):
+            self._check_tablet_node_rct(address)
+
     @authors("gritukan", "savrus")
     @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
     def test_dynamic_tablet_slot_count(self, config_node):
@@ -424,6 +455,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
                 config["nodeA"]["tablet_node"]["slots"] = slot_count
             set("//sys/cluster_nodes/@config", config)
             wait(lambda: healthy_cell_count() == min(5, slot_count))
+            self._check_tablet_nodes_rct()
 
     @authors("starodub")
     def test_versioned_chunk_meta_cache(self):
