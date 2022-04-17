@@ -47,7 +47,7 @@ i64 GetMutationDataSize(const TPendingMutationPtr& mutation)
     return sizeof(mutation) + mutation->RecordData.Size();
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

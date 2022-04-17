@@ -51,7 +51,6 @@ namespace NYT::NHydra2 {
 using namespace NConcurrency;
 using namespace NElection;
 using namespace NHydra;
-// using namespace NHydra2::NProto;
 using namespace NLogging;
 using namespace NPipes;
 using namespace NProfiling;
