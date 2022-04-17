@@ -124,6 +124,8 @@ public:
     //! Returns the type.
     ELocationType GetType() const;
 
+    const TStoreLocationConfigBasePtr& GetConfig() const;
+
     //! Returns the universally unique id.
     TChunkLocationUuid GetUuid() const;
 
@@ -133,11 +135,17 @@ public:
     //! Returns the IO Engine.
     const NIO::IIOEnginePtr& GetIOEngine() const;
 
+    void UpdateIOEngineType(NIO::EIOEngineType type);
+
     //! Returns the IO Engine with stats observer.
     const NIO::IIOEngineWorkloadModelPtr& GetIOEngineModel() const;
 
     //! Returns direct IO policy for read requests.
     NIO::EDirectIOPolicy UseDirectIOForReads() const;
+
+    //! Return the maximum number of bytes in the gap between two adjacent read locations
+    //! in order to join them together during read coalescing.
+    i64 GetCoalescedReadMaxGapSize() const;
 
     //! Returns the medium name.
     TString GetMediumName() const;
@@ -169,10 +177,6 @@ public:
     //! Returns the maximum number of bytes the chunks assigned to this location
     //! are allowed to use.
     i64 GetQuota() const;
-
-    //! Return the maximum number of bytes in the gap between two adjacent read locations
-    //! in order to join them together during read coalescing.
-    i64 GetCoalescedReadMaxGapSize() const;
 
     //! Returns an invoker for various auxiliarly IO activities.
     const IInvokerPtr& GetAuxPoolInvoker();
@@ -304,6 +308,7 @@ private:
     TAtomicObject<TError> MediumAlert_;
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    NProfiling::TGauge MediumTag_;
 
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;
@@ -319,6 +324,7 @@ private:
 
     NIO::IIOEnginePtr IOEngine_;
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
+    NIO::IDynamicIOEnginePtr DynamicIOEngine_;
 
     TDiskHealthCheckerPtr HealthChecker_;
 
@@ -335,6 +341,8 @@ private:
     void ValidateWritable();
     void InitializeCellId();
     void InitializeUuid();
+
+    void UpdateMediumTag();
 
     void OnHealthCheckFailed(const TError& error);
     void MarkAsDisabled(const TError& error);

@@ -470,15 +470,7 @@ private:
         P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
 
-        for (auto location : ChunkStore_->Locations()) {
-            auto node = newConfig->DataNode->MediumIOConfig[location->GetMediumName()];
-
-            if (node) {
-                location->GetIOEngine()->Reconfigure(node);
-            } else {
-                location->GetIOEngine()->Reconfigure(GetEphemeralNodeFactory()->CreateMap());
-            }
-        }
+        ChunkStore_->UpdateConfig(newConfig->DataNode);
     }
 };
 

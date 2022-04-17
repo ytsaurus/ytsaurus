@@ -14,10 +14,8 @@ public:
     //! Schedules invocation of a given callback.
     void Invoke(TClosure callback) override;
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     NConcurrency::TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
-#endif
 
 protected:
     explicit TInvokerWrapper(IInvokerPtr underlyingInvoker);

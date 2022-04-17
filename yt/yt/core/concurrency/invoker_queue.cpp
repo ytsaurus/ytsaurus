@@ -101,7 +101,6 @@ public:
         }
     }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     TThreadId GetThreadId() const override
     {
         if (auto queue = Queue_.Lock()) {
@@ -115,7 +114,6 @@ public:
     {
         return invoker.Get() == this;
     }
-#endif
 
 private:
     const TWeakPtr<TInvokerQueue<TQueueImpl>> Queue_;
@@ -217,7 +215,6 @@ void TInvokerQueue<TQueueImpl>::Invoke(
     CallbackEventCount_->NotifyOne();
 }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 template <class TQueueImpl>
 TThreadId TInvokerQueue<TQueueImpl>::GetThreadId() const
 {
@@ -229,7 +226,6 @@ bool TInvokerQueue<TQueueImpl>::CheckAffinity(const IInvokerPtr& invoker) const
 {
     return invoker.Get() == this;
 }
-#endif
 
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::Shutdown()

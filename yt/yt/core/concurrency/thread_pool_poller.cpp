@@ -746,7 +746,6 @@ private:
             while (Callbacks_.try_dequeue(callback));
         }
 
-#ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         NConcurrency::TThreadId GetThreadId() const override
         {
             return InvalidThreadId;
@@ -756,7 +755,6 @@ private:
         {
             return true;
         }
-#endif
 
     private:
         const TIntrusivePtr<NThreading::TEventCount> HandlerEventCount_;

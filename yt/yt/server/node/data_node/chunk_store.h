@@ -62,6 +62,8 @@ public:
 
     void Shutdown();
 
+    void UpdateConfig(const TDataNodeDynamicConfigPtr& config);
+
     //! Registers a just-written chunk unless the chunk already exists or location is disabled.
     void RegisterNewChunk(const IChunkPtr& chunk, const ISessionPtr& session);
 
@@ -165,6 +167,8 @@ private:
     const IChunkStoreHostPtr ChunkStoreHost_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
+    TDataNodeDynamicConfigPtr DynamicConfig_;
+
     struct TChunkEntry
     {
         IChunkPtr Chunk;
@@ -217,6 +221,8 @@ private:
     void OnProfiling();
 
     void OnLocationDisabled(int locationIndex);
+
+    void ReconfigureLocation(const TChunkLocationPtr& location);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
