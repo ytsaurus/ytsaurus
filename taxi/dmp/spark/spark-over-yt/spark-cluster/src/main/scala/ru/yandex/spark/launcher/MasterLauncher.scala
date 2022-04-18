@@ -40,7 +40,9 @@ object MasterLauncher extends App
           )
           log.info("Master registered")
 
-          AutoScaler.start(AutoScaler.build(discoveryService, yt, ytConfig), autoscalerConf)
+          autoscalerConf foreach { conf =>
+            AutoScaler.start(AutoScaler.build(conf, discoveryService, yt, ytConfig), conf)
+          }
           checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
           log.error("Master is not alive")
         }

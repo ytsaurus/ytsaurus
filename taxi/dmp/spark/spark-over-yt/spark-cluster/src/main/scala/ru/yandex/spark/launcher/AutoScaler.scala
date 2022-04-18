@@ -158,16 +158,36 @@ object AutoScaler {
       }
     }
 
-  def autoScaleFunction(maxFreeWorkers: Long, slotsIncrementStep: Long): State => Action = {
+  def autoScaleFunctionSliding(conf: Conf)(f: State => Action): (Seq[Action], State) => (Seq[Action], Action) = {
+      case (window, newState) =>
+        log.debug(s"windowSize=${conf.slidingWindowSize} window=$window newState=$newState")
+        val expectedAction = f(newState)
+        val slots = window.flatMap {
+          case SetUserSlot(count) => Some(count)
+          case DoNothing => None
+        }
+        val action = expectedAction match {
+          case DoNothing => DoNothing
+          case SetUserSlot(count) if slots.nonEmpty && slots.last > count => DoNothing
+          case action => action
+        }
+        val newWindow =
+          if (conf.slidingWindowSize < 1) Seq()
+          else if (window.size < conf.slidingWindowSize) window :+ action
+          else window.tail :+ action
+        (newWindow, action)
+  }
+
+  def autoScaleFunctionBasic(conf: Conf): State => Action = {
     case State(operationState, sparkState) =>
-      if (sparkState.freeWorkers > maxFreeWorkers && sparkState.waitingApps == 0) // always reduce planned jobs
-        SetUserSlot(Math.max(sparkState.busyWorkers, maxFreeWorkers))
+      if (sparkState.freeWorkers > conf.maxFreeWorkers && sparkState.waitingApps == 0) // always reduce planned jobs
+        SetUserSlot(Math.max(sparkState.busyWorkers, conf.maxFreeWorkers))
       else if (operationState.plannedJobs > 0) // wait till all jobs started
         DoNothing
       // no free workers all there are apps waiting
       else if (sparkState.freeWorkers == 0 || sparkState.waitingApps > 0) {
         if (operationState.freeJobs > 0 )     // increase jobs count if there are slots left
-          SetUserSlot(Math.min(operationState.maxJobs, operationState.runningJobs + slotsIncrementStep))
+          SetUserSlot(Math.min(operationState.maxJobs, operationState.runningJobs + conf.slotIncrementStep))
         else // no free slots left
           DoNothing
       } else {
@@ -175,45 +195,48 @@ object AutoScaler {
       }
   }
 
-  def build(discoveryService: DiscoveryService, yt: CompoundClient, ytConfig: YtClientConfiguration,
-            maxFreeWorkers: Long = 1, slotsIncrementStep: Long = 1): AutoScaler = {
+  def build(conf: Conf, discoveryService: DiscoveryService, yt: CompoundClient,
+            ytConfig: YtClientConfiguration): AutoScaler = {
     val stateService = AutoScaler.clusterStateService(discoveryService, yt, ytConfig)
-    autoScaler(stateService)(autoScaleFunction(maxFreeWorkers, slotsIncrementStep))
+    autoScaler(stateService, Seq[Action]())(autoScaleFunctionSliding(conf)(autoScaleFunctionBasic(conf)))
   }
 
-  def autoScaler(clusterStateService: ClusterStateService)(f: State => Action): AutoScaler = () => {
-    log.debug("Autoscaling...")
-    clusterStateService.query
-      .map(
-        f(_) match {
-          case SetUserSlot(count) =>
-            log.info(s"Updating user slots: $count")
-            clusterStateService.setUserSlots(count)
-          case DoNothing =>
-            log.info("Nothing to do")
-        }
-      )
+  def autoScaler[T](clusterStateService: ClusterStateService, zero: T)(f: (T, State) => (T, Action)): AutoScaler = {
+      val st = new AtomicReference(zero)
+      () => {
+        log.debug("Autoscaling...")
+        clusterStateService.query
+          .map { clusterState =>
+            val (newState, action) = f(st.get, clusterState)
+            st.set(newState)
+            action match {
+              case SetUserSlot(count) =>
+                log.info(s"Updating user slots: $count")
+                clusterStateService.setUserSlots(count)
+              case DoNothing =>
+                log.info("Nothing to do")
+            }
+          }
+    }
   }
 
-  def start(autoScaler: AutoScaler, conf: Option[AutoScaler.Conf]): Closeable = {
-    conf.map { c =>
-      log.info(s"Starting autoscaler service: period = ${c.period}")
-      val f = scheduler.scheduleAtFixedRate(() => {
-        try {
-          log.debug("Autoscaler called")
-          autoScaler()
-        } catch {
-          case NonFatal(e) =>
-            log.error("Autoscaler failed", e)
-        }
-      }, c.period.toNanos, c.period.toNanos, TimeUnit.NANOSECONDS)
-      val metricsServer = c.metricsPort.map(p => AutoScalerMetricsServer.start(p, Metrics.metricRegistry))
-      val r: Closeable = () => {
-        f.cancel(false)
-        metricsServer.foreach(_.close())
+  def start(autoScaler: AutoScaler, c: Conf): Closeable = {
+    log.info(s"Starting autoscaler service: period = ${c.period}")
+    val f = scheduler.scheduleAtFixedRate(() => {
+      try {
+        log.debug("Autoscaler called")
+        autoScaler()
+      } catch {
+        case NonFatal(e) =>
+          log.error("Autoscaler failed", e)
       }
-      r
-    }.getOrElse(() => ())
+    }, c.period.toNanos, c.period.toNanos, TimeUnit.NANOSECONDS)
+    val metricsServer = c.metricsPort.map(p => AutoScalerMetricsServer.start(p, Metrics.metricRegistry))
+    val r: Closeable = () => {
+      f.cancel(false)
+      metricsServer.foreach(_.close())
+    }
+    r
   }
 
   case class OperationState(maxJobs: Long, runningJobs: Long, plannedJobs: Long) {
@@ -233,14 +256,16 @@ object AutoScaler {
 
   case class State(operationState: OperationState, sparkState: SparkState)
 
+
   sealed trait Action
   case object DoNothing extends Action
   case class SetUserSlot(count: Long) extends Action
 
-  case class Conf(period: FiniteDuration, metricsPort: Option[Int])
+  case class Conf(period: FiniteDuration, metricsPort: Option[Int], slidingWindowSize: Int,
+                  maxFreeWorkers: Long, slotIncrementStep: Long)
 
   object Conf {
-    def apply(props: Map[String, String]): Option[Conf] =
+    def apply(props: Map[String, String]): Option[Conf] = {
       props.map(p => (p._1.toLowerCase, p._2.toLowerCase))
         .get("spark.autoscaler.enabled")
         .filter(_ == "true")
@@ -249,8 +274,14 @@ object AutoScaler {
             .map(p => Duration.create(p))
             .collect { case d: FiniteDuration => d }
             .getOrElse(1.second)
-          val port = props.get("spark.autoscaler.metrics.port").map(_.toInt)
-          Conf(period, port)
+          Conf(
+            period = period,
+            metricsPort = props.get("spark.autoscaler.metrics.port").map(_.toInt),
+            slidingWindowSize = props.get("spark.autoscaler.sliding_window_size").map(_.toInt).getOrElse(1),
+            maxFreeWorkers = props.get("spark.autoscaler.max_free_workers").map(_.toLong).getOrElse(1),
+            slotIncrementStep = props.get("spark.autoscaler.slots_increment_step").map(_.toLong).getOrElse(1)
+          )
         }
+    }
   }
 }
