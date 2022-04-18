@@ -136,6 +136,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaObjects)                                               (2004))  // gritukan
     ((MoveSyncSuppressionFlagsToMulticellSyncExt)                   (2005))  // shakurov
     ((BanObviousCyclicSymlinks)                                     (2006))  // h0pless
+    ((MasterJobThrottlerPerType)                                    (2007))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

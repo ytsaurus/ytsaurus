@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/client/job_tracker_client/helpers.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NChunkServer {
@@ -390,6 +392,9 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
     RegisterParameter("job_throttler", JobThrottler)
         .DefaultNew();
 
+    RegisterParameter("per_type_job_throttlers", JobTypeToThrottler)
+        .Default();
+
     RegisterParameter("staged_chunk_expiration_timeout", StagedChunkExpirationTimeout)
         .Default(TDuration::Hours(1))
         .GreaterThanOrEqual(TDuration::Minutes(10));
@@ -464,7 +469,13 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
         .DontSerializeDefault();
 
     RegisterPreprocessor([&] {
-        JobThrottler->Limit = 10000;
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (IsMasterJobType(jobType)) {
+                auto jobThrottler = EmplaceOrCrash(JobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
+                jobThrottler->second->Limit = 10'000;
+            }
+        }
+        JobThrottler->Limit = 10'000;
     });
 }
 
@@ -474,7 +485,7 @@ TDynamicChunkServiceConfig::TDynamicChunkServiceConfig()
 {
     RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
         .Default(true);
-    
+
     RegisterParameter(
         "enable_alert_on_chunk_confirmation_without_location_uuid",
         EnableAlertOnChunkConfirmationWithoutLocationUuid)

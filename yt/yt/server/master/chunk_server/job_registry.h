@@ -11,11 +11,14 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/client/job_tracker_client/helpers.h>
+
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
 #include <yt/yt/core/concurrency/public.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/optional.h>
@@ -49,6 +52,8 @@ public:
 
     bool IsOverdraft() const;
 
+    bool IsOverdraft(EJobType jobType) const;
+
     void OverrideResourceLimits(NNodeTrackerClient::NProto::TNodeResources* resourceLimits, const TNode& node);
 
     int GetJobCount(EJobType type) const;
@@ -76,7 +81,10 @@ private:
 
     void RegisterFinishedJob(const TJobPtr& job);
 
+    static THashMap<EJobType, NConcurrency::IReconfigurableThroughputThrottlerPtr> CreatePerTypeJobThrottlers();
+
     const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
+    const THashMap<EJobType, NConcurrency::IReconfigurableThroughputThrottlerPtr> PerTypeJobThrottlers_;
 
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this));

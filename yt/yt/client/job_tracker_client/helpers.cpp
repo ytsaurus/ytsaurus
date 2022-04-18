@@ -14,6 +14,11 @@ bool IsJobInProgress(EJobState state)
     return !IsJobFinished(state);
 }
 
+bool IsMasterJobType(EJobType jobType)
+{
+    return FirstMasterJobType <= jobType && jobType <= LastMasterJobType;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobTrackerClient
