@@ -35,6 +35,9 @@ GENERATE_LATEX = NO
 # Ugly dot graphs of include dependencies are not relevant to our users
 HAVE_DOT = NO
 SHOW_INCLUDE_FILES = NO
+
+# Ignore `I` and `T` prefixes of arcadia classes
+IGNORE_PREFIX = I T
 """
 
 

@@ -324,12 +324,21 @@ enum EErasureCodecAttr : i8
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
+/// @brief Description of the column table is sorted by
+///
+/// Includes column name and sort order
+///
+/// @see NYT::TSortOperationSpec
 class TSortColumn
 {
 public:
     using TSelf = TSortColumn;
 
+    /// Column name
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(TString, Name, "");
+
+    /// Sort order
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(ESortOrder, SortOrder, ESortOrder::SO_ASCENDING);
 
     // Intentionally implicit constructors.
@@ -337,6 +346,7 @@ public:
     TSortColumn(const TString& name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
     TSortColumn(const char* name, ESortOrder sortOrder = ESortOrder::SO_ASCENDING);
 
+    /// Make sure that sort order is ascending, throw exception otherwise
     const TSortColumn& EnsureAscending() const;
     TNode ToNode() const;
 
@@ -411,9 +421,9 @@ public:
     FLUENT_FIELD_ENCAPSULATED(TString, Name);
 
     ///
-    /// @brief @deprecated Functions to work with type in old manner.
+    /// @brief Functions to work with type in old manner.
     ///
-    /// New code is recommended to work with types using @ref NTi::TTypePtr from type_info library.
+    /// @deprecated New code is recommended to work with types using @ref NTi::TTypePtr from type_info library.
     TColumnSchema& Type(EValueType type) &;
     TColumnSchema Type(EValueType type) &&;
     EValueType Type() const;
@@ -451,36 +461,68 @@ private:
 bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs);
 
+///
+/// @brief Description of table schema
+///
+/// @see https://yt.yandex-team.ru/docs/description/storage/static_schema
 class TTableSchema
 {
 public:
     using TSelf = TTableSchema;
 
+    /// Column schema
     FLUENT_VECTOR_FIELD_ENCAPSULATED(TColumnSchema, Column);
+
+    ///
+    /// @brief Strictness of the schema
+    ///
+    /// Strict schemas are not allowed to have columns not described in schema.
+    /// Nonstrict schemas are allowed to have such columns, all such missing columns are assumed to have
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(bool, Strict, true);
+
+    ///
+    /// @brief Whether keys are unique
+    ///
+    /// This flag can be set only for schemas that have sorted columns.
+    /// If flag is set table cannot have multiple rows with same key.
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(bool, UniqueKeys, false);
 
+    /// Get modifiable column list
     TVector<TColumnSchema>& MutableColumns();
+
+    /// Check if schema has any described column
     bool Empty() const;
 
-public:
-    // Some helper methods
-
-    TTableSchema& AddColumn(const TString& name, EValueType type) &;
-    TTableSchema AddColumn(const TString& name, EValueType type) &&;
-
-    TTableSchema& AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &;
-    TTableSchema AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&;
-
-    TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type) &;
-    TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type) &&;
-
+    /// Add column
     TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &;
+    /// @copydoc NYT::TTableSchema::AddColumn(const TString&, const NTi::TTypePtr&, ESortOrder)&;
     TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &&;
 
+    /// @copydoc NYT::TTableSchema::AddColumn(const TString&, const NTi::TTypePtr&, ESortOrder)&;
+    TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type) &;
+    /// @copydoc NYT::TTableSchema::AddColumn(const TString&, const NTi::TTypePtr&, ESortOrder)&;
+    TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type) &&;
+
+    /// Add optional column of specified type
+    TTableSchema& AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &;
+    /// @copydoc NYT::TTableSchema::AddColumn(const TString&, EValueType, ESortOrder)&;
+    TTableSchema AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&;
+
+    /// @copydoc NYT::TTableSchema::AddColumn(const TString&, EValueType, ESortOrder)&;
+    TTableSchema& AddColumn(const TString& name, EValueType type) &;
+    /// @copydoc NYT::TTableSchema::AddColumn(const TString&, EValueType, ESortOrder)&;
+    TTableSchema AddColumn(const TString& name, EValueType type) &&;
+
+    ///
+    /// @brief Make table schema sorted by specified columns
+    ///
+    /// Resets old key columns if any
     TTableSchema& SortBy(const TSortColumns& columns) &;
+
+    /// @copydoc NYT::TTableSchema::SortBy(const TSortColumns&)&;
     TTableSchema SortBy(const TSortColumns& columns) &&;
 
+    /// Get yson description of table schema
     TNode ToNode() const;
 
     friend void Deserialize(TTableSchema& tableSchema, const TNode& node);
@@ -676,21 +718,29 @@ struct TTableColumnarStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+///
 /// @brief Contains information about tablet
-/// This struct is returned by @ref NYT::IClient::GetTabletInfos
+///
+/// @see NYT::IClient::GetTabletInfos
 struct TTabletInfo
 {
+    ///
     /// @brief Indicates the total number of rows added to the tablet (including trimmed ones).
+    ///
     /// Currently only provided for ordered tablets.
     i64 TotalRowCount = 0;
 
+    ///
     /// @brief Contains the number of front rows that are trimmed and are not guaranteed to be accessible.
+    ///
     /// Only makes sense for ordered tablet.
     i64 TrimmedRowCount = 0;
 
-    /// @brief Contains the barrier timestamp of the tablet cell containing the tablet, which lags behind the current timestamp.
-    /// It is guaranteed that all transactions with commit timestamp not exceeding the barrier
-    /// are fully committed; e.g. all their addes rows are visible (and are included in TTabletInfo::TotalRowCount).
+    ///
+    /// @brief Tablet cell barrier timestamp, which lags behind the current timestamp
+    ///
+    /// It is guaranteed that all transactions with commit timestamp not exceeding the barrier are fully committed;
+    /// e.g. all their addes rows are visible (and are included in @ref NYT::TTabletInfo::TotalRowCount).
     /// Mostly makes sense for ordered tablets.
     ui64 BarrierTimestamp;
 };
