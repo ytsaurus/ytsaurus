@@ -2,8 +2,8 @@ import logging
 import os
 import time
 from enum import Enum
-from typing import NamedTuple, List, Dict, Optional
-
+from collections import namedtuple
+import signal
 import pytest
 import spyt.client as client
 import spyt.submit as submit
@@ -18,11 +18,11 @@ logger.setLevel(logging.WARN)
 e2e_home_path = os.environ['e2eTestHomePath']
 user_dir_path = os.environ['e2eTestUDirPath']
 
-scripts_path = f"{user_dir_path}/scripts"
-python_dir_path = f"{user_dir_path}/python"
+scripts_path = user_dir_path + "/scripts"
+python_dir_path = user_dir_path + "/python"
 
 proxy = os.environ['proxies']
-discovery_path = f"{e2e_home_path}/cluster"
+discovery_path = e2e_home_path + "/cluster"
 client_version = os.environ['clientVersion']
 
 
@@ -39,6 +39,21 @@ def yt_client():
     yield client.create_yt_client(proxy, {})
 
 
+class TimeoutExecution:
+    def __init__(self, sec):
+        self.sec = sec
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.raise_timeout)
+        signal.alarm(self.sec)
+
+    def __exit__(self, *args):
+        signal.alarm(0)
+
+    def raise_timeout(self, *args):
+        raise RuntimeError('Timeout exceed')
+
+
 class CheckResult(Enum):
     OK = "ok"
     EMPTY = "empty"
@@ -48,45 +63,60 @@ class CheckResult(Enum):
     UNKNOWN = "unknown"
 
 
-class E2ETestCase(NamedTuple):
-    name: str
-    key_columns: List[str]
-    execution_time: int = 0
-    custom_input_path: Optional[str] = None
-    unique_keys: bool = False
-    conf: Dict[str, str] = {
-        "spark.pyspark.python": "/opt/python3.7/bin/python3.7",
-        "spark.yt.read.keyColumnsFilterPushdown.enabled": "true"
-    }
+E2ETestCaseBase = namedtuple(
+    'E2ETestCaseBase', [
+        'name',
+        'key_columns',
+        'execution_time',
+        'custom_input_path',
+        'unique_keys',
+        'conf'
+    ])
 
+
+class E2ETestCase(E2ETestCaseBase):
     def job_path(self):
-        return f"yt:/{scripts_path}/{self.name}.py"
+        return "yt:/" + scripts_path + "/" + self.name + ".py"
 
     def case_python_dir_path(self):
-        return f"{python_dir_path}/{self.name}"
+        return python_dir_path + "/" + self.name
 
     def output_path(self):
-        return f"{self.case_python_dir_path()}/output"
+        return self.case_python_dir_path() + "/output"
 
     def check_result_path(self):
-        return f"{self.case_python_dir_path()}/check_result"
+        return self.case_python_dir_path() + "/check_result"
 
     def case_e2e_home_path(self):
-        return f"{e2e_home_path}/{self.name}"
+        return e2e_home_path + "/" + self.name
 
     def input_path(self):
-        return self.custom_input_path or f"{self.case_e2e_home_path()}/input"
+        return self.custom_input_path or self.case_e2e_home_path() + "/input"
 
     def expected_path(self):
-        return f"{self.case_e2e_home_path()}/expected"
+        return self.case_e2e_home_path() + "/expected"
 
-    def with_conf(self, key: str, value: str):
+    def with_conf(self, key, value):
+        # type: (str, str) -> E2ETestCase
         new_conf = dict(self.conf)
         new_conf[key] = value
         return self._replace(conf=new_conf)
 
 
-def read_check_result_without_details(yt_client: YtClient, path: str) -> CheckResult:
+def make_e2e_test_case(name, key_columns, execution_time=None, custom_input_path=None, unique_keys=None, conf=None):
+    execution_time = execution_time or 0
+    unique_keys = unique_keys or False
+    conf = conf or {
+        "spark.pyspark.python": "/opt/python3.7/bin/python3.7",
+        "spark.yt.read.keyColumnsFilterPushdown.enabled": "true"
+    }
+    return E2ETestCase(name, key_columns, execution_time, custom_input_path,
+                       unique_keys,
+                       conf)
+
+
+def read_check_result_without_details(yt_client, path):
+    # type: (YtClient, str) -> CheckResult
     files = yt_list(path, client=yt_client)
     if len(files) != 1:
         return CheckResult.UNKNOWN
@@ -106,8 +136,8 @@ def read_check_result_without_details(yt_client: YtClient, path: str) -> CheckRe
             return CheckResult.UNKNOWN
 
 
-def submit_and_join(submission_client: submit.SparkSubmissionClient,
-                    launcher: submit.SparkLauncher) -> submit.SubmissionStatus:
+def submit_and_join(submission_client, launcher):
+    # type: (submit.SparkSubmissionClient, submit.SparkLauncher) -> submit.SubmissionStatus
     app_id = submission_client.submit(launcher)
     status = submission_client.get_status(app_id)
     while not submit.SubmissionStatus.is_final(status):
@@ -116,7 +146,8 @@ def submit_and_join(submission_client: submit.SparkSubmissionClient,
     return status
 
 
-def run_job(submission_client: submit.SparkSubmissionClient, test_case: E2ETestCase):
+def run_job(submission_client, test_case):
+    # type: (submit.SparkSubmissionClient, E2ETestCase) -> None
     launcher = submission_client.new_launcher()
     launcher.set_app_name(test_case.name)
     launcher.set_app_resource(test_case.job_path())
@@ -128,14 +159,14 @@ def run_job(submission_client: submit.SparkSubmissionClient, test_case: E2ETestC
         launcher.set_conf(key, value)
 
     status = submit_and_join(submission_client, launcher)
-    assert submit.SubmissionStatus.is_success(status), f"Job {test_case.name} failed, {status}"
+    assert submit.SubmissionStatus.is_success(status), "Job " + test_case.name + " failed, " + status
 
 
-def run_check(submission_client: submit.SparkSubmissionClient, yt_client: YtClient,
-              test_case: E2ETestCase) -> CheckResult:
+def run_check(submission_client, yt_client, test_case):
+    # type: (submit.SparkSubmissionClient, YtClient, E2ETestCase) -> CheckResult
     launcher = submission_client.new_launcher()
-    launcher.set_app_name(f"{test_case.name}_check")
-    launcher.set_app_resource(f"yt:/{user_dir_path}/check.jar")
+    launcher.set_app_name(test_case.name + "_check")
+    launcher.set_app_resource("yt:/" + user_dir_path + "/check.jar")
     launcher.set_main_class("ru.yandex.spark.e2e.check.CheckApp")
     launcher.add_app_args(
         "--actual",
@@ -152,35 +183,39 @@ def run_check(submission_client: submit.SparkSubmissionClient, yt_client: YtClie
     launcher.set_conf("spark.sql.schema.forcingNullableIfNoMetadata.enabled", "true")
 
     status = submit_and_join(submission_client, launcher)
-    assert submit.SubmissionStatus.is_success(status), f"Job {test_case.name}_check failed, {status}"
+    assert submit.SubmissionStatus.is_success(status), "Job " + test_case.name + "_check failed, " + status
 
     return read_check_result_without_details(yt_client, test_case.check_result_path())
 
 
-def run_test(submission_client: submit.SparkSubmissionClient, yt_client: YtClient, test_case: E2ETestCase):
-    logging.info(f"Start job {test_case.name}")
+def run_test(submission_client, yt_client, test_case):
+    # type: (submit.SparkSubmissionClient, YtClient, E2ETestCase) -> None
+    logging.info("Start job " + test_case.name)
     run_job(submission_client, test_case)
-    logging.info(f"Finished job {test_case.name}")
+    logging.info("Finished job " + test_case.name)
 
-    logging.info(f"Check job ${test_case.name}")
+    logging.info("Check job " + test_case.name)
     res = run_check(submission_client, yt_client, test_case)
-    logging.info(f"Finished check {test_case.name}")
+    logging.info("Finished check " + test_case.name)
     assert res == CheckResult.OK
 
 
 def test_link_eda_user_appsession_request_id(submission_client, yt_client):
-    test_case = E2ETestCase("link_eda_user_appsession_request_id", ["appsession_id"])
-    run_test(submission_client, yt_client, test_case)
+    test_case = make_e2e_test_case("link_eda_user_appsession_request_id", ["appsession_id"])
+    with TimeoutExecution(160):
+        run_test(submission_client, yt_client, test_case)
 
 
 def test_link_eda_user_appsession_request_id_python2(submission_client, yt_client):
-    test_case = E2ETestCase("link_eda_user_appsession_request_id_python2", ["appsession_id"],
-                            custom_input_path=f"{e2e_home_path}/link_eda_user_appsession_request_id/input") \
+    test_case = make_e2e_test_case("link_eda_user_appsession_request_id_python2", ["appsession_id"],
+                                   custom_input_path=e2e_home_path + "/link_eda_user_appsession_request_id/input") \
         .with_conf("spark.pyspark.python", "python2.7")
-    run_test(submission_client, yt_client, test_case)
+    with TimeoutExecution(160):
+        run_test(submission_client, yt_client, test_case)
 
 
 def test_fct_extreme_user_order_act(submission_client, yt_client):
-    test_case = E2ETestCase("fct_extreme_user_order_act", ["phone_pd_id"]) \
+    test_case = make_e2e_test_case("fct_extreme_user_order_act", ["phone_pd_id"]) \
         .with_conf("spark.sql.mapKeyDedupPolicy", "LAST_WIN")
-    run_test(submission_client, yt_client, test_case)
+    with TimeoutExecution(200):
+        run_test(submission_client, yt_client, test_case)
