@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
-    remove, exists, update_nodes_dynamic_config,
+    remove, exists, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
     get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
@@ -12,7 +12,7 @@ from yt.common import YtResponseError, YtError
 import yt.yson as yson
 
 import pytest
-
+import copy
 import time
 from datetime import datetime, timedelta
 
@@ -305,6 +305,69 @@ class TestErasure(TestErasureBase):
     @pytest.mark.parametrize("adaptive_repair", [False, True])
     def test_reed_solomon_6_3_repair(self, adaptive_repair):
         self._test_repair("reed_solomon_6_3", 9, 6, adaptive_repair)
+
+    @authors("capone212")
+    @pytest.mark.xfail
+    def test_repair_node_throttling(self):
+        self.check_repair_node_throttling_(adaptive_repair=False)
+
+    @authors("capone212")
+    def test_adaptive_repair_node_throttling(self):
+        self.check_repair_node_throttling_(adaptive_repair=True)
+
+    def check_repair_node_throttling_(self, adaptive_repair):
+        codec = "reed_solomon_6_3"
+        replica_count = 9
+
+        dyn_config = {
+            "data_node": {
+                "adaptive_chunk_repair_job": {
+                    "enable_auto_repair": adaptive_repair,
+                    "replication_reader_timeout" : 10000,
+                },
+            }
+        }
+        update_nodes_dynamic_config(dyn_config)
+
+        remove("//tmp/table", force=True)
+        create("table", "//tmp/table")
+        set("//tmp/table/@erasure_codec", codec)
+        write_table("//tmp/table", {"b": "hello"})
+
+        chunk_id = get_singular_chunk_id("//tmp/table")
+
+        replicas = get("#%s/@stored_replicas" % chunk_id)
+        assert len(replicas) == replica_count
+
+        assert self._is_chunk_ok(chunk_id)
+
+        # Make node throttling
+        throttling_replica = str(replicas[0])
+        node_dyn_config = dyn_config
+        node_dyn_config["data_node"]["testing_options"] = {
+            "simulate_network_throttling_for_get_block_set" : True,
+        }
+        self.update_specific_node_dynamic_config_(throttling_replica, node_dyn_config)
+
+        # Test for several parts
+        for r in replicas[4 : 7]:
+            replica_index = r.attributes["index"]
+            address = str(r)
+            print_debug("Banning node %s containing replica %d" % (address, replica_index))
+            set_node_banned(address, True)
+            wait(lambda: self._is_chunk_ok(chunk_id))
+            assert read_table("//tmp/table") == [{"b": "hello"}]
+            set_node_banned(r, False)
+
+    def update_specific_node_dynamic_config_(self, node, config):
+        current_config = get("//sys/cluster_nodes/@config")
+        new_config = {
+            "!{}".format(node) : copy.deepcopy(current_config["%true"]),
+            node : copy.deepcopy(current_config["%true"])
+        }
+        new_config[node].update(config)
+        set("//sys/cluster_nodes/@config", new_config)
+        wait(lambda: get_applied_node_dynamic_config(node) == new_config[node])
 
     @authors("psushin", "ignat")
     @pytest.mark.parametrize("adaptive_repair", [False, True])

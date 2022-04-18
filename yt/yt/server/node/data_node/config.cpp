@@ -386,6 +386,11 @@ TDataNodeTestingOptions::TDataNodeTestingOptions()
         "columnar_statistics_chunk_meta_fetch_max_delay",
         ColumnarStatisticsChunkMetaFetchMaxDelay)
         .Default();
+
+    RegisterParameter(
+        "simulate_network_throttling_for_get_block_set",
+        SimulateNetworkThrottlingForGetBlockSet)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -798,6 +803,9 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
 
     RegisterParameter("medium_io_config", MediumIOConfig)
         .Default();
+
+    RegisterParameter("testing_options", TestingOptions)
+        .DefaultNew();
 
     RegisterPostprocessor([&] {
         if (!AdaptiveChunkRepairJob) {

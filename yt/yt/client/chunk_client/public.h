@@ -71,6 +71,7 @@ YT_DEFINE_ERROR_ENUM(
     ((ChunkReadSessionSlow)                  (744))
     ((NodeProbeFailed)                       (745))
     ((WaitedForSchemaForTooLong)             (746))
+    ((UnrecoverableRepairError)              (747))
 );
 
 using TChunkId = NObjectClient::TObjectId;
