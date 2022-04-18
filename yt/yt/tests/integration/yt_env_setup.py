@@ -25,7 +25,7 @@ from yt.environment.helpers import (  # noqa
 from yt.test_helpers import wait, WaitFailed
 import yt.test_helpers.cleanup as test_cleanup
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, PY3
 from yt.packages.six.moves import xrange
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
@@ -41,6 +41,7 @@ import logging
 import decorator
 import functools
 import shutil
+import hashlib
 
 from time import sleep, time
 from threading import Thread
@@ -334,9 +335,12 @@ class YTEnvSetup(object):
             return [items]
 
         partitions = [[] for _ in range(cls.NUM_TEST_PARTITIONS)]
-        items = sorted(items, key=lambda x: x.nodeid)
-        for i, item in enumerate(items):
-            partitions[i % len(partitions)].append(item)
+        for item in items:
+            nodeid = item.nodeid
+            if PY3:
+                nodeid = nodeid.encode("utf-8")
+            hexdigest = hashlib.md5(nodeid).hexdigest()
+            partitions[int(hexdigest, 16) % len(partitions)].append(item)
         return partitions
 
     @classmethod
