@@ -12,8 +12,12 @@ import scala.util.Success
 class AutoScalerTest extends FlatSpec with Matchers  {
   behavior of "AutoScaler"
 
+  val simpleConf: Conf = AutoScaler.Conf(1.minute, None, 0, 1, 1)
+  val sliding1Conf: Conf = AutoScaler.Conf(1.minute, None, 1, 1, 1)
+  val sliding3Conf: Conf = AutoScaler.Conf(1.minute, None, 3, 1, 1)
+
   it should "correctly assign action according to cluster state" in {
-    val f = AutoScaler.autoScaleFunction(1, 1)
+    val f = AutoScaler.autoScaleFunctionBasic(simpleConf)
     f(State(OperationState(10, 3, 0), SparkState(3, 3, 0, 12, 12, 0L))) shouldEqual SetUserSlot(4)
     f(State(OperationState(10, 3, 0), SparkState(3, 2, 0, 12, 8, 0L))) shouldEqual DoNothing
     f(State(OperationState(10, 3, 1), SparkState(3, 3, 0, 12, 12, 0L))) shouldEqual DoNothing
@@ -21,6 +25,33 @@ class AutoScalerTest extends FlatSpec with Matchers  {
     f(State(OperationState(10, 5, 0), SparkState(3, 1, 1, 12, 8, 0L))) shouldEqual SetUserSlot(6)
     f(State(OperationState(10, 5, 0), SparkState(3, 0, 0, 12, 0, 0L))) shouldEqual SetUserSlot(1)
     f(State(OperationState(10, 10, 0), SparkState(10, 10, 0, 40, 40, 0L))) shouldEqual DoNothing
+  }
+
+  it should "use sliding average values for autoscaling" in {
+      val f = AutoScaler.autoScaleFunctionBasic(simpleConf)
+      val st1 = State(OperationState(10, 3, 0), SparkState(3, 3, 0, 12, 12, 0L))
+      val st2 = State(OperationState(10, 5, 0), SparkState(3, 1, 0, 12, 4, 0L))
+
+      val sliding = AutoScaler.autoScaleFunctionSliding(simpleConf)(f)
+      sliding(Seq[Action](), st1) shouldEqual (Seq(), SetUserSlot(4))
+      sliding(Seq[Action](), st2) shouldEqual (Seq(), SetUserSlot(1))
+
+      val sliding1 = AutoScaler.autoScaleFunctionSliding(sliding1Conf)(f)
+      sliding1(Seq[Action](), st1) shouldEqual (Seq(SetUserSlot(4)), SetUserSlot(4))
+      sliding1(Seq(SetUserSlot(4)), st2) shouldEqual (Seq(DoNothing), DoNothing)
+      sliding1(Seq(DoNothing), st2) shouldEqual (Seq(SetUserSlot(1)), SetUserSlot(1))
+      sliding1(Seq(SetUserSlot(1)), st1) shouldEqual (Seq(SetUserSlot(4)), SetUserSlot(4))
+
+      val sliding3 = AutoScaler.autoScaleFunctionSliding(sliding3Conf)(f)
+      sliding3(Seq[Action](), st1) shouldEqual (Seq(SetUserSlot(4)), SetUserSlot(4))
+      sliding3(Seq(SetUserSlot(4)), st2) shouldEqual (Seq(SetUserSlot(4), DoNothing), DoNothing)
+      sliding3(Seq(SetUserSlot(4), DoNothing), st2) shouldEqual (Seq(SetUserSlot(4), DoNothing, DoNothing), DoNothing)
+      sliding3(Seq(SetUserSlot(4), DoNothing, DoNothing), st2) shouldEqual (Seq(DoNothing, DoNothing, DoNothing),
+          DoNothing)
+      sliding3(Seq(DoNothing, DoNothing, DoNothing), st2) shouldEqual (Seq(DoNothing, DoNothing, SetUserSlot(1)),
+          SetUserSlot(1))
+      sliding3(Seq(DoNothing, DoNothing, SetUserSlot(1)), st1) shouldEqual (Seq(DoNothing, SetUserSlot(1), SetUserSlot(4)),
+          SetUserSlot(4))
   }
 
   it should "correctly parse worker metrics" in {

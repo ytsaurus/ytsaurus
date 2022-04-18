@@ -531,7 +531,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
                         dedicated_operation_mode=False,
                         driver_cores=None, driver_memory=None, driver_num=None,
                         driver_cores_overhead=None, driver_timeout=None,
-                        autoscaler_period=None, autoscaler_metrics_port=None):
+                        autoscaler_period=None, autoscaler_metrics_port=None,
+                        autoscaler_sliding_window=None, autoscaler_max_free_workers=None,
+                        autoscaler_slot_increment_step=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -574,6 +576,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     :param driver_timeout: timeout to fail master waiting
     :param autoscaler_period: time between autoscaler calls in scala duration string format
     :param autoscaler_metrics_port: port for exposing of autoscaler metrics
+    :param autoscaler_sliding_window: size of autoscaler actions sliding window (in number of action) to downscale
+    :param autoscaler_max_free_workers: maximum number of free workers
+    :param autoscaler_slot_increment_step: autoscaler workers increment step
     :return:
     """
     worker = Worker(worker_cores, worker_memory, worker_num,
@@ -614,9 +619,18 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
     dynamic_config['spark_conf']['spark.dedicated_operation_mode'] = dedicated_operation_mode
-    dynamic_config['spark_conf']['spark.autoscaler.enabled'] = bool(autoscaler_period)
-    dynamic_config['spark_conf']['spark.autoscaler.period'] = autoscaler_period
-    dynamic_config['spark_conf']['spark.autoscaler.metrics.port'] = autoscaler_metrics_port
+
+    if autoscaler_period:
+        dynamic_config['spark_conf']['spark.autoscaler.enabled'] = True
+        dynamic_config['spark_conf']['spark.autoscaler.period'] = autoscaler_period
+        if autoscaler_metrics_port:
+            dynamic_config['spark_conf']['spark.autoscaler.metrics.port'] = autoscaler_metrics_port
+        if autoscaler_sliding_window:
+            dynamic_config['spark_conf']['spark.autoscaler.sliding_window_size'] = autoscaler_sliding_window
+        if autoscaler_max_free_workers:
+            dynamic_config['spark_conf']['spark.autoscaler.max_free_workers'] = autoscaler_max_free_workers
+        if autoscaler_slot_increment_step:
+            dynamic_config['spark_conf']['spark.autoscaler.slots_increment_step'] = autoscaler_slot_increment_step
 
     enablers = enablers or SpytEnablers()
     enablers.apply_config(dynamic_config)

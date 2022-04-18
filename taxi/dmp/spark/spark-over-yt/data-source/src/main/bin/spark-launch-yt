@@ -120,6 +120,12 @@ def main():
                           """.strip())
     subgroup.add_argument("--autoscaler-metrics-port", required=False,
                           type=int, help="expose autoscaler metrics on provided port")
+    subgroup.add_argument("--autoscaler-sliding-window", required=False,
+                          type=int, help="size of autoscaler actions sliding window (in number of action) to downscale")
+    subgroup.add_argument("--autoscaler-max-free-workers", required=False,
+                          type=int, help="autoscaler maximum number of free workers")
+    subgroup.add_argument("--autoscaler-slot-increment-step", required=False,
+                          type=int, help="autoscaler worker slots increment step")
 
     args, unknown_args = spark_utils.parse_args(parser)
 
@@ -171,7 +177,10 @@ def main():
                         driver_cores_overhead=args.driver_cores_overhead,
                         driver_timeout=args.driver_timeout,
                         autoscaler_period=args.autoscaler_period,
-                        autoscaler_metrics_port=args.autoscaler_metrics_port)
+                        autoscaler_metrics_port=args.autoscaler_metrics_port,
+                        autoscaler_sliding_window=args.autoscaler_sliding_window,
+                        autoscaler_max_free_workers=args.autoscaler_max_free_workers,
+                        autoscaler_slot_increment_step=args.autoscaler_slot_increment_step)
 
 
 if __name__ == '__main__':
