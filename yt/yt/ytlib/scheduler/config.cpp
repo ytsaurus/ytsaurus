@@ -174,7 +174,7 @@ void TJobIOConfig::Register(TRegistrar registrar)
     registrar.Preprocessor([] (TJobIOConfig* config) {
         config->ErrorFileWriter->UploadReplicationFactor = 1;
 
-        config->DynamicTableWriter->DesiredChunkSize = 256_MB;
+        config->DynamicTableWriter->DesiredChunkSize = 100_MB;
         config->DynamicTableWriter->BlockSize = 256_KB;
     });
 }
