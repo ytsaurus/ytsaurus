@@ -1,24 +1,34 @@
 {
     "cluster" = "hume";
-    "table_path" = "//home/kristevalex/ytprof";
+    "table_path" = "//home/kristevalex/ytprof/testing";
+    "meta_config" = {
+        "used" = [
+            "DefaultSampleType";
+            "Function"
+        ]
+    };
     "services" = [
         {
+            "profile_type" = "cpu";
             "service_type" = "node";
             "period" = 300000000000;
-            "probability" = 0.5;
+            "probability" = 0.2;
             "path" = "ytprof/profile";
             "resolvers" = [
                 {
                     "port" = 10012;
-                    "urls" = [
-                        "http://sas3-4992-node-hume.man-pre.yp-c.yandex.net"; 
-                        "http://sas3-4993-node-hume.man-pre.yp-c.yandex.net"; 
-                        "http://sas3-4994-node-hume.man-pre.yp-c.yandex.net"; 
-                        "http://sas3-4995-node-hume.man-pre.yp-c.yandex.net"; 
-                        "http://sas4-5256-node-hume.man-pre.yp-c.yandex.net"; 
-                        "http://sas3-4997-node-hume.man-pre.yp-c.yandex.net"
-                    ]
-                };
+                    "endpoint" = "yt_hume__node";
+                    "cluster" = "man-pre"
+                }
+            ]
+        };
+        {
+            "profile_type" = "memory";
+            "service_type" = "node";
+            "period" = 300000000000;
+            "probability" = 0.2;
+            "path" = "ytprof/heap";
+            "resolvers" = [
                 {
                     "port" = 10012;
                     "endpoint" = "yt_hume__node";

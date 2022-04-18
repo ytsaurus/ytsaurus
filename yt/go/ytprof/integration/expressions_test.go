@@ -17,21 +17,29 @@ type MetadataQueryTest struct {
 
 var (
 	MetadataQueries = []MetadataQueryTest{{
-		Metadata: ytprof.Metadata{ProfileType: "cpu"},
-		Query:    "ProfileType == 'cpu'",
-		Result:   true,
+		Metadata: ytprof.Metadata{MapData: map[string]string{
+			"DefaultSampleType": "cpu",
+		}},
+		Query:  "Metadata['DefaultSampleType'] == 'cpu'",
+		Result: true,
 	}, {
-		Metadata: ytprof.Metadata{ProfileType: "memory"},
-		Query:    "ProfileType == 'cpu'",
-		Result:   false,
+		Metadata: ytprof.Metadata{MapData: map[string]string{
+			"DefaultSampleType": "memory",
+		}},
+		Query:  "Metadata['DefaultSampleType'] == 'cpu'",
+		Result: false,
 	}, {
-		Metadata: ytprof.Metadata{ProfileType: "cpu"},
-		Query:    "ProfileType != 'cpu'",
-		Result:   false,
+		Metadata: ytprof.Metadata{MapData: map[string]string{
+			"DefaultSampleType": "cpu",
+		}},
+		Query:  "Metadata['DefaultSampleType'] != 'cpu'",
+		Result: false,
 	}, {
-		Metadata: ytprof.Metadata{ProfileType: "memory"},
-		Query:    "ProfileType != 'cpu'",
-		Result:   true,
+		Metadata: ytprof.Metadata{MapData: map[string]string{
+			"DefaultSampleType": "memory",
+		}},
+		Query:  "Metadata['DefaultSampleType'] != 'cpu'",
+		Result: true,
 	}}
 )
 

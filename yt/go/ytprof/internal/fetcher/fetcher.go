@@ -104,7 +104,9 @@ func (f *Fetcher) RunFetcherContinious() error {
 	rand.Seed(time.Now().UnixMicro())
 
 	for _, service := range f.services {
-		go service.runServiceFetcherContinious()
+		go func(serviceFetcher ServiceFetcher) {
+			serviceFetcher.runServiceFetcherContinious()
+		}(service)
 	}
 
 	select {}
@@ -123,6 +125,8 @@ func (sf *ServiceFetcher) fetchService() {
 
 	results := make([][]*profile.Profile, sz)
 	resultslice := make([]*profile.Profile, 0)
+	hosts := make([][]string, sz)
+	hostslice := make([]string, 0)
 	errs := make([][]error, sz)
 
 	sf.f.l.Debug("all corutines getting started", log.String("profile_service", sf.service.ProfilePath))
@@ -132,7 +136,7 @@ func (sf *ServiceFetcher) fetchService() {
 	for id, resolver := range sf.resolvers {
 		go func(id int, resolver ResolverFetcher) {
 			defer wg.Done()
-			results[id], errs[id] = resolver.fetchResolver()
+			results[id], hosts[id], errs[id] = resolver.fetchResolver()
 		}(id, resolver)
 	}
 
@@ -155,17 +159,18 @@ func (sf *ServiceFetcher) fetchService() {
 			}
 
 			resultslice = append(resultslice, results[i][j])
+			hostslice = append(hostslice, hosts[i][j])
 		}
 	}
 
 	sf.f.l.Debug("getting ready to push data", log.Int("data_size", len(resultslice)))
-	err := sf.f.storage.PushData(resultslice, context.Background())
+	err := sf.f.storage.PushData(resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType, context.Background())
 	if err != nil {
 		sf.f.l.Error("error while storing profiles", log.String("cluster", sf.f.config.Cluster), log.Error(err))
 	}
 }
 
-func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
+func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []error) {
 	var usedIDs []int
 	var resp *resolver.ResolveEndpointsResponse
 	sizeURL := len(rf.resolver.Urls)
@@ -176,12 +181,12 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
 		resp, err = rf.r.ResolveEndpoints(ctx, rf.resolver.YPCluster, rf.resolver.YPEndpoint)
 		if err != nil {
 			rf.sf.f.l.Error("error while resolving endpoint", log.Error(err))
-			return nil, nil
+			return nil, nil, nil
 		}
 
 		if resp.ResolveStatus != resolver.StatusEndpointOK {
 			rf.sf.f.l.Error("not ok response status", log.Int("status", resp.ResolveStatus))
-			return nil, nil
+			return nil, nil, nil
 		}
 
 		rf.resolver.Urls = make([]string, 0, len(resp.EndpointSet.Endpoints))
@@ -207,26 +212,26 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []error) {
 
 	errs := make([]error, len(usedIDs))
 	results := make([]*profile.Profile, len(usedIDs))
+	hosts := make([]string, len(usedIDs))
 
 	var wg sync.WaitGroup
 	wg.Add(len(usedIDs))
 	for i := 0; i < len(usedIDs); i++ {
 		go func(id int) {
 			defer wg.Done()
-			var url string
 			if resp == nil {
-				url = rf.resolver.Urls[usedIDs[id]]
+				hosts[id] = rf.resolver.Urls[usedIDs[id]]
 			} else {
-				url = fmt.Sprintf("http://%v", resp.EndpointSet.Endpoints[usedIDs[id]].FQDN)
+				hosts[id] = resp.EndpointSet.Endpoints[usedIDs[id]].FQDN
 			}
-			results[id], errs[id] = rf.fetchURL(url)
+			results[id], errs[id] = rf.fetchURL(fmt.Sprintf("http://%v", hosts[id]))
 		}(i)
 	}
 
 	wg.Wait()
 
 	rf.sf.f.l.Debug("service resolver finished", log.String("service", rf.sf.service.ServiceType), log.Int("profiles_fetched", len(results)))
-	return results, errs
+	return results, hosts, errs
 }
 
 func (rf *ResolverFetcher) fetchURL(url string) (*profile.Profile, error) {

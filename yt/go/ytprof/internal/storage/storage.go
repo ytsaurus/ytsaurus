@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/google/pprof/profile"
@@ -52,7 +53,29 @@ func GenerateNewUID() ytprof.ProfID {
 	return ytprof.ProfID{ProfIDLow: rand.Uint64(), ProfIDHigh: rand.Uint64()}
 }
 
-func (m *TableStorage) PushData(profiles []*profile.Profile, ctx context.Context) error {
+func (m *TableStorage) FormMetadata(profile *profile.Profile, host string, profileType string, cluster string, service string) ytprof.Metadata {
+	metadata := ytprof.Metadata{
+		MapData: map[string]string{},
+	}
+
+	metadata.MapData["ProfileType"] = profileType
+	metadata.MapData["Host"] = host
+	metadata.MapData["Cluster"] = cluster
+	metadata.MapData["Service"] = service
+
+	for _, next := range profile.Comments {
+		if strings.HasPrefix(next, "binary_version=") {
+			metadata.MapData["BinaryVersion"] = strings.TrimPrefix(next, "binary_version=")
+		}
+		if strings.HasPrefix(next, "arc_revision=") {
+			metadata.MapData["ArcRevision"] = strings.TrimPrefix(next, "arc_revision=")
+		}
+	}
+
+	return metadata
+}
+
+func (m *TableStorage) PushData(profiles []*profile.Profile, hosts []string, profileType string, cluster string, service string, ctx context.Context) error {
 	tx, err := m.yc.BeginTabletTx(ctx, nil)
 	if err != nil {
 		return err
@@ -67,7 +90,7 @@ func (m *TableStorage) PushData(profiles []*profile.Profile, ctx context.Context
 		return err
 	}
 
-	for _, profileData := range profiles {
+	for id, profileData := range profiles {
 		var buf bytes.Buffer
 		err := profileData.Write(&buf)
 		if err != nil {
@@ -84,7 +107,7 @@ func (m *TableStorage) PushData(profiles []*profile.Profile, ctx context.Context
 			ProfIDHigh: uID.ProfIDHigh,
 			ProfIDLow:  uID.ProfIDLow,
 			Timestamp:  timestamp,
-			Metadata:   ytprof.Metadata{ProfileType: profileData.DefaultSampleType},
+			Metadata:   m.FormMetadata(profileData, hosts[id], profileType, cluster, service),
 		})
 	}
 

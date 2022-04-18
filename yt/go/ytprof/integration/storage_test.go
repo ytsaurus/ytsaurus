@@ -29,20 +29,26 @@ var (
 		PeriodType:        &profile.ValueType{Type: "cpu", Unit: "seconds"},
 		DropFrames:        "none",
 		DefaultSampleType: "cpu",
-		Comments:          []string{"c1", "c2"},
+		Comments:          []string{"c1", "binary_version=c2"},
 	}, {
 		Period:            2324,
 		PeriodType:        &profile.ValueType{Type: "cpr", Unit: "ms"},
 		DropFrames:        "none",
 		DefaultSampleType: "cpu",
-		Comments:          []string{"c1123", "c2222"},
+		Comments:          []string{"binary_version=c2", "c2222"},
 	}, {
 		Period:            2314,
 		PeriodType:        &profile.ValueType{Type: "memory", Unit: "bytes"},
 		DropFrames:        "none",
 		DefaultSampleType: "memory",
-		Comments:          []string{"c11", "c21"},
+		Comments:          []string{"binary_version=c11", "c21"},
 	}}
+
+	TestHosts = []string{
+		"host1",
+		"host2",
+		"host3",
+	}
 )
 
 func checkTestProfiles(t *testing.T, checkProfiles []*profile.Profile) {
@@ -89,7 +95,7 @@ func TestDataAndMetadataTables(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	require.NoError(t, tsData.PushData(TestProfiles, env.Ctx))
+	require.NoError(t, tsData.PushData(TestProfiles, TestHosts, "t1", "t2", "t3", env.Ctx))
 
 	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
@@ -115,14 +121,14 @@ func TestDataExpr(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	require.NoError(t, tsData.PushData(TestProfiles, env.Ctx))
+	require.NoError(t, tsData.PushData(TestProfiles, TestHosts, "t1", "t2", "t3", env.Ctx))
 
 	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQueryExpr(tlow, thigh, env.Ctx, "ProfileType == 'cpu'")
+	resultIDs, err := tsData.MetadataIdsQueryExpr(tlow, thigh, env.Ctx, "Metadata['BinaryVersion'] == 'c2'")
 	require.NoError(t, err)
 	resultData, err := tsData.FindProfiles(resultIDs, env.Ctx)
 	require.NoError(t, err)
@@ -142,7 +148,7 @@ func TestMetadataIdsQuery(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, env.Ctx))
+	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3", env.Ctx))
 
 	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
@@ -166,7 +172,7 @@ func TestMetadataQuery(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, dataPath))
 
-	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, env.Ctx))
+	require.NoError(t, tsData.PushData([]*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3", env.Ctx))
 
 	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
