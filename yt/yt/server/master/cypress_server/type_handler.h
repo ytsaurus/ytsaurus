@@ -25,6 +25,8 @@ struct TCreateNodeContext
     NSecurityServer::TAccount* Account = nullptr;
     TCypressShard* Shard = nullptr;
     NHydra::TRevision NativeContentRevision = {};
+    TCypressNode* ServiceTrunkNode = nullptr;
+    NYPath::TYPath UnresolvedPathSuffix = {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////

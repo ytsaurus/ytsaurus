@@ -60,6 +60,8 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

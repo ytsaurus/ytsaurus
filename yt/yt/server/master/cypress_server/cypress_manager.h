@@ -81,11 +81,17 @@ public:
     void UpdateShardNodeCount(TCypressShard* shard, NSecurityServer::TAccount* account, int delta);
 
     //! Creates a factory for creating nodes.
+    /*
+     *  \param serviceTrunkNode pointer to the last committed node
+     *  \param unresolvedPathSuffix path from serviceTrunkNode to the node, that needs to be created
+     */
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         TCypressShard* shard,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
-        const TNodeFactoryOptions& options);
+        const TNodeFactoryOptions& options,
+        TCypressNode* serviceTrunkNode = nullptr,
+        NYPath::TYPath unresolvedPathSuffix = {});
 
     //! Creates a new node and registers it.
     TCypressNode* CreateNode(

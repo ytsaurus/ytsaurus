@@ -5,6 +5,7 @@
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/cypress_server/portal_exit_node.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -92,6 +93,19 @@ void TCypressShard::Load(NCellMaster::TLoadContext& context)
     Load(context, AccountStatistics_);
     Load(context, Root_);
     Load(context, Name_);
+}
+
+NYPath::TYPath TCypressShard::MaybeRewritePath(const NYPath::TYPath& path)
+{
+    auto rootNode = GetRoot();
+    if (rootNode->GetType() == NCypressClient::EObjectType::PortalExit) {
+        auto exitNode = rootNode->As<TPortalExitNode>();
+        auto pathPrefix = exitNode->GetPath();
+        if (path.length() != pathPrefix.length() && path.StartsWith(pathPrefix)) {
+            return NObjectClient::FromObjectId(exitNode->GetId()) + path.substr(pathPrefix.length());
+        }
+    }
+    return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

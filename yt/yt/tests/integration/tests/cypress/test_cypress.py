@@ -1327,6 +1327,18 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
         assert get("//tmp/t1/@id") == id1
 
+    @authors("h0pless")
+    def test_cyclic_link(self):
+        set("//sys/@config/cypress_manager/enable_symlink_cyclicity_check", True)
+        create("map_node", "//tmp/a/b/c", recursive=True)
+        link("//tmp/a/b/c", "//tmp/a/l1")
+        create("map_node", "//tmp/r")
+        link("//tmp/r", "//tmp/r/l2")
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            link("//tmp/a/l1", "//tmp/a/b/c", force=True)
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            link("//tmp/r/l2", "//tmp/r/l2", force=True)
+
     @authors("babenko")
     def test_move_in_tx_with_link_yt_6610(self):
         create("map_node", "//tmp/a")
@@ -3526,6 +3538,20 @@ class TestCypressPortal(TestCypressMulticell):
     def setup_method(self, method):
         super(TestCypressPortal, self).setup_method(method)
         set("//tmp/@annotation", "")
+
+    @authors("h0pless")
+    def test_cyclic_link_through_portal(self):
+        create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
+        set("//sys/@config/cypress_manager/enable_symlink_cyclicity_check", True)
+
+        create("map_node", "//portals/p/a/b/c", recursive=True)
+        link("//portals/p/a/b/c", "//portals/p/a/l1")
+        create("map_node", "//portals/p/r")
+        link("//portals/p/r", "//portals/p/r/l2")
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            link("//portals/p/a/l1", "//portals/p/a/b/c", force=True)
+        with pytest.raises(YtError, match="Failed to create link: link is cyclic"):
+            link("//portals/p/r/l2", "//portals/p/r/l2", force=True)
 
     @authors("shakurov")
     def test_cross_shard_copy_inhertible_attributes(self):
