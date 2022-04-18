@@ -22,6 +22,42 @@ def get_sorted_jobs(op):
     return sorted(jobs, key=lambda job: job["start_time"])
 
 
+class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
+    # Scenario:
+    # 1. an operation with one job has started, demand = needed_resources = {default_tree: 1 job, cloud_tree: 0 jobs}
+    # 2. the scheduler schedules one job, demand = usage = {default_tree: 1 job, cloud_tree: 0 jobs}
+    # 3. the agent launches the job and adds probing to cloud_tree, so on agent needed_resources = {default_tree: 0 job, cloud_tree: 1 jobs}
+    # 4. hearbeat period between scheduler and agent is big so needed resources are preserved for a while
+    # 5. after fair share update demand is recalculated: demand = usage + needed_resources = {default_tree: 2 jobs, cloud_tree: 0 jobs}
+    # 6. the scheduler tries to schedule second job
+    # 7. the controller checks that needed_resources are not trivial and proceedes
+    # 8. the controller doesn't find any cookies in chunk pool and it decides that it is speculative job
+    # 9. there is no speculative candidates to launch -> CRASH
+
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "scheduler_heartbeat_period": 3000,
+        }
+    }
+
+    @authors("renadeen")
+    def test_crash_on_scheduling_job_with_stale_needed_resources(self):
+        create_custom_pool_tree_with_one_node("cloud_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={
+            "probing_ratio": 1,
+            "probing_pool_tree": "cloud_tree",
+        }, job_count=1)
+
+        wait_breakpoint(job_count=1, timeout=datetime.timedelta(seconds=15))
+        release_breakpoint()
+        op.track()
+
+
 class TestProbingJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

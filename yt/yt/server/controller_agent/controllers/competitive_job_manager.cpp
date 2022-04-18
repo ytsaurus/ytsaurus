@@ -19,7 +19,7 @@ TCompetitiveJobManagerBase::TCompetitiveJobManagerBase(
     EJobCompetitionType competitionType)
     : Host_(host)
     , JobCounter_(New<TProgressCounter>())
-    , Logger(logger.WithTag("CompetitionType", competitionType))
+    , Logger(logger.WithTag("CompetitionType: %v", competitionType))
     , MaxCompetitiveJobCount_(maxSecondaryJobCount)
     , CompetitionType_(competitionType)
 { }
@@ -37,8 +37,8 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
     std::optional<TString> rejectReason;
 
     auto Logger = this->Logger
-        .WithTag("JobId", joblet->JobId)
-        .WithTag("Cookie", joblet->OutputCookie);
+        .WithTag("JobId: %v", joblet->JobId)
+        .WithTag("Cookie: %v", joblet->OutputCookie);
 
     if (JobCounter_->GetTotal() >= MaxCompetitiveJobCount_) {
         YT_LOG_DEBUG("Ignoring competitive job request; competitive job limit reached (Limit: %v)", MaxCompetitiveJobCount_);
@@ -58,9 +58,7 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
     competition->PendingDataWeight = joblet->InputStripeList->TotalDataWeight;
     InsertOrCrash(CompetitionCandidates_, joblet->OutputCookie);
     PendingDataWeight_ += joblet->InputStripeList->TotalDataWeight;
-    YT_LOG_DEBUG("Competition request is registered (JobId: %v, Cookie: %v)",
-        joblet->JobId,
-        joblet->OutputCookie);
+    YT_LOG_DEBUG("Competition request is registered");
 
     return true;
 }
