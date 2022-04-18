@@ -4383,7 +4383,7 @@ void TOperationControllerBase::DoScheduleJob(
         return;
     }
 
-    if (GetPendingJobCount() == TCompositePendingJobCount{}) {
+    if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleJobResult->RecordFail(EScheduleJobFailReason::NoPendingJobs);
         return;
