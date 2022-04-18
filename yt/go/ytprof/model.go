@@ -34,18 +34,18 @@ type ProfID struct {
 }
 
 type Metadata struct {
-	ProfileType string `yson:",omitempty"`
+	MapData map[string]string `yson:",omitempty"`
 }
 
 func (m *Metadata) Vars() map[string]interface{} {
 	return map[string]interface{}{
-		"ProfileType": m.ProfileType,
+		"Metadata": m.MapData,
 	}
 }
 
 func (m *Metadata) Types() map[string]*exprpb.Type {
 	return map[string]*exprpb.Type{
-		"ProfileType": decls.String,
+		"Metadata": decls.NewMapType(decls.String, decls.String),
 	}
 }
 

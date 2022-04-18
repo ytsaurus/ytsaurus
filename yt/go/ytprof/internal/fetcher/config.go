@@ -28,6 +28,9 @@ type Service struct {
 	// Type of the service to take sample from (node)
 	ServiceType string `yson:"service_type"`
 
+	// Type of the profile (cpu/memory)
+	ProfileType string `yson:"profile_type"`
+
 	// Period of taking samples (5m)
 	Period time.Duration `yson:"period"`
 
