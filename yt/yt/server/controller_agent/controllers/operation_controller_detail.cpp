@@ -5281,6 +5281,7 @@ void TOperationControllerBase::FetchInputTables()
             .NodeDirectory = InputNodeDirectory_,
             .ChunkScraper = CreateFetcherChunkScraper(),
             .Mode = Spec_->InputTableColumnarStatistics->Mode,
+            .EnableEarlyFinish = Config->EnableColumnarStatisticsEarlyFinish,
             .Logger = Logger,
         });
 
@@ -6506,6 +6507,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
             .NodeDirectory = InputNodeDirectory_,
             .ChunkScraper = CreateFetcherChunkScraper(),
             .Mode = Spec_->UserFileColumnarStatistics->Mode,
+            .EnableEarlyFinish = Config->EnableColumnarStatisticsEarlyFinish,
             .Logger = Logger,
         });
 

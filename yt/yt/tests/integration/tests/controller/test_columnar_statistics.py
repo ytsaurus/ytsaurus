@@ -12,40 +12,7 @@ from yt.common import YtError
 import pytest
 
 
-class TestColumnarStatistics(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "enable_map_job_size_adjustment": False,
-            "max_user_file_table_data_weight": 2000,
-            "operation_options": {
-                "spec_template": {
-                    "use_columnar_statistics": True,
-                },
-            },
-            "tagged_memory_statistics_update_period": 100,
-        },
-    }
-
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "testing_options": {
-                "columnar_statistics_chunk_meta_fetch_max_delay": 5000
-            },
-            "columnar_statistics_read_timeout_fraction": 0.1,
-        }
-    }
-
-    DELTA_DRIVER_CONFIG = {
-        "fetcher": {
-            "node_rpc_timeout": 10000
-        },
-    }
-
+class TestColumnarStatisticsBase:
     @staticmethod
     def _expect_statistics(
         lower_row_index,
@@ -118,6 +85,26 @@ class TestColumnarStatistics(YTEnvSetup):
                 "optimize_for": optimize_for,
             },
         )
+
+
+class TestColumnarStatisticsCommand(YTEnvSetup, TestColumnarStatisticsBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "enable_map_job_size_adjustment": False,
+            "max_user_file_table_data_weight": 2000,
+            "operation_options": {
+                "spec_template": {
+                    "use_columnar_statistics": True,
+                },
+            },
+            "tagged_memory_statistics_update_period": 100,
+        },
+    }
 
     @authors("max42")
     def test_get_table_columnar_statistics(self):
@@ -337,6 +324,73 @@ class TestColumnarStatistics(YTEnvSetup):
         )
 
     @authors("max42")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_dynamic_tables(self, optimize_for):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        set("//tmp/t/@optimize_for", optimize_for)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i) * 1000} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
+
+        rows = [{"key": i, "value": str(i // 2) * 1000} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
+
+        sync_compact_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
+
+        rows = [{"key": i} for i in range(10)]
+        delete_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
+
+        sync_compact_table("//tmp/t")
+
+        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
+
+    @authors("prime")
+    def test_max_node_per_fetch(self):
+        create("table", "//tmp/t")
+
+        for _ in range(100):
+            write_table("<append=%true>//tmp/t", [{"a": "x" * 100}, {"c": 1.2}])
+
+        statistics0 = get_table_columnar_statistics('["//tmp/t{a}";]')
+        statistics1 = get_table_columnar_statistics('["//tmp/t{a}";]', max_chunks_per_node_fetch=1)
+        assert statistics0 == statistics1
+
+
+##################################################################
+
+class TestColumnarStatisticsOperations(YTEnvSetup, TestColumnarStatisticsBase):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "enable_map_job_size_adjustment": False,
+            "max_user_file_table_data_weight": 2000,
+            "operation_options": {
+                "spec_template": {
+                    "use_columnar_statistics": True,
+                },
+            },
+            "tagged_memory_statistics_update_period": 100,
+        },
+    }
+
+    @authors("max42")
     def test_map_thin_column(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
@@ -467,41 +521,7 @@ class TestColumnarStatistics(YTEnvSetup):
         )
 
     @authors("max42")
-    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
-    def test_dynamic_tables(self, optimize_for):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t")
-        set("//tmp/t/@optimize_for", optimize_for)
-
-        sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": str(i) * 1000} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
-
-        self._expect_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
-
-        rows = [{"key": i, "value": str(i // 2) * 1000} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
-
-        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
-
-        sync_compact_table("//tmp/t")
-
-        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
-
-        rows = [{"key": i} for i in range(10)]
-        delete_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
-
-        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
-
-        sync_compact_table("//tmp/t")
-
-        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
-
-    @authors("max42")
-    def test_fetch_cancelation(self):
+    def test_fetch_cancellation(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
         for i in range(10):
@@ -563,22 +583,54 @@ class TestColumnarStatistics(YTEnvSetup):
         assert 10000 <= statistics["uncompressed_data_size"] <= 12000
         assert 10000 <= statistics["compressed_data_size"] <= 12000
 
-    @authors("prime")
-    def test_max_node_per_fetch(self):
-        create("table", "//tmp/t")
 
-        for _ in range(100):
-            write_table("<append=%true>//tmp/t", [{"a": "x" * 100}, {"c": 1.2}])
+##################################################################
 
-        statistics0 = get_table_columnar_statistics('["//tmp/t{a}";]')
-        statistics1 = get_table_columnar_statistics('["//tmp/t{a}";]', max_chunks_per_node_fetch=1)
-        assert statistics0 == statistics1
+
+class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperations):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "enable_map_job_size_adjustment": False,
+            "max_user_file_table_data_weight": 2000,
+            "operation_options": {
+                "spec_template": {
+                    "use_columnar_statistics": True,
+                },
+            },
+            "tagged_memory_statistics_update_period": 100,
+            "enable_columnar_statistics_early_finish": True,
+            "fetcher": {
+                "node_rpc_timeout": 3000
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "testing_options": {
+                "columnar_statistics_chunk_meta_fetch_max_delay": 6000
+            },
+            "columnar_statistics_read_timeout_fraction": 0.3,
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "fetcher": {
+            "node_rpc_timeout": 3000
+        },
+    }
+
+    @classmethod
+    def _expect_statistics(cls, *args, **kwargs):
+        if "enable_early_finish" not in kwargs:
+            kwargs["enable_early_finish"] = True
+        super(TestColumnarStatisticsOperationsEarlyFinish, cls)._expect_statistics(*args, **kwargs)
 
 
 ##################################################################
 
 
-class TestColumnarStatisticsEarlyFinish(YTEnvSetup):
+class TestColumnarStatisticsCommandEarlyFinish(YTEnvSetup, TestColumnarStatisticsBase):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -626,15 +678,15 @@ class TestColumnarStatisticsEarlyFinish(YTEnvSetup):
         write_table("<append=%true>//tmp/t", [{"b": None, "c": 0}, {"a": "x" * 1000}])
 
         with pytest.raises(YtError):
-            TestColumnarStatistics._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
+            self._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=False)
 
-        TestColumnarStatistics._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
+        self._expect_statistics(None, None, "a,b,c", [1900, 56, 65], enable_early_finish=True)
 
 
 ##################################################################
 
 
-class TestColumnarStatisticsEarlyFinishRpcProxy(TestColumnarStatisticsEarlyFinish):
+class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCommandEarlyFinish):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -648,6 +700,6 @@ class TestColumnarStatisticsEarlyFinishRpcProxy(TestColumnarStatisticsEarlyFinis
 ##################################################################
 
 
-class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
+class TestColumnarStatisticsCommandRpcProxy(TestColumnarStatisticsCommand):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
