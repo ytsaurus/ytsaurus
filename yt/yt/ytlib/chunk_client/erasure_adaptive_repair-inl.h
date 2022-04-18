@@ -90,6 +90,11 @@ TResultType TAdaptiveErasureRepairingSession::DoRun(TDoRepairAttempt<TResultType
         } else {
             innerErrors.push_back(result);
         }
+
+        if (result.FindMatching(NChunkClient::EErrorCode::UnrecoverableRepairError)) {
+            // Giving up additional attempts on unrecoverable error.
+            result.ThrowOnError();
+        }
     }
 
     THROW_ERROR_EXCEPTION(

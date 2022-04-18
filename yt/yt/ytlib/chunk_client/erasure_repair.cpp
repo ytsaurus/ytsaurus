@@ -766,6 +766,20 @@ std::vector<IChunkWriterPtr> CreateWritersForRepairing(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFuture<void> CancelWriters(const std::vector<IChunkWriterPtr>& writers)
+{
+    std::vector<TFuture<void>> futures;
+    futures.reserve(writers.size());
+
+    for (auto& writer : writers) {
+        futures.push_back(writer->Cancel());
+    }
+
+    return AllSucceeded(std::move(futures));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<void> AdaptiveRepairErasedParts(
     TChunkId chunkId,
     ICodec* codec,
@@ -794,11 +808,28 @@ TFuture<void> AdaptiveRepairErasedParts(
         logger,
         std::move(adaptivelyRepairedCounter));
 
-    return session->Run<void>([=] (const TPartIndexList& bannedIndices, const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
-        auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);
-        YT_VERIFY(writers.size() == bannedIndices.size());
+    return session->Run<void>(
+        [=] (const TPartIndexList& bannedIndices, const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
+            auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);
+            YT_VERIFY(writers.size() == bannedIndices.size());
 
-        return RepairErasedParts(codec, bannedIndices, availableReaders, writers, options);
+            auto future = RepairErasedParts(codec, bannedIndices, availableReaders, writers, options);
+            return future.Apply(BIND([writers, Logger = logger] (const TError& error) {
+                if (error.IsOK()) {
+                    return MakeFuture(error);
+                }
+
+                auto cancelResults = WaitFor(CancelWriters(writers));
+                if (!cancelResults.IsOK()) {
+                    YT_LOG_WARNING(cancelResults, "Failed to cancel chunk writers");
+                    return MakeFuture(TError(
+                        NChunkClient::EErrorCode::UnrecoverableRepairError,
+                        "Failed to cancel chunk writers")
+                        << cancelResults);
+                }
+
+                return MakeFuture(error);
+            }));
     });
 }
 

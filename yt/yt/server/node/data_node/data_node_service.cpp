@@ -48,6 +48,9 @@
 
 #include <yt/yt/server/lib/rpc/per_workload_category_queue.h>
 
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
 #include <yt/yt/server/node/data_node/lookup_session.h>
 
@@ -164,6 +167,7 @@ public:
             TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger)
         , Config_(config)
+        , DynamicConfigManager_(bootstrap->GetDynamicConfigManager())
         , Bootstrap_(bootstrap)
     {
         YT_VERIFY(Config_);
@@ -244,6 +248,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     IBootstrap* const Bootstrap_;
 
     TPerWorkloadCategoryRequestQueue GetBlockSetQueue_;
@@ -251,6 +256,10 @@ private:
     TPerWorkloadCategoryRequestQueue GetChunkFragmentSetQueue_;
     TPerWorkloadCategoryRequestQueue GetChunkMetaQueue_;
 
+    TDataNodeDynamicConfigPtr GetDynamicConfig() const
+    {
+        return DynamicConfigManager_->GetConfig()->DataNode;
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
     {
@@ -744,6 +753,11 @@ private:
         response->set_net_queue_size(netQueueSize);
 
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+        if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
+            YT_LOG_WARNING("Simulating network throttling for ProbeBlockSet (ChunkId: %v)", chunkId);
+            netThrottling = true;
+        }
+
         response->set_net_throttling(netThrottling);
 
         SuggestAllyReplicas(context);
@@ -825,6 +839,11 @@ private:
         };
 
         auto netThrottling = checkNetThrottling(Config_->NetOutThrottlingLimit);
+        if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
+            YT_LOG_WARNING("Simulating network throttling for GetBlockSet (ChunkId: %v)", chunkId);
+            netThrottling = true;
+        }
+
         if (netThrottling) {
             IncrementReadThrottlingCounter(context);
         }

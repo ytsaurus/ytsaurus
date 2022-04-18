@@ -473,6 +473,8 @@ public:
     //! chunk meta fetch for GetColumnarStatistics.
     std::optional<TDuration> ColumnarStatisticsChunkMetaFetchMaxDelay;
 
+    bool SimulateNetworkThrottlingForGetBlockSet;
+
     TDataNodeTestingOptions();
 };
 
@@ -820,6 +822,9 @@ public:
     THashMap<TString, NIO::EIOEngineType> MediumIOEngine;
 
     THashMap<TString, NYTree::INodePtr> MediumIOConfig;
+
+    //! Testing options.
+    TDataNodeTestingOptionsPtr TestingOptions;
 
     TDataNodeDynamicConfig();
 };
