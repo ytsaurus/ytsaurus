@@ -76,6 +76,8 @@ public:
     // COMPAT(kvk1920)
     bool EnableRevisionChangingForBuiltinAttributes;
 
+    bool EnableSymlinkCyclicityCheck;
+
     TDynamicCypressManagerConfig();
 };
 

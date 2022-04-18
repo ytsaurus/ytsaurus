@@ -257,19 +257,23 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
 std::unique_ptr<ITransactionalNodeFactory> TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
     auto* account = GetThisImpl()->GetAccount();
-    return CreateCypressFactory(account, TNodeFactoryOptions());
+    return CreateCypressFactory(account, TNodeFactoryOptions(), /*unresolvedPathSuffix*/ TYPath());
 }
 
 std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCypressFactory(
     TAccount* account,
-    const TNodeFactoryOptions& options) const
+    const TNodeFactoryOptions& options,
+    TYPath unresolvedPathSuffix) const
 {
     const auto& cypressManager = Bootstrap_->GetCypressManager();
+    const auto& serviceTrunkNode = GetThisImpl()->GetTrunkNode();
     return cypressManager->CreateNodeFactory(
-        GetThisImpl()->GetTrunkNode()->GetShard(),
+        serviceTrunkNode->GetShard(),
         Transaction_,
         account,
-        options);
+        options,
+        serviceTrunkNode,
+        std::move(unresolvedPathSuffix));
 }
 
 TYPath TNontemplateCypressNodeProxyBase::GetPath() const
@@ -1559,9 +1563,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     GatherInheritableAttributes(intendedParentNode, &inheritedAttributes->Attributes());
 
-    std::optional<TString> optionalTargetPath;
+    std::optional<TYPath> optionalTargetPath;
     if (explicitAttributes) {
-        optionalTargetPath = explicitAttributes->Find<TString>("target_path");
+        optionalTargetPath = explicitAttributes->Find<TYPath>("target_path");
 
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (optionalAccount) {
@@ -1570,7 +1574,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
+    auto factory = CreateCypressFactory(account, TNodeFactoryOptions(), path);
     auto newProxy = factory->CreateNode(type, inheritedAttributes.Get(), explicitAttributes.Get());
 
     // The path may be invalidated below; save it.
@@ -1902,16 +1906,21 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->GetAccount()
         : GetThisImpl()->GetAccount();
 
-    auto factory = CreateCypressFactory(account, TNodeFactoryOptions{
-        .PreserveAccount = preserveAccount,
-        .PreserveCreationTime = preserveCreationTime,
-        .PreserveModificationTime = preserveModificationTime,
-        .PreserveExpirationTime = preserveExpirationTime,
-        .PreserveExpirationTimeout = preserveExpirationTimeout,
-        .PreserveOwner = preserveOwner,
-        .PreserveAcl = preserveAcl,
-        .PessimisticQuotaCheck = pessimisticQuotaCheck
-    });
+    const auto& path = GetRequestTargetYPath(context->RequestHeader());
+
+    auto factory = CreateCypressFactory(
+        account,
+        TNodeFactoryOptions{
+            .PreserveAccount = preserveAccount,
+            .PreserveCreationTime = preserveCreationTime,
+            .PreserveModificationTime = preserveModificationTime,
+            .PreserveExpirationTime = preserveExpirationTime,
+            .PreserveExpirationTimeout = preserveExpirationTimeout,
+            .PreserveOwner = preserveOwner,
+            .PreserveAcl = preserveAcl,
+            .PessimisticQuotaCheck = pessimisticQuotaCheck
+        },
+        path);
 
     auto* clonedNode = clonedTreeBuilder(factory.get());
     auto* clonedTrunkNode = clonedNode->GetTrunkNode();

@@ -38,7 +38,8 @@ public:
     std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
     std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
-        const TNodeFactoryOptions& options) const override;
+        const TNodeFactoryOptions& options,
+        NYPath::TYPath unresolvedPathSuffix) const override;
 
     NYPath::TYPath GetPath() const override;
 

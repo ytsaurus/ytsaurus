@@ -135,6 +135,7 @@ DEFINE_ENUM(EMasterReign,
     ((UnconditionallyClearPrerequisitesFromExternalizedRequests)    (2003))  // shakurov
     ((SequoiaObjects)                                               (2004))  // gritukan
     ((MoveSyncSuppressionFlagsToMulticellSyncExt)                   (2005))  // shakurov
+    ((BanObviousCyclicSymlinks)                                     (2006))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

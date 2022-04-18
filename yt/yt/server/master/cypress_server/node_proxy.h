@@ -75,7 +75,8 @@ struct ICypressNodeProxy
     //! "Covariant" extension of NYTree::INode::CreateFactory.
     virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
-        const TNodeFactoryOptions& options) const = 0;
+        const TNodeFactoryOptions& options,
+        NYPath::TYPath unresolvedPathSuffix) const = 0;
 
     static ICypressNodeProxy* FromNode(NYTree::INode* ptr);
     static TIntrusivePtr<ICypressNodeProxy> FromNode(const TIntrusivePtr<NYTree::INode>& ptr);

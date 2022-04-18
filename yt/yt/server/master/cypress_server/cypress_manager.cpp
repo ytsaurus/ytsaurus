@@ -102,12 +102,16 @@ public:
         TCypressShard* shard,
         TTransaction* transaction,
         TAccount* account,
-        const TNodeFactoryOptions& options)
+        const TNodeFactoryOptions& options,
+        TCypressNode* serviceTrunkNode,
+        TYPath unresolvedPathSuffix)
         : Bootstrap_(bootstrap)
         , Shard_(shard)
         , Transaction_(transaction)
         , Account_(account)
         , Options_(options)
+        , ServiceTrunkNode_(serviceTrunkNode)
+        , UnresolvedPathSuffix_(std::move(unresolvedPathSuffix))
     {
         YT_VERIFY(Bootstrap_);
         YT_VERIFY(Account_);
@@ -395,7 +399,9 @@ public:
                 .InheritedAttributes = inheritedAttributes,
                 .ExplicitAttributes = explicitAttributes,
                 .Account = account,
-                .Shard = Shard_
+                .Shard = Shard_,
+                .ServiceTrunkNode = ServiceTrunkNode_,
+                .UnresolvedPathSuffix = UnresolvedPathSuffix_
             });
 
         if (Shard_) {
@@ -575,6 +581,8 @@ private:
     TTransaction* const Transaction_;
     TAccount* const Account_;
     const TNodeFactoryOptions Options_;
+    TCypressNode* ServiceTrunkNode_;
+    const TYPath UnresolvedPathSuffix_;
 
     std::vector<TCypressNode*> CreatedNodes_;
     std::vector<TObject*> StagedObjects_;
@@ -1071,7 +1079,9 @@ public:
         TCypressShard* shard,
         TTransaction* transaction,
         TAccount* account,
-        const TNodeFactoryOptions& options)
+        const TNodeFactoryOptions& options,
+        TCypressNode* serviceTrunkNode,
+        TYPath unresolvedPathSuffix)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1080,7 +1090,9 @@ public:
             shard,
             transaction,
             account,
-            options);
+            options,
+            serviceTrunkNode,
+            std::move(unresolvedPathSuffix));
     }
 
     TCypressNode* CreateNode(
@@ -3584,7 +3596,9 @@ private:
             nullptr,
             clonedTransaction,
             account,
-            TNodeFactoryOptions());
+            TNodeFactoryOptions(),
+            sourceTrunkNode,
+            std::move(TYPath()));
 
         auto* clonedTrunkNode = DoCloneNode(
             sourceNode,
@@ -3884,13 +3898,17 @@ std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
     TCypressShard* shard,
     TTransaction* transaction,
     TAccount* account,
-    const TNodeFactoryOptions& options)
+    const TNodeFactoryOptions& options,
+    TCypressNode* serviceTrunkNode,
+    TYPath unresolvedPathSuffix)
 {
     return Impl_->CreateNodeFactory(
         shard,
         transaction,
         account,
-        options);
+        options,
+        serviceTrunkNode,
+        std::move(unresolvedPathSuffix));
 }
 
 TCypressNode* TCypressManager::CreateNode(

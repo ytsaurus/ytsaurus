@@ -83,6 +83,9 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
     RegisterParameter("enable_revision_changing_for_builtin_attributes", EnableRevisionChangingForBuiltinAttributes)
         .Default(false)
         .DontSerializeDefault();
+
+    RegisterParameter("enable_symlink_cyclicity_check", EnableSymlinkCyclicityCheck)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
