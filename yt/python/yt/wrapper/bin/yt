@@ -833,7 +833,7 @@ def get_tablet_infos(**kwargs):
 
 def add_get_tablet_infos_parser(add_parser):
     parser = add_parser("get-tablet-infos", get_tablet_infos)
-    add_ypath_argument(parser, "--path", required=True, help="path to dynamic table")
+    add_ypath_argument(parser, "path", hybrid=True, help="path to dynamic table")
     parser.add_argument("--tablet-indexes", nargs="+", type=int)
     add_structured_format_argument(parser)
 
@@ -846,7 +846,7 @@ def get_tablet_errors(**kwargs):
 
 def add_get_tablet_errors_parser(add_parser):
     parser = add_parser("get-tablet-errors", get_tablet_errors)
-    add_ypath_argument(parser, "--path", required=True, help="path to dynamic table")
+    add_ypath_argument(parser, "path", hybrid=True, help="path to dynamic table")
     parser.add_argument("--limit", type=int, help="number of tablets with errors")
     add_structured_format_argument(parser)
 
