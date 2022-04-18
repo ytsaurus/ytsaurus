@@ -940,6 +940,9 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
         UpdateInputEdges(inputStatistics, joblet);
         UpdateOutputEdgesForJob(outputStatisticsMap, joblet);
+
+        TaskHost_->RegisterStderr(joblet, jobSummary);
+        TaskHost_->RegisterCores(joblet, jobSummary);
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
         // NB: we should release these chunk lists only when information about this job being abandoned
@@ -969,9 +972,6 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         AdjustInputKeyBounds(dataSlice);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
-
-    TaskHost_->RegisterStderr(joblet, jobSummary);
-    TaskHost_->RegisterCores(joblet, jobSummary);
 
     UpdateMaximumUsedTmpfsSizes(statistics);
 
@@ -1008,8 +1008,10 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
-    TaskHost_->RegisterStderr(joblet, jobSummary);
-    TaskHost_->RegisterCores(joblet, jobSummary);
+    if (jobSummary.Result) {
+        TaskHost_->RegisterStderr(joblet, jobSummary);
+        TaskHost_->RegisterCores(joblet, jobSummary);
+    }
 
     YT_VERIFY(jobSummary.Statistics);
     UpdateMaximumUsedTmpfsSizes(*jobSummary.Statistics);
