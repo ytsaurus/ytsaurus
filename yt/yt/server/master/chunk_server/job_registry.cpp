@@ -43,6 +43,7 @@ TJobRegistry::TJobRegistry(
         New<TThroughputThrottlerConfig>(),
         ChunkServerLogger,
         ChunkServerProfiler.WithPrefix("/job_throttler")))
+    , PerTypeJobThrottlers_(CreatePerTypeJobThrottlers())
 { }
 
 TJobRegistry::~TJobRegistry() = default;
@@ -83,6 +84,27 @@ void TJobRegistry::RegisterFinishedJob(const TJobPtr& job)
     }
 }
 
+THashMap<EJobType, IReconfigurableThroughputThrottlerPtr> TJobRegistry::CreatePerTypeJobThrottlers()
+{
+    THashMap<EJobType, IReconfigurableThroughputThrottlerPtr> result;
+
+    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+        if (IsMasterJobType(jobType)) {
+            auto jobTypeString = FormatEnum(jobType);
+
+            EmplaceOrCrash(result,
+                jobType,
+                CreateReconfigurableThroughputThrottler(
+                    New<TThroughputThrottlerConfig>(),
+                    ChunkServerLogger,
+                    ChunkServerProfiler.WithPrefix("/per_type_job_throttler/" + jobTypeString))
+            );
+        }
+    }
+
+    return result;
+}
+
 TJobPtr TJobRegistry::FindLastFinishedJob(TChunkId chunkId) const
 {
     auto it = LastFinishedJobs_.find(chunkId);
@@ -105,6 +127,9 @@ void TJobRegistry::RegisterJob(const TJobPtr& job)
     if (chunk) {
         chunk->AddJob(job);
     }
+
+    const auto& perTypeJobThrottler = GetOrCrash(PerTypeJobThrottlers_, job->GetType());
+    perTypeJobThrottler->Acquire(1);
 
     JobThrottler_->Acquire(1);
 
@@ -156,6 +181,13 @@ bool TJobRegistry::IsOverdraft() const
     return JobThrottler_->IsOverdraft();
 }
 
+bool TJobRegistry::IsOverdraft(EJobType jobType) const
+{
+    const auto& jobThrottler = GetOrCrash(PerTypeJobThrottlers_, jobType);
+
+    return jobThrottler->IsOverdraft();
+}
+
 const TDynamicChunkManagerConfigPtr& TJobRegistry::GetDynamicConfig()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
@@ -164,6 +196,13 @@ const TDynamicChunkManagerConfigPtr& TJobRegistry::GetDynamicConfig()
 
 void TJobRegistry::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
+    for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+        if (IsMasterJobType(jobType)) {
+            auto& jobThrottler = GetOrCrash(PerTypeJobThrottlers_, jobType);
+            auto jobThrottlerConfig = GetDynamicConfig()->JobTypeToThrottler.find(jobType)->second;
+            jobThrottler->Reconfigure(std::move(jobThrottlerConfig));
+        }
+    }
     JobThrottler_->Reconfigure(GetDynamicConfig()->JobThrottler);
     FinishedJobQueueSizeLimit_ = GetDynamicConfig()->FinishedJobsQueueSize;
 }
@@ -187,7 +226,7 @@ int TJobRegistry::GetJobCount(EJobType type) const
 void TJobRegistry::OnProfiling(TSensorBuffer* buffer) const
 {
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
+        if (IsMasterJobType(jobType)) {
             TWithTagGuard tagGuard(buffer, "job_type", FormatEnum(jobType));
             buffer->AddGauge("/running_job_count", RunningJobs_[jobType]);
             buffer->AddCounter("/jobs_started", JobsStarted_[jobType]);

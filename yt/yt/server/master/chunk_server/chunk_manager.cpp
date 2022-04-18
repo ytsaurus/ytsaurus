@@ -91,6 +91,8 @@
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/client/job_tracker_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
@@ -1618,31 +1620,26 @@ public:
         }
 
         // Now we schedule new jobs.
-        if (!JobRegistry_->IsOverdraft()) {
-            TJobSchedulingContext schedulingContext(
-                Bootstrap_,
-                node,
-                &resourceUsage,
-                &resourceLimits,
-                JobRegistry_);
+        TJobSchedulingContext schedulingContext(
+            Bootstrap_,
+            node,
+            &resourceUsage,
+            &resourceLimits,
+            JobRegistry_);
 
-            JobController_->ScheduleJobs(&schedulingContext);
+        JobController_->ScheduleJobs(&schedulingContext);
 
-            for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
-                auto* jobInfo = response->add_jobs_to_start();
-                ToProto(jobInfo->mutable_job_id(), scheduledJob->GetJobId());
-                *jobInfo->mutable_resource_limits() = scheduledJob->ResourceUsage();
+        for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
+            auto* jobInfo = response->add_jobs_to_start();
+            ToProto(jobInfo->mutable_job_id(), scheduledJob->GetJobId());
+            *jobInfo->mutable_resource_limits() = scheduledJob->ResourceUsage();
 
-                NJobTrackerClient::NProto::TJobSpec jobSpec;
-                jobSpec.set_type(static_cast<int>(scheduledJob->GetType()));
-                scheduledJob->FillJobSpec(Bootstrap_, &jobSpec);
+            NJobTrackerClient::NProto::TJobSpec jobSpec;
+            jobSpec.set_type(static_cast<int>(scheduledJob->GetType()));
+            scheduledJob->FillJobSpec(Bootstrap_, &jobSpec);
 
-                auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
-                response->Attachments().push_back(serializedJobSpec);
-            }
-        } else {
-            YT_LOG_ERROR("Job throttler is overdrafted, skip job scheduling (Address: %v)",
-                node->GetDefaultAddress());
+            auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
+            response->Attachments().push_back(serializedJobSpec);
         }
 
         // If node resource usage or limits have changed, we commit mutation with new values.
@@ -4777,6 +4774,15 @@ private:
         std::vector<TError> alerts;
         if (JobRegistry_->IsOverdraft()) {
             alerts.push_back(TError("Job registry throttler is overdrafted"));
+        }
+
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (IsMasterJobType(jobType)) {
+                if (JobRegistry_->IsOverdraft(jobType)) {
+                    alerts.push_back(TError("Job registry throttler is overdrafted for a job type")
+                        << TErrorAttribute("job_type", jobType));
+                }
+            }
         }
 
         if (ChunkPlacement_) {

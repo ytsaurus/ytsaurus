@@ -398,8 +398,11 @@ public:
     //! Memory usage assigned to every repair job.
     i64 RepairJobMemoryUsage;
 
-    //! Throttles chunk jobs.
+    //! Throttles all chunk jobs combined.
     NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
+
+    //! Throttles chunk jobs per type.
+    THashMap<EJobType, NConcurrency::TThroughputThrottlerConfigPtr> JobTypeToThrottler;
 
     TDuration StagedChunkExpirationTimeout;
     TDuration ExpirationCheckPeriod;
