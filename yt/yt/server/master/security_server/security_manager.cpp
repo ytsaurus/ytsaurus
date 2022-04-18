@@ -3003,8 +3003,10 @@ private:
             // Ignore master memory as it's always recomputed anyway.
             auto accountUsageCopy = accountUsage;
             accountUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
+            accountUsageCopy.SetChunkHostCellMasterMemory(0);
             auto expectedUsageCopy = expectedUsage;
             expectedUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
+            expectedUsageCopy.SetChunkHostCellMasterMemory(0);
 
             if (accountUsageCopy == expectedUsageCopy) {
                 return true;
