@@ -74,7 +74,7 @@ case class YtScanBuilder(sparkSession: SparkSession,
 
     val importantFilters = filters.filter(!_.isInstanceOf[IsNotNull])
 
-    if (importantFilters.exists(_.references.exists(keySet.contains)) || pushedFilterSegments.map.nonEmpty) {
+    if (importantFilters.exists(_.references.exists(keySet.contains))) {
       if (pushedFilterSegments.map.nonEmpty) {
         ytLog.info("Pushing filters in YtScanBuilder, filters contain some key columns", logInfo)
       } else {

@@ -11,7 +11,7 @@ object ExpressionTransformer {
                          (implicit ytLog: YtLogger = YtLogger.noop): SegmentSet = {
     val set = dataFilters.map(expressionToSegmentSet)
     val res = SegmentSet.intercept(set: _*)
-    if (set.length > 2) {
+    if (dataFilters.count(!_.isInstanceOf[IsNotNull]) > 2) {
       ytLog.warn(s"ExpressionTransformer intercepts more than 2 filters",
         Map("filters" -> dataFilters.mkString(", "), "interception" -> res.toString))
     }
