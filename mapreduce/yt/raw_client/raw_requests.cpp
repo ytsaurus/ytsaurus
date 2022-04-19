@@ -481,7 +481,7 @@ TListOperationsResult ListOperations(
     auto resultNode = NodeFromYsonString(responseInfo.Response);
 
     TListOperationsResult result;
-    for (const auto operationNode : resultNode["operations"].AsList()) {
+    for (const auto& operationNode : resultNode["operations"].AsList()) {
         result.Operations.push_back(ParseOperationAttributes(operationNode));
     }
 
@@ -620,7 +620,7 @@ TListJobsResult ListJobs(
 
     const auto& jobNodesList = resultNode["jobs"].AsList();
     result.Jobs.reserve(jobNodesList.size());
-    for (const auto jobNode : jobNodesList) {
+    for (const auto& jobNode : jobNodesList) {
         result.Jobs.push_back(ParseJobAttributes(jobNode));
     }
 
