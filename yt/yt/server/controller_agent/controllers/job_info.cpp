@@ -117,6 +117,9 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, EstimatedResourceUsage);
     Persist(context, JobProxyMemoryReserveFactor);
     Persist(context, UserJobMemoryReserveFactor);
+    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::MemoryReserve) {
+        Persist(context, UserJobMemoryReserve);
+    }
     Persist(context, ResourceLimits);
     Persist(context, ChunkListIds);
     Persist(context, StderrTableChunkListId);

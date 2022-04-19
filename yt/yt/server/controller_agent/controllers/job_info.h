@@ -116,6 +116,8 @@ public:
     TJobResources ResourceLimits;
     NScheduler::TDiskQuota DiskQuota;
 
+    i64 UserJobMemoryReserve = 0;
+
     std::optional<TString> DiskRequestAccount;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;

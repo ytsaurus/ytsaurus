@@ -23,6 +23,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StripedErasureChunks)                 (300807))
     ((LowGpuPowerUsageOnWindow)             (300808))
     ((OptionalJobResults)                   (300809))
+    ((MemoryReserve)                        (300810))
     // 22.1 but cherry-pick later
     ((StripedErasureTables)                 (300858))
     ((ProbingJobs)                          (300859))
