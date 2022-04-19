@@ -178,7 +178,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
   }
 
   it should "read dynamic table snapshot with custom timestamp" in {
-    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
+    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true)
 
     val ts = yt.generateTimestamps().join().getValue
     insertNewRow(tmpPath)
@@ -188,12 +188,21 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
   }
 
   it should "read dynamic table snapshot" in {
-    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
+    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true)
 
     val df = spark.read.yt(tmpPath)
     insertNewRow(tmpPath)
 
     df.selectAs[TestRow].collect() should contain theSameElementsAs testData
+  }
+
+  it should "read latest version of dynamic table if timestamp is disabled by user" in {
+    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true)
+
+    val df = spark.read.option("enable_inconsistent_read", "true").yt(tmpPath)
+    insertNewRow(tmpPath)
+
+    df.selectAs[TestRow].collect() should contain theSameElementsAs TestRow(105, 105, "new_new_row") +: testData
   }
 
   it should "set snapshot lock on dynamic table within transaction" in {
@@ -211,7 +220,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
   }
 
   it should "read dynamic table snapshot with custom timestamp within transaction" in {
-    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
+    prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true)
     val ts = yt.generateTimestamps().join().getValue
 
     readCustomTimestampWithinTransaction(ts, tmpPath) { (df, readTransaction) =>
@@ -251,8 +260,8 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
   it should "read directory of dynamic tables with custom timestamp within transaction" in {
     createDir(tmpPath)
-    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)))
-    prepareTestTable(s"$tmpPath/2", Seq(testRow), Nil)
+    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true)
+    prepareTestTable(s"$tmpPath/2", Seq(testRow), Nil, enableDynamicStoreRead = true)
     val ts = yt.generateTimestamps().join().getValue
 
     insertNewRow(s"$tmpPath/1")
@@ -269,8 +278,8 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
   it should "read directory of dynamic tables with custom timestamp" in {
     createDir(tmpPath)
-    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)))
-    prepareTestTable(s"$tmpPath/2", Seq(testRow), Nil)
+    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true)
+    prepareTestTable(s"$tmpPath/2", Seq(testRow), Nil, enableDynamicStoreRead = true)
 
     val ts = yt.generateTimestamps().join().getValue
     insertNewRow(s"$tmpPath/1")
@@ -282,7 +291,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
   it should "read directory of both static and dynamic tables" in {
     createDir(tmpPath)
-    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12))) // dynamic
+    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true) // dynamic
     Seq(testRow).toDF().write.yt(s"$tmpPath/2") //static
 
     val df = spark.read.yt(tmpPath)
@@ -292,7 +301,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
   it should "read directory of both static and dynamic tables within transaction" in {
     createDir(tmpPath)
-    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12))) // dynamic
+    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true) // dynamic
     Seq(testRow).toDF().write.yt(s"$tmpPath/2") //static
 
     readWithinTransaction(tmpPath) { (df, _) =>
@@ -304,7 +313,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
   it should "read directory of both static and dynamic tables within transaction with custom timestamp" in {
     createDir(tmpPath)
-    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12))) // dynamic
+    prepareTestTable(s"$tmpPath/1", testData, Seq(Seq(), Seq(3), Seq(6, 12)), enableDynamicStoreRead = true) // dynamic
     Seq(testRow).toDF().write.yt(s"$tmpPath/2") //static
 
     val ts = yt.generateTimestamps().join().getValue
@@ -341,7 +350,5 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
   private def insertNewRow(path: String): Unit = {
     YtWrapper.insertRows(path, testSchema, Seq(Seq(105, 105, "new_new_row")))
-    YtWrapper.unmountTableSync(path, 10 seconds)
-    YtWrapper.mountTableSync(path, 10 seconds)
   }
 }

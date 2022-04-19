@@ -50,6 +50,8 @@ object YtTableSparkSettings {
 
   case object Timestamp extends LongConfigEntry("timestamp")
 
+  case object InconsistentReadEnabled extends BooleanConfigEntry("enable_inconsistent_read", Some(false))
+
   // write
   case object IsTable extends BooleanConfigEntry("is_table", Some(false))
 

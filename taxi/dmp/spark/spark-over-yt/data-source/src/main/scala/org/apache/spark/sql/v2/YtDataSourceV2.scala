@@ -8,7 +8,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import org.apache.spark.sql.vectorized.YtFileFormat
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.GlobalTransaction
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtTimestampPath, YtRootPath, YtTransactionPath}
+import ru.yandex.spark.yt.fs.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
 
 class YtDataSourceV2 extends FileDataSourceV2 {
   private val defaultOptions: Map[String, String] = Map(
@@ -26,12 +26,18 @@ class YtDataSourceV2 extends FileDataSourceV2 {
     val paths = super.getPaths(options)
     val transaction = options.getYtConf(Transaction).orElse(sparkSession.getYtConf(GlobalTransaction.Id))
     val timestamp = options.getYtConf(Timestamp)
+    val inconsistentReadEnabled = options.ytConf(InconsistentReadEnabled)
+
+    if (inconsistentReadEnabled && timestamp.nonEmpty) {
+      throw new IllegalStateException("Using of both timestamp and enable_inconsistent_read options is prohibited")
+    }
 
     paths.map { s =>
       val path = new Path(s)
       val transactionYPath = transaction.map(YtTransactionPath(path, _)).getOrElse(YtRootPath(path))
       val timestampYPath = timestamp.map(YtTimestampPath(transactionYPath, _)).getOrElse(transactionYPath)
-      timestampYPath.toPath.toString
+      val latestVersionPath = if (inconsistentReadEnabled) YtLatestVersionPath(transactionYPath) else timestampYPath
+      latestVersionPath.toPath.toString
     }
   }
 

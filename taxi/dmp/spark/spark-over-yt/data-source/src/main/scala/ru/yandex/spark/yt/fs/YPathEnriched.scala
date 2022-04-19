@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.fs
 import org.apache.hadoop.fs.Path
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtTimestampPath, YtTransactionPath}
+import ru.yandex.spark.yt.fs.YPathEnriched.{YtLatestVersionPath, YtTimestampPath, YtTransactionPath}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
@@ -28,6 +28,8 @@ sealed trait YPathEnriched {
   }
 
   def withTimestamp(timestamp: Long): YtTimestampPath = YtTimestampPath(this, timestamp)
+
+  def withLatestVersion(): YtLatestVersionPath = YtLatestVersionPath(this)
 
   def lock()(implicit yt: CompoundClient): YPathEnriched = this
 
@@ -88,7 +90,15 @@ object YPathEnriched {
     override def child(name: String): YPathEnriched = YtSimplePath(this, name)
   }
 
-  case class YtTimestampPath(parent: YPathEnriched, timestamp: Long) extends YPathEnriched {
+  sealed trait YtDynamicVersionPath extends YPathEnriched
+
+  /**
+   * Yt path with fixed timestamp, used for a consistent read from dynamic tables
+   * see https://yt.yandex-team.ru/docs/description/dynamic_tables/dynamic_tables_mapreduce#dyntable_mr_timestamp
+   * @param parent Path to the table
+   * @param timestamp Yt timestamp (not a UNIX)
+   */
+  case class YtTimestampPath(parent: YPathEnriched, timestamp: Long) extends YtDynamicVersionPath {
     override def toPath: Path = parent.toPath.child(s"@timestamp_$timestamp")
 
     override def toYPath: YPath = parent.toYPath.withTimestamp(timestamp)
@@ -102,6 +112,36 @@ object YPathEnriched {
         case _ =>
           YtSimplePath(this, name).withTimestamp(timestamp)
       }
+    }
+
+    override def lock()(implicit yt: CompoundClient): YPathEnriched = {
+      parent.lock().withTimestamp(timestamp)
+    }
+  }
+
+  /**
+   * Yt path to dynamic table without fixed timestamp. Read from this path will be inconsistent and not recommended
+   * If user disabled fixing timestamp manually this class will be used, otherwise YtTimestampPath will be used
+   * @param parent Path to the table
+   */
+  case class YtLatestVersionPath(parent: YPathEnriched) extends YtDynamicVersionPath {
+    override def toPath: Path = parent.toPath.child("@latest_version")
+
+    override def toYPath: YPath = parent.toYPath
+
+    override def transaction: Option[String] = None
+
+    override def child(name: String): YPathEnriched = {
+      parent match {
+        case p: YtTransactionPath =>
+          YtSimplePath(this, name).withTransaction(p.transactionId).withLatestVersion()
+        case _ =>
+          YtSimplePath(this, name).withLatestVersion()
+      }
+    }
+
+    override def lock()(implicit yt: CompoundClient): YPathEnriched = {
+      parent.lock().withLatestVersion()
     }
   }
 
@@ -137,6 +177,16 @@ object YPathEnriched {
     }
   }
 
+  object YtLatestVersionPath {
+    def unapply(path: Path): Option[Path] = {
+      if (path.getName == "@latest_version") {
+        Some(path.getParent)
+      } else {
+        None
+      }
+    }
+  }
+
   // TODO tailrec?
   def ypath(path: Path): YPathEnriched = {
     path match {
@@ -151,6 +201,8 @@ object YPathEnriched {
         YtTransactionPath(ypath(parentPath), transactionId)
       case YtTimestampPath(parentPath, timestamp) =>
         YtTimestampPath(ypath(parentPath), timestamp)
+      case YtLatestVersionPath(parentPath) =>
+        YtLatestVersionPath(ypath(parentPath))
       case _ =>
         val tr = GlobalTableSettings.getTransaction(path.toString)
         if (path.getParent.toString.contains("@")) { // TODO NPE when file in root directory
