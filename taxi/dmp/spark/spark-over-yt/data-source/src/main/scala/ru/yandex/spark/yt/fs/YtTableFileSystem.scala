@@ -6,7 +6,8 @@ import org.apache.hadoop.util.Progressable
 import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.fs.YPathEnriched.{YtTimestampPath, YtObjectPath, YtRootPath, YtSimplePath, YtTransactionPath, ypath}
+import ru.yandex.spark.yt.fs.YPathEnriched.{YtDynamicVersionPath, YtLatestVersionPath, YtObjectPath, YtRootPath, YtSimplePath, YtTimestampPath, YtTransactionPath, ypath}
+import ru.yandex.spark.yt.fs.conf.SparkYtHadoopConfiguration
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.table.TableType
@@ -73,13 +74,12 @@ class YtTableFileSystem extends YtFileSystemBase {
                                attributes: Map[String, YTreeNode])
                               (implicit yt: CompoundClient): Array[FileStatus] = {
     path match {
-      case p: YtTimestampPath =>
+      case p: YtDynamicVersionPath =>
         p.parent match {
           case pp: YtTransactionPath =>
-            Array(getFileStatus(pp.lock().withTimestamp(p.timestamp)))
+            Array(getFileStatus(p.lock()))
           case _ =>
-            val newAttributes = YtWrapper.attributes(p.toYPath)
-            listDynamicTableAsFiles(p, newAttributes)
+            listDynamicTableAsFiles(p, YtWrapper.attributes(p.toYPath))
         }
       case p@(_: YtSimplePath | _: YtObjectPath | _: YtRootPath) =>
         val ts = YtWrapper.maxAvailableTimestamp(p.toYPath)
