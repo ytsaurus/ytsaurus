@@ -106,7 +106,7 @@ public class MountWaitTest extends YtClientTestBase {
             });
         }
         executorService.shutdown();
-        executorService.awaitTermination(30, TimeUnit.SECONDS);
+        executorService.awaitTermination(60, TimeUnit.SECONDS);
         Assert.assertEquals(startedWaits.get(), joinedThreads.get());
     }
 }
