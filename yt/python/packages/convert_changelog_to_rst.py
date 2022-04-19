@@ -6,7 +6,7 @@ import sys
 PACKAGE_NAME = "yandex-yt-python"
 VERSION_PATTERN = re.compile(r"(\d+\.\d+\.\d+-\d+)")
 ENDLINE_PATTERN = re.compile(r"^ -- (.*) <(.*)>(  ?)(.*)$")
-DATE_PATTERN = re.compile(r"^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s*(\d{2}\s\w+\s\d{4})")
+DATE_PATTERN = re.compile(r"^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\s*(\d{1,2}\s\w+\s\d{4})")
 
 ST_URL = "https://st.yandex-team.ru"
 YT_ST_TIKET_PATTERN = re.compile(r"((YT|YTADMIN|YTADMINREQ)-\d+)")
