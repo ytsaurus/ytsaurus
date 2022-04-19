@@ -1009,12 +1009,12 @@ private:
 
         if (toReadRemaining > 0) {
             THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "Unexpected end-of-file in read request")
-                << TErrorAttribute("ToReadRemaining", toReadRemaining)
-                << TErrorAttribute("MaxBytesPerRead", StaticConfig_->MaxBytesPerRead)
-                << TErrorAttribute("RequestSize", request.Size)
-                << TErrorAttribute("RequestOffset", request.Offset)
-                << TErrorAttribute("FileSize", request.Handle->GetLength())
-                << TErrorAttribute("Handle", static_cast<FHANDLE>(*request.Handle));
+                << TErrorAttribute("to_read_remaining", toReadRemaining)
+                << TErrorAttribute("max_bytes_per_read", StaticConfig_->MaxBytesPerRead)
+                << TErrorAttribute("request_size", request.Size)
+                << TErrorAttribute("request_offset", request.Offset)
+                << TErrorAttribute("file_size", request.Handle->GetLength())
+                << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
         }
     }
 
