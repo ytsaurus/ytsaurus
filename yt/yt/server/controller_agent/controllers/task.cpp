@@ -526,6 +526,21 @@ void TTask::ScheduleJob(
         joblet->DiskQuota = neededResources.GetDiskQuota();
     }
 
+    if (userJobSpec) {
+        i64 totalTmpfsSize = 0;
+        for (const auto& volume : userJobSpec->TmpfsVolumes) {
+            totalTmpfsSize += volume->Size;
+        }
+        YT_VERIFY(joblet->UserJobMemoryReserveFactor.has_value());
+
+        // Memory reserve should greater than or equal to tmpfs_size (see YT-5518 for more details).
+        // This is ensured by adjusting memory reserve factor in user job config as initialization,
+        // but just in case we also limit the actual memory_reserve value here.
+        joblet->UserJobMemoryReserve = std::max(
+            static_cast<i64>(*joblet->UserJobMemoryReserveFactor * estimatedResourceUsage.GetUserJobMemory()),
+            totalTmpfsSize);
+    }
+
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
         !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.GetDiskQuota()}))

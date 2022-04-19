@@ -152,12 +152,12 @@ private:
         }
 
         *response->mutable_job_spec() = job->GetSpec();
-        auto resources = job->GetResourceUsage();
+        auto resourceUsage = job->GetResourceUsage();
 
-        auto* jobProxyResources = response->mutable_resource_usage();
-        jobProxyResources->set_cpu(resources.cpu());
-        jobProxyResources->set_memory(resources.user_memory());
-        jobProxyResources->set_network(resources.network());
+        auto* resourceUsageProto = response->mutable_resource_usage();
+        resourceUsageProto->set_cpu(resourceUsage.cpu());
+        resourceUsageProto->set_memory(resourceUsage.user_memory());
+        resourceUsageProto->set_network(resourceUsage.network());
 
         ToProto(response->mutable_ports(), job->GetPorts());
 
@@ -321,21 +321,21 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, UpdateResourceUsage)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& jobProxyResourceUsage = request->resource_usage();
+        const auto& reportedResourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("JobId: %v, JobProxyResourceUsage: {Cpu: %v, Memory %v, Network: %v}",
+        context->SetRequestInfo("JobId: %v, ReportedResourceUsage: {Cpu: %v, Memory %v, Network: %v}",
             jobId,
-            jobProxyResourceUsage.cpu(),
-            jobProxyResourceUsage.memory(),
-            jobProxyResourceUsage.network());
+            reportedResourceUsage.cpu(),
+            reportedResourceUsage.memory(),
+            reportedResourceUsage.network());
 
         const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         auto resourceUsage = job->GetResourceUsage();
-        resourceUsage.set_user_memory(jobProxyResourceUsage.memory());
-        resourceUsage.set_cpu(jobProxyResourceUsage.cpu());
-        resourceUsage.set_network(jobProxyResourceUsage.network());
+        resourceUsage.set_user_memory(reportedResourceUsage.memory());
+        resourceUsage.set_cpu(reportedResourceUsage.cpu());
+        resourceUsage.set_network(reportedResourceUsage.network());
 
         job->SetResourceUsage(resourceUsage);
 
