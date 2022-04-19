@@ -800,7 +800,7 @@ private:
                 }
 
                 YT_LOG_DEBUG("New congestion message received"
-                    "(Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestsCounter: %v)",
+                    " (Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestsCounter: %v)",
                     state.Epoch,
                     state.Status,
                     congestionWindow,
