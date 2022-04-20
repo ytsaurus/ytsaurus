@@ -527,8 +527,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     // Skiff is disabled here because of large header problem (see https://st.yandex-team.ru/YT-6926).
     // Revert this code to r3614168 when it is fixed.
     return new TNodeTableReader(
-        CreateClientReader(path, format, options),
-        options.SizeLimit_);
+        CreateClientReader(path, format, options));
 }
 
 ::TIntrusivePtr<IYaMRReaderImpl> TClientBase::CreateYaMRReader(

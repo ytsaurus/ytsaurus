@@ -24,44 +24,12 @@ struct TRowElement
 {
     TNode Node;
     size_t Size = 0;
-    enum EType {
-        Row,
-        Error,
-        Finish
-    } Type = Row;
 
-    void Reset(EType type = Row)
+    void Reset()
     {
         Node = TNode();
         Size = 0;
-        Type = type;
     }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRowQueue
-{
-public:
-    explicit TRowQueue(size_t sizeLimit = 4 << 20);
-
-    void Enqueue(TRowElement&& row);
-    TRowElement Dequeue();
-
-    void Clear();
-    void Stop();
-
-private:
-    TVector<TRowElement> EnqueueBuffer_;
-    size_t EnqueueSize_ = 0;
-
-    TVector<TRowElement> DequeueBuffer_;
-    size_t DequeueIndex_ = 0;
-
-    TAutoEvent EnqueueEvent_;
-    TAutoEvent DequeueEvent_;
-    std::atomic<bool> Stopped_{false};
-    size_t SizeLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +38,7 @@ class TNodeTableReader
     : public INodeReaderImpl
 {
 public:
-    explicit TNodeTableReader(::TIntrusivePtr<TRawTableReader> input, size_t sizeLimit = 4 << 20);
+    explicit TNodeTableReader(::TIntrusivePtr<TRawTableReader> input);
     ~TNodeTableReader() override;
 
     const TNode& GetRow() const override;
@@ -92,9 +60,8 @@ private:
     void OnStreamError();
     void CheckValidity() const;
     void PrepareParsing();
-
-    void FetchThread();
-    static void* FetchThread(void* opaque);
+    void ParseListFragmentItem();
+    void ParseFirstListFragmentItem();
 
 private:
     NDetail::TCountingRawTableReader Input_;
@@ -109,15 +76,14 @@ private:
     bool AtStart_ = true;
 
     TMaybe<TRowElement> Row_;
-    TRowQueue RowQueue_;
+    TMaybe<TRowElement> NextRow_;
 
     THolder<TRowBuilder> Builder_;
-    THolder<::NYson::TYsonParser> Parser_;
+    THolder<::NYson::TYsonListParser> Parser_;
 
-    std::atomic<bool> Running_{false};
-    TAutoEvent RetryPrepared_;
-    THolder<TThread> Thread_;
     yexception Exception_;
+    bool NeedParseFirst_ = true;
+    bool IsLast_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
