@@ -619,6 +619,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_tentative_tree_eligibility_period", &TThis::CheckTentativeTreeEligibilityPeriod)
         .Default(TDuration::Seconds(10));
 
+    registrar.Parameter("update_account_resource_usage_leases_period", &TThis::UpdateAccountResourceUsageLeasesPeriod)
+        .Default(TDuration::Seconds(10));
+
     registrar.Parameter("zombie_operation_orchids", &TThis::ZombieOperationOrchids)
         .DefaultNew();
 

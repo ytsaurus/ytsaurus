@@ -104,6 +104,8 @@ public:
         TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
         TBootstrap* bootstrap);
 
+    void Disconnect(const TError& error) override;
+
     void InterruptJob(TJobId jobId, EInterruptReason reason) override;
     void AbortJob(TJobId jobId, const TError& error) override;
     void FailJob(TJobId jobId) override;

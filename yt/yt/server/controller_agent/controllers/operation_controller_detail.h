@@ -1270,6 +1270,10 @@ private:
         void Persist(const TPersistenceContext& context);
     };
     THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
+    
+    THashMap<TString, TResourceUsageLeaseInfo> LastUpdatedAccountResourceUsageLeaseMap_;
+
+    const NConcurrency::TPeriodicExecutorPtr UpdateAccountResourceUsageLeasesExecutor_;
 
     TProgressCounterPtr TotalJobCounter_;
 
@@ -1303,6 +1307,8 @@ private:
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
     void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
+    
+    void UpdateAccountResourceUsageLeases();
 
     void InitializeStandardStreamDescriptors();
 
