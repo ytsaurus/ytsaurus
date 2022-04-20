@@ -323,7 +323,7 @@ class TestErasure(TestErasureBase):
             "data_node": {
                 "adaptive_chunk_repair_job": {
                     "enable_auto_repair": adaptive_repair,
-                    "replication_reader_timeout" : 10000,
+                    "replication_reader_timeout" : 3000,
                 },
             }
         }
@@ -350,21 +350,26 @@ class TestErasure(TestErasureBase):
         self.update_specific_node_dynamic_config_(throttling_replica, node_dyn_config)
 
         # Test for several parts
-        for r in replicas[4 : 7]:
+        for r in replicas[4 : 6]:
             replica_index = r.attributes["index"]
             address = str(r)
             print_debug("Banning node %s containing replica %d" % (address, replica_index))
             set_node_banned(address, True)
             wait(lambda: self._is_chunk_ok(chunk_id))
-            assert read_table("//tmp/table") == [{"b": "hello"}]
             set_node_banned(r, False)
+
+        node_dyn_config["data_node"]["testing_options"] = {}
+        self.update_specific_node_dynamic_config_(throttling_replica, node_dyn_config)
+        assert read_table("//tmp/table") == [{"b": "hello"}]
 
     def update_specific_node_dynamic_config_(self, node, config):
         current_config = get("//sys/cluster_nodes/@config")
-        new_config = {
-            "!{}".format(node) : copy.deepcopy(current_config["%true"]),
-            node : copy.deepcopy(current_config["%true"])
-        }
+        new_config = current_config
+        if node not in new_config:
+            new_config = {
+                "!{}".format(node) : copy.deepcopy(current_config["%true"]),
+                node : copy.deepcopy(current_config["%true"])
+            }
         new_config[node].update(config)
         set("//sys/cluster_nodes/@config", new_config)
         wait(lambda: get_applied_node_dynamic_config(node) == new_config[node])
