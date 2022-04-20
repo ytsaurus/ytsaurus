@@ -35,6 +35,7 @@ import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtClientTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Самый простой тест
 class YtConnectionTest {
@@ -173,8 +174,16 @@ class YtConnectionTest {
         for (Map<String, Object> row : expectRows) {
             row.computeIfPresent("TABLE_NAME", (k, v) -> table);
         }
-        // Люблю сравнивать многострочники - это удобно в Идее
-        assertEquals(toJson(expectRows), toJson(readAll(actual)));
+
+        var actualRows = fromJson(toJson(readAll(actual)));
+        assertEquals(expectRows.size(), actualRows.size());
+        for (int i = 0; i < expectRows.size(); ++i) {
+            assertEquals(expectRows.get(i).size(), actualRows.get(i).size());
+            for (Map.Entry<String, Object> entry : expectRows.get(i).entrySet()) {
+                assertTrue(actualRows.get(i).containsKey(entry.getKey()));
+                assertEquals(entry.getValue(), actualRows.get(i).get(entry.getKey()));
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
