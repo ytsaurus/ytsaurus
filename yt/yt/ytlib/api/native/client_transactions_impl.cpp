@@ -9,9 +9,10 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(kvk1920)
 TFuture<ITransactionPtr> TClient::StartNativeTransaction(
     ETransactionType type,
-    const TTransactionStartOptions& options)
+    const TNativeTransactionStartOptions& options)
 {
     return TransactionManager_->Start(type, options).Apply(
         BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) {
@@ -32,7 +33,9 @@ TFuture<NApi::ITransactionPtr> TClient::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
+    TNativeTransactionStartOptions adjustedOptions;
+    static_cast<TTransactionStartOptions&>(adjustedOptions) = options;
+    return StartNativeTransaction(type, adjustedOptions).As<NApi::ITransactionPtr>();
 }
 
 NApi::ITransactionPtr TClient::AttachTransaction(

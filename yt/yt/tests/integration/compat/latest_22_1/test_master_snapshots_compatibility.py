@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     ls, exists, get, authors, print_debug, build_master_snapshots, create, start_transaction,
-    commit_transaction, sync_create_cells, wait_for_cells)
+    commit_transaction, sync_create_cells, wait_for_cells, create_user, make_ace, wait, set)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -48,6 +48,25 @@ def check_queue_list():
     assert builtins.set(get("//sys/@queue_agent_object_revisions")["queues"].keys()) == {"//tmp/q", "//tmp/qqqq"}
 
 
+def check_portal_entrance_validation():
+    set("//sys/@config/cypress_manager/portal_synchronization_period", 1000)
+    create_user("u")
+    create("map_node", "//tmp/portal_d")
+    set("//tmp/portal_d/@acl", [make_ace("deny", ["u"], ["read"])])
+    create("portal_entrance", "//tmp/portal_d/p", attributes={"exit_cell_tag": 13})
+    create_user("v")
+    set("//tmp/portal_d/p/@acl", [make_ace("deny", ["v"], ["read"])])
+    portal_exit_effective_acl = get("//tmp/portal_d/p/@effective_acl")
+    portal_entrance_effective_acl = get("//tmp/portal_d/p&/@effective_acl")
+
+    assert portal_entrance_effective_acl != portal_exit_effective_acl
+
+    yield
+
+    wait(lambda: get("//tmp/portal_d/p/@annotation_path") == get("//tmp/portal_d/p&/@annotation_path"))
+    wait(lambda: get("//tmp/portal_d/p/@effective_acl") == portal_entrance_effective_acl)
+
+
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -89,7 +108,8 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
     def test(self):
         CHECKER_LIST = [
             check_chunk_locations,
-            check_queue_list
+            check_queue_list,
+            check_portal_entrance_validation,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

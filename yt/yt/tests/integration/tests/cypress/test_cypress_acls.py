@@ -387,22 +387,28 @@ class TestCypressAcls(CheckPermissionBase):
     @authors("babenko", "ignat")
     def test_user_destruction(self):
         old_acl = get("//tmp/@acl")
+        create("map_node", "//tmp/dir")
+        set("//tmp/dir/@acl", old_acl)
+        set("//tmp/dir/@inherit_acl", False)
 
         create_user("u")
-        set("//tmp/@acl/end", make_ace("deny", "u", "write"))
+        set("//tmp/dir/@acl/end", make_ace("deny", "u", "write"))
 
         remove_user("u")
-        assert get("//tmp/@acl") == old_acl
+        assert get("//tmp/dir/@acl") == old_acl
 
     @authors("babenko", "ignat")
     def test_group_destruction(self):
         old_acl = get("//tmp/@acl")
+        create("map_node", "//tmp/dir")
+        set("//tmp/dir/@acl", old_acl)
+        set("//tmp/dir/@inherit_acl", False)
 
         create_group("g")
-        set("//tmp/@acl/end", make_ace("deny", "g", "write"))
+        set("//tmp/dir/@acl/end", make_ace("deny", "g", "write"))
 
         remove_group("g")
-        assert get("//tmp/@acl") == old_acl
+        assert get("//tmp/dir/@acl") == old_acl
 
     @authors("babenko", "ignat")
     def test_account_acl(self):

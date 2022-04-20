@@ -5,6 +5,7 @@
 
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
@@ -145,7 +146,7 @@ public:
      */
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
-        const TTransactionStartOptions& options = TTransactionStartOptions());
+        const NApi::NNative::TNativeTransactionStartOptions& options = {});
 
     //! Attaches to an existing transaction.
     /*!

@@ -53,6 +53,8 @@ public:
 
     virtual bool IsSupportedInheritableAttribute(const TString& /*key*/) const;
 
+    NObjectServer::TAcdList ListAcds(TCypressNode* trunkNode) const override;
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -664,6 +666,8 @@ public:
         bool AreEmpty() const;
     };
 
+    virtual void FillInheritableAttributes(TAttributes* attributes) const;
+
 #define XX(camelCaseName, snakeCaseName) \
 public: \
     using T##camelCaseName = decltype(std::declval<TAttributes>().camelCaseName)::TValue; \
@@ -678,17 +682,23 @@ private: \
     FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
 
-private:
     template <class U>
     friend class TCompositeNodeTypeHandler;
-
+public:
+    // TODO(kvk1920): Consider accessing Attributes_ via type handler.
     const TAttributes* FindAttributes() const;
+private:
     void SetAttributes(const TAttributes* attributes);
     void CloneAttributesFrom(const TCompositeNodeBase* sourceNode);
     void MergeAttributesFrom(const TCompositeNodeBase* branchedNode);
 
     std::unique_ptr<TAttributes> Attributes_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Traverse all ancestors and collect inheritable attributes.
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

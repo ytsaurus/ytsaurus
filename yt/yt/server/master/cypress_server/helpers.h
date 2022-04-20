@@ -120,6 +120,12 @@ void ValidateCompressionCodec(
 
 NSecurityServer::TRichClusterResources GetNodeResourceUsage(const TCypressNode* node);
 
+//! Returns closest ancestor with annotation or nullptr if there are no such ancestors.
+TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
+
+//! Returns annotation or std::nullopt if there are no annotations available.
+std::optional<TString> GetEffectiveAnnotation(TCypressNode* node);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

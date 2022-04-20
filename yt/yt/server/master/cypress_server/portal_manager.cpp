@@ -1,38 +1,49 @@
 #include "portal_manager.h"
 #include "cypress_manager.h"
+#include "helpers.h"
 #include "portal_entrance_node.h"
 #include "portal_exit_node.h"
-#include "helpers.h"
-#include "shard.h"
 #include "private.h"
+#include "public.h"
+#include "shard.h"
 
-#include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/cypress_server/proto/portal_manager.pb.h>
 
-#include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/automaton.h>
-#include <yt/yt/server/master/cell_master/serialize.h>
-#include <yt/yt/server/master/cell_master/multicell_manager.h>
-
-#include <yt/yt/server/master/security_server/security_manager.h>
-#include <yt/yt/server/master/security_server/acl.h>
-
 #include <yt/yt/server/master/object_server/object_manager.h>
 
+#include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+
+#include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NCypressServer {
 
-using namespace NYTree;
-using namespace NYson;
-using namespace NHydra;
 using namespace NCellMaster;
-using namespace NObjectServer;
+using namespace NHiveServer;
+using namespace NHydra;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NTransactionServer;
+using namespace NYson;
+using namespace NYTree;
+
+using namespace NApi::NNative::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +77,104 @@ public:
         RegisterMethod(BIND(&TImpl::HydraCreatePortalExit, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemovePortalEntrance, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemovePortalExit, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSynchronizePortalExit, Unretained(this)));
+
+        SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
+            BIND(&TImpl::OnSynchronizePortalExits, MakeWeak(this)));
+        SynchronizePortalExitsExecutor_->Start();
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    void Initialize()
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCopySynchronizablePortalAttributes, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
+                TTransaction,
+                TReqCopySynchronizablePortalAttributes,
+                const TTransactionCommitOptions&>()),
+            MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
+                TTransaction,
+                TReqCopySynchronizablePortalAttributes,
+                const TTransactionAbortOptions&>())
+        );
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->CypressManager;
+        SynchronizePortalExitsExecutor_->SetPeriod(config->PortalSynchronizationPeriod);
+    }
+
+    void OnSynchronizePortalExits()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        THashMap<TCellTag, std::vector<TPortalEntranceNode*>> portalsByCellTag;
+
+        for (auto [nodeId, node] : EntranceNodes_) {
+            portalsByCellTag[node->GetExitCellTag()].push_back(node);
+        }
+
+        for (auto [exitCellTag, portals] : portalsByCellTag) {
+            NProto::TReqSynchronizePortalExits request;
+
+            for (auto* node : portals) {
+                YT_VERIFY(node->IsTrunk());
+                YT_VERIFY(node->GetExitCellTag() == exitCellTag);
+
+                const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+                auto* portalExitInfo = request.add_portal_infos();
+                ToProto(portalExitInfo->mutable_node_id(), MakePortalExitNodeId(node->GetId(), node->GetExitCellTag()));
+
+                // NB: The following things are synchronized:
+                // 1) effective inheritable attributes
+                // 2) effective acl
+                // 3) effective annotation
+                // 4) annotation path
+                // 5) owner
+                // 6) inherit_acl
+                // 7) direct acl
+
+                auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+                GatherInheritableAttributes(node->GetParent(), &effectiveInheritableAttributes->Attributes());
+                ToProto(portalExitInfo->mutable_effective_inheritable_attributes(), *effectiveInheritableAttributes);
+
+                auto effectiveAcl = securityManager->GetEffectiveAcl(node);
+                auto serializedEffectiveAcl = ConvertToYsonString(effectiveAcl).ToString();
+                portalExitInfo->set_effective_acl(serializedEffectiveAcl);
+
+                portalExitInfo->set_direct_acl(ConvertToYsonString(node->Acd().Acl()).ToString());
+
+                portalExitInfo->set_inherit_acl(node->Acd().GetInherit());
+
+                portalExitInfo->set_owner(node->Acd().GetOwner()->GetName());
+
+                if (auto annotationNode = FindClosestAncestorWithAnnotation(node)) {
+                    portalExitInfo->mutable_effective_annotation()->set_annotation(*annotationNode->TryGetAnnotation());
+                    portalExitInfo->mutable_effective_annotation()->set_annotation_path(
+                        cypressManager->GetNodePath(annotationNode, /*transaction*/ nullptr));
+                }
+            }
+
+            // NB: We do not actually need to know if this message was delivered,
+            // so we send this message with reliable = false in order to avoid mutation creating.
+            multicellManager->PostToMaster(request, exitCellTag, /*reliable*/ false);
+        }
     }
 
     void RegisterEntranceNode(
@@ -82,21 +191,30 @@ public:
         auto path = cypressManager->GetNodePath(trunkNode, transaction);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto effectiveAcl = securityManager->GetEffectiveAcl(node);
-        auto effectiveAnnotation = securityManager->GetEffectiveAnnotation(node);
+        auto effectiveAcl = securityManager->GetEffectiveAcl(trunkNode);
+        auto effectiveAnnotation = GetEffectiveAnnotation(node);
 
         NProto::TReqCreatePortalExit request;
         ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
         ToProto(request.mutable_account_id(), trunkNode->GetAccount()->GetId());
         request.set_path(path);
-        request.set_acl(ConvertToYsonString(effectiveAcl).ToString());
+        request.set_effective_acl(ConvertToYsonString(effectiveAcl).ToString());
+        request.set_direct_acl(ConvertToYsonString(trunkNode->Acd().Acl()).ToString());
+        request.set_inherit_acl(trunkNode->Acd().GetInherit());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);
         ToProto(request.mutable_parent_id(), trunkNode->GetParent()->GetId());
         if (auto optionalKey = FindNodeKey(cypressManager, trunkNode, transaction)) {
             request.set_key(*optionalKey);
         }
-        request.set_annotation(effectiveAnnotation.value_or(TString()));
+
+        if (effectiveAnnotation) {
+            auto* annotationNode = FindClosestAncestorWithAnnotation(node);
+            YT_VERIFY(annotationNode);
+
+            request.set_effective_annotation(*effectiveAnnotation);
+            request.set_effective_annotation_path(cypressManager->GetNodePath(annotationNode, transaction));
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetExitCellTag());
@@ -120,7 +238,7 @@ public:
         }
 
         NProto::TReqRemovePortalExit request;
-        ToProto(request.mutable_exit_node_id(), MakePortalExitNodeId(trunkNode->GetId(), trunkNode->GetExitCellTag()));
+        ToProto(request.mutable_node_id(), MakePortalExitNodeId(trunkNode->GetId(), trunkNode->GetExitCellTag()));
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetExitCellTag());
 
@@ -151,6 +269,8 @@ public:
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    NConcurrency::TPeriodicExecutorPtr SynchronizePortalExitsExecutor_;
 
 
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
@@ -193,13 +313,152 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     }
 
-    void OnAfterSnapshotLoaded() override
+    TAccessControlList DeserializeAcl(const TYsonString& serializedAcl)
+    {
+        TAccessControlList acl;
+        std::vector<TString> missingSubjects;
+        Deserialize(
+            acl,
+            ConvertToNode(serializedAcl),
+            Bootstrap_->GetSecurityManager(),
+            &missingSubjects);
+
+        if (!missingSubjects.empty()) {
+            YT_LOG_ALERT("Some subjects mentioned in ACL are missing (MissingSubjects: %v)",
+                missingSubjects);
+        }
+
+        return acl;
+    }
+
+    TSubject* DeserializeOwner(const TString& ownerName)
+    {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        auto* owner = securityManager->FindSubjectByNameOrAlias(ownerName, /*activeLifeStageOnly*/ false);
+        if (!owner) {
+            YT_LOG_ALERT("Serialized subject is missing (SubjectNameOrAlias: %v)",
+                ownerName);
+        }
+
+        return owner;
+    }
+
+    void HydraCopySynchronizablePortalAttributes(
+        TTransaction* transaction,
+        TReqCopySynchronizablePortalAttributes* request,
+        const TTransactionPrepareOptions& prepareOptions)
+    {
+        YT_VERIFY(prepareOptions.Persistent);
+
+        auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
+        auto destinationNodeId = FromProto<TNodeId>(request->destination_node_id());
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId));
+        auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
+        if (!sourceNode || !destinationNode) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Failed to copy synchronizable portal attributes; %v node does not exist"
+                "(TransactionId: %v, SourceNodeId: %v, DestinationNodeId: %v)",
+                sourceNode ? "destination" : "source",
+                transaction->GetId(),
+                sourceNodeId,
+                destinationNodeId);
+            return;
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* sourceAcd = securityManager->FindAcd(sourceNode);
+        auto* destinationAcd = securityManager->FindAcd(destinationNode);
+
+        destinationAcd->SetEntries(sourceAcd->Acl());
+        destinationAcd->SetOwner(sourceAcd->GetOwner());
+        destinationAcd->SetInherit(sourceAcd->GetInherit());
+        if (auto annotation = sourceNode->TryGetAnnotation()) {
+            destinationNode->SetAnnotation(std::move(*annotation));
+        } else {
+            destinationNode->RemoveAnnotation();
+        }
+    }
+
+    void HydraSynchronizePortalExit(NProto::TReqSynchronizePortalExits* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+        int synchronizedPortalsCount = 0;
+
+        for (const auto& portalExitInfo : request->portal_infos()) {
+            auto nodeId = FromProto<TObjectId>(portalExitInfo.node_id());
+            auto it = ExitNodes_.find(nodeId);
+            if (it == ExitNodes_.end()) {
+                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Skipping unknown portal exit synchronization (NodeId: %v)",
+                    nodeId);
+                continue;
+            }
+
+            TPortalExitNode* exitNode = it->second;
+
+            try {
+                auto inheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+                auto attributesDict = FromProto(portalExitInfo.effective_inheritable_attributes());
+                inheritableAttributes->MergeFrom(*attributesDict);
+
+                auto effectiveAcl = DeserializeAcl(TYsonString(portalExitInfo.effective_acl()));
+                auto directAcl = DeserializeAcl(TYsonString(portalExitInfo.direct_acl()));
+                auto* owner = DeserializeOwner(portalExitInfo.owner());
+
+                struct TAnnotationInfo {
+                    TString Annotation;
+                    TString Path;
+                };
+                std::optional<TAnnotationInfo> effectiveAnnotationInfo;
+                if (portalExitInfo.has_effective_annotation()) {
+                    effectiveAnnotationInfo = {
+                        .Annotation = portalExitInfo.effective_annotation().annotation(),
+                        .Path = portalExitInfo.effective_annotation().annotation_path(),
+                    };
+                }
+
+                // NB: Fields of exitNode are updated after protobuf parsing in order to avoid partial updating.
+                std::swap(exitNode->EffectiveInheritableAttributes().emplace(), inheritableAttributes->Attributes());
+                exitNode->Acd().SetEntries(effectiveAcl);
+                exitNode->Acd().SetInherit(portalExitInfo.inherit_acl());
+                exitNode->Acd().SetOwner(owner);
+
+                exitNode->DirectAcd().SetEntries(directAcl);
+
+                if (effectiveAnnotationInfo) {
+                    exitNode->SetAnnotation(std::move(effectiveAnnotationInfo->Annotation));
+                    exitNode->EffectiveAnnotationPath() = std::move(effectiveAnnotationInfo->Path);
+                } else {
+                    exitNode->RemoveAnnotation();
+                    exitNode->EffectiveAnnotationPath().reset();
+                }
+
+                ++synchronizedPortalsCount;
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Portal exit synchronization failed (ExitNodeId: %v)",
+                    nodeId);
+                continue;
+            }
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portals were synchronized (SuccessCount: %v, FailureCount: %v)",
+            synchronizedPortalsCount,
+            request->portal_infos().size() - synchronizedPortalsCount);;
     }
 
+    static void SanitizePortalExitExplicitAttributes(IAttributeDictionary* attributes)
+    {
+        for (auto attr : {
+            EInternedAttributeKey::Acl,
+            EInternedAttributeKey::Annotation,
+            EInternedAttributeKey::InheritAcl,
+            EInternedAttributeKey::Owner})
+        {
+            attributes->Remove(attr.Unintern());
+        }
+    }
 
     void HydraCreatePortalExit(NProto::TReqCreatePortalExit* request)
     {
@@ -207,18 +466,30 @@ private:
 
         auto entranceNodeId = FromProto<TObjectId>(request->entrance_node_id());
         auto accountId = FromProto<TAccountId>(request->account_id());
-        const auto& annotation = FromProto<TString>(request->annotation());
+
+        auto effectiveAnnotation = request->has_effective_annotation()
+            ? std::optional(request->effective_annotation())
+            : std::nullopt;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountOrThrow(accountId);
 
-        TAccessControlList acl;
-        Deserialize(acl, ConvertToNode(TYsonString(request->acl())), securityManager);
+        auto effectiveAcl = DeserializeAcl(TYsonString(request->effective_acl()));
+        auto directAcl = request->has_direct_acl()
+            ? std::optional(DeserializeAcl(TYsonString(request->direct_acl())))
+            : std::nullopt;
 
         auto explicitAttributes = FromProto(request->explicit_node_attributes());
         auto inheritedAttributes = FromProto(request->inherited_node_attributes());
 
         const auto& path = request->path();
+
+        std::optional<NYPath::TYPath> effectiveAnnotationPath;
+        if (request->has_effective_annotation_path()) {
+            effectiveAnnotationPath = request->effective_annotation_path();
+        } else if (effectiveAnnotation) {
+            effectiveAnnotationPath = path;
+        }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto exitNodeId = MakePortalExitNodeId(entranceNodeId, multicellManager->GetCellTag());
@@ -227,8 +498,17 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* shard = cypressManager->CreateShard(shardId);
 
+        TPortalExitNode* node;
         const auto& handler = cypressManager->GetHandler(EObjectType::PortalExit);
-        auto* node = cypressManager->CreateNode(
+
+        auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+        if (inheritedAttributes) {
+            effectiveInheritableAttributes->MergeFrom(*inheritedAttributes);
+        } else {
+            effectiveInheritableAttributes.Reset();
+        }
+
+        node = cypressManager->CreateNode(
             handler,
             exitNodeId,
             TCreateNodeContext{
@@ -249,21 +529,47 @@ private:
 
         node->SetEntranceCellTag(CellTagFromId(entranceNodeId));
 
-        // Turn off ACL inheritance, replace ACL with effective ACL.
-        node->Acd().SetInherit(false);
-        node->Acd().SetEntries(acl);
-
-        node->SetAnnotation(annotation);
-        node->SetPath(path);
-
-        shard->SetName(SuggestCypressShardName(shard));
+        node->EffectiveAnnotationPath() = std::move(effectiveAnnotationPath);
+        if (effectiveInheritableAttributes) {
+            node->EffectiveInheritableAttributes().emplace(std::move(effectiveInheritableAttributes->Attributes()));
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(node);
 
-        handler->FillAttributes(node, inheritedAttributes.Get(), explicitAttributes.Get());
+        node->Acd().SetEntries(effectiveAcl);
+        node->Acd().SetInherit(request->inherit_acl());
 
-        YT_VERIFY(ExitNodes_.emplace(node->GetId(), node).second);
+        if (directAcl) {
+            node->DirectAcd().SetEntries(*directAcl);
+        }
+
+        if (auto ownerName = explicitAttributes->FindAndRemove<TString>(EInternedAttributeKey::Owner.Unintern())) {
+            if (auto* owner = DeserializeOwner(*ownerName)) {
+                node->Acd().SetOwner(owner);
+            }
+        }
+
+        SanitizePortalExitExplicitAttributes(explicitAttributes.Get());
+        try {
+            handler->FillAttributes(node, inheritedAttributes.Get(), explicitAttributes.Get());
+        } catch (const std::exception&) {
+            // Unfortunately, we cannot cancel portal exit creation, so we just leave it with incorrect attributes.
+            YT_LOG_ALERT("Invalid portal exit attributes; portal exit created with empty attributes (EntranceNodeId: %v, ExitNodeId: %v)",
+                entranceNodeId,
+                exitNodeId);
+        }
+
+        if (effectiveAnnotation) {
+            node->SetAnnotation(*effectiveAnnotation);
+        } else {
+            node->RemoveAnnotation();
+        }
+        node->SetPath(path);
+
+        shard->SetName(SuggestCypressShardName(shard));
+
+        EmplaceOrCrash(ExitNodes_, node->GetId(), node);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal exit registered (ExitNodeId: %v, ShardId: %v, Account: %v, Path: %v)",
             exitNodeId,
@@ -309,7 +615,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto exitNodeId = FromProto<TObjectId>(request->exit_node_id());
+        auto exitNodeId = FromProto<TObjectId>(request->node_id());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedObjectId(exitNodeId));
@@ -341,6 +647,11 @@ private:
 TPortalManager::TPortalManager(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
+
+void TPortalManager::Initialize()
+{
+    Impl_->Initialize();
+}
 
 TPortalManager::~TPortalManager()
 { }

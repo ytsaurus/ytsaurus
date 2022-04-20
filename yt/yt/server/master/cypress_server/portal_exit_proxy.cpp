@@ -1,18 +1,20 @@
 #include "portal_exit_proxy.h"
-#include "portal_exit_node.h"
+
 #include "node_proxy_detail.h"
-#include "helpers.h"
+#include "portal_exit_node.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 namespace NYT::NCypressServer {
 
-using namespace NYson;
-using namespace NYTree;
+using namespace NCellMaster;
+using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NObjectServer;
 using namespace NTransactionServer;
-using namespace NCellMaster;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,11 +60,36 @@ private:
                     .Value(MakePortalEntranceNodeId(node->GetId(), node->GetEntranceCellTag()));
                 return true;
 
+            case EInternedAttributeKey::Acl:
+                BuildYsonFluently(consumer)
+                    .Value(node->DirectAcd().Acl());
+                return true;
+            
+            case EInternedAttributeKey::AnnotationPath:
+                BuildYsonFluently(consumer)
+                    .Value(node->EffectiveAnnotationPath());
+                return true;
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::Acl:
+            case EInternedAttributeKey::Annotation:
+            case EInternedAttributeKey::InheritAcl:
+            case EInternedAttributeKey::Owner:
+                THROW_ERROR_EXCEPTION("Setting %Qv to portal exit is not allowed", key.Unintern());
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value);
     }
 };
 

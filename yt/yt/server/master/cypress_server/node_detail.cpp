@@ -87,6 +87,11 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(con
     return false;
 }
 
+TAcdList TNontemplateCypressNodeTypeHandlerBase::ListAcds(TCypressNode* trunkNode) const
+{
+    return {&trunkNode->Acd()};
+}
+
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
@@ -127,8 +132,10 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCorePrologue(TCypressNode* n
         resolveCache->InvalidateNode(node);
     }
 
-    // Clear ACD to unregister the node from linked objects.
-    node->Acd().Clear();
+    // Clear ACDs to unregister the node from linked objects.
+    for (auto& acd : ListAcds(node)) {
+        acd->Clear();
+    }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->ResetAccount(node);
@@ -257,7 +264,6 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
         clonedAccount,
         /* transaction */ nullptr);
 
-    // Copy ACD, but not for portal exits.
     auto sourceAcd = Load<TAccessControlDescriptor>(*context);
     if ((context->GetMode() == ENodeCloneMode::Move || factory->ShouldPreserveAcl()) &&
         trunkNode->GetType() != EObjectType::PortalExit)
@@ -588,6 +594,22 @@ const TCompositeNodeBase::TAttributes* TCompositeNodeBase::FindAttributes() cons
     return Attributes_.get();
 }
 
+void TCompositeNodeBase::FillInheritableAttributes(TAttributes* attributes) const
+{
+#define XX(camelCaseName, snakeCaseName) \
+    if (!attributes->camelCaseName.IsSet()) { \
+        if (auto inheritedValue = TryGet##camelCaseName()) { \
+            using TValueType = TCompositeNodeBase::T##camelCaseName; \
+            attributes->camelCaseName.Set(TVersionedBuiltinAttributeTraits<TValueType>::FromRaw(std::move(*inheritedValue))); \
+        } \
+    }
+
+    if (HasInheritableAttributes()) {
+        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+    }
+#undef XX
+}
+
 void TCompositeNodeBase::SetAttributes(const TAttributes* attributes)
 {
     if (!attributes || attributes->AreEmpty()) {
@@ -667,6 +689,15 @@ void TCompositeNodeBase::Remove##camelCaseName() \
 }
 
 FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void GatherInheritableAttributes(TCypressNode* node, TCompositeNodeBase::TAttributes* attributes)
+{
+    for (auto* ancestor = node; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
+        ancestor->As<TCompositeNodeBase>()->FillInheritableAttributes(attributes);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -69,7 +69,7 @@ void TSubject::LinkObject(TObject* object)
     YT_ASSERT(object->IsTrunk());
     auto it = LinkedObjects_.find(object);
     if (it == LinkedObjects_.end()) {
-        YT_VERIFY(LinkedObjects_.emplace(object, 1).second);
+        EmplaceOrCrash(LinkedObjects_, object, 1);
     } else {
         ++it->second;
     }

@@ -78,9 +78,10 @@ public:
     void Terminate() override;
 
     // Transactions
+    // COMPAT(kvk1920)
     TFuture<ITransactionPtr> StartNativeTransaction(
         NTransactionClient::ETransactionType type,
-        const TTransactionStartOptions& options) override;
+        const TNativeTransactionStartOptions& options) override;
     ITransactionPtr AttachNativeTransaction(
         NCypressClient::TTransactionId transactionId,
         const TTransactionAttachOptions& options) override;

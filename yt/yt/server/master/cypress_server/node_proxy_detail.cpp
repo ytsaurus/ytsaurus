@@ -510,13 +510,6 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
 {
     switch (key) {
         case EInternedAttributeKey::Annotation: {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto& handler = objectManager->GetHandler(Object_);
-
-            if (Any(handler->GetFlags() & ETypeFlags::ForbidAnnotationRemoval)) {
-                THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
-            }
-
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedNode = LockThisImpl(lockRequest);
             lockedNode->RemoveAnnotation();
@@ -811,10 +804,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
 
         case EInternedAttributeKey::Annotation: {
-            const auto* annotationNode = FindClosestAncestorWithAnnotation(node);
-            if (annotationNode) {
+            if (auto annotation = GetEffectiveAnnotation(node)) {
                 BuildYsonFluently(consumer)
-                    .Value(annotationNode->TryGetAnnotation());
+                    .Value(*annotation);
             } else {
                 BuildYsonFluently(consumer)
                     .Entity();
@@ -823,11 +815,10 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::AnnotationPath: {
-            auto* annotationNode = FindClosestAncestorWithAnnotation(node);
-            if (annotationNode) {
+            if (const auto* annotationNode = FindClosestAncestorWithAnnotation(node)) {
                 const auto& cypressManager = Bootstrap_->GetCypressManager();
                 BuildYsonFluently(consumer)
-                    .Value(cypressManager->GetNodePath(annotationNode, GetTransaction()));
+                    .Value(cypressManager->GetNodePath(annotationNode->GetTrunkNode(), GetTransaction()));
             } else {
                 BuildYsonFluently(consumer)
                     .Entity();
@@ -1170,26 +1161,6 @@ TCypressNode* TNontemplateCypressNodeProxyBase::DoLockThisImpl(
     CachedNode_ = LockImpl(TrunkNode_, request, recursive);
     YT_ASSERT(CachedNode_->GetTransaction() == Transaction_);
     return CachedNode_;
-}
-
-void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNode* parent, TCompositeNodeBase::TAttributes* attributes)
-{
-    for (auto* ancestor = parent; ancestor && !attributes->AreFull(); ancestor = ancestor->GetParent()) {
-        auto* compositeAncestor = ancestor->As<TCompositeNodeBase>();
-
-#define XX(camelCaseName, snakeCaseName) \
-        if (!attributes->camelCaseName.IsSet()) { \
-            if (auto inheritedValue = compositeAncestor->TryGet##camelCaseName()) { \
-                using TValueType = TCompositeNodeBase::T##camelCaseName; \
-                attributes->camelCaseName.Set(TVersionedBuiltinAttributeTraits<TValueType>::FromRaw(std::move(*inheritedValue))); \
-            } \
-        }
-
-        if (compositeAncestor->HasInheritableAttributes()) {
-            FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-        }
-#undef XX
-    }
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNode* trunkNode) const
@@ -2340,16 +2311,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
     }
 
     return TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(key);
-}
-
-// May return nullptr if there are no annotations available.
-TCypressNode* TNontemplateCypressNodeProxyBase::FindClosestAncestorWithAnnotation(TCypressNode* node)
-{
-    auto* result = node;
-    while (result && !result->TryGetAnnotation()) {
-        result = result->GetParent();
-    }
-    return result;
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::CanHaveChildren() const

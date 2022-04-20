@@ -42,6 +42,8 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplicateTransactions)
             .SetHeavy(true));
+
+        DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
     }
 
 private:

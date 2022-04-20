@@ -3105,19 +3105,20 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/test_node/child/@annotation") == "test_node"
         assert get("//tmp/test_node/child/@annotation_path") == "//tmp/test_node"
 
-        create("map_node", "//tmp/empty_node")
-        set("//tmp/@annotation", "tmp")
+        create("map_node", "//tmp/parent")
+        create("map_node", "//tmp/parent/empty_node")
+        set("//tmp/parent/@annotation", "tmp")
 
         assert get("//tmp/test_node/@annotation") == get("//tmp/test_node/child/@annotation") == "test_node"
-        assert get("//tmp/empty_node/@annotation") == "tmp"
-        assert get("//tmp/empty_node/@annotation_path") == "//tmp"
+        assert get("//tmp/parent/empty_node/@annotation") == "tmp"
+        assert get("//tmp/parent/empty_node/@annotation_path") == "//tmp/parent"
 
-        remove("//tmp/@annotation")
-        assert get("//tmp/empty_node/@annotation") == yson.YsonEntity()
+        remove("//tmp/parent/@annotation")
+        assert get("//tmp/parent/empty_node/@annotation") == yson.YsonEntity()
 
-        set("//tmp/@annotation", "test")
-        set("//tmp/@annotation", None)
-        assert get("//tmp/@annotation") == yson.YsonEntity()
+        set("//tmp/parent/@annotation", "test")
+        set("//tmp/parent/@annotation", None)
+        assert get("//tmp/parent/@annotation") == yson.YsonEntity()
 
     @authors("avmatrosov")
     def test_annotation_errors(self):
@@ -3535,10 +3536,6 @@ class TestCypressPortal(TestCypressMulticell):
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
-    def setup_method(self, method):
-        super(TestCypressPortal, self).setup_method(method)
-        set("//tmp/@annotation", "")
-
     @authors("h0pless")
     def test_cyclic_link_through_portal(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
@@ -3626,6 +3623,7 @@ class TestCypressPortal(TestCypressMulticell):
 
     @authors("avmatrosov")
     def test_annotation_portal(self):
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 1000)
         set("//portals/@annotation", "test")
 
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
@@ -3634,10 +3632,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//portals/p/test/@annotation") == "test"
 
         set("//portals/@annotation", "")
-        assert get("//portals/p/test/@annotation") == "test"
-
-        with pytest.raises(YtError):
-            remove("//portals/p/@annotation")
+        wait(lambda: get("//portals/p/test/@annotation") == "")
 
     @authors("avmatrosov")
     def test_annotation_attribute(self):

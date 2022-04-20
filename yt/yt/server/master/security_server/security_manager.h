@@ -307,10 +307,6 @@ public:
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object);
 
-    //! Returns annotation or std::nullopt if there are no annotations available.
-    std::optional<TString> GetEffectiveAnnotation(NCypressServer::TCypressNode* node);
-
-
     //! Sets the authenticated user.
     void SetAuthenticatedUser(TUser* user);
 

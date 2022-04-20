@@ -1242,8 +1242,9 @@ public:
         }
 
         for (auto [object, counter] : subject->LinkedObjects()) {
-            auto* acd = GetAcd(object);
-            acd->OnSubjectDestroyed(subject, GuestUser_);
+            for (auto* acd : ListAcds(object)) {
+                acd->OnSubjectDestroyed(subject, GuestUser_);
+            }
         }
         subject->LinkedObjects().clear();
     }
@@ -1735,19 +1736,18 @@ public:
         return handler->FindAcd(object);
     }
 
+    TAcdList ListAcds(TObject* object)
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& handler = objectManager->GetHandler(object);
+        return handler->ListAcds(object);
+    }
+
     TAccessControlDescriptor* GetAcd(TObject* object)
     {
         auto* acd = FindAcd(object);
         YT_VERIFY(acd);
         return acd;
-    }
-
-    std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
-    {
-        while (node && !node->TryGetAnnotation()) {
-            node = node->GetParent();
-        }
-        return node ? node->TryGetAnnotation() : std::nullopt;
     }
 
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
@@ -4693,11 +4693,6 @@ TAccessControlDescriptor* TSecurityManager::GetAcd(TObject* object)
 TAccessControlList TSecurityManager::GetEffectiveAcl(TObject* object)
 {
     return Impl_->GetEffectiveAcl(object);
-}
-
-std::optional<TString> TSecurityManager::GetEffectiveAnnotation(TCypressNode* node)
-{
-    return Impl_->GetEffectiveAnnotation(node);
 }
 
 void TSecurityManager::SetAuthenticatedUser(TUser* user)

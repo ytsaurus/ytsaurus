@@ -137,6 +137,7 @@ DEFINE_ENUM(EMasterReign,
     ((MoveSyncSuppressionFlagsToMulticellSyncExt)                   (2005))  // shakurov
     ((BanObviousCyclicSymlinks)                                     (2006))  // h0pless
     ((MasterJobThrottlerPerType)                                    (2007))  // h0pless
+    ((PortalAclAndAttributeSynchronization)                         (2008))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
