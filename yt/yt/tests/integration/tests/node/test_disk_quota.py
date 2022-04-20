@@ -6,7 +6,7 @@ from yt_commands import (
     write_table, map,
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
-    run_test_vanilla)
+    abort_job, run_test_vanilla)
 
 from yt.common import YtError, update
 
@@ -1142,6 +1142,46 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
             pass
 
         wait(lambda: op.get_state() == "running")
+
+        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024
+
+    @authors("ignat")
+    def test_revive_with_job_restart(self):
+        create_account("my_account")
+        set("//sys/accounts/my_account/@resource_limits/disk_space_per_medium/ssd", 1024 * 1024)
+
+        def start_op(medium_type, account, disk_space, track, sleep_seconds=100):
+            disk_request = {"disk_space": disk_space}
+            if medium_type is not None:
+                disk_request["medium_name"] = medium_type
+                if account is not None:
+                    disk_request["account"] = account
+
+            return run_test_vanilla(
+                command="sleep {}".format(sleep_seconds),
+                task_patch={"disk_request": disk_request},
+                spec={"max_failed_job_count": 1},
+                track=track,
+            )
+
+        op = start_op("ssd", "my_account", 1024 * 1024, track=False)
+
+        wait(lambda: get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024)
+
+        assert op.get_job_count("running") == 1
+        op.wait_for_fresh_snapshot()
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: op.get_state() == "running")
+        wait(lambda: op.get_job_count("running") == 1)
+
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+
+        abort_job(jobs[0])
+        wait(lambda: op.get_job_count("aborted") == 1)
+        wait(lambda: op.get_job_count("running") == 1)
 
         assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024
 
