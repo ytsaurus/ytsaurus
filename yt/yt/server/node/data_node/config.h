@@ -122,6 +122,8 @@ public:
 
     i64 MaxWriteRateByDWPD;
 
+    bool ResetUuid;
+
     TStoreLocationConfigBase();
 };
 

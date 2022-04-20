@@ -17,6 +17,7 @@ inline const NProfiling::TProfiler P2PProfiler = DataNodeProfiler.WithPrefix("/p
 
 inline const TString CellIdFileName("cell_id");
 inline const TString ChunkLocationUuidFileName("uuid");
+inline const TString ChunkLocationUuidResetFileName("uuid_reset");
 inline const TString MultiplexedDirectory("multiplexed");
 inline const TString TrashDirectory("trash");
 inline const TString CleanExtension("clean");
