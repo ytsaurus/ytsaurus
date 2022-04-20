@@ -1168,6 +1168,7 @@ void TJob::DoSetResult(TJobResult jobResult)
         ToProto(jobResult.mutable_error(), error.Truncate());
     }
 
+    JobResultExtension_ = std::nullopt;
     if (jobResult.HasExtension(
         NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext))
     {
@@ -2692,6 +2693,14 @@ NJobAgent::IJobPtr CreateSchedulerJob(
         std::move(jobSpec),
         bootstrap,
         std::move(agentDescriptor));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& schedulerJob)
+{
+    FillJobStatus(jobStatus, schedulerJob);
+    jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

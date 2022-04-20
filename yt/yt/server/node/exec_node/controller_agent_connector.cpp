@@ -20,7 +20,6 @@ using namespace NObjectClient;
 using namespace NRpc;
 
 using NControllerAgent::TJobTrackerServiceProxy;
-using NJobAgent::FillJobStatus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +156,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     i64 finishedJobsStatisticsSize = 0;
     for (const auto& job : sentEnqueuedJobs) {
         auto* const jobStatus = request->add_jobs();
-        FillJobStatus(jobStatus, job);
+        FillSchedulerJobStatus(jobStatus, job);
 
         *jobStatus->mutable_result() = job->GetResult();
 
@@ -196,7 +195,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
                 ++reportedRunningJobCount;
                 auto* const jobStatus = request->add_jobs();
 
-                FillJobStatus(jobStatus, job);
+                FillSchedulerJobStatus(jobStatus, job);
 
                 runningJobsStatisticsSize += statisticsString.size();
                 job->ResetStatisticsLastSendTime();

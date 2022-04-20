@@ -1023,7 +1023,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
-    if (jobSummary.Result) {
+    if (jobSummary.JobExecutionCompleted) {
         TaskHost_->RegisterStderr(joblet, jobSummary);
         TaskHost_->RegisterCores(joblet, jobSummary);
     }

@@ -115,8 +115,7 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         }
 
         auto* jobStatus = request->add_jobs();
-        jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
-        FillJobStatus(jobStatus, schedulerJob);
+        FillSchedulerJobStatus(jobStatus, schedulerJob);
         switch (schedulerJob->GetState()) {
             case EJobState::Running:
                 *jobStatus->mutable_resource_usage() = schedulerJob->GetResourceUsage();

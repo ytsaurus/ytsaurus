@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
@@ -39,6 +39,10 @@ NJobAgent::IJobPtr CreateSchedulerJob(
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
     TControllerAgentDescriptor agentDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& schedulerJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
