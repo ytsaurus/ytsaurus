@@ -40,6 +40,7 @@ import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
+import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
@@ -220,6 +221,8 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> alterTableReplica(AlterTableReplica req);
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
+
+    CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req);
 
     <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                     @Nullable TableAttachmentReader<T> reader);

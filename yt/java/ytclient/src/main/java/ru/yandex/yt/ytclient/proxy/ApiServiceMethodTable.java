@@ -49,6 +49,7 @@ import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
+import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
@@ -92,6 +93,7 @@ import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TRspUnmountTable;
+import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
@@ -213,6 +215,10 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqGetOperation.Builder, TRspGetOperation> GET_OPERATION =
             apiServiceMethod("GetOperation", TReqGetOperation::newBuilder, TRspGetOperation.parser());
+
+    public static final RpcMethodDescriptor<TReqUpdateOperationParameters.Builder, TRspUpdateOperationParameters>
+            UPDATE_OPERATION_PARAMETERS = apiServiceMethod("UpdateOperationParameters",
+            TReqUpdateOperationParameters::newBuilder, TRspUpdateOperationParameters.parser());
 
     public static final RpcMethodDescriptor<TReqCheckPermission.Builder, TRspCheckPermission> CHECK_PERMISSION =
             apiServiceMethod("CheckPermission", TReqCheckPermission::newBuilder, TRspCheckPermission.parser());
