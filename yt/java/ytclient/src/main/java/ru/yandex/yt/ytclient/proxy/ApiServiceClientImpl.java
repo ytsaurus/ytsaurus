@@ -94,6 +94,7 @@ import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.UnfreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.UnmountTable;
+import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -729,6 +730,14 @@ public class ApiServiceClientImpl implements ApiServiceClient {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
                 response -> parseByteString(response.body().getMeta())
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.UPDATE_OPERATION_PARAMETERS.createRequestBuilder(rpcOptions)),
+                response -> null
         );
     }
 
