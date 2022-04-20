@@ -738,7 +738,7 @@ public:
                     auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr, /*pathRootType*/ &pathRootType);
                     // We are intentionally skipping dangling trunk nodes.
                     if (pathRootType != EPathRootType::Other) {
-                        objectRevisions[key][path] = node->GetRevision();
+                        objectRevisions[key][path] = node->GetAttributeRevision();
                     }
                 }
             }

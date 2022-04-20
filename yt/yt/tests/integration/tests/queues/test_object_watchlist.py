@@ -18,14 +18,14 @@ class QueueAgentHelpers:
         queues = QueueAgentHelpers.get_objects()["queues"]
         assert queues.keys() == builtins.set(paths)
         for path in paths:
-            assert queues[path] == get(path + "/@revision")
+            assert queues[path] == get(path + "/@attribute_revision")
 
     @staticmethod
     def assert_registered_consumers_are(*paths):
         consumers = QueueAgentHelpers.get_objects()["consumers"]
         assert consumers.keys() == builtins.set(paths)
         for path in paths:
-            assert consumers[path] == get(path + "/@revision")
+            assert consumers[path] == get(path + "/@attribute_revision")
 
 
 class TestQueueAgentObjectRevisions(YTEnvSetup):
