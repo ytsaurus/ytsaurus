@@ -1500,7 +1500,8 @@ Y_UNIT_TEST_SUITE(BlobTableIo)
         auto outage = TAbortableHttpResponse::StartOutage("/read_table", TOutageOptions().LengthLimit(3));
         try {
             auto reader = client->CreateTableReader<TNode>(testTable);
-            for (const auto cursor : *reader) {
+            for (const auto& cursor : *reader) {
+                Y_UNUSED(cursor);
             }
             UNIT_FAIL("Expected exception!!!!");
         } catch (yexception& ex) {
