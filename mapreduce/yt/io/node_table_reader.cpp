@@ -11,72 +11,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStopException
-    : public yexception
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRowQueue::TRowQueue(size_t sizeLimit)
-    : SizeLimit_(sizeLimit)
-{ }
-
-void TRowQueue::Enqueue(TRowElement&& row)
-{
-    EnqueueSize_ += row.Size;
-    EnqueueSize_ += sizeof(TRowElement);
-    EnqueueBuffer_.push_back(std::move(row));
-
-    if (row.Type == TRowElement::Row && EnqueueSize_ < SizeLimit_) {
-        return;
-    }
-
-    NDetail::TWaitProxy::Get()->WaitEvent(DequeueEvent_);
-
-    if (Stopped_) {
-        throw TStopException();
-    }
-
-    EnqueueBuffer_.swap(DequeueBuffer_);
-    EnqueueSize_ = 0;
-    DequeueIndex_ = 0;
-
-    EnqueueEvent_.Signal();
-}
-
-TRowElement TRowQueue::Dequeue()
-{
-    while (true) {
-        if (DequeueIndex_ < DequeueBuffer_.size()) {
-            return std::move(DequeueBuffer_[DequeueIndex_++]);
-        }
-        DequeueBuffer_.clear();
-        DequeueEvent_.Signal();
-        NDetail::TWaitProxy::Get()->WaitEvent(EnqueueEvent_);
-    }
-}
-
-void TRowQueue::Clear()
-{
-    EnqueueBuffer_.clear();
-    DequeueBuffer_.clear();
-    EnqueueSize_ = 0;
-    DequeueIndex_ = 0;
-}
-
-void TRowQueue::Stop()
-{
-    Stopped_ = true;
-    DequeueEvent_.Signal();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRowBuilder
     : public ::NYson::TYsonConsumerBase
 {
 public:
-    explicit TRowBuilder(TRowQueue* queue);
+    explicit TRowBuilder(TMaybe<TRowElement>* resultRow);
 
     void OnStringScalar(TStringBuf value) override;
     void OnInt64Scalar(i64 value) override;
@@ -93,8 +32,6 @@ public:
     void OnBeginAttributes() override;
     void OnEndAttributes() override;
 
-    void Stop();
-    void OnStreamError();
     void Finalize();
 
 private:
@@ -102,14 +39,13 @@ private:
     TRowElement Row_;
     int Depth_ = 0;
     bool Started_ = false;
-    std::atomic<bool> Stopped_{false};
-    TRowQueue* RowQueue_;
+    TMaybe<TRowElement>* ResultRow_;
 
-    void EnqueueRow();
+    void SaveResultRow();
 };
 
-TRowBuilder::TRowBuilder(TRowQueue* queue)
-    : RowQueue_(queue)
+TRowBuilder::TRowBuilder(TMaybe<TRowElement>* resultRow)
+    : ResultRow_(resultRow)
 { }
 
 void TRowBuilder::OnStringScalar(TStringBuf value)
@@ -157,7 +93,7 @@ void TRowBuilder::OnEntity()
 void TRowBuilder::OnListItem()
 {
     if (Depth_ == 0) {
-        EnqueueRow();
+        SaveResultRow();
     } else {
         Builder_->OnListItem();
     }
@@ -199,60 +135,41 @@ void TRowBuilder::OnEndAttributes()
     Builder_->OnEndAttributes();
 }
 
-void TRowBuilder::EnqueueRow()
+void TRowBuilder::SaveResultRow()
 {
     if (!Started_) {
         Started_ = true;
     } else {
-        RowQueue_->Enqueue(std::move(Row_));
+        *ResultRow_ = std::move(Row_);
     }
     Row_.Reset();
     Builder_.Reset(new TNodeBuilder(&Row_.Node));
 }
 
-void TRowBuilder::Stop()
-{
-    Stopped_ = true;
-    RowQueue_->Stop();
-}
-
-void TRowBuilder::OnStreamError()
-{
-    Row_.Reset(TRowElement::Error);
-    RowQueue_->Enqueue(std::move(Row_));
-}
-
 void TRowBuilder::Finalize()
 {
     if (Started_) {
-        RowQueue_->Enqueue(std::move(Row_));
+        *ResultRow_ = std::move(Row_);
     }
-    Row_.Reset(TRowElement::Finish);
-    RowQueue_->Enqueue(std::move(Row_));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeTableReader::TNodeTableReader(::TIntrusivePtr<TRawTableReader> input, size_t sizeLimit)
+TNodeTableReader::TNodeTableReader(::TIntrusivePtr<TRawTableReader> input)
     : Input_(std::move(input))
-    , RowQueue_(sizeLimit)
 {
     PrepareParsing();
-
-    Running_ = true;
-    Thread_.Reset(new TThread(TThread::TParams(FetchThread, this).SetName("node_reader")));
-    Thread_->Start();
-
     Next();
 }
 
 TNodeTableReader::~TNodeTableReader()
 {
-    if (Running_) {
-        Running_ = false;
-        Builder_->Stop();
-        RetryPrepared_.Signal();
-        Thread_->Join();
+}
+
+void TNodeTableReader::ParseListFragmentItem() {
+    if (!Parser_->Parse()) {
+        Builder_->Finalize();
+        IsLast_ = true;
     }
 }
 
@@ -298,52 +215,72 @@ void TNodeTableReader::NextImpl()
         ++*RowIndex_;
     }
 
+    // At the begin of stream parser doesn't return a finished row.
+    ParseFirstListFragmentItem();
+
     while (true) {
-        Row_ = RowQueue_.Dequeue();
-
-        if (Row_->Type == TRowElement::Row) {
-            // We successfully parsed one more row from the stream,
-            // so reset retry count to their initial value.
-            Input_.ResetRetries();
-
-            if (!Row_->Node.IsEntity()) {
-                AtStart_ = false;
-                break;
-            }
-
-            for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
-                if (entry.first == "key_switch") {
-                    if (!AtStart_) {
-                        Valid_ = false;
-                    }
-                } else if (entry.first == "table_index") {
-                    TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
-                } else if (entry.first == "row_index") {
-                    RowIndex_ = static_cast<ui64>(entry.second.AsInt64());
-                } else if (entry.first == "range_index") {
-                    RangeIndex_ = static_cast<ui32>(entry.second.AsInt64());
-                } else if (entry.first == "tablet_index") {
-                    TabletIndex_ = entry.second.AsInt64();
-                } else if (entry.first == "end_of_stream") {
-                    IsEndOfStream_ = true;
-                }
-            }
-
-            if (!Valid_) {
-                break;
-            }
-
-        } else if (Row_->Type == TRowElement::Finish) {
+        if (IsLast_) {
             Finished_ = true;
             Valid_ = false;
-            Running_ = false;
-            Thread_->Join();
             break;
-
-        } else if (Row_->Type == TRowElement::Error) {
+        }
+        
+        try {
+            ParseListFragmentItem();
+        } catch (yexception& ex) {
+            Exception_ = ex;
+            NeedParseFirst_ = true;
             OnStreamError();
-        } else {
-            Y_FAIL("Unexpected row type: %d", Row_->Type);
+            ParseFirstListFragmentItem();
+            continue;
+        }
+            
+        Row_ = std::move(*NextRow_);
+        if (!Row_) {
+            throw yexception() << "No row in NextRow_";
+        }
+
+        // We successfully parsed one more row from the stream,
+        // so reset retry count to their initial value.
+        Input_.ResetRetries();
+
+        if (!Row_->Node.IsNull()) {
+            AtStart_ = false;
+            break;
+        }
+
+        for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
+            if (entry.first == "key_switch") {
+                if (!AtStart_) {
+                    Valid_ = false;
+                }
+            } else if (entry.first == "table_index") {
+                TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
+            } else if (entry.first == "row_index") {
+                RowIndex_ = static_cast<ui64>(entry.second.AsInt64());
+            } else if (entry.first == "range_index") {
+                RangeIndex_ = static_cast<ui32>(entry.second.AsInt64());
+            } else if (entry.first == "tablet_index") {
+                TabletIndex_ = entry.second.AsInt64();
+            } else if (entry.first == "end_of_stream") {
+                IsEndOfStream_ = true;
+            }
+        }
+
+        if (!Valid_) {
+            break;
+        }
+    }
+}
+
+void TNodeTableReader::ParseFirstListFragmentItem() {
+    while (NeedParseFirst_) {
+        try {
+            ParseListFragmentItem();
+            NeedParseFirst_ = false;
+            break;
+        } catch (yexception& ex) {
+            OnStreamError();
         }
     }
 }
@@ -408,9 +345,9 @@ bool TNodeTableReader::IsRawReaderExhausted() const
 
 void TNodeTableReader::PrepareParsing()
 {
-    RowQueue_.Clear();
-    Builder_.Reset(new TRowBuilder(&RowQueue_));
-    Parser_.Reset(new ::NYson::TYsonParser(Builder_.Get(), &Input_, ::NYson::EYsonType::ListFragment));
+    NextRow_.Clear();
+    Builder_.Reset(new TRowBuilder(&NextRow_));
+    Parser_.Reset(new ::NYson::TYsonListParser(Builder_.Get(), &Input_));
 }
 
 void TNodeTableReader::OnStreamError()
@@ -421,11 +358,7 @@ void TNodeTableReader::OnStreamError()
         RowIndex_.Clear();
         RangeIndex_.Clear();
         PrepareParsing();
-        RetryPrepared_.Signal();
     } else {
-        Running_ = false;
-        RetryPrepared_.Signal();
-        Thread_->Join();
         throw Exception_;
     }
 }
@@ -435,33 +368,6 @@ void TNodeTableReader::CheckValidity() const
     if (!Valid_) {
         ythrow yexception() << "Iterator is not valid";
     }
-}
-
-void TNodeTableReader::FetchThread()
-{
-    while (Running_) {
-        try {
-            Parser_->Parse();
-            Builder_->Finalize();
-            break;
-        } catch (const TStopException&) {
-            break;
-        } catch (yexception& e) {
-            Exception_ = e;
-            try {
-                Builder_->OnStreamError();
-            } catch (const TStopException&) {
-                break;
-            }
-            NDetail::TWaitProxy::Get()->WaitEvent(RetryPrepared_);
-        }
-    }
-}
-
-void* TNodeTableReader::FetchThread(void* opaque)
-{
-    static_cast<TNodeTableReader*>(opaque)->FetchThread();
-    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -12,10 +12,10 @@ namespace NYT {
 
 template <>
 TTableReaderPtr<TNode> CreateTableReader<TNode>(
-    IInputStream* stream, const TTableReaderOptions& options)
+    IInputStream* stream, const TTableReaderOptions& /*options*/)
 {
     auto impl = ::MakeIntrusive<TNodeTableReader>(
-        ::MakeIntrusive<NDetail::TInputStreamProxy>(stream), options.SizeLimit_);
+        ::MakeIntrusive<NDetail::TInputStreamProxy>(stream));
     return new TTableReader<TNode>(impl);
 }
 
