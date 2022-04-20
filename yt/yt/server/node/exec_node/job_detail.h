@@ -423,7 +423,6 @@ private:
     TFuture<TSharedRef> DumpSensors();
 };
 
-DECLARE_REFCOUNTED_CLASS(TJob)
 DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
