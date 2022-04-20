@@ -1183,7 +1183,7 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
         wait(lambda: op.get_job_count("aborted") == 1)
         wait(lambda: op.get_job_count("running") == 1)
 
-        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024
+        wait(lambda: get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd") == 1024 * 1024)
 
     @authors("ignat")
     def test_multiple_jobs(self):
