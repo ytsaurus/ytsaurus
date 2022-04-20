@@ -501,13 +501,11 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
                         checksum);
                 }
             }
-        } else {
+        } else if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId && !LastSnapshotInfo_->HasReply[followerId]) {
             auto snapshotError = FromProto<TError>(snapshotResult.error());
-            if (!LastSnapshotInfo_->HasReply[followerId]) {
-                YT_LOG_WARNING(snapshotError, "Error building snapshot at follower (SnapshotId: %v, FollowerId: %v)",
-                    snapshotId,
-                    followerId);
-            }
+            YT_LOG_WARNING(snapshotError, "Error building snapshot at follower (SnapshotId: %v, FollowerId: %v)",
+                snapshotId,
+                followerId);
         }
 
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
