@@ -489,21 +489,25 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
         auto snapshotId = snapshotResult.snapshot_id();
         if (!snapshotResult.has_error()) {
             auto checksum = snapshotResult.checksum();
-            YT_LOG_INFO("Built snapshot at follower (SnapshotId: %v, FollowerId: %v, Checksum: %llx)",
-                snapshotId,
-                followerId,
-                checksum);
             if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
                 auto& currentChecksum = LastSnapshotInfo_->Checksums[followerId];
                 if (currentChecksum) {
                     YT_VERIFY(currentChecksum == checksum);
                 } else {
                     currentChecksum = checksum;
+                    YT_LOG_INFO("Built snapshot at follower (SnapshotId: %v, FollowerId: %v, Checksum: %llx)",
+                        snapshotId,
+                        followerId,
+                        checksum);
                 }
             }
         } else {
             auto snapshotError = FromProto<TError>(snapshotResult.error());
-            YT_LOG_WARNING(snapshotError, "Error building snapshot at follower (SnapshotId: %v, FollowerId: %v)");
+            if (!LastSnapshotInfo_->HasReply[followerId]) {
+                YT_LOG_WARNING(snapshotError, "Error building snapshot at follower (SnapshotId: %v, FollowerId: %v)",
+                    snapshotId,
+                    followerId);
+            }
         }
 
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SnapshotId == snapshotId) {
