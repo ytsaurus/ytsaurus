@@ -116,6 +116,8 @@ TStoreLocationConfigBase::TStoreLocationConfigBase()
     RegisterParameter("max_write_rate_by_dwpd", MaxWriteRateByDWPD)
         .GreaterThanOrEqual(0)
         .Default(0);
+    RegisterParameter("reset_uuid", ResetUuid)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
