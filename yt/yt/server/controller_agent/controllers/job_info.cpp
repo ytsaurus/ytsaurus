@@ -132,7 +132,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, StreamDescriptors);
     Persist(context, DiskQuota);
 
-    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::FixDiskAccountPersistence) {
+    if (context.GetVersion() >= ESnapshotVersion::FixDiskAccountPersistence) {
         Persist(context, DiskRequestAccount);  
     }
 
