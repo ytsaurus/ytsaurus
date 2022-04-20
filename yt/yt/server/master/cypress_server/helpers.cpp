@@ -464,6 +464,20 @@ TRichClusterResources GetNodeResourceUsage(const TCypressNode* node)
     return {resourceUsage, tabletResourceUsage};
 }
 
+TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node)
+{
+    while (node && !node->TryGetAnnotation()) {
+        node = node->GetParent();
+    }
+    return node;
+}
+
+std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
+{
+    auto* ancestor = FindClosestAncestorWithAnnotation(node);
+    return ancestor ? ancestor->TryGetAnnotation() : std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

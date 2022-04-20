@@ -744,6 +744,11 @@ private:
         return &node->GetTrunkNode()->Acd();
     }
 
+    TAcdList DoListAcds(TCypressNode* node) override
+    {
+        return UnderlyingHandler_->ListAcds(node);
+    }
+
     std::optional<std::vector<TString>> DoListColumns(TCypressNode* node) override
     {
         return UnderlyingHandler_->ListColumns(node);

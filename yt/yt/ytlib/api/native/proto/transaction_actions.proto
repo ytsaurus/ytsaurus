@@ -1,0 +1,13 @@
+package NYT.NApi.NNative.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCopySynchronizablePortalAttributes
+{
+    required NYT.NProto.TGuid source_node_id = 1;
+    required NYT.NProto.TGuid destination_node_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

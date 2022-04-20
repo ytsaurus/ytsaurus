@@ -1,6 +1,8 @@
 #include "backup_session.h"
 
+#include "client.h"
 #include "transaction.h"
+
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -125,12 +127,12 @@ void TClusterBackupSession::StartTransaction(TStringBuf title)
     transactionAttributes->Set(
         "title",
         title);
+    TNativeTransactionStartOptions options;
+    options.Attributes = std::move(transactionAttributes);
+    options.ReplicateToMasterCellTags = TCellTagList(CellTags_.begin(), CellTags_.end());
     auto asyncTransaction = Client_->StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
-        TTransactionStartOptions{
-            .Attributes = std::move(transactionAttributes),
-            .ReplicateToMasterCellTags = TCellTagList(CellTags_.begin(), CellTags_.end()),
-        });
+        options);
     Transaction_ = WaitFor(asyncTransaction)
         .ValueOrThrow();
 }

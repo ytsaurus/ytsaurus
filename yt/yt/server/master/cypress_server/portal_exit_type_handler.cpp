@@ -27,9 +27,12 @@ public:
 
     ETypeFlags GetFlags() const override
     {
-        return
-            ETypeFlags::ForbidInheritAclChange |
-            ETypeFlags::ForbidAnnotationRemoval;
+        return ETypeFlags::None;
+    }
+
+    TAcdList ListAcds(TCypressNode* node) const override
+    {
+        return TAcdList{&node->Acd(), &node->As<TPortalExitNode>()->DirectAcd()};
     }
 
 private:

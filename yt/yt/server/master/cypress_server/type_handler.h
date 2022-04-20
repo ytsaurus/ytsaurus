@@ -7,6 +7,7 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 
 #include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/type_handler.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
@@ -144,6 +145,8 @@ struct INodeTypeHandler
         NSecurityServer::TAccount* account) = 0;
 
     virtual std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const = 0;
+
+    virtual NObjectServer::TAcdList ListAcds(TCypressNode* trunkNode) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)

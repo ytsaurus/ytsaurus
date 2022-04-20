@@ -72,6 +72,7 @@ public:
             .SetRequestQueueProvider(ExecuteRequestQueue_.GetProvider()));
 
         DeclareServerFeature(EMasterFeature::Portals);
+        DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
     }
 
     void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override

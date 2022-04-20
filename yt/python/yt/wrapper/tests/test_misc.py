@@ -954,7 +954,6 @@ class TestExternalize(object):
 
         yt.create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
         ct = yt.get("//tmp/m/d/@creation_time")
-        mt = yt.get("//tmp/m/d/@modification_time")
 
         yt.create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
 
@@ -975,14 +974,16 @@ class TestExternalize(object):
             }
         ]})
 
-        root_acl = yt.get("//tmp/m/@effective_acl")
+        effective_acl_m = yt.get("//tmp/m/@effective_acl")
+        real_acl_m = yt.get("//tmp/m/@acl")
         acl1 = yt.get("//tmp/m/acl1/@acl")
         acl2 = yt.get("//tmp/m/acl2/@acl")
 
         yt.externalize("//tmp/m", 1)
 
-        assert not yt.get("//tmp/m/@inherit_acl")
-        assert yt.get("//tmp/m/@acl") == root_acl
+        assert yt.get("//tmp/m/@inherit_acl")
+        assert yt.get("//tmp/m/@effective_acl") == effective_acl_m
+        assert yt.get("//tmp/m/@acl") == real_acl_m
 
         assert yt.get("//tmp/m/acl1/@inherit_acl")
         assert yt.get("//tmp/m/acl1/@acl") == acl1

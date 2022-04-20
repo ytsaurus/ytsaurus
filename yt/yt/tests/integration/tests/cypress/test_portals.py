@@ -1,8 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, raises_yt_error, wait, create, ls, get, set, copy, move,
-    remove, link,
+    authors, raises_yt_error, wait, create, ls, get, set, copy, move, remove, link,
     exists, concatenate, create_account, create_user, create_tablet_cell_bundle, remove_tablet_cell_bundle,
     make_ace, check_permission, start_transaction, abort_transaction, commit_transaction,
     lock, externalize,
@@ -18,6 +17,7 @@ from yt.test_helpers import assert_items_equal
 import yt.yson as yson
 
 import pytest
+import time
 
 
 ##################################################################
@@ -79,7 +79,7 @@ class TestPortals(YTEnvSetup):
     def test_create_portal(self):
         entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
         assert get("//tmp/p&/@type") == "portal_entrance"
-        acl = get("//tmp/@effective_acl")
+        effective_acl = get("//tmp/@effective_acl")
         assert get("//tmp/p&/@path") == "//tmp/p"
 
         assert exists("//sys/portal_entrances/{}".format(entrance_id))
@@ -87,8 +87,8 @@ class TestPortals(YTEnvSetup):
         exit_id = get("//tmp/p&/@exit_node_id")
         assert get("#{}/@type".format(exit_id), driver=get_driver(1)) == "portal_exit"
         assert get("#{}/@entrance_node_id".format(exit_id), driver=get_driver(1)) == entrance_id
-        assert not get("#{}/@inherit_acl".format(exit_id), driver=get_driver(1))
-        assert get("#{}/@acl".format(exit_id), driver=get_driver(1)) == acl
+        assert get("#{}/@inherit_acl".format(exit_id), driver=get_driver(1))
+        assert get("#{}/@effective_acl".format(exit_id), driver=get_driver(1)) == effective_acl
         assert get("#{}/@path".format(exit_id), driver=get_driver(1)) == "//tmp/p"
 
         assert exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1))
@@ -774,6 +774,7 @@ class TestPortals(YTEnvSetup):
         )
 
         root_acl = get("//tmp/m/@effective_acl")
+        explicit_acl = get("//tmp/m/@acl")
         acl1 = get("//tmp/m/acl1/@acl")
         acl2 = get("//tmp/m/acl2/@acl")
 
@@ -782,8 +783,9 @@ class TestPortals(YTEnvSetup):
 
         externalize("//tmp/m", 11)
 
-        assert not get("//tmp/m/@inherit_acl")
-        assert get("//tmp/m/@acl") == root_acl
+        assert get("//tmp/m/@inherit_acl")
+        assert get("//tmp/m/@acl") == explicit_acl
+        assert get("//tmp/m/@effective_acl") == root_acl
 
         assert get("//tmp/m/acl1/@inherit_acl")
         assert get("//tmp/m/acl1/@acl") == acl1
@@ -861,13 +863,14 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_internalize_node(self):
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         create_account("a")
         create_account("b")
         create_user("u")
 
         create("portal_entrance", "//tmp/m", attributes={"exit_cell_tag": 11})
         set("//tmp/m/@attr", "value")
-        set("//tmp/m/@acl", [make_ace("allow", "u", "write")])
+        set("//tmp/m&/@acl", [make_ace("allow", "u", "write")])
         shard_id = get("//tmp/m/@shard_id")
 
         TABLE_PAYLOAD = [{"key": "value"}]
@@ -926,6 +929,9 @@ class TestPortals(YTEnvSetup):
             attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]},
         )
 
+        explicit_acl = get("//tmp/m/@acl")
+        # NB: Getting @acl actually occur on primary cell, but for @effective_acl we need to wait for synchronization.
+        wait(lambda: get("//tmp/m/@effective_acl") == get("//tmp/m&/@effective_acl"))
         root_acl = get("//tmp/m/@effective_acl")
         acl1 = get("//tmp/m/acl1/@acl")
         acl2 = get("//tmp/m/acl2/@acl")
@@ -937,8 +943,9 @@ class TestPortals(YTEnvSetup):
 
         wait(lambda: not exists("#" + shard_id))
 
-        assert not get("//tmp/m/@inherit_acl")
-        assert get("//tmp/m/@acl") == root_acl
+        assert get("//tmp/m/@inherit_acl")
+        assert get("//tmp/m/@effective_acl") == root_acl
+        assert get("//tmp/m/@acl") == explicit_acl
 
         assert get("//tmp/m/acl1/@inherit_acl")
         assert get("//tmp/m/acl1/@acl") == acl1
@@ -1195,12 +1202,14 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     def test_remove_portal_not_permitted_by_acl(self):
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         create_user("u")
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
-        assert not get("//tmp/p/@inherit_acl")
+        assert get("//tmp/p/@inherit_acl")
         # NB: denying removal for portal exit only!
-        set("//tmp/p/@acl", [make_ace("deny", "u", "remove", "object_and_descendants")])
+        set("//tmp/p&/@acl", [make_ace("deny", "u", "remove", "object_and_descendants")])
+        wait(lambda: get("//tmp/p&/@effective_acl") == get("//tmp/p/@effective_acl"))
 
         assert check_permission("u", "remove", "//tmp/p")["action"] == "deny"
 
@@ -1307,6 +1316,95 @@ class TestPortals(YTEnvSetup):
             copy("//tmp/t", "//tmp/p/t2", prerequisite_transaction_ids=[tx])
 
         assert not exists("//tmp/p/t2")
+
+    @authors("kvk1920")
+    def test_inheritable_attributes_synchronization(self):
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        create("map_node", "//tmp/dir_with_attrs")
+        create("portal_entrance", "//tmp/dir_with_attrs/p", attributes={"exit_cell_tag": 11})
+        set("//tmp/dir_with_attrs/@compression_codec", "lz4")
+        time.sleep(1.5)
+        create("table", "//tmp/dir_with_attrs/p/t")
+        assert "lz4" == get("//tmp/dir_with_attrs/p/t/@compression_codec")
+
+    @authors("kvk1920")
+    def test_effective_acl_synchronization(self):
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        create_user("dog")
+        create_user("cat")
+        create_user("rat")
+        folder = "//tmp/dir_with_acl"
+        create(
+            "map_node",
+            folder,
+            attributes={
+                "acl": [
+                    make_ace("allow", "dog", "write"),
+                    make_ace("allow", "dog", "read"),
+                    make_ace("deny", "cat", "read"),
+                ],
+            })
+        portal_exit = folder + "/p"
+        portal_entrance = portal_exit + "&"
+        create("portal_entrance", portal_exit, attributes={
+            "inherit_acl": True,
+            "exit_cell_tag": 11,
+            "acl": [make_ace("allow", "rat", "read")],
+        })
+        get(portal_entrance + "/@acl", authenticated_user="dog")
+        assert get(portal_entrance + "/@inherit_acl")
+        assert "allow" == check_permission("dog", "read", portal_entrance)["action"]
+        assert "allow" == check_permission("dog", "write", portal_entrance)["action"]
+        assert "deny" == check_permission("cat", "read", portal_exit)["action"]
+        assert "allow" == check_permission("dog", "read", portal_exit)["action"]
+        table = portal_exit + "/t"
+        create("table", table, attributes={"inherit_acl": True})
+        assert "allow" == check_permission("dog", "write", table)["action"]
+        assert "deny" == check_permission("cat", "read", table)["action"]
+        assert "allow" == check_permission("rat", "read", table)["action"]
+        set(portal_entrance + "/@inherit_acl", False)
+        time.sleep(1.1)
+        assert not get(portal_exit + "/@inherit_acl")
+        assert "deny" == check_permission("dog", "write", table)["action"]
+        assert "deny" == check_permission("cat", "read", table)["action"]
+        assert "allow" == check_permission("rat", "read", table)["action"]
+        set(portal_entrance + "/@inherit_acl", True)
+        set(folder + "/@acl", [
+            make_ace("deny", "dog", "read"),
+            make_ace("allow", "cat", "write"),
+        ])
+        set(portal_entrance + "/@acl", [make_ace("deny", "rat", "read")])
+        time.sleep(1.1)
+        assert get(portal_exit + "/@inherit_acl")
+        assert "deny" == check_permission("dog", "read", table)["action"]
+        assert "allow" == check_permission("cat", "write", table)["action"]
+        assert "deny" == check_permission("rat", "read", table)["action"]
+
+    @authors("kvk1920")
+    def test_empty_annotation(self):
+        remove("//sys/@config/cypress_manager/portal_synchronization_period")
+        create("portal_entrance", "//tmp/p", attributes={
+            "exit_cell_tag": 11,
+        })
+        assert get("//tmp/p/@annotation") == yson.YsonEntity()
+        assert get("//tmp/p/@annotation_path") == yson.YsonEntity()
+
+    @authors("kvk1920")
+    def test_annotation_synchronization(self):
+        remove("//sys/@config/cypress_manager/portal_synchronization_period")
+        create("map_node", "//tmp/d", attributes={"annotation": "qwerty"})
+        create("portal_entrance", "//tmp/d/p", attributes={"annotation": None, "exit_cell_tag": 11})
+        assert "qwerty" == get("//tmp/d/p/@annotation")
+        assert "//tmp/d" == get("//tmp/d/p/@annotation_path")
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
+        remove("//tmp/d/@annotation")
+        time.sleep(1)
+        assert yson.YsonEntity() == get("//tmp/d/@annotation")
+        assert yson.YsonEntity() == get("//tmp/d/p/@annotation_path")
+        set("//tmp/d/p&/@annotation", "abc")
+        time.sleep(1)
+        assert "abc" == get("//tmp/d/p/@annotation")
+        assert "//tmp/d/p" == get("//tmp/d/p/@annotation_path")
 
 
 ##################################################################

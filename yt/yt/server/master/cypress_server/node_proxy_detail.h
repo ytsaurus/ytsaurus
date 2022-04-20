@@ -102,8 +102,6 @@ protected:
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
-    virtual TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
-
     void BeforeInvoke(const NRpc::IServiceContextPtr& context) override;
     void AfterInvoke(const NRpc::IServiceContextPtr& context) override;
     bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
@@ -232,10 +230,6 @@ private:
     TCypressNode* DoLockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
-
-    void GatherInheritableAttributes(
-        TCypressNode* parent,
-        TCompositeNodeBase::TAttributes* attributes);
 
     template <class TContextPtr, class TClonedTreeBuilder>
     void CopyCore(

@@ -28,6 +28,8 @@ DECLARE_REFCOUNTED_CLASS(TConnectionDynamicConfig)
 
 struct TConnectionOptions;
 
+struct TNativeTransactionStartOptions;
+
 class TTabletSyncReplicaCache;
 
 using TTableReplicaInfoPtrList = TCompactVector<

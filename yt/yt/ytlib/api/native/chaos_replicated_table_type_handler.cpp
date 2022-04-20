@@ -83,7 +83,7 @@ private:
 
     ITransactionPtr StartTransaction(const TYPath& path)
     {
-        TTransactionStartOptions options;
+        TNativeTransactionStartOptions options;
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", Format("Creating %v", path));
         options.Attributes = std::move(transactionAttributes);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "node_detail.h"
+#include "node_proxy_detail.h"
 
 namespace NYT::NCypressServer {
 
@@ -16,11 +17,21 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Key);
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
 
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TAttributes>, EffectiveInheritableAttributes);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<NYPath::TYPath>, EffectiveAnnotationPath);
+
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, DirectAcd);
+
 public:
-    using TMapNode::TMapNode;
+    friend class TPortalExitTypeHandler;
+
+    explicit TPortalExitNode(TVersionedNodeId nodeId);
+    explicit TPortalExitNode(NObjectClient::TObjectId objectId);
 
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
+
+    void FillInheritableAttributes(TAttributes* attributes) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

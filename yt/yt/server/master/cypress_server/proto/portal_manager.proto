@@ -13,10 +13,15 @@ message TReqCreatePortalExit
     required string path = 3;
     required NYT.NYTree.NProto.TAttributeDictionary explicit_node_attributes = 4;
     required NYT.NYTree.NProto.TAttributeDictionary inherited_node_attributes = 5;
-    required bytes acl = 6;
     required NYT.NProto.TGuid parent_id = 7;
     optional string key = 8;
-    required string annotation = 9;
+
+    required bytes effective_acl = 6;
+    optional bytes direct_acl = 11;
+    optional bool inherit_acl = 12;
+
+    optional string effective_annotation = 9;
+    optional string effective_annotation_path = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +35,35 @@ message TReqRemovePortalEntrance
 
 message TReqRemovePortalExit
 {
-    required NYT.NProto.TGuid exit_node_id = 1;
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSynchronizePortalExits
+{
+    message TPortalExitInfo
+    {
+        required NYT.NProto.TGuid node_id = 1;
+
+        required bytes effective_acl = 2;
+
+        required bytes direct_acl = 3;
+        required bool inherit_acl = 4;
+        required string owner = 5;
+
+        required NYT.NYTree.NProto.TAttributeDictionary effective_inheritable_attributes = 6;
+
+        message TPortalExitEffectiveAnnotationInfo
+        {
+            required string annotation = 1;
+            required string annotation_path = 2;
+        }
+
+        optional TPortalExitEffectiveAnnotationInfo effective_annotation = 7;
+    }
+
+    repeated TPortalExitInfo portal_infos = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

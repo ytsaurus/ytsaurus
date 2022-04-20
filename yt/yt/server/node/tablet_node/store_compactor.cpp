@@ -1213,14 +1213,14 @@ private:
     {
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
+        NApi::NNative::TNativeTransactionStartOptions transactionOptions;
+        transactionOptions.AutoAbort = false;
+        transactionOptions.Attributes = std::move(transactionAttributes);
+        transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId);
+        transactionOptions.ReplicateToMasterCellTags = TCellTagList();
         auto transactionFuture = Bootstrap_->GetMasterClient()->StartNativeTransaction(
             NTransactionClient::ETransactionType::Master,
-            TTransactionStartOptions{
-                .AutoAbort = false,
-                .Attributes = std::move(transactionAttributes),
-                .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
-                .ReplicateToMasterCellTags = TCellTagList()
-            });
+            transactionOptions);
         return WaitFor(transactionFuture)
             .ValueOrThrow();
     }

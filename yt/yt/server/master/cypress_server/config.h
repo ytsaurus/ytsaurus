@@ -72,6 +72,8 @@ public:
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 
     double DefaultExternalCellBias;
+    
+    std::optional<TDuration> PortalSynchronizationPeriod;
 
     // COMPAT(kvk1920)
     bool EnableRevisionChangingForBuiltinAttributes;

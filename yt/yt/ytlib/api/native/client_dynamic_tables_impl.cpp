@@ -1467,14 +1467,15 @@ void TClient::ExecuteTabletServiceRequest(
     transactionAttributes->Set(
         "title",
         Format("%v table %v", action, path));
+
+    TNativeTransactionStartOptions transactionOptions;
+    transactionOptions.Attributes = std::move(transactionAttributes);
+    transactionOptions.SuppressStartTimestampGeneration = true,
+    transactionOptions.CoordinatorMasterCellTag = nativeCellTag;
+    transactionOptions.ReplicateToMasterCellTags = TCellTagList{externalCellTag};
     auto asyncTransaction = StartNativeTransaction(
         NTransactionClient::ETransactionType::Master,
-        TTransactionStartOptions{
-            .Attributes = std::move(transactionAttributes),
-            .SuppressStartTimestampGeneration = true,
-            .CoordinatorMasterCellTag = nativeCellTag,
-            .ReplicateToMasterCellTags = TCellTagList{externalCellTag}
-        });
+        transactionOptions);
     auto transaction = WaitFor(asyncTransaction)
         .ValueOrThrow();
 

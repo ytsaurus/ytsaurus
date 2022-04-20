@@ -86,6 +86,9 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
 
     RegisterParameter("enable_symlink_cyclicity_check", EnableSymlinkCyclicityCheck)
         .Default(false);
+
+    RegisterParameter("portal_synchronization_period", PortalSynchronizationPeriod)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

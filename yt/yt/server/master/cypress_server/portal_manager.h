@@ -18,6 +18,8 @@ class TPortalManager
 public:
     explicit TPortalManager(NCellMaster::TBootstrap* bootstrap);
 
+    void Initialize();
+
     ~TPortalManager();
 
     void RegisterEntranceNode(

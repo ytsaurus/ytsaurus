@@ -5,6 +5,9 @@
 #include "transaction.h"
 #include "type_handler.h"
 
+// COMPAT(kvk1920)
+#include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
@@ -25,6 +28,7 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/schema_inferer.h>
 
+#include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -199,19 +203,23 @@ protected:
 
 
     template <class TOptions>
-    void StartTransaction(const TString& title, const TOptions& options)
+    void StartTransaction(
+        const TString& title,
+        const TOptions& options,
+        bool requirePortalExitSynchronization = false)
     {
         YT_LOG_DEBUG("Starting transaction");
 
         auto transactionAttributes = CreateEphemeralAttributes();
         transactionAttributes->Set("title", title);
 
+        TNativeTransactionStartOptions transactionOptions;
+        transactionOptions.ParentId = options.TransactionId;
+        transactionOptions.Attributes = std::move(transactionAttributes);
+        transactionOptions.RequirePortalExitSynchronization = requirePortalExitSynchronization;
         auto transactionOrError = WaitFor(Client_->StartNativeTransaction(
             ETransactionType::Master,
-            TTransactionStartOptions{
-                .ParentId = options.TransactionId,
-                .Attributes = std::move(transactionAttributes)
-            }));
+            transactionOptions));
         THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting transaction");
         Transaction_ = transactionOrError.Value();
 
@@ -513,7 +521,7 @@ public:
         StartTransaction(
             Format("Externalize %v to %v", Path_, CellTag_),
             Options_);
-        RequestRootEffectiveAcl();
+        RequestAclAndAnnotation();
         BeginCopy(Path_, GetOptions(), false);
         SyncExternalCellsWithSourceNodeCell();
         if (TypeFromId(SrcNodeId_) != EObjectType::MapNode) {
@@ -521,7 +529,7 @@ public:
         }
         CreatePortal();
         SyncExitCellWithEntranceCell();
-        EndCopy(Path_, GetOptions(), true);
+        EndCopy(Path_, GetOptions(), /*inplace*/ true);
         SyncExternalCellsWithClonedNodeCell();
         CommitTransaction();
         YT_LOG_DEBUG("Node externalization completed");
@@ -531,9 +539,9 @@ private:
     const TYPath Path_;
     const TCellTag CellTag_;
     const TExternalizeNodeOptions Options_;
-
-    TYsonString RootEffectiveAcl_;
-
+    TYsonString Acl_;
+    TYsonString InheritAcl_;
+    TYsonString Annotation_;
 
     static TMoveNodeOptions GetOptions()
     {
@@ -547,15 +555,34 @@ private:
         return options;
     }
 
-    void RequestRootEffectiveAcl()
+    void RequestAclAndAnnotation()
     {
-        YT_LOG_DEBUG("Requesting root effective ACL");
+        YT_LOG_DEBUG("Requesting root @acl, @inherit_acl and @annotation");
 
-        auto aclOrError = WaitFor(Transaction_->GetNode(Path_ + "/@effective_acl"));
-        THROW_ERROR_EXCEPTION_IF_FAILED(aclOrError, "Error getting root effective ACL");
-        RootEffectiveAcl_ = aclOrError.Value();
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(std::move(channel));
+        auto batchReq = proxy.ExecuteBatch();
 
-        YT_LOG_DEBUG("Root effective ACL received");
+        auto getAttribute = [&] (TString name, TYsonString* result) {
+            auto req = TObjectYPathProxy::Get(Path_ + "/@" + name);
+            req->Tag() = result;
+            batchReq->AddRequest(req);
+        };
+
+        getAttribute("acl", &Acl_);
+        getAttribute("inherit_acl", &InheritAcl_);
+        getAttribute("annotation", &Annotation_);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of portal exit node");
+        const auto& batchRsp = batchRspOrError.Value();
+
+        for (auto rspOrError : batchRsp->GetResponses<TObjectYPathProxy::TRspGet>()) {
+            const auto& rsp = rspOrError.Value();
+            *std::any_cast<TYsonString*>(rsp->Tag()) = TYsonString(rsp->value());
+        }
+
+        YT_LOG_DEBUG("Root @acl, @inherit_acl and @annotation received");
     }
 
     void CreatePortal()
@@ -564,8 +591,9 @@ private:
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("exit_cell_tag", CellTag_);
-        attributes->Set("inherit_acl", false);
-        attributes->Set("acl", RootEffectiveAcl_);
+        attributes->Set("inherit_acl", InheritAcl_);
+        attributes->Set("annotation", Annotation_);
+        attributes->Set("acl", Acl_);
 
         TCreateNodeOptions options;
         options.Attributes = std::move(attributes);
@@ -615,18 +643,15 @@ public:
     void Run()
     {
         YT_LOG_DEBUG("Node internalization started");
-        StartTransaction(
-            Format("Internalize %v", Path_),
-            Options_);
-        BeginCopy(Path_, GetOptions(), false);
-        SyncExternalCellsWithSourceNodeCell();
-        if (TypeFromId(SrcNodeId_) != EObjectType::PortalExit) {
-            THROW_ERROR_EXCEPTION("%v is not a portal", Path_);
+        try {
+            DoRun(/*requirePortalExitSynchronization*/ true);
+        } catch (const TErrorException& ex) {
+            if (!ex.Error().FindMatching(NRpc::EErrorCode::UnsupportedServerFeature)) {
+                throw;
+            }
+            MaybeAbortTransaction();
+            DoRun(/*requirePortalExitSynchronization*/ false);
         }
-        CreateMapNode();
-        EndCopy(Path_ + "&", GetOptions(), true);
-        SyncExternalCellsWithClonedNodeCell();
-        CommitTransaction();
         YT_LOG_DEBUG("Node internalization completed");
     }
 
@@ -635,6 +660,48 @@ private:
     const TInternalizeNodeOptions Options_;
 
 
+    void DoRun(bool requirePortalExitSynchronization)
+    {
+        StartTransaction(
+            Format("Internalize %v", Path_),
+            Options_,
+            requirePortalExitSynchronization);
+
+        auto entranceNodeId = GetEntranceNodeId();
+
+        BeginCopy(Path_, GetOptions(), false);
+
+        SyncExternalCellsWithSourceNodeCell();
+        if (TypeFromId(SrcNodeId_) != EObjectType::PortalExit) {
+            THROW_ERROR_EXCEPTION("%v is not a portal", Path_);
+        }
+
+        auto clonedNodeId = CreateMapNode();
+
+        EndCopy(Path_ + "&", GetOptions(), true);
+
+        SyncExternalCellsWithClonedNodeCell();
+
+        if (requirePortalExitSynchronization) {
+            NProto::TReqCopySynchronizablePortalAttributes req;
+            ToProto(req.mutable_source_node_id(), entranceNodeId);
+            ToProto(req.mutable_destination_node_id(), clonedNodeId);
+
+            const auto& connection = Client_->GetNativeConnection();
+            auto cellId = connection->GetMasterCellId(CellTagFromId(clonedNodeId));
+            Transaction_->AddAction(cellId, MakeTransactionActionData(req));
+        }
+
+        CommitTransaction({.Force2PC = true});
+    }
+
+    TNodeId GetEntranceNodeId()
+    {
+        auto nodeIdOrError = WaitFor(Transaction_->GetNode(Path_ + "/@entrance_node_id"));
+        auto nodeId = ConvertTo<TNodeId>(nodeIdOrError.ValueOrThrow());
+        return nodeId;
+    }
+
     static TMoveNodeOptions GetOptions()
     {
         TMoveNodeOptions options;
@@ -642,12 +709,13 @@ private:
         options.PreserveCreationTime = true;
         options.PreserveModificationTime = true;
         options.PreserveExpirationTime = true;
-        options.PreserveOwner = true;
+        options.PreserveOwner = false;
         options.Force = true;
+        options.PreserveAcl = false;
         return options;
     }
 
-    void CreateMapNode()
+    TNodeId CreateMapNode()
     {
         YT_LOG_DEBUG("Creating map node");
 
@@ -660,7 +728,9 @@ private:
             options));
         THROW_ERROR_EXCEPTION_IF_FAILED(nodeIdOrError, "Error creating map node");
 
-        YT_LOG_DEBUG("Map node created");
+        YT_LOG_DEBUG("Map node created (NodeId: %v)", nodeIdOrError.Value());
+
+        return nodeIdOrError.Value();
     }
 };
 

@@ -308,7 +308,7 @@ public:
 
     TFuture<ITransactionPtr> StartNativeTransaction(
         ETransactionType type,
-        const TTransactionStartOptions& options) override
+        const TNativeTransactionStartOptions& options) override
     {
         auto adjustedOptions = options;
         adjustedOptions.ParentId = GetId();
@@ -321,7 +321,9 @@ public:
         ETransactionType type,
         const TTransactionStartOptions& options) override
     {
-        return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
+        TNativeTransactionStartOptions adjustedOptions;
+        static_cast<TTransactionStartOptions&>(adjustedOptions) = options;
+        return StartNativeTransaction(type, adjustedOptions).As<NApi::ITransactionPtr>();
     }
 
     void ModifyRows(

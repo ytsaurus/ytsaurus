@@ -37,11 +37,6 @@ public:
         return ENodeType::Entity;
     }
 
-    ETypeFlags GetFlags() const override
-    {
-        return TBase::GetFlags() | ETypeFlags::ForbidAnnotationRemoval;
-    }
-
 private:
     ICypressNodeProxyPtr DoGetProxy(
         TPortalEntranceNode* trunkNode,

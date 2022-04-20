@@ -525,10 +525,12 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t2")
 
         create_user("admin")
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         set(
-            "//sys/operations/@acl/end",
+            "//sys/operations&/@acl/end",
             make_ace("allow", "admin", ["read", "write", "manage"]),
         )
+        wait(lambda: get("//sys/operations&/@acl") == get("//sys/operations/@acl"))
 
         def is_admin_in_base_acl():
             op = map(
@@ -576,17 +578,20 @@ print "x={0}\ty={1}".format(x, y)
             op.track()
             assert read_table("//tmp/t2") == [{"foo": "bar"}]
         finally:
-            remove("//sys/operations/@acl/-1")
+            remove("//sys/operations&/@acl/-1")
+            wait(lambda: get("//sys/operations/@acl") == get("//sys/operations&/@acl"))
 
     @authors("levysotsky")
     def test_intermediate_new_live_preview(self):
         partition_map_vertex = "partition_map(0)"
 
         create_user("admin")
+        set("//sys/@config/cypress_manager/portal_synchronization_period", 500)
         set(
-            "//sys/operations/@acl/end",
+            "//sys/operations&/@acl/end",
             make_ace("allow", "admin", ["read", "write", "manage"]),
         )
+        wait(lambda: get("//sys/operations&/@acl") == get("//sys/operations/@acl"))
         try:
             create_user("u")
             create("table", "//tmp/t1")
@@ -619,7 +624,7 @@ print "x={0}\ty={1}".format(x, y)
             assert intermediate_live_data == [{"foo": "bar"}]
             assert read_table("//tmp/t2") == [{"foo": "bar"}]
         finally:
-            remove("//sys/operations/@acl/-1")
+            remove("//sys/operations&/@acl/-1")
 
     @authors("ignat")
     def test_intermediate_compression_codec(self):

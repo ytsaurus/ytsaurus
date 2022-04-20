@@ -147,14 +147,14 @@ private:
                     tablet->GetTablePath(),
                     tabletId));
 
+                NApi::NNative::TNativeTransactionStartOptions transactionOptions;
+                transactionOptions.AutoAbort = false;
+                transactionOptions.Attributes = std::move(transactionAttributes);
+                transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());
+                transactionOptions.ReplicateToMasterCellTags = TCellTagList();
                 auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    TTransactionStartOptions{
-                        .AutoAbort = false,
-                        .Attributes = std::move(transactionAttributes),
-                        .CoordinatorMasterCellTag = CellTagFromId(tablet->GetId()),
-                        .ReplicateToMasterCellTags = TCellTagList()
-                    });
+                    transactionOptions);
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 

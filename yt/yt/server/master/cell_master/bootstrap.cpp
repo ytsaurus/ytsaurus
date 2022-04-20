@@ -821,6 +821,7 @@ void TBootstrap::DoInitialize()
     CellarNodeTracker_->Initialize();
     TabletNodeTracker_->Initialize();
     CypressManager_->Initialize();
+    PortalManager_->Initialize();
     ChunkManager_->Initialize();
     TamedCellManager_->Initialize();
     CellHydraJanitor_->Initialize();

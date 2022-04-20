@@ -663,14 +663,6 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
                 return true;
             }
 
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto& handler = objectManager->GetHandler(Object_);
-            if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
-                THROW_ERROR_EXCEPTION("Cannot change %Qlv attribute for objects of type %Qlv",
-                    EInternedAttributeKey::InheritAcl.Unintern(),
-                    Object_->GetType());
-            }
-
             acd->SetInherit(inherit);
             return true;
         }
