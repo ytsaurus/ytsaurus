@@ -271,6 +271,8 @@ b"""
 
         controller_exec_node_info_update_period = 100;
 
+        update_account_resource_usage_leases_period = 100;
+
         exec_nodes_update_period = 100;
 
         environment = {

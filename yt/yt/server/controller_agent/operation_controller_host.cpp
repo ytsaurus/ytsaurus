@@ -200,6 +200,11 @@ TOperationControllerHost::TOperationControllerHost(
     , ControllerEpoch_(operation->GetControllerEpoch())
 { }
 
+void TOperationControllerHost::Disconnect(const TError& error)
+{
+    Bootstrap_->GetControllerAgent()->Disconnect(error);
+}
+
 void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{

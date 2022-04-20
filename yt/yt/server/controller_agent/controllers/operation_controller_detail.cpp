@@ -310,6 +310,10 @@ TOperationControllerBase::TOperationControllerBase(
         Config->CheckTentativeTreeEligibilityPeriod))
     , MediumDirectory_(Host->GetMediumDirectory())
     , ExperimentAssignments_(operation->ExperimentAssignments())
+    , UpdateAccountResourceUsageLeasesExecutor_(New<TPeriodicExecutor>(
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        BIND(&TThis::UpdateAccountResourceUsageLeases, MakeWeak(this)),
+        Config->UpdateAccountResourceUsageLeasesPeriod))
     , TotalJobCounter_(New<TProgressCounter>())
 {
     // Attach user transaction if any. Don't ping it.
@@ -1186,6 +1190,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         MinNeededResourcesSanityCheckExecutor->Start();
         ExecNodesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
+        UpdateAccountResourceUsageLeasesExecutor_->Start();
 
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
@@ -1311,6 +1316,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     MinNeededResourcesSanityCheckExecutor->Start();
     ExecNodesUpdateExecutor->Start();
     CheckTentativeTreeEligibilityExecutor_->Start();
+    UpdateAccountResourceUsageLeasesExecutor_->Start();
 
     for (const auto& [jobId, joblet] : JobletMap) {
         result.RevivedJobs.push_back({
@@ -4621,19 +4627,43 @@ void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::opti
 
     info.DiskQuota += delta;
     YT_VERIFY(!info.DiskQuota.DiskSpaceWithoutMedium.has_value());
+}
 
-    Host->UpdateAccountResourceUsageLease(info.LeaseId, info.DiskQuota).Subscribe(
-        BIND([this, this_ = MakeStrong(this), account, diskQuota=info.DiskQuota] (TError error) {
-            if (!error.IsOK()) {
+void TOperationControllerBase::UpdateAccountResourceUsageLeases()
+{
+    for (const auto& [account, info] : AccountResourceUsageLeaseMap_) {
+        auto it = LastUpdatedAccountResourceUsageLeaseMap_.find(account);
+        if (it != LastUpdatedAccountResourceUsageLeaseMap_.end() && info.DiskQuota == it->second.DiskQuota) {
+            continue;
+        }
+
+        LastUpdatedAccountResourceUsageLeaseMap_[account] = info;
+        
+        auto error = WaitFor(Host->UpdateAccountResourceUsageLease(info.LeaseId, info.DiskQuota));
+        if (!error.IsOK()) {
+            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) || 
+                error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
+                error.FindMatching(NYTree::EErrorCode::ResolveError))
+            {
                 OnOperationFailed(
                     TError("Failed to update account usage lease")
                         << TErrorAttribute("account", account)
-                        << TErrorAttribute("resource_usage", diskQuota)
+                        << TErrorAttribute("lease_id", info.LeaseId)
+                        << TErrorAttribute("resource_usage", info.DiskQuota)
                         << error);
             } else {
-                YT_LOG_DEBUG("Account resource usage lease updated (Account: %v, DiskQuota: %v)", account, diskQuota);
+                Host->Disconnect(
+                    TError("Failed to update account usage lease") 
+                        << error);
             }
-        }).Via(GetInvoker()));
+            return;
+        } else {
+            YT_LOG_DEBUG("Account resource usage lease updated (Account: %v, LeaseId: %v, DiskQuota: %v)",
+                account,
+                info.LeaseId,
+                info.DiskQuota);
+        }
+    }
 }
 
 TCompositeNeededResources TOperationControllerBase::GetNeededResources() const

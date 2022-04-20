@@ -786,6 +786,8 @@ public:
 
     TDuration CheckTentativeTreeEligibilityPeriod;
 
+    TDuration UpdateAccountResourceUsageLeasesPeriod;
+
     TDuration TaskUpdatePeriod;
 
     TZombieOperationOrchidsConfigPtr ZombieOperationOrchids;

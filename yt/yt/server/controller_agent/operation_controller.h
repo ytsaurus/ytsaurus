@@ -152,6 +152,8 @@ struct TOperationSnapshot
 struct IOperationControllerHost
     : public virtual TRefCounted
 {
+    virtual void Disconnect(const TError& error) = 0;
+
     virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
     virtual void AbortJob(TJobId jobId, const TError& error) = 0;
     virtual void FailJob(TJobId jobId) = 0;
