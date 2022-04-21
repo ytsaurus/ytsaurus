@@ -143,7 +143,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 
     std::vector<TJobPtr> sentEnqueuedJobs;
     sentEnqueuedJobs.reserve(std::size(EnqueuedFinishedJobs_)); 
-    for (const auto job : EnqueuedFinishedJobs_) {
+    for (const auto& job : EnqueuedFinishedJobs_) {
         sentEnqueuedJobs.push_back(job);
     }
 

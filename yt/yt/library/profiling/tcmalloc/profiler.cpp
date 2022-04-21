@@ -22,7 +22,7 @@ public:
 
     void CollectSensors(ISensorWriter* writer) override
     {
-        for (const auto property : TCMallocStats_) {
+        for (const auto& property : TCMallocStats_) {
             if (auto value = tcmalloc::MallocExtension::GetNumericProperty(property)) {
                 writer->AddGauge("/" + property, *value);
             }
