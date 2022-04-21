@@ -8,6 +8,9 @@
 
 #include <library/cpp/testing/common/env.h>
 
+#include <yt/yt/core/tracing/allocation_tags.h>
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/library/ytprof/heap_profiler.h>
 #include <yt/yt/library/ytprof/symbolize.h>
 #include <yt/yt/library/ytprof/profile.h>
@@ -18,6 +21,8 @@
 
 namespace NYT::NYTProf {
 namespace {
+
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +43,21 @@ TEST(HeapProfiler, ReadProfile)
 
     auto token = tcmalloc::MallocExtension::StartAllocationProfiling();
 
+    EnableMemoryProfilingTags();
+    auto traceContext = TTraceContext::NewRoot("Root");
+    TTraceContextGuard guard(traceContext);
+
+    traceContext->SetAllocationTags(New<TAllocationTags>(TAllocationTags::TTags({{"user", "first"}, {"sometag", "my"}})));
+
     auto h0 = BlowHeap<0>();
 
     SetMemoryTag(1);
+    traceContext->SetAllocationTags(New<TAllocationTags>(TAllocationTags::TTags({{"user", "second"}, {"sometag", "notmy"}})));
+
     auto h1 = BlowHeap<1>();
+
     SetMemoryTag(0);
+    traceContext->SetAllocationTags(nullptr);
 
     auto h2 = BlowHeap<2>();
     h2.clear();

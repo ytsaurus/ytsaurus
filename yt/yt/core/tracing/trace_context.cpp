@@ -1,6 +1,7 @@
 #include "trace_context.h"
 #include "private.h"
 #include "config.h"
+#include "allocation_tags.h"
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -149,6 +150,24 @@ void TTraceContext::SetRequestId(TRequestId requestId)
 void TTraceContext::SetLoggingTag(const TString& loggingTag)
 {
     LoggingTag_ = loggingTag;
+}
+
+void TTraceContext::SetAllocationTags(TAllocationTagsPtr tags)
+{
+    AllocationTags_ = std::move(tags);
+}
+
+TAllocationTagsPtr TTraceContext::GetAllocationTags() const
+{
+    return AllocationTags_;
+}
+
+std::vector<std::pair<TString, TString>> TTraceContext::ExtractAllocationTags() const
+{
+    if (AllocationTags_ != nullptr) {
+        return AllocationTags_->GetTags();
+    }
+    return {};
 }
 
 void TTraceContext::SetRecorded()

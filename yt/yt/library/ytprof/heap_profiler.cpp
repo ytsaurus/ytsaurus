@@ -12,6 +12,36 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK void* CreateAllocationTagsData()
+{
+    return nullptr;
+}
+
+Y_WEAK void* CopyAllocationTagsData(void* ptr)
+{
+    return ptr;
+}
+
+Y_WEAK void DestroyAllocationTagsData(void* /*ptr*/)
+{ }
+
+Y_WEAK const std::vector<std::pair<TString, TString>>& ReadAllocationTagsData(void* /*ptr*/)
+{
+    static std::vector<std::pair<TString, TString>> emptyTags;
+    return emptyTags;
+}
+
+Y_WEAK void StartAllocationTagsCleanupThread(const TDuration& /*cleanupInterval*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
 namespace NYT::NYTProf {
 
 using namespace NThreading;
@@ -95,6 +125,13 @@ NProto::Profile ConvertAllocationProfile(const tcmalloc::Profile& snapshot)
 
             sampleProto->add_location_id(locationId);
             locations[ip] = locationId;
+        }
+
+        // TODO(gepardo): Deduplicate values in string table
+        for (const auto& [key, value] : ReadAllocationTagsData(sample.user_data)) {
+            auto label = sampleProto->add_label();
+            label->set_key(addString(key));
+            label->set_str(addString(value));
         }
     });
 
@@ -196,6 +233,15 @@ int AbslStackUnwinder(void** frames, int*,
         cursor.Next();
     }
     return count;
+}
+
+void EnableMemoryProfilingTags()
+{
+    StartAllocationTagsCleanupThread(TDuration::Seconds(1));
+    tcmalloc::MallocExtension::SetSampleUserDataCallbacks(
+        &CreateAllocationTagsData,
+        &CopyAllocationTagsData,
+        &DestroyAllocationTagsData);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

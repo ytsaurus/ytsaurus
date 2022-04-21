@@ -31,6 +31,8 @@ void UpdateMemoryUsageSnapshot(THashMap<TMemoryTag, ui64> usageSnapshot);
 
 i64 GetEstimatedMemoryUsage(TMemoryTag tag);
 
+void EnableMemoryProfilingTags();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf
