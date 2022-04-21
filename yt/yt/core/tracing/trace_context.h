@@ -111,6 +111,14 @@ public:
     void SetRequestId(TRequestId requestId);
     TRequestId GetRequestId() const;
 
+    //! Sets allocation tags.
+    /*!
+     *  Not thread-safe.
+     */
+    void SetAllocationTags(TAllocationTagsPtr tags);
+    TAllocationTagsPtr GetAllocationTags() const;
+    std::vector<std::pair<TString, TString>> ExtractAllocationTags() const;
+
     //! Sets logging tag.
     /*!
      *  Not thread-safe.
@@ -211,6 +219,7 @@ private:
     NYson::TYsonString Baggage_;
 
     std::vector<std::pair<TString, std::variant<TString, i64>>> ProfilingTags_;
+    TAllocationTagsPtr AllocationTags_;
 
     TTraceContext(
         TSpanContext parentSpanContext,

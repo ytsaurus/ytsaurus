@@ -18,6 +18,8 @@ DECLARE_REFCOUNTED_CLASS(TTraceContext)
 
 DECLARE_REFCOUNTED_CLASS(TTracingConfig)
 
+DECLARE_REFCOUNTED_CLASS(TAllocationTags)
+
 using TTraceId = TGuid;
 constexpr TTraceId InvalidTraceId = {};
 
