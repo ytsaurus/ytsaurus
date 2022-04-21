@@ -779,6 +779,9 @@ TDataNodeDynamicConfig::TDataNodeDynamicConfig()
     RegisterParameter("abort_on_location_disabled", AbortOnLocationDisabled)
         .Default(true);
 
+    RegisterParameter("check_disk_space_limit", CheckDiskSpaceLimit)
+        .Default(false);
+
     RegisterParameter("p2p", P2P)
         .Optional();
 

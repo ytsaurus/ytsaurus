@@ -1271,7 +1271,7 @@ void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
             auto directory = NFS::GetDirectoryName(GetTrashChunkPath(chunkId));
             auto fileName = NFS::CombinePaths(directory, name);
             if (NFS::Exists(fileName)) {
-                auto statistics = NFS::GetFileStatistics(fileName);
+                auto statistics = NFS::GetPathStatistics(fileName);
                 timestamp = std::max(timestamp, statistics.ModificationTime);
                 diskSpace += statistics.Size;
             }
@@ -1437,8 +1437,8 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId
     bool hasMeta = NFS::Exists(metaFileName);
 
     if (hasMeta && hasData) {
-        i64 dataSize = NFS::GetFileStatistics(dataFileName).Size;
-        i64 metaSize = NFS::GetFileStatistics(metaFileName).Size;
+        i64 dataSize = NFS::GetPathStatistics(dataFileName).Size;
+        i64 metaSize = NFS::GetPathStatistics(metaFileName).Size;
         if (metaSize > 0) {
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
@@ -1660,8 +1660,8 @@ std::optional<TChunkDescriptor> TCacheLocation::Repair(
     bool hasMeta = NFS::Exists(metaFileName);
 
     if (hasMeta && hasData) {
-        i64 dataSize = NFS::GetFileStatistics(dataFileName).Size;
-        i64 metaSize = NFS::GetFileStatistics(metaFileName).Size;
+        i64 dataSize = NFS::GetPathStatistics(dataFileName).Size;
+        i64 metaSize = NFS::GetPathStatistics(metaFileName).Size;
         if (metaSize > 0) {
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;

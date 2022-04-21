@@ -737,7 +737,7 @@ private:
                 properties["layers"] = archivePath;
                 properties["read_only"] = "true";
 
-                layerSize = NFS::GetFileStatistics(archivePath).Size;
+                layerSize = NFS::GetPathStatistics(archivePath).Size;
 
                 YT_LOG_DEBUG("Create new directory for layer (LayerId: %v, Tag: %v, Path: %v)",
                     id, tag, layerDirectory);

@@ -103,19 +103,24 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const TString& path);
 //! Creates the #path and parent directories if they don't exists.
 void MakeDirRecursive(const TString& path, int mode = 0777);
 
-struct TFileStatistics
+struct TPathStatistics
 {
     i64 Size = -1;
-    std::optional<ui64> INode;
+    ui64 INode;
+    int DeviceId;
     TInstant ModificationTime;
     TInstant AccessTime;
 };
 
-//! Returns the file statistics.
-TFileStatistics GetFileStatistics(const TString& path);
+//! Returns the path statistics.
+TPathStatistics GetPathStatistics(const TString& path);
 
 //! Recursively calculates size of all regular files inside the directory.
-i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles = true, bool deduplicateByINodes = false);
+i64 GetDirectorySize(
+    const TString& path,
+    bool ignoreUnavailableFiles = true,
+    bool deduplicateByINodes = false,
+    bool checkDeviceId = false);
 
 //! Sets the access and modification times to now.
 void Touch(const TString& path);

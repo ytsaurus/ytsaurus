@@ -206,7 +206,7 @@ std::vector<i64> TGetDirectorySizesAsRootTool::operator()(const TGetDirectorySiz
     std::vector<i64> sizes;
     sizes.reserve(paths.size());
     for (const auto& path : paths) {
-        auto size = NFS::GetDirectorySize(path, config->IgnoreUnavailableFiles, config->DeduplicateByINodes);
+        auto size = NFS::GetDirectorySize(path, config->IgnoreUnavailableFiles, config->DeduplicateByINodes, config->CheckDeviceId);
         sizes.push_back(size);
     }
 

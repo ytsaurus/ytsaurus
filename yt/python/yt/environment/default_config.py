@@ -433,6 +433,8 @@ b"""
         };
 
         sync_directories_on_connect = %true;
+
+        check_disk_space_limit = %true;
     };
 
     exec_agent = {
