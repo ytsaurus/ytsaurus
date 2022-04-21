@@ -9,6 +9,8 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/io/gentle_loader.h>
+#include <yt/yt/server/lib/io/io_workload_model.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -133,7 +135,9 @@ public:
 
         loader->SubscribeCongested(
             BIND(&TLocationLoadTester::SessionCongested, MakeWeak(this), Session_->Timestamp));
-        loader->Start();
+
+        // TODO(capone212): think about using workload model.
+        loader->Start({});
     }
 
     bool Running() const

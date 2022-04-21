@@ -275,7 +275,7 @@ protected:
             queue->Enqueue(window);
         }));
 
-        gentleLoader->Start();
+        gentleLoader->Start({});
 
         std::vector<i64> result;
 

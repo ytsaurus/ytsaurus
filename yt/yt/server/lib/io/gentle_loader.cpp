@@ -85,13 +85,13 @@ public:
         std::swap(filesToRead, FilesToRead_);
     }
 
-    TFuture<TDuration> Read(i64 readSize)
+    TFuture<TDuration> Read(EWorkloadCategory category, i64 packetSize)
     {
         if (FilesToRead_.empty()) {
             return MakeFuture<TDuration>(TError("No files to read."));
         }
         auto index = RandomNumber<ui32>(FilesToRead_.size());
-        return DoRandomRead(FilesToRead_[index], readSize);
+        return DoRandomRead(FilesToRead_[index], category, packetSize);
     }
 
 private:
@@ -110,6 +110,7 @@ private:
 
     TFuture<TDuration> DoRandomRead(
         TReadFileInfo fileInfo,
+        EWorkloadCategory category,
         i64 readSize)
     {
         i64 offset = 0;
@@ -133,7 +134,7 @@ private:
         NProfiling::TWallTimer requestTimer;
         return IOEngine_->Read<TChunkFileReaderBufferTag>(
             {{fileInfo.Handle, offset, readSize}},
-            EWorkloadCategory::Idle)
+            category)
             .AsVoid()
             .Apply(BIND([requestTimer] {
                 return requestTimer.GetElapsedTime();
@@ -158,7 +159,6 @@ public:
         , IOEngine_(std::move(engine))
         , Logger(std::move(logger))
         , WriteThreadPool_(New<TThreadPool>(4, "RandomWriter"))
-        , Buffer_(MakeRandomBuffer(Config_->PacketSize))
     {
         const TString tempFilesDir = NFS::JoinPaths(path, Config_->WritersFolder);
         if (!NFS::Exists(tempFilesDir)) {
@@ -198,11 +198,11 @@ public:
         }
     }
 
-    TFuture<TDuration> Write()
+    TFuture<TDuration> Write(EWorkloadCategory category, i64 packetSize)
     {
         auto index = RandomNumber<ui32>(FilesToWrite_.size());
         const auto& fileInfo = FilesToWrite_[index];
-        return BIND(&TRandomWriter::DoWrite, MakeStrong(this), index)
+        return BIND(&TRandomWriter::DoWrite, MakeStrong(this), index, category, packetSize)
             .AsyncVia(fileInfo.Invoker)
             .Run();
     }
@@ -220,23 +220,24 @@ private:
     const IIOEngineWorkloadModelPtr IOEngine_;
     const NLogging::TLogger Logger;
     const TThreadPoolPtr WriteThreadPool_;
-    const TSharedRef Buffer_;
 
     std::vector<TFileInfo> FilesToWrite_;
 
 
-    TDuration DoWrite(ui32 index)
+    TDuration DoWrite(ui32 index, EWorkloadCategory category, i64 packetSize)
     {
         auto& fileInfo = FilesToWrite_[index];
 
         VERIFY_INVOKER_AFFINITY(fileInfo.Invoker);
 
         NProfiling::TWallTimer requestTimer;
-        auto future = IOEngine_->Write({
-            fileInfo.Handle,
-            fileInfo.Offset,
-            {Buffer_},
-        });
+        auto future = IOEngine_->Write(
+            {
+                fileInfo.Handle,
+                fileInfo.Offset,
+                {MakeRandomBuffer(packetSize)},
+            },
+            category);
 
         WaitFor(future)
             .ThrowOnError();
@@ -321,7 +322,7 @@ private:
         }
 
         const auto& userReadLatency = latencyHistogram->Reads[EWorkloadCategory::UserInteractive];
-        auto quantiles = ComputeHistogramSumary(userReadLatency);
+        auto quantiles = ComputeHistogramSummary(userReadLatency);
         auto q99Latency = TDuration::MilliSeconds(quantiles.P99);
 
         if (quantiles.TotalCount) {
@@ -439,7 +440,7 @@ private:
             }
 
             if (std::ssize(Probes_) < Config_->MaxInFlightProbeCount) {
-                Probes_.push_back(RandomReader_->Read(Config_->PacketSize));
+                Probes_.push_back(RandomReader_->Read(EWorkloadCategory::Idle, Config_->PacketSize));
             } else {
                 YT_LOG_ERROR("Something went wrong: max probe request count reached");
             }
@@ -510,6 +511,83 @@ private:
         State_.store(state, std::memory_order_relaxed);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRequestSampler final
+{
+public:
+    struct TRequestInfo
+    {
+        EWorkloadCategory Workload = EWorkloadCategory::Idle;
+        i64 Size = 0;
+    };
+
+    TRequestSampler(
+        i64 defaultSize,
+        const TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>&  distribution)
+    {
+        for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+            const auto& hist = distribution[category];
+            const auto& bins = hist.GetBins();
+            const auto& counters = hist.GetCounters();
+
+            for (int index = 0; index < std::ssize(bins); ++index) {
+                if (counters[index] == 0) {
+                    continue;
+                }
+                Weights_.push_back(counters[index]);
+                TotalByteCount_ += counters[index] * bins[index];
+                Requests_.push_back(TRequestInfo{
+                    .Workload = category,
+                    .Size = bins[index],
+                });
+            }
+        }
+
+        if (Weights_.empty()) {
+            Weights_.push_back(1);
+            Requests_.push_back(TRequestInfo{
+                .Size = defaultSize,
+            });
+            TotalByteCount_ = defaultSize;
+        }
+
+        std::partial_sum(Weights_.begin(), Weights_.end(), Weights_.begin());
+
+        AverageRequestSize_ = TotalByteCount() / TotalIOCount();
+    }
+
+    TRequestInfo Next() const
+    {
+        auto value = RandomNumber<ui64>(Weights_.back());
+        auto it = std::upper_bound(Weights_.begin(), Weights_.end(), value);
+        auto index = std::distance(Weights_.begin(), it);
+
+        return Requests_[index];
+    }
+
+    i64 TotalByteCount() const {
+        return TotalByteCount_;
+    }
+
+    i64 TotalIOCount() const {
+        return Weights_.back();
+    }
+
+    i64 AverageRequestSize() const  {
+        return AverageRequestSize_;
+    }
+
+private:
+    std::vector<i64> Weights_;
+    std::vector<TRequestInfo> Requests_;
+
+    i64 TotalByteCount_ = 0;
+    i64 AverageRequestSize_ = 0;
+};
+
+using TRequestSamplerPtr = TIntrusivePtr<TRequestSampler>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -654,11 +732,11 @@ public:
         YT_LOG_DEBUG("Destroyed TGentleLoader");
     }
 
-    virtual void Start() override
+    virtual void Start(const TRequestSizes& workloadModel) override
     {
         YT_VERIFY(!Started_);
         Started_ = true;
-        BIND(&TGentleLoader::Run, MakeStrong(this))
+        BIND(&TGentleLoader::Run, MakeStrong(this), std::move(workloadModel))
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -680,19 +758,21 @@ private:
     const IIOEngineWorkloadModelPtr IOEngine_;
     const IRandomFileProviderPtr RandomFileProvider_;
     const IInvokerPtr Invoker_;
-    const ui8 ReadToWriteRatio_;
 
+    ui8 ReadToWriteRatio_;
     ILoadAdjusterPtr LoadAdjuster_;
+    TRequestSamplerPtr ReadRequestSampler_;
+    TRequestSamplerPtr WriteRequestSampler_;
     std::atomic_bool Started_;
     std::vector<TFuture<TDuration>> Results_;
     TInstant YieldTimeCounter_;
 
 
-    void Run()
+    void Run(const TRequestSizes& workloadModel)
     {
         while (Started_) {
             try {
-                DoRun();
+                DoRun(workloadModel);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Gentle loader run failed");
                 TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
@@ -706,7 +786,7 @@ private:
         YieldTimeCounter_ = TInstant::Now();
     }
 
-    void DoRun()
+    void DoRun(const TRequestSizes& workloadModel)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -728,6 +808,8 @@ private:
             Invoker_,
             randomReader,
             Logger);
+
+        ImbueWorkloadModel(workloadModel);
 
         const i32 initialWindow = Config_->InitialWindowSize;
 
@@ -888,20 +970,20 @@ private:
 
     TFuture<TDuration> SendReadRequest(TRandomReader& reader)
     {
-        auto readSize = Config_->PacketSize;
+        auto sample = ReadRequestSampler_->Next();
 
-        if (LoadAdjuster_->ShouldSkipRead(readSize)) {
+        if (LoadAdjuster_->ShouldSkipRead(sample.Size)) {
             // Adjusting for background workload.
             return {};
         }
 
-        return reader.Read(readSize);
+        return reader.Read(sample.Workload, sample.Size);
     }
 
     TFuture<TDuration> SendWriteRequest(TRandomWriter& writer, i64 desiredWriteIOPS)
     {
         // Respect max write limit.
-        i64 maxWriteIOPS = Config_->MaxWriteRate / Config_->PacketSize;
+        i64 maxWriteIOPS = Config_->MaxWriteRate / WriteRequestSampler_->AverageRequestSize();
         YT_VERIFY(maxWriteIOPS >= 0);
         desiredWriteIOPS = std::max<i64>(desiredWriteIOPS, 1);
 
@@ -910,15 +992,32 @@ private:
             return {};
         }
 
+        auto sample = WriteRequestSampler_->Next();
+
         // Respect background load.
-        if (LoadAdjuster_->ShouldSkipWrite(Config_->PacketSize)) {
+        if (LoadAdjuster_->ShouldSkipWrite(sample.Size)) {
             // Adjusting for background workload.
             return {};
         }
 
-        return writer.Write();
+        return writer.Write(sample.Workload, sample.Size);
     }
 
+    void ImbueWorkloadModel(const TRequestSizes& requestSizes) {
+        ReadRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, requestSizes.Reads);
+        WriteRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, requestSizes.Writes);
+
+        static const i64 DefaultIOCount = 1;
+
+        auto readsCount = ReadRequestSampler_->TotalIOCount();
+        auto writesCount = WriteRequestSampler_->TotalIOCount();
+
+        if (readsCount != DefaultIOCount || writesCount != DefaultIOCount) {
+            ReadToWriteRatio_ = (readsCount * 100) / (readsCount + writesCount);
+        }
+    }
+
+    // TODO(capone212): Remove after using request sizes histogram everywhere.
      static ui8 GetReadToWriteRatio(
         const TGentleLoaderConfigPtr& config,
         IIOEngineWorkloadModelPtr engine)

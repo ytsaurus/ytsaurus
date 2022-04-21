@@ -64,28 +64,28 @@ TRequestLatencyHistogram::TRequestLatencyHistogram()
     : TFixedBinsHistogramBase(RequestLatencyBins)
 { }
 
-THistogramSummary ComputeHistogramSumary(const TFixedBinsHistogramBase& hist)
+THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist)
 {
     const auto& counters = hist.GetCounters();
 
-    THistogramSummary sumary;
+    THistogramSummary summary;
     int currentBinIndex = 0;
-    sumary.TotalCount = std::accumulate(counters.begin(), counters.end(), 0LL);
+    summary.TotalCount = std::accumulate(counters.begin(), counters.end(), 0LL);
 
     i64 counter = 0;
     auto computeNextQuantile = [&] (double quantile) {
-        while (currentBinIndex < std::ssize(counters) - 1 && counter < quantile * sumary.TotalCount) {
+        while (currentBinIndex < std::ssize(counters) - 1 && counter < quantile * summary.TotalCount) {
             counter += counters[currentBinIndex];
             ++currentBinIndex;
         }
         return hist.GetBins()[currentBinIndex];
     };
 
-    sumary.P90 = computeNextQuantile(0.9);
-    sumary.P99 = computeNextQuantile(0.99);
-    sumary.P99_9 = computeNextQuantile(0.999);
+    summary.P90 = computeNextQuantile(0.9);
+    summary.P99 = computeNextQuantile(0.99);
+    summary.P99_9 = computeNextQuantile(0.999);
 
-    return sumary;
+    return summary;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -45,7 +45,7 @@ TEST(THistogramTest, Quantiles)
         hist.RecordValue(i, LargeValue);
     }
 
-    THistogramSummary sumary = ComputeHistogramSumary(hist);
+    THistogramSummary sumary = ComputeHistogramSummary(hist);
 
     EXPECT_EQ(sumary.TotalCount, std::ssize(hist.GetBins()) * LargeValue);
     EXPECT_EQ(sumary.P90, 900);
@@ -58,7 +58,7 @@ TEST(THistogramTest, QuantileBoundaryConditions)
     TFixedBinsHistogramBase hist({4, 8, 16});
 
     {
-        THistogramSummary sumary = ComputeHistogramSumary(hist);
+        THistogramSummary sumary = ComputeHistogramSummary(hist);
         EXPECT_EQ(sumary.TotalCount, 0);
         EXPECT_EQ(sumary.P90, 4);
         EXPECT_EQ(sumary.P99, 4);
@@ -67,7 +67,7 @@ TEST(THistogramTest, QuantileBoundaryConditions)
 
     hist.RecordValue(17);
     {
-        auto sumary = ComputeHistogramSumary(hist);
+        auto sumary = ComputeHistogramSummary(hist);
         EXPECT_EQ(sumary.TotalCount, 1);
         EXPECT_EQ(sumary.P90, 16);
         EXPECT_EQ(sumary.P99, 16);

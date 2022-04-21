@@ -44,6 +44,8 @@ struct IBlocksExtCache;
 
 struct TIOEvent;
 
+struct TRequestSizes;
+
 constexpr i64 SectorSize = 512;
 
 ////////////////////////////////////////////////////////////////////////////////
