@@ -336,6 +336,7 @@ private:
         resourceUsage.set_user_memory(reportedResourceUsage.memory());
         resourceUsage.set_cpu(reportedResourceUsage.cpu());
         resourceUsage.set_network(reportedResourceUsage.network());
+        resourceUsage.set_vcpu(resourceUsage.cpu() * jobController->GetCpuToVCpuFactor());
 
         job->SetResourceUsage(resourceUsage);
 

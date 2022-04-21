@@ -22,6 +22,11 @@ public:
 
 private:
     THashSet<NObjectClient::TJobId> JobIdsToConfirm_;
+    // For converting vcpu to cpu back after getting response from scheduler.
+    // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
+    double LastHeartbeatCpuToVCpuFactor_ = 1.0;
+
+    void ReplaceCpuWithVCpu(NNodeTrackerClient::NProto::TNodeResources& resources) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

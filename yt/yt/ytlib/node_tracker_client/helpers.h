@@ -33,7 +33,8 @@ namespace NYT::NNodeTrackerClient {
     XX(repair_data_size,      RepairDataSize) \
     XX(seal_slots,            SealSlots) \
     XX(merge_slots,           MergeSlots) \
-    XX(autotomy_slots,        AutotomySlots)
+    XX(autotomy_slots,        AutotomySlots) \
+    XX(vcpu,                  VCpu)
 
 #define ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX) \
     XX(cpu,                   Cpu) \

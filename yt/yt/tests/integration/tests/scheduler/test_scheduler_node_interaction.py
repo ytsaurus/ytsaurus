@@ -2,9 +2,14 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, NODES_SERVIC
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
-    get, set, remove, exists,
+    get, set, remove, exists, run_test_vanilla, raises_yt_error, update_nodes_dynamic_config,
     create_pool, create_pool_tree, read_table, write_table, map, abort_job, get_job, list_jobs,
     get_operation_cypress_path, set_banned_flag)
+
+import yt_error_codes
+
+from yt_scheduler_helpers import (
+    scheduler_orchid_node_path)
 
 from yt.common import YtError, YtResponseError
 
@@ -112,6 +117,117 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
                     "max_failed_job_count": 1,
                 },
             )
+
+
+##################################################################
+
+
+class TestReplacementCpuToVCpu(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "cpu_to_vcpu_factor": 1.21,
+                "resource_limits": {
+                    "cpu": 19.3,
+                },
+            },
+        },
+    }
+
+    def _get_job_node(self, op):
+        wait(lambda: len(op.get_running_jobs()) >= 1)
+        jobs = op.get_running_jobs()
+        job = jobs[list(jobs)[0]]
+        return job["address"]
+
+    def _init_dynamic_config(self):
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "job_controller": {
+                    "enable_cpu_to_vcpu_factor": True,
+                },
+            },
+        })
+
+    @authors("nadya73")
+    def test_cpu_to_vcpu_factor_enough_only_with_vcpu(self):
+        self._init_dynamic_config()
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={"cpu_limit": 23},
+        )
+
+        node = self._get_job_node(op)
+
+        wait_breakpoint()
+
+        scheduler_resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
+        assert scheduler_resource_limits["cpu"] == 23.35
+
+        scheduler_resource_usage = get(scheduler_orchid_node_path(node) + "/resource_usage")
+        assert scheduler_resource_usage["cpu"] == 23.0
+
+        node_resource_usage = get(f"//sys/cluster_nodes/{node}/@resource_usage")
+        assert node_resource_usage["cpu"] == 19.01
+        assert node_resource_usage["vcpu"] == 23.0
+
+        node_resource_limits = get(f"//sys/cluster_nodes/{node}/@resource_limits")
+        assert node_resource_limits["cpu"] == 19.3
+        assert node_resource_limits["vcpu"] == 23.35
+
+        release_breakpoint()
+        op.track()
+
+        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
+        assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
+
+    @authors("nadya73")
+    def test_cpu_to_vcpu_factor_no_enough_cpu(self):
+        self._init_dynamic_config()
+        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+            run_test_vanilla(
+                "sleep 1",
+                task_patch={"cpu_limit": 24},
+                track=True,
+            )
+
+        node = ls("//sys/exec_nodes")[0]
+        resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
+        assert resource_limits["cpu"] == 23.35
+
+
+class TestVCpuDisableByDefault(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "cpu_to_vcpu_factor": 1.21,
+                "resource_limits": {
+                    "cpu": 19.3,
+                }
+            }
+        }
+    }
+
+    @authors("nadya73")
+    def test_one_cpu_to_vcpu_factor(self):
+        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
+            run_test_vanilla(
+                "sleep 1",
+                task_patch={"cpu_limit": 23},
+                track=True
+            )
+
+        node = ls("//sys/exec_nodes")[0]
+        resource_limits = get(scheduler_orchid_node_path(node) + "/resource_limits")
+        assert resource_limits["cpu"] == 19.3
 
 
 ##################################################################

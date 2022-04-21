@@ -155,6 +155,12 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
         .Default();
 
+    registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
+        .Default();
+
+    registrar.Parameter("enable_cpu_to_vcpu_factor", &TThis::EnableCpuToVCpuFactor)
+        .Default(false);
+
     registrar.Parameter("memory_overdraft_timeout", &TThis::MemoryOverdraftTimeout)
         .Default();
 
@@ -219,6 +225,9 @@ void TJobControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("cpu_per_tablet_slot", &TThis::CpuPerTabletSlot)
+        .Default(1.0);
+
+    registrar.Parameter("cpu_to_vcpu_factor", &TThis::CpuToVCpuFactor)
         .Default(1.0);
 
     registrar.Parameter("start_port", &TThis::StartPort)
