@@ -337,6 +337,9 @@ public:
     //! If |true|, new master heartbeats are used (if master supports them).
     bool UseNewHeartbeats;
 
+    //! If |true|, exec node do not report data node heartbeats.
+    bool ExecNodeIsNotDataNode;
+
     //! List of the node flavors.
     std::vector<NNodeTrackerClient::ENodeFlavor> Flavors;
 

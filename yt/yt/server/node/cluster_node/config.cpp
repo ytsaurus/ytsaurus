@@ -297,6 +297,9 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_new_heartbeats", &TThis::UseNewHeartbeats)
         .Default(false);
 
+    registrar.Parameter("exec_node_is_not_data_node", &TThis::ExecNodeIsNotDataNode)
+        .Default(false);
+
     registrar.Parameter("flavors", &TThis::Flavors)
         .Default({
             NNodeTrackerClient::ENodeFlavor::Data,

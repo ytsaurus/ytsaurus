@@ -648,6 +648,15 @@ public:
         return TabletNodeBootstrap_.get();
     }
 
+    bool NeedDataNodeBootstrap() const override
+    {
+        if (IsDataNode()) {
+            return true;
+        }
+
+        return IsExecNode() && !Config_->ExecNodeIsNotDataNode;
+    }
+
 private:
     const TClusterNodeConfigPtr Config_;
     const INodePtr ConfigNode_;
@@ -948,7 +957,7 @@ private:
         }
 
         // NB: Data Node master connector is required for chunk cache.
-        if (IsDataNode() || IsExecNode()) {
+        if (NeedDataNodeBootstrap()) {
             DataNodeBootstrap_ = NDataNode::CreateBootstrap(this);
         }
 
@@ -1019,7 +1028,7 @@ private:
         }
     #endif
 
-        if (IsDataNode() || IsExecNode()) {
+        if (NeedDataNodeBootstrap()) {
             DataNodeBootstrap_->Initialize();
         }
 
@@ -1132,7 +1141,7 @@ private:
             ChaosNodeBootstrap_->Run();
         }
 
-        if (IsDataNode() || IsExecNode()) {
+        if (NeedDataNodeBootstrap()) {
             DataNodeBootstrap_->Run();
         }
 
@@ -1646,6 +1655,11 @@ NChaosNode::IBootstrap* TBootstrapBase::GetChaosNodeBootstrap() const
 NTabletNode::IBootstrap* TBootstrapBase::GetTabletNodeBootstrap() const
 {
     return Bootstrap_->GetTabletNodeBootstrap();
+}
+
+bool TBootstrapBase::NeedDataNodeBootstrap() const
+{
+    return Bootstrap_->NeedDataNodeBootstrap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -125,6 +125,7 @@ DEFINE_ENUM(EMasterReign,
     ((TwoPhaseCellBundleCreation)                                   (1956))  // babenko
     ((MoveSyncSuppressionFlagsToMulticellSyncExt_22_1)              (1957))  // shakurov
     ((RelativeReplicationThrottler)                                 (1958))  // ifsmirnov
+    ((ExecNodeIsNotDataNode)                                        (1959))  // gritukan
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
     ((EnableStripedErasureAttribute)                                (1981))  // gritukan

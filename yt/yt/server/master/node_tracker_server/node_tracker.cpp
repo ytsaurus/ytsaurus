@@ -1018,6 +1018,7 @@ private:
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
         auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
+        auto execNodeIsNotDataNode = request->exec_node_is_not_data_node();
 
         TString hostName;
         // COMPAT(gritukan)
@@ -1145,6 +1146,8 @@ private:
             node->SetVersion(request->build_version());
         }
 
+        node->SetExecNodeIsNotDataNode(execNodeIsNotDataNode);
+
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
         tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
@@ -1164,7 +1167,7 @@ private:
 
         NodeRegistered_.Fire(node);
 
-        if (node->IsDataNode() || node->IsExecNode()) {
+        if (node->IsDataNode() || (node->IsExecNode() && !execNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
@@ -1778,23 +1781,23 @@ private:
     }
 
 
-    THashSet<ENodeHeartbeatType> GetExpectedHeartbeatsForFlavors(
-        const THashSet<ENodeFlavor>& flavors,
-        bool primaryMaster)
+    THashSet<ENodeHeartbeatType> GetExpectedHeartbeats(TNode* node, bool primaryMaster)
     {
         THashSet<ENodeHeartbeatType> result;
         if (primaryMaster) {
             result.insert(ENodeHeartbeatType::Cluster);
         }
 
-        for (auto flavor : flavors) {
+        for (auto flavor : node->Flavors()) {
             switch (flavor) {
                 case ENodeFlavor::Data:
                     result.insert(ENodeHeartbeatType::Data);
                     break;
 
                 case ENodeFlavor::Exec:
-                    result.insert(ENodeHeartbeatType::Data);
+                    if (!node->GetExecNodeIsNotDataNode()) {
+                        result.insert(ENodeHeartbeatType::Data);
+                    }
                     if (primaryMaster) {
                         result.insert(ENodeHeartbeatType::Exec);
                     }
@@ -1819,7 +1822,7 @@ private:
     void CheckNodeOnline(TNode* node)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto expectedHeartbeats = GetExpectedHeartbeatsForFlavors(node->Flavors(), multicellManager->IsPrimaryMaster());
+        auto expectedHeartbeats = GetExpectedHeartbeats(node, multicellManager->IsPrimaryMaster());
         if (node->GetLocalState() == ENodeState::Registered && node->ReportedHeartbeats() == expectedHeartbeats) {
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Online);

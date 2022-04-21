@@ -480,6 +480,7 @@ void TNode::Save(TSaveContext& context) const
     Save(context, Version_);
     Save(context, Flavors_);
     Save(context, ReportedHeartbeats_);
+    Save(context, ExecNodeIsNotDataNode_);
     Save(context, ReplicaEndorsements_);
     Save(context, ConsistentReplicaPlacementTokenCount_);
 }
@@ -561,6 +562,12 @@ void TNode::Load(TLoadContext& context)
     Load(context, Flavors_);
     // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
     Load(context, ReportedHeartbeats_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::ExecNodeIsNotDataNode) {
+        Load(context, ExecNodeIsNotDataNode_);
+    }
+
     Load(context, ReplicaEndorsements_);
 
     if (context.GetVersion() >= EMasterReign::Crp) {

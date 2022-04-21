@@ -29,6 +29,9 @@ message TReqRegisterNode
     optional string host_name = 10;
     repeated string table_mount_config_keys = 11;
 
+    // COMPAT(gritukan)
+    optional bool exec_node_is_not_data_node = 12;
+
     reserved 2;
 }
 

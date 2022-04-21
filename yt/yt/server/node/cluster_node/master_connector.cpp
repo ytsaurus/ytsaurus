@@ -530,7 +530,9 @@ private:
         req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
         req->set_build_version(GetVersion());
 
-        if (Bootstrap_->IsDataNode() || Bootstrap_->IsExecNode()) {
+        req->set_exec_node_is_not_data_node(Bootstrap_->GetConfig()->ExecNodeIsNotDataNode);
+
+        if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& storeLocations = Bootstrap_
                 ->GetDataNodeBootstrap()
                 ->GetChunkStore()
@@ -560,7 +562,7 @@ private:
             }
         }
 
-        if (Bootstrap_->IsDataNode() || Bootstrap_->IsExecNode()) {
+        if (Bootstrap_->NeedDataNodeBootstrap()) {
             const auto& dataNodeBootstrap = Bootstrap_->GetDataNodeBootstrap();
             const auto& mediumUpdater = dataNodeBootstrap->GetMediumUpdater();
             if (rsp->HasExtension(TDataNodeInfoExt::data_node_info_ext)) {
