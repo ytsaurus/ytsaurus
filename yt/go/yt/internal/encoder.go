@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/opentracing/opentracing-go"
+
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
@@ -285,6 +287,9 @@ func (e *Encoder) StartTabletTx(
 	ctx context.Context,
 	options *yt.StartTabletTxOptions,
 ) (id yt.TxID, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "StartTabletTx")
+	defer span.Finish()
+
 	call := e.newCall(NewStartTabletTxParams(options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		err = res.decodeSingle("transaction_id", &id)
