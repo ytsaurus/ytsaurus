@@ -187,9 +187,14 @@ class Clique(object):
             if counter % 30 == 0:
                 self._print_progress()
             elif counter >= max_counter_value:
+                clique_directory_path = "//sys/clickhouse/cliques/{}".format(self.op.id)
+                clique_directory = None
+                if exists(clique_directory_path):
+                    clique_directory = get(clique_directory_path, verbose=False)
+
                 raise YtError(
                     "Clique did not start in time, clique directory: {}".format(
-                        get("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False)
+                        clique_directory if clique_directory is not None else "does not exist"
                     )
                 )
 
