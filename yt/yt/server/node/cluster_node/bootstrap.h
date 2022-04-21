@@ -170,6 +170,9 @@ struct IBootstrapBase
     virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const = 0;
     virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const = 0;
     virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const = 0;
+
+    // COMPAT(gritukan)
+    virtual bool NeedDataNodeBootstrap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -296,6 +299,8 @@ public:
     NExecNode::IBootstrap* GetExecNodeBootstrap() const override;
     NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
     NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
+
+    bool NeedDataNodeBootstrap() const override;
 
 private:
     IBootstrapBase* const Bootstrap_;

@@ -37,7 +37,7 @@ TChunkContextPtr TChunkContext::Create(NClusterNode::IBootstrapBase* bootstrap)
         .DataNodeConfig = bootstrap->GetConfig()->DataNode,
 
         .ChunkReaderSweeper = bootstrap->GetChunkReaderSweeper(),
-        .JournalDispatcher = bootstrap->IsDataNode() || bootstrap->IsExecNode()
+        .JournalDispatcher = bootstrap->NeedDataNodeBootstrap()
             ? bootstrap->GetDataNodeBootstrap()->GetJournalDispatcher()
             : nullptr,
         .BlobReaderCache = bootstrap->GetBlobReaderCache(),

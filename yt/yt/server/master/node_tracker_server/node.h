@@ -133,6 +133,9 @@ public:
     //! Node is considered online iff it received all heartbeats corresponded to its flavors.
     DEFINE_BYREF_RW_PROPERTY(THashSet<ENodeHeartbeatType>, ReportedHeartbeats);
 
+    // COMPAT(gritukan)
+    DEFINE_BYVAL_RW_PROPERTY(bool, ExecNodeIsNotDataNode);
+
     //! Helpers for |ReportedHeartbeats| access.
     bool ReportedClusterNodeHeartbeat() const;
     bool ReportedDataNodeHeartbeat() const;
