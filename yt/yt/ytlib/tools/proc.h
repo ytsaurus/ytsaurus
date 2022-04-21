@@ -206,6 +206,7 @@ public:
     std::vector<TString> Paths;
     bool IgnoreUnavailableFiles;
     bool DeduplicateByINodes;
+    bool CheckDeviceId;
 
     TGetDirectorySizesAsRootConfig()
     {
@@ -214,6 +215,8 @@ public:
         RegisterParameter("ignore_unavailable_files", IgnoreUnavailableFiles)
             .Default(true);
         RegisterParameter("deduplicate_by_inodes", DeduplicateByINodes)
+            .Default(false);
+        RegisterParameter("check_device_id", CheckDeviceId)
             .Default(false);
     }
 };

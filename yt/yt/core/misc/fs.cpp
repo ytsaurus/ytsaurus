@@ -361,51 +361,34 @@ void MakeDirRecursive(const TString& path, int mode)
     MakePathIfNotExist(path.data(), mode);
 }
 
-TFileStatistics GetFileStatistics(const TString& path)
+TPathStatistics GetPathStatistics(const TString& path)
 {
-    TFileStatistics statistics;
 #ifdef _unix_
+    TPathStatistics statistics;
+    
     struct stat fileStat;
     int result = ::stat(path.data(), &fileStat);
-#else
-    WIN32_FIND_DATA findData;
-    HANDLE handle = ::FindFirstFileA(~path, &findData);
-#endif
 
-#ifdef _unix_
     if (result == -1) {
-#else
-    if (handle == INVALID_HANDLE_VALUE) {
-#endif
         THROW_ERROR_EXCEPTION("Failed to get statistics for %v",
             path)
             << TError::FromSystem();
     }
 
-#ifdef _unix_
     statistics.Size = static_cast<i64>(fileStat.st_size);
     statistics.ModificationTime = TInstant::Seconds(fileStat.st_mtime);
     statistics.AccessTime = TInstant::Seconds(fileStat.st_atime);
     statistics.INode = fileStat.st_ino;
-#else
-    ::FindClose(handle);
-    statistics.Size = (static_cast<i64>(findData.nFileSizeHigh) << 32) + static_cast<i64>(findData.nFileSizeLow);
-    statistics.ModificationTime = TInstant::MicroSeconds(ToMicroSeconds(findData.ftLastWriteTime));
-    statistics.AccessTime = TInstant::MicroSeconds(ToMicroSeconds(findData.ftLastAccessTime));
-#endif
+    statistics.DeviceId = fileStat.st_dev;
 
     return statistics;
+#else
+    ThrowNotSupported();
+#endif
 }
 
-i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool deduplicateByINodes)
+i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool deduplicateByINodes, bool checkDeviceId)
 {
-    std::queue<TString> directories;
-    directories.push(path);
-
-    THashSet<ui64> visitedInodes;
-
-    i64 size = 0;
-
     auto wrapNoEntryError = [&] (std::function<void()> func) {
         try {
             func();
@@ -423,11 +406,24 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool dedu
             }
         }
     };
+    
+    std::queue<TString> directories;
+    directories.push(path);
+                
+    TPathStatistics rootDirStatistics;
+    wrapNoEntryError([&] {
+        rootDirStatistics = GetPathStatistics(path);
+    });
+
+    THashSet<ui64> visitedInodes;
+
+    i64 size = 0;
+
 
     while (!directories.empty()) {
         const auto& directory = directories.front();
 
-        wrapNoEntryError([&] ()  {
+        wrapNoEntryError([&] {
             auto subdirectories = EnumerateDirectories(directory);
             for (const auto& subdirectory : subdirectories) {
                 directories.push(CombinePaths(directory, subdirectory));
@@ -435,18 +431,21 @@ i64 GetDirectorySize(const TString& path, bool ignoreUnavailableFiles, bool dedu
         });
 
         std::vector<TString> files;
-        wrapNoEntryError([&] () {
+        wrapNoEntryError([&] {
             files = EnumerateFiles(directory);
         });
 
         for (const auto& file : files) {
-            wrapNoEntryError([&] () {
-                auto fileStatistics = GetFileStatistics(CombinePaths(directory, file));
-                if (deduplicateByINodes && fileStatistics.INode) {
-                    auto insertResult = visitedInodes.insert(*fileStatistics.INode);
+            wrapNoEntryError([&] {
+                auto fileStatistics = GetPathStatistics(CombinePaths(directory, file));
+                if (deduplicateByINodes) {
+                    auto insertResult = visitedInodes.insert(fileStatistics.INode);
                     if (!insertResult.second) { // File already visited
                         return;
                     }
+                }
+                if (checkDeviceId && fileStatistics.DeviceId != rootDirStatistics.DeviceId) {
+                    return;
                 }
                 if (fileStatistics.Size > 0) {
                     size += fileStatistics.Size;

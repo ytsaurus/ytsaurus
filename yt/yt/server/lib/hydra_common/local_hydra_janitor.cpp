@@ -71,7 +71,7 @@ private:
             i64 size;
             try {
                 id = ParseFileId(fileName, suffix);
-                size = NFS::GetFileStatistics(fullFileName).Size;
+                size = NFS::GetPathStatistics(fullFileName).Size;
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Janitor has found a broken Hydra file (FileName: %v)",
                     fullFileName);

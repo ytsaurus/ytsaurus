@@ -46,7 +46,7 @@ public:
             try {
                 TFileInfo info{
                     .Path = chunk->GetFileName(),
-                    .DiskSpace = NFS::GetFileStatistics(chunk->GetFileName()).Size
+                    .DiskSpace = NFS::GetPathStatistics(chunk->GetFileName()).Size
                 };
 
                 if (info.DiskSpace < minimalFileSize) {

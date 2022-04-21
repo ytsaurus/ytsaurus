@@ -909,6 +909,7 @@ void TSlotLocation::UpdateDiskResources()
             auto config = New<TGetDirectorySizesAsRootConfig>();
             config->IgnoreUnavailableFiles = true;
             config->DeduplicateByINodes = true;
+            config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
                 if (NFS::Exists(path)) {
@@ -936,7 +937,9 @@ void TSlotLocation::UpdateDiskResources()
                     .Usage = slotDiskUsage,
                 }));
 
-            if (sandboxOptions.DiskSpaceLimit) {
+            const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+            const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
+            if (dynamicConfig->CheckDiskSpaceLimit && sandboxOptions.DiskSpaceLimit) {
                 i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
                 diskUsage += slotDiskLimit;
                 YT_LOG_DEBUG("Slot disk usage info (Path: %v, SlotIndex: %v, Usage: %v, Limit: %v)",

@@ -806,6 +806,9 @@ public:
     //! If |true|, node will abort when location becomes disabled.
     bool AbortOnLocationDisabled;
 
+    //! Enables periodic disk space checks.
+    bool CheckDiskSpaceLimit;
+
     TP2PConfigPtr P2P;
 
     TChunkAutotomizerConfigPtr ChunkAutotomizer;
