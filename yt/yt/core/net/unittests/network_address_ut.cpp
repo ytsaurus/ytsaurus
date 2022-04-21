@@ -322,6 +322,25 @@ TEST(TMtnAddressTest, SimpleTest)
     EXPECT_THROW(address.SetHost(1ull << 33), TErrorException);
 }
 
+TEST(InferYPCluster, ValidFqdns)
+{
+    TString gencfgHostName = "sas1-5535-9d7.sas-test.yp.gencfg-c.yandex.net";
+    TString ypHostName = "noqpmfiudzbb4hvs.man.yp-c.yandex.net";
+
+    EXPECT_EQ(InferYPClusterFromHostName(gencfgHostName), "sas-test");
+    EXPECT_EQ(InferYPClusterFromHostName(ypHostName), "man");
+}
+
+TEST(InferYPCluster, InvalidFqdn)
+{
+    TString hostName = "noqpmfiudzbb4hvs..yp-c.yandex.net";
+
+    EXPECT_EQ(InferYPClusterFromHostName(hostName), std::nullopt);
+    EXPECT_EQ(InferYPClusterFromHostName("localhost"), std::nullopt);
+    EXPECT_EQ(InferYPClusterFromHostName("noqpmfiudzbb4hvs."), std::nullopt);
+    EXPECT_EQ(InferYPClusterFromHostName("yandex.net"), std::nullopt);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

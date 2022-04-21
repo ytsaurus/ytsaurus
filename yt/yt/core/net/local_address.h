@@ -28,11 +28,15 @@ namespace NYT::NNet {
 // Read*s.
 // Write* may be called concurrently, but it blocks.
 const char* ReadLocalHostName() noexcept;
+// Also updates the stored local YP cluster.
 void WriteLocalHostName(TStringBuf hostName) noexcept;
+
+const char* ReadLocalYPCluster() noexcept;
 
 // Get* & Set* wrap Read* & Write* for more convenient usage.
 // The price is -- a dynamically allocated string.
 TString GetLocalHostName();
+TString GetLocalYPCluster();
 
 // Update* function interacts with the system to determine actual hostname
 // of the local machine (by calling `gethostname` and `getaddrinfo`).

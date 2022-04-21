@@ -1175,6 +1175,45 @@ void TMtnAddress::SetBytesRangeValue(int leftIndex, int rightIndex, ui64 value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr size_t MaxYPClusterNameSize = 32;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+std::optional<TStringBuf> InferYPClusterFromHostNameRaw(TStringBuf hostName)
+{
+    auto start = hostName.find_first_of('.');
+    if (start == TStringBuf::npos) {
+        return {};
+    }
+    auto end = hostName.find_first_of('.', start + 1);
+    if (end == TStringBuf::npos) {
+        return {};
+    }
+    auto cluster = hostName.substr(start + 1, end - start - 1);
+    if (cluster.empty()) {
+        return {};
+    }
+    if (cluster.length() > MaxYPClusterNameSize) {
+        return {};
+    }
+    return {cluster};
+}
+
+std::optional<TString> InferYPClusterFromHostName(TStringBuf hostName)
+{
+    if (auto rawResult = InferYPClusterFromHostNameRaw(hostName)) {
+        return TString{*rawResult};
+    }
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNet
 
