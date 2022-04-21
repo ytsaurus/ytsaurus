@@ -62,7 +62,6 @@ def main():
     import os
     import gzip
     import sys
-    import imp
     import time
     import tarfile
     import pickle as standard_pickle
@@ -148,10 +147,17 @@ def main():
         if "." in __main_module_name:
             __main_module_package = __main_module_name.rsplit(".", 1)[0]
             __import__(__main_module_package)
-        main_module = imp.load_module(__main_module_name,
-                                      open(__main_filename, 'rb'),
-                                      __main_filename,
-                                      ('', 'rb', imp.__dict__[__main_module_type]))
+        if sys.version_info[0] == 2:
+            import imp
+            main_module = imp.load_module(__main_module_name,
+                                          open(__main_filename, 'rb'),
+                                          __main_filename,
+                                          ('', 'rb', imp.__dict__[__main_module_type]))
+        else:  # python3
+            import importlib
+            spec = importlib.util.spec_from_file_location(__main_module_name, __main_filename)
+            main_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(main_module)
 
         main_module_dict = globals()
         if "__main__" in sys.modules:
