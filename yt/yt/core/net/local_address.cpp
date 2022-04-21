@@ -1,4 +1,5 @@
 #include "local_address.h"
+#include "address.h"
 
 #include "config.h"
 
@@ -19,16 +20,19 @@ namespace NYT::NNet {
 
 namespace {
 
-constexpr size_t MaxLocalHostNameLength = 256;
-constexpr size_t MaxLocalHostNameDataSize = 1024;
+constexpr size_t MaxLocalFieldLength = 256;
+constexpr size_t MaxLocalFieldDataSize = 1024;
 
 // All static variables below must be const-initialized.
 // - char[] is a POD, so it must be const-initialized.
 // - std::atomic has constexpr value constructors.
 // However, there is no way to enforce in compile-time that these variables
 // are really const-initialized, so please double-check it with `objdump -s`.
-char LocalHostNameData[MaxLocalHostNameDataSize] = "(unknown)";
+char LocalHostNameData[MaxLocalFieldDataSize] = "(unknown)";
 std::atomic<char*> LocalHostNamePtr;
+
+char LocalYPClusterData[MaxLocalFieldDataSize] = "(unknown)";
+std::atomic<char*> LocalYPClusterPtr;
 
 } // namespace
 
@@ -41,38 +45,59 @@ const char* ReadLocalHostName() noexcept
     return ptr ? ptr : LocalHostNameData;
 }
 
-void WriteLocalHostName(TStringBuf hostName) noexcept
+const char* ReadLocalYPCluster() noexcept
 {
-    static NThreading::TForkAwareSpinLock Lock;
-    auto guard = Guard(Lock);
+    // Writer-side imposes AcqRel ordering, so all preceding writes must be visible.
+    char* ptr = LocalYPClusterPtr.load(std::memory_order_relaxed);
+    return ptr ? ptr : LocalYPClusterData;
+}
 
-    char* ptr = LocalHostNamePtr.load(std::memory_order_relaxed);
-    ptr = ptr ? ptr : LocalHostNameData;
+void GuardedWriteString(std::atomic<char*>& storage, char* initial, TStringBuf string)
+{
+    char* ptr = storage.load(std::memory_order_relaxed);
+    ptr = ptr ? ptr : initial;
 
-    if (::strncmp(ptr, hostName.data(), hostName.length()) == 0) {
+    if (::strncmp(ptr, string.data(), string.length()) == 0) {
         return; // No changes; just return.
     }
 
     ptr = ptr + strlen(ptr) + 1;
 
-    if (ptr + hostName.length() + 1 >= LocalHostNameData + MaxLocalHostNameDataSize) {
+    if (ptr + string.length() + 1 >= initial + MaxLocalFieldDataSize) {
         ::abort(); // Once we crash here, we can start reusing space.
     }
 
-    ::memcpy(ptr, hostName.data(), hostName.length());
-    *(ptr + hostName.length()) = 0;
+    ::memcpy(ptr, string.data(), string.length());
+    *(ptr + string.length()) = 0;
 
-    LocalHostNamePtr.store(ptr, std::memory_order_seq_cst);
+    storage.store(ptr, std::memory_order_seq_cst);
+}
+
+void WriteLocalHostName(TStringBuf hostName) noexcept
+{
+    static NThreading::TForkAwareSpinLock Lock;
+    auto guard = Guard(Lock);
+
+    GuardedWriteString(LocalHostNamePtr, LocalHostNameData, hostName);
+
+    if (auto ypCluster = InferYPClusterFromHostNameRaw(hostName)) {
+        GuardedWriteString(LocalYPClusterPtr, LocalYPClusterData, *ypCluster);
+    }
 }
 
 TString GetLocalHostName()
 {
-    return TString(ReadLocalHostName());
+    return {ReadLocalHostName()};
+}
+
+TString GetLocalYPCluster()
+{
+    return {ReadLocalYPCluster()};
 }
 
 void UpdateLocalHostName(const TAddressResolverConfigPtr& config)
 {
-    std::array<char, MaxLocalHostNameLength> hostName;
+    std::array<char, MaxLocalFieldLength> hostName;
     hostName.fill(0);
 
     auto onFail = [&] (const std::vector<TError>& errors) {
