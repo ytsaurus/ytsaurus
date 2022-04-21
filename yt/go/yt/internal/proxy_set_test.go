@@ -84,4 +84,12 @@ func TestProxySet(t *testing.T) {
 	active = pickRepeatedly()
 	require.Len(t, active, 5)
 	require.NotContains(t, proxy, active)
+
+	updateResult = []string{"a", "b", "c"}
+
+	time.Sleep(time.Second * 2)
+	_, _ = set.PickRandom(context.Background())
+	time.Sleep(time.Millisecond * 100)
+
+	require.Equal(t, []string{"a", "b", "c"}, pickRepeatedly())
 }
