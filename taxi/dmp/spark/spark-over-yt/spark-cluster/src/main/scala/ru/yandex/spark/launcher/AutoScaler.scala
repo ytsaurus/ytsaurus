@@ -5,17 +5,16 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.launcher.rest.AutoScalerMetricsServer
-import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.proxy.request.GetOperation
+import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
+import ru.yandex.yt.ytclient.proxy.request.{GetOperation, UpdateOperationParameters}
 
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit}
 import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 import scala.language.postfixOps
-import scala.sys.process.ProcessLogger
 import scala.util.control.NonFatal
 
 trait AutoScaler {
@@ -78,12 +77,6 @@ object AutoScaler {
 
   }
 
-  private val processLogger = new ProcessLogger {
-    override def out(s: => String): Unit = log.debug(s)
-    override def err(s: => String): Unit = log.error(s)
-    override def buffer[T](f: => T): T = f
-  }
-
   private val scheduler = new ScheduledThreadPoolExecutor(1,
     new ThreadFactoryBuilder()
       .setDaemon(true)
@@ -99,8 +92,7 @@ object AutoScaler {
     def setUserSlots(count: Long): Unit
   }
 
-  def clusterStateService(discoveryService: DiscoveryService, yt: CompoundClient,
-                          ytConfig: YtClientConfiguration): ClusterStateService =
+  def clusterStateService(discoveryService: DiscoveryService, yt: CompoundClient): ClusterStateService =
     new ClusterStateService {
       val sparkStateService: SparkStateService =
         SparkStateService.sparkStateService(discoveryService.discoverAddress().get.webUiHostAndPort,
@@ -148,13 +140,12 @@ object AutoScaler {
       }
 
       override def setUserSlots(slots: Long): Unit = {
-        val op = discoveryService.operations().get.children.iterator.next()
-        val command = Seq("yt", "update-op-parameters", op,
-          s"""{"scheduling_options_per_pool_tree" = {"physical" = {"resource_limits" = { "user_slots" = $slots }}}}""")
-        log.debug(s"SHELL: $command")
-        import sys.process._
-        val extraEnv = Seq(("YT_TOKEN", ytConfig.token), ("YT_PROXY", ytConfig.proxy))
-        Process(command, None, extraEnv: _*)! processLogger
+        val op = GUID.valueOf(discoveryService.operations().get.children.iterator.next())
+        val req = new UpdateOperationParameters(op)
+          .addSchedulingOptions("physical",
+              new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(slots)))
+        log.debug(s"Updating operation parameters: $req")
+        yt.updateOperationParameters(req).join()
       }
     }
 
@@ -195,9 +186,8 @@ object AutoScaler {
       }
   }
 
-  def build(conf: Conf, discoveryService: DiscoveryService, yt: CompoundClient,
-            ytConfig: YtClientConfiguration): AutoScaler = {
-    val stateService = AutoScaler.clusterStateService(discoveryService, yt, ytConfig)
+  def build(conf: Conf, discoveryService: DiscoveryService, yt: CompoundClient): AutoScaler = {
+    val stateService = AutoScaler.clusterStateService(discoveryService, yt)
     autoScaler(stateService, Seq[Action]())(autoScaleFunctionSliding(conf)(autoScaleFunctionBasic(conf)))
   }
 
