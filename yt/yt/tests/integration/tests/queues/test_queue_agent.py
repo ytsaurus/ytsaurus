@@ -949,14 +949,14 @@ class TestMasterIntegration(TestQueueAgentBase):
                 assert not exists("//tmp/" + name + "/@" + attribute)
 
     def _set_and_assert_revision_change(self, path, attribute, value, enable_revision_changing):
-        old_revision = get(path + "/@revision")
+        old_revision = get(path + "/@attribute_revision")
         set("{}/@{}".format(path, attribute), value)
         assert get("{}/@{}".format(path, attribute)) == value
         # TODO(achulkov2): This should always check for >.
         if enable_revision_changing:
-            assert get(path + "/@revision") > old_revision
+            assert get(path + "/@attribute_revision") > old_revision
         else:
-            assert get(path + "/@revision") == old_revision
+            assert get(path + "/@attribute_revision") == old_revision
 
     @authors("achulkov2")
     @pytest.mark.parametrize("enable_revision_changing", [False, True])
@@ -1047,18 +1047,19 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
     QUEUE_REGISTRY = []
     CONSUMER_REGISTRY = []
 
-    def _create_queue_object(self, path):
+    def _create_queue_object(self, path, **queue_attributes):
+        update_inplace(queue_attributes, {"dynamic": True, "schema": [{"name": "useless", "type": "string"}]})
         create("table",
                path,
-               attributes={"dynamic": True,
-                           "schema": [{"name": "useless", "type": "string"}]},
+               attributes=queue_attributes,
                force=True)
+        sync_mount_table(path)
         self.QUEUE_REGISTRY.append(path)
         assert path not in self.LAST_REVISIONS
         self.LAST_REVISIONS[path] = 0
 
-    def _create_and_register_queue(self, path):
-        self._create_queue_object(path)
+    def _create_and_register_queue(self, path, **queue_attributes):
+        self._create_queue_object(path, **queue_attributes)
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": path, "row_revision": YsonUint64(1)}])
         assert self.LAST_REVISIONS[path] == 0
@@ -1110,7 +1111,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
         if expected_count is not None:
             self._check_queue_count_and_column_counts(queues, expected_count)
         for queue in queues:
-            assert queue["revision"] == get(queue["path"] + "/@revision")
+            assert queue["revision"] == get(queue["path"] + "/@attribute_revision")
         return queues
 
     def _get_consumers_and_check_invariants(self, expected_count=None):
@@ -1118,7 +1119,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
         if expected_count is not None:
             self._check_consumer_count_and_column_counts(consumers, expected_count)
         for consumer in consumers:
-            assert consumer["revision"] == get(consumer["path"] + "/@revision")
+            assert consumer["revision"] == get(consumer["path"] + "/@attribute_revision")
             assert consumer["treat_as_queue_consumer"] == get(consumer["path"] + "/@treat_as_queue_consumer")
             # Enclosing into a list is a workaround for storing YSON with top-level attributes.
             assert consumer["schema"] == [get(consumer["path"] + "/@schema")]
@@ -1228,6 +1229,32 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         self._drop_consumers()
         self._drop_tables()
 
+    @authors("achulkov2")
+    def test_content_change(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        self._create_and_register_queue(q1, max_dynamic_store_row_count=1)
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        self._assert_increased_revision(queues[0])
+
+        insert_rows(q1, [{"useless": "a"}])
+        insert_rows(q1, [{"useless": "a"}])
+        wait(lambda: len(get(q1 + "/@chunk_ids")) == 2)
+        orchid.wait_fresh_poll()
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        # This checks that the revision doesn't change when dynamic stores are flushed.
+        self._assert_constant_revision(queues[0])
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
+
 
 class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -1329,6 +1356,32 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         orchid.wait_fresh_poll()
 
         self._get_queues_and_check_invariants(expected_count=1)
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
+
+    @authors("achulkov2")
+    def test_content_change(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        self._create_queue_object(q1, max_dynamic_store_row_count=1)
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        self._assert_increased_revision(queues[0])
+
+        insert_rows(q1, [{"useless": "a"}])
+        insert_rows(q1, [{"useless": "a"}])
+        wait(lambda: len(get(q1 + "/@chunk_ids")) == 2)
+        orchid.wait_fresh_poll()
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        # This checks that the revision doesn't change when dynamic stores are flushed.
+        self._assert_constant_revision(queues[0])
 
         self._drop_queues()
         self._drop_consumers()

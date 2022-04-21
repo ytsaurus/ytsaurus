@@ -51,7 +51,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
     CheckConversions<TQueueTableRow>(
         {.Cluster = "mamma", .Path = "mia"},
         15,
-        ConvertToAttributes(TYsonStringBuf("{revision=43u; type=table; sorted=%false; dynamic=%true}")),
+        ConvertToAttributes(TYsonStringBuf("{attribute_revision=43u; type=table; sorted=%false; dynamic=%true}")),
         {
             .Queue = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
@@ -68,7 +68,7 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         {.Cluster = "mamma", .Path = "mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{revision=43u; type=table; target_queue=\"cluster:path\"; treat_as_queue_consumer=%true; "
+            "{attribute_revision=43u; type=table; target_queue=\"cluster:path\"; treat_as_queue_consumer=%true; "
             "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true; owner=nosokhvost}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
@@ -87,7 +87,7 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         {.Cluster ="mamma", .Path ="mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{revision=43u; type=table; target_queue=\"cluster:path\"; "
+            "{attribute_revision=43u; type=table; target_queue=\"cluster:path\"; "
             "schema=[{name=a; type=int64; sort_order=ascending}]; owner=hydra}")),
         {
             .Consumer = {.Cluster = "mamma", .Path = "mia"},
