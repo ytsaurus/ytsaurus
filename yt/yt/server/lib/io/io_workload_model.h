@@ -36,7 +36,7 @@ struct THistogramSummary
     i64 P99_9 = 0;
 };
 
-THistogramSummary ComputeHistogramSumary(const TFixedBinsHistogramBase& hist);
+THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist);
 
 ////////////////////////////////////////////////////////////////////////////////
 

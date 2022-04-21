@@ -32,8 +32,8 @@ DEFINE_REFCOUNTED_TYPE(IRandomFileProvider);
 struct IGentleLoader
     : public TRefCounted
 {
-    //! TODO(capone212): pass packets histogram here.
-    virtual void Start() = 0;
+    virtual void Start(const TRequestSizes& workloadModel) = 0;
+
     virtual void Stop() = 0;
 
     //! Raised when disk overload is detected.
