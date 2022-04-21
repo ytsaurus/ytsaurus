@@ -228,7 +228,7 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"revision", "type", "dynamic", "sorted"};
+    return {"attribute_revision", "type", "dynamic", "sorted"};
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
@@ -239,7 +239,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
     return {
         .Queue = queue,
         .RowRevision = rowRevision,
-        .Revision = cypressAttributes->Find<NHydra::TRevision>("revision"),
+        .Revision = cypressAttributes->Find<NHydra::TRevision>("attribute_revision"),
         .ObjectType = cypressAttributes->Find<EObjectType>("type"),
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
@@ -425,7 +425,7 @@ NApi::IUnversionedRowsetPtr TConsumerTableRow::DeleteRowRange(TRange<TConsumerTa
 
 std::vector<TString> TConsumerTableRow::GetCypressAttributeNames()
 {
-    return {"target_queue", "revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer", "owner"};
+    return {"target_queue", "attribute_revision", "type", "treat_as_queue_consumer", "schema", "vital_queue_consumer", "owner"};
 }
 
 TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
@@ -439,7 +439,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .Consumer = consumer,
         .RowRevision = rowRevision,
         .TargetQueue = targetQueue,
-        .Revision = cypressAttributes->Get<NHydra::TRevision>("revision"),
+        .Revision = cypressAttributes->Get<NHydra::TRevision>("attribute_revision"),
         .ObjectType = cypressAttributes->Get<EObjectType>("type"),
         .TreatAsQueueConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),

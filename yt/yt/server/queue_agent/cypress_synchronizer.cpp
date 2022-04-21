@@ -196,7 +196,7 @@ private:
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : objects) {
-                batchReq->AddRequest(TYPathProxy::Get(object.Object.Path + "/@revision"));
+                batchReq->AddRequest(TYPathProxy::Get(object.Object.Path + "/@attribute_revision"));
             }
             asyncResults.push_back(batchReq->Invoke());
             clusters.push_back(cluster);
