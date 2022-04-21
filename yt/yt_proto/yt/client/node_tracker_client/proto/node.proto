@@ -124,6 +124,7 @@ message TNodeResources
     optional int64 merge_data_size = 14;
     optional int64 system_memory = 11;
     optional int32 gpu = 12;
+    optional double vcpu = 16;
 }
 
 message TDiskLocationResources

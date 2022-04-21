@@ -93,6 +93,8 @@ public:
     //! Set value of flag disabling all scheduler jobs.
     void SetDisableSchedulerJobs(bool value);
 
+    double GetCpuToVCpuFactor() const;
+
     using TRspHeartbeat = NRpc::TTypedClientResponse<
         NJobTrackerClient::NProto::TRspHeartbeat>;
     using TReqHeartbeat = NRpc::TTypedClientRequest<

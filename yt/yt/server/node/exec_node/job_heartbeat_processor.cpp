@@ -8,6 +8,10 @@
 #include <yt/yt/server/node/exec_node/private.h>
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 namespace NYT::NExecNode {
 
@@ -59,8 +63,19 @@ void TSchedulerJobHeartbeatProcessor::ProcessResponse(
     jobWithoutSpecStartInfos.reserve(response->jobs_to_start_size());
     for (const auto& startInfo : response->jobs_to_start()) {
         jobWithoutSpecStartInfos.push_back(startInfo);
+
+        // We get vcpu here. Need to replace it with real cpu back. 
+        auto& resourceLimits = *jobWithoutSpecStartInfos.back().mutable_resource_limits();
+        resourceLimits.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() / LastHeartbeatCpuToVCpuFactor_)));
     }
+    
     Y_UNUSED(WaitFor(RequestJobSpecsAndStartJobs(std::move(jobWithoutSpecStartInfos))));
+}
+
+void TSchedulerJobHeartbeatProcessor::ReplaceCpuWithVCpu(NNodeTrackerClient::NProto::TNodeResources& resources) const
+{
+    resources.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resources.cpu() * LastHeartbeatCpuToVCpuFactor_)));
+    resources.clear_vcpu();
 }
 
 void TSchedulerJobHeartbeatProcessor::PrepareRequest(
@@ -68,6 +83,12 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     const TJobController::TReqHeartbeatPtr& request)
 {
     PrepareHeartbeatCommonRequestPart(request);
+
+    // Only for scheduler `cpu` stores `vcpu` actually.
+    // In all resource limits and usages we send and get back vcpu instead of cpu.
+    LastHeartbeatCpuToVCpuFactor_ = JobController_->GetCpuToVCpuFactor();
+    ReplaceCpuWithVCpu(*request->mutable_resource_limits());
+    ReplaceCpuWithVCpu(*request->mutable_resource_usage());
 
     auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
     if (execNodeBootstrap->GetSlotManager()->HasFatalAlert()) {
@@ -117,10 +138,12 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         auto* jobStatus = request->add_jobs();
         FillSchedulerJobStatus(jobStatus, schedulerJob);
         switch (schedulerJob->GetState()) {
-            case EJobState::Running:
-                *jobStatus->mutable_resource_usage() = schedulerJob->GetResourceUsage();
+            case EJobState::Running: {
+                auto& resourceUsage = *jobStatus->mutable_resource_usage();
+                resourceUsage = schedulerJob->GetResourceUsage();
+                ReplaceCpuWithVCpu(resourceUsage);
                 break;
-
+            }
             case EJobState::Completed:
             case EJobState::Aborted:
             case EJobState::Failed: {

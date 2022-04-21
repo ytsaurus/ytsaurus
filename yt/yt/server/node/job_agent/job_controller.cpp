@@ -40,6 +40,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/library/vector_hdrf/job_resources.h>
+
 #include <yt/yt/library/process/process.h>
 #include <yt/yt/library/process/subprocess.h>
 
@@ -127,6 +129,8 @@ public:
     TNodeResources GetResourceUsage(bool includeWaiting = false) const;
     TDiskResources GetDiskResources() const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
+
+    double GetCpuToVCpuFactor() const;
 
     void SetDisableSchedulerJobs(bool value);
 
@@ -587,6 +591,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
 
     const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
     result.set_cpu(nodeResourceManager->GetJobsCpuLimit());
+    result.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(result.cpu() * GetCpuToVCpuFactor())));
 
     return result;
 }
@@ -612,6 +617,8 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
         result.set_user_slots(0);
         result.set_gpu(0);
     }
+
+    result.set_vcpu(static_cast<double>(NVectorHdrf::TCpuResource(result.cpu() * GetCpuToVCpuFactor())));
 
     return result;
 }
@@ -1842,6 +1849,15 @@ TDuration TJobController::TImpl::GetRecentlyRemovedJobsStoreTimeout() const
         : Config_->RecentlyRemovedJobsStoreTimeout;
 }
 
+double TJobController::TImpl::GetCpuToVCpuFactor() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    if (dynamicConfig && dynamicConfig->EnableCpuToVCpuFactor) {
+        return dynamicConfig->CpuToVCpuFactor.value_or(Config_->CpuToVCpuFactor);
+    }
+    return 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobController::TJobController(
@@ -1941,6 +1957,11 @@ bool TJobController::IsJobProxyProfilingDisabled() const
 NJobProxy::TJobProxyDynamicConfigPtr TJobController::GetJobProxyDynamicConfig() const
 {
     return Impl_->GetJobProxyDynamicConfig();
+}
+
+double TJobController::GetCpuToVCpuFactor() const
+{
+    return Impl_->GetCpuToVCpuFactor();
 }
 
 void TJobController::RegisterHeartbeatProcessor(

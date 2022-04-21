@@ -144,6 +144,8 @@ public:
     std::optional<TDuration> TotalConfirmationPeriod;
 
     std::optional<TDuration> CpuOverdraftTimeout;
+    std::optional<double> CpuToVCpuFactor;
+    bool EnableCpuToVCpuFactor;
     std::optional<TDuration> MemoryOverdraftTimeout;
 
     std::optional<TDuration> ProfilingPeriod;
@@ -192,6 +194,8 @@ public:
     i64 FreeMemoryWatermark;
 
     double CpuPerTabletSlot;
+
+    double CpuToVCpuFactor;
 
     //! Port set has higher priority than StartPort ans PortCount if it is specified.
     int StartPort;
