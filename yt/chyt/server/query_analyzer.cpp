@@ -735,7 +735,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 }
 
 TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
-    const TRange<TSubquery> threadSubqueries,
+    const TRange<TSubquery>& threadSubqueries,
     TSubquerySpec specTemplate,
     const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
     int subqueryIndex,
@@ -821,11 +821,9 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
 
     bool filterJoinedSubquery = executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_;
 
-    if (!TwoYTTableJoin_ && filterJoinedSubquery && JoinedByKeyColumns_) {
+    if (!TwoYTTableJoin_ && filterJoinedSubquery && JoinedByKeyColumns_ && !threadSubqueries.empty()) {
         // TODO(max42): this comparator should be created beforehand.
         TComparator comparator(std::vector<ESortOrder>(KeyColumnCount_, ESortOrder::Ascending));
-
-        const auto& [subqueryLowerBound, subqueryUpperBound] = threadSubqueries.Back().Bounds;
 
         TOwningKeyBound lowerBound;
         TOwningKeyBound upperBound;
@@ -841,8 +839,8 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
             }
             PreviousUpperBound_ = upperBound;
         } else {
-            lowerBound = subqueryLowerBound;
-            upperBound = subqueryUpperBound;
+            lowerBound = threadSubqueries.Front().Bounds.first;
+            upperBound = threadSubqueries.Back().Bounds.second;
         }
 
         if (lowerBound && upperBound) {

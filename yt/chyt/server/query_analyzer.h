@@ -43,7 +43,7 @@ public:
         const NLogging::TLogger& logger);
 
     TSecondaryQuery CreateSecondaryQuery(
-        const TRange<TSubquery> subqueries,
+        const TRange<TSubquery>& subqueries,
         TSubquerySpec specTemplate,
         const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
         int subqueryIndex,
