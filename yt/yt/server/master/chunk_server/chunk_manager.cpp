@@ -144,7 +144,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
-static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -457,7 +456,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
+            TDynamicChunkManagerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
 
         ChunkMerger_->Initialize();
@@ -4828,6 +4827,8 @@ private:
         if (ChunkPlacement_) {
             ChunkPlacement_->OnDynamicConfigChanged();
         }
+
+        ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }
 
     static void ValidateMediumName(const TString& name)

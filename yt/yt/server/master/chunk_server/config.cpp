@@ -468,6 +468,9 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
         .Default()
         .DontSerializeDefault();
 
+    RegisterParameter("profiling_period", ProfilingPeriod)
+        .Default(DefaultProfilingPeriod);
+
     RegisterPreprocessor([&] {
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {

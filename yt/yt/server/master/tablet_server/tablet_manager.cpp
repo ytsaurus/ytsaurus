@@ -163,8 +163,6 @@ using TTabletResources = NTabletServer::TTabletResources;
 
 static const auto& Logger = TabletServerLogger;
 
-static constexpr auto ProfilingPeriod = TDuration::Seconds(5);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TProfilingCounters
@@ -4681,6 +4679,10 @@ private:
         TabletActionManager_->Reconfigure(config->TabletActionManager);
         TabletBalancer_->Reconfigure(config->TabletBalancer);
 
+        if (ProfilingExecutor_) {
+            ProfilingExecutor_->SetPeriod(config->ProfilingPeriod);
+        }
+
         // COMPAT(ifsmirnov)
         if (!oldConfig->TabletManager->AccumulatePreloadPendingStoreCountCorrectly &&
             config->AccumulatePreloadPendingStoreCountCorrectly)
@@ -6834,7 +6836,7 @@ private:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
+            dynamicConfig->ProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 

@@ -303,7 +303,13 @@ TDynamicTabletManagerConfig::TDynamicTabletManagerConfig()
     RegisterParameter("enable_hunks", EnableHunks)
         .Default(false);
 
-    RegisterPreprocessor([&] {
+    RegisterParameter("profiling_period", ProfilingPeriod)
+        .Default(TDuration::Seconds(5));
+
+    RegisterParameter("tamed_cell_manager_profiling_period", TamedCellManagerProfilingPeriod)
+        .Default(DefaultTamedCellManagerProfilingPeriod);
+
+   RegisterPreprocessor([&] {
         StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         StoreChunkReader->BanPeersPermanently = false;
 

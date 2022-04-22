@@ -60,6 +60,8 @@ class TDynamicTransactionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+
     TDuration MaxTransactionTimeout;
     int MaxTransactionDepth;
 
@@ -71,6 +73,8 @@ public:
 
     TTransactionPresenceCacheConfigPtr TransactionPresenceCache;
     TBoomerangTrackerConfigPtr BoomerangTracker;
+
+    TDuration ProfilingPeriod;
 
     TDynamicTransactionManagerConfig()
     {
@@ -85,6 +89,8 @@ public:
             .DefaultNew();
         RegisterParameter("boomerang_tracker", BoomerangTracker)
             .DefaultNew();
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(DefaultProfilingPeriod);
 
         // COMPAT(shakurov): this is an emergency button for unforeseen circumstances.
         // To be removed once sharded transactions (a.k.a. v. 20.3) are stabilized.

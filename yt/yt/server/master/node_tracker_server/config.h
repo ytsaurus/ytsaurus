@@ -82,6 +82,8 @@ class TDynamicNodeTrackerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    static constexpr auto DefaultProfilingPeriod = TDuration::Seconds(10);
+
     THashMap<TString, TNodeGroupConfigPtr> NodeGroups;
 
     TDuration TotalNodeStatisticsUpdatePeriod;
@@ -110,6 +112,8 @@ public:
     // COMPAT(gritukan): Drop this after hosts migration.
     bool PreserveRackForNewHost;
     bool ReplicateHostNameDuringRegistration;
+
+    TDuration ProfilingPeriod;
 
     TDynamicNodeTrackerConfig()
     {
@@ -167,6 +171,9 @@ public:
         RegisterParameter("enable_structured_log", EnableStructuredLog)
             .Default(false)
             .DontSerializeDefault();
+
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(DefaultProfilingPeriod);
     }
 };
 

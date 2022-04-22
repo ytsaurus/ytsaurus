@@ -292,6 +292,8 @@ class TDynamicChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+
     //! If set to false, disables scheduling new chunk jobs (replication, removal).
     bool EnableChunkReplicator;
 
@@ -455,6 +457,8 @@ public:
 
     //! Set of storage data centers on which replica placement is forbidden.
     THashSet<TString> BannedStorageDataCenters;
+
+    TDuration ProfilingPeriod;
 
     TDynamicChunkManagerConfig();
 };
