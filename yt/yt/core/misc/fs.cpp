@@ -249,7 +249,8 @@ void CleanTempFiles(const TString& path)
     for (const auto& entry : entries) {
         if (entry.EndsWith(TempFileSuffix)) {
             auto fileName = NFS::CombinePaths(path, entry);
-            YT_LOG_INFO("Removing file %v", fileName);
+            YT_LOG_DEBUG("Removing file (FileName: %v)",
+                fileName);
             NFS::Remove(fileName);
         }
     }
