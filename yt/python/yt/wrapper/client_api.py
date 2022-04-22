@@ -23,5 +23,6 @@ from .http_helpers import get_user_name
 from .batch_api import *
 from .sky_share import sky_share
 from .spark import start_spark_cluster, find_spark_cluster
+from .run_command_with_lock import run_command_with_lock
 
 all_names = [key for key in locals().keys() if not key.startswith("_")]

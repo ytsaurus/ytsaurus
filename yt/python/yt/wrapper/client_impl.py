@@ -957,6 +957,14 @@ class YtClient(ClientState):
         """
         return client_api.row_count(table, client=self)
 
+    def run_command_with_lock(self, path, command, popen_kwargs=None, lock_confict_callback=None, ping_failed_callback=None, set_address=True, address_path=None, create_lock_options=None, poll_period=None, forward_signals=None):
+        """
+
+        Run given command under lock.
+
+        """
+        return client_api.run_command_with_lock(path, command, client=self, popen_kwargs=popen_kwargs, lock_confict_callback=lock_confict_callback, ping_failed_callback=ping_failed_callback, set_address=set_address, address_path=address_path, create_lock_options=create_lock_options, poll_period=poll_period, forward_signals=forward_signals)
+
     def run_erase(self, table, spec=None, sync=True):
         """
         Erases table or part of it.

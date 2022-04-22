@@ -36,6 +36,8 @@ import inspect
 import itertools
 import fnmatch
 import shlex
+import signal
+import time
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 from datetime import datetime
 
@@ -1915,6 +1917,61 @@ def add_find_spark_cluster_parser(add_parser):
                                                  "the same path must be used in start-spark-cluster. "
                                                  "SPARK_YT_DISCOVERY_PATH env variable is used by default")
 
+
+@copy_docstring_from(yt.run_command_with_lock)
+def run_command_with_lock_handler(**kwargs):
+    kwargs["popen_kwargs"] = dict(
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+        shell=kwargs.pop("shell"),
+        env=os.environ.copy(),
+        preexec_fn=os.setsid)
+    kwargs["forward_signals"] = [signal.SIGTERM, signal.SIGINT]
+
+    conflict_exit_code = kwargs.pop("conflict_exit_code")
+
+    def lock_confict_callback():
+        sys.exit(conflict_exit_code)
+
+    kwargs["lock_confict_callback"] = lock_confict_callback
+
+    def ping_failed_callback(proc):
+        proc.send_signal(2)
+        time.sleep(1.0)
+        proc.terminate()
+        time.sleep(1.0)
+        proc.kill()
+
+    kwargs["ping_failed_callback"] = ping_failed_callback
+
+    kwargs["create_lock_options"] = {"recursive": kwargs.pop("recursive")}
+
+    return_code = yt.run_command_with_lock(**kwargs)
+
+    sys.exit(return_code)
+
+
+def add_run_command_with_lock_parser(add_parser):
+    parser = add_parser("run-command-with-lock", help="Run command under lock")
+    parser.add_argument("path",
+                        help="Path to the lock in Cypress")
+    parser.add_argument("command", nargs="+",
+                        help="Command to execute")
+    parser.add_argument("--shell", action="store_true", default=False,
+                        help="Run command in subshell")
+    parser.add_argument("--poll-period", type=float, default=1.0,
+                        help="Poll period for command process in seconds")
+    parser.add_argument("--conflict-exit-code", type=int, default=1,
+                        help="Exit code in case of lock conflict")
+    parser.add_argument("--set-address", action="store_true", default=False,
+                        help="Set address of current host (in lock attribute by default)")
+    parser.add_argument("--address-path",
+                        help="Path to set host address")
+    parser.add_argument("--recursive", action="store_true", default=False,
+                        help="Create lock path recursively")
+    parser.set_defaults(func=run_command_with_lock_handler)
+
+
 def add_subparser(subparsers, params_argument=True):
     def extract_help(function):
         if function.__doc__ is None:
@@ -2080,6 +2137,8 @@ def main():
     add_download_core_dump_parser(add_parser)
 
     add_get_supported_features_parser(add_parser)
+
+    add_run_command_with_lock_parser(add_parser)
 
     add_clickhouse_parser(subparsers)
     add_spark_parser(subparsers)

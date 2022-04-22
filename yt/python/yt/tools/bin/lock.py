@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+"""
+Deprecated, use yt run-command-with-lock instead
+"""
+
 from yt.common import set_pdeathsig, YT_NULL_TRANSACTION_ID
 import yt.logger as logger
 import yt.wrapper as yt
