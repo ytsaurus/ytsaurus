@@ -52,6 +52,8 @@ class TDynamicObjectManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(100);
+
     //! Maximum total weight of objects processed per a single GC mutation.
     int MaxWeightPerGCSweep;
 
@@ -72,6 +74,8 @@ public:
     //! Outside mutations DefaultYsonStringInternLengthThreshold is always used.
     int YsonStringInternLengthThreshold;
 
+    TDuration ProfilingPeriod;
+
     TDynamicObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
@@ -87,7 +91,9 @@ public:
         RegisterParameter("yson_string_intern_length_threshold", YsonStringInternLengthThreshold)
             .Default(DefaultYsonStringInternLengthThreshold)
             .InRange(DefaultYsonStringInternLengthThreshold, 1_GB);
-    }
+        RegisterParameter("profiling_period", ProfilingPeriod)
+            .Default(DefaultProfilingPeriod);
+   }
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)

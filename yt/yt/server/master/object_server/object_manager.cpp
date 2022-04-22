@@ -98,7 +98,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ObjectServerLogger;
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 static const IObjectTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,6 +344,9 @@ private:
         bool mandatory);
 
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
+
+    const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
 
     void InitSchemas();
 };
@@ -690,6 +692,9 @@ TObjectManager::TImpl::TImpl(TTestingTag tag, TBootstrap* bootstrap)
 
 void TObjectManager::TImpl::Initialize()
 {
+    const auto& configManager = Bootstrap_->GetConfigManager();
+    configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (multicellManager->IsPrimaryMaster()) {
         multicellManager->SubscribeReplicateValuesToSecondaryMaster(
@@ -699,7 +704,7 @@ void TObjectManager::TImpl::Initialize()
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),
-        ProfilingPeriod);
+        TDynamicObjectManagerConfig::DefaultProfilingPeriod);
     ProfilingExecutor_->Start();
 }
 
@@ -2224,6 +2229,16 @@ void TObjectManager::TImpl::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     for (auto* schema : schemas) {
         ReplicateObjectAttributesToSecondaryMaster(schema, cellTag);
     }
+}
+
+const TDynamicObjectManagerConfigPtr& TObjectManager::TImpl::GetDynamicConfig()
+{
+    return Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
+}
+
+void TObjectManager::TImpl::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+{
+    ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -116,8 +116,6 @@ using NYT::FromProto;
 
 static const auto& Logger = NodeTrackerServerLogger;
 
-static const auto ProfilingPeriod = TDuration::Seconds(10);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker
@@ -199,7 +197,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TNodeTracker::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
+            TDynamicNodeTrackerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
@@ -2497,6 +2495,8 @@ private:
         ReconfigureGossipPeriods();
         ReconfigureNodeSemaphores();
         RebuildAggregatedNodeStatistics();
+
+        ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }
 };
 

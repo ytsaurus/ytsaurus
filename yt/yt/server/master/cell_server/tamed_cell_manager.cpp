@@ -128,8 +128,6 @@ using NYT::ToProto;
 
 static const auto& Logger = CellServerLogger;
 
-static const auto ProfilingPeriod = TDuration::Seconds(10);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTamedCellManager
@@ -220,7 +218,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TTamedCellManager::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
+            NTabletServer::TDynamicTabletManagerConfig::DefaultTamedCellManagerProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
@@ -1174,6 +1172,8 @@ private:
         if (CellStatusIncrementalGossipExecutor_) {
             CellStatusIncrementalGossipExecutor_->SetPeriod(gossipConfig->TabletCellStatusIncrementalGossipPeriod);
         }
+
+        ProfilingExecutor_->SetPeriod(config->TamedCellManagerProfilingPeriod);
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const

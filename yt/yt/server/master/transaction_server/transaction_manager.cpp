@@ -81,10 +81,6 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
@@ -193,6 +189,9 @@ public:
 
     void Initialize()
     {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::Transaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
@@ -204,7 +203,7 @@ public:
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
+            TDynamicTransactionManagerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
     }
 
@@ -1789,6 +1788,11 @@ private:
     const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    {
+        ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }
 };
 

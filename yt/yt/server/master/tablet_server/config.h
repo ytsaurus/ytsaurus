@@ -221,6 +221,8 @@ class TDynamicTabletManagerConfig
     : public NHydra::THydraJanitorConfig
 {
 public:
+    static constexpr auto DefaultTamedCellManagerProfilingPeriod = TDuration::Seconds(10);
+
     //! Time to wait for a node to be back online before revoking it from all
     //! tablet cells.
     TDuration PeerRevocationTimeout;
@@ -326,6 +328,10 @@ public:
 
     // COMPAT(babenko)
     bool EnableHunks;
+
+    TDuration ProfilingPeriod;
+
+    TDuration TamedCellManagerProfilingPeriod;
 
     TDynamicTabletManagerConfig();
 };
