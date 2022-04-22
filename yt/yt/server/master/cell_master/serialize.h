@@ -126,6 +126,7 @@ DEFINE_ENUM(EMasterReign,
     ((MoveSyncSuppressionFlagsToMulticellSyncExt_22_1)              (1957))  // shakurov
     ((RelativeReplicationThrottler)                                 (1958))  // ifsmirnov
     ((ExecNodeIsNotDataNode)                                        (1959))  // gritukan
+    ((ProfilingPeriodDynamicConfig_22_1)                            (1960))  // shakurov
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
     ((EnableStripedErasureAttribute)                                (1981))  // gritukan
