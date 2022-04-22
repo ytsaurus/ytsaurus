@@ -46,12 +46,22 @@ import itertools
 import os
 import pytest
 import random
+import signal
 import string
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
+
+
+def is_process_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
 
 @authors("asaitgalin")
 def test_docs_exist():
@@ -1198,3 +1208,88 @@ class TestGetSupportedFeatures(object):
         }
         assert expected_erasure_codecs == \
             expected_erasure_codecs.intersection(set(features["erasure_codecs"]))
+
+
+@pytest.mark.usefixtures("yt_env")
+class TestRunCommandWithLock(object):
+    @authors("ignat")
+    def test_conflict(self, yt_env):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        procA = None
+        procB = None
+
+        try:
+            env = get_environment_for_binary_test(yt_env)
+            procA = subprocess.Popen(
+                [
+                    get_python(), get_binary_path("yt"),
+                    "run-command-with-lock", "//tmp/lock_node", "sleep", "1000"
+                ],
+                env=env,
+                stdout=sys.stderr,
+                stderr=sys.stderr)
+
+            time.sleep(1)
+            assert procA.poll() is None
+
+            wait(lambda: yt.exists("//tmp/lock_node"))
+            wait(lambda: len(yt.get("//tmp/lock_node/@locks")) == 1, sleep_backoff=5)
+
+            procB = subprocess.Popen(
+                [
+                    get_python(), get_binary_path("yt"),
+                    "run-command-with-lock", "//tmp/lock_node", "sleep", "1000",
+                    "--conflict-exit-code", "7",
+                ],
+                env=env,
+                stdout=sys.stderr,
+                stderr=sys.stderr)
+
+            wait(lambda: procB.poll() == 7)
+        finally:
+            if procA is not None:
+                procA.kill()
+            if procB is not None:
+                procB.kill()
+
+    @authors("ignat")
+    def test_signal(self, yt_env):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
+        procA = None
+
+        try:
+            _, filename = tempfile.mkstemp()
+
+            env = get_environment_for_binary_test(yt_env)
+            procA = subprocess.Popen(
+                [
+                    get_python(), get_binary_path("yt"),
+                    "run-command-with-lock", "//tmp/lock_node", "echo $$ >{}; sleep 1000".format(filename),
+                    "--shell",
+                ],
+                env=env,
+                stdout=sys.stderr,
+                stderr=sys.stderr)
+
+            time.sleep(1)
+            assert procA.poll() is None
+
+            wait(lambda: yt.exists("//tmp/lock_node"))
+            wait(lambda: len(yt.get("//tmp/lock_node/@locks")) == 1, sleep_backoff=5)
+            wait(lambda: open(filename).read().strip())
+
+            subprocess_pid = int(open(filename).read().strip())
+            wait(lambda: is_process_alive(subprocess_pid))
+
+            procA.send_signal(signal.SIGTERM)
+            wait(lambda: procA.poll() is not None)
+
+            wait(lambda: not is_process_alive(subprocess_pid))
+
+        finally:
+            if procA is not None:
+                procA.kill()
