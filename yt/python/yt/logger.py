@@ -7,6 +7,7 @@ except ImportError:
 
 import logging
 
+
 def set_log_level_from_config(logger):
     if not logger_config.LOG_LEVEL:
         logger.setLevel(level=logging.__dict__["INFO"])
@@ -35,6 +36,7 @@ BASIC_FORMATTER = logging.Formatter(logger_config.LOG_PATTERN)
 
 formatter = None
 
+
 def set_formatter(new_formatter):
     global formatter
     formatter = new_formatter
@@ -43,21 +45,26 @@ def set_formatter(new_formatter):
 
 set_formatter(BASIC_FORMATTER)
 
+
 def debug(msg, *args, **kwargs):
     LOGGER.debug(msg, *args, **kwargs)
+
 
 def info(msg, *args, **kwargs):
     LOGGER.info(msg, *args, **kwargs)
 
+
 def warning(msg, *args, **kwargs):
     LOGGER.warning(msg, *args, **kwargs)
+
 
 def error(msg, *args, **kwargs):
     LOGGER.error(msg, *args, **kwargs)
 
+
 def exception(msg, *args, **kwargs):
     LOGGER.exception(msg, *args, **kwargs)
 
+
 def log(level, msg, *args, **kwargs):
     LOGGER.log(level, msg, *args, **kwargs)
-

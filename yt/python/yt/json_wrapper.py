@@ -1,10 +1,11 @@
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, text_type
 
 try:
-    from simplejson import *
+    from simplejson import load, dump, loads, dumps  # noqa
 except ImportError:
     # This version of simplejson has no compliled speedup module.
-    from yt.packages.simplejson import *
+    from yt.packages.simplejson import load, dump, loads, dumps  # noqa
+
 
 def loads_as_bytes(*args, **kwargs):
     def encode(value):
@@ -12,7 +13,7 @@ def loads_as_bytes(*args, **kwargs):
             return dict([(encode(k), encode(v)) for k, v in iteritems(value)])
         elif isinstance(value, list):
             return [encode(item) for item in value]
-        elif isinstance(value, unicode):
+        elif isinstance(value, text_type):
             return value.encode("utf-8")
         else:
             return value

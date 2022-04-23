@@ -9,7 +9,7 @@ except ImportError:
 
 # Fix for thread unsafety of datetime module.
 # See http://bugs.python.org/issue7980 for more details.
-import _strptime
+import _strptime  # noqa
 
 # Python3 compatibility
 try:
@@ -43,8 +43,8 @@ YT_DATETIME_FORMAT_STRING = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 YT_NULL_TRANSACTION_ID = "0-0-0-0"
 
-# Deprecation stuff.
 
+# Deprecation stuff.
 class YtDeprecationWarning(DeprecationWarning):
     """Custom warnings category, because built-in category is ignored by default."""
 
@@ -57,10 +57,12 @@ ERROR_TEXT_MATCHING_DEPRECATION_MESSAGE = "Matching errors by their messages usi
                                           "discouraged. It is recommended to use contains_code(code) method instead. " \
                                           "If there is no suitable error code for your needs, ask yt@ for creating one."
 
+
 def declare_deprecated(functional_name, alternative_name, condition=None, message=None):
     if condition or condition is None:
         message = get_value(message, DEFAULT_DEPRECATION_MESSAGE.format(functional_name, alternative_name))
         warnings.warn(message, YtDeprecationWarning)
+
 
 def deprecated_with_message(message):
     def function_decorator(func):
@@ -71,11 +73,13 @@ def deprecated_with_message(message):
         return deprecated_function
     return function_decorator
 
+
 def deprecated(alternative):
     def function_decorator(func):
         warn_message = DEFAULT_DEPRECATION_MESSAGE.format(func.__name__, alternative)
         return deprecated_with_message(warn_message)(func)
     return function_decorator
+
 
 class YtError(Exception):
     """Base class for all YT errors."""
@@ -511,8 +515,10 @@ def _pretty_format(error, attribute_length_limit=None):
         _pretty_format_messages(error),
         _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit))
 
+
 def _pretty_format_fake(error, attribute_length_limit=None):
     return _pretty_format(error, attribute_length_limit)
+
 
 def _pretty_format_for_logging(error, attribute_length_limit=None):
     return _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit).replace("\n", "\\n")
@@ -545,15 +551,18 @@ def which(name, flags=os.X_OK, custom_paths=None):
             result.append(path)
     return result
 
-def unlist(l):
+
+def unlist(list):
     try:
-        return l[0] if len(l) == 1 else l
-    except TypeError: # cannot calculate len
-        return l
+        return list[0] if len(list) == 1 else list
+    except TypeError:  # cannot calculate len
+        return list
+
 
 def require(condition, exception_func):
     if not condition:
         raise exception_func()
+
 
 def update_inplace(object, patch):
     if isinstance(patch, Mapping) and isinstance(object, Mapping):
@@ -572,6 +581,7 @@ def update_inplace(object, patch):
         object = patch
     return object
 
+
 def update(object, patch):
     if patch is None:
         return copy.deepcopy(object)
@@ -580,11 +590,13 @@ def update(object, patch):
     else:
         return update_inplace(copy.deepcopy(object), patch)
 
+
 def flatten(obj, list_types=(list, tuple, set, frozenset, types.GeneratorType)):
     """Create flat list from all elements."""
     if isinstance(obj, list_types):
         return list(chain(*imap(flatten, obj)))
     return [obj]
+
 
 def update_from_env(variables):
     """Update variables dict from environment."""
@@ -610,14 +622,17 @@ def update_from_env(variables):
 
         variables[key] = var_type(value)
 
+
 def get_value(value, default):
     if value is None:
         return default
     else:
         return value
 
+
 def filter_dict(predicate, dictionary):
     return dict([(k, v) for (k, v) in iteritems(dictionary) if predicate(k, v)])
+
 
 def set_pdeathsig(signum=None):
     if sys.platform.startswith("linux"):
@@ -639,6 +654,7 @@ def remove_file(path, force=False):
         if not force:
             raise
 
+
 def makedirp(path):
     try:
         os.makedirs(path)
@@ -646,26 +662,32 @@ def makedirp(path):
         if err.errno != errno.EEXIST:
             raise
 
+
 def touch(path):
     if not os.path.exists(path):
         makedirp(os.path.dirname(path))
         with open(path, "w"):
             pass
 
+
 def date_string_to_datetime(date):
     return datetime.strptime(date, YT_DATETIME_FORMAT_STRING)
 
+
 def date_string_to_timestamp(date):
     return calendar.timegm(date_string_to_datetime(date).timetuple())
+
 
 def date_string_to_timestamp_mcs(time_str):
     dt = date_string_to_datetime(time_str)
     return int(calendar.timegm(dt.timetuple()) * (10 ** 6) + dt.microsecond)
 
+
 def datetime_to_string(date, is_local=False):
     if is_local:
         date = datetime.utcfromtimestamp(time.mktime(date.timetuple()))
     return date.strftime(YT_DATETIME_FORMAT_STRING)
+
 
 def make_non_blocking(fd):
     # Use local import to support Windows.
@@ -673,12 +695,14 @@ def make_non_blocking(fd):
     flags = fcntl.fcntl(fd, fcntl.F_GETFL)
     fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
+
 def to_native_str(string, encoding="utf-8", errors="strict"):
     if not PY3 and isinstance(string, text_type):
         return string.encode(encoding)
     if PY3 and isinstance(string, binary_type):
         return string.decode(encoding, errors=errors)
     return string
+
 
 def copy_docstring_from(documented_function):
     """Decorator that copies docstring from one function to another.
@@ -698,6 +722,7 @@ def copy_docstring_from(documented_function):
     """
     return functools.wraps(documented_function, assigned=("__doc__",), updated=())
 
+
 def is_process_alive(pid):
     try:
         os.kill(pid, 0)
@@ -712,11 +737,13 @@ def is_process_alive(pid):
             raise
     return True
 
+
 def uuid_to_parts(guid):
     id_parts = guid.split("-")
     id_hi = int(id_parts[2], 16) << 32 | int(id_parts[3], 16)
     id_lo = int(id_parts[0], 16) << 32 | int(id_parts[1], 16)
     return id_hi, id_lo
+
 
 def parts_to_uuid(id_hi, id_lo):
     guid = id_lo << 64 | id_hi
@@ -729,6 +756,7 @@ def parts_to_uuid(id_hi, id_lo):
 
     return "-".join(reversed(["{:x}".format(part) for part in parts]))
 
+
 # TODO(asaitgalin): Remove copy-paste from YP.
 def underscore_case_to_camel_case(str):
     result = []
@@ -739,7 +767,7 @@ def underscore_case_to_camel_case(str):
             upper = True
         else:
             if upper:
-                if not c in string.ascii_letters and not first:
+                if c not in string.ascii_letters and not first:
                     result.append("_")
                 c = c.upper()
             result.append(c)
@@ -747,8 +775,10 @@ def underscore_case_to_camel_case(str):
         first = False
     return "".join(result)
 
+
 class WaitFailed(Exception):
     pass
+
 
 def wait(predicate, error_message=None, iter=None, sleep_backoff=None, timeout=None, ignore_exceptions=False):
     if timeout is None:  # old behaviour
