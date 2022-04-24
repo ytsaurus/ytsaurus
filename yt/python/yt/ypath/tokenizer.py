@@ -1,6 +1,14 @@
 from .common import YPathError
 
-from yt.yson.yson_token import *
+from yt.yson.yson_token import (
+    TOKEN_RANGE,
+    TOKEN_LITERAL,
+    TOKEN_START_OF_STREAM,
+    TOKEN_END_OF_STREAM,
+    TOKEN_LEFT_BRACE,
+    TOKEN_LEFT_BRACKET,
+    char_to_token_type)
+
 
 class YPathTokenizer(object):
     def __init__(self, path):

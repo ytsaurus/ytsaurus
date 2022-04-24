@@ -7,6 +7,7 @@ from yt.packages.six import text_type, binary_type
 
 from copy import deepcopy
 
+
 def parse_ypath(path, client=None):
     path_attributes = {}
 
@@ -18,7 +19,7 @@ def parse_ypath(path, client=None):
 
     if base_type is not None:
         path_attributes = deepcopy(path.attributes)
-        path =  base_type(path)
+        path = base_type(path)
 
     parser = RichYPath()
     path, attributes = parser.parse(path)
