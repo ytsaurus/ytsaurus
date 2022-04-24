@@ -1,16 +1,30 @@
 from .common import YPathError
 from .tokenizer import YPathTokenizer
 
-from yt.yson.yson_token import *
+from yt.yson.yson_token import (
+    TOKEN_END_OF_STREAM,
+    TOKEN_RANGE,
+    TOKEN_LEFT_BRACE,
+    TOKEN_RIGHT_BRACE,
+    TOKEN_HASH,
+    TOKEN_LEFT_BRACKET,
+    TOKEN_RIGHT_BRACKET,
+    TOKEN_LEFT_PARENTHESIS,
+    TOKEN_RIGHT_PARENTHESIS,
+    TOKEN_COLON,
+    TOKEN_COMMA,
+    TOKEN_STRING,
+    TOKEN_INT64,
+    TOKEN_UINT64,
+    TOKEN_DOUBLE,
+    TOKEN_BOOLEAN)
 from yt.yson.tokenizer import YsonTokenizer
 from yt.yson.parser import YsonParser
 from yt.yson.common import StreamWrap
-from yt.yson import YsonEntity
 from yt.common import flatten, update_inplace
 
 from yt.packages.six import BytesIO, PY3, text_type
 
-from copy import deepcopy
 
 class ReadLimit(object):
     def __init__(self, limit=None):
@@ -31,6 +45,7 @@ class ReadLimit(object):
 
     def set_row_index(self, row_index):
         self.limit["row_index"] = row_index
+
 
 class RichYPath(object):
     def __init__(self, path=None, attributes=None):
