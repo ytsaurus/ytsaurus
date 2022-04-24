@@ -840,11 +840,13 @@ TFuture<void> TServerBase::Stop(bool graceful)
     YT_LOG_INFO("Stopping RPC server (Graceful: %v)",
         graceful);
 
-    return DoStop(graceful);
+    return DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] () {
+        YT_LOG_INFO("RPC server stopped");
+    }));
 }
 
-TServerBase::TServerBase(const NLogging::TLogger& logger)
-    : Logger(logger)
+TServerBase::TServerBase(NLogging::TLogger logger)
+    : Logger(std::move(logger))
 { }
 
 void TServerBase::DoStart()
@@ -874,9 +876,7 @@ TFuture<void> TServerBase::DoStop(bool graceful)
         }
     }
 
-    return AllSucceeded(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
-        YT_LOG_INFO("RPC server stopped");
-    }));
+    return AllSucceeded(asyncResults);
 }
 
 void TServerBase::DoRegisterService(const IServicePtr& /*service*/)

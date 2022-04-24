@@ -15,6 +15,7 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/string.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -86,8 +87,11 @@ public:
 
     TFuture<void> Stop()
     {
+        YT_LOG_INFO("Stopping Bus server");
         UnarmPoller();
-        return Poller_->Unregister(this);
+        return Poller_->Unregister(this).Apply(BIND([=, this_ = MakeStrong(this)] {
+            YT_LOG_INFO("Bus server stopped");
+        }));
     }
 
     // IPollable implementation.
@@ -419,33 +423,23 @@ public:
             TTcpDispatcher::TImpl::Get()->GetAcceptorPoller(),
             std::move(handler));
 
-        {
-            auto guard = Guard(SpinLock_);
-            YT_VERIFY(!Server_);
-            Server_ = server;
-        }
-
+        Server_.Store(server);
         server->Start();
     }
 
     TFuture<void> Stop() override
     {
-        TIntrusivePtr<TServer> server;
-        {
-            auto guard = Guard(SpinLock_);
-            if (!Server_) {
-                return VoidFuture;
-            }
-            std::swap(server, Server_);
+        if (auto server = Server_.Exchange(nullptr)) {
+            return server->Stop();
+        } else {
+            return VoidFuture;
         }
-        return server->Stop();
     }
 
 private:
     const TTcpBusServerConfigPtr Config_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    TIntrusivePtr<TServer> Server_;
+    TAtomicObject<TIntrusivePtr<TServer>> Server_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

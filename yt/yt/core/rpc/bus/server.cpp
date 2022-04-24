@@ -18,10 +18,8 @@ namespace NYT::NRpc::NBus {
 
 using namespace NConcurrency;
 using namespace NYT::NBus;
-using namespace NYTAlloc;
 
 using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,13 +45,14 @@ private:
 
     TFuture<void> DoStop(bool graceful) override
     {
-        return TServerBase::DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            // NB: Stop the bus server anyway.
-            auto asyncResult = BusServer_->Stop();
-            BusServer_.Reset();
-            error.ThrowOnError();
-            return asyncResult;
-        }));
+        return TServerBase::DoStop(graceful)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                // NB: Stop the bus server anyway.
+                auto future = BusServer_->Stop();
+                BusServer_.Reset();
+                error.ThrowOnError();
+                return future;
+            }));
     }
 
     void HandleMessage(TSharedRefArray message, IBusPtr replyBus) noexcept override

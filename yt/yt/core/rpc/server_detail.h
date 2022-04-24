@@ -269,7 +269,7 @@ protected:
     using TServiceMap = THashMap<TString, IServicePtr>;
     THashMap<TGuid, TServiceMap> RealmIdToServiceMap_;
 
-    explicit TServerBase(const NLogging::TLogger& logger);
+    explicit TServerBase(NLogging::TLogger logger);
 
     virtual void DoStart();
     virtual TFuture<void> DoStop(bool graceful);
