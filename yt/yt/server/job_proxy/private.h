@@ -10,7 +10,7 @@ namespace NYT::NJobProxy {
 
 inline const NLogging::TLogger JobProxyLogger("JobProxy");
 
-constexpr auto RpcServerShutdownTimeout = TDuration::Seconds(15);
+constexpr auto RpcServerShutdownTimeout = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
