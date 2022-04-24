@@ -404,9 +404,11 @@ void TJobProxy::DoRun()
         YT_LOG_INFO("CPU monitor stopped");
     }
 
-    WaitFor(RpcServer_->Stop()
-        .WithTimeout(RpcServerShutdownTimeout))
-        .ThrowOnError();
+    {
+        auto error = WaitFor(RpcServer_->Stop()
+            .WithTimeout(RpcServerShutdownTimeout));
+        YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Error stopping RPC server");
+    }
 
     FillJobResult(&result);
     FillStderrResult(&result);
