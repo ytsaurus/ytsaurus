@@ -2,6 +2,7 @@ from .yson_token import YsonToken, TOKEN_START_OF_STREAM
 from .lexer import YsonLexer
 from .common import _ENCODING_SENTINEL
 
+
 class YsonTokenizer(object):
     def __init__(self, input_str, encoding=_ENCODING_SENTINEL, output_buffer=None):
         self._token = YsonToken(type=TOKEN_START_OF_STREAM)

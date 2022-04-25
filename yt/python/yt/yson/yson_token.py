@@ -7,6 +7,7 @@ from yt.packages.six import PY3
 
 import string
 
+
 TOKEN_LITERAL = 0
 TOKEN_SLASH = 1
 TOKEN_AMPERSAND = 2
@@ -55,12 +56,14 @@ CHAR_TO_TOKEN_TYPE = {
     "*": TOKEN_ASTERISK
 }
 
+
 def char_to_token_type(char_or_byte):
     if PY3:
         char_or_byte = chr(char_or_byte)
     if char_or_byte not in CHAR_TO_TOKEN_TYPE:
         return TOKEN_END_OF_STREAM
     return CHAR_TO_TOKEN_TYPE[char_or_byte]
+
 
 def token_type_to_string(token):
     names = {
@@ -96,6 +99,7 @@ def token_type_to_string(token):
         return "Unknown"
     return names[token]
 
+
 def decode_token_value(value):
     if not PY3 or not isinstance(value, bytes):
         return value
@@ -109,6 +113,7 @@ def decode_token_value(value):
             chars.append("\\x" + hex(byte)[2:])
 
     return "".join(chars)
+
 
 class YsonToken(object):
     def __init__(self, value="", type=TOKEN_END_OF_STREAM):

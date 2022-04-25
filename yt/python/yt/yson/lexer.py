@@ -1,9 +1,29 @@
 from . import yson_types
-from .yson_token import *
+from .yson_token import (
+    YsonToken,
+    TOKEN_STRING,
+    TOKEN_INT64,
+    TOKEN_UINT64,
+    TOKEN_DOUBLE,
+    TOKEN_BOOLEAN,
+    TOKEN_HASH,
+    TOKEN_LEFT_PARENTHESIS,
+    TOKEN_RIGHT_PARENTHESIS,
+    TOKEN_COMMA,
+    TOKEN_COLON,
+    TOKEN_SEMICOLON,
+    TOKEN_LEFT_ANGLE,
+    TOKEN_EQUALS,
+    TOKEN_RIGHT_ANGLE,
+    TOKEN_LEFT_BRACKET,
+    TOKEN_RIGHT_BRACKET,
+    TOKEN_LEFT_BRACE,
+    TOKEN_RIGHT_BRACE)
 
-from .common import (raise_yson_error, _ENCODING_SENTINEL,
-                     STRING_MARKER, INT64_MARKER, DOUBLE_MARKER,
-                     FALSE_MARKER, TRUE_MARKER, UINT64_MARKER)
+from .common import (
+    raise_yson_error, _ENCODING_SENTINEL,
+    STRING_MARKER, INT64_MARKER, DOUBLE_MARKER,
+    FALSE_MARKER, TRUE_MARKER, UINT64_MARKER)
 
 from yt.packages.six.moves import xrange
 from yt.packages.six import int2byte, iterbytes
@@ -18,6 +38,7 @@ PERCENT_LITERALS = [b"true", b"false", b"nan", b"inf", b"-inf", b"+inf"]
 PERCENT_LITERAL_LENGTH = dict((s[0:1], len(s)) for s in PERCENT_LITERALS)
 assert len(PERCENT_LITERALS) == len(PERCENT_LITERAL_LENGTH)
 
+
 def _get_numeric_type(string):
     for code in iterbytes(string):
         ch = int2byte(code)
@@ -27,8 +48,10 @@ def _get_numeric_type(string):
             return _SEEMS_UINT64
     return _SEEMS_INT64
 
+
 def _zig_zag_decode(value):
     return (value >> 1) ^ -(value & 1)
+
 
 class YsonLexer(object):
     def __init__(self, stream, encoding=None, output_buffer=None):
