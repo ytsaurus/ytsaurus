@@ -110,7 +110,8 @@ class WorkerLogWriter(workerLogConfig: WorkerLogConfig)(implicit yt: CompoundCli
   private def upload(date: LocalDate, logArray: Seq[WorkerLogBlock], transaction: Option[ApiServiceTransaction]): Unit = {
     import scala.collection.JavaConverters._
     YtWrapper.createDynTableAndMount(s"${workerLogConfig.tablesPath}/$date", schema,
-      Map("expiration_time" -> (System.currentTimeMillis() + workerLogConfig.tableTTL.toMillis)))
+      Map("expiration_time" -> (System.currentTimeMillis() + workerLogConfig.tableTTL.toMillis))
+      ++ workerLogConfig.additionalTableOptions)
     YtWrapper.insertRows(
       s"${workerLogConfig.tablesPath}/$date",
       schema,

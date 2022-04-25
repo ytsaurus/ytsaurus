@@ -38,7 +38,8 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     updateInterval = 20 seconds,
     bufferSize = 1000,
     ytTableRowLimit = 500,
-    tableTTL = 20 seconds
+    tableTTL = 20 seconds,
+    additionalTableOptions = Map[String, Any]("enable_dynamic_store_read" -> true)
   )
 
   private def createLocalDir(path: String): Unit = {
@@ -207,6 +208,29 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     allLogs should contain theSameElementsAs Seq(
       Seq(simpleErrorEvent, simpleErrorEvent2, simpleInfoEvent, simpleInfoEvent2)
     )
+  }
+
+  it should "create log table with additional table attributes" in {
+    val driver = "example"
+    createDriver(driver)
+
+    val workerLogService = new LogServiceRunnable(config)
+    workerLogService.init()
+
+    writeToLog(getDriverFileLog(driver, STDOUT), List(simpleInfoEvent, simpleInfoEvent2))
+    writeToLog(getDriverFileLog(driver, STDERR), List(simpleErrorEvent, simpleErrorEvent2))
+
+    finalizeDriverLog(driver, STDOUT)
+    finalizeDriverLog(driver, STDERR)
+
+    workerLogService.uploadLogs()
+    val tables = YtWrapper.listDir(tablesDir).filter(_ != "meta")
+    tables.foreach { t =>
+      val enable_dynamic_store_read = yt.getNode(s"/${config.tablesPath}/$t/@enable_dynamic_store_read").join().boolValue()
+      assert(enable_dynamic_store_read)
+      val expiration = yt.existsNode(s"/${config.tablesPath}/$t/@expiration_time").join()
+      assert(expiration)
+    }
   }
 
   it should "read and write application log" in {
