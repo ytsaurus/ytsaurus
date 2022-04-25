@@ -2094,6 +2094,8 @@ private:
 
         request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
 
+        request.set_exec_node_is_not_data_node(originalRequest->exec_node_is_not_data_node());
+
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
     }
