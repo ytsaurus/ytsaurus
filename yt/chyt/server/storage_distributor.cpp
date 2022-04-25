@@ -284,6 +284,11 @@ TClusterNodes GetNodesToDistribute(TQueryContext* queryContext, size_t distribut
         return {queryContext->Host->GetLocalNode(),};
     }
 
+    // Create clique with |LocalCliqueSize| local ndoes for testing/debugging purposes.
+    if (queryContext->Settings->Testing->LocalCliqueSize > 0) {
+        return TClusterNodes(queryContext->Settings->Testing->LocalCliqueSize, queryContext->Host->GetLocalNode());
+    }
+
     auto candidates = queryContext->GetClusterNodesSnapshot();
 
     auto candidateComporator = [distributionSeed] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {

@@ -86,6 +86,9 @@ public:
 
     bool HangControlInvoker;
 
+    //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
+    int LocalCliqueSize;
+
     REGISTER_YSON_STRUCT(TTestingSettings);
 
     static void Register(TRegistrar registrar);

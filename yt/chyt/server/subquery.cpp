@@ -1071,6 +1071,14 @@ std::vector<TSubquery> BuildThreadSubqueries(
         LogSubqueryDebugInfo(subqueries, "AfterSampling", Logger);
     }
 
+    // TODO(dakovalkov): Should we do it for Unordered chunk pool for the sake of better caching?
+    if (poolKind == EPoolKind::Sorted) {
+        std::sort(subqueries.begin(), subqueries.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
+            return lhs.Cookie < rhs.Cookie;
+        });
+        LogSubqueryDebugInfo(subqueries, "AfterSort", Logger);
+    }
+
     // Enlarge subqueries if needed.
     {
         std::vector<TSubquery> enlargedSubqueries;
