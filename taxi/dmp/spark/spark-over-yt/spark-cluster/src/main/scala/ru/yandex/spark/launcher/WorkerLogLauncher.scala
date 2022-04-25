@@ -28,7 +28,8 @@ object WorkerLogLauncher extends VanillaLauncher {
                              updateInterval: Duration,
                              bufferSize: Int,
                              ytTableRowLimit: Int,
-                             tableTTL: Duration
+                             tableTTL: Duration,
+                             additionalTableOptions: Map[String, Any]
                             )
 
   object WorkerLogConfig {
@@ -69,6 +70,16 @@ object WorkerLogLauncher extends VanillaLauncher {
           userUpdateInterval
         }
 
+        val additionalTableOptions = sparkConf
+              .filter(_._1.startsWith("spark.workerLog.additionalTableOptions."))
+              .map { case (k, v) => k.substring("spark.workerLog.additionalTableOptions.".length) -> v } ++
+            args.list("wlog-add-table-option")
+              .map(v => {
+                 val parts = v.split('=')
+                 parts(0) -> parts(1)
+              })
+              .toMap
+
         Some(WorkerLogConfig(
           enableService = enableService,
           enableJson = args.optional("wlog-enable-json")
@@ -87,7 +98,8 @@ object WorkerLogLauncher extends VanillaLauncher {
             .map(_.toInt).getOrElse(16777216),
           tableTTL = args.optional("wlog-table-ttl")
             .orElse(sparkConf.get("spark.workerLog.tableTTL"))
-            .map(parseDuration).getOrElse(7 days)
+            .map(parseDuration).getOrElse(7 days),
+          additionalTableOptions = additionalTableOptions
         ))
       }
     }
