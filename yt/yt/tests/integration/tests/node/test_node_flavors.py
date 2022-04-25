@@ -173,6 +173,16 @@ class TestNodeFlavorsExecNodeIsNotDataNode(TestNodeFlavors):
         "exec_node_is_not_data_node": True,
     }
 
+class TestNodeFlavorsExecNodeIsNotDataNodeMulticell(TestNodeFlavors):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "lease_transaction_timeout": 2000,
+            "lease_transaction_ping_period": 1000,
+        },
+        "exec_node_is_not_data_node": True,
+    }
 
 ##################################################################
 
