@@ -1,13 +1,31 @@
 from . import convert
-from .common import raise_yson_error, StreamWrap, _ENCODING_SENTINEL
+from .common import raise_yson_error, YsonError, StreamWrap, _ENCODING_SENTINEL
 from .tokenizer import YsonTokenizer
-from .yson_token import *
+from .yson_token import (
+    TOKEN_STRING,
+    TOKEN_INT64,
+    TOKEN_UINT64,
+    TOKEN_DOUBLE,
+    TOKEN_BOOLEAN,
+    TOKEN_HASH,
+    TOKEN_SEMICOLON,
+    TOKEN_LEFT_ANGLE,
+    TOKEN_EQUALS,
+    TOKEN_RIGHT_ANGLE,
+    TOKEN_LEFT_BRACKET,
+    TOKEN_RIGHT_BRACKET,
+    TOKEN_LEFT_BRACE,
+    TOKEN_RIGHT_BRACE,
+    TOKEN_START_OF_STREAM,
+    TOKEN_END_OF_STREAM,
+)
 
 from yt.packages.six import PY3, BytesIO, text_type
 
 
 def _is_text_reader(stream):
     return type(stream.read(0)) is text_type
+
 
 class YsonParser(object):
     def __init__(self, stream, encoding, always_create_attributes):
@@ -254,6 +272,7 @@ def load(stream, yson_type=None, always_create_attributes=True, raw=None,
 
     parser = YsonParser(stream, encoding, always_create_attributes)
     return parser.parse()
+
 
 def loads(string, yson_type=None, always_create_attributes=True, raw=None,
           encoding=_ENCODING_SENTINEL, lazy=False):

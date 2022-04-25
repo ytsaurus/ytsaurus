@@ -2,12 +2,15 @@ from yt.common import YtError
 
 from yt.packages.six import int2byte, indexbytes
 
+
 class YsonError(YtError):
     pass
+
 
 def raise_yson_error(message, position_info):
     line_index, position, offset = position_info
     raise YsonError(message, attributes={"line": line_index, "position": position, "offset": offset})
+
 
 class StreamWrap(object):
     def __init__(self, stream, header, footer):

@@ -1,10 +1,13 @@
-from .yson_types import *
+from .yson_types import (
+    YsonType, YsonString, YsonUnicode, YsonBoolean, YsonInt64, YsonUint64, YsonDouble,
+    YsonList, YsonMap, YsonEntity)
 from .common import YsonError
 
 from yt.packages.six import text_type, binary_type, integer_types, iteritems, PY3
 from yt.packages.six.moves import map as imap
 
 import copy
+
 
 def to_yson_type(value, attributes=None, always_create_attributes=True, encoding="utf-8"):
     """Wraps value with YSON type."""
@@ -52,6 +55,7 @@ def to_yson_type(value, attributes=None, always_create_attributes=True, encoding
         result.attributes = {}
 
     return result
+
 
 # TODO(ignat): Should we make auto-detection for use_byte_strings?
 def json_to_yson(json_tree, use_byte_strings=None):
@@ -110,6 +114,7 @@ def json_to_yson(json_tree, use_byte_strings=None):
         result.attributes = json_to_yson(json_tree[to_literal("$attributes")], use_byte_strings=use_byte_strings)
     return result
 
+
 def yson_to_json(yson_tree, print_attributes=True):
     def encode_key(key):
         if PY3 and isinstance(key, binary_type):
@@ -151,4 +156,3 @@ def yson_to_json(yson_tree, print_attributes=True):
             other = other_types[0]
             return other(yson_tree)
         return yson_tree
-

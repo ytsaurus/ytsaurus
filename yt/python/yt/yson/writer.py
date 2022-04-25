@@ -43,12 +43,11 @@ from .common import (YsonError,
                      FALSE_MARKER, TRUE_MARKER, UINT64_MARKER)
 from . import yson_types
 
-from yt.packages.six.moves import map as imap, xrange
+from yt.packages.six.moves import map as imap
 from yt.packages.six import (integer_types, text_type, binary_type,
                              iteritems, iterkeys, iterbytes, PY3)
 
 import math
-import re
 import struct
 # Python3 compatibility
 try:
@@ -94,12 +93,13 @@ def _escape_bytes(obj):
 
     res = bytearray()
     iterator = iterbytes(obj)
-    cur = next(iterator)    
+    cur = next(iterator)
     for nxt in iterator:
         _escape_byte(cur, nxt, res)
         cur = nxt
     _escape_byte(cur, ord(b" "), res)
     return bytes(res)
+
 
 def dump(object, stream, yson_format=None, yson_type=None, indent=None,
          ignore_inner_attributes=False, encoding="utf-8", sort_keys=False,
@@ -120,6 +120,7 @@ def dump(object, stream, yson_format=None, yson_type=None, indent=None,
                        encoding=encoding, sort_keys=sort_keys,
                        check_circular=check_circular))
 
+
 class YsonContext(object):
     def __init__(self):
         self.path_parts = []
@@ -131,6 +132,7 @@ class YsonContext(object):
     def pop(self):
         self.path_parts.pop()
 
+
 def _raise_error_with_context(message, context):
     attributes = {}
     if context.row_index is not None:
@@ -141,8 +143,10 @@ def _raise_error_with_context(message, context):
         attributes["row_key_path"] = "/" + "/".join(path_parts)
     raise YsonError(message, attributes=attributes)
 
+
 def _zig_zag_encode(value):
     return (value >> 63) ^ (value << 1)
+
 
 def _dump_varint(value):
     assert 0 <= value <= 2 ** 64 - 1
@@ -152,6 +156,7 @@ def _dump_varint(value):
         value >>= 7
     result.append(value)
     return bytes(result)
+
 
 def dumps(object, yson_format=None, yson_type=None, indent=None,
           ignore_inner_attributes=False, encoding="utf-8", sort_keys=False,
@@ -177,6 +182,7 @@ def dumps(object, yson_format=None, yson_type=None, indent=None,
     d = Dumper(check_circular, encoding, indent, yson_type, sort_keys,
                is_text=is_text, ignore_inner_attributes=ignore_inner_attributes)
     return d.dumps(object, YsonContext())
+
 
 class Dumper(object):
     def __init__(self, check_circular, encoding, indent, yson_type, sort_keys,
@@ -384,7 +390,7 @@ class Dumper(object):
         def decorator(fn):
             def wrapper(*args, **kwargs):
                 obj_id = None
-                if not self._seen_objects is None:
+                if self._seen_objects is not None:
                     obj_id = id(obj)
                     if obj_id in self._seen_objects:
                         raise YsonError("Circular reference detected. Object: {0!r}".format(obj))

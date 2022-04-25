@@ -33,9 +33,9 @@ Examples:
 
 from __future__ import print_function
 
-from . import writer
-from . import parser
-from . import yson_types
+from . import writer  # noqa
+from . import parser  # noqa
+from . import yson_types  # noqa
 
 TYPE = None
 try:
@@ -51,16 +51,18 @@ except ImportError as error:
         print("Warning! Failed to import YSON bindings: " + message, file=_sys.stderr)
 
 if TYPE is None:
-    from .parser import load, loads
-    from .writer import dump, dumps
+    from .parser import load, loads  # noqa
+    from .writer import dump, dumps  # noqa
     TYPE = "PYTHON"
 
-from .yson_types import (YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDouble,
-                         YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType, YsonStringProxy,
-                         is_unicode, get_bytes, make_byte_key)
+from .yson_types import (  # noqa
+    YsonString, YsonUnicode, YsonInt64, YsonUint64, YsonDouble,
+    YsonBoolean, YsonList, YsonMap, YsonEntity, YsonType, YsonStringProxy,
+    is_unicode, get_bytes, make_byte_key)
 
-from .convert import to_yson_type, yson_to_json, json_to_yson
-from .common import YsonError
+from .convert import to_yson_type, yson_to_json, json_to_yson  # noqa
+from .common import YsonError  # noqa
+
 
 def _loads_from_native_str(string, encoding="utf-8", **kwargs):
     import sys
@@ -72,6 +74,7 @@ def _loads_from_native_str(string, encoding="utf-8", **kwargs):
         string = string.encode(encoding)
 
     return loads(string, encoding=encoding, **kwargs)
+
 
 def _dumps_to_native_str(obj, encoding="utf-8", **kwargs):
     import sys

@@ -183,7 +183,7 @@ def make_byte_key(s):
 if PY3:
     _YsonIntegerBase = int
 else:
-    _YsonIntegerBase = long
+    _YsonIntegerBase = long  # noqa
 
 
 class YsonIntegerBase(_YsonIntegerBase, YsonType):
