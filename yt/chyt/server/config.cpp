@@ -53,6 +53,9 @@ void TTestingSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("hang_control_invoker", &TThis::HangControlInvoker)
         .Default(false);
+
+    registrar.Parameter("local_clique_size", &TThis::LocalCliqueSize)
+        .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
