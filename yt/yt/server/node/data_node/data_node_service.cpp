@@ -336,7 +336,12 @@ private:
             sessionId);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        auto session = sessionManager->FindSession(sessionId);
+        if (!session) {
+            context->Reply();
+            return;
+        }
+
         session->Cancel(TError("Canceled by client request"));
 
         if (waitForCancelation) {
