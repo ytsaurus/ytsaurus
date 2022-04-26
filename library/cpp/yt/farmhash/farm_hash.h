@@ -33,6 +33,11 @@ static inline TFingerprint FarmFingerprint(const void* buf, size_t len)
     return ::util::Fingerprint64(static_cast<const char*>(buf), len);
 }
 
+static inline TFingerprint FarmFingerprint(TStringBuf buf)
+{
+    return FarmFingerprint(buf.Data(), buf.Size());
+}
+
 static inline TFingerprint FarmFingerprint(ui64 first, ui64 second)
 {
     return ::util::Fingerprint(::util::Uint128(first, second));
