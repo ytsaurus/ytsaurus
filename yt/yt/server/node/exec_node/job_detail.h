@@ -248,6 +248,8 @@ private:
     std::vector<TGpuManager::TGpuSlotPtr> GpuSlots_;
     std::vector<TGpuStatistics> GpuStatistics_;
 
+    i64 MaxDiskUsage_ = 0;
+
     int SetupCommandsCount_ = 0;
 
     std::optional<ui32> NetworkProjectId_;
