@@ -464,7 +464,7 @@ IOperationPtr IOperationClient::Map(
 
     return DoMap(
         spec,
-        *mapper,
+        std::move(mapper),
         options);
 }
 
@@ -487,7 +487,7 @@ IOperationPtr IOperationClient::Map(
     for (const auto& outputPath : output.Parts_) {
         mapSpec.AddStructuredOutput(outputPath);
     }
-    return Map(mapSpec, mapper, options);
+    return Map(mapSpec, std::move(mapper), options);
 }
 
 IOperationPtr IOperationClient::Reduce(
@@ -499,7 +499,7 @@ IOperationPtr IOperationClient::Reduce(
 
     return DoReduce(
         spec,
-        *reducer,
+        std::move(reducer),
         options);
 }
 
@@ -526,7 +526,7 @@ IOperationPtr IOperationClient::Reduce(
         reduceSpec.AddStructuredOutput(outputPath);
     }
     reduceSpec.ReduceBy(reduceBy);
-    return Reduce(reduceSpec, reducer, options);
+    return Reduce(reduceSpec, std::move(reducer), options);
 }
 
 IOperationPtr IOperationClient::JoinReduce(
@@ -538,7 +538,7 @@ IOperationPtr IOperationClient::JoinReduce(
 
     return DoJoinReduce(
         spec,
-        *reducer,
+        std::move(reducer),
         options);
 }
 
@@ -552,9 +552,9 @@ IOperationPtr IOperationClient::MapReduce(
 
     return DoMapReduce(
         spec,
-        mapper.Get(),
+        std::move(mapper),
         nullptr,
-        *reducer,
+        std::move(reducer),
         options);
 }
 
@@ -569,9 +569,9 @@ IOperationPtr IOperationClient::MapReduce(
 
     return DoMapReduce(
         spec,
-        mapper.Get(),
-        reduceCombiner.Get(),
-        *reducer,
+        std::move(mapper),
+        std::move(reduceCombiner),
+        std::move(reducer),
         options);
 }
 
@@ -598,7 +598,7 @@ IOperationPtr IOperationClient::MapReduce(
         spec.AddStructuredOutput(outputPath);
     }
     spec.ReduceBy(reduceBy);
-    return MapReduce(spec, mapper, reducer, options);
+    return MapReduce(spec, std::move(mapper), std::move(reducer), options);
 }
 
 IOperationPtr IOperationClient::MapReduce(
@@ -625,7 +625,7 @@ IOperationPtr IOperationClient::MapReduce(
         spec.AddStructuredOutput(outputPath);
     }
     spec.ReduceBy(reduceBy);
-    return MapReduce(spec, mapper, reduceCombiner, reducer, options);
+    return MapReduce(spec, std::move(mapper), std::move(reduceCombiner), std::move(reducer), options);
 }
 
 IOperationPtr IOperationClient::Sort(
