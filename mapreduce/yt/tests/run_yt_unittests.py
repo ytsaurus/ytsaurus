@@ -10,7 +10,7 @@ EXAMPLE
 -------
 
 $ cat ya.make:
-    PYTEST()
+    PY2TEST()
     PY_SRCS(
         yt_unittest_conf.py # path to test configuration
     )
