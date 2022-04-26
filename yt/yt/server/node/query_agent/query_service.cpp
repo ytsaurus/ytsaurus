@@ -847,7 +847,7 @@ private:
                 i64 responseRowCount = 0;
                 i64 responseDataWeight = 0;
                 auto maxTimestamp = MinTimestamp;
-                bool tooMuch = false;
+                bool readAllRows = true;
                 std::optional<i64> endReplicationRowIndex;
 
                 auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
@@ -881,7 +881,7 @@ private:
                         &responseRowCount,
                         &responseDataWeight,
                         &maxTimestamp,
-                        &tooMuch);
+                        &readAllRows);
 
                     endReplicationRowIndex = currentRowIndex;
                 } else if (startReplicationRowIndex) {
@@ -890,15 +890,15 @@ private:
 
                 YT_LOG_DEBUG("Read replication batch (LastTimestamp: %llx, ReadAllRows: %v, UpperTimestamp: %llx, ProgressMinTimestamp: %llx)",
                     maxTimestamp,
-                    !tooMuch,
+                    readAllRows,
                     upperTimestamp,
                     GetReplicationProgressMinTimestamp(*replicationProgress));
 
-                if (upperTimestamp && !tooMuch) {
-                    maxTimestamp = upperTimestamp;
-                }
+                if (readAllRows) {
+                    if (upperTimestamp) {
+                        maxTimestamp = upperTimestamp;
+                    }
 
-                if (!tooMuch) {
                     maxTimestamp = std::max(
                         maxTimestamp,
                         GetReplicationProgressMinTimestamp(*replicationProgress));
@@ -1576,7 +1576,7 @@ private:
         i64* batchRowCount,
         i64* batchDataWeight,
         TTimestamp* maxTimestamp,
-        bool* tooMuch)
+        bool* readAllRows)
     {
         auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
@@ -1594,8 +1594,8 @@ private:
         int discardedByProgress = 0;
         auto startRowIndex = *currentRowIndex;
 
-        *tooMuch = false;
-        while (!*tooMuch) {
+        *readAllRows = true;
+        while (*readAllRows) {
             auto batch = reader->Read(rowBatchReadOptions);
             if (!batch) {
                 YT_LOG_DEBUG("Received empty batch from tablet reader (TabletId: %v, StartRowIndex: %v)",
@@ -1618,8 +1618,6 @@ private:
             auto readerRows = std::vector<TUnversionedRow>(range.begin(), range.end());
 
             for (const auto& replicationLogRow : readerRows) {
-                ++*currentRowIndex;
-
                 TTypeErasedRow replicationRow;
                 NApi::ERowModificationType modificationType;
                 i64 rowIndex;
@@ -1641,6 +1639,7 @@ private:
                 if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.BeginKeys(), row.EndKeys());
                     !progressTimestamp || timestamp <= *progressTimestamp)
                 {
+                    ++*currentRowIndex;
                     ++discardedByProgress;
                     continue;
                 }
@@ -1651,20 +1650,30 @@ private:
                     // Upper timestamp should be some era start ts, so no tx should have it as a commit ts.
                     YT_VERIFY(upperTimestamp == NullTimestamp || timestamp != upperTimestamp);
 
-                    if ((upperTimestamp != NullTimestamp && timestamp > upperTimestamp) ||
-                        *batchRowCount >= mountConfig->MaxRowsPerReplicationCommit ||
-                        *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
-                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
-                    {
-                        *tooMuch = true;
+                    if (upperTimestamp != NullTimestamp && timestamp > upperTimestamp) {
+                        *maxTimestamp = std::max(*maxTimestamp, upperTimestamp);
+                        *readAllRows = false;
 
-                        YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
-                            "(TabletId: %v, Timestamp: %llx, UpperTimestamp: %llx, TimestampOverflow: %v, "
-                            "ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
+                        YT_LOG_DEBUG("Stopped reading replication batch because upper timestamp has been reached "
+                            "(TabletId: %v, Timestamp: %llx, UpperTimestamp: %llx, LastTimestamp: %llx)",
                             tabletSnapshot->TabletId,
                             timestamp,
                             upperTimestamp,
-                            timestamp > upperTimestamp,
+                            *maxTimestamp);
+
+                        break;
+                    }
+
+                    if (*batchRowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                        *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit)
+                    {
+                        *readAllRows = false;
+
+                        YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
+                            "(TabletId: %v, Timestamp: %llx, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
+                            tabletSnapshot->TabletId,
+                            timestamp,
                             *batchRowCount >= mountConfig->MaxRowsPerReplicationCommit,
                             *batchDataWeight >= mountConfig->MaxDataWeightPerReplicationCommit,
                             timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit);
@@ -1680,6 +1689,7 @@ private:
                 *batchRowCount += 1;
                 *batchDataWeight += GetDataWeight(row);
                 prevTimestamp = timestamp;
+                ++*currentRowIndex;
             }
 
             *totalRowCount += readerRows.size();
