@@ -2312,15 +2312,16 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    i64 totalUtilizationGpu = 0;
-    i64 totalUtilizationMemory = 0;
-    i64 totalMemory = 0;
-    i64 totalLoad = 0;
+    i64 totalCumulativeUtilizationGpu = 0;
+    i64 totalCumulativeUtilizationMemory = 0;
+    i64 totalCumulativeMemory = 0;
+    i64 totalCumulativeLoad = 0;
+    i64 totalCumulativeUtilizationPower = 0;
+    i64 totalCumulativePower = 0;
+    i64 totalCumulativeUtilizationClocksSm = 0;
+    i64 totalCumulativeClocksSm = 0;
     i64 totalMaxMemoryUsed = 0;
-    i64 totalUtilizationPower = 0;
-    i64 totalPower = 0;
-    i64 totalUtilizationClocksSm = 0;
-    i64 totalClocksSm = 0;
+    i64 totalMemoryTotal = 0;
 
     auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
     for (int index = 0; index < std::ssize(GpuSlots_); ++index) {
@@ -2363,32 +2364,46 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
         slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
 
-        totalUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
-        totalUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
-        totalMemory += slotStatistics.CumulativeMemory;
-        totalLoad += slotStatistics.CumulativeLoad;
+        totalCumulativeUtilizationGpu += slotStatistics.CumulativeUtilizationGpu;
+        totalCumulativeUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
+        totalCumulativeMemory += slotStatistics.CumulativeMemory;
+        totalCumulativeLoad += slotStatistics.CumulativeLoad;
+        totalCumulativeUtilizationPower += slotStatistics.CumulativeUtilizationPower;
+        totalCumulativePower += slotStatistics.CumulativePower;
+        totalCumulativeUtilizationClocksSm += slotStatistics.CumulativeUtilizationClocksSm;
+        totalCumulativeClocksSm += slotStatistics.CumulativeClocksSm;
         totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
-        totalUtilizationPower += slotStatistics.CumulativeUtilizationPower;
-        totalPower += slotStatistics.CumulativePower;
-        totalUtilizationClocksSm += slotStatistics.CumulativeUtilizationClocksSm;
-        totalClocksSm += slotStatistics.CumulativeClocksSm;
+        totalMemoryTotal += gpuInfo.MemoryTotal;
     }
 
-    statistics->AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
-    statistics->AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
-    statistics->AddSample("/user_job/gpu/utilization_power", totalUtilizationPower);
-    statistics->AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
-    statistics->AddSample("/user_job/gpu/memory", totalMemory);
-    statistics->AddSample("/user_job/gpu/power", totalPower);
-    statistics->AddSample("/user_job/gpu/clocks_sm", totalClocksSm);
-    statistics->AddSample("/user_job/gpu/load", totalLoad);
+    // COMPAT(ignat)
+    statistics->AddSample("/user_job/gpu/utilization_gpu", totalCumulativeUtilizationGpu);
+    statistics->AddSample("/user_job/gpu/utilization_memory", totalCumulativeUtilizationMemory);
+    statistics->AddSample("/user_job/gpu/utilization_power", totalCumulativeUtilizationPower);
+    statistics->AddSample("/user_job/gpu/utilization_clocks_sm", totalCumulativeUtilizationClocksSm);
+    statistics->AddSample("/user_job/gpu/memory", totalCumulativeMemory);
+    statistics->AddSample("/user_job/gpu/power", totalCumulativePower);
+    statistics->AddSample("/user_job/gpu/clocks_sm", totalCumulativeClocksSm);
+    statistics->AddSample("/user_job/gpu/load", totalCumulativeLoad);
     statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
+
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", totalCumulativeUtilizationGpu);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", totalCumulativeUtilizationMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_power", totalCumulativeUtilizationPower);
+    statistics->AddSample("/user_job/gpu/cumulative_utilization_clocks_sm", totalCumulativeUtilizationClocksSm);
+    statistics->AddSample("/user_job/gpu/cumulative_memory", totalCumulativeMemory);
+    statistics->AddSample("/user_job/gpu/cumulative_power", totalCumulativePower);
+    statistics->AddSample("/user_job/gpu/cumulative_clocks_sm", totalCumulativeClocksSm);
+    statistics->AddSample("/user_job/gpu/cumulative_load", totalCumulativeLoad);
+    statistics->AddSample("/user_job/gpu/max_memory_used", totalMaxMemoryUsed);
+    statistics->AddSample("/user_job/gpu/memory_total", totalMemoryTotal);
 }
         
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
     auto diskStatistics = Slot_->GetDiskStatistics();
-    statistics->AddSample("/user_job/disk/usage", diskStatistics.Usage);
+    MaxDiskUsage_ = std::max(MaxDiskUsage_, diskStatistics.Usage);
+    statistics->AddSample("/user_job/disk/max_usage", MaxDiskUsage_);
     if (diskStatistics.Limit) {
         statistics->AddSample("/user_job/disk/limit", *diskStatistics.Limit);
     }
