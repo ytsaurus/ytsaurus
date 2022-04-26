@@ -4477,16 +4477,16 @@ private:
         if (isDestroyed) {
             --DestroyedReplicaCount_;
         }
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "%v replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
-            isDestroyed ? "Destroyed chunk" : "Chunk",
-            chunkIdWithIndexes,
-            node->GetDefaultAddress(),
-            nodeId);
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "%v replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+                isDestroyed ? "Destroyed chunk" : "Chunk",
+                chunkIdWithIndexes,
+                node->GetDefaultAddress(),
+                nodeId);
             return nullptr;
         }
 
