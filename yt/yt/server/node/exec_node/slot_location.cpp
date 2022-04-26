@@ -912,7 +912,7 @@ void TSlotLocation::UpdateDiskResources()
             config->CheckDeviceId = true;
             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                 auto path = GetSandboxPath(slotIndex, sandboxKind);
-                if (NFS::Exists(path)) {
+                if (NFS::Exists(path) && !IsInsideTmpfs(path)) {
                     config->Paths.push_back(path);
                 }
             }
