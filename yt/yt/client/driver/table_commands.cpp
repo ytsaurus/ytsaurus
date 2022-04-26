@@ -900,6 +900,8 @@ TPullRowsCommand::TPullRowsCommand()
     RegisterParameter("path", Path);
     RegisterParameter("upstream_replica_id", Options.UpstreamReplicaId);
     RegisterParameter("replication_progress", Options.ReplicationProgress);
+    RegisterParameter("upper_timestamp", Options.UpperTimestamp)
+        .Optional();
     RegisterParameter("order_rows_by_timestamp", Options.OrderRowsByTimestamp)
         .Default(false);
 }
@@ -921,7 +923,12 @@ void TPullRowsCommand::DoExecute(ICommandContextPtr context)
 
     ProduceResponseParameters(context, [&] (IYsonConsumer* consumer) {
         BuildYsonMapFragmentFluently(consumer)
-            .Item("replication_progress").Value(pullResult.ReplicationProgress);
+            .Item("replication_progress").Value(pullResult.ReplicationProgress)
+            .Item("end_replication_row_indexes")
+            .DoMapFor(pullResult.EndReplicationRowIndexes, [] (auto fluent, const auto& pair) {
+                fluent
+                    .Item(ToString(pair.first)).Value(pair.second);
+            });
     });
 
     auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(pullResult.Rowset->GetSchema()), output);

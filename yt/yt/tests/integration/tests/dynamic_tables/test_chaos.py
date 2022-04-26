@@ -554,6 +554,49 @@ class TestChaos(ChaosTestBase):
         assert progress["segments"][1]["timestamp"] >= row.attributes["write_timestamps"][0]
 
     @authors("savrus")
+    def test_end_replication_row_index(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q"},
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"}
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        def _pull_rows(upper_timestamp=0, response_parameters=None):
+            return pull_rows(
+                "//tmp/q",
+                upstream_replica_id=replica_ids[0],
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                },
+                upper_timestamp=upper_timestamp,
+                response_parameters=response_parameters)
+
+        timestamp = generate_timestamp()
+        insert_rows("//tmp/q", [{"key": 0, "value": "0"}])
+        wait(lambda: len(_pull_rows()) == 1)
+
+        def _check(timestamp, expected_row_count, expected_end_index, expected_progress):
+            response_parameters={}
+            rows = _pull_rows(timestamp, response_parameters)
+            print_debug(response_parameters)
+            end_indexes = list(response_parameters["end_replication_row_indexes"].values())
+
+            assert len(rows) == expected_row_count
+            assert len(end_indexes) == 1
+            assert end_indexes[0] == expected_end_index
+
+            segments = response_parameters["replication_progress"]["segments"]
+            assert len(segments) == 1
+            if expected_progress:
+                assert segments[0]["timestamp"] == expected_progress
+
+        _check(0, 1, 1, None)
+        _check(timestamp, 0, 0, timestamp)
+
+    @authors("savrus")
     def test_delete_rows_replication(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
