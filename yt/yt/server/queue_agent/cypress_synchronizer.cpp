@@ -317,9 +317,7 @@ private:
                 continue;
             }
 
-            // TODO(achulkov2): Improve once YT-16793 is completed.
-            auto cypressWatchlist = TCypressWatchlist::Create();
-            Deserialize(cypressWatchlist, ConvertToNode(TYsonString(rspOrError.Value()->value())));
+            auto cypressWatchlist = ConvertTo<TCypressWatchlist>(TYsonString(rspOrError.Value()->value()));
 
             InferChangesFromClusterWatchlist(
                 cluster,
