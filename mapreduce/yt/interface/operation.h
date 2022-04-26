@@ -3301,24 +3301,24 @@ struct IOperationClient
 private:
     virtual IOperationPtr DoMap(
         const TMapOperationSpec& spec,
-        const IStructuredJob& mapper,
+        ::TIntrusivePtr<IStructuredJob> mapper,
         const TOperationOptions& options) = 0;
 
     virtual IOperationPtr DoReduce(
         const TReduceOperationSpec& spec,
-        const IStructuredJob& reducer,
+        ::TIntrusivePtr<IStructuredJob> reducer,
         const TOperationOptions& options) = 0;
 
     virtual IOperationPtr DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
-        const IStructuredJob& reducer,
+        ::TIntrusivePtr<IStructuredJob> reducer,
         const TOperationOptions& options) = 0;
 
     virtual IOperationPtr DoMapReduce(
         const TMapReduceOperationSpec& spec,
-        const IStructuredJob* mapper,
-        const IStructuredJob* reduceCombiner,
-        const IStructuredJob& reducer,
+        ::TIntrusivePtr<IStructuredJob> mapper,
+        ::TIntrusivePtr<IStructuredJob> reduceCombiner,
+        ::TIntrusivePtr<IStructuredJob> reducer,
         const TOperationOptions& options) = 0;
 };
 

@@ -270,14 +270,14 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
 
 IOperationPtr TClientBase::DoMap(
     const TMapOperationSpec& spec,
-    const IStructuredJob& mapper,
+    ::TIntrusivePtr<IStructuredJob> mapper,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteMap(
         preparer,
         spec,
-        mapper,
+        *mapper,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
@@ -298,14 +298,14 @@ IOperationPtr TClientBase::RawMap(
 
 IOperationPtr TClientBase::DoReduce(
     const TReduceOperationSpec& spec,
-    const IStructuredJob& reducer,
+    ::TIntrusivePtr<IStructuredJob> reducer,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteReduce(
         preparer,
         spec,
-        reducer,
+        *reducer,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
@@ -326,14 +326,14 @@ IOperationPtr TClientBase::RawReduce(
 
 IOperationPtr TClientBase::DoJoinReduce(
     const TJoinReduceOperationSpec& spec,
-    const IStructuredJob& reducer,
+    ::TIntrusivePtr<IStructuredJob> reducer,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteJoinReduce(
         preparer,
         spec,
-        reducer,
+        *reducer,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
@@ -354,18 +354,18 @@ IOperationPtr TClientBase::RawJoinReduce(
 
 IOperationPtr TClientBase::DoMapReduce(
     const TMapReduceOperationSpec& spec,
-    const IStructuredJob* mapper,
-    const IStructuredJob* reduceCombiner,
-    const IStructuredJob& reducer,
+    ::TIntrusivePtr<IStructuredJob> mapper,
+    ::TIntrusivePtr<IStructuredJob> reduceCombiner,
+    ::TIntrusivePtr<IStructuredJob> reducer,
     const TOperationOptions& options)
 {
     TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
     auto operationId = ExecuteMapReduce(
         preparer,
         spec,
-        mapper,
-        reduceCombiner,
-        reducer,
+        mapper.Get(),
+        reduceCombiner.Get(),
+        *reducer,
         options);
     return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
 }
