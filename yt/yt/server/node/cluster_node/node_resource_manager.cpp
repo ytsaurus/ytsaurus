@@ -25,6 +25,8 @@
 namespace NYT::NClusterNode {
 
 using namespace NConcurrency;
+using namespace NYson;
+using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 
@@ -61,6 +63,14 @@ void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLi
 
     TotalCpu_ = cpuLimit;
     TotalMemory_ = memoryLimit;
+}
+
+IYPathServicePtr TNodeResourceManager::GetOrchidService()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return IYPathService::FromProducer(BIND(&TNodeResourceManager::BuildOrchid, MakeStrong(this)))
+        ->Via(Bootstrap_->GetControlInvoker());
 }
 
 double TNodeResourceManager::GetJobsCpuLimit() const
@@ -242,9 +252,6 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto config = Bootstrap_->GetConfig()->ResourceLimits;
-    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
-
     double newJobsCpuLimit = 0;
 
     // COPMAT(gritukan)
@@ -252,8 +259,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
         newJobsCpuLimit = ResourceLimitsOverride_.cpu();
     } else {
         if (TotalCpu_) {
-            double nodeDedicatedCpu = dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
-            newJobsCpuLimit = *TotalCpu_ - nodeDedicatedCpu;
+            newJobsCpuLimit = *TotalCpu_ - GetNodeDedicatedCpu();
         } else {
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu;
         }
@@ -296,6 +302,16 @@ double TNodeResourceManager::GetTabletSlotCpu() const
     } else {
         return 0;
     }
+}
+
+double TNodeResourceManager::GetNodeDedicatedCpu() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto config = Bootstrap_->GetConfig()->ResourceLimits;
+    auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
+
+    return dynamicConfig->NodeDedicatedCpu.value_or(*config->NodeDedicatedCpu);
 }
 
 TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMemoryLimits() const
@@ -368,6 +384,26 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
     }
 
     return limits;
+}
+
+void TNodeResourceManager::BuildOrchid(IYsonConsumer* consumer) const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto memoryLimits = GetMemoryLimits();
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("total_cpu").Value(TotalCpu_)
+            .Item("total_memory").Value(TotalMemory_)
+            .Item("jobs_cpu_limit").Value(JobsCpuLimit_)
+            .Item("tablet_slot_cpu").Value(GetTabletSlotCpu())
+            .Item("node_dedicated_cpu").Value(GetNodeDedicatedCpu())
+            .Item("memory_limit_per_category").DoMapFor(TEnumTraits<EMemoryCategory>::GetDomainValues(),
+                [&] (TFluentMap fluent, EMemoryCategory category) {
+                    fluent.Item(FormatEnum<EMemoryCategory>(category)).Value(memoryLimits[category]->Value);
+                })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

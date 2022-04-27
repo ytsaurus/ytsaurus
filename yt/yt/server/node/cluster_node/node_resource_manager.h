@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/ytree/ypath_service.h>
+
 namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,6 +38,8 @@ public:
     void SetResourceLimitsOverride(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimitsOverride);
 
     void OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit);
+    
+    NYTree::IYPathServicePtr GetOrchidService();
 
     DEFINE_SIGNAL(void(), JobsCpuLimitUpdated);
 
@@ -64,6 +68,9 @@ private:
     NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage() const;
 
     double GetTabletSlotCpu() const;
+    double GetNodeDedicatedCpu() const;
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 
     TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> GetMemoryLimits() const;
 };
