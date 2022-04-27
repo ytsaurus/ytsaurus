@@ -21,7 +21,6 @@ namespace NYT::NJournalClient {
 NChunkClient::IChunkReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NChunkClient::TChunkId chunkId,
     NErasure::ECodec codecId,
     const NChunkClient::TChunkReplicaList& replicas,

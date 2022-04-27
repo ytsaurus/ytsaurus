@@ -31,7 +31,6 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
 using NRpc::IChannelPtr;
-using NNodeTrackerClient::TNodeDirectoryPtr;
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
 
@@ -59,7 +58,6 @@ public:
         NApi::NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
-        TNodeDirectoryPtr nodeDirectory,
         TComparator comparator,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
@@ -99,7 +97,6 @@ public:
             std::move(client),
             std::move(blockCache),
             std::move(chunkMetaCache),
-            std::move(nodeDirectory),
             std::move(dataSourceDirectory),
             std::move(dataSliceDescriptors),
             NameTable_,
@@ -562,7 +559,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
-    TNodeDirectoryPtr nodeDirectory,
     TComparator comparator,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
@@ -582,7 +578,6 @@ ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
         std::move(client),
         std::move(blockCache),
         std::move(chunkMetaCache),
-        std::move(nodeDirectory),
         std::move(comparator),
         std::move(nameTable),
         onNetworkReleased,

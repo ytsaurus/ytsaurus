@@ -182,6 +182,7 @@ private:
         }
 
         auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
 
         bool emptyRead = Options_.Length && *Options_.Length == 0;
@@ -247,7 +248,6 @@ private:
             /*localDescriptor*/ {},
             Client_->GetNativeConnection()->GetBlockCache(),
             Client_->GetNativeConnection()->GetChunkMetaCache(),
-            nodeDirectory,
             ChunkReadOptions_,
             std::move(chunkSpecs),
             dataSource);

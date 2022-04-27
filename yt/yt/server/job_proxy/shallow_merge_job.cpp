@@ -235,35 +235,34 @@ private:
         }
 
         auto underlyingWriter = CreateConfirmingWriter(
-            /*config*/ WriterConfig_,
-            /*options*/ UnderlyingWriterOptions_,
-            /*cellTag*/ CellTagFromId(outputChunkListId),
-            /*transactionId*/ FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id()),
-            /*parentChunkListId*/ outputChunkListId,
-            /*nodeDirectory*/ New<TNodeDirectory>(),
-            /*client*/ Host_->GetClient(),
-            /*localHostName*/ Host_->GetLocalHostName(),
-            /*blockCache*/ Host_->GetWriterBlockCache(),
-            /*trafficMeter*/ Host_->GetTrafficMeter(),
-            /*throttler*/ Host_->GetOutBandwidthThrottler());
+            WriterConfig_,
+            UnderlyingWriterOptions_,
+            CellTagFromId(outputChunkListId),
+            FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id()),
+            outputChunkListId,
+            New<TNodeDirectory>(),
+            Host_->GetClient(),
+            Host_->GetLocalHostName(),
+            Host_->GetWriterBlockCache(),
+            Host_->GetTrafficMeter(),
+            Host_->GetOutBandwidthThrottler());
         Writer_ = CreateMetaAggregatingWriter(std::move(underlyingWriter), writerOptions);
     }
 
-    IChunkReaderPtr CreateChunkReader(const TChunkSpec& chunk) const
+    IChunkReaderPtr CreateChunkReader(const TChunkSpec& chunkSpec) const
     {
         return CreateRemoteReader(
-            /*chunkSpec*/ chunk,
-            /*config*/ ReaderConfig_,
-            /*options*/ ReaderOptions_,
-            /*client*/ Host_->GetClient(),
-            /*nodeDirectory*/ Host_->GetInputNodeDirectory(),
-            /*localDescriptor*/ Host_->LocalDescriptor(),
-            /*blockCache*/ Host_->GetReaderBlockCache(),
+            chunkSpec,
+            ReaderConfig_,
+            ReaderOptions_,
+            Host_->GetClient(),
+            Host_->LocalDescriptor(),
+            Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            /*trafficMeter*/ Host_->GetTrafficMeter(),
+            Host_->GetTrafficMeter(),
             /*nodeStatusDirectory*/ nullptr,
-            /*bandwidthThrottler*/ Host_->GetInBandwidthThrottler(),
-            /*rpsThrottler*/ Host_->GetOutRpsThrottler());
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
     }
 
     TDeferredChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)

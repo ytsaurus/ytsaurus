@@ -32,7 +32,9 @@ DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(const NJobTrackerClient::NProto::TJobSpec& jobSpec);
+IJobSpecHelperPtr CreateJobSpecHelper(
+    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

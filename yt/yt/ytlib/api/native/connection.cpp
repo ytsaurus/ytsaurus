@@ -256,8 +256,7 @@ public:
             Logger);
 
         NodeDirectory_ = New<TNodeDirectory>();
-        NodeDirectorySynchronizer_ = New<TNodeDirectorySynchronizer>(
-            Config_->NodeDirectorySynchronizer,
+        NodeDirectorySynchronizer_ = CreateNodeDirectorySynchronizer(
             MakeStrong(this),
             NodeDirectory_);
 
@@ -460,15 +459,16 @@ public:
         return ChaosCellDirectorySynchronizer_;
     }
 
-    const TNodeDirectoryPtr& GetNodeDirectory() override
+    const TNodeDirectoryPtr& GetNodeDirectory(bool startSynchronizer) override
     {
-        NodeDirectorySynchronizer_->Start();
+        if (startSynchronizer) {
+            NodeDirectorySynchronizer_->Start();
+        }
         return NodeDirectory_;
     }
 
-    const TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
+    const INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() override
     {
-        NodeDirectorySynchronizer_->Start();
         return NodeDirectorySynchronizer_;
     }
 
@@ -643,7 +643,7 @@ private:
     TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
     TNodeDirectoryPtr NodeDirectory_;
-    TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
+    INodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
     IChunkReplicaCachePtr ChunkReplicaCache_;
 

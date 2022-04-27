@@ -389,6 +389,8 @@ private:
     const IAttributeDictionaryPtr EndpointAttributes_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IChannelPtr CreateHedgingChannel(
     IChannelPtr primaryChannel,
     IChannelPtr backupChannel,

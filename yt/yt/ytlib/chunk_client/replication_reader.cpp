@@ -164,7 +164,6 @@ public:
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
         NNative::IClientPtr client,
-        TNodeDirectoryPtr nodeDirectory,
         const TNodeDescriptor& localDescriptor,
         TChunkId chunkId,
         const TChunkReplicaList& seedReplicas,
@@ -177,7 +176,7 @@ public:
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
-        , NodeDirectory_(std::move(nodeDirectory))
+        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false))
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(std::move(blockCache))
@@ -196,6 +195,8 @@ public:
             seedReplicas,
             Logger))
     {
+        YT_VERIFY(NodeDirectory_);
+
         if (!Options_->AllowFetchingSeedsFromMaster && seedReplicas.empty()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoChunkSeedsGiven,
@@ -3257,7 +3258,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
-    TNodeDirectoryPtr nodeDirectory,
     const TNodeDescriptor& localDescriptor,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
@@ -3271,13 +3271,11 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     YT_VERIFY(config);
     YT_VERIFY(blockCache);
     YT_VERIFY(client);
-    YT_VERIFY(nodeDirectory);
 
     return New<TReplicationReader>(
         std::move(config),
         std::move(options),
         std::move(client),
-        std::move(nodeDirectory),
         localDescriptor,
         chunkId,
         seedReplicas,

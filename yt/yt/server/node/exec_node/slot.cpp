@@ -180,7 +180,7 @@ public:
     {
         return SlotIndex_;
     }
-    
+
     TDiskStatistics GetDiskStatistics() const override
     {
         return Location_->GetDiskStatistics(SlotIndex_);

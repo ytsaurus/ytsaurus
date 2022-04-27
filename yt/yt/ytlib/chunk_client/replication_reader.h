@@ -24,7 +24,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,

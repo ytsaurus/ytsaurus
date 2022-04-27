@@ -131,6 +131,7 @@ public:
     //! Maximum number of peers to poll for queue length each round.
     int ProbePeerCount;
 
+    // COMPAT(akozhikhov): Drop with TChunkReplicaLocator.
     //! Time to wait before asking the master for seeds.
     TDuration SeedsTimeout;
 

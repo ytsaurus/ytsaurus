@@ -538,9 +538,41 @@ public:
         , Client_(client)
     { }
 
-    TSharedRef DoFetch(
+    TFuture<TFunctionImplCacheEntryPtr> FetchImplementation(
         const TFunctionImplKey& key,
         TNodeDirectoryPtr nodeDirectory,
+        const TClientChunkReadOptions& chunkReadOptions)
+    {
+        auto cookie = BeginInsert(key);
+        if (!cookie.IsActive()) {
+            return cookie.GetValue();
+        }
+
+        return BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (
+                const TFunctionImplKey& key,
+                TNodeDirectoryPtr nodeDirectory,
+                const TClientChunkReadOptions& chunkReadOptions) mutable
+            {
+                try {
+                    auto file = DoFetch(key, std::move(nodeDirectory), chunkReadOptions);
+                    cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
+                } catch (const std::exception& ex) {
+                    cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
+                }
+
+                return cookie.GetValue();
+            })
+            .AsyncVia(GetCurrentInvoker())
+            .Run(key, nodeDirectory, chunkReadOptions);
+    }
+
+private:
+    const TWeakPtr<NNative::IClient> Client_;
+
+
+    TSharedRef DoFetch(
+        const TFunctionImplKey& key,
+        const TNodeDirectoryPtr& nodeDirectory,
         const TClientChunkReadOptions& chunkReadOptions)
     {
         auto client = Client_.Lock();
@@ -551,6 +583,8 @@ public:
             key,
             chunkReadOptions.ReadSessionId);
 
+        client->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false)->MergeFrom(nodeDirectory);
+
         // TODO(gepardo): pass correct data source here. See YT-16305 for details.
         auto reader = NFileClient::CreateFileMultiChunkReader(
             New<NApi::TFileReaderConfig>(),
@@ -559,7 +593,6 @@ public:
             /*localDescriptor*/ {},
             client->GetNativeConnection()->GetBlockCache(),
             client->GetNativeConnection()->GetChunkMetaCache(),
-            std::move(nodeDirectory),
             chunkReadOptions,
             std::move(chunks),
             MakeFileDataSource(std::nullopt));
@@ -593,38 +626,6 @@ public:
 
         return file;
     }
-
-    TFuture<TFunctionImplCacheEntryPtr> FetchImplementation(
-        const TFunctionImplKey& key,
-        TNodeDirectoryPtr nodeDirectory,
-        const TClientChunkReadOptions& chunkReadOptions)
-    {
-        auto cookie = BeginInsert(key);
-        if (!cookie.IsActive()) {
-            return cookie.GetValue();
-        }
-
-        return BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (
-                const TFunctionImplKey& key,
-                TNodeDirectoryPtr nodeDirectory,
-                const TClientChunkReadOptions& chunkReadOptions) mutable
-            {
-                try {
-                    auto file = DoFetch(key, std::move(nodeDirectory), chunkReadOptions);
-                    cookie.EndInsert(New<TFunctionImplCacheEntry>(key, file));
-                } catch (const std::exception& ex) {
-                    cookie.Cancel(TError(ex).Wrap("Failed to download function implementation"));
-                }
-
-                return cookie.GetValue();
-            })
-            .AsyncVia(GetCurrentInvoker())
-            .Run(key, nodeDirectory, chunkReadOptions);
-    }
-
-private:
-    const TWeakPtr<NNative::IClient> Client_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFunctionImplCache)

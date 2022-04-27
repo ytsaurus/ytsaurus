@@ -57,7 +57,6 @@ IFileReaderPtr CreateFileMultiChunkReader(
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NChunkClient::IBlockCachePtr blockCache,
     NChunkClient::IClientChunkMetaCachePtr chunkMetaCache,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     const NChunkClient::TDataSource& dataSource,

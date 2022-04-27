@@ -445,7 +445,6 @@ public:
 
         return (this->*producerBuilder)(
             key,
-            artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
             artifactDownloadOptions.TrafficMeter,
             chunkReadOptions,
             // TODO(babenko): throttle prepartion
@@ -503,8 +502,6 @@ private:
                 guard.Release();
 
                 TArtifactDownloadOptions options;
-                options.NodeDirectory = Bootstrap_->GetNodeDirectory();
-
                 auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, options));
                 if (!errorOrChunk.IsOK()) {
                     YT_LOG_WARNING(errorOrChunk, "Background artifact validation failed (ArtifactKey: %v)", artifactKey);
@@ -956,7 +953,6 @@ private:
                 artifactCacheReaderConfig,
                 remoteReaderOptions,
                 Bootstrap_->GetMasterClient(),
-                artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
                 Bootstrap_->GetLocalDescriptor(),
                 chunkId,
                 seedReplicas,
@@ -1103,7 +1099,6 @@ private:
                 Bootstrap_->GetLocalDescriptor(),
                 Bootstrap_->GetBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
                 chunkReadOptions,
                 chunkSpecs,
                 FromProto<NChunkClient::TDataSource>(key.data_source()),
@@ -1142,7 +1137,6 @@ private:
         try {
             auto producer = MakeFileProducer(
                 key,
-                artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
                 artifactDownloadOptions.TrafficMeter,
                 chunkReadOptions,
                 location->GetInThrottler());
@@ -1161,7 +1155,6 @@ private:
 
     std::function<void(IOutputStream*)> MakeFileProducer(
         const TArtifactKey& key,
-        const TNodeDirectoryPtr& nodeDirectory,
         const TTrafficMeterPtr& trafficMeter,
         const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
@@ -1180,7 +1173,6 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            nodeDirectory,
             chunkReadOptions,
             chunkSpecs,
             FromProto<NChunkClient::TDataSource>(key.data_source()),
@@ -1217,7 +1209,6 @@ private:
         try {
             auto producer = MakeTableProducer(
                 key,
-                artifactDownloadOptions.NodeDirectory ? artifactDownloadOptions.NodeDirectory : New<TNodeDirectory>(),
                 artifactDownloadOptions.TrafficMeter,
                 chunkReadOptions,
                 location->GetInThrottler());
@@ -1238,7 +1229,6 @@ private:
 
     std::function<void(IOutputStream*)> MakeTableProducer(
         const TArtifactKey& key,
-        const TNodeDirectoryPtr& nodeDirectory,
         const TTrafficMeterPtr& trafficMeter,
         const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
@@ -1279,7 +1269,6 @@ private:
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
-            nodeDirectory,
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             nameTable,

@@ -159,7 +159,6 @@ private:
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const TTransactionId TransactionId_;
-    const TNodeDirectoryPtr NodeDirectory_;
 
     TFuture<void> ReadyEvent_;
     ISchemalessMultiChunkReaderPtr Reader_;

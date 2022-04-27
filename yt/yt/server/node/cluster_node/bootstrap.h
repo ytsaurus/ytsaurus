@@ -110,7 +110,7 @@ struct IBootstrapBase
     DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
 
     // Node directory.
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const = 0;
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory(bool startSynchronizer = true) const = 0;
 
     // Network stuff.
     virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const = 0;
@@ -254,7 +254,7 @@ public:
     TString GetLocalHostName() const override;
     TMasterEpoch GetMasterEpoch() const override;
 
-    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
+    const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory(bool startSynchronizer = true) const override;
 
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
     std::optional<TString> GetDefaultNetworkName() const override;

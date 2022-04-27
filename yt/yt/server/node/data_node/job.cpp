@@ -147,6 +147,7 @@ public:
         , Config_(config)
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
+        , NodeDirectory_(Bootstrap_->GetNodeDirectory(/*startSynchronizer*/ false))
         , Logger(DataNodeLogger.WithTag("JobId: %v, JobType: %v",
             JobId_,
             GetType()))
@@ -474,6 +475,7 @@ protected:
     const TDataNodeConfigPtr Config_;
     const TInstant StartTime_;
     IBootstrap* const Bootstrap_;
+    const TNodeDirectoryPtr NodeDirectory_;
 
     NLogging::TLogger Logger;
 
@@ -686,8 +688,7 @@ private:
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
 
-        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
         // Compute target medium index.
         if (targetReplicas.empty()) {
@@ -698,7 +699,7 @@ private:
 
         YT_LOG_INFO("Chunk replication job started (SourceMediumIndex: %v, TargetReplicas: %v)",
             sourceMediumIndex,
-            MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+            MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemReplication;
@@ -731,7 +732,7 @@ private:
             options,
             sessionId,
             std::move(targetReplicas),
-            nodeDirectory,
+            NodeDirectory_,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
@@ -880,8 +881,6 @@ private:
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
 
-    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-
 
     // COMPAT(babenko): pre-20.2 master servers may send encoded chunk id, which is inappropriate.
     static TChunkId FixChunkId(TChunkId chunkId)
@@ -914,7 +913,6 @@ private:
             Config_->RepairReader,
             options,
             Bootstrap_->GetMasterClient(),
-            NodeDirectory_,
             Bootstrap_->GetLocalDescriptor(),
             partChunkId,
             partReplicas,
@@ -1175,13 +1173,12 @@ private:
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         i64 sealRowCount = JobSpecExt_.row_count();
 
-        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
         YT_LOG_INFO("Chunk seal job started (MediumIndex: %v, Codec: %v, SourceReplicas: %v, RowCount: %v)",
             mediumIndex,
             codecId,
-            MakeFormattableView(sourceReplicas, TChunkReplicaAddressFormatter(nodeDirectory)),
+            MakeFormattableView(sourceReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
             sealRowCount);
 
         auto chunk = GetLocalChunkOrThrow(ChunkId_, mediumIndex);
@@ -1217,7 +1214,6 @@ private:
             auto reader = NJournalClient::CreateChunkReader(
                 Config_->SealReader,
                 Bootstrap_->GetMasterClient(),
-                nodeDirectory,
                 ChunkId_,
                 codecId,
                 sourceReplicas,
@@ -1337,7 +1333,6 @@ private:
     TError ShallowMergeValidationError_;
     NChunkClient::EChunkMergerMode MergeMode_;
 
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     TTableSchemaPtr Schema_;
     NCompression::ECodec CompressionCodec_;
     NErasure::ECodec ErasureCodec_;
@@ -1481,7 +1476,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
         const auto& chunkMergerWriterOptions = JobSpecExt_.chunk_merger_writer_options();
@@ -1735,7 +1729,6 @@ private:
             erasureReaderConfig,
             New<TRemoteReaderOptions>(),
             Bootstrap_->GetMasterClient(),
-            NodeDirectory_,
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetBlockCache(),
             /*chunkMetaCache*/ nullptr,
@@ -1950,7 +1943,6 @@ private:
 
     const NErasure::ECodec ErasureCodecId_;
 
-    TNodeDirectoryPtr NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
 
     struct TChunkWriterWithIndex
     {
@@ -2165,7 +2157,6 @@ private:
         auto reader = NJournalClient::CreateChunkReader(
             Config_->AutotomyReader,
             Bootstrap_->GetMasterClient(),
-            NodeDirectory_,
             BodyChunkId_,
             ErasureCodecId_,
             bodyChunkReplicas,

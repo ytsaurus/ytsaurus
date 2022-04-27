@@ -45,8 +45,11 @@ class TJobSpecHelper
     : public IJobSpecHelper
 {
 public:
-    explicit TJobSpecHelper(const TJobSpec& jobSpec)
+    TJobSpecHelper(
+        const TJobSpec& jobSpec,
+        TNodeDirectoryPtr nodeDirectory)
         : JobSpec_(jobSpec)
+        , NodeDirectory_(std::move(nodeDirectory))
     {
         const auto& schedulerJobSpecExt = jobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         JobIOConfig_ = ConvertTo<TJobIOConfigPtr>(TYsonString(schedulerJobSpecExt.io_config()));
@@ -55,8 +58,7 @@ public:
         } else {
             JobTestingOptions_ = New<TJobTestingOptions>();
         }
-        InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-        InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
+        NodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
         auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetSchedulerJobSpecExt().extensions());
         if (dataSourceDirectoryExt) {
             YT_LOG_DEBUG("Data source directory extension received\n%v", dataSourceDirectoryExt->DebugString());
@@ -86,7 +88,7 @@ public:
 
     TNodeDirectoryPtr GetInputNodeDirectory() const override
     {
-        return InputNodeDirectory_;
+        return NodeDirectory_;
     }
 
     const TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const override
@@ -149,18 +151,23 @@ public:
     }
 
 private:
-    TJobSpec JobSpec_;
+    const TJobSpec JobSpec_;
+    const TNodeDirectoryPtr NodeDirectory_;
+
     TJobIOConfigPtr JobIOConfig_;
-    TNodeDirectoryPtr InputNodeDirectory_;
     TDataSourceDirectoryPtr DataSourceDirectory_;
     TJobTestingOptionsPtr JobTestingOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(const NJobTrackerClient::NProto::TJobSpec& jobSpec)
+IJobSpecHelperPtr CreateJobSpecHelper(
+    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+    TNodeDirectoryPtr nodeDirectory)
 {
-    return New<TJobSpecHelper>(jobSpec);
+    return New<TJobSpecHelper>(
+        jobSpec,
+        std::move(nodeDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
