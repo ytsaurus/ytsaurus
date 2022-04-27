@@ -2084,11 +2084,11 @@ TString TOperation::TOperationImpl::GetWebInterfaceUrl() const
 NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
 {
     auto guard = Guard(Lock_);
-
-    if (!CompletePromise_) {
-        CompletePromise_ = NThreading::NewPromise<void>();
-        ytPoller.Watch(::MakeIntrusive<TOperationPollerItem>(this));
+    if (CompletePromise_) {
+        return *CompletePromise_;
     }
+    CompletePromise_ = NThreading::NewPromise<void>();
+    ytPoller.Watch(::MakeIntrusive<TOperationPollerItem>(this));
 
     auto operationId = GetId();
     TAbortableRegistry::Get()->Add(
