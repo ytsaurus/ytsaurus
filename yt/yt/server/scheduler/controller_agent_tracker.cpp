@@ -639,9 +639,6 @@ public:
                     if (event.FinishTime) {
                         protoEvent->set_finish_time(ToProto<ui64>(*event.FinishTime));
                     }
-                    if (event.Abandoned) {
-                        protoEvent->set_abandoned(*event.Abandoned);
-                    }
                     if (event.AbortReason) {
                         protoEvent->set_abort_reason(static_cast<int>(*event.AbortReason));
                     }
@@ -837,11 +834,11 @@ public:
                         Logger = SchedulerLogger
                     ] {
                         for (const auto* protoEvent : protoEvents) {
-                            auto eventType = static_cast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
+                            auto eventType = CheckedEnumCast<EAgentToSchedulerJobEventType>(protoEvent->event_type());
                             auto jobId = FromProto<TJobId>(protoEvent->job_id());
                             auto controllerEpoch = protoEvent->controller_epoch();
                             auto error = FromProto<TError>(protoEvent->error());
-                            auto interruptReason = static_cast<EInterruptReason>(protoEvent->interrupt_reason());
+                            auto interruptReason = CheckedEnumCast<EInterruptReason>(protoEvent->interrupt_reason());
 
                             auto expectedControllerEpoch = nodeShard->GetJobControllerEpoch(jobId);
 

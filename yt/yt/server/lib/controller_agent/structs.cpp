@@ -159,10 +159,8 @@ const TSchedulerJobResultExt* TJobSummary::FindSchedulerJobResult() const
 
 TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     : TJobSummary(event)
-    , Abandoned(event->abandoned())
     , InterruptReason(static_cast<EInterruptReason>(event->interrupt_reason()))
 {
-    YT_VERIFY(event->has_abandoned());
     YT_VERIFY(event->has_interrupt_reason());
     YT_VERIFY(State == ExpectedState);
 }
@@ -186,6 +184,19 @@ void TCompletedJobSummary::Persist(const TPersistenceContext& context)
     // lots of ugly template resolution errors. I wasn't able to fix it :(
     YT_VERIFY(InterruptReason == EInterruptReason::None);
     Persist(context, SplitJobCount);
+}
+
+std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId)
+{
+    TCompletedJobSummary summary{};
+
+    summary.Id = jobId;
+    summary.State = EJobState::Completed;
+    summary.Abandoned = true;
+    summary.FinishTime = TInstant::Now();
+    summary.LogAndProfile = true;
+
+    return std::make_unique<TCompletedJobSummary>(std::move(summary));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

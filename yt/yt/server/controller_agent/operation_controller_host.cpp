@@ -208,12 +208,12 @@ void TOperationControllerHost::Disconnect(const TError& error)
 void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        EAgentToSchedulerJobEventType::Interrupted,
-        jobId,
-        ControllerEpoch_,
-        {},
-        reason,
-        {},
+        .EventType = EAgentToSchedulerJobEventType::Interrupted,
+        .JobId = jobId,
+        .ControllerEpoch = ControllerEpoch_,
+        .Error = {},
+        .InterruptReason = reason,
+        .ReleaseFlags = {},
     });
     YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
@@ -223,12 +223,12 @@ void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reaso
 void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        EAgentToSchedulerJobEventType::Aborted,
-        jobId,
-        ControllerEpoch_,
-        error,
-        {},
-        {},
+        .EventType = EAgentToSchedulerJobEventType::Aborted,
+        .JobId = jobId,
+        .ControllerEpoch = ControllerEpoch_,
+        .Error = error,
+        .InterruptReason = {},
+        .ReleaseFlags = {},
     });
     YT_LOG_DEBUG("Job abort request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
@@ -238,12 +238,12 @@ void TOperationControllerHost::AbortJob(TJobId jobId, const TError& error)
 void TOperationControllerHost::FailJob(TJobId jobId)
 {
     JobEventsOutbox_->Enqueue(TAgentToSchedulerJobEvent{
-        EAgentToSchedulerJobEventType::Failed,
-        jobId,
-        ControllerEpoch_,
-        {},
-        {},
-        {},
+        .EventType = EAgentToSchedulerJobEventType::Failed,
+        .JobId = jobId,
+        .ControllerEpoch = ControllerEpoch_,
+        .Error = {},
+        .InterruptReason = {},
+        .ReleaseFlags = {},
     });
     YT_LOG_DEBUG("Job failure request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
@@ -256,12 +256,12 @@ void TOperationControllerHost::ReleaseJobs(const std::vector<TJobToRelease>& job
     events.reserve(jobsToRelease.size());
     for (const auto& jobToRelease : jobsToRelease) {
         events.emplace_back(TAgentToSchedulerJobEvent{
-            EAgentToSchedulerJobEventType::Released,
-            jobToRelease.JobId,
-            ControllerEpoch_,
-            {},
-            {},
-            jobToRelease.ReleaseFlags,
+            .EventType = EAgentToSchedulerJobEventType::Released,
+            .JobId = jobToRelease.JobId,
+            .ControllerEpoch = ControllerEpoch_,
+            .Error = {},
+            .InterruptReason = {},
+            .ReleaseFlags = jobToRelease.ReleaseFlags,
         });
     }
     JobEventsOutbox_->Enqueue(std::move(events));

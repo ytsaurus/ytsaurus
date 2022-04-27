@@ -333,6 +333,13 @@ struct IOperationControllerSchedulerHost
      */
     virtual void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) = 0;
 
+    //! Called by a scheduler when user comes with abandon job request.
+    /*!
+     *  \note Invoker affinity: cancelable Controller invoker
+     *
+     */
+    virtual void AbandonJob(TJobId jobId) = 0;
+
     //! Method that is called after operation results are committed and before
     //! controller is disposed.
     /*!

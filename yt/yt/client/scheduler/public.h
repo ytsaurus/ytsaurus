@@ -49,6 +49,7 @@ YT_DEFINE_ERROR_ENUM(
     ((InvalidOperationState)                  (201))
     ((TooManyOperations)                      (202))
     ((NoSuchJob)                              (203))
+    ((AgentRevoked)                           (204))
     ((OperationFailedOnJobRestart)            (210))
     ((OperationFailedWithInconsistentLocking) (211))
     ((OperationControllerCrashed)             (212))

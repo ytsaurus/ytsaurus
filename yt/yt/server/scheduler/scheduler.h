@@ -168,7 +168,7 @@ public:
 
     TFuture<void> ValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell);
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId);
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const;
 
     const NRpc::TResponseKeeperPtr& GetOperationServiceResponseKeeper() const;
 

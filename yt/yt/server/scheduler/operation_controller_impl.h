@@ -4,6 +4,7 @@
 #include "controller_agent.h"
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
+#include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
 
 namespace NYT::NScheduler {
 
@@ -43,8 +44,7 @@ public:
         NJobTrackerClient::NProto::TJobStatus* status) override;
     void OnJobCompleted(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status,
-        bool abandoned);
+        NJobTrackerClient::NProto::TJobStatus* status);
     void OnJobFailed(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status);
@@ -60,7 +60,7 @@ public:
     void AbortJob(
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) override;
-    void AbandonJob(const TJobPtr& job) override;
+    TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
@@ -98,7 +98,8 @@ private:
 
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;
-    std::unique_ptr<NControllerAgent::TControllerAgentServiceProxy> AgentProxy_;
+    std::unique_ptr<NControllerAgent::TControllerAgentServiceProxy> ControllerAgentTrackerProxy_;
+    std::unique_ptr<NControllerAgent::TJobProberServiceProxy> ControllerAgentJobProberProxy_;
 
     std::atomic<TControllerEpoch> Epoch_;
 

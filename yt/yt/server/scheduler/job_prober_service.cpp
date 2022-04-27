@@ -76,7 +76,7 @@ private:
         auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId))
             .ValueOrThrow();
 
-        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId))
+        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId, /*considerFinished*/ true))
             .ValueOrThrow();
         if (!operationId) {
             THROW_ERROR_EXCEPTION(
@@ -141,7 +141,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId))
+        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId, /*considerFinished*/ true))
             .ValueOrThrow();
         if (!operationId) {
             THROW_ERROR_EXCEPTION(

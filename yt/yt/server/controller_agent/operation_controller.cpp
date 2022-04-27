@@ -325,6 +325,11 @@ public:
         Underlying_->OnJobRunning(std::move(jobSummary));
     }
 
+    void AbandonJob(TJobId jobId) override
+    {
+        Underlying_->AbandonJob(jobId);
+    }
+
     void OnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary) override
     {
         Underlying_->OnJobInfoReceivedFromNode(std::move(jobSummary));

@@ -39,7 +39,6 @@ NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentCompletedJobE
     jobEvent.mutable_status()->set_state(static_cast<int>(EJobState::Completed));
     jobEvent.set_start_time(ToProto<ui64>(job->GetStartTime()));
     jobEvent.set_finish_time(ToProto<ui64>(*job->GetFinishTime()));
-    jobEvent.set_abandoned(false);
     jobEvent.set_interrupt_reason(static_cast<int>(EInterruptReason::None));
     return jobEvent;
 }

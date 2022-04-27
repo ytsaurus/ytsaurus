@@ -1137,8 +1137,37 @@ public:
 
     TFuture<void> AbandonJob(TJobId jobId, const TString& user)
     {
+        auto operationId = WaitFor(FindOperationIdByJobId(jobId, /*considerFinished*/ false))
+            .ValueOrThrow();
+        if (!operationId) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found", jobId);
+        }
+
+        auto operation = FindOperation(operationId);
+        if (!operation) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchOperation,
+                "Operation %v not found", operationId);
+        }
+
+        auto controller = operation->GetController();
+        YT_VERIFY(controller);
+
+        WaitFor(ValidateOperationAccess(user, operationId, EPermissionSet(EPermission::Manage)))
+            .ThrowOnError();
+        
+        YT_LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
+            jobId,
+            operationId,
+            user);
+        
+        WaitFor(controller->AbandonJob(operationId, jobId))
+            .ThrowOnError();
+        
         const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::AbandonJob, nodeShard, jobId, user)
+        return BIND(&TNodeShard::AbandonJob, nodeShard, jobId)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -1974,10 +2003,10 @@ public:
         }
     }
 
-    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId)
+        return BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId, considerFinished)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -4815,12 +4844,7 @@ private:
     private:
         void BuildControllerJobYson(TJobId jobId, IYsonConsumer* consumer) const
         {
-            const auto& nodeShard = Scheduler_->GetNodeShardByJobId(jobId);
-
-            auto getOperationIdCallback = BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run();
-            auto operationId = WaitFor(getOperationIdCallback)
+            auto operationId = WaitFor(Scheduler_->FindOperationIdByJobId(jobId, /*considerFinished*/ true))
                 .ValueOrThrow();
 
             if (!operationId) {
@@ -5110,9 +5134,9 @@ TFuture<void> TScheduler::ValidateJobShellAccess(
     return Impl_->ValidateJobShellAccess(user, jobShell);
 }
 
-TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId)
+TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId, bool considerFinished) const
 {
-    return Impl_->FindOperationIdByJobId(jobId);
+    return Impl_->FindOperationIdByJobId(jobId, considerFinished);
 }
 
 const TResponseKeeperPtr& TScheduler::GetOperationServiceResponseKeeper() const

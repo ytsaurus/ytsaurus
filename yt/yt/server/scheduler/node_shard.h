@@ -168,7 +168,7 @@ public:
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
 
     void DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);
-    void AbandonJob(TJobId jobId, const TString& user);
+    void AbandonJob(TJobId jobId);
     void AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
     void AbortJob(TJobId jobId, const TError& error);
@@ -179,7 +179,7 @@ public:
 
     void BuildNodesYson(NYTree::TFluentMap fluent);
 
-    TOperationId FindOperationIdByJobId(TJobId job);
+    TOperationId FindOperationIdByJobId(TJobId job, bool considerFinished);
 
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const;
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const;

@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "job_spec_service.h"
+#include "job_prober_service.h"
 #include "controller_agent_service.h"
 #include "controller_agent.h"
 #include "job_tracker_service.h"
@@ -181,6 +182,7 @@ void TBootstrap::DoRun()
         GetControlInvoker()));
     RpcServer_->RegisterService(CreateJobSpecService(this));
     RpcServer_->RegisterService(CreateControllerAgentService(this));
+    RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);

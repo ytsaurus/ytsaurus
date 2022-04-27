@@ -108,9 +108,6 @@ message TSchedulerToAgentJobEvent
     // for profiling
     optional string tree_id = 13;
 
-    // for Completed
-    optional bool abandoned = 8;
-
     // for Aborted
     optional int32 abort_reason = 9;
     optional TPreemptedFor preempted_for = 12;

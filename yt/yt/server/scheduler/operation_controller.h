@@ -213,11 +213,11 @@ struct IOperationController
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status) = 0;
     
-    //! Called to notify the controller that a job has been abandoned.
+    //! Called to proxy abandon job request to the controller agent.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void AbandonJob(const TJobPtr& job) = 0;
+    virtual TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) = 0;
 
     // These methods should be called only by controller agent tracker.
 
