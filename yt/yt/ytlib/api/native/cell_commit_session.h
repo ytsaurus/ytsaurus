@@ -14,7 +14,8 @@ namespace NYT::NApi::NNative {
 struct ICellCommitSession
     : public TRefCounted
 {
-    virtual TTransactionSignatureGenerator* GetSignatureGenerator() = 0;
+    virtual TTransactionSignatureGenerator* GetPrepareSignatureGenerator() = 0;
+    virtual TTransactionSignatureGenerator* GetCommitSignatureGenerator() = 0;
 
     virtual void RegisterAction(NTransactionClient::TTransactionActionData data) = 0;
 

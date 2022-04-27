@@ -189,6 +189,9 @@ public:
 
     NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
 
+    NYTree::TYPath SequoiaPath;
+    TDuration SequoiaTransactionTimeout;
+
     TConnectionConfig();
 };
 

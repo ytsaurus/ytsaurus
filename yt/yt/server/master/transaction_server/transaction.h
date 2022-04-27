@@ -18,7 +18,11 @@
 
 #include <yt/yt/server/lib/hive/transaction_detail.h>
 
+#include <yt/yt/server/lib/sequoia_client/write_set.h>
+
 #include <yt/yt/ytlib/cypress_client/public.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
@@ -79,6 +83,10 @@ public:
 
     using TAccountResourceUsageLeaseSet = THashSet<NSecurityServer::TAccountResourceUsageLease*>;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourceUsageLeaseSet, AccountResourceUsageLeases);
+
+    // Sequoia stuff.
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsSequoiaTransaction, false);
+    DEFINE_BYREF_RW_PROPERTY(NSequoiaClient::NProto::TWriteSet, SequoiaWriteSet);
 
 public:
     using TTransactionBase::TTransactionBase;

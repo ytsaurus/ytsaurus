@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((PortalAclAndAttributeSynchronization)                         (2008))  // kvk1920
     ((ProfilingPeriodDynamicConfig)                                 (2009))  // shakurov
     ((SequoiaGorshok)                                               (2010))  // gritukan
+    ((SequoiaTransaction)                                           (2011))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

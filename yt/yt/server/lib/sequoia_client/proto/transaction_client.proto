@@ -1,0 +1,41 @@
+package NYT.NSequoiaClient.NProto;
+
+import "yt/ytlib/transaction_client/proto/action.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Represents set of keys that were locked for some Sequoia transaction for
+// delayed write.
+message TWriteSet
+{
+    message TTableWriteSet
+    {
+        // Wire-encoded list of pairs (key, lock mask).
+        required bytes keys = 1;
+        // Tablet id for each key in order of appearance in keys list.
+        repeated NYT.NProto.TGuid tablet_ids = 2;
+        // Tablet cell id for each key in order of appearance in keys list.
+        repeated NYT.NProto.TGuid tablet_cell_ids = 3;
+    };
+    map<int32, TTableWriteSet> table_to_write_set = 1; // ESequoiaTable -> write set.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    required NYT.NProto.TGuid id = 1;
+    required int64 timeout = 2;
+    required NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
+    required TWriteSet write_set = 4;
+    repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;
+}
+
+message TRspStartTransaction
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

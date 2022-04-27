@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/master/journal_server/public.h>
 
+#include <yt/yt/server/master/sequoia_server/public.h>
+
 #include <yt/yt/server/master/scheduler_pool_server/public.h>
 
 #include <yt/yt/server/lib/timestamp_server/public.h>
@@ -275,6 +277,7 @@ public:
     NObjectServer::TDynamicObjectServiceConfigPtr ObjectService;
     NChunkServer::TDynamicChunkServiceConfigPtr ChunkService;
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
+    NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
 
     TDynamicClusterConfig();
 };

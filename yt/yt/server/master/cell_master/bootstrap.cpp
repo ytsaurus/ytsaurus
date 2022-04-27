@@ -79,6 +79,9 @@
 #include <yt/yt/server/master/security_server/cypress_integration.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
+#include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
+
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
@@ -193,6 +196,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSchedulerPoolServer;
 using namespace NOrchidServer;
+using namespace NSequoiaServer;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
@@ -446,6 +450,11 @@ const IBackupManagerPtr& TBootstrap::GetBackupManager() const
 const IChaosManagerPtr& TBootstrap::GetChaosManager() const
 {
     return ChaosManager_;
+}
+
+const ISequoiaManagerPtr& TBootstrap::GetSequoiaManager() const
+{
+    return SequoiaManager_;
 }
 
 const THiveManagerPtr& TBootstrap::GetHiveManager() const
@@ -771,6 +780,8 @@ void TBootstrap::DoInitialize()
 
     ChaosManager_ = CreateChaosManager(this);
 
+    SequoiaManager_ = CreateSequoiaManager(this);
+
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
@@ -876,6 +887,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateTransactionService(this));
     RpcServer_->RegisterService(CreateMasterChaosService(this));
     RpcServer_->RegisterService(CreateCellTrackerService(this));
+    RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkLocationMapTypeHandler(this));

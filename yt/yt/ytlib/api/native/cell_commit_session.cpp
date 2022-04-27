@@ -33,19 +33,26 @@ public:
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
         , CellId_(cellId)
-        , SignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
+        , PrepareSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
+        , CommitSignatureGenerator_(/*targetSignature*/ FinalTransactionSignature)
         , Logger(logger.WithTag("CellId: %v", cellId))
     { }
 
-    TTransactionSignatureGenerator* GetSignatureGenerator() override
+    TTransactionSignatureGenerator* GetPrepareSignatureGenerator() override
     {
-        return &SignatureGenerator_;
+        return &PrepareSignatureGenerator_;
+    }
+
+    TTransactionSignatureGenerator* GetCommitSignatureGenerator() override
+    {
+        return &CommitSignatureGenerator_;
     }
 
     virtual void RegisterAction(NTransactionClient::TTransactionActionData data) override
     {
         if (Actions_.empty()) {
-            SignatureGenerator_.RegisterRequest();
+            PrepareSignatureGenerator_.RegisterRequest();
+            CommitSignatureGenerator_.RegisterRequest();
         }
         Actions_.push_back(data);
     }
@@ -89,7 +96,8 @@ private:
     const TWeakPtr<TTransaction> Transaction_;
     const TCellId CellId_;
 
-    TTransactionSignatureGenerator SignatureGenerator_;
+    TTransactionSignatureGenerator PrepareSignatureGenerator_;
+    TTransactionSignatureGenerator CommitSignatureGenerator_;
 
     const TLogger Logger;
 
@@ -103,7 +111,7 @@ private:
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
         req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
-        req->set_signature(SignatureGenerator_.GenerateSignature());
+        req->set_signature(PrepareSignatureGenerator_.GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }
@@ -125,7 +133,7 @@ private:
         ToProto(req->mutable_transaction_id(), owner->GetId());
         req->set_transaction_start_timestamp(owner->GetStartTimestamp());
         req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
-        req->set_signature(SignatureGenerator_.GenerateSignature());
+        req->set_signature(PrepareSignatureGenerator_.GenerateSignature());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
     }

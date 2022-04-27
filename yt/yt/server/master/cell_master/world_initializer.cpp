@@ -231,6 +231,15 @@ private:
                     .EndMap());
 
             ScheduleCreateNode(
+                "//sys/sequoia",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/controller_agents",
                 transactionId,
                 EObjectType::MapNode,

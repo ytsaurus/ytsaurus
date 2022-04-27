@@ -1,0 +1,15 @@
+#include "config.h"
+
+namespace NYT::NSequoiaServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSequoiaServer

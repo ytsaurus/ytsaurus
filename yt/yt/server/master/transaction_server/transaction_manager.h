@@ -56,7 +56,8 @@ public:
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
-        const NYTree::IAttributeDictionary& attributes);
+        const NYTree::IAttributeDictionary& attributes,
+	    TTransactionId hintId = NullTransactionId);
     TTransaction* StartUploadTransaction(
         TTransaction* parent,
         const NObjectClient::TCellTagList& replicatedToCellTags,
