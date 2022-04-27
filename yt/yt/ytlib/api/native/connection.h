@@ -63,8 +63,8 @@ struct IConnection
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
     virtual const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() = 0;
 
-    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
-    virtual const NNodeTrackerClient::TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
+    virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory(bool startSynchronizer = true) = 0;
+    virtual const NNodeTrackerClient::INodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
 
     virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
 

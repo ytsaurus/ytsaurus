@@ -735,7 +735,6 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 Client_,
-                Client_->GetNativeConnection()->GetNodeDirectory(),
                 LocalDescriptor_,
                 DoGetBlockCache(),
                 /*chunkMetaCache*/ nullptr,

@@ -6925,7 +6925,6 @@ void TOperationControllerBase::ParseInputQuery(
     }
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
         MergeFrom(typeInferrers.Get(), *BuiltinTypeInferrersMap);
 

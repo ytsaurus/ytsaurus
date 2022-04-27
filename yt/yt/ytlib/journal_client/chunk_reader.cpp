@@ -41,7 +41,6 @@ namespace {
 std::vector<IChunkReaderPtr> CreatePartReaders(
     const TChunkReaderConfigPtr& config,
     const IClientPtr& client,
-    const TNodeDirectoryPtr& nodeDirectory,
     TChunkId chunkId,
     TChunkReplicaWithMediumList replicas,
     IBlockCachePtr blockCache,
@@ -75,7 +74,6 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
             config,
             options,
             client,
-            nodeDirectory,
             /*localDescriptor*/ {},
             partChunkId,
             partReplicas,
@@ -124,7 +122,6 @@ public:
     TErasureChunkReader(
         TChunkReaderConfigPtr config,
         IClientPtr client,
-        TNodeDirectoryPtr nodeDirectory,
         TChunkId chunkId,
         NErasure::ICodec* codec,
         const TChunkReplicaList& replicas,
@@ -135,7 +132,7 @@ public:
         NConcurrency::IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
         , Client_(std::move(client))
-        , NodeDirectory_(std::move(nodeDirectory))
+        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false))
         , ChunkId_(chunkId)
         , Codec_(codec)
         , BlockCache_(std::move(blockCache))
@@ -152,6 +149,8 @@ public:
             replicas,
             Logger))
     {
+        YT_VERIFY(NodeDirectory_);
+
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
             ChunkId_,
             Codec_->GetId(),
@@ -229,7 +228,6 @@ public:
                 CreatePartReaders(
                     Reader_->Config_,
                     Reader_->Client_,
-                    Reader_->NodeDirectory_,
                     DecodeChunkId(Reader_->ChunkId_).Id,
                     replicas.Replicas,
                     Reader_->BlockCache_,
@@ -341,7 +339,6 @@ DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)
 IChunkReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
     IClientPtr client,
-    TNodeDirectoryPtr nodeDirectory,
     TChunkId chunkId,
     NErasure::ECodec codecId,
     const TChunkReplicaList& replicas,
@@ -356,7 +353,6 @@ IChunkReaderPtr CreateChunkReader(
             config,
             New<TRemoteReaderOptions>(),
             std::move(client),
-            std::move(nodeDirectory),
             /*localDescriptor*/ {},
             chunkId,
             replicas,
@@ -370,7 +366,6 @@ IChunkReaderPtr CreateChunkReader(
         return New<TErasureChunkReader>(
             config,
             std::move(client),
-            std::move(nodeDirectory),
             chunkId,
             NErasure::GetCodec(codecId),
             replicas,

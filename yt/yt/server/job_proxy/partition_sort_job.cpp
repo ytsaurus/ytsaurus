@@ -80,7 +80,6 @@ public:
                 Host_->GetClient(),
                 Host_->GetReaderBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                Host_->GetInputNodeDirectory(),
                 outputSchema->ToComparator(),
                 nameTable,
                 BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),

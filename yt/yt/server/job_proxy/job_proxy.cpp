@@ -19,6 +19,7 @@
 
 #include <yt/yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -276,7 +277,7 @@ void TJobProxy::LogJobSpec(TJobSpec jobSpec)
     YT_LOG_DEBUG("Job spec:\n%v", jobSpec.DebugString());
 }
 
-void TJobProxy::RetrieveJobSpec()
+void TJobProxy::RetrieveJobSpec(const TNodeDirectoryPtr& nodeDirectory)
 {
     YT_LOG_INFO("Requesting job spec");
 
@@ -298,7 +299,7 @@ void TJobProxy::RetrieveJobSpec()
         Abort(EJobProxyExitCode::InvalidSpecVersion);
     }
 
-    JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec());
+    JobSpecHelper_ = CreateJobSpecHelper(rsp->job_spec(), nodeDirectory);
     const auto& resourceUsage = rsp->resource_usage();
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
@@ -542,13 +543,13 @@ TJobResult TJobProxy::RunJob()
         SupervisorProxy_ = std::make_unique<TSupervisorServiceProxy>(supervisorChannel);
         SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-        RetrieveJobSpec();
-
-        PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
-
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
+        RetrieveJobSpec(clusterConnection->GetNodeDirectory(/*startSynchronizer*/ false));
+
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetJobUserName()));
+
+        PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
 
         auto cpuMonitorConfig = ConvertTo<TJobCpuMonitorConfigPtr>(TYsonString(JobSpecHelper_->GetSchedulerJobSpecExt().job_cpu_monitor_config()));
         CpuMonitor_ = New<TCpuMonitor>(std::move(cpuMonitorConfig), JobThread_->GetInvoker(), this, CpuGuarantee_);
@@ -613,9 +614,6 @@ TJobResult TJobProxy::RunJob()
                 environment->SetCpuPolicy("idle");
             }
         }
-
-        InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-        InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
 
         HeartbeatExecutor_ = New<TPeriodicExecutor>(
             JobThread_->GetInvoker(),
@@ -972,7 +970,7 @@ IBlockCachePtr TJobProxy::GetWriterBlockCache() const
 
 TNodeDirectoryPtr TJobProxy::GetInputNodeDirectory() const
 {
-    return InputNodeDirectory_;
+    return GetJobSpecHelper()->GetInputNodeDirectory();
 }
 
 const NNodeTrackerClient::TNodeDescriptor& TJobProxy::LocalDescriptor() const

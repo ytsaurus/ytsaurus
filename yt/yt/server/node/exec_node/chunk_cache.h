@@ -24,7 +24,6 @@ namespace NYT::NExecNode {
 
 struct TArtifactDownloadOptions
 {
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
     NChunkClient::TTrafficMeterPtr TrafficMeter;
 
     std::vector<TString> WorkloadDescriptorAnnotations;

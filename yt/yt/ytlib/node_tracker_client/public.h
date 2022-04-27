@@ -27,7 +27,7 @@ class TRspFullHeartbeat;
 
 class TNodeDirectoryBuilder;
 
-DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizer)
+DECLARE_REFCOUNTED_STRUCT(INodeDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
 

@@ -53,7 +53,7 @@ struct IChunkWriter
      */
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
 
-    //! Return the indices of replicas that were successfully written.
+    //! Returns the indices of replicas that were successfully written.
     /*!
      *  Can only be called when the writer is successfully closed.
      *  Not every writer implements this method.

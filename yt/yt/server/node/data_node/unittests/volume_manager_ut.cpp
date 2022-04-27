@@ -201,7 +201,7 @@ TEST_P(TVolumeManagerTest, TwoLayers)
     ToProto(baseKey.add_chunk_specs()->mutable_chunk_id(), TGuid::Create());
     baseKey = FixupKey(baseKey);
 
-    TArtifactKey upperKey;   
+    TArtifactKey upperKey;
     ToProto(upperKey.add_chunk_specs()->mutable_chunk_id(), TGuid::Create());
     upperKey = FixupKey(upperKey);
 

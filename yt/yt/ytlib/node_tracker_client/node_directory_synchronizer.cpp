@@ -1,18 +1,19 @@
 #include "node_directory_synchronizer.h"
 #include "config.h"
 
-#include <yt/yt/client/api/connection.h>
+#include <yt/yt/ytlib/security_client/public.h>
+
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/node_tracker_client/private.h>
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/ytlib/security_client/public.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
-
-#include <yt/yt/core/concurrency/periodic_executor.h>
-#include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NNodeTrackerClient {
 
@@ -27,39 +28,39 @@ static const auto& Logger = NodeTrackerClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeDirectorySynchronizer::TImpl
-    : public TRefCounted
+class TNodeDirectorySynchronizer
+    : public INodeDirectorySynchronizer
 {
 public:
-    TImpl(
-        TNodeDirectorySynchronizerConfigPtr config,
-        IConnectionPtr directoryConnection,
+    TNodeDirectorySynchronizer(
+        const NApi::NNative::IConnectionPtr& directoryConnection,
         TNodeDirectoryPtr nodeDirectory)
-        : Config_(config)
+        : Config_(directoryConnection->GetConfig()->NodeDirectorySynchronizer)
         , Connection_(directoryConnection)
         , NodeDirectory_(nodeDirectory)
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
+            BIND(&TNodeDirectorySynchronizer::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
 
-    void Start()
+    void Start() const override
     {
         SyncExecutor_->Start();
     }
 
-    TFuture<void> Stop()
+    TFuture<void> Stop() const override
     {
         return SyncExecutor_->Stop();
     }
 
 private:
     const TNodeDirectorySynchronizerConfigPtr Config_;
-    const TWeakPtr<IConnection> Connection_;
+    const TWeakPtr<NApi::IConnection> Connection_;
     const TNodeDirectoryPtr NodeDirectory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
+
 
     void DoSync()
     {
@@ -107,26 +108,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeDirectorySynchronizer::TNodeDirectorySynchronizer(
-    TNodeDirectorySynchronizerConfigPtr config,
-    IConnectionPtr directoryConnection,
+INodeDirectorySynchronizerPtr CreateNodeDirectorySynchronizer(
+    const NApi::NNative::IConnectionPtr& directoryConnection,
     TNodeDirectoryPtr nodeDirectory)
-    : Impl_(New<TImpl>(
-        config,
+{
+    return New<TNodeDirectorySynchronizer>(
         directoryConnection,
-        nodeDirectory))
-{ }
-
-TNodeDirectorySynchronizer::~TNodeDirectorySynchronizer() = default;
-
-void TNodeDirectorySynchronizer::Start()
-{
-    Impl_->Start();
-}
-
-TFuture<void> TNodeDirectorySynchronizer::Stop()
-{
-    return Impl_->Stop();
+        std::move(nodeDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

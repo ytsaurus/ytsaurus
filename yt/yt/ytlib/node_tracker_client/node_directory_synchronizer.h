@@ -2,34 +2,27 @@
 
 #include "public.h"
 
-#include <yt/yt/client/api/public.h>
-
-#include <yt/yt/core/actions/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeDirectorySynchronizer
+struct INodeDirectorySynchronizer
     : public TRefCounted
 {
-public:
-    TNodeDirectorySynchronizer(
-        TNodeDirectorySynchronizerConfigPtr config,
-        NApi::IConnectionPtr directoryConnection,
-        TNodeDirectoryPtr nodeDirectory);
-    ~TNodeDirectorySynchronizer();
+    virtual void Start() const = 0;
 
-    void Start();
-    TFuture<void> Stop();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual TFuture<void> Stop() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TNodeDirectorySynchronizer)
+DEFINE_REFCOUNTED_TYPE(INodeDirectorySynchronizer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeDirectorySynchronizerPtr CreateNodeDirectorySynchronizer(
+    const NApi::NNative::IConnectionPtr& directoryConnection,
+    TNodeDirectoryPtr nodeDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

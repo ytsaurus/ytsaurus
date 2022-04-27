@@ -178,7 +178,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
-    TNodeDirectoryPtr nodeDirectory,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
@@ -213,12 +212,11 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         config,
                         options,
                         client,
-                        nodeDirectory,
-                        /* localDescriptor */ {},
+                        /*localDescriptor*/ {},
                         blockCache,
                         chunkMetaCache,
                         trafficMeter,
-                        /* nodeStatusDirectory */ nullptr,
+                        /*nodeStatusDirectory*/ nullptr,
                         bandwidthThrottler,
                         rpsThrottler);
 

@@ -2068,7 +2068,6 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
     };
 
     auto options = TArtifactDownloadOptions{
-        .NodeDirectory = Bootstrap_->GetNodeDirectory(),
         .TrafficMeter = TrafficMeter_,
     };
 

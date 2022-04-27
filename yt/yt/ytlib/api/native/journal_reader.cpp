@@ -62,7 +62,7 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
-        , NodeDirectory_(client->GetNativeConnection()->GetNodeDirectory())
+        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
             Path_,
             Options_.TransactionId))
@@ -211,7 +211,6 @@ private:
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,
                     Client_,
-                    NodeDirectory_,
                     chunkId,
                     codecId,
                     replicas,

@@ -146,7 +146,6 @@ IChunkReaderPtr CreateRemoteReader(
     TErasureReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,

@@ -86,49 +86,6 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(throttler));
 }
 
-ISchemalessMultiChunkReaderPtr CreateTableReader(
-    const IJobSpecHelperPtr& jobSpecHelper,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& nodeDescriptor,
-    TTableReaderOptionsPtr options,
-    const TDataSourceDirectoryPtr& dataSourceDirectory,
-    std::vector<TDataSliceDescriptor> dataSliceDescriptors,
-    TNameTablePtr nameTable,
-    const TColumnFilter& columnFilter,
-    bool isParallel,
-    const TClientChunkReadOptions& chunkReadOptions,
-    IBlockCachePtr blockCache,
-    IClientChunkMetaCachePtr chunkMetaCache,
-    TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler,
-    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
-{
-    auto createReader = isParallel
-        ? CreateSchemalessParallelMultiReader
-        : CreateSchemalessSequentialMultiReader;
-    const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
-    return createReader(
-        tableReaderConfig,
-        std::move(options),
-        std::move(client),
-        nodeDescriptor,
-        std::move(blockCache),
-        std::move(chunkMetaCache),
-        jobSpecHelper->GetInputNodeDirectory(),
-        dataSourceDirectory,
-        std::move(dataSliceDescriptors),
-        std::move(nameTable),
-        chunkReadOptions,
-        columnFilter,
-        /* partitionTag */ std::nullopt,
-        std::move(trafficMeter),
-        std::move(bandwidthThrottler),
-        std::move(rpsThrottler),
-        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
-        /* interruptDescriptorKeyLength */ 0);
-}
-
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const IJobSpecHelperPtr& jobSpecHelper,
     NNative::IClientPtr client,
@@ -155,23 +112,28 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
 
     auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(schedulerJobSpecExt.table_reader_options()));
 
-    return CreateTableReader(
-        jobSpecHelper,
-        std::move(client),
-        std::move(nodeDescriptor),
+    auto createReader = isParallel
+        ? CreateSchemalessParallelMultiReader
+        : CreateSchemalessSequentialMultiReader;
+    const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
+    return createReader(
+        tableReaderConfig,
         std::move(options),
+        std::move(client),
+        nodeDescriptor,
+        std::move(blockCache),
+        std::move(chunkMetaCache),
         dataSourceDirectory,
         std::move(dataSliceDescriptors),
         std::move(nameTable),
-        columnFilter,
-        isParallel,
         chunkReadOptions,
-        std::move(blockCache),
-        std::move(chunkMetaCache),
+        columnFilter,
+        /*partitionTag*/ std::nullopt,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
-        std::move(multiReaderMemoryManager));
+        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
+        /*interruptDescriptorKeyLength*/ 0);
 }
 
 } // namespace
@@ -396,7 +358,6 @@ public:
                 nodeDescriptor,
                 BlockCache_,
                 ChunkMetaCache_,
-                JobSpecHelper_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
@@ -426,7 +387,6 @@ public:
                 nodeDescriptor,
                 BlockCache_,
                 ChunkMetaCache_,
-                JobSpecHelper_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,
@@ -673,7 +633,6 @@ public:
             std::move(client),
             BlockCache_,
             ChunkMetaCache_,
-            JobSpecHelper_->GetInputNodeDirectory(),
             GetComparator(sortColumns),
             nameTable,
             onNetworkReleased,

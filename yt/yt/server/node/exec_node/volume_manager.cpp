@@ -767,7 +767,7 @@ private:
                 config->Paths = {layerDirectory};
                 config->IgnoreUnavailableFiles = true;
                 config->DeduplicateByINodes = false;
-                
+
                 layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
                 YT_LOG_DEBUG("Calculated layer size (LayerId: %v, Size: %v, Tag: %v)",
                     id,
@@ -1401,7 +1401,6 @@ private:
         newLayerFutures.reserve(newArtifacts.size());
 
         TArtifactDownloadOptions downloadOptions{
-            .NodeDirectory = Bootstrap_->GetNodeDirectory(),
             .WorkloadDescriptorAnnotations = {"Type: TmpfsLayersUpdate"},
         };
         for (const auto& artifactKey : newArtifacts) {

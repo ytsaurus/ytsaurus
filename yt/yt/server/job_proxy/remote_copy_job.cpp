@@ -379,7 +379,6 @@ private:
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
             RemoteClient_,
-            Host_->GetInputNodeDirectory(),
             inputChunkId,
             inputReplicas,
             erasureCodec,
@@ -393,7 +392,10 @@ private:
 
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
-        auto nodeDirectory = New<TNodeDirectory>();
+        const auto& nodeDirectory = Host_
+            ->GetClient()
+            ->GetNativeConnection()
+            ->GetNodeDirectory(/*startSynchronizer*/ false);
         options->AllowAllocatingNewTargetNodes = false;
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
@@ -641,7 +643,6 @@ private:
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
             Host_->GetClient(),
-            nodeDirectory,
             outputSessionId.ChunkId,
             repairSeedReplicas,
             erasureCodec,
@@ -715,7 +716,6 @@ private:
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
             RemoteClient_,
-            Host_->GetInputNodeDirectory(),
             Host_->LocalDescriptor(),
             inputChunkId,
             inputReplicas,
@@ -728,12 +728,16 @@ private:
 
         chunkMeta = GetChunkMeta({reader});
 
+        const auto& nodeDirectory = Host_
+            ->GetClient()
+            ->GetNativeConnection()
+            ->GetNodeDirectory(/*startSynchronizer*/ false);
         auto writer = CreateReplicationWriter(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
             TChunkReplicaWithMediumList(),
-            New<TNodeDirectory>(),
+            nodeDirectory,
             Host_->GetClient(),
             Host_->GetLocalHostName(),
             Host_->GetWriterBlockCache(),

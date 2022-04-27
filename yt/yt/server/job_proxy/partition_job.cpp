@@ -88,7 +88,6 @@ public:
                 Host_->LocalDescriptor(),
                 Host_->GetReaderBlockCache(),
                 /*chunkMetaCache*/ nullptr,
-                Host_->GetInputNodeDirectory(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 nameTable,

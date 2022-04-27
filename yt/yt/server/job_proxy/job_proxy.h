@@ -121,8 +121,6 @@ private:
 
     NApi::NNative::IClientPtr Client_;
 
-    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
-
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
@@ -160,7 +158,7 @@ private:
     void OnHeartbeatResponse(const TError& error);
 
     void LogJobSpec(NJobTrackerClient::NProto::TJobSpec jobSpec);
-    void RetrieveJobSpec();
+    void RetrieveJobSpec(const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory);
     void ReportResult(
         const NJobTrackerClient::NProto::TJobResult& result,
         const NYson::TYsonString& statistics,
