@@ -1103,6 +1103,10 @@ private:
             OrchidRoot_,
             "/object_service_cache",
             CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/node_resource_manager",
+            CreateVirtualNode(NodeResourceManager_->GetOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "node");
