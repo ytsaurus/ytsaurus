@@ -462,6 +462,7 @@ public:
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
         IntermediateAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffd);
         ChunkWiseAccountingMigrationAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffc);
+        SequoiaAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffa);
 
         RootUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffff);
         GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
@@ -2392,6 +2393,9 @@ private:
     TAccountId ChunkWiseAccountingMigrationAccountId_;
     TAccount* ChunkWiseAccountingMigrationAccount_ = nullptr;
 
+    TAccountId SequoiaAccountId_;
+    TAccount* SequoiaAccount_ = nullptr;
+
     NHydra::TEntityMap<TUser> UserMap_;
     THashMap<TString, TUser*> UserNameMap_;
 
@@ -3157,6 +3161,7 @@ private:
         TmpAccount_ = nullptr;
         IntermediateAccount_ = nullptr;
         ChunkWiseAccountingMigrationAccount_ = nullptr;
+        SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
 
@@ -3372,6 +3377,20 @@ private:
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
             TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, resourceLimits);
             ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                RootUser_,
+                EPermission::Use));
+        }
+
+        // sequoia, 1 TB disk space, 100 000 nodes, 1 000 000 chunks, 100 GB master memory allowed for: root
+        if (EnsureBuiltinAccountInitialized(SequoiaAccount_, SequoiaAccountId_, SequoiaAccountName)) {
+            auto resourceLimits = TClusterResourceLimits()
+                .SetNodeCount(100'000)
+                .SetChunkCount(1'000'000)
+                .SetMasterMemory({100_GB, 100_GB, {}})
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
+            TrySetResourceLimits(SequoiaAccount_, resourceLimits);
+            SequoiaAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
                 EPermission::Use));

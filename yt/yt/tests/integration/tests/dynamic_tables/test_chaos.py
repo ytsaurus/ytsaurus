@@ -266,7 +266,7 @@ class TestChaos(ChaosTestBase):
         sync_create_chaos_cell("default", chaos_cell_id, self.get_cluster_names())
 
         assert_items_equal(get("//sys/chaos_cell_bundles"), ["default"])
-        assert_items_equal(get("//sys/tablet_cell_bundles"), ["default"])
+        assert_items_equal(get("//sys/tablet_cell_bundles"), ["default", "sequoia"])
         assert_items_equal(get("//sys/tablet_cells"), [tablet_cell_id])
         assert_items_equal(get("//sys/chaos_cells"), [chaos_cell_id])
 

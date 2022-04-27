@@ -142,6 +142,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterJobThrottlerPerType)                                    (2007))  // h0pless
     ((PortalAclAndAttributeSynchronization)                         (2008))  // kvk1920
     ((ProfilingPeriodDynamicConfig)                                 (2009))  // shakurov
+    ((SequoiaGorshok)                                               (2010))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
