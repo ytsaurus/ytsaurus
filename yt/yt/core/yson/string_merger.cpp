@@ -68,26 +68,17 @@ public:
 
     void OnMyBeginList() override
     {
-        YsonWriter_.OnBeginList();
-        PathStack_.Push(-1);
+        YT_ABORT();
     }
 
     void OnMyListItem() override
     {
-        YsonWriter_.OnListItem();
-        PathStack_.IncreaseLastIndex();
-        auto path = PathStack_.GetPath();
-        auto it = PathToIndex_.find(path);
-        if (it != PathToIndex_.end()) {
-            YsonWriter_.OnRaw(YsonStringBufs_[it->second].AsStringBuf(), EYsonType::Node);
-            Forward(GetNullYsonConsumer(), [] {});
-        }
+        YT_ABORT();
     }
 
     void OnMyEndList() override
     {
-        YsonWriter_.OnEndList();
-        PathStack_.Pop();
+        YT_ABORT();
     }
 
     void OnMyBeginMap() override
