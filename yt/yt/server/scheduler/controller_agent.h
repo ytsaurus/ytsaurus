@@ -31,7 +31,6 @@ struct TSchedulerToAgentJobEvent
     TString TreeId;
     std::unique_ptr<NJobTrackerClient::NProto::TJobStatus> Status;
     std::optional<EAbortReason> AbortReason;
-    std::optional<bool> Abandoned;
     std::optional<EInterruptReason> InterruptReason;
     std::optional<bool> AbortedByScheduler;
     std::optional<TPreemptedFor> PreemptedFor;

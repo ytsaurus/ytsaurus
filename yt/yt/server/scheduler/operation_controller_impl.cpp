@@ -11,10 +11,11 @@
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
-#include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
@@ -74,7 +75,8 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TCo
     IncarnationId_ = agent->GetIncarnationId();
     Agent_ = agent;
 
-    AgentProxy_ = std::make_unique<TControllerAgentServiceProxy>(agent->GetChannel());
+    ControllerAgentTrackerProxy_ = std::make_unique<TControllerAgentServiceProxy>(agent->GetChannel());
+    ControllerAgentJobProberProxy_ = std::make_unique<TJobProberServiceProxy>(agent->GetChannel());
 
     Epoch_.store(epoch);
 
@@ -98,6 +100,9 @@ bool TOperationControllerImpl::RevokeAgent()
     PendingMaterializeResult_ = TPromise<TOperationControllerMaterializeResult>();
     PendingReviveResult_ = TPromise<TOperationControllerReviveResult>();
     PendingCommitResult_ = TPromise<TOperationControllerCommitResult>();
+
+    ControllerAgentTrackerProxy_.reset();
+    ControllerAgentJobProberProxy_.reset();
 
     IncarnationId_ = {};
     Agent_.Reset();
@@ -132,7 +137,7 @@ TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initiali
     YT_VERIFY(!PendingInitializeResult_);
     PendingInitializeResult_ = NewPromise<TOperationControllerInitializeResult>();
 
-    auto req = AgentProxy_->InitializeOperation();
+    auto req = ControllerAgentTrackerProxy_->InitializeOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     if (transactions) {
@@ -186,7 +191,7 @@ TFuture<TOperationControllerPrepareResult> TOperationControllerImpl::Prepare()
     YT_VERIFY(!PendingPrepareResult_);
     PendingPrepareResult_ = NewPromise<TOperationControllerPrepareResult>();
 
-    auto req = AgentProxy_->PrepareOperation();
+    auto req = ControllerAgentTrackerProxy_->PrepareOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Subscribe(
@@ -226,7 +231,7 @@ TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materia
     YT_VERIFY(!PendingMaterializeResult_);
     PendingMaterializeResult_ = NewPromise<TOperationControllerMaterializeResult>();
 
-    auto req = AgentProxy_->MaterializeOperation();
+    auto req = ControllerAgentTrackerProxy_->MaterializeOperation();
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     ToProto(req->mutable_operation_id(), OperationId_);
     InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Subscribe(
@@ -266,7 +271,7 @@ TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
     YT_VERIFY(!PendingReviveResult_);
     PendingReviveResult_ = NewPromise<TOperationControllerReviveResult>();
 
-    auto req = AgentProxy_->ReviveOperation();
+    auto req = ControllerAgentTrackerProxy_->ReviveOperation();
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     ToProto(req->mutable_operation_id(), OperationId_);
     InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Subscribe(
@@ -317,7 +322,7 @@ TFuture<TOperationControllerCommitResult> TOperationControllerImpl::Commit()
     YT_VERIFY(!PendingCommitResult_);
     PendingCommitResult_ = NewPromise<TOperationControllerCommitResult>();
 
-    auto req = AgentProxy_->CommitOperation();
+    auto req = ControllerAgentTrackerProxy_->CommitOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
     InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).Subscribe(
@@ -360,7 +365,7 @@ TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
         ? EControllerState::Aborted
         : EControllerState::Failed;
 
-    auto req = AgentProxy_->TerminateOperation();
+    auto req = ControllerAgentTrackerProxy_->TerminateOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->set_controller_final_state(static_cast<int>(controllerFinalState));
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
@@ -372,7 +377,7 @@ TFuture<void> TOperationControllerImpl::Complete()
     VERIFY_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
-    auto req = AgentProxy_->CompleteOperation();
+    auto req = ControllerAgentTrackerProxy_->CompleteOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
     return InvokeAgent<TControllerAgentServiceProxy::TRspCompleteOperation>(req).As<void>();
@@ -423,7 +428,7 @@ TFuture<TOperationControllerUnregisterResult> TOperationControllerImpl::Unregist
 
     YT_LOG_INFO("Unregistering operation controller");
 
-    auto req = AgentProxy_->UnregisterOperation();
+    auto req = ControllerAgentTrackerProxy_->UnregisterOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
     return InvokeAgent<TControllerAgentServiceProxy::TRspUnregisterOperation>(req).Apply(
@@ -439,7 +444,7 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
         return VoidFuture;
     }
 
-    auto req = AgentProxy_->UpdateOperationRuntimeParameters();
+    auto req = ControllerAgentTrackerProxy_->UpdateOperationRuntimeParameters();
     ToProto(req->mutable_operation_id(), OperationId_);
     ToProto(req->mutable_parameters(), ConvertToYsonString(update).ToString());
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
@@ -476,10 +481,10 @@ void TOperationControllerImpl::OnJobFinished(
     switch (EJobState{status->state()})
     {
         case EJobState::Completed:
-            OnJobCompleted(job, status, false);
+            OnJobCompleted(job, status);
             break;
         case EJobState::Aborted:
-            OnJobAborted(job, status, false);
+            OnJobAborted(job, status, /*byScheduler*/ false);
             break;
         case EJobState::Failed:
             OnJobFailed(job, status);
@@ -491,19 +496,20 @@ void TOperationControllerImpl::OnJobFinished(
 
 void TOperationControllerImpl::OnJobCompleted(
     const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status,
-    bool abandoned)
+    NJobTrackerClient::NProto::TJobStatus* status)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(status);
 
     if (ShouldSkipJobEvent(job)) {
         return;
     }
 
+    status->set_state(static_cast<int>(EJobState::Completed));
+
     auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
-    event.Abandoned = abandoned;
     event.InterruptReason = job->GetInterruptReason();
-    event.Status->set_state(static_cast<int>(EJobState::Completed));
     auto result = EnqueueJobEvent(std::move(event));
     YT_LOG_TRACE("Job completion notification %v (JobId: %v)",
         result ? "enqueued" : "dropped",
@@ -593,7 +599,6 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
         .TreeId = treeId,
         .Status = std::move(status),
         .AbortReason = abortReason,
-        .Abandoned = {},
         .InterruptReason = {},
         .AbortedByScheduler = {},
         .PreemptedFor = {},
@@ -613,11 +618,23 @@ void TOperationControllerImpl::AbortJob(
     OnJobAborted(job, status, /*byScheduler*/ true);
 }
 
-void TOperationControllerImpl::AbandonJob(const TJobPtr& job)
+TFuture<void> TOperationControllerImpl::AbandonJob(TOperationId operationId, TJobId jobId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    OnJobCompleted(job, /*status*/ nullptr, /*abandoned*/ true);
+    auto agent = Agent_.Lock();
+    if (!agent) {
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::AgentRevoked,
+            "agent that has hosted operation %v is revoked", operationId);
+    }
+
+    auto request = ControllerAgentJobProberProxy_->AbandonJob();
+    ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
+    ToProto(request->mutable_operation_id(), operationId);
+    ToProto(request->mutable_job_id(), jobId);
+
+    return request->Invoke().As<void>();
 }
 
 void TOperationControllerImpl::OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError)
@@ -890,7 +907,6 @@ TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
         .TreeId = job->GetTreeId(),
         .Status = std::move(statusHolder),
         .AbortReason = {},
-        .Abandoned = {},
         .InterruptReason = {},
         .AbortedByScheduler = {},
         .PreemptedFor = {},

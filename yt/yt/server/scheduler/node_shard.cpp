@@ -1045,48 +1045,20 @@ void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TSt
         job->GetOperationId());
 }
 
-void TNodeShard::AbandonJob(TJobId jobId, const TString& user)
+void TNodeShard::AbandonJob(TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
-    auto job = GetJobOrThrow(jobId);
-
-    WaitFor(Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage)))
-        .ThrowOnError();
-
-    YT_LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
-        job->GetId(),
-        job->GetOperationId(),
-        user);
-
-    switch (job->GetType()) {
-        case EJobType::Map:
-        case EJobType::OrderedMap:
-        case EJobType::SortedReduce:
-        case EJobType::JoinReduce:
-        case EJobType::PartitionMap:
-        case EJobType::ReduceCombiner:
-        case EJobType::PartitionReduce:
-        case EJobType::Vanilla:
-            break;
-        default:
-            THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it has type %Qlv",
-                job->GetId(),
-                job->GetOperationId(),
-                job->GetType());
+    auto job = FindJob(jobId);
+    if (!job) {
+        YT_LOG_DEBUG("Requested to abandon an unknown job, ignored (JobId: %v)", jobId);
+        return;
     }
 
-    if (auto allocationState = job->GetAllocationState();
-        allocationState != EAllocationState::Running &&
-        allocationState != EAllocationState::Waiting)
-    {
-        THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it is not running",
-            job->GetId(),
-            job->GetOperationId());
-    }
-
+    YT_LOG_DEBUG("Abandoning job (JobId: %v)", jobId);
+    
     DoAbandonJob(job);
 }
 
@@ -1249,7 +1221,7 @@ void TNodeShard::BuildNodesYson(TFluentMap fluent)
     }
 }
 
-TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
+TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId, bool considerFinished)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -1258,14 +1230,18 @@ TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
         return job->GetOperationId();
     }
 
+    if (!considerFinished) {
+        return {};
+    }
+
     auto node = FindNodeByJob(jobId);
     if (!node) {
-        return TOperationId();
+        return {};
     }
 
     auto jobIt = node->RecentlyFinishedJobs().find(jobId);
     if (jobIt == node->RecentlyFinishedJobs().end()) {
-        return TOperationId();
+        return {};
     } else {
         return jobIt->second.OperationId;
     }
@@ -2433,23 +2409,14 @@ void TNodeShard::DoAbortJob(const TJobPtr& job, TJobStatus* const status)
 
 void TNodeShard::DoAbandonJob(const TJobPtr& job)
 {
-    if (const auto allocationState = job->GetAllocationState();
+    if (auto allocationState = job->GetAllocationState();
         allocationState == EAllocationState::Finishing ||
         allocationState == EAllocationState::Finished)
     {
         return;
     }
 
-    job->SetInterruptReason(EInterruptReason::None);
-
     SetFinishedState(job);
-    job->SetFinishTime(TInstant::Now());
-
-    auto* operationState = FindOperationState(job->GetOperationId());
-    if (operationState) {
-        const auto& controller = operationState->Controller;
-        controller->AbandonJob(job);
-    }
 
     UnregisterJob(job);
 }

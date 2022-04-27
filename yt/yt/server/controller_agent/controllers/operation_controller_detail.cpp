@@ -2973,7 +2973,6 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TCompletedJobSummary>(jobId);
         } else {
-            YT_LOG_DEBUG("Waiting for finished job info from node (JobId: %v)", jobId);
             return;
         }
     } else {
@@ -3185,7 +3184,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TFailedJobSummary>(jobId);
         } else {
-            YT_LOG_DEBUG("Waiting for finished job info from node (JobId: %v)", jobId);
             return;
         }
     }
@@ -3318,7 +3316,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         if (HasFullFinishedJobInfo(jobId)) {
             jobSummary = ReleaseFullJobSummary<TAbortedJobSummary>(jobId);
         } else {
-            YT_LOG_DEBUG("Waiting for finished job info from node (JobId: %v)", jobId);
             return;
         }
     }
@@ -3336,7 +3333,18 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         jobSummary->AbortedByScheduler,
         jobSummary->AbortedByController);
 
-    auto joblet = GetJoblet(jobId);
+    auto joblet = FindJoblet(jobId);
+    
+    // It is ugly and will be fixed soon.
+    if (ExpectsJobInfoFromNode(*jobSummary)) {
+        YT_VERIFY(joblet);
+    } else {
+        if (!joblet) {
+            // When job info is not expected, we does not call ProcessJobSummaryFromScheduler, so we should check if job has been abandoned.
+            YT_LOG_DEBUG("Joblet is not found, looks like job has been abandoned (JobId: %v)", jobId);
+            return;
+        }
+    }
 
     TJobFinishedResult taskJobResult;
 
@@ -3468,10 +3476,49 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     UpdateRunningJobStatistics(std::move(joblet), std::move(jobSummary));
 }
 
+void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+
+    YT_LOG_DEBUG("Abandon job (JobId: %v)", jobId);
+
+    if (State != EControllerState::Running) {
+        THROW_ERROR_EXCEPTION("Operation %v is not running",
+            OperationId);
+    }
+
+    if (FindFinishedJobInfo(jobId)) {
+        THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it is not running",
+            jobId,
+            OperationId);
+    }
+
+    auto joblet = GetJobletOrThrow(jobId);
+
+    switch (joblet->JobType) {
+        case EJobType::Map:
+        case EJobType::OrderedMap:
+        case EJobType::SortedReduce:
+        case EJobType::JoinReduce:
+        case EJobType::PartitionMap:
+        case EJobType::ReduceCombiner:
+        case EJobType::PartitionReduce:
+        case EJobType::Vanilla:
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Cannot abandon job %v of operation %v since it has type %Qlv",
+                jobId,
+                OperationId,
+                joblet->JobType);
+    }
+
+    OnJobCompleted(CreateAbandonedJobSummary(jobId));
+}
+
 void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary,
-    const bool updateMemoryReserveFactor)
+    bool updateMemoryReserveFactor)
 {
     YT_VERIFY(jobSummary->FinishTime || jobSummary->State == EJobState::Aborted);
     if (jobSummary->FinishTime) {
@@ -5695,6 +5742,11 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
     const auto finishedJobInfo = FindFinishedJobInfo(jobId);
 
     if (!finishedJobInfo) {
+        if (auto joblet = FindJoblet(jobId); !joblet) {
+            YT_LOG_DEBUG("Joblet is not found, looks like job has been abandoned, ignore job event (JobId: %v)", jobId);
+            return;
+        }
+
         StartWaitingJobInfoFromNode(std::move(jobSummary));
         return;
     }
@@ -5736,9 +5788,9 @@ void TOperationControllerBase::ProcessJobSummaryFromScheduler(std::unique_ptr<TJ
         std::move(nodeSummary));
 }
 
-bool TOperationControllerBase::HasFullFinishedJobInfo(const TJobId jobId) const noexcept
+bool TOperationControllerBase::HasFullFinishedJobInfo(TJobId jobId) const noexcept
 {
-    const auto jobInfo = FindFinishedJobInfo(jobId);
+    auto jobInfo = FindFinishedJobInfo(jobId);
     return jobInfo && jobInfo->CombinationState == ECombinationState::FullyReceived;
 }
 

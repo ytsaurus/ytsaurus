@@ -100,6 +100,8 @@ struct TCompletedJobSummary
     inline static constexpr EJobState ExpectedState = EJobState::Completed;
 };
 
+std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId);
+
 struct TAbortedJobSummary
     : public TJobSummary
 {

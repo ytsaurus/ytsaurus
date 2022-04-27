@@ -1,0 +1,18 @@
+package NYT.NControllerAgent.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbandonJob
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+    required NYT.NProto.TGuid operation_id = 3;
+}
+
+message TRspAbandonJob
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

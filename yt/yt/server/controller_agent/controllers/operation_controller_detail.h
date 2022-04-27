@@ -186,6 +186,13 @@ private: \
         (std::unique_ptr<TRunningJobSummary> jobSummary),
         (std::move(jobSummary)),
         true)
+    
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        AbandonJob,
+        (TJobId jobId),
+        (jobId),
+        false)
 
     IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededJobResources, (), (), true)
 
