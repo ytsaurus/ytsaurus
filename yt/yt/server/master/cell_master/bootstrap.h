@@ -20,6 +20,8 @@
 
 #include <yt/yt/server/master/security_server/public.h>
 
+#include <yt/yt/server/master/sequoia_server/public.h>
+
 #include <yt/yt/server/master/table_server/public.h>
 
 #include <yt/yt/server/master/tablet_server/public.h>
@@ -124,6 +126,7 @@ public:
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
+    const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const; 
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
@@ -196,6 +199,7 @@ protected:
     NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
+    NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;

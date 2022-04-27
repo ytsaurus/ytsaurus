@@ -81,8 +81,13 @@ public:
     {
         Batches_ = Batcher_->PrepareBatches();
 
-        auto* signatureGenerator = CellCommitSession_->GetSignatureGenerator();
-        signatureGenerator->RegisterRequests(std::ssize(Batches_));
+        auto batchCount = std::ssize(Batches_);
+        CellCommitSession_
+            ->GetPrepareSignatureGenerator()
+            ->RegisterRequests(batchCount);
+        CellCommitSession_
+            ->GetCommitSignatureGenerator()
+            ->RegisterRequests(batchCount);
     }
 
     virtual TFuture<void> Invoke() override
@@ -150,8 +155,10 @@ private:
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
         req->set_mount_revision(TabletInfo_->MountRevision);
         req->set_durability(static_cast<int>(transaction->GetDurability()));
-        auto* signatureGenerator = CellCommitSession_->GetSignatureGenerator();
-        req->set_signature(signatureGenerator->GenerateSignature());
+        auto prepareSignature = CellCommitSession_
+            ->GetPrepareSignatureGenerator()
+            ->GenerateSignature();
+        req->set_signature(prepareSignature);
         req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
         req->set_row_count(batch->RowCount);
         req->set_data_weight(batch->DataWeight);

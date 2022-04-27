@@ -19,6 +19,7 @@
 #include <yt/yt/server/master/cypress_server/node.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/mailbox.h>
 #include <yt/yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/hive/transaction_manager_detail.h>
@@ -37,9 +38,16 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/sequoia_server/context.h>
+
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
+
+#include <yt/yt/ytlib/sequoia_client/tables.h>
 
 #include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -74,10 +82,13 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NCypressServer;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NTransactionClient::NProto;
 using namespace NSecurityServer;
 using namespace NProfiling;
+using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -219,12 +230,13 @@ public:
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
-        const IAttributeDictionary& attributes)
+        const IAttributeDictionary& attributes,
+	TTransactionId hintId = NullTransactionId)
     {
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
         return DoStartTransaction(
-            false /*upload*/,
+            /*upload*/ false,
             parent,
             std::move(prerequisiteTransactions),
             replicatedToCellTags,
@@ -232,7 +244,7 @@ public:
             deadline,
             title,
             attributes,
-            {} /*hintId*/);
+            hintId);
     }
 
     TTransaction* StartUploadTransaction(
@@ -540,6 +552,8 @@ public:
         if (temporaryRefTimestampHolder) {
             UnrefTimestampHolder(transactionId);
         }
+
+	    auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
 
@@ -1011,6 +1025,8 @@ public:
         for (auto prerequisiteTransactionId : options.PrerequisiteTransactionIds) {
             ValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
+
+        auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
 
         RunPrepareTransactionActions(transaction, options);
 
@@ -1770,6 +1786,16 @@ private:
         }));
     }
 
+    std::unique_ptr<TSequoiaContextGuard> CreateSequoiaContextGuard(TTransaction* transaction)
+    {
+        if (transaction->GetIsSequoiaTransaction()) {
+            auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
+            return std::make_unique<TSequoiaContextGuard>(std::move(sequoiaContext));
+        } else {
+            return nullptr;
+        }
+    }
+
     void OnProfiling()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1828,7 +1854,8 @@ TTransaction* TTransactionManager::StartTransaction(
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
-    const IAttributeDictionary& attributes)
+    const IAttributeDictionary& attributes,
+    TTransactionId hintId)
 {
     return Impl_->StartTransaction(
         parent,
@@ -1837,7 +1864,8 @@ TTransaction* TTransactionManager::StartTransaction(
         timeout,
         deadline,
         title,
-        attributes);
+        attributes,
+        hintId);
 }
 
 TTransaction* TTransactionManager::StartUploadTransaction(

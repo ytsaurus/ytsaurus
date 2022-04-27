@@ -174,6 +174,11 @@ const IConnectionPtr& TClient::GetNativeConnection()
     return Connection_;
 }
 
+const TTransactionManagerPtr& TClient::GetTransactionManager()
+{
+    return TransactionManager_;
+}
+
 IFunctionRegistryPtr TClient::GetFunctionRegistry()
 {
     return FunctionRegistry_.Get();

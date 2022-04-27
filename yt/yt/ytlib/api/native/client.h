@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
+#include <yt/yt/ytlib/transaction_client/public.h>
+
 #include <yt/yt/ytlib/query_client/public.h>
 
 namespace NYT::NApi::NNative {
@@ -45,6 +47,7 @@ struct IClient
 {
     virtual const TClientOptions& GetOptions() = 0;
     virtual const IConnectionPtr& GetNativeConnection() = 0;
+    virtual const NTransactionClient::TTransactionManagerPtr& GetTransactionManager() = 0;
     virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() = 0;
 

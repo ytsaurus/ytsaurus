@@ -93,6 +93,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Upload_);
     Save(context, NativeCommitMutationRevision_);
     Save(context, AccountResourceUsageLeases_);
+    Save(context, IsSequoiaTransaction_);
+    Save(context, SequoiaWriteSet_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -130,6 +132,11 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Upload_);
     Load(context, NativeCommitMutationRevision_);
     Load(context, AccountResourceUsageLeases_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::SequoiaTransaction) {
+        Load(context, IsSequoiaTransaction_);
+        Load(context, SequoiaWriteSet_);
+    }
 }
 
 const TTransaction* TTransaction::GetTopmostTransaction() const

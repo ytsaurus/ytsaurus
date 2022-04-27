@@ -257,6 +257,11 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("hydra_admin_channel", HydraAdminChannel)
         .DefaultNew();
 
+    RegisterParameter("sequoia_path", SequoiaPath)
+        .Default("//sys/sequoia");
+    RegisterParameter("sequoia_transaction_timeout", SequoiaTransactionTimeout)
+        .Default(TDuration::Minutes(1));
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 

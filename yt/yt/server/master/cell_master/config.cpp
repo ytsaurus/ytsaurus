@@ -20,6 +20,8 @@
 
 #include <yt/yt/server/master/journal_server/config.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/scheduler_pool_server/config.h>
 
 #include <yt/yt/server/lib/hive/config.h>
@@ -287,6 +289,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
     RegisterParameter("transaction_manager", TransactionManager)
         .DefaultNew();
     RegisterParameter("scheduler_pool_manager", SchedulerPoolManager)
+        .DefaultNew();
+    RegisterParameter("sequoia_manager", SequoiaManager)
         .DefaultNew();
     RegisterParameter("cell_master", CellMaster)
         .DefaultNew();

@@ -63,6 +63,7 @@ public:
     const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() override;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
     const IConnectionPtr& GetNativeConnection() override;
+    const NTransactionClient::TTransactionManagerPtr& GetTransactionManager() override;
     NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override;
     NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() override;
 
