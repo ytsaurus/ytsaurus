@@ -105,6 +105,7 @@ struct TTabletPerformanceCounter;
 struct TTabletPerformanceCounters;
 
 extern const TString DefaultTabletCellBundleName;
+extern const TString SequoiaTabletCellBundleName;
 
 extern const TTimeFormula DefaultTabletBalancerSchedule;
 

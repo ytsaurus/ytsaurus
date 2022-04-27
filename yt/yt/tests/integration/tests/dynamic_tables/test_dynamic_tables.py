@@ -1161,7 +1161,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("babenko")
     def test_default_cell_bundle(self):
-        assert ls("//sys/tablet_cell_bundles") == ["default"]
+        assert_items_equal(ls("//sys/tablet_cell_bundles"), ["default", "sequoia"])
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         assert get("//tmp/t/@tablet_cell_bundle") == "default"

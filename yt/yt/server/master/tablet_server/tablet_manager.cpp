@@ -215,6 +215,7 @@ public:
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
+        SequoiaTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xfffffffffffffffe);
 
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
@@ -2854,6 +2855,9 @@ private:
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
+    TTabletCellBundleId SequoiaTabletCellBundleId_;
+    TTabletCellBundle* SequoiaTabletCellBundle_ = nullptr;
+
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
 
     // Not a compat, actually.
@@ -4894,6 +4898,7 @@ private:
         TabletActionMap_.Clear();
 
         DefaultTabletCellBundle_ = nullptr;
+        SequoiaTabletCellBundle_ = nullptr;
     }
 
     void SetZeroState() override
@@ -4926,8 +4931,23 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100000;
+            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
             DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+        }
+
+        // sequoia
+        if (EnsureBuiltinCellBundleInitialized(SequoiaTabletCellBundle_, SequoiaTabletCellBundleId_, SequoiaTabletCellBundleName)) {
+            SequoiaTabletCellBundle_->Acd().AddEntry(TAccessControlEntry(
+                ESecurityAction::Allow,
+                securityManager->GetUsersGroup(),
+                EPermission::Use));
+            SequoiaTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
+            SequoiaTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+
+            auto options = SequoiaTabletCellBundle_->GetOptions();
+            options->ChangelogAccount = NSecurityClient::SequoiaAccountName;
+            options->SnapshotAccount = NSecurityClient::SequoiaAccountName;
+            SequoiaTabletCellBundle_->SetOptions(std::move(options));
         }
     }
 

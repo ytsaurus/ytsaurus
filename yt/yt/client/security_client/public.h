@@ -22,6 +22,7 @@ extern const TString TmpAccountName;
 extern const TString SysAccountName;
 extern const TString IntermediateAccountName;
 extern const TString ChunkWiseAccountingMigrationAccountName;
+extern const TString SequoiaAccountName;
 
 using NRpc::RootUserName;
 extern const TString GuestUserName;

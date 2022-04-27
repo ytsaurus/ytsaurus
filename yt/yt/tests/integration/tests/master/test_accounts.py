@@ -77,6 +77,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
         "tmp",
         "intermediate",
         "chunk_wise_accounting_migration",
+        "sequoia",
     ]
     _builtin_accounts = [_root_account_name] + _non_root_builtin_accounts
 

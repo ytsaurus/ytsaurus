@@ -414,11 +414,11 @@ class TestUsers(YTEnvSetup):
         create_tablet_cell_bundle("tcb1")
         create_tablet_cell_bundle("tcb2")
         set("//sys/tablet_cell_bundles/tcb1/@acl", [make_ace("allow", "u", "use")])
-        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ['default', "tcb1"]
+        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ['default', "sequoia", "tcb1"]
         create_group("g")
         add_member("u", "g")
         set("//sys/tablet_cell_bundles/tcb2/@acl", [make_ace("allow", "g", "use")])
-        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ['default', "tcb1", "tcb2"]
+        assert sorted(get("//sys/users/u/@usable_tablet_cell_bundles")) == ['default', "sequoia", "tcb1", "tcb2"]
 
     @authors("babenko", "kiselyovp")
     def test_delayed_membership_closure(self):
