@@ -1,10 +1,10 @@
 from yt.packages.six import iteritems, text_type
 
 try:
-    from simplejson import load, dump, loads, dumps  # noqa
+    from simplejson import load, dump, loads, dumps, JSONDecodeError  # noqa
 except ImportError:
     # This version of simplejson has no compliled speedup module.
-    from yt.packages.simplejson import load, dump, loads, dumps  # noqa
+    from yt.packages.simplejson import load, dump, loads, dumps, JSONDecodeError  # noqa
 
 
 def loads_as_bytes(*args, **kwargs):
