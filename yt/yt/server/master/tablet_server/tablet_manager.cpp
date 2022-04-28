@@ -4880,6 +4880,10 @@ private:
         for (auto [actionId, action] : TabletActionMap_) {
             // NB: Process non-alive objects to pair with DestroyTabletAction.
             auto bundle = action->GetTabletCellBundle();
+            if (!bundle) {
+                continue;
+            }
+
             bundle->TabletActions().insert(action);
             if (!action->IsFinished()) {
                 bundle->IncreaseActiveTabletActionCount();
