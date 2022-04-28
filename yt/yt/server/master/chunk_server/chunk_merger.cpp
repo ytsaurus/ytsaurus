@@ -67,7 +67,6 @@ using namespace NTableClient::NProto;
 
 using NYT::ToProto;
 using NYT::FromProto;
-using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,28 +215,7 @@ bool ChunkMetaEqual(const TChunk* lhs, const TChunk* rhs)
         return false;
     }
 
-    auto lhsMiscExt = lhsMeta->FindExtension<TMiscExt>();
-    auto rhsMiscExt = rhsMeta->FindExtension<TMiscExt>();
-
-    if (!lhsMiscExt || !rhsMiscExt) {
-        return false;
-    }
-
-    if (lhsMiscExt->compression_codec() != rhsMiscExt->compression_codec()) {
-        return false;
-    }
-
-    auto lhsNameTableExt = lhsMeta->FindExtension<TNameTableExt>();
-    auto rhsNameTableExt = rhsMeta->FindExtension<TNameTableExt>();
-    if (lhsNameTableExt.has_value() != rhsNameTableExt.has_value()) {
-        return false;
-    }
-
-    if (lhsNameTableExt && rhsNameTableExt) {
-        return google::protobuf::util::MessageDifferencer::Equals(*lhsNameTableExt, *rhsNameTableExt);
-    }
-
-    return true;
+    return lhs->GetCompressionCodec() == rhs->GetCompressionCodec();
 }
 
 } // namespace
