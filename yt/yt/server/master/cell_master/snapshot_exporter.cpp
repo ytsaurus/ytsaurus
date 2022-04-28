@@ -17,6 +17,7 @@ using namespace NYson;
 using namespace NCypressServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NConcurrency;
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -137,7 +138,6 @@ void DoExportSnapshot(
     const std::vector<TString>& searchedKeys,
     const THashSet<EObjectType>& searchedTypes)
 {
-    const auto& objectManager = bootstrap->GetObjectManager();
     const auto& cypressManager = bootstrap->GetCypressManager();
 
     std::vector<TCypressNode*> sortedNodes;
@@ -190,7 +190,7 @@ void DoExportSnapshot(
                     .Value(transaction->GetId());
             })
             .Do([&] (TFluentMap fluent) {
-                auto nodeProxy = objectManager->GetProxy(node->GetTrunkNode(), node->GetTransaction());
+                auto nodeProxy = cypressManager->GetNodeProxy(node->GetTrunkNode(), node->GetTransaction());
                 const auto& nodeAttributes = nodeProxy->Attributes();
                 auto keys = searchedKeys.empty() ? nodeAttributes.ListKeys() : searchedKeys;
 
@@ -200,25 +200,38 @@ void DoExportSnapshot(
 
                 fluent
                     .DoFor(keys, [&] (TFluentMap fluent, const TString &key) {
+                        auto getAttribute = [&] {
+                            auto internedKey = TInternedAttributeKey::Lookup(key);
+                            if (internedKey != InvalidInternedAttribute) {
+                                if (auto result = nodeProxy->FindBuiltinAttribute(internedKey)) {
+                                    return result;
+                                }
+                                if (auto future = nodeProxy->GetBuiltinAttributeAsync(internedKey)) {
+                                    auto resultOrError = WaitFor(future);
+                                    if (resultOrError.IsOK()) {
+                                        return resultOrError.Value();
+                                    }
+                                }
+                            }
+
+                            return nodeAttributes.FindYson(key);
+                        };
+
+                        auto attribute = getAttribute();
                         fluent
-                            .Do([&] (TFluentMap fluent) {
-                                // Safely using FindYson because primary master doesn't store some attributes of dynamic tables.
-                                auto result = nodeAttributes.FindYson(key);
+                            .DoIf(static_cast<bool>(attribute), [&] (TFluentMap fluent) {
+                                auto node = ConvertToNode(attribute);
+                                // Attributes are forbidden on zero depth,
+                                // but we still want to have them (e.g. for schema).
+                                if (!node->Attributes().ListKeys().empty()) {
+                                    fluent
+                                        .Item(key + "_attributes")
+                                        .Value(node->Attributes());
+                                    node->MutableAttributes()->Clear();
+                                }
                                 fluent
-                                    .DoIf(static_cast<bool>(result), [&] (TFluentMap fluent) {
-                                        auto node = ConvertToNode(result);
-                                        // Attributes are forbidden on zero depth,
-                                        // but we still want to have them (e.g. for schema).
-                                        if (!node->Attributes().ListKeys().empty()) {
-                                            fluent
-                                                .Item(key + "_attributes")
-                                                .Value(node->Attributes());
-                                            node->MutableAttributes()->Clear();
-                                        }
-                                        fluent
-                                            .Item(key)
-                                            .Value(node);
-                                    });
+                                    .Item(key)
+                                    .Value(node);
                             });
                     });
             })
