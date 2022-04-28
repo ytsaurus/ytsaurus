@@ -113,6 +113,9 @@ public:
         bool transient,
         bool* fresh = nullptr);
 
+    TTransaction* FindPersistentTransaction(TTransactionId transactionId);
+    TTransaction* GetPersistentTransaction(TTransactionId transactionId);
+
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
     //! If a transient instance is found, makes is persistent and returns it.
@@ -144,6 +147,10 @@ public:
         const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
         const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
         const NHiveServer::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
+
+    //! Increases transaction commit signature.
+    // NB: After incrementing transaction may become committed and destroyed.
+    void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta);
 
     TTimestamp GetMinPrepareTimestamp();
     TTimestamp GetMinCommitTimestamp();

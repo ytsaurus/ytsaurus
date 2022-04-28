@@ -13,8 +13,14 @@ message TReqPrepareTransactionCommit
 
 message TReqCommitTransaction
 {
-  required NYT.NProto.TGuid transaction_id = 1;
-  required uint64 commit_timestamp = 3;
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 3;
+}
+
+message TReqAbortTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required bool force = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

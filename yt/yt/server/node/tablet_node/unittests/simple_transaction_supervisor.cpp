@@ -45,6 +45,7 @@ TSimpleTransactionSupervisor::TSimpleTransactionSupervisor(
 {
     TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraPrepareTransactionCommit, Unretained(this)));
     TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraCommitTransaction, Unretained(this)));
+    TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraAbortTransaction, Unretained(this)));
 }
 
 TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
@@ -75,6 +76,19 @@ TFuture<void> TSimpleTransactionSupervisor::CommitTransaction(
     return mutation->Commit().Apply(BIND(&RecoverErrorFromMutationResponse));
 }
 
+TFuture<void> TSimpleTransactionSupervisor::AbortTransaction(
+    TTransactionId transactionId,
+    bool force)
+{
+    NProto::TReqAbortTransaction request;
+    ToProto(request.mutable_transaction_id(), transactionId);
+    request.set_force(force);
+
+    auto mutation = CreateMutation(HydraManager_, request);
+    mutation->SetCurrentTraceContext();
+    return mutation->Commit().Apply(BIND(&RecoverErrorFromMutationResponse));
+}
+
 void TSimpleTransactionSupervisor::HydraPrepareTransactionCommit(TReqPrepareTransactionCommit* request)
 {
     TTransactionPrepareOptions options{
@@ -92,6 +106,16 @@ void TSimpleTransactionSupervisor::HydraCommitTransaction(TReqCommitTransaction*
         .CommitTimestamp = FromProto<TTimestamp>(request->commit_timestamp())
     };
     TransactionManager_->CommitTransaction(
+        FromProto<TGuid>(request->transaction_id()),
+        options);
+}
+
+void TSimpleTransactionSupervisor::HydraAbortTransaction(TReqAbortTransaction* request)
+{
+    TTransactionAbortOptions options{
+        .Force = request->force(),
+    };
+    TransactionManager_->AbortTransaction(
         FromProto<TGuid>(request->transaction_id()),
         options);
 }

@@ -216,9 +216,10 @@ message TReqWriteRows
     optional int64 transaction_timeout = 3;
     required NYT.NProto.TGuid tablet_id = 4;
     required uint64 mount_revision = 6;
-    required int32 codec = 7;
+    required int32 codec = 7; // NCompression::ECodec
     required bytes compressed_data = 8;
-    optional uint32 signature = 9;
+    optional uint32 prepare_signature = 9;
+    optional uint32 commit_signature = 19;
     optional uint32 generation = 16;
     required bool lockless = 10;
     required int32 row_count = 11;
@@ -227,6 +228,21 @@ message TReqWriteRows
     optional string user = 14;
     optional string user_tag = 15;
     optional bool update_replication_progress = 17;
+}
+
+message TReqWriteDelayedRows
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid tablet_id = 2;
+    required uint64 mount_revision = 3;
+    required int32 codec = 4; // NCompression::ECodec
+    required bytes compressed_data = 5;
+    optional uint32 commit_signature = 6;
+    required bool lockless = 7;
+    required int32 row_count = 8;
+    optional int64 data_weight = 9;
+    optional string user = 10;
+    optional string user_tag = 11;
 }
 
 message TReqTrimRows

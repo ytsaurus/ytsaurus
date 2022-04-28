@@ -30,6 +30,8 @@ struct TTransactionCommitOptions
 {
     TTimestamp CommitTimestamp = NHiveClient::NullTimestamp;
     NApi::TClusterTag CommitTimestampClusterTag = NObjectClient::InvalidCellTag;
+
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 struct TTransactionAbortOptions
