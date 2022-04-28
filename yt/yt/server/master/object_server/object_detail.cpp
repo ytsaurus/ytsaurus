@@ -455,12 +455,14 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
+    bool isSequoia = Object_->IsSequoia();
 
     descriptors->push_back(EInternedAttributeKey::Id);
     descriptors->push_back(EInternedAttributeKey::Type);
     descriptors->push_back(EInternedAttributeKey::Builtin);
+    descriptors->push_back(EInternedAttributeKey::Sequoia);
     descriptors->push_back(EInternedAttributeKey::RefCounter);
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EphemeralRefCounter));
+    descriptors->push_back(EInternedAttributeKey::EphemeralRefCounter);
     descriptors->push_back(EInternedAttributeKey::WeakRefCounter);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportRefCounter)
         .SetPresent(isForeign));
@@ -491,6 +493,8 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetMandatory(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EstimatedCreationTime)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Aevum)
+        .SetPresent(isSequoia));
 }
 
 const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
@@ -519,6 +523,11 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
         case EInternedAttributeKey::Builtin:
             BuildYsonFluently(consumer)
                 .Value(Object_->IsBuiltin());
+            return true;
+
+        case EInternedAttributeKey::Sequoia:
+            BuildYsonFluently(consumer)
+                .Value(Object_->IsSequoia());
             return true;
 
         case EInternedAttributeKey::RefCounter:
@@ -631,6 +640,16 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                     .Item("min").Value(minTime)
                     .Item("max").Value(maxTime)
                 .EndMap();
+            return true;
+        }
+
+        case EInternedAttributeKey::Aevum: {
+            if (!Object_->IsSequoia()) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(Object_->GetAevum());
             return true;
         }
 

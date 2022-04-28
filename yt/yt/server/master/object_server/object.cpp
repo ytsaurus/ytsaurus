@@ -164,6 +164,11 @@ bool TObject::IsBuiltin() const
     return IsWellKnownId(Id_);
 }
 
+bool TObject::IsSequoia() const
+{
+    return IsSequoiaId(Id_);
+}
+
 int TObject::GetLifeStageVoteCount() const
 {
     return LifeStageVoteCount_;
@@ -267,6 +272,8 @@ void TObject::CheckInvariants(TBootstrap* bootstrap) const
             (LifeStage_ == EObjectLifeStage::RemovalAwaitingCellsSync) ==
             garbageCollector->GetRemovalAwaitingCellsSyncObjects().contains(this_));
     }
+
+    YT_VERIFY(IsSequoia() == (Aevum_ != NSequoiaServer::EAevum::None));
 }
 
 void TObject::Save(NCellMaster::TSaveContext& context) const
@@ -285,6 +292,7 @@ void TObject::Save(NCellMaster::TSaveContext& context) const
         Save(context, false);
     }
     Save(context, IsForeign());
+    Save(context, Aevum_);
 }
 
 void TObject::Load(NCellMaster::TLoadContext& context)
@@ -305,7 +313,15 @@ void TObject::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(gritukan): Egor shall not pass!
     if (context.GetVersion() < EMasterReign::SequoiaObjects) {
-        YT_VERIFY(!IsSequoiaId(GetId()));
+        YT_VERIFY(!IsSequoia());
+    }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::Aevum) {
+        Load(context, Aevum_);
+    } else {
+        YT_VERIFY(!IsSequoia());
+        Aevum_ = NSequoiaServer::EAevum::None;
     }
 }
 
