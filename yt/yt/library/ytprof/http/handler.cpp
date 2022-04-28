@@ -6,6 +6,7 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/library/ytprof/cpu_profiler.h>
+#include <yt/yt/library/ytprof/spinlock_profiler.h>
 #include <yt/yt/library/ytprof/heap_profiler.h>
 #include <yt/yt/library/ytprof/profile.h>
 #include <yt/yt/library/ytprof/symbolize.h>
@@ -108,6 +109,33 @@ public:
         }
 
         TCpuProfiler profiler{options};
+        profiler.Start();
+        TDelayedExecutor::WaitForDuration(duration);
+        profiler.Stop();
+
+        return profiler.ReadProfile();
+    }
+};
+
+class TSpinlockProfilerHandler
+    : public TBaseHandler
+{
+public:
+    using TBaseHandler::TBaseHandler;
+
+    NProto::Profile BuildProfile(const TCgiParameters& params) override
+    {
+        auto duration = TDuration::Seconds(15);
+        if (auto it = params.Find("d"); it != params.end()) {
+            duration = TDuration::Parse(it->second);
+        }
+
+        TSpinlockProfilerOptions options;
+        if (auto it = params.Find("frac"); it != params.end()) {
+            options.ProfileFraction = FromString<int>(it->second);
+        }
+
+        TSpinlockProfiler profiler{options};
         profiler.Start();
         TDelayedExecutor::WaitForDuration(duration);
         profiler.Stop();
@@ -235,6 +263,8 @@ void Register(
     const TBuildInfo& buildInfo)
 {
     server->AddHandler(prefix + "/profile", New<TCpuProfilerHandler>(buildInfo));
+
+    server->AddHandler(prefix + "/lock", New<TSpinlockProfilerHandler>(buildInfo));
 
     server->AddHandler(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kHeap));
     server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kPeakHeap));

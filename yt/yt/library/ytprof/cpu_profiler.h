@@ -18,76 +18,45 @@
 
 #include "queue.h"
 #include "mem_reader.h"
+#include "signal_safe_profiler.h"
 
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCpuSample
-{
-    size_t Tid = 0;
-    TString ThreadName;
-    std::vector<std::pair<TString, std::variant<TString, i64>>> Tags;
-    std::vector<ui64> Backtrace;
-
-    bool operator == (const TCpuSample& other) const = default;
-    operator size_t() const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCpuProfilerOptions
+    : public TSignalSafeProfilerOptions
 {
 public:
     int SamplingFrequency = 100;
-    TDuration DequeuePeriod = TDuration::MilliSeconds(100);
-    int MaxBacktraceSize = 256;
-    int RingBufferLogSize = 20; // 1 MiB
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCpuProfiler
+    : public TSignalSafeProfiler
 {
 public:
     TCpuProfiler(TCpuProfilerOptions options = {});
     ~TCpuProfiler();
 
-    void Start();
-    void Stop();
-
-    //! ReadProfile returns accumulated profile.
-    /*!
-     *  This function may be called only after profiler is stopped.
-     */
-    NProto::Profile ReadProfile();
-
 private:
 #if defined(_linux_)
     const TCpuProfilerOptions Options_;
-    TMemReader Mem_;
+    const i64 ProfilePeriod_;
 
     static std::atomic<TCpuProfiler*> ActiveProfiler_;
     static std::atomic<bool> HandlingSigprof_;
     static void SigProfHandler(int sig, siginfo_t* info, void* ucontext);
 
-    std::atomic<bool> Stop_{true};
-    std::atomic<i64> QueueOverflows_{0};
     std::atomic<i64> SignalOverruns_{0};
-
-    std::pair<void*, void*> VdsoRange_;
-
-    TStaticQueue Queue_;
-    std::thread BackgroundThread_;
-
-    THashMap<TCpuSample, int> Counters_;
-
-    void StartTimer();
-    void StopTimer();
-    void DequeueSamples();
 
     void OnSigProf(siginfo_t* info, ucontext_t* ucontext);
 #endif
+
+    void EnableProfiler() override;
+    void DisableProfiler() override;
+    void AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

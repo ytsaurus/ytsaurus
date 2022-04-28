@@ -11,70 +11,29 @@
 
 #include <csignal>
 #include <functional>
-
-#include <util/generic/yexception.h>
 #endif
 
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCpuSample::operator size_t() const
-{
-    size_t hash = Tid;
-    hash = CombineHashes(hash, std::hash<TString>()(ThreadName));
-
-    for (auto ip : Backtrace) {
-        hash = CombineHashes(hash, ip);
-    }
-
-    for (const auto& tag : Tags) {
-        hash = CombineHashes(hash,
-            CombineHashes(
-                std::hash<TString>{}(tag.first),
-                std::hash<std::variant<TString, i64>>{}(tag.second)));
-    }
-
-    return hash;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_WEAK void* AcquireFiberTagStorage()
-{
-    return nullptr;
-}
-
-Y_WEAK std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* /* storage */)
-{
-    return {};
-}
-
-Y_WEAK void ReleaseFiberTagStorage(void* /* storage */)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 #if not defined(_linux_)
 
 TCpuProfiler::TCpuProfiler(TCpuProfilerOptions options)
-{
-    Y_UNUSED(options);
-}
+    : TSignalSafeProfiler(options)
+{ }
 
 TCpuProfiler::~TCpuProfiler()
 { }
 
-void TCpuProfiler::Start()
+void TCpuProfiler::EnableProfiler()
 { }
 
-void TCpuProfiler::Stop()
+void TCpuProfiler::DisableProfiler()
 { }
 
-NProto::Profile TCpuProfiler::ReadProfile()
-{
-    return {};
-}
+void TCpuProfiler::AnnotateProfile(NProto::Profile* /* profile */, std::function<i64(const TString&)> /* stringify */)
+{ }
 
 #endif
 
@@ -82,39 +41,19 @@ NProto::Profile TCpuProfiler::ReadProfile()
 
 #if defined(_linux_)
 
-size_t GetTid()
-{
-    return static_cast<size_t>(::syscall(SYS_gettid));
-}
+std::atomic<TCpuProfiler*> TCpuProfiler::ActiveProfiler_;
+std::atomic<bool> TCpuProfiler::HandlingSigprof_;
 
 TCpuProfiler::TCpuProfiler(TCpuProfilerOptions options)
-    : Options_(options)
-    , Queue_(options.RingBufferLogSize)
-{
-    VdsoRange_ = GetVdsoRange();
-}
+    : TSignalSafeProfiler(options)
+    , Options_(options)
+    , ProfilePeriod_(1000000 / Options_.SamplingFrequency)
+{ }
 
 TCpuProfiler::~TCpuProfiler()
 {
     Stop();
 }
-
-void TCpuProfiler::Start()
-{
-    if (!IsProfileBuild()) {
-        throw yexception() << "frame pointers not available; rebuild with --build=profile";
-    }
-
-    StartTimer();
-
-    Stop_ = false;
-    BackgroundThread_ = std::thread([this] {
-        DequeueSamples();
-    });
-}
-
-std::atomic<TCpuProfiler*> TCpuProfiler::ActiveProfiler_;
-std::atomic<bool> TCpuProfiler::HandlingSigprof_;
 
 void TCpuProfiler::SigProfHandler(int /* sig */, siginfo_t* info, void* ucontext)
 {
@@ -134,7 +73,7 @@ void TCpuProfiler::SigProfHandler(int /* sig */, siginfo_t* info, void* ucontext
     errno = savedErrno;
 }
 
-void TCpuProfiler::StartTimer()
+void TCpuProfiler::EnableProfiler()
 {
     TCpuProfiler* expected = nullptr;
     if (!ActiveProfiler_.compare_exchange_strong(expected, this)) {
@@ -160,7 +99,7 @@ void TCpuProfiler::StartTimer()
     }
 }
 
-void TCpuProfiler::StopTimer()
+void TCpuProfiler::DisableProfiler()
 {
     itimerval period{};
     if (setitimer(ITIMER_PROF, &period, nullptr) != 0) {
@@ -182,15 +121,25 @@ void TCpuProfiler::StopTimer()
     }
 }
 
-void TCpuProfiler::Stop()
+void TCpuProfiler::AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify)
 {
-    if (Stop_) {
-        return;
-    }
+    auto sampleType = profile->add_sample_type();
+    sampleType->set_type(stringify("sample"));
+    sampleType->set_unit(stringify("count"));
 
-    Stop_ = true;
-    StopTimer();
-    BackgroundThread_.join();
+    sampleType = profile->add_sample_type();
+    sampleType->set_type(stringify("cpu"));
+    sampleType->set_unit(stringify("microseconds"));
+
+    auto periodType = profile->mutable_period_type();
+    periodType->set_type(stringify("cpu"));
+    periodType->set_unit(stringify("microseconds"));
+
+    profile->set_period(1000000 / Options_.SamplingFrequency);
+
+    if (SignalOverruns_ > 0) {
+        profile->add_comment(stringify("cpu.signal_overruns=" + std::to_string(SignalOverruns_)));
+    }
 }
 
 void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
@@ -202,210 +151,7 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
     void* rbp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RBP]);
 
     TFramePointerCursor cursor(&Mem_, rip, rsp, rbp);
-
-    int count = 0;
-    bool pushTid = false;
-    bool pushFiberStorage = false;
-    int tagIndex = 0;
-
-    auto tagsPtr = GetCpuProfilerTags();
-
-    uintptr_t threadName[2] = {};
-    prctl(PR_GET_NAME, (unsigned long)threadName, 0UL, 0UL, 0UL);
-    int namePushed = 0;
-
-    auto ok = Queue_.TryPush([&] () -> std::pair<void*, bool> {
-        if (!pushTid) {
-            pushTid = true;
-            return {reinterpret_cast<void*>(GetTid()), true};
-        }
-
-        if (namePushed < 2) {
-            return {reinterpret_cast<void*>(threadName[namePushed++]), true};
-        }
-
-        if (!pushFiberStorage) {
-            pushFiberStorage = true;
-            return {AcquireFiberTagStorage(), true};
-        }
-
-        if (tagIndex < MaxActiveTags) {
-            if (tagsPtr) {
-                auto tag = (*tagsPtr)[tagIndex].GetFromSignal();
-                tagIndex++;
-                return {reinterpret_cast<void*>(tag.Release()), true};
-            } else {
-                tagIndex++;
-                return {nullptr, true};
-            }
-        }
-
-        if (count > Options_.MaxBacktraceSize) {
-            return {nullptr, false};
-        }
-
-        if (cursor.IsEnd()) {
-            return {nullptr, false};
-        }
-
-        auto ip = cursor.GetIP();
-        if (count != 0) {
-            // First IP points to next executing instruction.
-            // All other IP's are return addresses.
-            // Substract 1 to get accurate line information for profiler.
-            ip = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ip) - 1);
-        }
-
-        cursor.Next();
-        count++;
-        return {ip, true};
-    });
-
-    if (!ok) {
-        QueueOverflows_++;
-    }
-}
-
-void TCpuProfiler::DequeueSamples()
-{
-    TCpuSample sample;
-    while (!Stop_) {
-        Sleep(Options_.DequeuePeriod);
-
-        while (true) {
-            sample.Backtrace.clear();
-            sample.Tags.clear();
-
-            std::optional<size_t> tid;
-            uintptr_t threadName[2] = {};
-            int namePopped = 0;
-            std::optional<void*> fiberStorage;
-
-            int tagIndex = 0;
-            bool ok = Queue_.TryPop([&] (void* ip) {
-                if (!tid) {
-                    tid = reinterpret_cast<size_t>(ip);
-                    return;
-                }
-
-                if (namePopped < 2) {
-                    threadName[namePopped++] = reinterpret_cast<uintptr_t>(ip);
-                    return;
-                }
-
-                if (!fiberStorage) {
-                    fiberStorage = ip;
-                    return;
-                }
-
-                if (tagIndex < MaxActiveTags) {
-                    auto tag = reinterpret_cast<TProfilerTag*>(ip);
-                    if (tag) {
-                        if (tag->StringValue) {
-                            sample.Tags.emplace_back(tag->Name, *tag->StringValue);
-                        } else {
-                            sample.Tags.emplace_back(tag->Name, *tag->IntValue);
-                        }
-                    }
-                    tagIndex++;
-                    return;
-                }
-
-                sample.Backtrace.push_back(reinterpret_cast<ui64>(ip));
-            });
-
-            if (!ok) {
-                break;
-            }
-
-            sample.ThreadName = TString{reinterpret_cast<char*>(threadName)};
-            sample.Tid = *tid;
-            for (auto& tag : ReadFiberTags(*fiberStorage)) {
-                sample.Tags.push_back(std::move(tag));
-            }
-            ReleaseFiberTagStorage(*fiberStorage);
-
-            Counters_[sample]++;
-        }
-    }
-}
-
-NProto::Profile TCpuProfiler::ReadProfile()
-{
-    NProto::Profile profile;
-    profile.add_string_table();
-
-    THashMap<TString, ui64> stringTable;
-    auto stringify = [&] (const TString& str) -> i64 {
-        if (auto it = stringTable.find(str); it != stringTable.end()) {
-            return it->second;
-        } else {
-            auto nameId = profile.string_table_size();
-            profile.add_string_table(str);
-            stringTable[str] = nameId;
-            return nameId;
-        }
-    };
-
-    auto sampleType = profile.add_sample_type();
-    sampleType->set_type(stringify("sample"));
-    sampleType->set_unit(stringify("count"));
-
-    sampleType = profile.add_sample_type();
-    sampleType->set_type(stringify("cpu"));
-    sampleType->set_unit(stringify("microseconds"));
-
-    auto periodType = profile.mutable_period_type();
-    periodType->set_type(stringify("cpu"));
-    periodType->set_unit(stringify("microseconds"));
-
-    profile.set_period(1000000 / Options_.SamplingFrequency);
-
-    THashMap<uintptr_t, ui64> locations;
-
-    for (const auto& [backtrace, count] : Counters_) {
-        auto sample = profile.add_sample();
-        sample->add_value(count);
-        sample->add_value(count * profile.period());
-
-        auto label = sample->add_label();
-        label->set_key(stringify("tid"));
-        label->set_num(backtrace.Tid);
-
-        label = sample->add_label();
-        label->set_key(stringify("thread"));
-        label->set_str(stringify(backtrace.ThreadName));
-
-        for (auto tag : backtrace.Tags) {
-            auto label = sample->add_label();
-            label->set_key(stringify(tag.first));
-
-            if (auto intValue = std::get_if<i64>(&tag.second)) {
-                label->set_num(*intValue);
-            } else if (auto strValue = std::get_if<TString>(&tag.second)) {
-                label->set_str(stringify(*strValue));
-            }
-        }
-
-        for (auto ip : backtrace.Backtrace) {
-            auto it = locations.find(ip);
-            if (it != locations.end()) {
-                sample->add_location_id(it->second);
-                continue;
-            }
-
-            auto locationId = locations.size() + 1;
-
-            auto location = profile.add_location();
-            location->set_address(ip);
-            location->set_id(locationId);
-
-            sample->add_location_id(locationId);
-            locations[ip] = locationId;
-        }
-    }
-
-    return profile;
+    RecordSample(&cursor, ProfilePeriod_);
 }
 
 #endif
