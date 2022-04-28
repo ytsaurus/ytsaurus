@@ -768,29 +768,6 @@ private:
                 }
             }
 
-            auto createDiscoveryOrchid = [&] (const TYPath& path, NElection::TCellConfigPtr cellConfig) {
-                ScheduleCreateNode(
-                    path,
-                    transactionId,
-                    EObjectType::Orchid,
-                    BuildYsonStringFluently()
-                        .BeginMap()
-                            .Item("remote_addresses")
-                                .DoListFor(cellConfig->Peers, [&] (TFluentList fluent, const auto& peer) {
-                                    fluent
-                                        .Item().Value(*peer.Address);
-                                })
-                            .Item("remote_root").Value("//discovery_server")
-                        .EndMap());
-            };
-
-            createDiscoveryOrchid("//sys/discovery/primary_master_cell", Config_->PrimaryMaster);
-            for (auto cellConfig : Config_->SecondaryMasters) {
-                auto cellTag = CellTagFromId(cellConfig->CellId);
-                auto cellPath = "//sys/discovery/secondary_master_cells/" + ToYPathLiteral(cellTag);
-                createDiscoveryOrchid(cellPath, cellConfig);
-            }
-
             if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
                 for (const auto& discoveryServerAddress : *Config_->DiscoveryServer->Addresses) {
                     auto addressPath = "//sys/discovery_servers/" + ToYPathLiteral(discoveryServerAddress);

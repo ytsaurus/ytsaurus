@@ -14,10 +14,6 @@ class TestDiscovery(YTEnvSetup):
         master = ls("//sys/primary_masters")[0]
         assert exists("//sys/primary_masters/{0}/orchid/discovery_server".format(master))
 
-        assert exists("//sys/discovery/primary_master_cell")
-        cell = ls("//sys/secondary_masters")[0]
-        assert exists("//sys/discovery/secondary_master_cells/{0}".format(cell))
-
 
 class TestDiscoveryServers(YTEnvSetup):
     NUM_DISCOVERY_SERVERS = 5
