@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((ProfilingPeriodDynamicConfig)                                 (2009))  // shakurov
     ((SequoiaGorshok)                                               (2010))  // gritukan
     ((SequoiaTransaction)                                           (2011))  // gritukan
+    ((Aevum)                                                        (2012))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

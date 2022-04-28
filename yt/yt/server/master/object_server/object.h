@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/master/sequoia_server/public.h>
+
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/core/misc/pool_allocator.h>
@@ -80,6 +82,12 @@ class TObject
     , public TPoolAllocator::TObjectBase
 {
 public:
+    //! For Sequoia objects equals to its aevum which is a version of representation of
+    //! object in dynamic tables.
+    //! For non-Sequoia objects equals to |EAevum::None|.
+    DEFINE_BYVAL_RW_PROPERTY(NSequoiaServer::EAevum, Aevum, NSequoiaServer::EAevum::None);
+
+public:
     explicit TObject(TObjectId id);
     virtual ~TObject();
 
@@ -104,6 +112,9 @@ public:
 
     //! Returns |true| if this is a well-known subject (e.g. "root", "users" etc).
     bool IsBuiltin() const;
+
+    //! Returns |true| if this is a Sequoia object.
+    bool IsSequoia() const;
 
 
     //! Increments the object's reference counter by one.

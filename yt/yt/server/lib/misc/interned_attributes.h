@@ -20,6 +20,7 @@
     XX(ActualTabletState, actual_tablet_state) \
     XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
+    XX(Aevum, aevum) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
     XX(Aliases, aliases) \
@@ -381,6 +382,7 @@
     XX(SchemaId, schema_id) \
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
+    XX(Sequoia, sequoia) \
     XX(SharedToSkynet, shared_to_skynet) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
     XX(ResolveCached, resolve_cached) \
