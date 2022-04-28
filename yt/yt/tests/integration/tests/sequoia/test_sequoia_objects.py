@@ -6,6 +6,8 @@ from yt_commands import authors, get
 
 
 class TestSequoiaObjects(YTEnvSetup):
+    USE_SEQUOIA = True
+
     @authors("gritukan")
     def test_estimated_creation_time(self):
         object_id = "543507cc-00000000-12345678-abcdef01"

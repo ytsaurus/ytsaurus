@@ -256,6 +256,7 @@ class YTEnvSetup(object):
     USE_MASTER_CACHE = False
     USE_PERMISSION_CACHE = True
     USE_PRIMARY_CLOCKS = True
+    USE_SEQUOIA = False
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
@@ -552,6 +553,27 @@ class YTEnvSetup(object):
         if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 11})
+
+        if cls.USE_SEQUOIA:
+            yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia")
+            yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000)
+            yt_commands.create(
+                "table",
+                "//sys/sequoia/chunk_meta_extensions",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "id", "type": "string", "sort_order": "ascending"},
+                        {"name": "misc_ext", "type": "string"},
+                        {"name": "hunk_chunk_refs_ext", "type": "string"},
+                        {"name": "hunk_chunk_misc_ext", "type": "string"},
+                        {"name": "boundary_keys_ext", "type": "string"},
+                        {"name": "heavy_column_statistics_ext", "type": "string"},
+                    ],
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                })
+            yt_commands.sync_mount_table("//sys/sequoia/chunk_meta_extensions")
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -975,11 +997,21 @@ class YTEnvSetup(object):
                 driver=driver)
             return [yt_commands.get_batch_output(response)["value"] for response in responses]
 
+        def get_object_ids_to_ignore():
+            ids = []
+
+            # COMPAT(gritukan, aleksandra-zh)
+            if yt_commands.exists("//sys/tablet_cell_bundles/sequoia"):
+                ids += yt_commands.get("//sys/tablet_cell_bundles/sequoia/@tablet_cell_ids")
+
+            return ids
+
         test_cleanup.cleanup_objects(
             list_multiple_action=list_multiple_action,
             remove_multiple_action=remove_multiple_action,
             exists_multiple_action=exists_multiple_action,
             enable_secondary_cells_cleanup=enable_secondary_cells_cleanup,
+            object_ids_to_ignore=get_object_ids_to_ignore(),
         )
 
     def _wait_for_scheduler_state_restored(self, driver=None):
@@ -1036,6 +1068,9 @@ class YTEnvSetup(object):
         if self.Env.get_component_version("ytserver-master").abi >= (20, 4):
             dynamic_master_config["enable_descending_sort_order"] = True
             dynamic_master_config["enable_descending_sort_order_dynamic"] = True
+
+        if self.USE_SEQUOIA:
+            dynamic_master_config["sequoia_manager"]["enable"] = True
 
         default_pool_tree_config = {
             "nodes_filter": "",
