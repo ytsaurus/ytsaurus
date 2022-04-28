@@ -47,8 +47,6 @@ b"""
         sync_period = 500;
         sync_period_splay = 100;
     };
-
-    sequoia_manager = {};
 }
 """)
 
@@ -136,6 +134,8 @@ b"""
         enable_bulk_insert = %true;
         enable_hunks = %true;
     };
+
+    sequoia_manager = {};
 }
 """)
 
