@@ -32,11 +32,16 @@ public:
         TTransactionId transactionId,
         TTimestamp commitTimestamp);
 
+    TFuture<void> AbortTransaction(
+        TTransactionId transactionId,
+        bool force);
+
 private:
     const ITransactionManagerPtr TransactionManager_;
 
     void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request);
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request);
+    void HydraAbortTransaction(NProto::TReqAbortTransaction* request);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleTransactionSupervisor);

@@ -343,15 +343,15 @@ public:
 
         TTransaction* transaction;
         ETransactionState state;
-        TTransactionSignature signature;
-        if (options.Persistent) {
+        TTransactionSignature prepareSignature;
+        if (persistent) {
             transaction = GetPersistentTransactionOrThrow(transactionId);
             state = transaction->GetPersistentState();
-            signature = transaction->GetPersistentSignature();
+            prepareSignature = transaction->PersistentPrepareSignature();
         } else {
             transaction = GetTransactionOrThrow(transactionId);
             state = transaction->GetTransientState();
-            signature = transaction->GetTransientSignature();
+            prepareSignature = transaction->TransientPrepareSignature();
         }
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
@@ -361,11 +361,11 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        if (signature != FinalTransactionSignature) {
-            THROW_ERROR_EXCEPTION("Transaction %v is incomplete: expected signature %x, actual signature %x",
+        if (prepareSignature != FinalTransactionSignature) {
+            THROW_ERROR_EXCEPTION("Transaction %v is incomplete: expected prepare signature %x, actual signature %x",
                 transactionId,
                 FinalTransactionSignature,
-                signature);
+                prepareSignature);
         }
 
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
@@ -430,18 +430,34 @@ public:
         const NHiveServer::TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
 
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
 
-        ValidateTimestampClusterTag(
-            transactionId,
-            options.CommitTimestampClusterTag,
-            transaction->GetPrepareTimestamp(),
-            /*canThrow*/ false);
+        if (transaction->CommitSignature() == FinalTransactionSignature) {
+            DoCommitTransaction(transaction, options);
+        } else {
+            transaction->SetPersistentState(ETransactionState::CommitPending);
+            transaction->CommitOptions() = options;
 
-        transaction->SetCommitTimestampClusterTag(options.CommitTimestampClusterTag);
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Transaction commit signature is incomplete, waiting for additional data "
+                "(TransactionId: %v, CommitSignature: %x, ExpectedSignature: %x)",
+                transaction->GetId(),
+                transaction->CommitSignature(),
+                FinalTransactionSignature);
+        }
+    }
+
+    void DoCommitTransaction(
+        TTransaction* transaction,
+        const NHiveServer::TTransactionCommitOptions& options)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
 
         // Make a copy, transaction may die.
+        auto transactionId = transaction->GetId();
         auto identity = transaction->AuthenticationIdentity();
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
@@ -453,7 +469,8 @@ public:
         }
 
         if (state != ETransactionState::Active &&
-            state != ETransactionState::PersistentCommitPrepared)
+            state != ETransactionState::PersistentCommitPrepared &&
+            state != ETransactionState::CommitPending)
         {
             transaction->ThrowInvalidState();
         }
@@ -462,7 +479,14 @@ public:
             CloseLease(transaction);
         }
 
+        ValidateTimestampClusterTag(
+            transactionId,
+            options.CommitTimestampClusterTag,
+            transaction->GetPrepareTimestamp(),
+            /*canThrow*/ false);
+
         transaction->SetCommitTimestamp(options.CommitTimestamp);
+        transaction->SetCommitTimestampClusterTag(options.CommitTimestampClusterTag);
         transaction->SetPersistentState(ETransactionState::Committed);
 
         TransactionCommitted_.Fire(transaction);
@@ -501,7 +525,10 @@ public:
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         auto state = transaction->GetPersistentState();
-        if (state == ETransactionState::PersistentCommitPrepared && !options.Force) {
+        auto needForce =
+            state == ETransactionState::PersistentCommitPrepared ||
+            state == ETransactionState::CommitPending;
+        if (needForce && !options.Force) {
             transaction->ThrowInvalidState();
         }
 
@@ -527,6 +554,28 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
+    }
+
+    void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
+
+        transaction->CommitSignature() += delta;
+        if (transaction->GetPersistentState() == ETransactionState::CommitPending &&
+            transaction->CommitSignature() == FinalTransactionSignature)
+        {
+            const auto& commitOptions = transaction->CommitOptions();
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Transaction commit signature is completed; committing transaction "
+                "(TransactionId: %v, CommitTimestamp: %llx@%v)",
+                transaction->GetId(),
+                commitOptions.CommitTimestamp,
+                commitOptions.CommitTimestampClusterTag);
+
+            // NB: May destroy transaction.
+            DoCommitTransaction(transaction, transaction->CommitOptions());
+        }
     }
 
     TTimestamp GetMinPrepareTimestamp() const
@@ -691,7 +740,9 @@ private:
                 auto heapTag = GetSerializingTransactionHeapTag(transaction);
                 SerializingTransactionHeaps_[heapTag].push_back(transaction);
             }
-            if (state == ETransactionState::PersistentCommitPrepared) {
+            if (state == ETransactionState::PersistentCommitPrepared ||
+                state == ETransactionState::CommitPending)
+            {
                 RegisterPrepareTimestamp(transaction);
             }
         }
@@ -771,7 +822,7 @@ private:
                 transaction->SetPrepareTimestamp(NullTimestamp);
             }
             transaction->SetPersistentState(transaction->GetPersistentState());
-            transaction->SetTransientSignature(transaction->GetPersistentSignature());
+            transaction->TransientPrepareSignature() = transaction->PersistentPrepareSignature();
             transaction->SetTransientGeneration(transaction->GetPersistentGeneration());
             transaction->ResetFinished();
             transaction->SetHasLease(false);
@@ -900,7 +951,9 @@ private:
                 data.Type);
         }
 
-        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+        transaction->PersistentPrepareSignature() += signature;
+        // NB: May destroy transaction.
+        IncrementCommitSignature(transaction, signature);
     }
 
     // COMPAT(babenko)
@@ -1213,6 +1266,16 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
         fresh);
 }
 
+TTransaction* TTransactionManager::FindPersistentTransaction(TTransactionId transactionId)
+{
+    return Impl_->FindPersistentTransaction(transactionId);
+}
+
+TTransaction* TTransactionManager::GetPersistentTransaction(TTransactionId transactionId)
+{
+    return Impl_->GetPersistentTransaction(transactionId);
+}
+
 TTransaction* TTransactionManager::MakeTransactionPersistent(TTransactionId transactionId)
 {
     return Impl_->MakeTransactionPersistent(transactionId);
@@ -1305,6 +1368,11 @@ void TTransactionManager::AbortTransaction(
 void TTransactionManager::PingTransaction(TTransactionId transactionId, bool pingAncestors)
 {
     Impl_->PingTransaction(transactionId, pingAncestors);
+}
+
+void TTransactionManager::IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta)
+{
+    Impl_->IncrementCommitSignature(transaction, delta);
 }
 
 TTimestamp TTransactionManager::GetMinPrepareTimestamp()

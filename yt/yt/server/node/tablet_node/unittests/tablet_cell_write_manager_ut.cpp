@@ -273,7 +273,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
     WaitFor(WriteUnversionedRows(txId, {BuildRow(0, 42)}, /*signature*/ 1))
         .ThrowOnError();
 
-    WaitFor(WriteUnversionedRows(txId, {BuildRow(1, 42)}, /*signatures*/ FinalTransactionSignature - 1))
+    WaitFor(WriteUnversionedRows(txId, {BuildRow(1, 42)}, /*signature*/ FinalTransactionSignature - 1))
         .ThrowOnError();
 
     EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
@@ -323,7 +323,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesFailure)
                 .Get()
                 .ThrowOnError();
         },
-        ThrowsMessage<std::exception>(HasSubstr("expected signature")));
+        ThrowsMessage<std::exception>(HasSubstr("expected prepare signature")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -580,7 +580,58 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TTestOrderedTabletWriteBasic = TTestOrderedTabletCellWriteManager;
+class TTestOrderedTabletWriteBasic
+    : public TTestOrderedTabletCellWriteManager
+{
+protected:
+    void DoTestDelayedWrite(bool use2pc)
+    {
+        auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+
+        WaitFor(WriteUnversionedRows(
+            txId,
+            {BuildRow(1)},
+            /*prepareSignature*/ FinalTransactionSignature,
+            /*commitSignature*/ FinalTransactionSignature - 1,
+            /*generation*/ 0))
+            .ThrowOnError();
+
+        EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+        HydraManager()->ApplyAll();
+
+        PrepareTransactionCommit(txId, /*persistent*/ !use2pc, 0x20);
+        CommitTransaction(txId, 0x30);
+        EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+
+        HydraManager()->ApplyAll();
+        {
+            auto result = ReadRows(0);
+            EXPECT_EQ(0u, result.size());
+        }
+
+        HydraManager()->SaveLoad();
+
+        WriteDelayedUnversionedRows(
+            txId,
+            {BuildRow(2)},
+            /*commitSignature*/ 1);
+        EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+        HydraManager()->ApplyAll();
+
+        {
+            auto result = ReadRows(0);
+            EXPECT_EQ(2u, result.size());
+            EXPECT_EQ(ToString(BuildRow(1)), ToString(result[0]));
+            EXPECT_EQ(ToString(BuildRow(2)), ToString(result[1]));
+        }
+
+        ExpectFullyUnlocked();
+
+        // Handle transaction barrier. 
+        EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+        HydraManager()->ApplyAll();
+    }
+};
 
 TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
 {
@@ -607,6 +658,58 @@ TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
     ExpectFullyUnlocked();
 
     // Handle transaction barrier. 
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+}
+
+TEST_F(TTestOrderedTabletWriteBasic, TestDelayedWrite1PC)
+{
+    DoTestDelayedWrite(/*use2pc*/ false);
+}
+
+TEST_F(TTestOrderedTabletWriteBasic, TestDelayedWrite2PC)
+{
+    DoTestDelayedWrite(/*use2pc*/ true);
+}
+
+TEST_F(TTestOrderedTabletWriteBasic, TestAbortCommittingTransaction)
+{
+    auto txId = MakeTabletTransactionId(TTimestamp(0x10));
+
+    WaitFor(WriteUnversionedRows(
+        txId,
+        {BuildRow(1)},
+        /*prepareSignature*/ FinalTransactionSignature,
+        /*commitSignature*/ FinalTransactionSignature - 1,
+        /*generation*/ 0))
+        .ThrowOnError();
+
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+
+    PrepareTransactionCommit(txId, /*persistent*/ true, 0x20);
+    CommitTransaction(txId, 0x30);
+    EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+
+    HydraManager()->ApplyAll();
+
+    const auto& transactionManager = TabletSlot_->TransactionManager();
+    auto* tx = transactionManager->GetPersistentTransaction(txId);
+    EXPECT_EQ(tx->GetPersistentState(), ETransactionState::CommitPending);
+
+    AbortTransaction(txId, /*force*/ false);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    EXPECT_EQ(tx->GetPersistentState(), ETransactionState::CommitPending);
+
+    AbortTransaction(txId, /*force*/ true);
+    EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
+    HydraManager()->ApplyAll();
+    EXPECT_FALSE(transactionManager->FindPersistentTransaction(txId));
+
+    ExpectFullyUnlocked();
+
+    // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 }

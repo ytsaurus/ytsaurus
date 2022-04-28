@@ -158,7 +158,8 @@ private:
         auto prepareSignature = CellCommitSession_
             ->GetPrepareSignatureGenerator()
             ->GenerateSignature();
-        req->set_signature(prepareSignature);
+        req->set_prepare_signature(prepareSignature);
+        req->set_commit_signature(prepareSignature);
         req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
         req->set_row_count(batch->RowCount);
         req->set_data_weight(batch->DataWeight);
@@ -176,12 +177,13 @@ private:
         }
         req->Attachments().push_back(batch->RequestData);
 
-        YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, Signature: %x, "
-            "Versioned: %v, UpstreamReplicaId: %v)",
+        YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
+            "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, UpstreamReplicaId: %v)",
             InvokeBatchIndex_,
             Batches_.size(),
             batch->RowCount,
-            req->signature(),
+            req->prepare_signature(),
+            req->commit_signature(),
             req->versioned(),
             Options_.UpstreamReplicaId);
 

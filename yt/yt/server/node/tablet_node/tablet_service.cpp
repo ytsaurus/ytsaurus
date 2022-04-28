@@ -94,7 +94,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
-        auto signature = request->signature();
+        auto prepareSignature = request->prepare_signature();
+        // COMPAT(gritukan)
+        auto commitSignature = request->has_commit_signature() ? request->commit_signature() : prepareSignature;
         auto generation = request->generation();
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
@@ -112,15 +114,17 @@ private:
         auto durability = CheckedEnumCast<EDurability>(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
-            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, Generation: %x, RowCount: %v, DataWeight: %v, "
-            "RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, UpstreamReplicaId: %v, ReplicationEra: %v",
+            "TransactionTimeout: %v, Atomicity: %v, Durability: %v, PrepareSignature: %x, CommitSignature: %x, "
+            "Generation: %x, RowCount: %v, DataWeight: %v, RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, "
+            "UpstreamReplicaId: %v, ReplicationEra: %v",
             tabletId,
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,
             atomicity,
             durability,
-            signature,
+            prepareSignature,
+            commitSignature,
             generation,
             rowCount,
             dataWeight,
@@ -247,7 +251,8 @@ private:
                     transactionId,
                     transactionStartTimestamp,
                     transactionTimeout,
-                    signature,
+                    prepareSignature,
+                    commitSignature,
                     generation,
                     rowCount,
                     dataWeight,

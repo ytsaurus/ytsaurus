@@ -28,6 +28,7 @@ void TTransactionBase<TBase>::SetPersistentState(ETransactionState state)
     YT_VERIFY(
         state == ETransactionState::Active ||
         state == ETransactionState::PersistentCommitPrepared ||
+        state == ETransactionState::CommitPending ||
         state == ETransactionState::Committed ||
         state == ETransactionState::Serialized ||
         state == ETransactionState::Aborted);

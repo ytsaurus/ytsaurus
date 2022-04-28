@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
 #include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 
 #include <yt/yt/server/lib/hydra_common/mock/simple_hydra_manager_mock.h>
@@ -242,20 +244,38 @@ protected:
         return NTransactionClient::MakeTabletTransactionId(atomicity, TSimpleTabletSlot::CellTag, timestamp, hash);
     }
 
+    auto RunInAutomaton(auto callable)
+    {
+        auto result = WaitFor(
+            BIND(callable)
+                .AsyncVia(AutomatonInvoker())
+                .Run());
+        if constexpr (!std::is_same_v<std::decay_t<decltype(result)>, TError>) {
+            return result
+                .ValueOrThrow();
+        } else {
+            result
+                .ThrowOnError();
+            return;
+        }
+    }
+
     // Recall that this method may wait on blocked row.
 
     TFuture<void> WriteUnversionedRows(
         TTransactionId transactionId,
         std::vector<TUnversionedOwningRow> rows,
-        TTransactionSignature signature = -1,
-        TTransactionGeneration generation = 0)
+        TTransactionSignature prepareSignature,
+        TTransactionSignature commitSignature,
+        TTransactionGeneration generation)
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
         return BIND([
             transactionId,
             rows = std::move(rows),
-            signature,
+            prepareSignature,
+            commitSignature,
             generation,
             tabletWriteManager = TabletCellWriteManager(),
             tabletSnapshot
@@ -276,7 +296,8 @@ protected:
                 transactionId,
                 TimestampFromTransactionId(transactionId),
                 TDuration::Max(),
-                signature,
+                prepareSignature,
+                commitSignature,
                 generation,
                 rows.size(),
                 dataWeight,
@@ -296,6 +317,50 @@ protected:
         })
             .AsyncVia(AutomatonInvoker())
             .Run();
+    }
+
+    TFuture<void> WriteUnversionedRows(
+        TTransactionId transactionId,
+        std::vector<TUnversionedOwningRow> rows,
+        TTransactionSignature signature = -1,
+        TTransactionGeneration generation = 0)
+    {
+        return WriteUnversionedRows(
+            transactionId,
+            rows,
+            /*prepareSignature*/ signature,
+            /*commitSignature*/ signature,
+            generation);
+    }
+
+    void WriteDelayedUnversionedRows(
+        TTransactionId transactionId,
+        std::vector<TUnversionedOwningRow> rows,
+        TTransactionSignature commitSignature)
+    {
+        auto* tablet = TabletSlot_->TabletManager()->GetTablet();
+        RunInAutomaton([=] {
+            TWireProtocolWriter writer;
+            i64 dataWeight = 0;
+            for (const auto& row : rows) {
+                writer.WriteCommand(EWireProtocolCommand::WriteRow);
+                writer.WriteUnversionedRow(row);
+                dataWeight += GetDataWeight(row);
+            }
+
+            NProto::TReqWriteDelayedRows request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
+            struct TTag {};
+            request.set_compressed_data(ToString(MergeRefsToRef<TTag>(writer.Finish())));
+            request.set_commit_signature(commitSignature);
+            request.set_lockless(true);
+            request.set_row_count(rows.size());
+            request.set_data_weight(dataWeight);
+
+            auto mutation = CreateMutation(HydraManager(), request);
+            mutation->Commit();
+        });
     }
 
     TFuture<void> WriteVersionedRows(
@@ -326,7 +391,8 @@ protected:
                 transactionId,
                 TimestampFromTransactionId(transactionId),
                 TDuration::Max(),
-                signature,
+                /*prepareSignature*/ signature,
+                /*commitSignature*/ signature,
                 /*generation*/ 0,
                 rows.size(),
                 dataWeight,
@@ -349,22 +415,6 @@ protected:
         return asyncResult;
     }
 
-    auto RunInAutomaton(auto callable)
-    {
-        auto result = WaitFor(
-            BIND(callable)
-                .AsyncVia(AutomatonInvoker())
-                .Run());
-        if constexpr (!std::is_same_v<std::decay_t<decltype(result)>, TError>) {
-            return result
-                .ValueOrThrow();
-        } else {
-            result
-                .ThrowOnError();
-            return;
-        }
-    }
-
     TFuture<void> PrepareTransactionCommit(TTransactionId transactionId, bool persistent, TTimestamp prepareTimestamp)
     {
         return TransactionSupervisor()->PrepareTransactionCommit(
@@ -385,6 +435,13 @@ protected:
         auto asyncPrepare = PrepareTransactionCommit(transactionId, persistent, prepareAndCommitTimestamp);
         auto asyncCommit = CommitTransaction(transactionId, prepareAndCommitTimestamp);
         return AllSucceeded<void>({asyncPrepare, asyncCommit});
+    }
+
+    TFuture<void> AbortTransaction(TTransactionId transactionId, bool force)
+    {
+        return TransactionSupervisor()->AbortTransaction(
+            transactionId,
+            force);
     }
 
     void ExpectFullyUnlocked()

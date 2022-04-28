@@ -62,6 +62,7 @@ public:
         , WriteLogsMemoryTrackerGuard_(std::move(writeLogsMemoryTrackerGuard))
     {
         RegisterMethod(BIND(&TTabletCellWriteManager::HydraFollowerWriteRows, Unretained(this)));
+        RegisterMethod(BIND(&TTabletCellWriteManager::HydraWriteDelayedRows, Unretained(this)));
     }
 
     // ITabletCellWriteManager overrides.
@@ -81,7 +82,8 @@ public:
         TTransactionId transactionId,
         TTimestamp transactionStartTimestamp,
         TDuration transactionTimeout,
-        TTransactionSignature signature,
+        TTransactionSignature prepareSignature,
+        TTransactionSignature commitSignature,
         TTransactionGeneration generation,
         int rowCount,
         size_t dataWeight,
@@ -203,7 +205,6 @@ public:
             context.Transaction = transaction;
 
             auto readerBefore = reader->GetCurrent();
-            auto adjustedSignature = signature;
             auto lockless =
                 atomicity == EAtomicity::None ||
                 tablet->IsPhysicallyOrdered() ||
@@ -217,19 +218,22 @@ public:
             } else {
                 storeManager->ExecuteWrites(reader, &context);
                 if (!reader->IsFinished()) {
-                    adjustedSignature = 0;
+                    prepareSignature = 0;
+                    commitSignature = 0;
                 }
-                YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v, Generation: %x, Signature: %x)",
+                YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows prelocked "
+                    "(TransactionId: %v, TabletId: %v, RowCount: %v, Generation: %x, PrepareSignature: %x, CommitSignature: %x)",
                     transactionId,
                     tabletId,
                     context.RowCount,
                     generation,
-                    adjustedSignature);
+                    prepareSignature,
+                    commitSignature);
             }
             auto readerAfter = reader->GetCurrent();
 
             if (atomicity == EAtomicity::Full) {
-                transaction->SetTransientSignature(transaction->GetTransientSignature() + adjustedSignature);
+                transaction->TransientPrepareSignature() += prepareSignature;
             }
 
             if (readerBefore != readerAfter) {
@@ -250,7 +254,8 @@ public:
                 hydraRequest.set_mount_revision(tablet->GetMountRevision());
                 hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
-                hydraRequest.set_signature(adjustedSignature);
+                hydraRequest.set_prepare_signature(prepareSignature);
+                hydraRequest.set_commit_signature(commitSignature);
                 hydraRequest.set_generation(generation);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
@@ -265,7 +270,8 @@ public:
                     MakeStrong(this),
                     transactionId,
                     tablet->GetMountRevision(),
-                    adjustedSignature,
+                    prepareSignature,
+                    commitSignature,
                     generation,
                     lockless,
                     writeRecord,
@@ -407,7 +413,8 @@ private:
     void HydraLeaderWriteRows(
         TTransactionId transactionId,
         NHydra::TRevision mountRevision,
-        TTransactionSignature signature,
+        TTransactionSignature prepareSignature,
+        TTransactionSignature commitSignature,
         TTransactionGeneration generation,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
@@ -503,7 +510,11 @@ private:
                     auto* writeLog = immediate
                         ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                         : &transaction->DelayedLocklessWriteLog();
-                    EnqueueTransactionWriteRecord(transaction, tablet, writeLog, writeRecord, signature);
+                    EnqueueTransactionWriteRecord(
+                        transaction,
+                        tablet,
+                        writeLog,
+                        writeRecord);
 
                     YT_LOG_DEBUG_UNLESS(writeLog == &transaction->ImmediateLockedWriteLog(),
                         "Rows batched (TabletId: %v, TransactionId: %v, WriteRecordSize: %v, RowCount: %v, Generation: %x, Immediate: %v, Lockless: %v)",
@@ -514,6 +525,9 @@ private:
                         generation,
                         immediate,
                         lockless);
+
+                    transaction->PersistentPrepareSignature() += prepareSignature;
+                    transactionManager->IncrementCommitSignature(transaction, commitSignature);
                 }
 
                 if (updateReplicationProgress) {
@@ -572,7 +586,11 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
-        auto signature = request->signature();
+        auto prepareSignature = request->prepare_signature();
+
+        // COMPAT(gritukan)
+        auto commitSignature = request->has_commit_signature() ? request->commit_signature() : prepareSignature;
+
         auto generation = request->generation();
         auto lockless = request->lockless();
         auto rowCount = request->row_count();
@@ -639,7 +657,11 @@ private:
                 auto* writeLog = immediate
                     ? (lockless ? &transaction->ImmediateLocklessWriteLog() : &transaction->ImmediateLockedWriteLog())
                     : &transaction->DelayedLocklessWriteLog();
-                EnqueueTransactionWriteRecord(transaction, tablet, writeLog, writeRecord, signature);
+                EnqueueTransactionWriteRecord(
+                    transaction,
+                    tablet,
+                    writeLog,
+                    writeRecord);
 
                 if (immediate && !lockless) {
                     TWriteContext context;
@@ -648,19 +670,21 @@ private:
                     YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Rows locked (TransactionId: %v, TabletId: %v, RowCount: %v, "
-                        "WriteRecordSize: %v, Signature: %x)",
+                        "WriteRecordSize: %v, PrepareSignature: %x, CommitSignature: %x)",
                         transactionId,
                         tabletId,
                         context.RowCount,
                         writeRecord.GetByteSize(),
-                        signature);
+                        prepareSignature,
+                        commitSignature);
                 } else {
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Rows batched (TransactionId: %v, TabletId: %v, "
-                        "WriteRecordSize: %v, Signature: %x)",
+                        "WriteRecordSize: %v, PrepareSignature: %x, CommitSignature: %x)",
                         transactionId,
                         tabletId,
                         writeRecord.GetByteSize(),
-                        signature);
+                        prepareSignature,
+                        commitSignature);
 
                     transaction->LockedTablets().push_back(tablet);
                     auto lockCount = LockTablet(tablet);
@@ -676,6 +700,9 @@ private:
                     // NB: This replication progress update is a best effort and does not require tablet locking.
                     transaction->TabletsToUpdateReplicationProgress().insert(tablet->GetId());
                 }
+
+                transaction->PersistentPrepareSignature() += prepareSignature;
+                transactionManager->IncrementCommitSignature(transaction, commitSignature);
 
                 break;
             }
@@ -694,18 +721,92 @@ private:
                 FinishTabletCommit(tablet, nullptr, context.CommitTimestamp);
 
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
-                    "RowCount: %v, WriteRecordSize: %v, Signature: %x)",
+                    "RowCount: %v, WriteRecordSize: %v, PrepareSignature: %x, CommitSignature: %x)",
                     transactionId,
                     tabletId,
                     context.RowCount,
                     writeRecord.GetByteSize(),
-                    signature);
+                    prepareSignature,
+                    commitSignature);
                 break;
             }
 
             default:
                 YT_ABORT();
         }
+    }
+
+    void HydraWriteDelayedRows(TReqWriteDelayedRows* request) noexcept
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        YT_VERIFY(AtomicityFromTransactionId(transactionId) == EAtomicity::Full);
+        auto commitSignature = request->commit_signature();
+
+        auto lockless = request->lockless();
+        YT_VERIFY(lockless);
+
+        auto rowCount = request->row_count();
+        auto dataWeight = request->data_weight();
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = Host_->FindTablet(tabletId);
+        if (!tablet) {
+            // NB: Tablet could be missing if it was, e.g., forcefully removed.
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Received delayed rows for unexistent tablet; ignored ",
+                "(TabletId: %v, TransactionId: %v)",
+                tabletId,
+                transactionId);
+            return;
+        }
+
+        auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
+        if (tablet->GetMountRevision() != mountRevision) {
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Received delayed rows with invalid mount revision; ignored "
+                "(TabletId: %v, TransactionId: %v, TabletMountRevision: %llx, RequestMountRevision: %llx)",
+                tabletId,
+                transactionId,
+                tablet->GetMountRevision(),
+                mountRevision);
+            return;
+        }
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        auto codecId = FromProto<ECodec>(request->codec());
+        auto* codec = GetCodec(codecId);
+        auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
+        auto recordData = codec->Decompress(compressedRecordData);
+        TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, dataWeight, /*syncReplicaIds*/ {});
+        TWireProtocolReader reader(recordData);
+
+        const auto& transactionManager = Host_->GetTransactionManager();
+        auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
+            "Writing transaction delayed rows (TabletId: %v, TransactionId: %v, RowCount: %v, CommitSignature: %x)",
+            tabletId,
+            transactionId,
+            rowCount,
+            commitSignature);
+
+        auto* writeLog = &transaction->ImmediateLocklessWriteLog();
+        EnqueueTransactionWriteRecord(
+            transaction,
+            tablet,
+            writeLog,
+            writeRecord);
+
+        // NB: May destroy transaction.
+        transactionManager->IncrementCommitSignature(transaction, commitSignature);
     }
 
     void ValidateReplicaStatus(ETableReplicaStatus expected, TTablet* tablet, const TTableReplicaInfo& replicaInfo) const
@@ -1428,7 +1529,7 @@ private:
             generation);
 
         transaction->SetTransientGeneration(generation);
-        transaction->SetTransientSignature(InitialTransactionSignature);
+        transaction->TransientPrepareSignature() = InitialTransactionSignature;
 
         // We must abort both prelocked and locked rows to prevent new generation of rows from
         // conflicts with earlier generations. Note that locks in the dynamic store are essentially transient.
@@ -1455,7 +1556,8 @@ private:
             generation);
 
         transaction->SetPersistentGeneration(generation);
-        transaction->SetPersistentSignature(InitialTransactionSignature);
+        transaction->PersistentPrepareSignature() = InitialTransactionSignature;
+        transaction->CommitSignature() = InitialTransactionSignature;
 
         DropTransactionWriteLogs(transaction);
     }
@@ -1497,12 +1599,10 @@ private:
         TTransaction* transaction,
         TTablet* tablet,
         TTransactionWriteLog* writeLog,
-        const TTransactionWriteRecord& record,
-        TTransactionSignature signature)
+        const TTransactionWriteRecord& record)
     {
         WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
         writeLog->Enqueue(record);
-        transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
 
         bool replicatorWrite = IsReplicatorWrite(transaction);
         IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);

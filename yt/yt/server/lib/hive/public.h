@@ -82,6 +82,7 @@ DEFINE_ENUM(ETransactionState,
     ((Active)                     (0))
     ((TransientCommitPrepared)    (1))
     ((PersistentCommitPrepared)   (2))
+    ((CommitPending)              (7))
     ((Committed)                  (3))
     ((Serialized)                 (6))
     ((TransientAbortPrepared)     (4))

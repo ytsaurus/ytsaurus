@@ -6,6 +6,14 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTransactionCommitOptions::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, CommitTimestamp);
+    Persist(context, CommitTimestampClusterTag);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHiveServer
