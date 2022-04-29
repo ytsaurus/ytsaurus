@@ -76,6 +76,8 @@ struct TSolomonExporterConfig
 
     THashMap<TString, TShardConfigPtr> Shards;
 
+    TDuration UpdateSensorServiceTreePeriod;
+
     TSolomonExporterConfig();
 
     TShardConfigPtr MatchShard(const TString& sensorName);
@@ -168,25 +170,6 @@ private:
     TSpinLock RemoteProcessLock_;
     THashSet<TIntrusivePtr<TRemoteProcess>> RemoteProcessList_;
 
-    class TSensorService
-        : public NYTree::TYPathServiceBase
-        , public NYTree::TSupportsGet
-        , public NYTree::TSupportsList
-    {
-    public:
-        TSensorService(TSolomonRegistryPtr registry, TSolomonExporterPtr exporter);
-
-    private:
-        using TTagMap = THashMap<TString, TString>;
-
-        const TSolomonRegistryPtr Registry_;
-        const TSolomonExporterPtr Exporter_;
-
-        bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
-        void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-        void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
-    };
-
     void DoCollect();
     void DoPushCoreProfiling();
     void TransferSensors();
@@ -214,6 +197,9 @@ private:
     void CleanResponseCache();
 
     bool FilterDefaultGrid(const TString& sensorName);
+
+    // For locking.
+    friend class TSensorService;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSolomonExporter)

@@ -1,5 +1,6 @@
 #include "exporter.h"
 #include "private.h"
+#include "sensor_service.h"
 
 #include <yt/yt/build/build.h>
 
@@ -32,7 +33,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto& Logger = SolomonLogger;
+const static auto& Logger = SolomonLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +103,9 @@ TSolomonExporterConfig::TSolomonExporterConfig()
 
     RegisterParameter("response_cache_ttl", ResponseCacheTtl)
         .Default(TDuration::Minutes(2));
+
+    RegisterParameter("update_sensor_service_tree_period", UpdateSensorServiceTreePeriod)
+        .Default(TDuration::Seconds(30));
 
     RegisterPostprocessor([this] {
         if (LingerTimeout.GetValue() % GridStep.GetValue() != 0) {
@@ -861,7 +865,7 @@ void TSolomonExporter::DoPushCoreProfiling()
 
 IYPathServicePtr TSolomonExporter::GetSensorService()
 {
-    return New<TSensorService>(Registry_, MakeStrong(this));
+    return CreateSensorService(Config_, Registry_, MakeStrong(this));
 }
 
 TErrorOr<TReadWindow> TSolomonExporter::SelectReadWindow(
@@ -972,94 +976,6 @@ TSolomonExporter::TCacheKey::operator size_t() const
     HashCombine(hash, Period);
     HashCombine(hash, Grid);
     return hash;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSolomonExporter::TSensorService::TSensorService(TSolomonRegistryPtr registry, TSolomonExporterPtr exporter)
-    : Registry_(std::move(registry))
-    , Exporter_(std::move(exporter))
-{ }
-
-bool TSolomonExporter::TSensorService::DoInvoke(const NRpc::IServiceContextPtr& context)
-{
-    DISPATCH_YPATH_SERVICE_METHOD(Get);
-    DISPATCH_YPATH_SERVICE_METHOD(List);
-    return TYPathServiceBase::DoInvoke(context);
-}
-
-void TSolomonExporter::TSensorService::GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context)
-{
-    auto options = NYTree::FromProto(request->options());
-    auto name = options->Find<TString>("name");
-    auto tagMap = options->Find<TTagMap>("tags").value_or(TTagMap{});
-    auto readAllProjections = options->Find<bool>("read_all_projections").value_or(false);
-    auto exportSummaryAsMax = options->Find<bool>("export_summary_as_max").value_or(true);
-    auto summaryAsMaxForAllTime = options->Find<bool>("summary_as_max_for_all_time").value_or(false);
-    YT_LOG_DEBUG("Received sensor value request (RequestId: %v, Name: %v, Tags: %v, ReadAllProjections: %v, ExportSummaryAsMax: %v)",
-        context->GetRequestId(),
-        name,
-        tagMap,
-        readAllProjections,
-        exportSummaryAsMax);
-
-    if (!name) {
-        response->set_value(BuildYsonStringFluently().Entity().ToString());
-        context->Reply();
-        return;
-    }
-
-    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Exporter_->Lock_))
-        .ValueOrThrow();
-
-    TTagList tags(tagMap.begin(), tagMap.end());
-    TReadOptions readOptions{
-        .ExportSummaryAsMax = exportSummaryAsMax,
-        .ReadAllProjections = readAllProjections,
-        .SummaryAsMaxForAllTime = summaryAsMaxForAllTime,
-    };
-    response->set_value(BuildYsonStringFluently()
-        .Do([&] (TFluentAny fluent) {
-            Registry_->ReadRecentSensorValues(*name, tags, readOptions, fluent);
-        }).ToString());
-    context->Reply();
-}
-
-void TSolomonExporter::TSensorService::ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context)
-{
-    auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Exporter_->Lock_))
-        .ValueOrThrow();
-
-    auto attributeKeys = NYT::FromProto<THashSet<TString>>(request->attributes().keys());
-    context->SetRequestInfo("AttributeKeys: %v", attributeKeys);
-
-    response->set_value(BuildYsonStringFluently()
-        .DoListFor(Registry_->ListSensors(), [&] (TFluentList fluent, const TSensorInfo& sensorInfo) {
-            if (!sensorInfo.Error.IsOK()) {
-                THROW_ERROR_EXCEPTION("Broken sensor")
-                    << TErrorAttribute("name", sensorInfo.Name)
-                    << sensorInfo.Error;
-            }
-
-            fluent
-                .Item().Do([&] (TFluentAny fluent) {
-                    if (!attributeKeys.empty()) {
-                        fluent
-                            .BeginAttributes()
-                            .DoIf(attributeKeys.contains("cube_size"), [&] (TFluentMap fluent) {
-                                fluent.Item("cube_size").Value(sensorInfo.CubeSize);
-                            })
-                            .DoIf(attributeKeys.contains("object_count"), [&] (TFluentMap fluent) {
-                                fluent.Item("object_count").Value(sensorInfo.CubeSize);
-                            })
-                            .EndAttributes();
-                    }
-
-                    fluent.Value(sensorInfo.Name);
-                });
-        }).ToString());
-
-    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
