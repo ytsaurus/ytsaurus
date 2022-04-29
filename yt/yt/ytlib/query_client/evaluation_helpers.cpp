@@ -175,9 +175,7 @@ TGroupByClosure::TGroupByClosure(
 
 TWriteOpClosure::TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider)
     : OutputBuffer(New<TRowBuffer>(TOutputBufferTag(), std::move(chunkProvider)))
-{
-    OutputRowsBatch.reserve(WriteRowsetSize);
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

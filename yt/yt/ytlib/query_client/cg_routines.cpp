@@ -118,7 +118,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
 
     const auto& rowBuffer = closure->OutputBuffer;
 
-    YT_ASSERT(batch.size() < batch.capacity());
+    YT_ASSERT(batch.size() < WriteRowsetSize);
 
     batch.push_back(rowBuffer->CaptureRow(MakeRange(values, closure->RowSize)));
 
@@ -134,7 +134,7 @@ bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         }
     }
 
-    if (batch.size() == batch.capacity()) {
+    if (batch.size() == WriteRowsetSize) {
         const auto& writer = context->Writer;
         bool shouldNotWait;
         {
