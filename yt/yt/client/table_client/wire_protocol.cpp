@@ -61,7 +61,7 @@ static_assert(sizeof(TVersionedRowHeader) == 16, "sizeof(TVersionedRowHeader) !=
 
 EWireProtocolCommand GetWireProtocolCommand(const TWireProtocolWriteCommand& command)
 {
-    EWireProtocolCommand result;
+    EWireProtocolCommand result = EWireProtocolCommand::LookupRows;
     Visit(command,
         [&] (TWriteRowCommand) { result = EWireProtocolCommand::WriteRow; },
         [&] (TDeleteRowCommand) { result = EWireProtocolCommand::DeleteRow; },
