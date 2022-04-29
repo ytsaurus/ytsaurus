@@ -81,6 +81,9 @@ private:
                         .DoIf(readRange.UpperLimit().HasLegacyKey(), [&] (TFluentMap fluent) {
                             fluent.Item("upper_limit").Value(readRange.UpperLimit().GetLegacyKey());
                         })
+                        .DoIf(chunkView->GetMaxClipTimestamp(), [&] (TFluentMap fluent) {
+                            fluent.Item("max_clip_timestamp").Value(chunkView->GetMaxClipTimestamp());
+                        })
                     .EndAttributes()
                     .BeginList()
                         .Item().Do([&] (TFluentAny fluent) {
