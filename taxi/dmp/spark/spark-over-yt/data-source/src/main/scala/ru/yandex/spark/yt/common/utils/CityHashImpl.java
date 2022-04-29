@@ -18,6 +18,8 @@
 
 package ru.yandex.spark.yt.common.utils;
 
+import org.apache.spark.unsafe.Platform;
+
 public class CityHashImpl {
 
     private static final long k0 = 0xc3a5c85c97cb3127L;
@@ -201,5 +203,22 @@ public class CityHashImpl {
                 hashLen16(v[1], w[1]) + x
         );
 
+    }
+
+    // Spark codegen requirement
+    public static long hashInt(int input, long seed) {
+        throw new UnsupportedOperationException("CityHash is not implemented for int");
+    }
+
+    public static long hashLong(long input, long seed) {
+        throw new UnsupportedOperationException("CityHash is not implemented for long");
+    }
+
+    public static long hashUnsafeWords(Object base, long offset, int length, long seed) {
+        throw new UnsupportedOperationException("CityHash is not implemented for unsafe words");
+    }
+
+    public static long hashUnsafeBytes(Object base, long offset, int length, long seed) {
+        return CityHashImpl.yandexCityHash64((byte[]) base, (int) offset - Platform.BYTE_ARRAY_OFFSET, length);
     }
 }
