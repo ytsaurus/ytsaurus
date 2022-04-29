@@ -17,8 +17,6 @@ def _fix_indentation(text, width):
 
 
 def main():
-    os.environ["YT_OLD_STYLE_CLIENT"] = "1"
-
     from yt.wrapper.cypress_commands import _KwargSentinelClass, _MapOrderSorted
     from yt.wrapper import client_api
 
