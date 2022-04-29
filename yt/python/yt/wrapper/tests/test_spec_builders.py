@@ -1,7 +1,7 @@
 from .conftest import authors
 from .helpers import TEST_DIR, check_rows_equality, get_test_file_path, set_config_option, get_python
 
-from yt.wrapper.common import update
+from yt.wrapper.common import update, get_started_by
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder, VanillaSpecBuilder)
 
@@ -10,6 +10,7 @@ import yt.wrapper as yt
 import pytest
 
 from copy import deepcopy
+import sys
 
 
 class NonCopyable:
@@ -440,3 +441,19 @@ class TestSpecBuilders(object):
         assert update(result_spec1, correct_spec) == result_spec1
         assert update(result_spec2, correct_spec) == result_spec2
 
+    @authors("levysotsky")
+    def test_spec_builder_started_by_truncation(self):
+        vanilla_spec = VanillaSpecBuilder()\
+            .begin_task("sample")\
+                .command("cat")\
+                .job_count(1)\
+            .end_task()\
+            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2})
+
+        result_spec = deepcopy(vanilla_spec).build()
+        assert result_spec["started_by"]["command"] == get_started_by()["command"]
+
+        limit = len(sys.argv[0]) + 1
+        with set_config_option("started_by_command_length_limit", limit):
+            result_spec = deepcopy(vanilla_spec).build()
+            assert result_spec["started_by"]["command"] == [sys.argv[0], sys.argv[1][0] + "...truncated"]
