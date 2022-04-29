@@ -26,7 +26,10 @@ public:
     *  \note
     *  Thread affinity: any
     */
+    std::optional<double> GetCpuLimit() const;
     double GetJobsCpuLimit() const;
+    double GetTabletSlotCpu() const;
+    double GetNodeDedicatedCpu() const;
 
     double GetCpuUsage() const;
     i64 GetMemoryUsage() const;
@@ -66,9 +69,6 @@ private:
     void UpdateJobsCpuLimit();
 
     NNodeTrackerClient::NProto::TNodeResources GetJobResourceUsage() const;
-
-    double GetTabletSlotCpu() const;
-    double GetNodeDedicatedCpu() const;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 

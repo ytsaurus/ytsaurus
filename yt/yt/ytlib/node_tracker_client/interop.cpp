@@ -320,6 +320,7 @@ void FillClusterNodeStatistics(
 {
     nodeStatistics->mutable_memory()->CopyFrom(clusterNodeStatistics.memory());
     nodeStatistics->mutable_network()->CopyFrom(clusterNodeStatistics.network());
+    nodeStatistics->mutable_cpu()->CopyFrom(clusterNodeStatistics.cpu());
 }
 
 void FromNodeStatistics(
@@ -328,6 +329,7 @@ void FromNodeStatistics(
 {
     clusterNodeStatistics->mutable_memory()->CopyFrom(nodeStatistics.memory());
     clusterNodeStatistics->mutable_network()->CopyFrom(nodeStatistics.network());
+    clusterNodeStatistics->mutable_cpu()->CopyFrom(nodeStatistics.cpu());
 }
 
 void FillClusterNodeHeartbeatPart(

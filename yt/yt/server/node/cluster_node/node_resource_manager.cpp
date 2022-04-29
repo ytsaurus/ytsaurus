@@ -73,6 +73,13 @@ IYPathServicePtr TNodeResourceManager::GetOrchidService()
         ->Via(Bootstrap_->GetControlInvoker());
 }
 
+std::optional<double> TNodeResourceManager::GetCpuLimit() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return TotalCpu_;
+}
+
 double TNodeResourceManager::GetJobsCpuLimit() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
