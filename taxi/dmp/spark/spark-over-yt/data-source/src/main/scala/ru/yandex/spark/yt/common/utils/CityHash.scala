@@ -24,17 +24,12 @@ case class CityHash(children: Seq[Expression], seed: Long) extends HashExpressio
 }
 
 object CityHashFunction extends InterpretedHashFunction {
-  override protected def hashInt(i: Int, seed: Long): Long =
-    throw new UnsupportedOperationException("CityHash implemented only for strings")
+  override protected def hashInt(i: Int, seed: Long): Long = CityHashImpl.hashInt(i, seed)
 
-  override protected def hashLong(l: Long, seed: Long): Long =
-    throw new UnsupportedOperationException("CityHash implemented only for strings")
+  override protected def hashLong(l: Long, seed: Long): Long = CityHashImpl.hashLong(l, seed)
 
   override protected def hashUnsafeBytes(base: AnyRef, offset: Long, len: Int, seed: Long): Long = {
-    base match {
-      case a: Array[Byte] =>
-        CityHashImpl.yandexCityHash64(a, offset.toInt - Platform.BYTE_ARRAY_OFFSET, len)
-    }
+    CityHashImpl.hashUnsafeBytes(base, offset, len, seed)
   }
 }
 
