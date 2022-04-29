@@ -248,6 +248,7 @@
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
     XX(MaxChangelogId, max_changelog_id) \
+    XX(MaxClipTimestamp, max_clip_timestamp) \
     XX(MaxKey, max_key) \
     XX(MaxRunningOperationCount, max_running_operation_count) \
     XX(MaxOperationCount, max_operation_count) \
