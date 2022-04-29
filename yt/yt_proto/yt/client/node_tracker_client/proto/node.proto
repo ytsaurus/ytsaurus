@@ -72,6 +72,16 @@ message TMemoryStatistics
     repeated TCategory categories = 3;
 }
 
+// Provides detailed information on cpu distribution.
+message TCpuStatistics
+{
+    required double total_used = 1;
+    optional double total_limit = 2;
+    required double tablet_slots = 3;
+    required double dedicated = 4;
+    required double jobs = 5;
+}
+
 // Describes the current state of a storage medium.
 message TMediumStatistics
 {
@@ -104,6 +114,7 @@ message TNodeStatistics
     repeated TMediumStatistics media = 17;
     repeated TNetworkStatistics network = 18;
     repeated TSlotLocationStatistics slot_locations = 19;
+    optional TCpuStatistics cpu = 20;
 }
 
 // Measures limits and utilization of various resources.
@@ -197,6 +208,7 @@ message TClusterNodeStatistics
 {
     required TMemoryStatistics memory = 1;
     repeated TNetworkStatistics network = 2;
+    optional TCpuStatistics cpu = 3;
 }
 
 message TDataNodeStatistics

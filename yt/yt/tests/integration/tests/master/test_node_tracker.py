@@ -200,6 +200,15 @@ class TestNodeTracker(YTEnvSetup):
         assert "limit" not in memory_statistics["alloc_fragmentation"]
         assert memory_statistics["block_cache"]["limit"] == 2000000
 
+    @authors("ignat")
+    def test_cpu_statistics(self):
+        node = ls("//sys/cluster_nodes")[0]
+
+        cpu_statistics = get("//sys/cluster_nodes/{}/@statistics/cpu".format(node))
+        assert cpu_statistics["tablet_slots"] == 0.0
+        assert cpu_statistics["dedicated"] == 2.0
+        assert cpu_statistics["jobs"] > 0.0
+
     @authors("capone212")
     def test_io_statistics(self):
         create("table", "//tmp/t")
@@ -212,22 +221,22 @@ class TestNodeTracker(YTEnvSetup):
             "data_node": {
                 "io_throughput_meter": {
                     "enabled": True,
-                    "time_between_tests" : 1000,
-                    "testing_time_soft_limit" : 10000,
-                    "mediums" : [
+                    "time_between_tests": 1000,
+                    "testing_time_soft_limit": 10000,
+                    "mediums": [
                         {
-                            "medium_name" : "default",
-                            "enabled" : True,
-                            "packet_size" : 4096,
-                            "read_to_write_ratio" : 75,
-                            "writers_count" : 2,
-                            "max_write_file_size" : 1024 * 1024,
-                            "wait_after_congested" : 100,
-                            "segment_size" : 5,
-                            "simulated_request_latency" : 200,
-                            "use_direct_io" : False,
-                            "congestion_detector" : {
-                                "probes_interval" : 50,
+                            "medium_name": "default",
+                            "enabled": True,
+                            "packet_size": 4096,
+                            "read_to_write_ratio": 75,
+                            "writers_count": 2,
+                            "max_write_file_size": 1024 * 1024,
+                            "wait_after_congested": 100,
+                            "segment_size": 5,
+                            "simulated_request_latency": 200,
+                            "use_direct_io": False,
+                            "congestion_detector": {
+                                "probes_interval": 50,
                             }
                         }
                     ]

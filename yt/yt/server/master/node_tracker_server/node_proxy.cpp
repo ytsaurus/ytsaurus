@@ -343,6 +343,19 @@ private:
                                     .EndMap();
                             })
                         .EndMap()
+                        .DoIf(clusterNodeStatistics.has_cpu(), [&] (TFluentMap fluent) {
+                            fluent
+                                .Item("cpu").BeginMap()
+                                    .Item("total_used").Value(clusterNodeStatistics.cpu().total_used())
+                                    .DoIf(clusterNodeStatistics.cpu().has_total_limit(), [&] (TFluentMap fluent) {
+                                        fluent
+                                            .Item("total_limit").Value(clusterNodeStatistics.cpu().total_limit());
+                                    })
+                                    .Item("tablet_slots").Value(clusterNodeStatistics.cpu().tablet_slots())
+                                    .Item("dedicated").Value(clusterNodeStatistics.cpu().dedicated())
+                                    .Item("jobs").Value(clusterNodeStatistics.cpu().jobs())
+                                .EndMap();
+                        })
                     .EndMap();
                 return true;
             }

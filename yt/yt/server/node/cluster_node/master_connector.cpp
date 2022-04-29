@@ -130,22 +130,33 @@ public:
 
         heartbeat.set_node_id(GetNodeId());
 
-        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
         auto* protoMemory = heartbeat.mutable_statistics()->mutable_memory();
-        protoMemory->set_total_limit(tracker->GetTotalLimit());
-        protoMemory->set_total_used(tracker->GetTotalUsed());
+        protoMemory->set_total_limit(memoryTracker->GetTotalLimit());
+        protoMemory->set_total_used(memoryTracker->GetTotalUsed());
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
             auto* protoCategory = protoMemory->add_categories();
             protoCategory->set_type(static_cast<int>(category));
-            auto limit = tracker->GetExplicitLimit(category);
+            auto limit = memoryTracker->GetExplicitLimit(category);
             if (limit < std::numeric_limits<i64>::max()) {
                 protoCategory->set_limit(limit);
             }
-            auto used = tracker->GetUsed(category);
+            auto used = memoryTracker->GetUsed(category);
             protoCategory->set_used(used);
         }
 
         Bootstrap_->GetNetworkStatistics().UpdateStatistics(heartbeat.mutable_statistics());
+
+        const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
+        auto* protoCpu = heartbeat.mutable_statistics()->mutable_cpu();
+        
+        if (auto cpuLimit = resourceManager->GetCpuLimit()) {
+            protoCpu->set_total_limit(*cpuLimit);
+        }
+        protoCpu->set_total_used(resourceManager->GetCpuUsage());
+        protoCpu->set_jobs(resourceManager->GetJobsCpuLimit());
+        protoCpu->set_tablet_slots(resourceManager->GetTabletSlotCpu());
+        protoCpu->set_dedicated(resourceManager->GetNodeDedicatedCpu());
 
         ToProto(heartbeat.mutable_alerts(), GetAlerts());
 
