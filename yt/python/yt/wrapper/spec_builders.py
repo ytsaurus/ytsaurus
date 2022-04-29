@@ -1139,7 +1139,8 @@ class SpecBuilder(object):
         for job_io_type in self._job_io_types:
             spec = self._build_job_io(spec, job_io_type=job_io_type, client=client)
 
-        started_by = get_started_by()
+        command_length_limit = get_config(client)["started_by_command_length_limit"]
+        started_by = get_started_by(command_length_limit=command_length_limit)
         spec = update({"started_by": started_by}, spec)
         if get_config(client)["pool"] is not None:
             spec = update({"pool": get_config(client)["pool"]}, spec)

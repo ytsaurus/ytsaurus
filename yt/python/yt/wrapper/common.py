@@ -342,13 +342,31 @@ def get_started_by_short():
     return update({"pid": os.getpid()}, get_user_info())
 
 
-def get_started_by():
+def _maybe_truncate(list_of_strings, length_limit):
+    if length_limit is None or sum(map(len, list_of_strings)) <= length_limit:
+        return list_of_strings
+    truncated = []
+    total_length = 0
+    for s in list_of_strings:
+        total_length += len(s)
+        if total_length > length_limit:
+            overflow = total_length - length_limit
+            truncated.append(s[:len(s) - overflow] + "...truncated")
+            break
+        truncated.append(s)
+    return truncated
+
+
+def get_started_by(command_length_limit=None):
     python_version = "{0}.{1}.{2}".format(*get_python_version())
+
+    command = hide_arguments(sys.argv)
+    command = _maybe_truncate(list(map(str, command)), command_length_limit)
 
     started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
-        "command": hide_arguments(sys.argv),
+        "command": command,
         "wrapper_version": get_version(),
         "python_version": python_version
     }

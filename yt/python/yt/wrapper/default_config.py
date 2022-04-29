@@ -605,6 +605,8 @@ default_config = {
     },
 
     "allow_fallback_to_native_driver": True,
+
+    "started_by_command_length_limit": 4096,
 }
 
 # pydoc :: default_config :: end
