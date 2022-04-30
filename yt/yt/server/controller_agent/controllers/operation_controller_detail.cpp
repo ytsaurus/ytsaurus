@@ -77,6 +77,7 @@
 #include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
+#include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -6245,6 +6246,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 "vital",
                 "enable_skynet_sharing",
                 "tablet_state",
+                "backup_state",
                 "atomicity",
                 "tablet_statistics",
                 "max_overlapping_store_count",
@@ -6283,6 +6285,13 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                             path,
                             tabletState);
                     }
+                }
+
+                auto backupState = attributes->Get<ETableBackupState>("backup_state", ETableBackupState::None);
+                if (backupState != ETableBackupState::None) {
+                    THROW_ERROR_EXCEPTION("Output table %v backup state %Qlv does not allow to write into it",
+                        path,
+                        backupState);
                 }
 
                 if (UserTransactionId) {
