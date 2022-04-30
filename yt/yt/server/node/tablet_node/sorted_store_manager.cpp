@@ -280,7 +280,7 @@ bool TSortedStoreManager::CommitRow(
     {
         Visit(command,
             [&] (const TWriteRowCommand& command) { store->WriteRow(transaction, dynamicRow, command.Row); },
-            [&] (TDeleteRowCommand) { store->DeleteRow(transaction, dynamicRow); },
+            [&] (const TDeleteRowCommand&) { store->DeleteRow(transaction, dynamicRow); },
             [&] (const TWriteAndLockRowCommand& command) { store->WriteRow(transaction, dynamicRow, command.Row); },
             [&] (auto) { YT_ABORT(); });
     };
