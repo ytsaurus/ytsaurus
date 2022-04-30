@@ -17,10 +17,7 @@ inline void TReaderWriterSpinLock::AcquireReader() noexcept
     if (TryAcquireReader()) {
         return;
     }
-    TSpinWait spinWait(Location_, ESpinLockActivityKind::Read);
-    while (!TryAndTryAcquireReader()) {
-        spinWait.Wait();
-    }
+    AcquireReaderSlow();
 }
 
 inline void TReaderWriterSpinLock::AcquireReaderForkFriendly() noexcept
@@ -28,10 +25,7 @@ inline void TReaderWriterSpinLock::AcquireReaderForkFriendly() noexcept
     if (TryAcquireReaderForkFriendly()) {
         return;
     }
-    TSpinWait spinWait(Location_, ESpinLockActivityKind::Read);
-    while (!TryAcquireReaderForkFriendly()) {
-        spinWait.Wait();
-    }
+    AcquireReaderForkFriendlySlow();
 }
 
 inline void TReaderWriterSpinLock::ReleaseReader() noexcept
@@ -45,10 +39,7 @@ inline void TReaderWriterSpinLock::AcquireWriter() noexcept
     if (TryAcquireWriter()) {
         return;
     }
-    TSpinWait spinWait(Location_, ESpinLockActivityKind::Write);
-    while (!TryAndTryAcquireWriter()) {
-        spinWait.Wait();
-    }
+    AcquireWriterSlow();
 }
 
 inline void TReaderWriterSpinLock::ReleaseWriter() noexcept

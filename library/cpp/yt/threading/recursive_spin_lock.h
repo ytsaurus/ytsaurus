@@ -41,6 +41,7 @@ private:
     static_assert(sizeof(TSequentialThreadId) == 4);
 
     bool TryAndTryAcquire() noexcept;
+    void AcquireSlow() noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

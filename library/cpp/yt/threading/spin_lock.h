@@ -56,6 +56,8 @@ private:
     std::atomic<TValue> Value_ = UnlockedValue;
 
     bool TryAndTryAcquire() noexcept;
+
+    void AcquireSlow() noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
