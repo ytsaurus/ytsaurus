@@ -63,10 +63,10 @@ EWireProtocolCommand GetWireProtocolCommand(const TWireProtocolWriteCommand& com
 {
     EWireProtocolCommand result = EWireProtocolCommand::LookupRows;
     Visit(command,
-        [&] (TWriteRowCommand) { result = EWireProtocolCommand::WriteRow; },
-        [&] (TDeleteRowCommand) { result = EWireProtocolCommand::DeleteRow; },
-        [&] (TVersionedWriteRowCommand) { result = EWireProtocolCommand::VersionedWriteRow; },
-        [&] (TWriteAndLockRowCommand) { result = EWireProtocolCommand::WriteAndLockRow; },
+        [&] (const TWriteRowCommand&) { result = EWireProtocolCommand::WriteRow; },
+        [&] (const TDeleteRowCommand&) { result = EWireProtocolCommand::DeleteRow; },
+        [&] (const TVersionedWriteRowCommand&) { result = EWireProtocolCommand::VersionedWriteRow; },
+        [&] (const TWriteAndLockRowCommand&) { result = EWireProtocolCommand::WriteAndLockRow; },
         [&] (auto) { YT_ABORT(); });
 
     return result;
