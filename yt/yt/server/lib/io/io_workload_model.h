@@ -34,6 +34,8 @@ struct THistogramSummary
     i64 P90 = 0;
     i64 P99 = 0;
     i64 P99_9 = 0;
+    i64 P99_99 = 0;
+    i64 Max = 0;
 };
 
 THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist);

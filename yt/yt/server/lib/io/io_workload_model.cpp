@@ -84,7 +84,8 @@ THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist)
     summary.P90 = computeNextQuantile(0.9);
     summary.P99 = computeNextQuantile(0.99);
     summary.P99_9 = computeNextQuantile(0.999);
-
+    summary.P99_99 = computeNextQuantile(0.9999);
+    summary.Max = computeNextQuantile(1);
     return summary;
 }
 

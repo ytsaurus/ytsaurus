@@ -127,6 +127,10 @@ struct TGentleLoaderConfig
     // Cleanup written files after testing finished.
     bool RemoveWrittenFiles;
 
+    // Hold this count of written files before remove.
+    // Helps to simulate disk space utilization.
+    i32 StaleFilesCountPerWriter;
+
     // Don't send load request for this period after congested.
     TDuration WaitAfterCongested;
 
