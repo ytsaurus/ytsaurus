@@ -395,6 +395,16 @@ class TestBackups(DynamicTablesBase):
         assert error.contains_text(
             "Failed to confirm checkpoint timestamp in time due to a transaction with later timestamp")
 
+    # YT-15032
+    def test_backup_hunks(self):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+        ]
+        self._create_sorted_table("//tmp/t", schema=schema)
+        with raises_yt_error():
+            create_table_backup(["//tmp/t", "//tmp/bak"])
+
 ##################################################################
 
 

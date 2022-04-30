@@ -87,6 +87,13 @@ public:
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
         }
 
+        // TODO(ifsmirnov): YT-15032 - backups for tables with hunks.
+        const auto& schema = table->GetSchema()->AsTableSchema();
+        if (schema->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Cannot backup table with hunk columns")
+                << TErrorAttribute("table_id", table->GetId());
+        }
+
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
             if (tablet->GetBackupState() != ETabletBackupState::None) {
                 THROW_ERROR_EXCEPTION("Cannot set backup checkpoint since tablet %v "
