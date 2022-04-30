@@ -35,6 +35,11 @@ void TCpuProfiler::DisableProfiler()
 void TCpuProfiler::AnnotateProfile(NProto::Profile* /* profile */, std::function<i64(const TString&)> /* stringify */)
 { }
 
+i64 TCpuProfiler::TransformValue(i64 value)
+{
+    return value;
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +145,11 @@ void TCpuProfiler::AnnotateProfile(NProto::Profile* profile, std::function<i64(c
     if (SignalOverruns_ > 0) {
         profile->add_comment(stringify("cpu.signal_overruns=" + std::to_string(SignalOverruns_)));
     }
+}
+
+i64 TCpuProfiler::TransformValue(i64 value)
+{
+    return value;
 }
 
 void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)

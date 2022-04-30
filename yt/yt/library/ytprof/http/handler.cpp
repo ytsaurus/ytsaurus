@@ -121,7 +121,10 @@ class TSpinlockProfilerHandler
     : public TBaseHandler
 {
 public:
-    using TBaseHandler::TBaseHandler;
+    TSpinlockProfilerHandler(const TBuildInfo& buildInfo, bool yt)
+        : TBaseHandler(buildInfo)
+        , YT_(yt)
+    { }
 
     NProto::Profile BuildProfile(const TCgiParameters& params) override
     {
@@ -135,13 +138,25 @@ public:
             options.ProfileFraction = FromString<int>(it->second);
         }
 
-        TSpinlockProfiler profiler{options};
-        profiler.Start();
-        TDelayedExecutor::WaitForDuration(duration);
-        profiler.Stop();
+        if (!YT_) {
+            TSpinlockProfiler profiler{options};
+            profiler.Start();
+            TDelayedExecutor::WaitForDuration(duration);
+            profiler.Stop();
 
-        return profiler.ReadProfile();
+            return profiler.ReadProfile();
+        } else {
+            TBlockingProfiler profiler{options};
+            profiler.Start();
+            TDelayedExecutor::WaitForDuration(duration);
+            profiler.Stop();
+
+            return profiler.ReadProfile();
+        }
     }
+
+private:
+    const bool YT_;
 };
 
 class TTCMallocSnapshotProfilerHandler
@@ -264,7 +279,8 @@ void Register(
 {
     server->AddHandler(prefix + "/profile", New<TCpuProfilerHandler>(buildInfo));
 
-    server->AddHandler(prefix + "/lock", New<TSpinlockProfilerHandler>(buildInfo));
+    server->AddHandler(prefix + "/lock", New<TSpinlockProfilerHandler>(buildInfo, false));
+    server->AddHandler(prefix + "/block", New<TSpinlockProfilerHandler>(buildInfo, true));
 
     server->AddHandler(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kHeap));
     server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kPeakHeap));

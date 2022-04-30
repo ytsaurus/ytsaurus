@@ -286,7 +286,7 @@ NProto::Profile TSignalSafeProfiler::ReadProfile()
         auto sample = profile.add_sample();
 
         sample->add_value(counters.Count);
-        sample->add_value(counters.Total);
+        sample->add_value(TransformValue(counters.Total));
 
         auto label = sample->add_label();
         label->set_key(stringify("tid"));

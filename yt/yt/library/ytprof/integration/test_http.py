@@ -65,6 +65,14 @@ def test_spinlock_profile(running_example):
     fetch_data(running_example, "lock?d=1&frac=1")
 
 
+def test_block_profile(running_example):
+    if yatest.common.context.build_type != "profile":
+        pytest.skip()
+
+    fetch_data(running_example, "block?d=1")
+    fetch_data(running_example, "block?d=1&frac=1")
+
+
 def test_binary_handler(running_example):
     binary = fetch_data(running_example, "binary")
 
