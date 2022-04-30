@@ -18,8 +18,8 @@ void LookupRows(
     NTabletClient::TReadTimestampRange timestampRange,
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NTableClient::TWireProtocolReader* reader,
-    NTableClient::TWireProtocolWriter* writer);
+    NTableClient::IWireProtocolReader* reader,
+    NTableClient::IWireProtocolWriter* writer);
 
 void VersionedLookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -27,8 +27,8 @@ void VersionedLookupRows(
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,
-    NTableClient::TWireProtocolReader* reader,
-    NTableClient::TWireProtocolWriter* writer);
+    NTableClient::IWireProtocolReader* reader,
+    NTableClient::IWireProtocolWriter* writer);
 
 void LookupRead(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -36,8 +36,8 @@ void LookupRead(
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,
-    NTableClient::TWireProtocolReader* reader,
-    NTableClient::TWireProtocolWriter* writer);
+    NTableClient::IWireProtocolReader* reader,
+    NTableClient::IWireProtocolWriter* writer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

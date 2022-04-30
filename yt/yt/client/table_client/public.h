@@ -290,8 +290,8 @@ class TSaveContext;
 class TLoadContext;
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext>;
 
-class TWireProtocolReader;
-class TWireProtocolWriter;
+struct IWireProtocolReader;
+struct IWireProtocolWriter;
 
 using TSchemaData = std::vector<ui32>;
 

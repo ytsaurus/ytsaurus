@@ -123,7 +123,7 @@ TSortedStoreManager::TSortedStoreManager(
 }
 
 bool TSortedStoreManager::ExecuteWrites(
-    TWireProtocolReader* reader,
+    IWireProtocolReader* reader,
     TWriteContext* context)
 {
     UpdatePeriodicRotationMilestone();

@@ -66,7 +66,7 @@ void TReplicatedStoreManager::StopEpoch()
 }
 
 bool TReplicatedStoreManager::ExecuteWrites(
-    TWireProtocolReader* reader,
+    IWireProtocolReader* reader,
     TWriteContext* context)
 {
     LogStoreManager_->UpdatePeriodicRotationMilestone();

@@ -504,14 +504,14 @@ private:
                 std::unique(samples.begin(), samples.end()),
                 samples.end());
 
-            TWireProtocolWriter writer;
-            writer.WriteUnversionedRowset(samples);
+            auto writer = CreateWireProtocolWriter();
+            writer->WriteUnversionedRowset(samples);
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
-            request.set_sample_keys(MergeRefsToString(writer.Finish()));
+            request.set_sample_keys(MergeRefsToString(writer->Finish()));
 
             CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger);

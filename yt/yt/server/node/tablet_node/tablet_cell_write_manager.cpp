@@ -89,7 +89,7 @@ public:
         size_t dataWeight,
         bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
-        TWireProtocolReader* reader,
+        IWireProtocolReader* reader,
         TFuture<void>* commitResult) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -346,13 +346,13 @@ public:
                 WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
                 IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
 
-                TWireProtocolReader reader(record.Data);
+                auto reader = CreateWireProtocolReader(record.Data);
                 const auto& storeManager = tablet->GetStoreManager();
 
                 TWriteContext context;
                 context.Phase = EWritePhase::Lock;
                 context.Transaction = transaction;
-                YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+                YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
             }
 
             for (const auto& record : transaction->ImmediateLocklessWriteLog()) {
@@ -551,12 +551,12 @@ private:
                     return;
                 }
 
-                TWireProtocolReader reader(writeRecord.Data);
+                auto reader = CreateWireProtocolReader(writeRecord.Data);
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
                 const auto& storeManager = tablet->GetStoreManager();
-                YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+                YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
                 YT_VERIFY(writeRecord.RowCount == context.RowCount);
 
                 auto counters = tablet->GetTableProfiler()->GetCommitCounters(GetCurrentProfilingUser());
@@ -619,7 +619,7 @@ private:
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
         TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, dataWeight, syncReplicaIds);
-        TWireProtocolReader reader(recordData);
+        auto reader = CreateWireProtocolReader(recordData);
 
         const auto& storeManager = tablet->GetStoreManager();
 
@@ -667,7 +667,7 @@ private:
                     TWriteContext context;
                     context.Phase = EWritePhase::Lock;
                     context.Transaction = transaction;
-                    YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+                    YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
 
                     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Rows locked (TransactionId: %v, TabletId: %v, RowCount: %v, "
                         "WriteRecordSize: %v, PrepareSignature: %x, CommitSignature: %x)",
@@ -716,7 +716,7 @@ private:
                 context.Phase = EWritePhase::Commit;
                 context.CommitTimestamp = TimestampFromTransactionId(transactionId);
 
-                YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+                YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
 
                 FinishTabletCommit(tablet, nullptr, context.CommitTimestamp);
 
@@ -785,7 +785,6 @@ private:
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
         TTransactionWriteRecord writeRecord(tabletId, recordData, rowCount, dataWeight, /*syncReplicaIds*/ {});
-        TWireProtocolReader reader(recordData);
 
         const auto& transactionManager = Host_->GetTransactionManager();
         auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
@@ -1024,14 +1023,14 @@ private:
 
             const auto& writeLog = transaction->ImmediateLockedWriteLog();
             auto writeLogIterator = writeLog.Begin();
-            auto writeLogReader = std::make_unique<TWireProtocolReader>((*writeLogIterator).Data);
+            auto writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data);
 
             for (int index = 0; index < std::ssize(lockedRows); ++index) {
                 const auto& rowRef = lockedRows[index];
                 while (writeLogReader->IsFinished()) {
                     ++writeLogIterator;
                     YT_VERIFY(writeLogIterator != writeLog.End());
-                    writeLogReader = std::make_unique<TWireProtocolReader>((*writeLogIterator).Data);
+                    writeLogReader = CreateWireProtocolReader((*writeLogIterator).Data);
                 }
 
                 auto* tablet = rowRef.StoreManager->GetTablet();
@@ -1087,9 +1086,9 @@ private:
                         return ToKeyRef(row, keyColumnCount);
                     };
 
-                    TWireProtocolReader reader(writeRecord.Data, rowBuffer);
-                    while (!reader.IsFinished()) {
-                        auto command = reader.ReadWriteCommand(
+                    auto reader = CreateWireProtocolReader(writeRecord.Data, rowBuffer);
+                    while (!reader->IsFinished()) {
+                        auto command = reader->ReadWriteCommand(
                             tablet->TableSchemaData(),
                             /*captureValues*/ true);
 
@@ -1168,10 +1167,10 @@ private:
             context.Transaction = transaction;
             context.CommitTimestamp = commitTimestamp;
 
-            TWireProtocolReader reader(record.Data);
+            auto reader = CreateWireProtocolReader(record.Data);
 
             const auto& storeManager = tablet->GetStoreManager();
-            YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+            YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
             YT_VERIFY(context.RowCount == record.RowCount);
 
             locklessRowCount += context.RowCount;
@@ -1279,10 +1278,10 @@ private:
             context.Transaction = transaction;
             context.CommitTimestamp = commitTimestamp;
 
-            TWireProtocolReader reader(record.Data);
+            auto reader = CreateWireProtocolReader(record.Data);
 
             const auto& storeManager = tablet->GetStoreManager();
-            YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
+            YT_VERIFY(storeManager->ExecuteWrites(reader.get(), &context));
             YT_VERIFY(context.RowCount == record.RowCount);
 
             tabletToRowCount[tablet] += record.RowCount;

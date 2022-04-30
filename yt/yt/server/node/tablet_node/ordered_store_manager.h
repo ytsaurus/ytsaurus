@@ -34,7 +34,7 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
 
     bool ExecuteWrites(
-        NTableClient::TWireProtocolReader* reader,
+        NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) override;
 
     TOrderedDynamicRowRef WriteRow(

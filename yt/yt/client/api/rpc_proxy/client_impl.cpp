@@ -351,14 +351,14 @@ TFuture<void> TClient::ReshardTable(
 
     req->set_path(path);
 
-    TWireProtocolWriter writer;
+    auto writer = CreateWireProtocolWriter();
     // XXX(sandello): This is ugly and inefficient.
     std::vector<TUnversionedRow> keys;
     for (const auto& pivotKey : pivotKeys) {
         keys.push_back(pivotKey);
     }
-    writer.WriteRowset(MakeRange(keys));
-    req->Attachments() = writer.Finish();
+    writer->WriteRowset(MakeRange(keys));
+    req->Attachments() = writer->Finish();
 
     ToProto(req->mutable_mutating_options(), options);
     ToProto(req->mutable_tablet_range_options(), options);

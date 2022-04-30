@@ -504,8 +504,8 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
         // this code may use them for any needs. And I hope they will; otherwise
         // why on Earth would have I thoroughly picked 'em?
         for (const auto& attachment : rsp->Attachments()) {
-            TWireProtocolReader reader(attachment);
-            auto rows = reader.ReadUnversionedRowset(false);
+            auto reader = CreateWireProtocolReader(attachment);
+            auto rows = reader->ReadUnversionedRowset(false);
             YT_LOG_DEBUG("Got samples in attachments (SampleCount: %v, FirstSample: %v, LastSample: %v)",
                 rows.size(),
                 rows.empty() ? TLegacyKey{} : rows[0],

@@ -26,18 +26,18 @@ using namespace NTabletClient;
 void TSampleKeyList::Save(TSaveContext& context) const
 {
     using NYT::Save;
-    TWireProtocolWriter writer;
-    writer.WriteUnversionedRowset(Keys);
-    Save(context, MergeRefsToRef<TSampleKeyListTag>(writer.Finish()));
+    auto writer = CreateWireProtocolWriter();
+    writer->WriteUnversionedRowset(Keys);
+    Save(context, MergeRefsToRef<TSampleKeyListTag>(writer->Finish()));
 }
 
 void TSampleKeyList::Load(TLoadContext& context)
 {
     using NYT::Load;
-    TWireProtocolReader reader(
+    auto reader = CreateWireProtocolReader(
         Load<TSharedRef>(context),
         New<TRowBuffer>(TSampleKeyListTag()));
-    Keys = reader.ReadUnversionedRowset(true);
+    Keys = reader->ReadUnversionedRowset(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

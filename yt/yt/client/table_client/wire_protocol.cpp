@@ -74,31 +74,32 @@ EWireProtocolCommand GetWireProtocolCommand(const TWireProtocolWriteCommand& com
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireProtocolWriter::TImpl
+class TWireProtocolWriter
+    : public IWireProtocolWriter
 {
 public:
-    TImpl()
+    TWireProtocolWriter()
         : Stream_(TWireProtocolWriterTag())
     {
         EnsureCapacity(WriterInitialBufferCapacity);
     }
 
-    size_t GetByteSize() const
+    size_t GetByteSize() const override
     {
         return Stream_.GetSize();
     }
 
-    void WriteCommand(EWireProtocolCommand command)
+    void WriteCommand(EWireProtocolCommand command) override
     {
         WriteUint64(static_cast<unsigned int>(command));
     }
 
-    void WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap)
+    void WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap) override
     {
         WriteUint64(lockBitmap);
     }
 
-    void WriteLockMask(TLockMask lockMask)
+    void WriteLockMask(TLockMask lockMask) override
     {
         auto size = lockMask.GetSize();
         YT_VERIFY(size <= TLockMask::MaxSize);
@@ -113,12 +114,12 @@ public:
         }
     }
 
-    void WriteTableSchema(const TTableSchema& schema)
+    void WriteTableSchema(const TTableSchema& schema) override
     {
         WriteMessage(ToProto<NTableClient::NProto::TTableSchemaExt>(schema));
     }
 
-    void WriteMessage(const ::google::protobuf::MessageLite& message)
+    void WriteMessage(const ::google::protobuf::MessageLite& message) override
     {
         size_t size = static_cast<size_t>(message.ByteSizeLong());
         WriteUint64(size);
@@ -130,14 +131,14 @@ public:
         Current_ += AlignUp<size_t>(size, SerializationAlignment);
     }
 
-    void WriteInt64(i64 value)
+    void WriteInt64(i64 value) override
     {
         WriteUint64(static_cast<ui64>(value));
     }
 
     size_t WriteSchemafulRow(
         TUnversionedRow row,
-        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+        const TNameTableToSchemaIdMapping* idMapping) override
     {
         size_t bytes = EstimateSchemafulRowByteSize(row);
         EnsureCapacity(bytes);
@@ -154,7 +155,7 @@ public:
 
     size_t WriteUnversionedRow(
         TUnversionedRow row,
-        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+        const TNameTableToSchemaIdMapping* idMapping) override
     {
         size_t bytes = EstimateUnversionedRowByteSize(row);
         EnsureCapacity(bytes);
@@ -169,7 +170,7 @@ public:
         return bytes;
     }
 
-    size_t WriteVersionedRow(TVersionedRow row)
+    size_t WriteVersionedRow(TVersionedRow row) override
     {
         size_t bytes = EstimateVersionedRowByteSize(row);
         EnsureCapacity(bytes);
@@ -190,7 +191,7 @@ public:
 
     void WriteUnversionedValueRange(
         TRange<TUnversionedValue> valueRange,
-        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+        const TNameTableToSchemaIdMapping* idMapping) override
     {
         size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         bytes += EstimateUnversionedValueRangeByteSize(valueRange);
@@ -202,7 +203,7 @@ public:
 
     void WriteUnversionedRowset(
         TRange<TUnversionedRow> rowset,
-        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+        const TNameTableToSchemaIdMapping* idMapping) override
     {
         WriteRowCount(rowset);
         for (auto row : rowset) {
@@ -212,7 +213,7 @@ public:
 
     void WriteSchemafulRowset(
         TRange<TUnversionedRow> rowset,
-        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+        const TNameTableToSchemaIdMapping* idMapping) override
     {
         WriteRowCount(rowset);
         for (auto row : rowset) {
@@ -220,8 +221,7 @@ public:
         }
     }
 
-    void WriteVersionedRowset(
-        TRange<TVersionedRow> rowset)
+    void WriteVersionedRowset(TRange<TVersionedRow> rowset) override
     {
         WriteRowCount(rowset);
         for (auto row : rowset) {
@@ -229,7 +229,7 @@ public:
         }
     }
 
-    std::vector<TSharedRef> Finish()
+    std::vector<TSharedRef> Finish() override
     {
         FlushPreallocated();
         return Stream_.Flush();
@@ -514,158 +514,69 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWireProtocolWriter::TWireProtocolWriter()
-    : Impl_(std::make_unique<TImpl>())
-{ }
-
-TWireProtocolWriter::~TWireProtocolWriter() = default;
-
-size_t TWireProtocolWriter::GetByteSize() const
+std::unique_ptr<IWireProtocolWriter> CreateWireProtocolWriter()
 {
-    return Impl_->GetByteSize();
-}
-
-std::vector<TSharedRef> TWireProtocolWriter::Finish()
-{
-    return Impl_->Finish();
-}
-
-void TWireProtocolWriter::WriteCommand(EWireProtocolCommand command)
-{
-    Impl_->WriteCommand(command);
-}
-
-void TWireProtocolWriter::WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap)
-{
-    Impl_->WriteLegacyLockBitmap(lockBitmap);
-}
-
-void TWireProtocolWriter::WriteLockMask(TLockMask lockMask)
-{
-    Impl_->WriteLockMask(lockMask);
-}
-
-void TWireProtocolWriter::WriteTableSchema(const TTableSchema& schema)
-{
-    Impl_->WriteTableSchema(schema);
-}
-
-void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& message)
-{
-    Impl_->WriteMessage(message);
-}
-
-void TWireProtocolWriter::WriteInt64(i64 value)
-{
-    Impl_->WriteInt64(value);
-}
-
-size_t TWireProtocolWriter::WriteSchemafulRow(
-    TUnversionedRow row,
-    const TNameTableToSchemaIdMapping* idMapping)
-{
-    return Impl_->WriteSchemafulRow(row, idMapping);
-}
-
-size_t TWireProtocolWriter::WriteUnversionedRow(
-    TUnversionedRow row,
-    const TNameTableToSchemaIdMapping* idMapping)
-{
-    return Impl_->WriteUnversionedRow(row, idMapping);
-}
-
-size_t TWireProtocolWriter::WriteVersionedRow(
-    TVersionedRow row)
-{
-    return Impl_->WriteVersionedRow(row);
-}
-
-void TWireProtocolWriter::WriteUnversionedValueRange(
-    TRange<TUnversionedValue> valueRange,
-    const TNameTableToSchemaIdMapping* idMapping)
-{
-    return Impl_->WriteUnversionedValueRange(valueRange, idMapping);
-}
-
-void TWireProtocolWriter::WriteUnversionedRowset(
-    TRange<TUnversionedRow> rowset,
-    const TNameTableToSchemaIdMapping* idMapping)
-{
-    Impl_->WriteUnversionedRowset(rowset, idMapping);
-}
-
-void TWireProtocolWriter::WriteSchemafulRowset(
-    TRange<TUnversionedRow> rowset,
-    const TNameTableToSchemaIdMapping* idMapping)
-{
-    Impl_->WriteSchemafulRowset(rowset, idMapping);
-}
-
-void TWireProtocolWriter::WriteVersionedRowset(
-    TRange<TVersionedRow> rowset)
-{
-    Impl_->WriteVersionedRowset(rowset);
+    return std::make_unique<TWireProtocolWriter>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireProtocolReader::TImpl
+class TWireProtocolReader
+    : public IWireProtocolReader
 {
 public:
-    explicit TImpl(
-        const TSharedRef& data,
-        TRowBufferPtr rowBuffer)
-        : RowBuffer_(rowBuffer ? rowBuffer : New<TRowBuffer>(TWireProtocolReaderTag(), ReaderBufferChunkSize))
-        , Data_(data)
+    explicit TWireProtocolReader(TSharedRef data, TRowBufferPtr rowBuffer)
+        : RowBuffer_(rowBuffer ? std::move(rowBuffer) : New<TRowBuffer>(TWireProtocolReaderTag(), ReaderBufferChunkSize))
+        , Data_(std::move(data))
         , Current_(Data_.Begin())
     { }
 
-    const TRowBufferPtr& GetRowBuffer() const
+    const TRowBufferPtr& GetRowBuffer() const override
     {
         return RowBuffer_;
     }
 
-    bool IsFinished() const
+    bool IsFinished() const override
     {
         return Current_ == Data_.End();
     }
 
-    TIterator GetBegin() const
+    TIterator GetBegin() const override
     {
         return Data_.Begin();
     }
 
-    TIterator GetEnd() const
+    TIterator GetEnd() const override
     {
         return Data_.End();
     }
 
-    TIterator GetCurrent() const
+    TIterator GetCurrent() const override
     {
         return Current_;
     }
 
-    void SetCurrent(TIterator current)
+    void SetCurrent(TIterator current) override
     {
         Current_ = current;
     }
 
-    TSharedRef Slice(TIterator begin, TIterator end)
+    TSharedRef Slice(TIterator begin, TIterator end) override
     {
         return Data_.Slice(begin, end);
     }
 
-    EWireProtocolCommand ReadCommand()
+    EWireProtocolCommand ReadCommand() override
     {
         return EWireProtocolCommand(ReadUint64());
     }
 
-    TLegacyLockBitmap ReadLegacyLockBitmap()
+    TLegacyLockBitmap ReadLegacyLockBitmap() override
     {
         return ReadUint64();
     }
 
-    TLockMask ReadLockMask()
+    TLockMask ReadLockMask() override
     {
         auto size = ReadUint16();
         auto wordCount = DivCeil<int>(size, TLockMask::LocksPerWord);
@@ -679,14 +590,14 @@ public:
         return TLockMask(bitmap, size);
     }
 
-    TTableSchema ReadTableSchema()
+    TTableSchema ReadTableSchema() override
     {
         NTableClient::NProto::TTableSchemaExt protoSchema;
         ReadMessage(&protoSchema);
         return FromProto<TTableSchema>(protoSchema);
     }
 
-    void ReadMessage(::google::protobuf::MessageLite* message)
+    void ReadMessage(::google::protobuf::MessageLite* message) override
     {
         size_t size = ReadUint64();
         ::google::protobuf::io::CodedInputStream chunkStream(
@@ -696,12 +607,12 @@ public:
         Current_ += AlignUp<size_t>(size, SerializationAlignment);
     }
 
-    i64 ReadInt64()
+    i64 ReadInt64() override
     {
         return static_cast<i64>(ReadUint64());
     }
 
-    TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues)
+    TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues) override
     {
         auto valueCount = ReadUint64();
         if (valueCount == MinusOne) {
@@ -713,7 +624,7 @@ public:
         return row;
     }
 
-    TUnversionedRow ReadUnversionedRow(bool captureValues, const TIdMapping* idMapping)
+    TUnversionedRow ReadUnversionedRow(bool captureValues, const TIdMapping* idMapping) override
     {
         auto valueCount = ReadUint64();
         if (valueCount == MinusOne) {
@@ -725,7 +636,7 @@ public:
         return row;
     }
 
-    TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool captureValues, const TIdMapping* valueIdMapping)
+    TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool captureValues, const TIdMapping* valueIdMapping) override
     {
         union
         {
@@ -760,7 +671,7 @@ public:
         return row;
     }
 
-    TSharedRange<TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues)
+    TSharedRange<TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues) override
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
@@ -772,7 +683,7 @@ public:
         return captureValues ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
-    TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool captureValues, const TIdMapping* idMapping)
+    TSharedRange<TUnversionedRow> ReadUnversionedRowset(bool captureValues, const TIdMapping* idMapping) override
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
@@ -786,7 +697,7 @@ public:
     TSharedRange<TVersionedRow> ReadVersionedRowset(
         const TSchemaData& schemaData,
         bool captureValues,
-        const TIdMapping* valueIdMapping)
+        const TIdMapping* valueIdMapping) override
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TVersionedRow>(rowCount);
@@ -800,7 +711,7 @@ public:
     TWireProtocolWriteCommand ReadWriteCommand(
         const TSchemaData& schemaData,
         bool captureValues,
-        bool versionedWriteIsUnversioned)
+        bool versionedWriteIsUnversioned) override
     {
         auto command = ReadCommand();
         switch (command) {
@@ -1092,127 +1003,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWireProtocolReader::TWireProtocolReader(
-    const TSharedRef& data,
-    TRowBufferPtr rowBuffer)
-    : Impl_(std::make_unique<TImpl>(data, std::move(rowBuffer)))
-{ }
-
-TWireProtocolReader::~TWireProtocolReader() = default;
-
-const TRowBufferPtr& TWireProtocolReader::GetRowBuffer() const
-{
-    return Impl_->GetRowBuffer();
-}
-
-bool TWireProtocolReader::IsFinished() const
-{
-    return Impl_->IsFinished();
-}
-
-auto TWireProtocolReader::GetBegin() const -> TIterator
-{
-    return Impl_->GetBegin();
-}
-
-auto TWireProtocolReader::GetEnd() const -> TIterator
-{
-    return Impl_->GetEnd();
-}
-
-auto TWireProtocolReader::GetCurrent() const -> TIterator
-{
-    return Impl_->GetCurrent();
-}
-
-void TWireProtocolReader::SetCurrent(TIterator current)
-{
-    Impl_->SetCurrent(current);
-}
-
-TSharedRef TWireProtocolReader::Slice(TIterator begin, TIterator end)
-{
-    return Impl_->Slice(begin, end);
-}
-
-EWireProtocolCommand TWireProtocolReader::ReadCommand()
-{
-    return Impl_->ReadCommand();
-}
-
-TLegacyLockBitmap TWireProtocolReader::ReadLegacyLockBitmap()
-{
-    return Impl_->ReadLegacyLockBitmap();
-}
-
-TLockMask TWireProtocolReader::ReadLockMask()
-{
-    return Impl_->ReadLockMask();
-}
-
-TTableSchema TWireProtocolReader::ReadTableSchema()
-{
-    return Impl_->ReadTableSchema();
-}
-
-void TWireProtocolReader::ReadMessage(::google::protobuf::MessageLite* message)
-{
-    Impl_->ReadMessage(message);
-}
-
-i64 TWireProtocolReader::ReadInt64()
-{
-    return Impl_->ReadInt64();
-}
-
-TUnversionedRow TWireProtocolReader::ReadUnversionedRow(bool captureValues, const TIdMapping* idMapping)
-{
-    return Impl_->ReadUnversionedRow(captureValues, idMapping);
-}
-
-TUnversionedRow TWireProtocolReader::ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues)
-{
-    return Impl_->ReadSchemafulRow(schemaData, captureValues);
-}
-
-TVersionedRow TWireProtocolReader::ReadVersionedRow(
-    const TSchemaData& schemaData,
-    bool captureValues,
-    const TIdMapping* valueIdMapping)
-{
-    return Impl_->ReadVersionedRow(schemaData, captureValues, valueIdMapping);
-}
-
-TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset(bool captureValues, const TIdMapping* idMapping)
-{
-    return Impl_->ReadUnversionedRowset(captureValues, idMapping);
-}
-
-TSharedRange<TUnversionedRow> TWireProtocolReader::ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues)
-{
-    return Impl_->ReadSchemafulRowset(schemaData, captureValues);
-}
-
-TSharedRange<TVersionedRow> TWireProtocolReader::ReadVersionedRowset(
-    const TSchemaData& schemaData,
-    bool captureValues,
-    const TIdMapping* valueIdMapping)
-{
-    return Impl_->ReadVersionedRowset(schemaData, captureValues, valueIdMapping);
-}
-
-TWireProtocolWriteCommand TWireProtocolReader::ReadWriteCommand(
-    const TSchemaData& schemaData,
-    bool captureValues,
-    bool versionedWriteIsUnversioned)
-{
-    return Impl_->ReadWriteCommand(
-        schemaData,
-        captureValues,
-        versionedWriteIsUnversioned);
-}
-
-auto TWireProtocolReader::GetSchemaData(
+auto IWireProtocolReader::GetSchemaData(
     const TTableSchema& schema,
     const TColumnFilter& filter) -> TSchemaData
 {
@@ -1233,7 +1024,7 @@ auto TWireProtocolReader::GetSchemaData(
     return schemaData;
 }
 
-auto TWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaData
+auto IWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaData
 {
     TSchemaData schemaData;
     for (int id = 0; id < schema.GetColumnCount(); ++id) {
@@ -1241,6 +1032,13 @@ auto TWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaDa
         schemaData.push_back(*reinterpret_cast<ui32*>(&value));
     }
     return schemaData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IWireProtocolReader> CreateWireProtocolReader(TSharedRef data, TRowBufferPtr rowBuffer)
+{
+    return std::make_unique<TWireProtocolReader>(std::move(data), std::move(rowBuffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1288,7 +1086,7 @@ public:
             uncompressedBlock.Size());
 
         auto rowBuffer = New<TRowBuffer>(TWireProtocolReaderTag(), ReaderBufferChunkSize);
-        WireReader_ = std::make_unique<TWireProtocolReader>(uncompressedBlock, std::move(rowBuffer));
+        WireReader_ = CreateWireProtocolReader(uncompressedBlock, std::move(rowBuffer));
 
         if (!SchemaChecked_) {
             auto actualSchema = WireReader_->ReadTableSchema();
@@ -1352,7 +1150,7 @@ private:
     const NLogging::TLogger Logger;
 
     int BlockIndex_ = 0;
-    std::unique_ptr<TWireProtocolReader> WireReader_;
+    std::unique_ptr<IWireProtocolReader> WireReader_;
     bool Finished_ = false;
     bool SchemaChecked_ = false;
 
@@ -1411,7 +1209,7 @@ public:
         YT_VERIFY(!Closed_);
         for (auto row : rows) {
             if (!WireWriter_) {
-                WireWriter_ = std::make_unique<TWireProtocolWriter>();
+                WireWriter_ = CreateWireProtocolWriter();
                 if (!SchemaWritten_) {
                     WireWriter_->WriteTableSchema(*Schema_);
                     SchemaWritten_ = true;
@@ -1448,7 +1246,7 @@ private:
     const NLogging::TLogger Logger;
 
     std::vector<TSharedRef> CompressedBlocks_;
-    std::unique_ptr<TWireProtocolWriter> WireWriter_;
+    std::unique_ptr<IWireProtocolWriter> WireWriter_;
     bool Closed_ = false;
     bool SchemaWritten_ = false;
 

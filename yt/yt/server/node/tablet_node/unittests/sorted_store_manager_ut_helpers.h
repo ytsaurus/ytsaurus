@@ -29,12 +29,12 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
         TReqVersionedLookupRows req;
         std::vector<TUnversionedRow> keys(1, key);
 
-        TWireProtocolWriter writer;
-        writer.WriteMessage(req);
-        writer.WriteSchemafulRowset(keys);
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteMessage(req);
+        writer->WriteSchemafulRowset(keys);
 
         struct TMergedTag { };
-        request = MergeRefsToRef<TMergedTag>(writer.Finish());
+        request = MergeRefsToRef<TMergedTag>(writer->Finish());
     }
 
     TSharedRef response;
@@ -43,24 +43,24 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
         retentionConfig->MinDataVersions = minDataVersions;
         retentionConfig->MaxDataVersions = minDataVersions;
 
-        TWireProtocolReader reader(request);
-        TWireProtocolWriter writer;
+        auto reader = CreateWireProtocolReader(request);
+        auto writer = CreateWireProtocolWriter();
         VersionedLookupRows(
             tablet->BuildSnapshot(nullptr),
             timestamp,
             false,
             chunkReadOptions,
             retentionConfig,
-            &reader,
-            &writer);
+            reader.get(),
+            writer.get());
         struct TMergedTag { };
-        response = MergeRefsToRef<TMergedTag>(writer.Finish());
+        response = MergeRefsToRef<TMergedTag>(writer->Finish());
     }
 
     {
-        TWireProtocolReader reader(response);
-        auto schemaData = TWireProtocolReader::GetSchemaData(*tablet->GetPhysicalSchema(), TColumnFilter());
-        auto row = reader.ReadVersionedRow(schemaData, false);
+        auto reader = CreateWireProtocolReader(response);
+        auto schemaData = IWireProtocolReader::GetSchemaData(*tablet->GetPhysicalSchema(), TColumnFilter());
+        auto row = reader->ReadVersionedRow(schemaData, false);
         return TVersionedOwningRow(row);
     }
 }
@@ -214,18 +214,18 @@ public:
             }
             std::vector<TUnversionedRow> keys(1, key);
 
-            TWireProtocolWriter writer;
-            writer.WriteMessage(req);
-            writer.WriteSchemafulRowset(keys);
+            auto writer = CreateWireProtocolWriter();
+            writer->WriteMessage(req);
+            writer->WriteSchemafulRowset(keys);
 
             struct TMergedTag { };
-            request = MergeRefsToRef<TMergedTag>(writer.Finish());
+            request = MergeRefsToRef<TMergedTag>(writer->Finish());
         }
 
         TSharedRef response;
         {
-            TWireProtocolReader reader(request);
-            TWireProtocolWriter writer;
+            auto reader = CreateWireProtocolReader(request);
+            auto writer = CreateWireProtocolWriter();
             LookupRows(
                 tabletSnapshot,
                 TReadTimestampRange{
@@ -233,16 +233,16 @@ public:
                 },
                 false,
                 ChunkReadOptions_,
-                &reader,
-                &writer);
+                reader.get(),
+                writer.get());
             struct TMergedTag { };
-            response = MergeRefsToRef<TMergedTag>(writer.Finish());
+            response = MergeRefsToRef<TMergedTag>(writer->Finish());
         }
 
         {
-            TWireProtocolReader reader(response);
-            auto schemaData = TWireProtocolReader::GetSchemaData(*Tablet_->GetPhysicalSchema(), TColumnFilter());
-            auto row = reader.ReadSchemafulRow(schemaData, false);
+            auto reader = CreateWireProtocolReader(response);
+            auto schemaData = IWireProtocolReader::GetSchemaData(*Tablet_->GetPhysicalSchema(), TColumnFilter());
+            auto row = reader->ReadSchemafulRow(schemaData, false);
             return TUnversionedOwningRow(row);
         }
     }

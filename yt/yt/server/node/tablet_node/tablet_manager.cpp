@@ -1954,8 +1954,8 @@ private:
             return;
         }
 
-        TWireProtocolReader reader(TSharedRef::FromString(request->sample_keys()));
-        auto sampleKeys = reader.ReadUnversionedRowset(true);
+        auto reader = CreateWireProtocolReader(TSharedRef::FromString(request->sample_keys()));
+        auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
         storeManager->UpdatePartitionSampleKeys(partition, sampleKeys);

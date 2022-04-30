@@ -33,7 +33,7 @@ struct ITabletRequestBatcher
 
     struct TBatch
     {
-        NTableClient::TWireProtocolWriter Writer;
+        std::unique_ptr<NTableClient::IWireProtocolWriter> Writer = NTableClient::CreateWireProtocolWriter();
         TSharedRef RequestData;
         i64 RowCount = 0;
         i64 DataWeight = 0;

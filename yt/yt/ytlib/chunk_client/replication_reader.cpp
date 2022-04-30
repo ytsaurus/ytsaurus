@@ -2625,9 +2625,9 @@ public:
             BytesToThrottle_ += std::max(0L, *estimatedSize);
         }
 
-        TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(MakeRange(LookupKeys_));
-        Keyset_ = writer.Finish();
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteUnversionedRowset(MakeRange(LookupKeys_));
+        Keyset_ = writer->Finish();
     }
 
     ~TLookupRowsSession()

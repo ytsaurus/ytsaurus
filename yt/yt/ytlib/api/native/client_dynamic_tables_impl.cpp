@@ -545,11 +545,12 @@ TClient::TEncoderWithMapping TClient::GetLookupRowsEncoder() const
         } else {
             ToProto(req.mutable_column_filter()->mutable_indexes(), remappedColumnFilter.GetIndexes());
         }
-        TWireProtocolWriter writer;
-        writer.WriteCommand(EWireProtocolCommand::LookupRows);
-        writer.WriteMessage(req);
-        writer.WriteSchemafulRowset(remappedKeys);
-        return writer.Finish();
+
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteCommand(EWireProtocolCommand::LookupRows);
+        writer->WriteMessage(req);
+        writer->WriteSchemafulRowset(remappedKeys);
+        return writer->Finish();
     };
 }
 
@@ -557,7 +558,7 @@ TClient::TDecoderWithMapping TClient::GetLookupRowsDecoder() const
 {
     return [] (
         const TSchemaData& schemaData,
-        TWireProtocolReader* reader) -> TTypeErasedRow
+        IWireProtocolReader* reader) -> TTypeErasedRow
     {
         return reader->ReadSchemafulRow(schemaData, true).ToTypeErasedRow();
     };
@@ -572,8 +573,8 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
     TReplicaFallbackHandler<IUnversionedRowsetPtr> fallbackHandler = [&] (
         const TReplicaFallbackInfo& replicaFallbackInfo)
     {
-        auto unresolveOptions = options;    
-        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;    
+        auto unresolveOptions = options;
+        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
         return replicaFallbackInfo.Client->LookupRows(
             replicaFallbackInfo.Path,
             nameTable,
@@ -612,16 +613,17 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
         } else {
             ToProto(req.mutable_column_filter()->mutable_indexes(), remappedColumnFilter.GetIndexes());
         }
-        TWireProtocolWriter writer;
-        writer.WriteCommand(EWireProtocolCommand::VersionedLookupRows);
-        writer.WriteMessage(req);
-        writer.WriteSchemafulRowset(remappedKeys);
-        return writer.Finish();
+
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteCommand(EWireProtocolCommand::VersionedLookupRows);
+        writer->WriteMessage(req);
+        writer->WriteSchemafulRowset(remappedKeys);
+        return writer->Finish();
     };
 
     TDecoderWithMapping decoder = [] (
         const TSchemaData& schemaData,
-        TWireProtocolReader* reader) -> TTypeErasedRow
+        IWireProtocolReader* reader) -> TTypeErasedRow
     {
         return reader->ReadVersionedRow(schemaData, true).ToTypeErasedRow();
     };
@@ -629,8 +631,8 @@ IVersionedRowsetPtr TClient::DoVersionedLookupRows(
     TReplicaFallbackHandler<IVersionedRowsetPtr> fallbackHandler = [&] (
         const TReplicaFallbackInfo& replicaFallbackInfo)
     {
-        auto unresolveOptions = options;    
-        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;    
+        auto unresolveOptions = options;
+        unresolveOptions.ReplicaConsistency = EReplicaConsistency::None;
         return replicaFallbackInfo.Client->VersionedLookupRows(
             replicaFallbackInfo.Path,
             nameTable,
@@ -754,7 +756,7 @@ TRowset TClient::DoLookupRowsOnce(
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
     auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary]->Filter(remappedColumnFilter, true);
-    auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);
+    auto resultSchemaData = IWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);
 
     NSecurityClient::TPermissionKey permissionKey{
         .Object = FromObjectId(tableInfo->TableId),
@@ -968,7 +970,7 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     using TEncoder = std::function<std::vector<TSharedRef>(const std::vector<NTableClient::TUnversionedRow>&)>;
-    using TDecoder = std::function<NTableClient::TTypeErasedRow(NTableClient::TWireProtocolReader*)>;
+    using TDecoder = std::function<NTableClient::TTypeErasedRow(NTableClient::IWireProtocolReader*)>;
 
     TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
     TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
@@ -1090,12 +1092,12 @@ TRowset TClient::DoLookupRowsOnce(
                 }
 
                 auto responseData = responseCodec->Decompress(attachment);
-                TWireProtocolReader reader(responseData, outputRowBuffer);
+                auto reader = CreateWireProtocolReader(responseData, outputRowBuffer);
 
                 const auto& batch = batches[localBatchIndex];
 
                 for (size_t index = 0; index < batch.Keys.size(); ++index) {
-                    uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
+                    uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(reader.get());
                 }
             }
             batchOffset += ssize(batches);
@@ -2370,12 +2372,12 @@ private:
 
         auto* responseCodec = NCompression::GetCodec(Client_->GetNativeConnection()->GetConfig()->LookupRowsResponseCodec);
         auto responseData = responseCodec->Decompress(Result_->Attachments()[0]);
-        NTableClient::TWireProtocolReader reader(responseData, outputRowBuffer);
-        auto resultSchemaData = TWireProtocolReader::GetSchemaData(*Schema_, TColumnFilter());
+        auto reader = CreateWireProtocolReader(responseData, outputRowBuffer);
+        auto resultSchemaData = IWireProtocolReader::GetSchemaData(*Schema_, TColumnFilter());
 
         std::vector<TVersionedRow> rows;
-        while (!reader.IsFinished()) {
-            auto row = reader.ReadVersionedRow(resultSchemaData, true);
+        while (!reader->IsFinished()) {
+            auto row = reader->ReadVersionedRow(resultSchemaData, true);
             if (ExtractTimestampFromPulledRow(row) > maxTimestamp) {
                 ReplicationRowIndex_.reset();
                 break;

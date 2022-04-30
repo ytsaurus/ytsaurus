@@ -132,13 +132,13 @@ TEST_F(TWireProtocolTest, UnversionedRow)
 {
     auto originalRow = MakeUnversionedRowSample();
 
-    TWireProtocolWriter writer;
-    writer.WriteUnversionedRow(originalRow);
-    auto blob = MergeRefsToRef<TWireProtocolTestTag>(writer.Finish());
+    auto writer = CreateWireProtocolWriter();
+    writer->WriteUnversionedRow(originalRow);
+    auto blob = MergeRefsToRef<TWireProtocolTestTag>(writer->Finish());
     Dump(blob);
 
-    TWireProtocolReader reader(blob);
-    auto reconstructedRow = reader.ReadUnversionedRow(true);
+    auto reader = CreateWireProtocolReader(blob);
+    auto reconstructedRow = reader->ReadUnversionedRow(true);
     CheckEquals(originalRow, reconstructedRow);
 
     // This is a canonical dump. Do not break it.
@@ -169,13 +169,13 @@ TEST_F(TWireProtocolTest, SchemafulRow)
 {
     auto originalRow = MakeSchemafulRowSample();
 
-    TWireProtocolWriter writer;
-    writer.WriteSchemafulRow(originalRow);
-    auto blob = MergeRefsToRef<TWireProtocolTestTag>(writer.Finish());
+    auto writer = CreateWireProtocolWriter();
+    writer->WriteSchemafulRow(originalRow);
+    auto blob = MergeRefsToRef<TWireProtocolTestTag>(writer->Finish());
     Dump(blob);
 
-    TWireProtocolReader reader(blob);
-    auto reconstructedRow = reader.ReadSchemafulRow(ExtractSchemaData(originalRow, EValueType::Int64), true);
+    auto reader = CreateWireProtocolReader(blob);
+    auto reconstructedRow = reader->ReadSchemafulRow(ExtractSchemaData(originalRow, EValueType::Int64), true);
     CheckEquals(originalRow, reconstructedRow);
 
     // This is a canonical dump. Do not break it.
@@ -221,10 +221,10 @@ TEST_F(TWireProtocolTest, Regression1)
         0x00100003, // id = 3, type = int64
     });
 
-    TWireProtocolReader reader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
+    auto reader = CreateWireProtocolReader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
         TRef(blob.data(), blob.size())));
-    auto row = reader.ReadSchemafulRow(blobSchemaData, false);
-    EXPECT_TRUE(reader.GetCurrent() == reader.GetEnd());
+    auto row = reader->ReadSchemafulRow(blobSchemaData, false);
+    EXPECT_TRUE(reader->GetCurrent() == reader->GetEnd());
 
     ASSERT_EQ(static_cast<int>(row.GetCount()), 4);
 
@@ -259,10 +259,10 @@ TEST_F(TWireProtocolTest, Regression2)
         0x02, 0x00, 0xef, 0x00, 0x00, 0x00, 0x00, 0x00, // id = 2, type = max
     });
 
-    TWireProtocolReader reader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
+    auto reader = CreateWireProtocolReader(TSharedRef::MakeCopy<TWireProtocolTestTag>(
         TRef(blob.data(), blob.size())));
-    auto row = reader.ReadUnversionedRow(true);
-    EXPECT_TRUE(reader.GetCurrent() == reader.GetEnd());
+    auto row = reader->ReadUnversionedRow(true);
+    EXPECT_TRUE(reader->GetCurrent() == reader->GetEnd());
 
     ASSERT_EQ(static_cast<int>(row.GetCount()), 3);
 
