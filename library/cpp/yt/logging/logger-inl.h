@@ -102,7 +102,7 @@ private:
     static thread_local bool CacheDestroyed_;
     static TPerThreadCache* GetCache();
 
-    static constexpr size_t ChunkSize = 64_KB;
+    static constexpr size_t ChunkSize = 128_KB - 64;
 };
 
 inline bool HasMessageTags(

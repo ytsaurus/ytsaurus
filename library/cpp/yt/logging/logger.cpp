@@ -26,30 +26,44 @@ void TMessageStringBuilder::DoReset()
     Buffer_.Reset();
 }
 
-void TMessageStringBuilder::DoPreallocate(size_t newLength)
+void TMessageStringBuilder::DoPreallocate(size_t newCapacity)
 {
     auto oldLength = GetLength();
-    newLength = FastClp2(newLength);
-    auto newChunkSize = std::max(ChunkSize, newLength);
+    newCapacity = FastClp2(newCapacity);
+
+    auto newChunkSize = std::max(ChunkSize, newCapacity);
     // Hold the old buffer until the data is copied.
     auto oldBuffer = std::move(Buffer_);
     auto* cache = GetCache();
     if (Y_LIKELY(cache)) {
-        if (Y_UNLIKELY(cache->ChunkOffset + newLength > cache->Chunk.Size())) {
+        auto oldCapacity = End_ - Begin_;
+        auto deltaCapacity = newCapacity - oldCapacity;
+        if (End_ == cache->Chunk.Begin() + cache->ChunkOffset &&
+            cache->ChunkOffset + deltaCapacity <= cache->Chunk.Size())
+        {
+            // Resize inplace.
+            Buffer_ = cache->Chunk.Slice(cache->ChunkOffset - oldCapacity, cache->ChunkOffset + deltaCapacity);
+            cache->ChunkOffset += deltaCapacity;
+            End_ = Begin_ + newCapacity;
+            return;
+        }
+
+        if (Y_UNLIKELY(cache->ChunkOffset + newCapacity > cache->Chunk.Size())) {
             cache->Chunk = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, false);
             cache->ChunkOffset = 0;
         }
-        Buffer_ = cache->Chunk.Slice(cache->ChunkOffset, cache->ChunkOffset + newLength);
-        cache->ChunkOffset += newLength;
+
+        Buffer_ = cache->Chunk.Slice(cache->ChunkOffset, cache->ChunkOffset + newCapacity);
+        cache->ChunkOffset += newCapacity;
     } else {
         Buffer_ = TSharedMutableRef::Allocate<TMessageBufferTag>(newChunkSize, false);
-        newLength = newChunkSize;
+        newCapacity = newChunkSize;
     }
     if (oldLength > 0) {
         ::memcpy(Buffer_.Begin(), Begin_, oldLength);
     }
     Begin_ = Buffer_.Begin();
-    End_ = Begin_ + newLength;
+    End_ = Begin_ + newCapacity;
 }
 
 TMessageStringBuilder::TPerThreadCache* TMessageStringBuilder::GetCache()
