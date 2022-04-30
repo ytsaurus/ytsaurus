@@ -79,6 +79,7 @@ protected:
     virtual void EnableProfiler() = 0;
     virtual void DisableProfiler() = 0;
     virtual void AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify) = 0;
+    virtual i64 TransformValue(i64 value) = 0;
 
     void RecordSample(TFramePointerCursor* cursor, i64 value);
 

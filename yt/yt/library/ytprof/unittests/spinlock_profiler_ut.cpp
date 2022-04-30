@@ -12,6 +12,8 @@
 
 #include <tcmalloc/malloc_extension.h>
 
+#include <library/cpp/yt/threading/spin_lock.h>
+
 #include <util/string/cast.h>
 #include <util/stream/file.h>
 #include <util/datetime/base.h>
@@ -23,12 +25,13 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TProfiler>
 void RunUnderProfiler(const TString& name, std::function<void()> work, bool checkSamples = true)
 {
     TSpinlockProfilerOptions options;
     options.ProfileFraction = 10;
 
-    TSpinlockProfiler profiler(options);
+    TProfiler profiler(options);
 
     profiler.Start();
 
@@ -73,7 +76,7 @@ class TSpinlockProfilerTest
 
 TEST_F(TSpinlockProfilerTest, PageHeapLock)
 {
-    RunUnderProfiler("pageheap_lock.pb.gz", [] {
+    RunUnderProfiler<TSpinlockProfiler>("pageheap_lock.pb.gz", [] {
         std::atomic<bool> Stop = false;
 
         std::thread release([&] {
@@ -106,7 +109,7 @@ TEST_F(TSpinlockProfilerTest, PageHeapLock)
 
 TEST_F(TSpinlockProfilerTest, TransferCacheLock)
 {
-    RunUnderProfiler("transfer_cache_lock.pb.gz", [] {
+    RunUnderProfiler<TSpinlockProfiler>("transfer_cache_lock.pb.gz", [] {
         std::atomic<bool> Stop = false;
 
         TLockFreeStack<int> stack;
@@ -132,6 +135,39 @@ TEST_F(TSpinlockProfilerTest, TransferCacheLock)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSpinlockProfilerTest, YTLocks)
+{
+    RunUnderProfiler<TBlockingProfiler>("ytlock.pb.gz", [] {
+        std::atomic<bool> Stop = false;
+
+        NThreading::TSpinLock lock;
+        std::thread slow([&] {
+            while (!Stop) {
+                lock.Acquire();
+                Sleep(TDuration::MilliSeconds(10));
+                lock.Release();
+                Sleep(TDuration::MilliSeconds(10));
+            }
+        });
+
+        std::thread fast([&] {
+            while (!Stop) {
+                lock.Acquire();
+                lock.Release();
+            }
+        });
+
+        Sleep(TDuration::Seconds(5));
+
+        Stop = true;
+        slow.join();
+        fast.join();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace
 } // namespace NYT::NYTProf
