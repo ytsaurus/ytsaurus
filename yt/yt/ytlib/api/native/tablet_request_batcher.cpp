@@ -174,17 +174,17 @@ private:
             auto* batch = GetBatch();
             ++batch->RowCount;
 
-            auto& writer = batch->Writer;
-            writer.WriteCommand(EWireProtocolCommand::VersionedWriteRow);
+            auto* writer = batch->Writer.get();
+            writer->WriteCommand(EWireProtocolCommand::VersionedWriteRow);
 
             if (sorted) {
                 TVersionedRow row(typeErasedRow);
                 batch->DataWeight += GetDataWeight(row);
-                writer.WriteVersionedRow(row);
+                writer->WriteVersionedRow(row);
             } else {
                 TUnversionedRow row(typeErasedRow);
                 batch->DataWeight += GetDataWeight(row);
-                writer.WriteUnversionedRow(row);
+                writer->WriteUnversionedRow(row);
             }
         }
     }
@@ -194,7 +194,7 @@ private:
         IncrementAndCheckRowCount();
 
         auto* batch = GetBatch();
-        auto& writer = batch->Writer;
+        auto* writer = batch->Writer.get();
         ++batch->RowCount;
         batch->DataWeight += GetDataWeight(submittedRow.Row);
 
@@ -202,17 +202,17 @@ private:
         if (submittedRow.Command == EWireProtocolCommand::WriteAndLockRow) {
             auto locks = submittedRow.Locks;
             if (locks.HasNewLocks()) {
-                writer.WriteCommand(EWireProtocolCommand::WriteAndLockRow);
-                writer.WriteUnversionedRow(submittedRow.Row);
-                writer.WriteLockMask(locks);
+                writer->WriteCommand(EWireProtocolCommand::WriteAndLockRow);
+                writer->WriteUnversionedRow(submittedRow.Row);
+                writer->WriteLockMask(locks);
             } else {
-                writer.WriteCommand(EWireProtocolCommand::ReadLockWriteRow);
-                writer.WriteLegacyLockBitmap(locks.ToLegacyMask().GetBitmap());
-                writer.WriteUnversionedRow(submittedRow.Row);
+                writer->WriteCommand(EWireProtocolCommand::ReadLockWriteRow);
+                writer->WriteLegacyLockBitmap(locks.ToLegacyMask().GetBitmap());
+                writer->WriteUnversionedRow(submittedRow.Row);
             }
         } else {
-            writer.WriteCommand(submittedRow.Command);
-            writer.WriteUnversionedRow(submittedRow.Row);
+            writer->WriteCommand(submittedRow.Command);
+            writer->WriteUnversionedRow(submittedRow.Row);
         }
     }
 
@@ -265,7 +265,7 @@ private:
 void ITabletRequestBatcher::TBatch::Materialize(NCompression::ECodec codecType)
 {
     auto* codec = NCompression::GetCodec(codecType);
-    RequestData = codec->Compress(Writer.Finish());
+    RequestData = codec->Compress(Writer->Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

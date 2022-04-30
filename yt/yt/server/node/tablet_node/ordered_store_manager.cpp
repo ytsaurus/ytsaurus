@@ -100,7 +100,7 @@ void TOrderedStoreManager::Mount(
 }
 
 bool TOrderedStoreManager::ExecuteWrites(
-    TWireProtocolReader* reader,
+    IWireProtocolReader* reader,
     TWriteContext* context)
 {
     UpdatePeriodicRotationMilestone();

@@ -818,8 +818,8 @@ void LookupRows(
     TReadTimestampRange timestampRange,
     std::optional<bool> useLookupCache,
     const TClientChunkReadOptions& chunkReadOptions,
-    TWireProtocolReader* reader,
-    TWireProtocolWriter* writer)
+    IWireProtocolReader* reader,
+    IWireProtocolWriter* writer)
 {
     NTableClient::NProto::TReqLookupRows req;
     reader->ReadMessage(&req);
@@ -827,7 +827,7 @@ void LookupRows(
     auto columnFilter = DecodeColumnFilter(
         std::unique_ptr<NTableClient::NProto::TColumnFilter>(req.release_column_filter()),
         tabletSnapshot->PhysicalSchema->GetColumnCount());
-    auto schemaData = TWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
+    auto schemaData = IWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
     auto rowBuffer = New<TRowBuffer>(TLookupSessionBufferTag());
@@ -861,8 +861,8 @@ void VersionedLookupRows(
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
-    TWireProtocolReader* reader,
-    TWireProtocolWriter* writer)
+    IWireProtocolReader* reader,
+    IWireProtocolWriter* writer)
 {
     NTableClient::NProto::TReqVersionedLookupRows req;
     reader->ReadMessage(&req);
@@ -870,7 +870,7 @@ void VersionedLookupRows(
     auto columnFilter = DecodeColumnFilter(
         std::unique_ptr<NTableClient::NProto::TColumnFilter>(req.release_column_filter()),
         tabletSnapshot->PhysicalSchema->GetColumnCount());
-    auto schemaData = TWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
+    auto schemaData = IWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
     auto rowBuffer = New<TRowBuffer>(TLookupSessionBufferTag());
@@ -908,8 +908,8 @@ void ExecuteSingleRead(
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
-    TWireProtocolReader* reader,
-    TWireProtocolWriter* writer)
+    IWireProtocolReader* reader,
+    IWireProtocolWriter* writer)
 {
     auto command = reader->ReadCommand();
     switch (command) {
@@ -950,8 +950,8 @@ void LookupRead(
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
-    TWireProtocolReader* reader,
-    TWireProtocolWriter* writer)
+    IWireProtocolReader* reader,
+    IWireProtocolWriter* writer)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

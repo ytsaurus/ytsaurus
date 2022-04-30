@@ -138,73 +138,68 @@ EWireProtocolCommand GetWireProtocolCommand(const TWireProtocolWriteCommand& com
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Builds wire-encoded stream.
-class TWireProtocolWriter
+struct IWireProtocolWriter
 {
 public:
-    TWireProtocolWriter();
-    TWireProtocolWriter(const TWireProtocolWriter&) = delete;
-    TWireProtocolWriter(TWireProtocolWriter&&) = delete;
-    ~TWireProtocolWriter();
+    virtual ~IWireProtocolWriter() = default;
 
-    size_t GetByteSize() const;
+    virtual size_t GetByteSize() const = 0;
 
-    void WriteCommand(EWireProtocolCommand command);
+    virtual void WriteCommand(EWireProtocolCommand command) = 0;
 
-    void WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap);
+    virtual void WriteLegacyLockBitmap(TLegacyLockBitmap lockBitmap) = 0;
 
-    void WriteLockMask(TLockMask lockMask);
+    virtual void WriteLockMask(TLockMask lockMask) = 0;
 
-    void WriteTableSchema(const NTableClient::TTableSchema& schema);
+    virtual void WriteTableSchema(const NTableClient::TTableSchema& schema) = 0;
 
-    void WriteMessage(const ::google::protobuf::MessageLite& message);
+    virtual void WriteMessage(const ::google::protobuf::MessageLite& message) = 0;
 
-    void WriteInt64(i64 value);
+    virtual void WriteInt64(i64 value) = 0;
 
-    size_t WriteUnversionedRow(
+    virtual size_t WriteUnversionedRow(
         NTableClient::TUnversionedRow row,
-        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    size_t WriteSchemafulRow(
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr) = 0;
+    virtual size_t WriteSchemafulRow(
         NTableClient::TUnversionedRow row,
-        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    size_t WriteVersionedRow(
-        NTableClient::TVersionedRow row);
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr) = 0;
+    virtual size_t WriteVersionedRow(NTableClient::TVersionedRow row) = 0;
 
-    void WriteUnversionedValueRange(
+    virtual void WriteUnversionedValueRange(
         TRange<NTableClient::TUnversionedValue> valueRange,
-        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr) = 0;
 
-    void WriteUnversionedRowset(
+    virtual void WriteUnversionedRowset(
         TRange<NTableClient::TUnversionedRow> rowset,
-        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    void WriteSchemafulRowset(
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr) = 0;
+    virtual void WriteSchemafulRowset(
         TRange<NTableClient::TUnversionedRow> rowset,
-        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    void WriteVersionedRowset(
-        TRange<NTableClient::TVersionedRow> rowset);
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr) = 0;
+    virtual void WriteVersionedRowset(TRange<NTableClient::TVersionedRow> rowset) = 0;
+
+    virtual std::vector<TSharedRef> Finish() = 0;
 
     template <class TRow>
     inline void WriteRowset(TRange<TRow> rowset);
-
-    std::vector<TSharedRef> Finish();
-
-private:
-    class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
 };
 
 template <>
-inline void TWireProtocolWriter::WriteRowset<NTableClient::TUnversionedRow>(
+inline void IWireProtocolWriter::WriteRowset<NTableClient::TUnversionedRow>(
     TRange<NTableClient::TUnversionedRow> rowset)
 {
     return WriteUnversionedRowset(rowset);
 }
 
 template <>
-inline void TWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
+inline void IWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
     TRange<NTableClient::TVersionedRow> rowset)
 {
     return WriteVersionedRowset(rowset);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IWireProtocolWriter> CreateWireProtocolWriter();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,77 +209,78 @@ inline void TWireProtocolWriter::WriteRowset<NTableClient::TVersionedRow>(
  *  Rows are captured by the row buffer passed in ctor.
  *  Values are either captured or not depending on |captureValues| argument.
  */
-class TWireProtocolReader
+struct IWireProtocolReader
 {
 public:
     using TIterator = const char*;
 
-    //! Initializes the instance.
-    /*!
-     *  If #rowBuffer is null, a default one is created.
-     */
-    TWireProtocolReader(
-        const TSharedRef& data,
-        NTableClient::TRowBufferPtr rowBuffer = NTableClient::TRowBufferPtr());
-    TWireProtocolReader(const TWireProtocolReader&) = delete;
-    TWireProtocolReader(TWireProtocolReader&&) = delete;
-    ~TWireProtocolReader();
+    virtual ~IWireProtocolReader() = default;
 
-    const NTableClient::TRowBufferPtr& GetRowBuffer() const;
+    virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
 
-    bool IsFinished() const;
-    TIterator GetBegin() const;
-    TIterator GetEnd() const;
+    virtual bool IsFinished() const = 0;
+    virtual TIterator GetBegin() const = 0;
+    virtual TIterator GetEnd() const = 0;
 
-    TIterator GetCurrent() const;
-    void SetCurrent(TIterator);
+    virtual TIterator GetCurrent() const = 0;
+    virtual void SetCurrent(TIterator) = 0;
 
-    TSharedRef Slice(TIterator begin, TIterator end);
+    virtual TSharedRef Slice(TIterator begin, TIterator end) = 0;
 
-    EWireProtocolCommand ReadCommand();
+    virtual EWireProtocolCommand ReadCommand() = 0;
 
-    TLegacyLockBitmap ReadLegacyLockBitmap();
+    virtual TLegacyLockBitmap ReadLegacyLockBitmap() = 0;
 
-    TLockMask ReadLockMask();
+    virtual TLockMask ReadLockMask() = 0;
 
-    NTableClient::TTableSchema ReadTableSchema();
+    virtual NTableClient::TTableSchema ReadTableSchema() = 0;
 
-    void ReadMessage(::google::protobuf::MessageLite* message);
+    virtual void ReadMessage(::google::protobuf::MessageLite* message) = 0;
 
-    i64 ReadInt64();
+    virtual i64 ReadInt64() = 0;
 
-    NTableClient::TUnversionedRow ReadUnversionedRow(
+    virtual NTableClient::TUnversionedRow ReadUnversionedRow(
         bool captureValues,
-        const TIdMapping* idMapping = nullptr);
-    NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool captureValues);
-    NTableClient::TVersionedRow ReadVersionedRow(
+        const TIdMapping* idMapping = nullptr) = 0;
+    virtual NTableClient::TUnversionedRow ReadSchemafulRow(
+        const TSchemaData& schemaData,
+        bool captureValues) = 0;
+    virtual NTableClient::TVersionedRow ReadVersionedRow(
         const TSchemaData& schemaData,
         bool captureValues,
-        const TIdMapping* valueIdMapping = nullptr);
+        const TIdMapping* valueIdMapping = nullptr) = 0;
 
-    TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(
+    virtual TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(
         bool captureValues,
-        const TIdMapping* idMapping = nullptr);
-    TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool captureValues);
-    TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(
+        const TIdMapping* idMapping = nullptr) = 0;
+    virtual TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(
+        const TSchemaData& schemaData,
+        bool captureValues) = 0;
+    virtual TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(
         const TSchemaData& schemaData,
         bool captureValues,
-        const TIdMapping* valueIdMapping = nullptr);
+        const TIdMapping* valueIdMapping = nullptr) = 0;
 
-    TWireProtocolWriteCommand ReadWriteCommand(
+    virtual TWireProtocolWriteCommand ReadWriteCommand(
         const TSchemaData& schemaData,
         bool captureValues,
-        bool versionedWriteIsUnversioned = false);
+        bool versionedWriteIsUnversioned = false) = 0;
 
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,
         const NTableClient::TColumnFilter& filter);
     static TSchemaData GetSchemaData(const NTableClient::TTableSchema& schema);
-
-private:
-    class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Creates wire protocol reader.
+/*!
+ *  If #rowBuffer is null, a default one is created.
+ */
+std::unique_ptr<IWireProtocolReader> CreateWireProtocolReader(
+    TSharedRef data,
+    TRowBufferPtr rowBuffer = TRowBufferPtr());
 
 ////////////////////////////////////////////////////////////////////////////////
 

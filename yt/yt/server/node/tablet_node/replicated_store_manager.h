@@ -36,7 +36,7 @@ public:
     void StopEpoch() override;
 
     bool ExecuteWrites(
-        NTableClient::TWireProtocolReader* reader,
+        NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) override;
 
     bool IsOverflowRotationNeeded() const override;

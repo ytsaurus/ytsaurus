@@ -49,7 +49,7 @@ protected:
         return builder.FinishRow();
     }
 
-    TWireProtocolReader GetSingularBatchReader()
+    std::unique_ptr<IWireProtocolReader> GetSingularBatchReader()
     {
         auto batches = Batcher_->PrepareBatches();
         EXPECT_EQ(1, std::ssize(batches));
@@ -57,7 +57,7 @@ protected:
         auto* batch = batches[0].get();
         batch->Materialize(ECodec::None);
 
-        return TWireProtocolReader(batch->RequestData);
+        return CreateWireProtocolReader(batch->RequestData);
     }
 };
 
@@ -78,18 +78,18 @@ TEST_F(TTabletRequestBatcherTest, SimpleSorted)
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, row3, mask3);
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader.ReadCommand());
-    EXPECT_EQ(row1, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader.ReadCommand());
-    EXPECT_EQ(row2, reader.ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+    EXPECT_EQ(row1, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader->ReadCommand());
+    EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
     // COMPAT(gritukan)
-    EXPECT_EQ(EWireProtocolCommand::ReadLockWriteRow, reader.ReadCommand());
+    EXPECT_EQ(EWireProtocolCommand::ReadLockWriteRow, reader->ReadCommand());
     TLegacyLockMask legacyMask3;
     legacyMask3.Set(0, ELockType::SharedWeak);
     legacyMask3.Set(1, ELockType::SharedStrong);
-    EXPECT_EQ(legacyMask3.GetBitmap(), reader.ReadLegacyLockBitmap());
-    EXPECT_EQ(row3, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(legacyMask3.GetBitmap(), reader->ReadLegacyLockBitmap());
+    EXPECT_EQ(row3, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 TEST_F(TTabletRequestBatcherTest, SimpleOrdered)
@@ -102,11 +102,11 @@ TEST_F(TTabletRequestBatcherTest, SimpleOrdered)
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row2, TLockMask());
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader.ReadCommand());
-    EXPECT_EQ(row1, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader.ReadCommand());
-    EXPECT_EQ(row2, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+    EXPECT_EQ(row1, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+    EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 TEST_F(TTabletRequestBatcherTest, SimpleVersionedSorted)
@@ -122,10 +122,10 @@ TEST_F(TTabletRequestBatcherTest, SimpleVersionedSorted)
     Batcher_->SubmitVersionedRow(row.ToTypeErasedRow());
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::VersionedWriteRow, reader.ReadCommand());
-    auto schemaData = TWireProtocolReader::GetSchemaData(*Schema_);
-    EXPECT_EQ(ToString(row), ToString(reader.ReadVersionedRow(schemaData, /*captureValues*/ true)));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(EWireProtocolCommand::VersionedWriteRow, reader->ReadCommand());
+    auto schemaData = IWireProtocolReader::GetSchemaData(*Schema_);
+    EXPECT_EQ(ToString(row), ToString(reader->ReadVersionedRow(schemaData, /*captureValues*/ true)));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 TEST_F(TTabletRequestBatcherTest, SimpleVersionedOrdered)
@@ -136,9 +136,9 @@ TEST_F(TTabletRequestBatcherTest, SimpleVersionedOrdered)
     Batcher_->SubmitVersionedRow(TUnversionedRow(row).ToTypeErasedRow());
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::VersionedWriteRow, reader.ReadCommand());
-    EXPECT_EQ(row, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(EWireProtocolCommand::VersionedWriteRow, reader->ReadCommand());
+    EXPECT_EQ(row, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 TEST_F(TTabletRequestBatcherTest, UnversionedVersionedIntermix)
@@ -171,13 +171,13 @@ TEST_F(TTabletRequestBatcherTest, MaxRowsPerBatch)
         auto* batch = batches[batchIndex].get();
         batch->Materialize(ECodec::None);
 
-        TWireProtocolReader reader(batch->RequestData);
+        auto reader = CreateWireProtocolReader(batch->RequestData);
         auto rowCount = batchIndex == 3 ? 1 : 3;
         for (int batchRowIndex = 0; batchRowIndex < rowCount; ++batchRowIndex) {
-            EXPECT_EQ(EWireProtocolCommand::WriteRow, reader.ReadCommand());
-            EXPECT_EQ(rows[rowIndex++], reader.ReadUnversionedRow(/*captureValues*/ true));
+            EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+            EXPECT_EQ(rows[rowIndex++], reader->ReadUnversionedRow(/*captureValues*/ true));
         }
-        EXPECT_TRUE(reader.IsFinished());
+        EXPECT_TRUE(reader->IsFinished());
     }
 }
 
@@ -199,13 +199,13 @@ TEST_F(TTabletRequestBatcherTest, MaxDataWeightPerBatch)
         auto* batch = batches[batchIndex].get();
         batch->Materialize(ECodec::None);
 
-        TWireProtocolReader reader(batch->RequestData);
+        auto reader = CreateWireProtocolReader(batch->RequestData);
         auto rowCount = batchIndex == 3 ? 1 : 3;
         for (int batchRowIndex = 0; batchRowIndex < rowCount; ++batchRowIndex) {
-            EXPECT_EQ(EWireProtocolCommand::WriteRow, reader.ReadCommand());
-            EXPECT_EQ(rows[rowIndex++], reader.ReadUnversionedRow(/*captureValues*/ true));
+            EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+            EXPECT_EQ(rows[rowIndex++], reader->ReadUnversionedRow(/*captureValues*/ true));
         }
-        EXPECT_TRUE(reader.IsFinished());
+        EXPECT_TRUE(reader->IsFinished());
     }
 }
 
@@ -230,9 +230,9 @@ TEST_F(TTabletRequestBatcherTest, RowMerger1)
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, row2, TLockMask());
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader.ReadCommand());
-    EXPECT_EQ(row2, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(EWireProtocolCommand::DeleteRow, reader->ReadCommand());
+    EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 TEST_F(TTabletRequestBatcherTest, RowMerger2)
@@ -245,9 +245,9 @@ TEST_F(TTabletRequestBatcherTest, RowMerger2)
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row2, TLockMask());
 
     auto reader = GetSingularBatchReader();
-    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader.ReadCommand());
-    EXPECT_EQ(row2, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(EWireProtocolCommand::WriteRow, reader->ReadCommand());
+    EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 TEST_F(TTabletRequestBatcherTest, RowMerger3)
@@ -266,13 +266,13 @@ TEST_F(TTabletRequestBatcherTest, RowMerger3)
 
     auto reader = GetSingularBatchReader();
     // COMPAT(gritukan)
-    EXPECT_EQ(EWireProtocolCommand::ReadLockWriteRow, reader.ReadCommand());
+    EXPECT_EQ(EWireProtocolCommand::ReadLockWriteRow, reader->ReadCommand());
     TLegacyLockMask mask;
     mask.Set(0, ELockType::Exclusive);
     mask.Set(1, ELockType::SharedWeak);
-    EXPECT_EQ(mask.GetBitmap(), reader.ReadLegacyLockBitmap());
-    EXPECT_EQ(row2, reader.ReadUnversionedRow(/*captureValues*/ true));
-    EXPECT_TRUE(reader.IsFinished());
+    EXPECT_EQ(mask.GetBitmap(), reader->ReadLegacyLockBitmap());
+    EXPECT_EQ(row2, reader->ReadUnversionedRow(/*captureValues*/ true));
+    EXPECT_TRUE(reader->IsFinished());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

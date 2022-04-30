@@ -22,7 +22,7 @@ public:
     TSharedRef Finish();
 
 private:
-    NTableClient::TWireProtocolWriter WireProtocolWriter_;
+    std::unique_ptr<NTableClient::IWireProtocolWriter> WireProtocolWriter_ = NTableClient::CreateWireProtocolWriter();
     int Index_ = 0;
 };
 
@@ -38,7 +38,7 @@ public:
     TRange<NTableClient::TLegacyKey> GetKeys() const;
 
 private:
-    NTableClient::TWireProtocolReader WireProtocolReader_;
+    std::unique_ptr<NTableClient::IWireProtocolReader> WireProtocolReader_;
     std::vector<NTableClient::TLegacyKey> Keys_;
 };
 

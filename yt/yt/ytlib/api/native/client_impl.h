@@ -647,7 +647,7 @@ private:
 
     using TDecoderWithMapping = std::function<NTableClient::TTypeErasedRow(
         const NTableClient::TSchemaData&,
-        NTableClient::TWireProtocolReader*)>;
+        NTableClient::IWireProtocolReader*)>;
     TDecoderWithMapping GetLookupRowsDecoder() const;
 
     struct TReplicaFallbackInfo

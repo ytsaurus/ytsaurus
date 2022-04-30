@@ -280,16 +280,16 @@ protected:
             tabletWriteManager = TabletCellWriteManager(),
             tabletSnapshot
         ] {
-            TWireProtocolWriter writer;
+            auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
-                writer.WriteCommand(EWireProtocolCommand::WriteRow);
-                writer.WriteUnversionedRow(row);
+                writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                writer->WriteUnversionedRow(row);
                 dataWeight += GetDataWeight(row);
             }
-            auto wireData = writer.Finish();
+            auto wireData = writer->Finish();
             struct TTag {};
-            TWireProtocolReader reader(MergeRefsToRef<TTag>(wireData));
+            auto reader = CreateWireProtocolReader(MergeRefsToRef<TTag>(wireData));
             TFuture<void> future;
             tabletWriteManager->Write(
                 tabletSnapshot,
@@ -303,7 +303,7 @@ protected:
                 dataWeight,
                 /*versioned*/ false,
                 TSyncReplicaIdList(),
-                &reader,
+                reader.get(),
                 &future);
 
             // NB: we are not going to return future since it will be set only when
@@ -340,11 +340,11 @@ protected:
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         RunInAutomaton([=] {
-            TWireProtocolWriter writer;
+            auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
-                writer.WriteCommand(EWireProtocolCommand::WriteRow);
-                writer.WriteUnversionedRow(row);
+                writer->WriteCommand(EWireProtocolCommand::WriteRow);
+                writer->WriteUnversionedRow(row);
                 dataWeight += GetDataWeight(row);
             }
 
@@ -352,7 +352,7 @@ protected:
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_tablet_id(), tablet->GetId());
             struct TTag {};
-            request.set_compressed_data(ToString(MergeRefsToRef<TTag>(writer.Finish())));
+            request.set_compressed_data(ToString(MergeRefsToRef<TTag>(writer->Finish())));
             request.set_commit_signature(commitSignature);
             request.set_lockless(true);
             request.set_row_count(rows.size());
@@ -371,16 +371,16 @@ protected:
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
         auto tabletSnapshot = tablet->BuildSnapshot(nullptr);
         auto asyncResult = BIND([transactionId, rows = std::move(rows), signature, tabletWriteManager = TabletCellWriteManager(), tabletSnapshot] {
-            TWireProtocolWriter writer;
+            auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {
-                writer.WriteCommand(EWireProtocolCommand::VersionedWriteRow);
-                writer.WriteVersionedRow(row);
+                writer->WriteCommand(EWireProtocolCommand::VersionedWriteRow);
+                writer->WriteVersionedRow(row);
                 dataWeight += GetDataWeight(row);
             }
-            auto wireData = writer.Finish();
-            struct TTag {};
-            TWireProtocolReader reader(MergeRefsToRef<TTag>(wireData));
+            auto wireData = writer->Finish();
+            struct TTag { };
+            auto reader = CreateWireProtocolReader(MergeRefsToRef<TTag>(wireData));
             TFuture<void> asyncResult;
 
             TAuthenticationIdentity identity(ReplicatorUserName);
@@ -398,7 +398,7 @@ protected:
                 dataWeight,
                 /*versioned*/ true,
                 TSyncReplicaIdList(),
-                &reader,
+                reader.get(),
                 &asyncResult);
 
             // NB: we are not going to return asyncResult since it will be set only when

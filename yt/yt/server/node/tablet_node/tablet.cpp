@@ -1586,8 +1586,8 @@ void TTablet::Initialize()
 {
     PhysicalSchema_ = IsPhysicallyLog() ? TableSchema_->ToReplicationLog() : TableSchema_;
 
-    TableSchemaData_ = TWireProtocolReader::GetSchemaData(*TableSchema_);
-    KeysSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_->ToKeys());
+    TableSchemaData_ = IWireProtocolReader::GetSchemaData(*TableSchema_);
+    KeysSchemaData_ = IWireProtocolReader::GetSchemaData(*PhysicalSchema_->ToKeys());
 
     RowKeyComparer_ = Context_->GetRowComparerProvider()->Get(PhysicalSchema_->GetKeyColumnTypes());
 

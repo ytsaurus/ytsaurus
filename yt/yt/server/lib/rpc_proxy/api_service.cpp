@@ -2156,8 +2156,8 @@ private:
                     return client->ReshardTable(path, tabletCount, options);
                 });
         } else {
-            TWireProtocolReader reader(MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
-            auto keyRange = reader.ReadUnversionedRowset(false);
+            auto reader = CreateWireProtocolReader(MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+            auto keyRange = reader->ReadUnversionedRowset(false);
             std::vector<TLegacyOwningKey> keys;
             keys.reserve(keyRange.Size());
             for (const auto& key : keyRange) {

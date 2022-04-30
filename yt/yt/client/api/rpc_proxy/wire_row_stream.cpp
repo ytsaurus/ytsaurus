@@ -41,10 +41,10 @@ public:
         }
         NameTableSize_ += descriptor.name_table_entries_size();
 
-        TWireProtocolWriter writer;
+        auto writer = CreateWireProtocolWriter();
         auto rows = batch->MaterializeRows();
-        writer.WriteUnversionedRowset(rows);
-        auto rowRefs = writer.Finish();
+        writer->WriteUnversionedRowset(rows);
+        auto rowRefs = writer->Finish();
 
         auto [block, payloadRef] = SerializeRowStreamBlockEnvelope(
             GetByteSize(rowRefs),
@@ -85,8 +85,8 @@ public:
         const NProto::TRowsetDescriptor& descriptorDelta) override
     {
         struct TWireRowStreamDecoderTag { };
-        TWireProtocolReader reader(payloadRef, New<TRowBuffer>(TWireRowStreamDecoderTag()));
-        auto rows = reader.ReadUnversionedRowset(true);
+        auto reader = CreateWireProtocolReader(payloadRef, New<TRowBuffer>(TWireRowStreamDecoderTag()));
+        auto rows = reader->ReadUnversionedRowset(true);
 
         auto oldNameTableSize = Descriptor_.name_table_entries_size();
         YT_VERIFY(oldNameTableSize <= NameTable_->GetSize());

@@ -95,10 +95,10 @@ TLookupSession::TLookupSession(
         Bootstrap_->GetBlockCache(),
         Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
-    TWireProtocolReader keysReader(
+    auto keysReader = CreateWireProtocolReader(
         MergeRefsToRef<TKeyReaderBufferTag>(serializedKeys),
         KeyReaderRowBuffer_);
-    RequestedKeys_ = keysReader.ReadUnversionedRowset(true);
+    RequestedKeys_ = keysReader->ReadUnversionedRowset(true);
     YT_VERIFY(!RequestedKeys_.Empty());
 
     YT_LOG_DEBUG("Local chunk reader is created for lookup request (ChunkId: %v, ReadSessionId: %v, KeyCount: %v)",
@@ -233,9 +233,9 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
         /*virtualValueDirectory*/ nullptr,
         TableSchema_);
 
-    TWireProtocolWriter writer;
+    auto writer = CreateWireProtocolWriter();
     auto onRow = [&] (TVersionedRow row) {
-        writer.WriteVersionedRow(row);
+        writer->WriteVersionedRow(row);
     };
 
     auto rowReaderAdapter = New<TRowReaderAdapter>(
@@ -251,7 +251,7 @@ TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
     rowReaderAdapter->ReadRowset(onRow);
 
     // TODO(akozhikhov): update compression statistics.
-    return Codec_->Compress(writer.Finish());
+    return Codec_->Compress(writer->Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

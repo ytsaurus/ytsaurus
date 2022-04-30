@@ -208,12 +208,12 @@ private:
         DecompressionTime_ += timer.GetElapsedValue();
         UncompressedDataSize_ += uncompressedFetchedRowset.Size();
 
-        auto schemaData = TWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema, TColumnFilter());
-        TWireProtocolReader reader(uncompressedFetchedRowset, RowBuffer_);
+        auto schemaData = IWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema, TColumnFilter());
+        auto reader = CreateWireProtocolReader(uncompressedFetchedRowset, RowBuffer_);
 
         FetchedRows_.reserve(LookupKeys_.Size());
         for (int i = 0; i < std::ssize(LookupKeys_); ++i) {
-            FetchedRows_.push_back(reader.ReadVersionedRow(schemaData, true));
+            FetchedRows_.push_back(reader->ReadVersionedRow(schemaData, true));
         }
     }
 

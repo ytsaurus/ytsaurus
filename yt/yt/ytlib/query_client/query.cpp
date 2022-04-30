@@ -397,28 +397,28 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         auto* proto = serialized->MutableExtension(NProto::TInExpression::in_expression);
         ToProto(proto->mutable_arguments(), inExpr->Arguments);
 
-        NTableClient::TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(inExpr->Values);
-        ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteUnversionedRowset(inExpr->Values);
+        ToProto(proto->mutable_values(), MergeRefsToString(writer->Finish()));
     } else if (auto betweenExpr = original->As<TBetweenExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::Between));
         auto* proto = serialized->MutableExtension(NProto::TBetweenExpression::between_expression);
         ToProto(proto->mutable_arguments(), betweenExpr->Arguments);
 
-        NTableClient::TWireProtocolWriter rangesWriter;
+        auto rangesWriter = CreateWireProtocolWriter();
         for (const auto& range : betweenExpr->Ranges) {
-            rangesWriter.WriteUnversionedRow(range.first);
-            rangesWriter.WriteUnversionedRow(range.second);
+            rangesWriter->WriteUnversionedRow(range.first);
+            rangesWriter->WriteUnversionedRow(range.second);
         }
-        ToProto(proto->mutable_ranges(), MergeRefsToString(rangesWriter.Finish()));
+        ToProto(proto->mutable_ranges(), MergeRefsToString(rangesWriter->Finish()));
     } else if (auto transformExpr = original->As<TTransformExpression>()) {
         serialized->set_kind(static_cast<int>(EExpressionKind::Transform));
         auto* proto = serialized->MutableExtension(NProto::TTransformExpression::transform_expression);
         ToProto(proto->mutable_arguments(), transformExpr->Arguments);
 
-        NTableClient::TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(transformExpr->Values);
-        ToProto(proto->mutable_values(), MergeRefsToString(writer.Finish()));
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteUnversionedRowset(transformExpr->Values);
+        ToProto(proto->mutable_values(), MergeRefsToString(writer->Finish()));
         if (transformExpr->DefaultExpression) {
             ToProto(proto->mutable_default_expression(), transformExpr->DefaultExpression);
         }
@@ -504,10 +504,10 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TInExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TInExpression::in_expression);
             FromProto(&result->Arguments, ext.arguments());
-            NTableClient::TWireProtocolReader reader(
+            auto reader = CreateWireProtocolReader(
                 TSharedRef::FromString(ext.values()),
                 New<TRowBuffer>(TExpressionRowsetTag()));
-            result->Values = reader.ReadUnversionedRowset(true);
+            result->Values = reader->ReadUnversionedRowset(true);
             *original = result;
             return;
         }
@@ -519,12 +519,12 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
             TRowRanges ranges;
             auto rowBuffer = New<TRowBuffer>(TExpressionRowsetTag());
-            NTableClient::TWireProtocolReader rangesReader(
+            auto rangesReader = CreateWireProtocolReader(
                 TSharedRef::FromString<TExpressionRowsetTag>(ext.ranges()),
                 rowBuffer);
-            while (!rangesReader.IsFinished()) {
-                auto lowerBound = rangesReader.ReadUnversionedRow(true);
-                auto upperBound = rangesReader.ReadUnversionedRow(true);
+            while (!rangesReader->IsFinished()) {
+                auto lowerBound = rangesReader->ReadUnversionedRow(true);
+                auto upperBound = rangesReader->ReadUnversionedRow(true);
                 ranges.emplace_back(lowerBound, upperBound);
             }
             result->Ranges = MakeSharedRange(std::move(ranges), std::move(rowBuffer));
@@ -536,10 +536,10 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
             auto result = New<TTransformExpression>(GetWireType(type));
             const auto& ext = serialized.GetExtension(NProto::TTransformExpression::transform_expression);
             FromProto(&result->Arguments, ext.arguments());
-            NTableClient::TWireProtocolReader reader(
+            auto reader = CreateWireProtocolReader(
                 TSharedRef::FromString(ext.values()),
                 New<TRowBuffer>(TExpressionRowsetTag()));
-            result->Values = reader.ReadUnversionedRowset(true);
+            result->Values = reader->ReadUnversionedRowset(true);
             if (ext.has_default_expression()) {
                 FromProto(&result->DefaultExpression, ext.default_expression());
             }
@@ -884,12 +884,12 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
     ToProto(serialized->mutable_cell_id(), original.CellId);
     serialized->set_mount_revision(original.MountRevision);
 
-    NTableClient::TWireProtocolWriter rangesWriter;
+    auto rangesWriter = CreateWireProtocolWriter();
     for (const auto& range : original.Ranges) {
-        rangesWriter.WriteUnversionedRow(range.first);
-        rangesWriter.WriteUnversionedRow(range.second);
+        rangesWriter->WriteUnversionedRow(range.first);
+        rangesWriter->WriteUnversionedRow(range.second);
     }
-    ToProto(serialized->mutable_ranges(), MergeRefsToString(rangesWriter.Finish()));
+    ToProto(serialized->mutable_ranges(), MergeRefsToString(rangesWriter->Finish()));
 
     if (original.Keys) {
         std::vector<TColumnSchema> columns;
@@ -898,10 +898,10 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
         }
 
         TTableSchema schema(columns);
-        NTableClient::TWireProtocolWriter keysWriter;
-        keysWriter.WriteTableSchema(schema);
-        keysWriter.WriteSchemafulRowset(original.Keys);
-        ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter.Finish()));
+        auto keysWriter = CreateWireProtocolWriter();
+        keysWriter->WriteTableSchema(schema);
+        keysWriter->WriteSchemafulRowset(original.Keys);
+        ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter->Finish()));
     }
     serialized->set_lookup_supported(original.LookupSupported);
     serialized->set_key_width(original.KeyWidth);
@@ -918,24 +918,24 @@ void FromProto(TDataSource* original, const NProto::TDataSource& serialized)
 
     TRowRanges ranges;
     auto rowBuffer = New<TRowBuffer>(TDataSourceBufferTag());
-    NTableClient::TWireProtocolReader rangesReader(
+    auto rangesReader = CreateWireProtocolReader(
         TSharedRef::FromString<TDataSourceBufferTag>(serialized.ranges()),
         rowBuffer);
-    while (!rangesReader.IsFinished()) {
-        auto lowerBound = rangesReader.ReadUnversionedRow(true);
-        auto upperBound = rangesReader.ReadUnversionedRow(true);
+    while (!rangesReader->IsFinished()) {
+        auto lowerBound = rangesReader->ReadUnversionedRow(true);
+        auto upperBound = rangesReader->ReadUnversionedRow(true);
         ranges.emplace_back(lowerBound, upperBound);
     }
     original->Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
 
     if (serialized.has_keys()) {
-        NTableClient::TWireProtocolReader keysReader(
+        auto keysReader = CreateWireProtocolReader(
             TSharedRef::FromString<TDataSourceBufferTag>(serialized.keys()),
             rowBuffer);
 
-        auto schema = keysReader.ReadTableSchema();
-        auto schemaData = keysReader.GetSchemaData(schema, NTableClient::TColumnFilter());
-        original->Keys = keysReader.ReadSchemafulRowset(schemaData, true);
+        auto schema = keysReader->ReadTableSchema();
+        auto schemaData = keysReader->GetSchemaData(schema, NTableClient::TColumnFilter());
+        original->Keys = keysReader->ReadSchemafulRowset(schemaData, true);
     }
     original->LookupSupported = serialized.lookup_supported();
     original->KeyWidth = serialized.key_width();

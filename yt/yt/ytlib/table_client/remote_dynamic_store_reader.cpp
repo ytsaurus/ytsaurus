@@ -454,9 +454,9 @@ private:
     {
         UncompressedDataSize_ += data.Size();
         // Default row buffer.
-        TWireProtocolReader reader(data);
-        auto schemaData = TWireProtocolReader::GetSchemaData(*Schema_);
-        return reader.ReadVersionedRowset(schemaData, /*captureValues*/ true, &IdMapping_);
+        auto reader = CreateWireProtocolReader(data);
+        auto schemaData = IWireProtocolReader::GetSchemaData(*Schema_);
+        return reader->ReadVersionedRowset(schemaData, /*captureValues*/ true, &IdMapping_);
     }
 };
 
@@ -592,15 +592,15 @@ private:
         UncompressedDataSize_ += data.Size();
 
         // Default row buffer.
-        TWireProtocolReader reader(data);
+        auto reader = CreateWireProtocolReader(data);
 
         if (!StartRowIndex_.has_value()) {
-            StartRowIndex_ = reader.ReadInt64();
+            StartRowIndex_ = reader->ReadInt64();
             CurrentRowIndex_ = *StartRowIndex_;
             YT_LOG_DEBUG("Received start row index (StartRowIndex: %v)", StartRowIndex_);
         }
 
-        return reader.ReadUnversionedRowset(/*captureValues*/ true, &IdMapping_);
+        return reader->ReadUnversionedRowset(/*captureValues*/ true, &IdMapping_);
     }
 
     TUnversionedRow PostprocessRow(TUnversionedRow row) override

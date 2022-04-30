@@ -710,8 +710,8 @@ private:
 
                             struct TLookupRowBufferTag
                             { };
-                            TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-                            TWireProtocolWriter writer;
+                            auto reader = CreateWireProtocolReader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
+                            auto writer = CreateWireProtocolWriter();
 
                             LookupRead(
                                 tabletSnapshot,
@@ -722,10 +722,10 @@ private:
                                 useLookupCache,
                                 chunkReadOptions,
                                 retentionConfig,
-                                &reader,
-                                &writer);
+                                reader.get(),
+                                writer.get());
 
-                            return responseCodec->Compress(writer.Finish());
+                            return responseCodec->Compress(writer->Finish());
                         });
                 } catch (const std::exception&) {
                     if (auto tabletSnapshot = snapshotStore->FindLatestTabletSnapshot(tabletId)) {
@@ -840,7 +840,7 @@ private:
                     tabletSnapshot->Settings.MountConfig,
                     EWorkloadCategory::SystemTabletReplication,
                     Logger);
-                TWireProtocolWriter writer;
+                auto writer = CreateWireProtocolWriter();
 
                 auto rowBuffer = New<TRowBuffer>();
                 i64 readRowCount = 0;
@@ -876,7 +876,7 @@ private:
                         rowBuffer,
                         &currentRowIndex,
                         upperTimestamp,
-                        &writer,
+                        writer.get(),
                         &readRowCount,
                         &responseRowCount,
                         &responseDataWeight,
@@ -921,7 +921,7 @@ private:
                     response->set_end_replication_row_index(*endReplicationRowIndex);
                 }
                 ToProto(response->mutable_end_replication_progress(), endProgress);
-                response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
+                response->Attachments().push_back(responseCodec->Compress(writer->Finish()));
 
                 context->SetResponseInfo("RowCount: %v, DataWeight: %v, ProcessedRowCount: %v, EndRowIndex: %v, Progress: %v",
                     responseRowCount,
@@ -1124,9 +1124,9 @@ private:
                     THROW_ERROR_EXCEPTION("Request failed for the sake of testing");
                 }
 
-                TWireProtocolWriter writer;
-                writer.WriteVersionedRowset(batch->MaterializeRows());
-                auto data = writer.Finish();
+                auto writer = CreateWireProtocolWriter();
+                writer->WriteVersionedRowset(batch->MaterializeRows());
+                auto data = writer->Finish();
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
@@ -1197,7 +1197,7 @@ private:
                     THROW_ERROR_EXCEPTION("Request failed for the sake of testing");
                 }
 
-                TWireProtocolWriter writer;
+                auto writer = CreateWireProtocolWriter();
 
                 if (sendOffset) {
                     sendOffset = false;
@@ -1205,11 +1205,11 @@ private:
                     i64 offset = std::max(
                         dynamicStore->AsOrdered()->GetStartingRowIndex(),
                         startRowIndex);
-                    writer.WriteInt64(offset);
+                    writer->WriteInt64(offset);
                 }
 
-                writer.WriteUnversionedRowset(batch->MaterializeRows());
-                auto data = writer.Finish();
+                writer->WriteUnversionedRowset(batch->MaterializeRows());
+                auto data = writer->Finish();
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
@@ -1369,9 +1369,9 @@ private:
             }
         }
 
-        TWireProtocolWriter writer;
-        writer.WriteUnversionedRowset(keys);
-        return writer.Finish();
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteUnversionedRowset(keys);
+        return writer->Finish();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, FetchTabletStores)
@@ -1571,7 +1571,7 @@ private:
         const TRowBufferPtr& rowBuffer,
         i64* currentRowIndex,
         TTimestamp upperTimestamp,
-        TWireProtocolWriter* writer,
+        IWireProtocolWriter* writer,
         i64* totalRowCount,
         i64* batchRowCount,
         i64* batchDataWeight,

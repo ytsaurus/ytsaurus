@@ -52,7 +52,7 @@ struct IStoreManager
     virtual void StopEpoch() = 0;
 
     virtual bool ExecuteWrites(
-        NTableClient::TWireProtocolReader* reader,
+        NTableClient::IWireProtocolReader* reader,
         TWriteContext* context) = 0;
 
     virtual bool IsOverflowRotationNeeded() const = 0;

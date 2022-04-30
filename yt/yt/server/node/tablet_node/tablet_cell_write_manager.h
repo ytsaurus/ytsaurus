@@ -66,7 +66,7 @@ struct ITabletCellWriteManager
         size_t dataWeight,
         bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
-        NTableClient::TWireProtocolReader* reader,
+        NTableClient::IWireProtocolReader* reader,
         TFuture<void>* commitResult) = 0;
 
     virtual void Clear() = 0;

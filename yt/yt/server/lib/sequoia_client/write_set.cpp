@@ -20,16 +20,16 @@ void ToProto(NProto::TWriteSet* protoWriteSet, const TWriteSet& writeSet)
 
         NProto::TWriteSet::TTableWriteSet protoTableWriteSet;
 
-        TWireProtocolWriter wireProtocolWriter;
+        auto wireProtocolWriter = CreateWireProtocolWriter();
         for (const auto& [key, lockedRowInfo] : tableWriteSet) {
-            wireProtocolWriter.WriteUnversionedRow(key);
-            wireProtocolWriter.WriteLockMask(lockedRowInfo.LockMask);
+            wireProtocolWriter->WriteUnversionedRow(key);
+            wireProtocolWriter->WriteLockMask(lockedRowInfo.LockMask);
 
             ToProto(protoTableWriteSet.add_tablet_ids(), lockedRowInfo.TabletId);
             ToProto(protoTableWriteSet.add_tablet_cell_ids(), lockedRowInfo.TabletCellId);
         }
 
-        auto wireKeys = MergeRefsToString(wireProtocolWriter.Finish());
+        auto wireKeys = MergeRefsToString(wireProtocolWriter->Finish());
         protoTableWriteSet.set_keys(wireKeys);
 
         (*protoWriteSet->mutable_table_to_write_set())[static_cast<int>(table)] = protoTableWriteSet;
@@ -49,12 +49,12 @@ void FromProto(TWriteSet* writeSet, const NProto::TWriteSet& protoWriteSet, cons
         int rowCount = protoTableWriteSet.tablet_ids_size();
 
         auto wireKeys = TSharedRef::FromString(protoTableWriteSet.keys());
-        TWireProtocolReader wireProtocolReader(wireKeys, rowBuffer);
+        auto wireProtocolReader = CreateWireProtocolReader(wireKeys, rowBuffer);
         for (int index = 0; index < rowCount; ++index) {
-            auto key = wireProtocolReader.ReadUnversionedRow(/*captureValues*/ true);
+            auto key = wireProtocolReader->ReadUnversionedRow(/*captureValues*/ true);
 
             TLockedRowInfo lockedRowInfo;
-            lockedRowInfo.LockMask = wireProtocolReader.ReadLockMask();
+            lockedRowInfo.LockMask = wireProtocolReader->ReadLockMask();
             FromProto(&lockedRowInfo.TabletId, protoTableWriteSet.tablet_ids(index));
             FromProto(&lockedRowInfo.TabletCellId, protoTableWriteSet.tablet_cell_ids(index));
 

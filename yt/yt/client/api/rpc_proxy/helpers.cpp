@@ -1546,9 +1546,9 @@ std::vector<TSharedRef> SerializeRowset(
         entry->set_name(TString(nameTable->GetName(id)));
     }
 
-    TWireProtocolWriter writer;
-    writer.WriteUnversionedRowset(rows);
-    return writer.Finish();
+    auto writer = CreateWireProtocolWriter();
+    writer->WriteUnversionedRowset(rows);
+    return writer->Finish();
 }
 
 template <class TRow>
@@ -1573,9 +1573,9 @@ std::vector<TSharedRef> SerializeRowset(
         entry->set_logical_type(ToProto<int>(column.CastToV1Type()));
     }
 
-    TWireProtocolWriter writer;
-    writer.WriteRowset(rows);
-    return writer.Finish();
+    auto writer = CreateWireProtocolWriter();
+    writer->WriteRowset(rows);
+    return writer->Finish();
 }
 
 // Instantiate templates.
@@ -1620,18 +1620,18 @@ TTableSchemaPtr DeserializeRowsetSchema(
 namespace {
 
 template <class TRow>
-auto ReadRows(TWireProtocolReader* reader, const TTableSchema& schema);
+auto ReadRows(IWireProtocolReader* reader, const TTableSchema& schema);
 
 template <>
-auto ReadRows<TUnversionedRow>(TWireProtocolReader* reader, const TTableSchema& /*schema*/)
+auto ReadRows<TUnversionedRow>(IWireProtocolReader* reader, const TTableSchema& /*schema*/)
 {
     return reader->ReadUnversionedRowset(true);
 }
 
 template <>
-auto ReadRows<TVersionedRow>(TWireProtocolReader* reader, const TTableSchema& schema)
+auto ReadRows<TVersionedRow>(IWireProtocolReader* reader, const TTableSchema& schema)
 {
-    auto schemaData = TWireProtocolReader::GetSchemaData(schema, TColumnFilter());
+    auto schemaData = IWireProtocolReader::GetSchemaData(schema, TColumnFilter());
     return reader->ReadVersionedRowset(schemaData, true);
 }
 
@@ -1653,10 +1653,10 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
         TRowsetTraits<TRow>::Kind);
 
     struct TDeserializedRowsetTag { };
-    TWireProtocolReader reader(data, New<TRowBuffer>(TDeserializedRowsetTag()));
+    auto reader = CreateWireProtocolReader(data, New<TRowBuffer>(TDeserializedRowsetTag()));
 
     auto schema = DeserializeRowsetSchema(descriptor);
-    auto rows = ReadRows<TRow>(&reader, *schema);
+    auto rows = ReadRows<TRow>(reader.get(), *schema);
     return NApi::CreateRowset(std::move(schema), std::move(rows));
 }
 
