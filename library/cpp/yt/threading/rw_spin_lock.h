@@ -96,6 +96,10 @@ private:
 
     bool TryAndTryAcquireReader() noexcept;
     bool TryAndTryAcquireWriter() noexcept;
+
+    void AcquireReaderSlow() noexcept;
+    void AcquireReaderForkFriendlySlow() noexcept;
+    void AcquireWriterSlow() noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

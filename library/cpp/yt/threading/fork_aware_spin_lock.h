@@ -28,7 +28,7 @@ public:
         TAtForkHandler child);
 
 private:
-    TAdaptiveLock SpinLock_;
+    TSpinLock SpinLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

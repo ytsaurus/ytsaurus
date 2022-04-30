@@ -19,10 +19,8 @@ inline void TSpinLock::Acquire() noexcept
     if (TryAcquire()) {
         return;
     }
-    TSpinWait spinWait(Location_, ESpinLockActivityKind::ReadWrite);
-    while (!TryAndTryAcquire()) {
-        spinWait.Wait();
-    }
+
+    AcquireSlow();
 }
 
 inline void TSpinLock::Release() noexcept
