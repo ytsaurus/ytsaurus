@@ -120,6 +120,9 @@ TGentleLoaderConfig::TGentleLoaderConfig()
     RegisterParameter("remove_written_files", RemoveWrittenFiles)
         .Default(true);
 
+    RegisterParameter("stale_files_count_per_writer", StaleFilesCountPerWriter)
+        .Default(0);
+
     RegisterParameter("wait_after_congested", WaitAfterCongested)
         .Default(TDuration::Seconds(10));
 

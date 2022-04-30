@@ -9,6 +9,7 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/nonblocking_queue.h>
 
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/misc/fs.h>
@@ -146,10 +147,25 @@ using TRandomReaderPtr = TIntrusivePtr<TRandomReader>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TRandomWriter);
+
 class TRandomWriter
     : public TRefCounted
 {
 public:
+    struct TStopGuard
+    {
+        explicit TStopGuard(TRandomWriterPtr writer) : 
+            Writer(std::move(writer))
+        { }
+
+        ~TStopGuard() {
+            Writer->Stop();
+        }
+
+        TRandomWriterPtr Writer;
+    };
+
     TRandomWriter(
         TGentleLoaderConfigPtr config,
         const TString& path,
@@ -159,95 +175,184 @@ public:
         , IOEngine_(std::move(engine))
         , Logger(std::move(logger))
         , WriteThreadPool_(New<TThreadPool>(4, "RandomWriter"))
+        , TempFilesDir(NFS::JoinPaths(path, Config_->WritersFolder))
     {
-        const TString tempFilesDir = NFS::JoinPaths(path, Config_->WritersFolder);
-        if (!NFS::Exists(tempFilesDir)) {
-            NFS::MakeDirRecursive(tempFilesDir);
+        if (!NFS::Exists(TempFilesDir)) {
+            NFS::MakeDirRecursive(TempFilesDir);
         }
 
-        NFS::CleanTempFiles(tempFilesDir);
+        NFS::CleanTempFiles(TempFilesDir);
         auto invoker = WriteThreadPool_->GetInvoker();
+        WritersQueue_.reserve(Config_->WritersCount);
 
-        for (int i = 0; i < Config_->WritersCount; ++i) {
-            auto& info = FilesToWrite_.emplace_back();
-            info.FilePath = NFS::JoinPaths(tempFilesDir, Format("%v%v", i, NFS::TempFileSuffix));
-
-            EOpenMode mode = CreateAlways | WrOnly | CloseOnExec;
-            if (Config_->UseDirectIO) {
-                mode |= DirectAligned;
-            }
-
-            info.Handle = WaitFor(IOEngine_->Open({info.FilePath, mode}))
-                .ValueOrThrow();
-            info.Invoker = NConcurrency::CreateSerializedInvoker(invoker);
-        }
-    }
-
-    ~TRandomWriter()
-    {
-        for (auto& info : FilesToWrite_) {
-            try {
-                info.Handle->Close();
-
-                if (Config_->RemoveWrittenFiles) {
-                    NFS::Remove(info.FilePath);
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to close benchmark file (FilePath: %v)", info.FilePath);
-            }
+        for (int index = 0; index < Config_->WritersCount; ++index) {
+            WritersQueue_.push_back(std::make_shared<TNonblockingQueue<TRequestInfo>>());
+            invoker->Invoke(BIND(&TRandomWriter::RunWriter, MakeStrong(this), index));
         }
     }
 
     TFuture<TDuration> Write(EWorkloadCategory category, i64 packetSize)
     {
-        auto index = RandomNumber<ui32>(FilesToWrite_.size());
-        const auto& fileInfo = FilesToWrite_[index];
-        return BIND(&TRandomWriter::DoWrite, MakeStrong(this), index, category, packetSize)
-            .AsyncVia(fileInfo.Invoker)
-            .Run();
+        TRequestInfo request{
+            .Category = category,
+            .PacketSize = packetSize,
+            .Promise = NewPromise<TDuration>(),
+        };
+        auto future = request.Promise.ToFuture();
+
+        auto index = RandomNumber<ui32>(WritersQueue_.size());
+        WritersQueue_[index]->Enqueue(std::move(request));
+
+        return future;
+    }
+
+    void Stop()
+    {
+        auto invoker = WriteThreadPool_->GetInvoker();
+        for (auto& queue : WritersQueue_) {
+            queue->Enqueue(TRequestInfo{
+                .Stop = true,
+            });
+        }
+    }
+
+    TStopGuard StopGuard()
+    {
+        return TStopGuard{MakeStrong(this)};
     }
 
 private:
-    struct TFileInfo
+    struct TRequestInfo
     {
+        EWorkloadCategory Category = EWorkloadCategory::Idle;
+        i64 PacketSize = 0;
+        TPromise<TDuration> Promise;
+
+        bool Stop = false;
+    };
+
+    using TNonblockingQueuePtr = std::shared_ptr<TNonblockingQueue<TRequestInfo>>;
+
+    using TStaleFilesQueue = std::deque<TString>;
+
+    struct TWriterInfo
+    {
+        int WriterIndex = 0;
+
         TString FilePath;
         TIOEngineHandlePtr Handle;
         i64 Offset = 0;
-        IInvokerPtr Invoker;
+
+        TStaleFilesQueue StaleFiles;
     };
+
 
     const TGentleLoaderConfigPtr Config_;
     const IIOEngineWorkloadModelPtr IOEngine_;
     const NLogging::TLogger Logger;
     const TThreadPoolPtr WriteThreadPool_;
+    const TString TempFilesDir;
 
-    std::vector<TFileInfo> FilesToWrite_;
+    std::vector<TNonblockingQueuePtr> WritersQueue_;
+    std::atomic_uint32_t FileCounter_;
 
-
-    TDuration DoWrite(ui32 index, EWorkloadCategory category, i64 packetSize)
+    void CloseFile(TWriterInfo& info)
     {
-        auto& fileInfo = FilesToWrite_[index];
+        if (info.Handle) {
+            info.StaleFiles.push_back(info.FilePath);
+        }
+        info.Handle.Reset();
+        info.Offset = 0;
+        info.FilePath = {};
+    }
 
-        VERIFY_INVOKER_AFFINITY(fileInfo.Invoker);
+    void CleanupStaleFiles(TStaleFilesQueue& staleFiles, int countToKeep = 0)
+    {
+        while (std::ssize(staleFiles) > countToKeep) {
+            auto fileName = staleFiles.front();
+            staleFiles.pop_front();
 
+            try {
+                NFS::Remove(fileName);
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Can not remove file (FileName: %v)",
+                    fileName);
+            }
+        }
+    }
+
+    void OpenNewFile(TWriterInfo& info)
+    {
+        CloseFile(info);
+        CleanupStaleFiles(info.StaleFiles, Config_->StaleFilesCountPerWriter);
+
+        info.FilePath = NFS::JoinPaths(TempFilesDir, Format("%v%v", ++FileCounter_, NFS::TempFileSuffix));
+
+        EOpenMode mode = CreateAlways | WrOnly | CloseOnExec;
+        if (Config_->UseDirectIO) {
+            mode |= DirectAligned;
+        }
+
+        info.Handle = WaitFor(IOEngine_->Open({info.FilePath, mode}))
+            .ValueOrThrow();
+    }
+
+    TDuration DoWrite(TWriterInfo& fileInfo, EWorkloadCategory category, i64 packetSize)
+    {
+        if (!fileInfo.Handle  || fileInfo.Offset >= Config_->MaxWriteFileSize) {
+            YT_LOG_DEBUG("Opening new file (WriterIndex: %v)",
+                fileInfo.WriterIndex);
+            OpenNewFile(fileInfo);
+        }
+
+        auto handle = fileInfo.Handle;
         NProfiling::TWallTimer requestTimer;
-        auto future = IOEngine_->Write(
-            {
-                fileInfo.Handle,
-                fileInfo.Offset,
-                {MakeRandomBuffer(packetSize)},
+        auto future = IOEngine_->Write({
+                .Handle = handle,
+                .Offset = fileInfo.Offset,
+                .Buffers = {MakeRandomBuffer(packetSize)},
             },
-            category);
+            category)
+            .Apply(BIND([&] () {
+                return IOEngine_->FlushFile({handle, EFlushFileMode::Data});
+            }));
 
         WaitFor(future)
             .ThrowOnError();
 
         fileInfo.Offset += Config_->PacketSize;
-        if (fileInfo.Offset >= Config_->MaxWriteFileSize) {
-            fileInfo.Offset = 0;
+        return requestTimer.GetElapsedTime();
+    }
+
+    void RunWriter(int writerIndex)
+    {
+        YT_LOG_DEBUG("Random writer started (WriterIndex: %v)",
+                writerIndex);
+
+        auto queue = WritersQueue_[writerIndex];
+        TWriterInfo writerInfo{.WriterIndex = writerIndex};
+        while (true) {
+            auto future = queue->Dequeue();
+            auto request = WaitFor(future).Value();
+            if (request.Stop) {
+                break;
+            }
+
+            try {
+                auto duration = DoWrite(writerInfo, request.Category, request.PacketSize);
+                request.Promise.Set(duration);
+            } catch (std::exception& ex) {
+                request.Promise.Set(TError(ex));
+            }
         }
 
-        return requestTimer.GetElapsedTime();
+        CloseFile(writerInfo);
+        if (Config_->RemoveWrittenFiles) {
+            CleanupStaleFiles(writerInfo.StaleFiles);
+        }
+
+        YT_LOG_DEBUG("Random writer stopped (WriterIndex: %v)",
+                writerIndex);
     }
 
     static TSharedMutableRef MakeRandomBuffer(i32 size)
@@ -259,6 +364,8 @@ private:
         return data;
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TRandomWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -795,6 +902,8 @@ private:
             LocationRoot_,
             IOEngine_,
             Logger);
+
+        auto writerStopGuard = randomWriter->StopGuard();
 
         auto randomReader = New<TRandomReader>(
             Config_,
