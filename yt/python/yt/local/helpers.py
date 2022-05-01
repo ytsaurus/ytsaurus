@@ -8,8 +8,8 @@ import logging
 logger = logging.getLogger("YtLocal")
 
 def _sync_mode_finalize_func(environment, process, process_call_args):
-    logger.error("Process run by command '{0}' is dead! Terminating local YT processes..."\
-                 .format(" ".join(process_call_args)))
+    logger.error("Process run by command '{}' is exited with code {}. Terminating local YT processes..."
+                 .format(" ".join(process_call_args), process.returncode))
     thread.interrupt_main()
 
 class YTCheckingThread(Thread):
