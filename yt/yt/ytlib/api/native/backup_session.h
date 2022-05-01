@@ -20,6 +20,18 @@ using TCreateOrRestoreTableBackupOptions = std::variant<
 class TClusterBackupSession
 {
 public:
+    struct TTableInfo
+    {
+        NYPath::TYPath SourcePath;
+        NTableClient::TTableId SourceTableId;
+        NObjectClient::TCellTag ExternalCellTag;
+        NYTree::IAttributeDictionaryPtr Attributes;
+
+        NYPath::TYPath DestinationPath;
+        NTableClient::TTableId DestinationTableId;
+    };
+
+public:
     TClusterBackupSession(
         TString clusterName,
         TClientPtr client,
@@ -50,17 +62,6 @@ public:
     void CommitTransaction();
 
 private:
-    struct TTableInfo
-    {
-        NYPath::TYPath SourcePath;
-        NTableClient::TTableId SourceTableId;
-        NObjectClient::TCellTag ExternalCellTag;
-        NYTree::IAttributeDictionaryPtr Attributes;
-
-        NYPath::TYPath DestinationPath;
-        NTableClient::TTableId DestinationTableId;
-    };
-
     const TString ClusterName_;
     const TClientPtr Client_;
     const TCreateOrRestoreTableBackupOptions Options_;
@@ -77,11 +78,10 @@ private:
     using TBuildRequest = std::function<
         void(
             const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& req,
-            int tableIndex)>;
+            const TTableInfo& table)>;
     using TOnResponse = std::function<
         void(const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& rsp,
-            int subresponseIndex,
-            int tableIndex)>;
+            TTableInfo* table)>;
 
     const TCreateTableBackupOptions& GetCreateOptions() const;
 
@@ -92,6 +92,8 @@ private:
         TOnResponse onResponse,
         bool write,
         TMasterReadOptions masterReadOptions = {});
+
+    void ThrowWithClusterNameIfFailed(const TError& error) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

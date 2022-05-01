@@ -1227,6 +1227,8 @@ TCreateTableBackupCommand::TCreateTableBackupCommand()
         .Default(TDuration::Seconds(1));
     RegisterParameter("checkpoint_check_timeout", Options.CheckpointCheckTimeout)
         .Default(TDuration::Seconds(10));
+    RegisterParameter("force", Options.Force)
+        .Default(false);
 }
 
 void TCreateTableBackupCommand::DoExecute(ICommandContextPtr context)
@@ -1242,6 +1244,8 @@ void TCreateTableBackupCommand::DoExecute(ICommandContextPtr context)
 TRestoreTableBackupCommand::TRestoreTableBackupCommand()
 {
     RegisterParameter("manifest", Manifest);
+    RegisterParameter("force", Options.Force)
+        .Default(false);
 }
 
 void TRestoreTableBackupCommand::DoExecute(ICommandContextPtr context)
