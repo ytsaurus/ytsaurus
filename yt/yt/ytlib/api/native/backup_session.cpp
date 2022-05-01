@@ -3,7 +3,6 @@
 #include "client.h"
 #include "transaction.h"
 
-
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -111,7 +110,7 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
                 tableInfo.SourcePath);
         }
     } catch (const TErrorException& e) {
-        THROW_ERROR e << TErrorAttribute("cluster", ClusterName_);
+        ThrowWithClusterNameIfFailed(e);
     }
 
     CellTags_.insert(CellTagFromId(tableInfo.SourceTableId));
@@ -141,33 +140,38 @@ void TClusterBackupSession::LockInputTables()
 {
     TLockNodeOptions options;
     options.TransactionId = Transaction_->GetId();
+
+    std::vector<TFuture<TLockNodeResult>> asyncRsps;
     for (const auto& table : Tables_) {
-        auto asyncLockResult = Client_->LockNode(
-            table.SourcePath,
-            ELockMode::Exclusive,
-            options);
-        auto lockResult = WaitFor(asyncLockResult)
-            .ValueOrThrow();
-        if (lockResult.NodeId != table.SourceTableId) {
-            THROW_ERROR_EXCEPTION("Table id changed during locking");
+        asyncRsps.push_back(Client_->LockNode(table.SourcePath, ELockMode::Exclusive, options));
+    }
+
+    auto rspsOrErrors = WaitFor(AllSucceeded(asyncRsps));
+    ThrowWithClusterNameIfFailed(rspsOrErrors);
+
+    for (int tableIndex = 0; tableIndex < ssize(Tables_); ++tableIndex) {
+        const auto& rsp = rspsOrErrors.Value()[tableIndex];
+        if (rsp.NodeId != Tables_[tableIndex].SourceTableId) {
+            THROW_ERROR_EXCEPTION("Table id changed during locking")
+                << TErrorAttribute("table_path", Tables_[tableIndex].SourcePath)
+                << TErrorAttribute("cluster_name", ClusterName_);
         }
     }
 }
 
 void TClusterBackupSession::SetCheckpoint()
 {
-    auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
-        const auto& table = Tables_[tableIndex];
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::SetBackupCheckpoint(FromObjectId(table.SourceTableId));
         req->set_timestamp(Timestamp_);
         SetTransactionId(req, Transaction_->GetId());
-        batchReq->AddRequest(req);
+        batchReq->AddRequest(req, ToString(table.SourceTableId));
     };
 
-    auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
         const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspSetBackupCheckpoint>(
-            subresponseIndex);
-        rsp.ThrowOnError();
+            ToString(table->SourceTableId));
+        ThrowWithClusterNameIfFailed(rsp);
     };
 
     ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
@@ -175,34 +179,40 @@ void TClusterBackupSession::SetCheckpoint()
 
 void TClusterBackupSession::WaitForCheckpoint()
 {
-    THashSet<int> unconfirmedTableIndexes;
-    for (int index = 0; index < ssize(Tables_); ++index) {
-        unconfirmedTableIndexes.insert(index);
+    THashSet<const TTableInfo*> unconfirmedTables;
+    for (auto& table : Tables_) {
+        unconfirmedTables.insert(&table);
     }
 
-    auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
-        // TODO(ifsmirnov): skip certain tables in ExecuteForAllTables.
-        const auto& table = Tables_[tableIndex];
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
+        if (!unconfirmedTables.contains(&table)) {
+            return;
+        }
+
         auto req = TTableYPathProxy::CheckBackupCheckpoint(FromObjectId(table.SourceTableId));
         SetTransactionId(req, Transaction_->GetId());
-        batchReq->AddRequest(req);
+        batchReq->AddRequest(req, ToString(table.SourceTableId));
     };
 
-    auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int tableIndex) {
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
+        if (!unconfirmedTables.contains(table)) {
+            return;
+        }
+
         const auto& rspOrError = batchRsp->template GetResponse<TTableYPathProxy::TRspCheckBackupCheckpoint>(
-            subresponseIndex);
+            ToString(table->SourceTableId));
         const auto& rsp = rspOrError.ValueOrThrow();
         auto confirmedTabletCount = rsp->confirmed_tablet_count();
         auto pendingTabletCount = rsp->pending_tablet_count();
 
         YT_LOG_DEBUG("Backup checkpoint checked (TablePath: %v, ConfirmedTabletCount: %v, "
             "PendingTabletCount: %v)",
-            Tables_[tableIndex].SourcePath,
+            table->SourcePath,
             confirmedTabletCount,
             pendingTabletCount);
 
         if (pendingTabletCount == 0) {
-            unconfirmedTableIndexes.erase(tableIndex);
+            unconfirmedTables.erase(table);
         }
     };
 
@@ -211,18 +221,18 @@ void TClusterBackupSession::WaitForCheckpoint()
 
     while (TInstant::Now() < deadline) {
         YT_LOG_DEBUG("Waiting for backup checkpoint (RemainingTableCount: %v)",
-            ssize(unconfirmedTableIndexes));
+            ssize(unconfirmedTables));
         ExecuteForAllTables(buildRequest, onResponse, /*write*/ false);
-        if (unconfirmedTableIndexes.empty()) {
+        if (unconfirmedTables.empty()) {
             break;
         }
         TDelayedExecutor::WaitForDuration(options.CheckpointCheckPeriod);
     }
 
-    if (!unconfirmedTableIndexes.empty()) {
+    if (!unconfirmedTables.empty()) {
         THROW_ERROR_EXCEPTION("Some tables did not confirm backup checkpoint passing within timeout")
-            << TErrorAttribute("remaining_table_count", ssize(unconfirmedTableIndexes))
-            << TErrorAttribute("sample_table_path", Tables_[*unconfirmedTableIndexes.begin()].SourcePath)
+            << TErrorAttribute("remaining_table_count", ssize(unconfirmedTables))
+            << TErrorAttribute("sample_table_path", (*unconfirmedTables.begin())->SourcePath)
             << TErrorAttribute("cluster_name", ClusterName_);
     }
 }
@@ -232,6 +242,13 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
     TCopyNodeOptions options;
     options.TransactionId = Transaction_->GetId();
 
+    bool force;
+    if (nodeCloneMode == ENodeCloneMode::Backup) {
+        force = GetCreateOptions().Force;
+    } else {
+        force = GetRestoreOptions().Force;
+    }
+
     // TODO(ifsmirnov): this doesn't work for tables beyond the portals.
     auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
@@ -239,6 +256,7 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
     for (const auto& table : Tables_) {
         auto req = TCypressYPathProxy::Copy(table.DestinationPath);
         req->set_mode(static_cast<int>(nodeCloneMode));
+        req->set_force(force);
         Client_->SetTransactionId(req, options, /*allowNullTransaction*/ false);
         Client_->SetMutationId(req, options);
         auto* ypathExt = req->Header().MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
@@ -270,17 +288,16 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
 
 void TClusterBackupSession::FinishBackups()
 {
-    auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
-        const auto& table = Tables_[tableIndex];
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::FinishBackup(FromObjectId(table.DestinationTableId));
         SetTransactionId(req, Transaction_->GetId());
-        batchReq->AddRequest(req);
+        batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
-    auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
         const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspFinishBackup>(
-            subresponseIndex);
-        rsp.ThrowOnError();
+            ToString(table->DestinationTableId));
+        ThrowWithClusterNameIfFailed(rsp);
     };
 
     ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
@@ -288,17 +305,16 @@ void TClusterBackupSession::FinishBackups()
 
 void TClusterBackupSession::FinishRestores()
 {
-    auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
-        const auto& table = Tables_[tableIndex];
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TTableYPathProxy::FinishRestore(FromObjectId(table.DestinationTableId));
         SetTransactionId(req, Transaction_->GetId());
-        batchReq->AddRequest(req);
+        batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
-    auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int /*tableIndex*/) {
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
         const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspFinishRestore>(
-            subresponseIndex);
-        rsp.ThrowOnError();
+            ToString(table->DestinationTableId));
+        ThrowWithClusterNameIfFailed(rsp);
     };
 
     ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
@@ -306,18 +322,17 @@ void TClusterBackupSession::FinishRestores()
 
 void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedState)
 {
-    auto buildRequest = [&] (const auto& batchReq, int tableIndex) {
-        const auto& table = Tables_[tableIndex];
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@");
         const static std::vector<TString> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
         ToProto(req->mutable_attributes()->mutable_keys(), ExtraAttributeKeys);
         SetTransactionId(req, Transaction_->GetId());
-        batchReq->AddRequest(req);
+        batchReq->AddRequest(req, ToString(table.DestinationTableId));
     };
 
-    auto onResponse = [&] (const auto& batchRsp, int subresponseIndex, int tableIndex) {
-        const auto& table = Tables_[tableIndex];
-        const auto& rspOrError = batchRsp->template GetResponse<TObjectYPathProxy::TRspGet>(subresponseIndex);
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
+        const auto& rspOrError = batchRsp->template GetResponse<TObjectYPathProxy::TRspGet>(
+            ToString(table->DestinationTableId));
         const auto& rsp = rspOrError.ValueOrThrow();
 
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
@@ -332,7 +347,7 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
 
             }
             THROW_ERROR_EXCEPTION("Destination table %Qv has invalid backup state: expected %Qlv, got %Qlv",
-                table.DestinationPath,
+                table->DestinationPath,
                 expectedState,
                 actualState)
                 << TErrorAttribute("cluster_name", ClusterName_);
@@ -346,8 +361,8 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
 
 void TClusterBackupSession::CommitTransaction()
 {
-    WaitFor(Transaction_->Commit())
-        .ThrowOnError();
+    auto rsp = WaitFor(Transaction_->Commit());
+    ThrowWithClusterNameIfFailed(rsp);
     Transaction_ = nullptr;
 }
 
@@ -380,7 +395,7 @@ void TClusterBackupSession::ExecuteForAllTables(
                 cellTag);
         auto batchReq = proxy->ExecuteBatch();
         for (int tableIndex : tableIndexes) {
-            buildRequest(batchReq, tableIndex);
+            buildRequest(batchReq, Tables_[tableIndex]);
         }
 
         TPrerequisiteOptions prerequisiteOptions;
@@ -396,12 +411,20 @@ void TClusterBackupSession::ExecuteForAllTables(
     for (int cellTagIndex = 0; cellTagIndex < ssize(cellTags); ++cellTagIndex) {
         const auto& tableIndexes = TableIndexesByCellTag_[cellTags[cellTagIndex]];
         const auto& rspOrError = rspsOrErrors[cellTagIndex];
+        ThrowWithClusterNameIfFailed(rspOrError);
 
         const auto& rsp = rspOrError.ValueOrThrow();
-        YT_VERIFY(rsp->GetResponseCount() == ssize(tableIndexes));
-        for (int subresponseIndex = 0; subresponseIndex < rsp->GetResponseCount(); ++subresponseIndex) {
-            onResponse(rsp, subresponseIndex, tableIndexes[subresponseIndex]);
+        YT_VERIFY(rsp->GetResponseCount() <= ssize(tableIndexes));
+        for (int tableIndex : tableIndexes) {
+            onResponse(rsp, &Tables_[tableIndex]);
         }
+    }
+}
+
+void TClusterBackupSession::ThrowWithClusterNameIfFailed(const TError& error) const
+{
+    if (!error.IsOK()) {
+        THROW_ERROR error << TErrorAttribute("cluster_name", ClusterName_);
     }
 }
 

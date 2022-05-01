@@ -1430,14 +1430,18 @@ DEFINE_REFCOUNTED_TYPE(TBackupManifest)
 struct TCreateTableBackupOptions
     : public TTimeoutOptions
 {
-    TDuration CheckpointTimestampDelay;
-    TDuration CheckpointCheckPeriod;
-    TDuration CheckpointCheckTimeout;
+    TDuration CheckpointTimestampDelay = TDuration::Zero();
+    TDuration CheckpointCheckPeriod = TDuration::Zero();
+    TDuration CheckpointCheckTimeout = TDuration::Zero();
+
+    bool Force = false;
 };
 
 struct TRestoreTableBackupOptions
     : public TTimeoutOptions
-{ };
+{
+    bool Force = false;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
