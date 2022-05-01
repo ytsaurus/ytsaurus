@@ -265,6 +265,8 @@ void TNodeShard::DoCleanup()
 
     ConcurrentHeartbeatCount_ = 0;
 
+    JobReporterQueueIsTooLargeNodeCount_ = 0;
+
     JobIdToScheduleEntry_.clear();
     OperationIdToJobIterators_.clear();
 
