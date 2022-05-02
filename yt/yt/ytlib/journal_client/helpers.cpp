@@ -595,6 +595,15 @@ private:
 
     void DoRun()
     {
+        if (!IsJournalChunkId(ChunkId_)) {
+            auto error = TError("Unable to compute quorum info for non-journal chunk %v",
+                ChunkId_);
+            Promise_.Set(error);
+            return;
+        }
+
+        YT_VERIFY(Quorum_ > 0);
+
         if (std::ssize(Replicas_) < Quorum_) {
             auto error = TError("Unable to compute quorum info for journal chunk %v: too few replicas known, %v given, %v needed",
                 ChunkId_,

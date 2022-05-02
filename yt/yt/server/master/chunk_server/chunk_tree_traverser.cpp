@@ -252,6 +252,13 @@ protected:
                 break;
             }
             auto chunkId = chunk->GetId();
+
+            if (!IsJournalChunkId(chunkId)) {
+                auto error = TError("Cannot traverse an object containing an unconfirmed chunk %v",
+                    chunkId);
+                return MakeFuture<void>(error);
+            }
+
             if (UnsealedChunkIdToStatisticsFuture_.contains(chunkId)) {
                 break;
             }
@@ -371,8 +378,12 @@ protected:
         YT_LOG_TRACE("Visiting static entry (Entry: %v)", *entry);
 
         if (EnforceBounds_) {
-            if (auto future = RequestUnsealedChunksStatistics(*entry); future && !future.IsSet()) {
-                return future;
+            if (auto future = RequestUnsealedChunksStatistics(*entry)) {
+                if (!future.IsSet()) {
+                    return future;
+                } else if (!future.Get().IsOK()) {
+                    OnFinish(future.Get());
+                }
             }
 
             if (IsJournalChunkType(childType)) {

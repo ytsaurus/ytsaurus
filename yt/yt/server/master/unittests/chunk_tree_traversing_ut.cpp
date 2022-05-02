@@ -165,7 +165,7 @@ public:
 
     void OnFinish(const TError& error) override
     {
-        ASSERT_TRUE(error.IsOK());
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     const std::set<TChunkInfo>& GetChunkInfos() const
@@ -175,7 +175,6 @@ public:
 
 private:
     std::set<TChunkInfo> ChunkInfos;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1422,6 +1421,25 @@ TEST_F(TChunkTreeTraversingTest, SemiSealedJournal)
     }
 }
 
+TEST_F(TChunkTreeTraversingTest, UnconfirmedChunk)
+{
+    auto chunk = CreateUnconfirmedChunk();
+    auto chunkList = CreateChunkList();
+    AttachToChunkList(chunkList, {chunk});
+
+    auto context = GetSyncChunkTraverserContext();
+    auto visitor = New<TTestChunkVisitor>();
+    EXPECT_THROW_WITH_SUBSTRING(
+        TraverseChunkTree(
+            context,
+            visitor,
+            chunkList,
+            /*lowerLimit*/ TReadLimit{},
+            /*upperLimit*/ TReadLimit{},
+            /*keyColumnCount*/ {}),
+        "Cannot traverse an object containing an unconfirmed chunk");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraverseWithKeyColumnCount
@@ -1786,11 +1804,9 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
 
     std::vector<int> rowsPerTablet;
     rowsPerTablet.reserve(tabletCount);
-    int totalRowCount = 0;
     for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
         int rowCount = GetChunkTreeStatistics(root->Children()[tabletIndex]).LogicalRowCount;
         rowsPerTablet.emplace_back(rowCount);
-        totalRowCount += rowsPerTablet.back();
     }
 
     auto getRangeWithOverflow = [] (int count) {
