@@ -133,6 +133,7 @@ b"""
 
         enable_bulk_insert = %true;
         enable_hunks = %true;
+        enable_aggressive_tablet_statistics_validation = %true;
     };
 
     sequoia_manager = {};
