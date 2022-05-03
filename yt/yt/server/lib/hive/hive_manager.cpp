@@ -752,6 +752,15 @@ private:
         PostOutcomingMessages(mailbox, true);
     }
 
+    void MaybeDisconnectMailboxOnError(TMailbox* mailbox, const TError& error)
+    {
+        if (error.FindMatching(NHydra::EErrorCode::ReadOnly)) {
+            return;
+        }
+
+        SetMailboxDisconnected(mailbox);
+    }
+
     void SetMailboxDisconnected(TMailbox* mailbox)
     {
         if (!mailbox->GetConnected()) {
@@ -1258,7 +1267,7 @@ private:
             YT_LOG_DEBUG(rspOrError, "Failed to post reliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
-            SetMailboxDisconnected(mailbox);
+            MaybeDisconnectMailboxOnError(mailbox, rspOrError);
             return;
         }
 
@@ -1299,7 +1308,7 @@ private:
             YT_LOG_DEBUG(rspOrError, "Failed to send unreliable outcoming messages (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());
-            SetMailboxDisconnected(mailbox);
+            MaybeDisconnectMailboxOnError(mailbox, rspOrError);
             return;
         }
 
