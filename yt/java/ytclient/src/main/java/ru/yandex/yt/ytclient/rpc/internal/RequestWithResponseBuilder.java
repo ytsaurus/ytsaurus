@@ -6,6 +6,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
+import javax.annotation.Nullable;
+
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
 
@@ -28,6 +30,8 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
+    private @Nullable List<byte[]> compressedAttachments = null;
+    private @Nullable Compression compressedAttachmentsCodec = null;
     private final RpcOptions options;
     private final Parser<ResponseType> parser;
 
@@ -62,10 +66,22 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
         return attachments;
     }
 
+    @Override
+    public void setCompressedAttachments(Compression rpcCompression, List<byte[]> attachments) {
+        this.compressedAttachments = attachments;
+        this.compressedAttachmentsCodec = rpcCompression;
+    }
 
     @Override
     public RpcRequest<?> getRpcRequest() {
-        return new RpcRequest<>(header.build(), body.build(), attachments);
+        if (compressedAttachments != null) {
+            if (!attachments.isEmpty()) {
+                throw new RuntimeException("Both attachments and compressedAttachments are set");
+            }
+            return new RpcRequest<>(header.build(), body.build(), compressedAttachmentsCodec, compressedAttachments);
+        } else {
+            return new RpcRequest<>(header.build(), body.build(), attachments);
+        }
     }
 
     @Override

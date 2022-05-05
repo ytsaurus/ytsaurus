@@ -1,24 +1,54 @@
 package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.protobuf.MessageLite;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public class RpcRequest<RequestType extends MessageLite> {
     public final TRequestHeader header;
     public final RequestType body;
-    public final List<byte[]> attachments;
+    public final @Nullable List<byte[]> attachments;
+    public final @Nullable List<byte[]> compressedAttachments;
+    public final @Nullable Compression compressedAttachmentsCodec;
 
-    public RpcRequest(TRequestHeader header, RequestType body, List<byte[]> attachments) {
+    public RpcRequest(TRequestHeader header, RequestType body, @Nonnull List<byte[]> attachments) {
         this.header = header;
         this.body = body;
         this.attachments = attachments;
+        this.compressedAttachments = null;
+        this.compressedAttachmentsCodec = null;
+    }
+
+    public RpcRequest(
+            TRequestHeader header,
+            RequestType body,
+            @Nullable Compression codec,
+            @Nullable List<byte[]> attachments
+    ) {
+        this.header = header;
+        this.body = body;
+        this.attachments = null;
+        this.compressedAttachmentsCodec = codec;
+        this.compressedAttachments = attachments;
+    }
+
+    public RpcRequest<RequestType> copy(TRequestHeader header) {
+        if (attachments != null) {
+            return new RpcRequest<>(header, body, attachments);
+        } else {
+            return new RpcRequest<>(header, body, compressedAttachmentsCodec, compressedAttachments);
+        }
     }
 
     public static Duration getTimeout(TRequestHeaderOrBuilder header) {
@@ -33,8 +63,29 @@ public class RpcRequest<RequestType extends MessageLite> {
         return RpcUtil.fromProto(header.getRequestId());
     }
 
-    static List<byte[]> serialize(TRequestHeader header, MessageLite body, List<byte[]> attachments) {
-        return RpcUtil.createRequestMessage(header, body, attachments);
+    List<byte[]> serialize(TRequestHeader header) {
+        Compression attachmentsCodec = header.hasRequestCodec() ?
+                Compression.fromValue(header.getRequestCodec()) :
+                Compression.fromValue(0);
+        List<byte[]> message = new ArrayList<>(
+                2 + Math.max(
+                        attachments != null ? attachments.size() : 0,
+                        compressedAttachments != null ? compressedAttachments.size() : 0));
+        message.add(RpcUtil.createMessageHeader(RpcMessageType.REQUEST, header));
+        message.add(header.hasRequestCodec()
+                ? RpcUtil.createMessageBodyWithCompression(body, Compression.fromValue(header.getRequestCodec()))
+                : RpcUtil.createMessageBodyWithEnvelope(body));
+        if (compressedAttachments != null) {
+            if (compressedAttachmentsCodec != attachmentsCodec) {
+                throw new IllegalArgumentException(
+                        "Rpc compression codec doesn't match precomressed attachments compression codec"
+                );
+            }
+            message.addAll(compressedAttachments);
+        } else if (attachments != null) {
+            message.addAll(RpcUtil.createCompressedAttachments(attachments, attachmentsCodec));
+        }
+        return message;
     }
 
     @Override

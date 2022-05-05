@@ -551,6 +551,7 @@ public class ApiServiceClientImpl implements ApiServiceClient {
                 });
     }
 
+
     @Override
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
         return RpcUtil.apply(
@@ -939,7 +940,7 @@ class ModifyRowsWrapper implements HighLevelRequest<TReqModifyRows.Builder> {
         }
         builder.body().addAllRowModificationTypes(request.getRowModificationTypes());
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-        request.serializeRowsetTo(builder.attachments());
+        request.serializeRowsetTo(builder);
     }
 }
 

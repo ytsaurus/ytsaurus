@@ -44,9 +44,11 @@ import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
+import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
@@ -463,7 +465,46 @@ public class YtClientTest {
                 new MappedObject(1, null, 100),
                 new MappedObject(2, null, 200));
         Assert.assertEquals(expect, client.selectRows(SelectRowsRequest.of(query), limitedSerializer).join());
+    }
 
+    @Test
+    public void testPreparedModifyRowsRequest() {
+        YPath table = YPath.simple(path + "/table9");
+
+        var schema = TableSchema.builder()
+                .addKey("key", TiType.string())
+                .addValue("value", TiType.string())
+                .build();
+
+        client.createNode(new CreateNode(table, ObjectType.Table)
+                .setRecursive(true)
+                .addAttribute("dynamic", true)
+                .addAttribute("schema", schema.toYTree())
+        ).join();
+
+        client.mountTableAndWaitTablets(new MountTable(table)).join();
+
+        var tx = client.startTransaction(StartTransaction.tablet()).join();
+        try (tx) {
+            tx.modifyRows(new ModifyRowsRequest(table.toString(), schema)
+                    .addInsert(Map.of("key", "foo", "value", "bar"))
+                    .prepare(compression)
+            ).join();
+            tx.commit().join();
+        }
+
+        var actualRows = client.lookupRows(
+                new LookupRowsRequest(table.toString(), schema.toLookup())
+                        .addFilter("foo")
+        ).join().getRows();
+
+        Assert.assertEquals(
+                actualRows,
+                List.of(
+                        new UnversionedRow(Arrays.asList(
+                                new UnversionedValue(0, ColumnValueType.STRING, false, "foo".getBytes()),
+                                new UnversionedValue(1, ColumnValueType.STRING, false, "bar".getBytes())
+                        ))));
     }
 
     private void readWriteImpl(YPath writePath, YPath readPath, MappedObject... expect) throws Exception {

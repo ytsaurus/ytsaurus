@@ -32,7 +32,6 @@ import ru.yandex.yt.TGuid;
 import ru.yandex.yt.TGuidOrBuilder;
 import ru.yandex.yt.TSerializedMessageEnvelope;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
-import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
@@ -138,26 +137,13 @@ public class RpcUtil {
         }
     }
 
-    private static List<byte[]> createCompressedAttachments(List<byte[]> attachments, Compression codecId) {
+    public static List<byte[]> createCompressedAttachments(List<byte[]> attachments, Compression codecId) {
         if (codecId == Compression.None || attachments.isEmpty()) {
             return attachments;
         } else {
             Codec codec = Codec.codecFor(codecId);
             return attachments.stream().map(codec::compress).collect(Collectors.toList());
         }
-    }
-
-    public static List<byte[]> createRequestMessage(TRequestHeader header, MessageLite body, List<byte[]> attachments) {
-        Compression attachmentsCodec = header.hasRequestCodec() ?
-                Compression.fromValue(header.getRequestCodec()) :
-                Compression.fromValue(0);
-        List<byte[]> message = new ArrayList<>(2 + attachments.size());
-        message.add(createMessageHeader(RpcMessageType.REQUEST, header));
-        message.add(header.hasRequestCodec()
-                ? createMessageBodyWithCompression(body, Compression.fromValue(header.getRequestCodec()))
-                : createMessageBodyWithEnvelope(body));
-        message.addAll(createCompressedAttachments(attachments, attachmentsCodec));
-        return message;
     }
 
     public static List<byte[]> createCancelMessage(TRequestCancelationHeader header) {

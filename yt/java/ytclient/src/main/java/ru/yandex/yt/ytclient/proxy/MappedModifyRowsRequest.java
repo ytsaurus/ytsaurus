@@ -13,8 +13,15 @@ import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<MappedModifyRowsRequest<T>> {
-
+/**
+ * Row modification request that uses YTreeObject annotated classes as table row representation
+ *
+ * @param <T> YTreeObject class
+ *
+ * @see ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject
+ * @see ModifyRowsRequest
+ */
+public class MappedModifyRowsRequest<T> extends PreparableModifyRowsRequest<MappedModifyRowsRequest<T>> {
     private final List<T> rows = new ArrayList<>();
     private final WireRowSerializer<T> serializer;
     private boolean hasDeletes;

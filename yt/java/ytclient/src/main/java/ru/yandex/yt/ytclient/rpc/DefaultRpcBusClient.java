@@ -417,10 +417,7 @@ public class DefaultRpcBusClient implements RpcClient {
                     rpcRequestsTestingController.addRequest(builtRequestHeader, rpcRequest.body);
                 }
 
-                final List<byte[]> message = RpcRequest.serialize(
-                        builtRequestHeader,
-                        rpcRequest.body,
-                        rpcRequest.attachments);
+                final List<byte[]> message = rpcRequest.serialize(builtRequestHeader);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
                     stat.updateAck(elapsed.toMillis());
