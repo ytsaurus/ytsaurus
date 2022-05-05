@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -30,7 +29,7 @@ func init() {
 func doRun() error {
 	var config app.Config
 
-	content, err := ioutil.ReadFile(flagConfigPath)
+	content, err := os.ReadFile(flagConfigPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error reading config file: %v\n", err)
 		os.Exit(1)
