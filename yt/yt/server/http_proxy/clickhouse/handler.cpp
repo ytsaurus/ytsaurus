@@ -9,8 +9,9 @@
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/ytlib/auth/token_authenticator.h>
 #include <yt/yt/ytlib/auth/config.h>
+#include <yt/yt/ytlib/auth/helpers.h>
+#include <yt/yt/ytlib/auth/token_authenticator.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -19,6 +20,7 @@
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -48,8 +50,23 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger ClickHouseLogger("ClickHouseProxy");
+TLogger ClickHouseUnstructuredLogger("ClickHouseProxy");
+TLogger ClickHouseStructuredLogger("ClickHouseProxyStructured");
 TProfiler ClickHouseProfiler("/clickhouse_proxy");
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+DEFINE_ENUM(ERetryState,
+    (Retrying)
+    (FailedToPickInstance)
+    (ForceUpdated)
+    (CacheInvalidated)
+    (Success)
+);
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,6 +108,177 @@ public:
         if (auto* xRequestId = req->GetHeaders()->Find("X-Request-Id")) {
             YT_LOG_INFO("Request contains X-Request-Id header (X-Request-Id: %v)", xRequestId);
         }
+    }
+
+    void ProcessRequest()
+    {
+        if (!TryPrepare()) {
+            YT_LOG_INFO("Failed to prepare context");
+            return;
+        }
+
+        if (!TryForwardRequest()) {
+            YT_LOG_INFO("Failed to forward request");
+            return;
+        }
+
+        if (!TryForwardProxiedResponse()) {
+            YT_LOG_INFO("Failed to forward proxied response");
+            return;
+        }
+    }
+
+    void LogStructuredRequest()
+    {
+        LogStructuredEventFluently(ClickHouseStructuredLogger, ELogLevel::Info)
+            .Item("request_id").Value(Request_->GetRequestId())
+            .OptionalItem("authenticated_user", !User_.Empty() ? std::make_optional(User_) : std::nullopt)
+            .OptionalItem("token_hash", !Token_.Empty() ? std::make_optional(NAuth::GetCryptoHash(Token_)) : std::nullopt)
+            .Item("proxy_address").Value(Bootstrap_->GetCoordinator()->GetSelf()->GetHost())
+            .Item("client_address").Value(ToString(Request_->GetRemoteAddress()))
+            .OptionalItem("user_agent", GetUserAgent(Request_))
+            .Item("http_method").Value(Request_->GetMethod())
+            .Item("is_https").Value(Request_->IsHttps())
+
+            .Item("in_bytes").Value(Request_->GetReadByteCount())
+            .Item("out_bytes").Value(Response_->GetWriteByteCount())
+
+            .OptionalItem("trace_id", GetCurrentTraceContext() ?
+                std::make_optional(GetCurrentTraceContext()->GetTraceId()) :
+                std::nullopt)
+            .OptionalItem("query_id", ProxiedResponse_ && ProxiedResponse_->GetHeaders()->Find("X-ClickHouse-Query-Id") ?
+                std::make_optional(ProxiedResponse_->GetHeaders()->GetOrThrow("X-ClickHouse-Query-Id")) :
+                std::nullopt)
+            .OptionalItem("clique_alias", OperationAlias_)
+            .OptionalItem("clique_id", OperationId_ ? std::make_optional(OperationId_) : std::nullopt)
+            .OptionalItem("coordinator_id", !InstanceId_.Empty() ? std::make_optional(InstanceId_) : std::nullopt)
+            .OptionalItem("coordinator_address", !InstanceHost_.Empty() ? std::make_optional(InstanceHost_) : std::nullopt)
+            .OptionalItem("proxied_request_url", !ProxiedRequestUrl_.Empty() ?
+                std::make_optional(ProxiedRequestUrl_) :
+                std::nullopt)
+            .OptionalItem("retry_count", RetryCount_ >= 0 ? std::make_optional(RetryCount_) : std::nullopt)
+
+            .Item("http_code").Value(static_cast<int>(Response_->GetStatus().value_or(EStatusCode::OK)))
+            .Item("start_time").Value(Request_->GetStartTime())
+            .Item("duration").Value(TInstant::Now() - Request_->GetStartTime())
+            .OptionalItem("error_code", !ResponseError_.IsOK() ?
+                std::make_optional(static_cast<int>(ResponseError_.GetCode())) :
+                std::nullopt)
+            .OptionalItem("error", !ResponseError_.IsOK() ? std::make_optional(ResponseError_) : std::nullopt)
+
+            .OptionalItem("datalens_real_user", GetHeader(Request_, "X-DataLens-Real-User"))
+            .OptionalItem("x_request_id", GetHeader(Request_, "X-Request-Id"))
+            .OptionalItem("yql_operation_id", GetHeader(Request_, "X-YQL-Operation-ID"));
+    }
+
+    const TString& GetUser() const
+    {
+        return User_;
+    }
+
+private:
+    TLogger Logger;
+    const IRequestPtr& Request_;
+    const IResponseWriterPtr& Response_;
+    const TDynamicClickHouseConfigPtr& Config_;
+    TBootstrap* const Bootstrap_;
+    const NApi::IClientPtr& Client_;
+    NHttp::IClientPtr HttpClient_;
+    const TOperationCachePtr OperationCache_;
+    const TPermissionCachePtr PermissionCache_;
+    const TDiscoveryCachePtr DiscoveryCache_;
+    const TCounter ForceUpdateCounter_;
+    const TCounter BannedCounter_;
+    IInvokerPtr ControlInvoker_;
+
+    // These fields contain the request details after parsing CGI params and headers.
+    TCgiParameters CgiParameters_;
+
+    TOperationIdOrAlias OperationIdOrAlias_;
+    TOperationId OperationId_;
+    std::optional<TString> OperationAlias_;
+
+    TYsonString OperationAcl_;
+
+    std::optional<size_t> JobCookie_;
+
+    // For backward compatibility we allow GET requests when Auth is performed via token or cgi parameters.
+    bool AllowGetRequests_ = false;
+
+    // Token is provided via header "Authorization" or via cgi parameter "password".
+    // If empty, the authentication will be performed via Cookie.
+    TString Token_;
+    TString User_;
+    TString InstanceId_;
+    TString InstanceHost_;
+    TString InstanceHttpPort_;
+    TCachedDiscoveryPtr Discovery_;
+
+    // These fields define the proxied request issued to a randomly chosen instance.
+    TString ProxiedRequestUrl_;
+    TSharedRef ProxiedRequestBody_;
+    THeadersPtr ProxiedRequestHeaders_;
+
+    //! Response from a chosen instance.
+    IResponsePtr ProxiedResponse_;
+
+    std::vector<TError> RequestErrors_;
+    TError ResponseError_;
+
+    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
+
+    // Fields for structured log only.
+    int RetryCount_ = -1;
+    TString TokenHash_;
+
+    void ReplyWithError(EStatusCode statusCode, const TError& error)
+    {
+        YT_LOG_DEBUG(error, "Request failed (StatusCode: %v)", statusCode);
+        ResponseError_ = error;
+
+        FillYTErrorHeaders(Response_, error);
+
+        // TODO(dakovalkov): Do not throw error here.
+        WaitFor(Response_->WriteBody(TSharedRef::FromString(ToString(error))))
+            .ThrowOnError();
+    }
+
+    void PushError(TError error)
+    {
+        YT_LOG_INFO(error, "Error while handling query");
+        RequestErrors_.emplace_back(error);
+    }
+
+    bool ParseTokenFromAuthorizationHeader(const TString& authorization)
+    {
+        YT_LOG_DEBUG("Parsing token from Authorization header");
+        // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
+        auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
+        const auto& authorizationType = authorizationTypeAndCredentials[0];
+        if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
+            Token_ = authorizationTypeAndCredentials[1];
+        } else if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
+            const auto& credentials = authorizationTypeAndCredentials[1];
+            auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
+            if (fooAndToken.size() == 2) {
+                // First component (that should be username) is ignored.
+                Token_ = fooAndToken[1];
+            } else {
+                ReplyWithError(
+                    EStatusCode::Unauthorized,
+                    TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
+                return false;
+            }
+        } else {
+            ReplyWithError(
+                EStatusCode::Unauthorized,
+                TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
+                    authorizationType,
+                    authorizationTypeAndCredentials.size()));
+            return false;
+        }
+        YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
+        return true;
     }
 
     bool TryPrepare()
@@ -196,91 +384,79 @@ public:
         return true;
     }
 
-    bool TryPickInstance(bool forceUpdate)
+    bool TryForwardRequest()
     {
-        YT_LOG_DEBUG("Trying to pick instance (ForceUpdate: %v)", forceUpdate);
+        auto state = ERetryState::Retrying;
 
-        if (!TryDiscoverInstances(forceUpdate)) {
-            YT_LOG_DEBUG("Failed to discover instances");
+        auto setState = [&] (ERetryState newState) {
+            YT_LOG_DEBUG("Setting new state (State: %v -> %v)", state, newState);
+            state = newState;
+        };
+
+        YT_LOG_INFO("Starting retry routine (DeadInstanceRetryCount: %v)", Config_->DeadInstanceRetryCount);
+
+        for (int retryIndex = 0; retryIndex <= Config_->DeadInstanceRetryCount; ++retryIndex) {
+            YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retryIndex, state);
+            bool needForceUpdate = false;
+
+            if (state == ERetryState::Retrying && retryIndex > Config_->RetryWithoutUpdateLimit) {
+                YT_LOG_DEBUG("Forcing update due to long retrying");
+                needForceUpdate = true;
+            } else if (state == ERetryState::FailedToPickInstance) {
+                YT_LOG_DEBUG("Forcing update due to instance pick failure");
+                // If we did not find any instances on previous step, we need to do force update right now.
+                needForceUpdate = true;
+            }
+
+            if (needForceUpdate) {
+                setState(ERetryState::ForceUpdated);
+            }
+
+            YT_LOG_DEBUG("Picking instance (RetryIndex: %v)", retryIndex);
+            if (!TryPickInstance(needForceUpdate)) {
+                YT_LOG_DEBUG("Failed to pick instance (State: %v)", state);
+                // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
+                if (state == ERetryState::CacheInvalidated) {
+                    YT_LOG_DEBUG("Stopping retrying due to failure after cache invalidation");
+                    break;
+                }
+                // Cache may be not relevant if we can not pick an instance after discovery force update.
+                if (state == ERetryState::ForceUpdated) {
+                    // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
+                    // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
+                    YT_LOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
+                    RemoveCliqueFromCache();
+                    setState(ERetryState::CacheInvalidated);
+                } else {
+                    YT_LOG_DEBUG("Failed to pick instance (RetryIndex: %v)", retryIndex);
+                    setState(ERetryState::FailedToPickInstance);
+                }
+
+                continue;
+            }
+
+            YT_LOG_DEBUG("Pick successful, issuing proxied request (RetryIndex: %v)", retryIndex);
+
+            if (TryIssueProxiedRequest(retryIndex)) {
+                YT_LOG_DEBUG("Successfully proxied request (RetryIndex: %v)", retryIndex);
+                setState(ERetryState::Success);
+                break;
+            } else {
+                YT_LOG_DEBUG("Failed to proxy request (RetryIndex: %v, State: %v)", retryIndex, state);
+            }
+        }
+
+        YT_LOG_DEBUG("Finished retrying (State: %v)", state);
+
+        if (state != ERetryState::Success) {
+            ReplyWithAllOccurredErrors(TError("Request failed"));
             return false;
         }
 
-        if (JobCookie_.has_value()) {
-            for (const auto& [id, attributes] : Instances_) {
-                if (*JobCookie_ == attributes->Get<size_t>("job_cookie")) {
-                    InitializeInstance(id, attributes);
-                    return true;
-                }
-            }
-        } else {
-            auto instanceIterator = Instances_.begin();
-            std::advance(instanceIterator, RandomNumber(Instances_.size()));
-            InitializeInstance(instanceIterator->first, instanceIterator->second);
-            return true;
-        }
-        return false;
+        return true;
     }
 
-    bool TryIssueProxiedRequest(int retryIndex)
-    {
-        YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
-
-        decltype(WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_))) responseOrError;
-        YT_PROFILE_TIMING("/clickhouse_proxy/query_time/issue_proxied_request") {
-            responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
-        }
-
-        if (responseOrError.IsOK()) {
-            auto response = responseOrError.Value();
-
-            if (response->GetStatusCode() == EStatusCode::MovedPermanently) {
-                // Special status code which means that the instance is stopped by signal or clique-id in header isn't correct.
-                // It is guaranteed that this instance didn't start to invoke the request, so we can retry it.
-                responseOrError = TError("Instance moved, request rejected");
-            } else if (!response->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
-                // We got the response, but not from clickhouse instance.
-                // Probably the instance had died and another service was started at the same host:port.
-                // We can safely retry such requests.
-
-                THashSet<TString> headers;
-                for (const auto& [header, value] : response->GetHeaders()->Dump()) {
-                    headers.emplace(header);
-                }
-
-                auto statusCode = response->GetStatusCode();
-                auto statusCodeStr = ToString(static_cast<int>(statusCode)) + " (" + ToString(statusCode)+ ")";
-
-                responseOrError = TError("The requested server is not a clickhouse instance")
-                    << TErrorAttribute("status_code", statusCodeStr)
-                    << TErrorAttribute("headers", headers);
-            }
-        }
-
-        if (responseOrError.IsOK()) {
-            ProxiedResponse_ = responseOrError.Value();
-            YT_LOG_DEBUG("Got response from instance (StatusCode: %v, RetryIndex: %v)",
-                ProxiedResponse_->GetStatusCode(),
-                retryIndex);
-            return true;
-        } else {
-            RequestErrors_.push_back(responseOrError
-                << TErrorAttribute("instance_host", InstanceHost_)
-                << TErrorAttribute("instance_http_port", InstanceHttpPort_)
-                << TErrorAttribute("proxy_retry_index", retryIndex));
-            YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
-            BannedCounter_.Increment();
-            Discovery_->Ban(InstanceId_);
-            return false;
-        }
-    }
-
-    void ReplyWithAllOccuredErrors(TError error)
-    {
-        ReplyWithError(EStatusCode::InternalServerError, error
-            << RequestErrors_);
-    }
-
-    void ForwardProxiedResponse()
+    bool TryForwardProxiedResponse()
     {
         YT_LOG_DEBUG("Getting proxied status code");
         auto statusCode = ProxiedResponse_->GetStatusCode();
@@ -291,118 +467,16 @@ public:
         PipeInputToOutput(ProxiedResponse_, Response_);
 
         YT_PROFILE_TIMING("/clickhouse_proxy/query_time/forward_proxied_response") {
-            WaitFor(Response_->Close())
-                .ThrowOnError();
+            if (auto error = WaitFor(Response_->Close()); !error.IsOK()) {
+                YT_LOG_DEBUG(error, "Failed to forward proxied response");
+                // The connection could be already closed, so we can not reply with error.
+                // But we save the error for a proper ClickHouseStructuredLog's entry anyway.
+                ResponseError_ = std::move(error);
+                return false;
+            }
         }
 
         YT_LOG_DEBUG("Proxied response forwarded");
-    }
-
-    void RemoveCliqueFromCache()
-    {
-        Discovery_.Reset();
-        DiscoveryCache_->TryRemove(OperationId_);
-        YT_LOG_DEBUG("Discovery was removed from cache (OperationId: %v)", OperationId_);
-    }
-
-    const TString& GetUser() const
-    {
-        return User_;
-    }
-
-private:
-    TLogger Logger;
-    const IRequestPtr& Request_;
-    const IResponseWriterPtr& Response_;
-    const TDynamicClickHouseConfigPtr& Config_;
-    TBootstrap* const Bootstrap_;
-    const NApi::IClientPtr& Client_;
-    NHttp::IClientPtr HttpClient_;
-    const TOperationCachePtr OperationCache_;
-    const TPermissionCachePtr PermissionCache_;
-    const TDiscoveryCachePtr DiscoveryCache_;
-    const TCounter ForceUpdateCounter_;
-    const TCounter BannedCounter_;
-    IInvokerPtr ControlInvoker_;
-
-    // These fields contain the request details after parsing CGI params and headers.
-    TCgiParameters CgiParameters_;
-
-    TOperationIdOrAlias OperationIdOrAlias_;
-    TOperationId OperationId_;
-    std::optional<TString> OperationAlias_;
-
-    TYsonString OperationAcl_;
-
-    std::optional<size_t> JobCookie_;
-
-    // For backward compatibility we allow GET requests when Auth is performed via token or cgi parameters.
-    bool AllowGetRequests_ = false;
-
-    // Token is provided via header "Authorization" or via cgi parameter "password".
-    // If empty, the authentication will be performed via Cookie.
-    TString Token_;
-    TString User_;
-    TString InstanceId_;
-    TString InstanceHost_;
-    TString InstanceHttpPort_;
-    TCachedDiscoveryPtr Discovery_;
-
-    // These fields define the proxied request issued to a randomly chosen instance.
-    TString ProxiedRequestUrl_;
-    TSharedRef ProxiedRequestBody_;
-    THeadersPtr ProxiedRequestHeaders_;
-
-    //! Response from a chosen instance.
-    IResponsePtr ProxiedResponse_;
-
-    std::vector<TError> RequestErrors_;
-
-    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
-
-    void ReplyWithError(EStatusCode statusCode, const TError& error) const
-    {
-        YT_LOG_DEBUG(error, "Request failed (StatusCode: %v)", statusCode);
-        FillYTErrorHeaders(Response_, error);
-        WaitFor(Response_->WriteBody(TSharedRef::FromString(ToString(error))))
-            .ThrowOnError();
-    }
-
-    void PushError(TError error)
-    {
-        YT_LOG_INFO(error, "Error while handling query");
-        RequestErrors_.emplace_back(error);
-    }
-
-    bool ParseTokenFromAuthorizationHeader(const TString& authorization)
-    {
-        YT_LOG_DEBUG("Parsing token from Authorization header");
-        // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
-        auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
-        const auto& authorizationType = authorizationTypeAndCredentials[0];
-        if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
-            Token_ = authorizationTypeAndCredentials[1];
-        } else if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
-            const auto& credentials = authorizationTypeAndCredentials[1];
-            auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
-            if (fooAndToken.size() == 2) {
-                // First component (that should be username) is ignored.
-                Token_ = fooAndToken[1];
-            } else {
-                ReplyWithError(
-                    EStatusCode::Unauthorized,
-                    TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
-                return false;
-            }
-        } else {
-            ReplyWithError(
-                EStatusCode::Unauthorized,
-                TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                    authorizationType,
-                    authorizationTypeAndCredentials.size()));
-            return false;
-        }
-        YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
         return true;
     }
 
@@ -602,7 +676,6 @@ private:
         }
     }
 
-
     bool TryParseDatabase()
     {
         try {
@@ -634,6 +707,7 @@ private:
                 ReplyWithError(
                     EStatusCode::NotFound,
                     TError("Clique id or alias should be specified using the `database` CGI parameter"));
+                return false;
             }
 
             if (operationIdOrAlias[0] == '*') {
@@ -729,6 +803,93 @@ private:
         return true;
     }
 
+    bool TryPickInstance(bool forceUpdate)
+    {
+        YT_LOG_DEBUG("Trying to pick instance (ForceUpdate: %v)", forceUpdate);
+
+        if (!TryDiscoverInstances(forceUpdate)) {
+            YT_LOG_DEBUG("Failed to discover instances");
+            return false;
+        }
+
+        if (JobCookie_.has_value()) {
+            for (const auto& [id, attributes] : Instances_) {
+                if (*JobCookie_ == attributes->Get<size_t>("job_cookie")) {
+                    InitializeInstance(id, attributes);
+                    return true;
+                }
+            }
+        } else {
+            auto instanceIterator = Instances_.begin();
+            std::advance(instanceIterator, RandomNumber(Instances_.size()));
+            InitializeInstance(instanceIterator->first, instanceIterator->second);
+            return true;
+        }
+        return false;
+    }
+
+    bool TryIssueProxiedRequest(int retryIndex)
+    {
+        // Save retry count for structured log.
+        RetryCount_ = retryIndex;
+
+        YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
+
+        TErrorOr<IResponsePtr> responseOrError;
+        YT_PROFILE_TIMING("/clickhouse_proxy/query_time/issue_proxied_request") {
+            responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
+        }
+
+        if (responseOrError.IsOK()) {
+            auto response = responseOrError.Value();
+
+            if (response->GetStatusCode() == EStatusCode::MovedPermanently) {
+                // Special status code which means that the instance is stopped by signal or clique-id in header isn't correct.
+                // It is guaranteed that this instance didn't start to invoke the request, so we can retry it.
+                responseOrError = TError("Instance moved, request rejected");
+            } else if (!response->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
+                // We got the response, but not from clickhouse instance.
+                // Probably the instance had died and another service was started at the same host:port.
+                // We can safely retry such requests.
+
+                THashSet<TString> headers;
+                for (const auto& [header, value] : response->GetHeaders()->Dump()) {
+                    headers.emplace(header);
+                }
+
+                auto statusCode = response->GetStatusCode();
+                auto statusCodeStr = ToString(static_cast<int>(statusCode)) + " (" + ToString(statusCode)+ ")";
+
+                responseOrError = TError("The requested server is not a clickhouse instance")
+                    << TErrorAttribute("status_code", statusCodeStr)
+                    << TErrorAttribute("headers", headers);
+            }
+        }
+
+        if (responseOrError.IsOK()) {
+            ProxiedResponse_ = responseOrError.Value();
+            YT_LOG_DEBUG("Got response from instance (StatusCode: %v, RetryIndex: %v)",
+                ProxiedResponse_->GetStatusCode(),
+                retryIndex);
+            return true;
+        } else {
+            RequestErrors_.push_back(responseOrError
+                << TErrorAttribute("instance_host", InstanceHost_)
+                << TErrorAttribute("instance_http_port", InstanceHttpPort_)
+                << TErrorAttribute("proxy_retry_index", retryIndex));
+            YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
+            BannedCounter_.Increment();
+            Discovery_->Ban(InstanceId_);
+            return false;
+        }
+    }
+
+    void ReplyWithAllOccurredErrors(TError error)
+    {
+        ReplyWithError(EStatusCode::InternalServerError, error
+            << RequestErrors_);
+    }
+
     void InitializeInstance(const TString& id, const NYTree::IAttributeDictionaryPtr& attributes)
     {
         InstanceId_ = id;
@@ -748,6 +909,13 @@ private:
             InstanceHttpPort_,
             ProxiedRequestUrl_);
     }
+
+    void RemoveCliqueFromCache()
+    {
+        Discovery_.Reset();
+        DiscoveryCache_->TryRemove(OperationId_);
+        YT_LOG_DEBUG("Discovery was removed from cache (OperationId: %v)", OperationId_);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseContext);
@@ -757,7 +925,7 @@ DECLARE_REFCOUNTED_CLASS(TClickHouseContext);
 
 TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-    , Coordinator_(bootstrap->GetCoordinator())
+    , Coordinator_(Bootstrap_->GetCoordinator())
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions::FromUser(ClickHouseUserName)))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
@@ -778,19 +946,12 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.WithPrefix("/discovery_cache"));
 }
 
-DEFINE_ENUM(ERetryState,
-    (Retrying)
-    (FailedToPickInstance)
-    (ForceUpdated)
-    (CacheInvalidated)
-    (Success)
-);
-
 void TClickHouseHandler::HandleRequest(
     const IRequestPtr& request,
     const IResponseWriterPtr& response)
 {
-    auto Logger = ClickHouseLogger.WithTag("RequestId: %v", request->GetRequestId());
+    auto Logger = ClickHouseUnstructuredLogger
+        .WithTag("RequestId: %v", request->GetRequestId());
 
     if (!Coordinator_->CanHandleHeavyRequests()) {
         // We intentionally read the body of the request and drop it to make sure
@@ -802,6 +963,7 @@ void TClickHouseHandler::HandleRequest(
 
     YT_PROFILE_TIMING("/clickhouse_proxy/total_query_time") {
         QueryCount_.Increment();
+
         ProcessDebugHeaders(request, response, Coordinator_);
 
         auto config = Bootstrap_->GetDynamicConfig()->ClickHouse;
@@ -825,80 +987,17 @@ void TClickHouseHandler::HandleRequest(
             ControlInvoker_,
             Logger);
 
-        if (!context->TryPrepare()) {
-            YT_LOG_INFO("Failed to prepare context");
-            return;
+        auto adjuctQueryCountCallback = BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser());
+        ControlInvoker_->Invoke(BIND(adjuctQueryCountCallback, +1));
+        auto queryCountGuard = Finally(BIND(adjuctQueryCountCallback, -1).Via(ControlInvoker_));
+
+        try {
+            context->ProcessRequest();
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Request failed with unexpected error");
         }
 
-        auto state = ERetryState::Retrying;
-
-        auto setState = [&] (ERetryState newState) {
-            YT_LOG_DEBUG("Setting new state (State: %v -> %v)", state, newState);
-            state = newState;
-        };
-
-        YT_LOG_INFO("Starting retry routine (DeadInstanceRetryCount: %v)", config->DeadInstanceRetryCount);
-
-        for (int retryIndex = 0; retryIndex <= config->DeadInstanceRetryCount; ++retryIndex) {
-            YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retryIndex, state);
-            bool needForceUpdate = false;
-
-            if (state == ERetryState::Retrying && retryIndex > config->RetryWithoutUpdateLimit) {
-                YT_LOG_DEBUG("Forcing update due to long retrying");
-                needForceUpdate = true;
-            } else if (state == ERetryState::FailedToPickInstance) {
-                YT_LOG_DEBUG("Forcing update due to instance pick failure");
-                // If we did not find any instances on previous step, we need to do force update right now.
-                needForceUpdate = true;
-            }
-
-            if (needForceUpdate) {
-                setState(ERetryState::ForceUpdated);
-            }
-
-            YT_LOG_DEBUG("Picking instance");
-            if (!context->TryPickInstance(needForceUpdate)) {
-                YT_LOG_DEBUG("Failed to pick instance (State: %v)", state);
-                // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
-                if (state == ERetryState::CacheInvalidated) {
-                    YT_LOG_DEBUG("Stopping retrying due to failure after cache invalidation");
-                    break;
-                }
-                // Cache may be not relevant if we can not pick an instance after discovery force update.
-                if (state == ERetryState::ForceUpdated) {
-                    // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
-                    // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
-                    YT_LOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
-                    context->RemoveCliqueFromCache();
-                    setState(ERetryState::CacheInvalidated);
-                } else {
-                    YT_LOG_DEBUG("Failed to pick instance");
-                    setState(ERetryState::FailedToPickInstance);
-                }
-
-                continue;
-            }
-
-            YT_LOG_DEBUG("Pick successful, issuing proxied request");
-
-            if (context->TryIssueProxiedRequest(retryIndex)) {
-                YT_LOG_DEBUG("Successfully proxied request");
-                setState(ERetryState::Success);
-                break;
-            }
-
-            YT_LOG_DEBUG("Failed to proxy request (State: %v)", state);
-        }
-
-        YT_LOG_DEBUG("Finished retrying (State: %v)", state);
-
-        if (state == ERetryState::Success) {
-            ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), +1));
-            context->ForwardProxiedResponse();
-            ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), -1));
-        } else {
-            context->ReplyWithAllOccuredErrors(TError("Request failed"));
-        }
+        context->LogStructuredRequest();
     }
 }
 
