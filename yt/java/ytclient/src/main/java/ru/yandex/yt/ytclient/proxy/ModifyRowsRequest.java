@@ -15,7 +15,13 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class ModifyRowsRequest extends AbstractModifyRowsRequest<ModifyRowsRequest> {
+/**
+ * Row modification request that uses {@link UnversionedRow} as table row representation
+ *
+ * @see MappedModifyRowsRequest
+ * @see UnversionedRow
+ */
+public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsRequest> {
     private final List<UnversionedRow> rows = new ArrayList<>();
 
     public ModifyRowsRequest(String path, TableSchema schema) {

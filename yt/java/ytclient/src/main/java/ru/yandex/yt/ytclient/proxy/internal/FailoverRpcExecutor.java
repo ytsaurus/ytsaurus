@@ -235,7 +235,7 @@ public class FailoverRpcExecutor {
                 requestHeader.setRequestId(RpcUtil.toProto(currentRequestId));
             }
 
-            RpcRequest<?> copy = new RpcRequest(requestHeader.build(), request.body, request.attachments);
+            RpcRequest<?> copy = request.copy(requestHeader.build());
             cancellation.add(client.send(client, copy, handler, options));
 
             logger.debug("Starting new attempt; AttemptId: {}, OriginalRequestId: {}, RequestId: {}",

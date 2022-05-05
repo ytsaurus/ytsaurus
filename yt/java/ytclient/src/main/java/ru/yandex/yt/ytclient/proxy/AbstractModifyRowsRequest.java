@@ -7,16 +7,27 @@ import java.util.Objects;
 import java.util.Optional;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
+import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
+/**
+ * Base class for all kinds of modify row requests.
+ *
+ * Users should create and use one of inheritors.
+ *
+ * @see MappedModifyRowsRequest
+ * @see ModifyRowsRequest
+ * @see PreparedModifyRowRequest
+ */
 public abstract class AbstractModifyRowsRequest<R extends AbstractModifyRowsRequest<R>> extends RequestBase<R> {
     protected final String path;
     protected final TableSchema schema;
     protected Boolean requireSyncReplica = null;
     protected final ArrayList<ERowModificationType> rowModificationTypes = new ArrayList<>();
 
-    public AbstractModifyRowsRequest(String path, TableSchema schema) {
+    AbstractModifyRowsRequest(String path, TableSchema schema) {
         if (!schema.isWriteSchema()) {
             throw new IllegalArgumentException("ModifyRowsRequest requires a write schema");
         }
@@ -36,17 +47,15 @@ public abstract class AbstractModifyRowsRequest<R extends AbstractModifyRowsRequ
         return Collections.unmodifiableList(rowModificationTypes);
     }
 
-    @SuppressWarnings("unchecked")
     public R setRequireSyncReplica(boolean requireSyncReplica) {
         this.requireSyncReplica = requireSyncReplica;
-        return (R) this;
+        return self();
     }
 
     public Optional<Boolean> getRequireSyncReplica() {
         return Optional.ofNullable(requireSyncReplica);
     }
 
-    //
-
-    public abstract void serializeRowsetTo(List<byte[]> attachments);
+    abstract void serializeRowsetTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder);
 }
+

@@ -8,6 +8,7 @@ import com.google.protobuf.MessageLite;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 /**
  * Позволяет построить и в дальнейшем сделать запрос
@@ -25,6 +26,8 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
      * Мутабельный список аттачей к запросу
      */
     List<byte[]> attachments();
+
+    void setCompressedAttachments(Compression rpcCompression, List<byte[]> attachments);
 
     /**
      * Делает асинхронное выполнение запроса

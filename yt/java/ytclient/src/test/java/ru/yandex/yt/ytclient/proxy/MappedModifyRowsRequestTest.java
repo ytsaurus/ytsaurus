@@ -55,9 +55,8 @@ public class MappedModifyRowsRequestTest {
 
     private <T extends YTreeStateSupport<T>> void testMappedModifyRowsRequestImpl(
             Class<T> clazz, Supplier<T> newInstance, Consumer<T> changeSetter,
-            BiConsumer<T, T> keySetter, BiConsumer<T, T> persistentSetter)
-    {
-
+            BiConsumer<T, T> keySetter, BiConsumer<T, T> persistentSetter
+    ) {
         final Random random = new Random(42);
         final ObjectsMetadata<T> metadata = ObjectsMetadata.getMetadata(clazz, value -> { });
 

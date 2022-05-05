@@ -40,7 +40,7 @@ public class RpcClientWithCompression extends RpcClientWrapper {
         patchHeader(header);
         return super.send(
                 sender,
-                new RpcRequest<>(header.build(), request.body, request.attachments),
+                request.copy(header.build()),
                 handler,
                 options
         );
@@ -57,7 +57,7 @@ public class RpcClientWithCompression extends RpcClientWrapper {
         patchHeader(header);
         return super.startStream(
                 sender,
-                new RpcRequest<>(header.build(), request.body, request.attachments),
+                request.copy(header.build()),
                 consumer,
                 options
         );
