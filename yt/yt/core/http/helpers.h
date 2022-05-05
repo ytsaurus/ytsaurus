@@ -27,6 +27,7 @@ THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 
 void ProtectCsrfToken(const IResponseWriterPtr& rsp);
 
+std::optional<TString> GetHeader(const IRequestPtr& req, const TString& headerName);
 std::optional<TString> GetBalancerRequestId(const IRequestPtr& req);
 std::optional<TString> GetBalancerRealIP(const IRequestPtr& req);
 std::optional<TString> GetUserAgent(const IRequestPtr& req);

@@ -3,18 +3,19 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 from helpers import get_scheduling_options
 
 from yt_commands import (get, write_table, authors, raises_yt_error, abort_job, update_op_parameters, print_debug,
-                         create, sync_create_cells, create_user, create_group, add_member)
+                         create, sync_create_cells, create_user, create_group, add_member, ls)
 
 from yt.common import wait
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, write_log_barrier, read_structured_log
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-import time
-import threading
+import os
 import pytest
 import signal
+import threading
+import time
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
@@ -27,7 +28,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 "refresh_time": 100,
                 "expire_after_failed_update_time": 100,
             },
-            "force_enqueue_profiling": True,
         },
     }
 
@@ -332,3 +332,101 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             for user in ("u1", "u2", "u3"):
                 with raises_yt_error(901):  # AuthorizationError
                     assert clique.make_query_via_proxy("select 1 as a", user=user)
+
+
+class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
+    DELTA_PROXY_CONFIG = {
+        "clickhouse": {
+            "operation_cache": {
+                "refresh_time": 100,
+            },
+            "permission_cache": {
+                "refresh_time": 100,
+                "expire_after_failed_update_time": 100,
+            },
+        },
+    }
+
+    def setup(self):
+        self._setup()
+
+    def setup_method(self, method):
+        super(TestClickHouseProxyStructuredLog, self).setup_method(method)
+
+        proxy_orchid = "//sys/proxies/" + ls("//sys/proxies")[0] + "/orchid"
+        self.proxy_address = get(proxy_orchid + "/@remote_addresses/default")
+
+        self.proxy_log_file = self.path_to_run + "/logs/http-proxy-0.chyt.yson.log"
+
+    @classmethod
+    def modify_proxy_config(cls, configs):
+        assert len(configs) == 1
+
+        configs[0]["logging"]["rules"].append(
+            {
+                "min_level": "info",
+                "writers": ["chyt"],
+                "include_categories": ["ClickHouseProxyStructured", "Barrier"],
+                "message_format": "structured",
+            }
+        )
+        configs[0]["logging"]["writers"]["chyt"] = {
+            "type": "file",
+            "file_name": os.path.join(cls.path_to_run, "logs/http-proxy-0.chyt.yson.log"),
+            "format": "yson",
+        }
+
+    @authors("dakovalkov")
+    def test_structured_log(self):
+
+        headers = {
+            "x-ReQuEsT-Id": "1234-request-id-4321",
+            "X-Yql-OpErAtIOn-Id": "abcd-1234-yql",
+            "X-DataLens-Real-User": "dakovalkov",
+        }
+
+        with Clique(1) as clique:
+
+            from_barrier = write_log_barrier(self.proxy_address)
+
+            clique.make_query_via_proxy("select 1", headers=headers)
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("invalid query")
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1", database='*invalid_database')
+
+            to_barrier = write_log_barrier(self.proxy_address)
+
+            log_entries = read_structured_log(self.proxy_log_file, from_barrier=from_barrier, to_barrier=to_barrier)
+            print_debug(log_entries)
+            assert len(log_entries) == 3
+
+            def check_log_entry(actual, expected):
+                for column, expected_value in expected.items():
+                    assert column in actual and actual[column] == expected_value
+
+            check_log_entry(log_entries[0], {
+                "authenticated_user": "root",
+                "http_method": "post",
+                "clique_id": clique.op.id,
+                "http_code": 200,
+                "datalens_real_user": "dakovalkov",
+                "x_request_id": "1234-request-id-4321",
+                "yql_operation_id": "abcd-1234-yql",
+            })
+
+            check_log_entry(log_entries[1], {
+                "authenticated_user": "root",
+                "http_method": "post",
+                "clique_id": clique.op.id,
+                "http_code": 400,
+                # query failed, but there were no errors on proxy side, so error_code is None.
+            })
+
+            check_log_entry(log_entries[2], {
+                "authenticated_user": "root",
+                "http_method": "post",
+                "clique_alias": "*invalid_database",
+                "http_code": 500,
+                "error_code": 1,
+            })

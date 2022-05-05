@@ -250,15 +250,18 @@ void ProtectCsrfToken(const IResponseWriterPtr& rsp)
     headers->Set(XDnsPrefetchControlHeaderName, "off");
 }
 
-std::optional<TString> GetBalancerRequestId(const IRequestPtr& req)
+std::optional<TString> GetHeader(const IRequestPtr& req, const TString& headerName)
 {
-    static const TString XReqIdHeaderName("X-Req-Id");
-    auto header = req->GetHeaders()->Find(XReqIdHeaderName);
+    auto header = req->GetHeaders()->Find(headerName);
     if (header) {
         return *header;
     }
-
     return {};
+}
+
+std::optional<TString> GetBalancerRequestId(const IRequestPtr& req)
+{
+    return GetHeader(req, "X-Req-Id");
 }
 
 std::optional<TString> GetBalancerRealIP(const IRequestPtr& req)
@@ -277,12 +280,7 @@ std::optional<TString> GetBalancerRealIP(const IRequestPtr& req)
 
 std::optional<TString> GetUserAgent(const IRequestPtr& req)
 {
-    auto headers = req->GetHeaders();
-    auto userAgent = headers->Find("User-Agent");
-    if (userAgent) {
-        return *userAgent;
-    }
-    return {};
+    return GetHeader(req, "User-Agent");
 }
 
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer)

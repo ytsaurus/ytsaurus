@@ -488,7 +488,6 @@ class ClickHouseTestBase(YTEnvSetup):
                 "hard_age_threshold": 1500,
                 "master_cache_expire_time": 500,
             },
-            "force_enqueue_profiling": True,
         },
     }
 
