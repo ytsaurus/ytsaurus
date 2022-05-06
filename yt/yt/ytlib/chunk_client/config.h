@@ -255,7 +255,7 @@ DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkFragmentReaderConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Expiration timeouts of corresponding sync expiring caches.
@@ -297,7 +297,9 @@ public:
     //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
     bool UseDirectIO;
 
-    TChunkFragmentReaderConfig();
+    REGISTER_YSON_STRUCT(TChunkFragmentReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)
@@ -305,14 +307,16 @@ DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReplicaCacheConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TDuration ExpirationTime;
     TDuration ExpirationSweepPeriod;
     int MaxChunksPerLocate;
 
-    TChunkReplicaCacheConfig();
+    REGISTER_YSON_STRUCT(TChunkReplicaCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheConfig)
