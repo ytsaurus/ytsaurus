@@ -2595,8 +2595,10 @@ TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& ta
         };
 
         if (retryCount > 0) {
-            key.RefreshEra = replicationCard->Era;
-            replicationCardCache->ForceRefresh(key, replicationCard);
+            if (replicationCard) {
+                key.RefreshEra = replicationCard->Era;
+                replicationCardCache->ForceRefresh(key, replicationCard);
+            }
 
             TDelayedExecutor::WaitForDuration(mountCacheConfig->OnErrorSlackPeriod);
         }
