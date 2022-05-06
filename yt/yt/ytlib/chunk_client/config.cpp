@@ -146,61 +146,61 @@ TMediumDirectorySynchronizerConfig::TMediumDirectorySynchronizerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkFragmentReaderConfig::TChunkFragmentReaderConfig()
+void TChunkFragmentReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("chunk_replica_locator_expiration_timeout", ChunkReplicaLocatorExpirationTimeout)
+    registrar.Parameter("chunk_replica_locator_expiration_timeout", &TThis::ChunkReplicaLocatorExpirationTimeout)
         .Default(TDuration::Minutes(30));
-    RegisterParameter("peer_info_expiration_timeout", PeerInfoExpirationTimeout)
+    registrar.Parameter("peer_info_expiration_timeout", &TThis::PeerInfoExpirationTimeout)
         .Default(TDuration::Minutes(30));
 
-    RegisterParameter("seeds_expiration_timeout", SeedsExpirationTimeout)
+    registrar.Parameter("seeds_expiration_timeout", &TThis::SeedsExpirationTimeout)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("periodic_update_delay", PeriodicUpdateDelay)
+    registrar.Parameter("periodic_update_delay", &TThis::PeriodicUpdateDelay)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("net_queue_size_factor", NetQueueSizeFactor)
+    registrar.Parameter("net_queue_size_factor", &TThis::NetQueueSizeFactor)
         .Default(0.5);
-    RegisterParameter("disk_queue_size_factor", DiskQueueSizeFactor)
+    registrar.Parameter("disk_queue_size_factor", &TThis::DiskQueueSizeFactor)
         .Default(1.0);
 
-    RegisterParameter("probe_chunk_set_rpc_timeout", ProbeChunkSetRpcTimeout)
+    registrar.Parameter("probe_chunk_set_rpc_timeout", &TThis::ProbeChunkSetRpcTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("get_chunk_fragment_set_rpc_timeout", GetChunkFragmentSetRpcTimeout)
+    registrar.Parameter("get_chunk_fragment_set_rpc_timeout", &TThis::GetChunkFragmentSetRpcTimeout)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("fragment_read_hedging_delay", FragmentReadHedgingDelay)
+    registrar.Parameter("fragment_read_hedging_delay", &TThis::FragmentReadHedgingDelay)
         .Default();
 
-    RegisterParameter("retry_count_limit", RetryCountLimit)
+    registrar.Parameter("retry_count_limit", &TThis::RetryCountLimit)
         .GreaterThanOrEqual(1)
         .Default(10);
-    RegisterParameter("retry_backoff_time", RetryBackoffTime)
+    registrar.Parameter("retry_backoff_time", &TThis::RetryBackoffTime)
         .Default(TDuration::MilliSeconds(10));
-    RegisterParameter("read_time_limit", ReadTimeLimit)
+    registrar.Parameter("read_time_limit", &TThis::ReadTimeLimit)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("chunk_info_cache_expiration_timeout", ChunkInfoCacheExpirationTimeout)
+    registrar.Parameter("chunk_info_cache_expiration_timeout", &TThis::ChunkInfoCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("suspicious_node_grace_period", SuspiciousNodeGracePeriod)
+    registrar.Parameter("suspicious_node_grace_period", &TThis::SuspiciousNodeGracePeriod)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("use_direct_io", UseDirectIO)
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
         .Default(false)
         .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplicaCacheConfig::TChunkReplicaCacheConfig()
+void TChunkReplicaCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("expiration_time", ExpirationTime)
+    registrar.Parameter("expiration_time", &TThis::ExpirationTime)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("expiration_sweep_period", ExpirationSweepPeriod)
+    registrar.Parameter("expiration_sweep_period", &TThis::ExpirationSweepPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("max_chunks_per_locate", MaxChunksPerLocate)
+    registrar.Parameter("max_chunks_per_locate", &TThis::MaxChunksPerLocate)
         .Default(1'000);
 }
 

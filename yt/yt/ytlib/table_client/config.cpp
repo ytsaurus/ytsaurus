@@ -49,12 +49,12 @@ void THunkChunkPayloadWriterConfig::Register(TRegistrar registrar)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TBatchHunkReaderConfig::TBatchHunkReaderConfig()
+void TBatchHunkReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_hunk_count_per_read", MaxHunkCountPerRead)
+    registrar.Parameter("max_hunk_count_per_read", &TThis::MaxHunkCountPerRead)
         .GreaterThan(0)
         .Default(10'000);
-    RegisterParameter("max_total_hunk_length_per_read", MaxTotalHunkLengthPerRead)
+    registrar.Parameter("max_total_hunk_length_per_read", &TThis::MaxTotalHunkLengthPerRead)
         .GreaterThan(0)
         .Default(16_MB);
 }

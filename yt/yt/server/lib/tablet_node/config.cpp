@@ -368,10 +368,25 @@ void TTabletStoreReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletHunkReaderConfig::TTabletHunkReaderConfig()
+void TTabletHunkReaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("use_new_chunk_fragment_reader", UseNewChunkFragmentReader)
+    registrar.Parameter("use_new_chunk_fragment_reader", &TThis::UseNewChunkFragmentReader)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTabletHunkWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TTabletHunkWriterConfig* config) {
+        config->EnableStripedErasure = true;
+    });
+
+    registrar.Postprocessor([&] (TTabletHunkWriterConfig* config) {
+        if (!config->EnableStripedErasure) {
+            THROW_ERROR_EXCEPTION("Hunk chunk writer must use striped erasure writer");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

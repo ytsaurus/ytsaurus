@@ -3619,7 +3619,7 @@ private:
 
         // Parse and prepare hunk reader config.
         try {
-            result.HunkReaderConfig = UpdateYsonSerializable(
+            result.HunkReaderConfig = UpdateYsonStruct(
                 GetDynamicConfig()->HunkChunkReader,
                 tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
         } catch (const std::exception& ex) {

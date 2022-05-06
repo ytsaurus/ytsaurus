@@ -250,12 +250,27 @@ public:
     // COMPAT(babenko)
     bool UseNewChunkFragmentReader;
 
-    TTabletHunkReaderConfig();
+    REGISTER_YSON_STRUCT(TTabletHunkReaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletHunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TTabletHunkWriterConfig
+    : public NChunkClient::TMultiChunkWriterConfig
+    , public NTableClient::THunkChunkPayloadWriterConfig
+{
+    REGISTER_YSON_STRUCT(TTabletHunkWriterConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)
+
+///////////////////////////////////////////////////////////////////////////////
 
 class TTabletManagerConfig
     : public NYTree::TYsonSerializable
@@ -688,30 +703,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
-
-///////////////////////////////////////////////////////////////////////////////
-
-class TTabletHunkWriterConfig
-    : public NChunkClient::TMultiChunkWriterConfig
-    , public NTableClient::THunkChunkPayloadWriterConfig
-{
-    REGISTER_YSON_STRUCT(TTabletHunkWriterConfig)
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Preprocessor([&] (TTabletHunkWriterConfig* config) {
-            config->EnableStripedErasure = true;
-        });
-
-        registrar.Postprocessor([&] (TTabletHunkWriterConfig* config) {
-            if (!config->EnableStripedErasure) {
-                THROW_ERROR_EXCEPTION("Hunk chunk writer must use striped erasure writer");
-            }
-        });
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
