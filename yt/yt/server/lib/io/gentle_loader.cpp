@@ -314,7 +314,10 @@ private:
             },
             category)
             .Apply(BIND([&] () {
-                return IOEngine_->FlushFile({handle, EFlushFileMode::Data});
+                if (Config_->FlushAfterWrite) {
+                    return IOEngine_->FlushFile({handle, EFlushFileMode::Data});
+                }
+                return VoidFuture;
             }));
 
         WaitFor(future)
@@ -953,7 +956,7 @@ private:
 
                 switch (state.Status) {
                     case ECongestedStatus::OK:
-                        if (windowTime < Config_->WindowVerificationPeriod) {
+                        if (windowTime < Config_->WindowPeriod) {
                             // It is too early to increase window.
                             break;
                         }
@@ -1038,7 +1041,7 @@ private:
     void SendRequest(i32 congestionWindow, TRandomReader& reader, TRandomWriter& writer)
     {
         if (std::ssize(Results_) >= Config_->MaxInFlightCount) {
-            auto _ = WaitFor(AnySet(Results_));
+            auto _ = WaitFor(AnySet(Results_, {.CancelInputOnShortcut = false}));
             Results_.erase(std::remove_if(
                 Results_.begin(),
                 Results_.end(),
@@ -1071,7 +1074,7 @@ private:
 
             Results_.push_back(std::move(future));
         }
-
+        YT_VERIFY(congestionWindow > 0);
         YieldTimeCounter_ += TDuration::Seconds(1) / congestionWindow;
         auto yieldTimeout = std::max(YieldTimeCounter_ - TInstant::Now(), TDuration{});
         TDelayedExecutor::WaitForDuration(yieldTimeout);

@@ -491,6 +491,10 @@ public:
     TString MediumName;
     bool Enabled;
 
+    double VerificationInitialWindowFactor;
+    double VerificationSegmentSizeFactor;
+    TDuration VerificationWindowPeriod;
+
     TMediumThroughputMeterConfig();
 };
 
@@ -509,13 +513,13 @@ public:
     // Remeasure throughtput after this timeout.
     TDuration TimeBetweenTests;
 
-    // Desired testing session duration.
-    TDuration TestingTimeSoftLimit;
+    // Desired estimate stage duration.
+    TDuration EstimateTimeLimit;
 
-    // Max allowed testing duration.
+    int MaxEstimateCongestions;
+
+    // Max allowed overall testing duration.
     TDuration TestingTimeHardLimit;
-
-    int MaxCongestionsPerTest;
 
     TIOThroughputMeterConfig();
 };
