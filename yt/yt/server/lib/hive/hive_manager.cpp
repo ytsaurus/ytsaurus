@@ -1175,7 +1175,6 @@ private:
         i64 messageBytesToPost = 0;
         int messageCountToPost = 0;
         std::vector<TMailbox::TOutcomingMessage> messagesToPost;
-        messagesToPost.reserve(Config_->MaxMessagesPerPost);
         int currentMessageIndex = firstInFlightOutcomingMessageId - firstOutcomingMessageId;
         while (currentMessageIndex < std::ssize(outcomingMessages) &&
                messageCountToPost < Config_->MaxMessagesPerPost &&
