@@ -918,6 +918,7 @@ private:
         PreparedTransactions_.clear();
         LastSerializedCommitTimestamps_.clear();
         MinCommitTimestamp_.reset();
+        Decommissioned_ = false;
     }
 
 
