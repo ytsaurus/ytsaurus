@@ -173,6 +173,7 @@ class TestNodeFlavorsExecNodeIsNotDataNode(TestNodeFlavors):
         "exec_node_is_not_data_node": True,
     }
 
+
 class TestNodeFlavorsExecNodeIsNotDataNodeMulticell(TestNodeFlavors):
     NUM_SECONDARY_MASTER_CELLS = 2
 
