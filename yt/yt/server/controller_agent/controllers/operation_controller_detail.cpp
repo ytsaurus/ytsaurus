@@ -1147,7 +1147,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             // - Merge decided to teleport all input chunks
             // - Anything else?
             YT_LOG_INFO("No jobs needed");
-            OnOperationCompleted(false /* interrupted */);
+            OnOperationCompleted(/*interrupted*/ false);
             return result;
         } else {
             YT_VERIFY(UnavailableInputChunkCount == 0);
@@ -1202,7 +1202,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         }
         State = EControllerState::Running;
 
-        LogProgress(/* force */ true);
+        LogProgress(/*force*/ true);
     } catch (const std::exception& ex) {
         auto wrappedError = TError(EErrorCode::MaterializationFailed, "Materialization failed")
             << ex;
@@ -1275,7 +1275,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     CreateLivePreviewTables();
 
     if (IsCompleted()) {
-        OnOperationCompleted(/* interrupted */ false);
+        OnOperationCompleted(/*interrupted*/ false);
         return result;
     }
 
@@ -1433,7 +1433,10 @@ void TOperationControllerBase::InitInputStreamDirectory()
     inputStreams.reserve(InputTables_.size());
     for (const auto& [tableIndex, inputTable] : Enumerate(InputTables_)) {
         for (const auto& [rangeIndex, range] : Enumerate(inputTable->Path.GetRanges())) {
-            auto& descriptor = inputStreams.emplace_back(inputTable->Teleportable, inputTable->IsPrimary(), inputTable->Dynamic /* isVersioned */);
+            auto& descriptor = inputStreams.emplace_back(
+                inputTable->Teleportable,
+                inputTable->IsPrimary(),
+                /*isVersioned*/ inputTable->Dynamic);
             descriptor.SetTableIndex(tableIndex);
             descriptor.SetRangeIndex(rangeIndex);
         }
@@ -1807,7 +1810,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
     bool autoMergeEnabled = !streamDescriptors.empty();
     if (autoMergeEnabled) {
         AutoMergeTask_ = New<TAutoMergeTask>(
-            this /* taskHost */,
+            /*taskHost*/ this,
             chunkCountPerMergeJob,
             autoMergeSpec->ChunkSizeThreshold,
             dataWeightPerJob,
@@ -3057,7 +3060,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                         jobId,
                         nodeId);
                     auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::Other);
-                    OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
+                    OnJobAborted(std::move(abortedJobSummary), /*byScheduler*/ false);
                     return;
                 }
 
@@ -3070,7 +3073,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     auto maybeAbortReason = joblet->Task->ShouldAbortCompletingJob(joblet);
     if (maybeAbortReason) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
-        OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason), /* byScheduler */ false);
+        OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason), /*byScheduler*/ false);
         return;
     }
 
@@ -3202,7 +3205,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
             jobId,
             joblet->NodeDescriptor.Address);
         auto abortedJobSummary = std::make_unique<TAbortedJobSummary>(*jobSummary, EAbortReason::NodeBanned);
-        OnJobAborted(std::move(abortedJobSummary), false /* byScheduler */);
+        OnJobAborted(std::move(abortedJobSummary), /*byScheduler*/ false);
         return;
     }
 
@@ -3296,7 +3299,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     LogProgress();
 
     if (IsCompleted()) {
-        OnOperationCompleted(/* interrupted */ false);
+        OnOperationCompleted(/*interrupted*/ false);
     }
 }
 
@@ -3335,7 +3338,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         jobSummary->AbortedByController);
 
     auto joblet = FindJoblet(jobId);
-    
+
     // It is ugly and will be fixed soon.
     if (ExpectsJobInfoFromNode(*jobSummary)) {
         YT_VERIFY(joblet);
@@ -3422,7 +3425,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
     }
 
     if (IsCompleted()) {
-        OnOperationCompleted(/* interrupted */ false);
+        OnOperationCompleted(/*interrupted*/ false);
     }
 }
 
@@ -3700,7 +3703,8 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
 
     auto& descriptor = GetOrCrash(InputChunkMap, chunkId);
     YT_VERIFY(!descriptor.InputChunks.empty());
-    auto& chunkSpec = descriptor.InputChunks.front();
+
+    const auto& chunkSpec = descriptor.InputChunks.front();
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
     if (IsUnavailable(replicas, codecId, CheckParityReplicas())) {
@@ -3731,7 +3735,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
     }
 
     // Update replicas in place for all input chunks with current chunkId.
-    for (auto& chunkSpec : descriptor->InputChunks) {
+    for (const auto& chunkSpec : descriptor->InputChunks) {
         chunkSpec->SetReplicaList(replicas);
     }
 
@@ -3739,10 +3743,11 @@ void TOperationControllerBase::OnInputChunkAvailable(
 
     for (const auto& inputStripe : descriptor->InputStripes) {
         --inputStripe.Stripe->WaitingChunkCount;
-        if (inputStripe.Stripe->WaitingChunkCount > 0)
+        if (inputStripe.Stripe->WaitingChunkCount > 0) {
             continue;
+        }
 
-        auto task = inputStripe.Task;
+        const auto& task = inputStripe.Task;
         task->GetChunkPoolInput()->Resume(inputStripe.Cookie);
         UpdateTask(task);
     }
@@ -3944,7 +3949,7 @@ void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransact
     } else {
         OnOperationFailed(
             GetSchedulerTransactionsAbortedError(transactionIds),
-            /* flush */ false);
+            /*flush*/ false);
     }
 }
 
@@ -4047,14 +4052,14 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     // NB: We do not abort input transaction synchronously since
     // it can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    abortTransaction(InputTransaction, SchedulerInputClient, /* sync */ false);
+    abortTransaction(InputTransaction, SchedulerInputClient, /*sync*/ false);
     abortTransaction(OutputTransaction, SchedulerOutputClient);
-    abortTransaction(AsyncTransaction, SchedulerClient, /* sync */ false);
+    abortTransaction(AsyncTransaction, SchedulerClient, /*sync*/ false);
     if (!debugTransactionCommitted) {
-        abortTransaction(DebugTransaction, SchedulerClient, /* sync */ false);
+        abortTransaction(DebugTransaction, SchedulerClient, /*sync*/ false);
     }
     for (const auto& transaction : NestedInputTransactions) {
-        abortTransaction(transaction, SchedulerInputClient, /* sync */ false);
+        abortTransaction(transaction, SchedulerInputClient, /*sync*/ false);
     }
 
     WaitFor(AllSucceeded(abortTransactionFutures))
@@ -4063,7 +4068,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     YT_VERIFY(finalState == EControllerState::Aborted || finalState == EControllerState::Failed);
     State = finalState;
 
-    LogProgress(/* force */ true);
+    LogProgress(/*force*/ true);
 
     YT_LOG_INFO("Operation controller terminated");
 }
@@ -4336,7 +4341,7 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
     Config = config;
 }
 
-void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /* joblet */)
+void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
 { }
 
 void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const
@@ -4686,10 +4691,10 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
         }
 
         LastUpdatedAccountResourceUsageLeaseMap_[account] = info;
-        
+
         auto error = WaitFor(Host->UpdateAccountResourceUsageLease(info.LeaseId, info.DiskQuota));
         if (!error.IsOK()) {
-            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) || 
+            if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
                 error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
                 error.FindMatching(NYTree::EErrorCode::ResolveError))
             {
@@ -4701,7 +4706,7 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
                         << error);
             } else {
                 Host->Disconnect(
-                    TError("Failed to update account usage lease") 
+                    TError("Failed to update account usage lease")
                         << error);
             }
             return;
@@ -4792,7 +4797,7 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     auto flushResult = WaitFor(Host->FlushOperationNode());
     if (checkFlushResult && !flushResult.IsOK()) {
         // We do not want to complete operation if progress flush has failed.
-        OnOperationFailed(flushResult, /* flush */ false);
+        OnOperationFailed(flushResult, /*flush*/ false);
     }
 }
 
@@ -4807,9 +4812,9 @@ void TOperationControllerBase::OnOperationCompleted(bool /*interrupted*/)
     State = EControllerState::Completed;
 
     BuildAndSaveProgress();
-    FlushOperationNode(/* checkFlushResult */ true);
+    FlushOperationNode(/*checkFlushResult*/ true);
 
-    LogProgress(/* force */ true);
+    LogProgress(/*force*/ true);
 
     Host->OnOperationCompleted();
 }
@@ -4923,7 +4928,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
                 /*abortAllJoblets*/ true)
             .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)));
     } else {
-        OnOperationFailed(error, /* flush */ true);
+        OnOperationFailed(error, /*flush*/ true);
     }
 }
 
@@ -4931,7 +4936,7 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
 {
     if (IsFailing() && JobletMap.empty()) {
         auto error = GetTimeLimitError();
-        OnOperationFailed(error, /* flush */ true);
+        OnOperationFailed(error, /*flush*/ true);
     }
 }
 
@@ -4971,7 +4976,7 @@ void TOperationControllerBase::AddChunksToUnstageList(std::vector<TInputChunkPtr
             livePreviewDescriptor.LivePreviewIndex);
         LivePreviewChunks_.erase(it);
     }
-    Host->AddChunkTreesToUnstageList(std::move(chunkIds), false /* recursive */);
+    Host->AddChunkTreesToUnstageList(std::move(chunkIds), /*recursive*/ false);
 }
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
@@ -5020,7 +5025,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     } else {
         auto stderrChunkId = FromProto<TChunkId>(schedulerJobResult.stderr_chunk_id());
         if (stderrChunkId) {
-            Host->AddChunkTreesToUnstageList({stderrChunkId}, false /* recursive */);
+            Host->AddChunkTreesToUnstageList({stderrChunkId}, /*recursive*/ false );
         }
         hasStderr = static_cast<bool>(stderrChunkId);
     }
@@ -5070,7 +5075,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
                 BuildFinishedJobAttributes(
                     joblet,
                     summary.get(),
-                    /* outputStatistics */ true,
+                    /*outputStatistics*/ true,
                     hasStderr,
                     hasFailContext,
                     fluent);
@@ -5276,7 +5281,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
             StderrTable_->ExternalCellTag,
             StderrTable_->TableWriterOptions->ReplicationFactor,
             StderrTable_->TableWriterOptions->CompressionCodec,
-            std::nullopt /* account */,
+            /*account*/ std::nullopt,
             "create_stderr",
             StderrTable_->EffectiveAcl,
             StderrTable_->TableUploadOptions.TableSchema);
@@ -5449,7 +5454,7 @@ void TOperationControllerBase::FetchInputTables()
 
         auto inputChunk = New<TInputChunk>(
             chunkSpec,
-            /* keyColumnCount */ table->Comparator.GetLength());
+            /*keyColumnCount*/ table->Comparator.GetLength());
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetChunkIndex(totalChunkCount++);
 
@@ -7993,7 +7998,7 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
             chunkTreeIdsToRelease.size(),
             cookie.SnapshotIndex);
 
-        Host->AddChunkTreesToUnstageList(chunkTreeIdsToRelease, true /* recursive */);
+        Host->AddChunkTreesToUnstageList(chunkTreeIdsToRelease, /*recursive*/ true);
     }
 
     RecentSnapshotIndex_.reset();
@@ -8529,7 +8534,7 @@ NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
                         BuildJobAttributes(
                             joblet,
                             EJobState::Running,
-                            /* outputStatistics */ false,
+                            /*outputStatistics*/ false,
                             joblet->StderrSize,
                             fluent);
                     })
@@ -9636,7 +9641,7 @@ bool TOperationControllerBase::GetEnableCudaGpuCoreDump() const
     return false;
 }
 
-void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)
+void TOperationControllerBase::OnChunksReleased(int /*chunkCount*/)
 { }
 
 TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptions() const
@@ -9790,7 +9795,7 @@ void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
             YT_LOG_INFO("Row count limit is reached (CompletedRowCount: %v, RowCountLimit: %v).",
                 CompletedRowCount_,
                 RowCountLimit);
-            OnOperationCompleted(true /* interrupted */);
+            OnOperationCompleted(/*interrupted*/ true);
         }
     }
 }
@@ -10113,20 +10118,20 @@ IChunkPoolInput::TCookie TOperationControllerBase::TSink::Add(TChunkStripePtr st
     return AddWithKey(stripe, TChunkStripeKey());
 }
 
-void TOperationControllerBase::TSink::Suspend(TCookie /* cookie */)
+void TOperationControllerBase::TSink::Suspend(TCookie /*cookie*/)
 {
     YT_ABORT();
 }
 
-void TOperationControllerBase::TSink::Resume(TCookie /* cookie */)
+void TOperationControllerBase::TSink::Resume(TCookie /*cookie*/)
 {
     YT_ABORT();
 }
 
 void TOperationControllerBase::TSink::Reset(
-    TCookie /* cookie */,
-    TChunkStripePtr /* stripe */,
-    TInputChunkMappingPtr /* mapping */)
+    TCookie /*cookie*/,
+    TChunkStripePtr /*stripe*/,
+    TInputChunkMappingPtr /*mapping*/)
 {
     YT_ABORT();
 }

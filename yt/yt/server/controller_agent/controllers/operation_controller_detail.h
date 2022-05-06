@@ -186,7 +186,7 @@ private: \
         (std::unique_ptr<TRunningJobSummary> jobSummary),
         (std::move(jobSummary)),
         true)
-    
+
     IMPLEMENT_SAFE_METHOD(
         void,
         AbandonJob,
@@ -554,6 +554,7 @@ protected:
     bool CleanStart = false;
 
     TOperationSnapshot Snapshot;
+
     struct TRowBufferTag { };
     NTableClient::TRowBufferPtr RowBuffer;
 
@@ -815,15 +816,10 @@ protected:
     struct TStripeDescriptor
     {
         NChunkPools::TChunkStripePtr Stripe;
-        NChunkPools::IChunkPoolInput::TCookie Cookie;
+        NChunkPools::IChunkPoolInput::TCookie Cookie = NChunkPools::IChunkPoolInput::NullCookie;
         TTaskPtr Task;
 
-        TStripeDescriptor()
-            : Cookie(NChunkPools::IChunkPoolInput::NullCookie)
-        { }
-
         void Persist(const TPersistenceContext& context);
-
     };
 
     struct TInputChunkDescriptor
@@ -831,14 +827,9 @@ protected:
     {
         TCompactVector<TStripeDescriptor, 1> InputStripes;
         TCompactVector<NChunkClient::TInputChunkPtr, 1> InputChunks;
-        EInputChunkState State;
-
-        TInputChunkDescriptor()
-            : State(EInputChunkState::Active)
-        { }
+        EInputChunkState State = EInputChunkState::Active;
 
         void Persist(const TPersistenceContext& context);
-
     };
 
     //! Called when a job is unable to read an input chunk or
@@ -1067,7 +1058,7 @@ private:
     class TCachedYsonCallback
     {
     public:
-        using TCallback = NYT::TCallback<NYson::TYsonString()>;
+        using TCallback = TCallback<NYson::TYsonString()>;
 
         DEFINE_BYVAL_RW_PROPERTY(TDuration, UpdatePeriod)
 
@@ -1076,8 +1067,9 @@ private:
         const NYson::TYsonString& GetValue();
 
     private:
+        const TCallback Callback_;
+
         TInstant UpdateTime_ = TInstant::Zero();
-        TCallback Callback_;
         NYson::TYsonString Value_;
     };
 
@@ -1277,7 +1269,7 @@ private:
         void Persist(const TPersistenceContext& context);
     };
     THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
-    
+
     THashMap<TString, TResourceUsageLeaseInfo> LastUpdatedAccountResourceUsageLeaseMap_;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateAccountResourceUsageLeasesExecutor_;
@@ -1314,7 +1306,7 @@ private:
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
     void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
-    
+
     void UpdateAccountResourceUsageLeases();
 
     void InitializeStandardStreamDescriptors();
