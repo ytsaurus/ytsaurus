@@ -184,7 +184,7 @@ public:
         const NProfiling::TProfiler& profiler);
 
     void Initialize();
-    void ClearState();
+    void ResetState();
     void OnStartLeading(TEpochContextPtr epochContext);
     void OnLeaderRecoveryComplete();
     void OnStopLeading();
@@ -301,6 +301,8 @@ private:
     void ReleaseUserLock();
     void AcquireSystemLock();
     void ReleaseSystemLock();
+
+    void ClearState();
 
     void CancelSnapshot(const TError& error);
 

@@ -80,7 +80,7 @@ TRecoveryResult TRecovery::DoRun()
                 currentState,
                 TargetState_);
         } else {
-            DecoratedAutomaton_->ClearState();
+            DecoratedAutomaton_->ResetState();
             THROW_ERROR_EXCEPTION("Error recovering to state %v: current automaton state %v is greater",
                 TargetState_,
                 currentState);
@@ -275,7 +275,7 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
                     lastRemoteSequenceNumber,
                     automatonSequenceNumber,
                     reliablyAppliedSequenceNumber);
-                DecoratedAutomaton_->ClearState();
+                DecoratedAutomaton_->ResetState();
                 THROW_ERROR_EXCEPTION("Truncating a mutation that was already applied");
             }
         }
