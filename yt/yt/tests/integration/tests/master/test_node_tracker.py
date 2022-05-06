@@ -222,7 +222,7 @@ class TestNodeTracker(YTEnvSetup):
                 "io_throughput_meter": {
                     "enabled": True,
                     "time_between_tests": 1000,
-                    "testing_time_soft_limit": 10000,
+                    "estimate_time_limit": 10000,
                     "mediums": [
                         {
                             "medium_name": "default",
@@ -235,6 +235,7 @@ class TestNodeTracker(YTEnvSetup):
                             "segment_size": 5,
                             "simulated_request_latency": 200,
                             "use_direct_io": False,
+                            "verification_window_period" : 100,
                             "congestion_detector": {
                                 "probes_interval": 50,
                             }

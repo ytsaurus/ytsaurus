@@ -87,7 +87,7 @@ TGentleLoaderConfig::TGentleLoaderConfig()
 
     RegisterParameter("segment_size", SegmentSize)
         .GreaterThan(0)
-        .Default(10);
+        .Default(32);
 
     RegisterParameter("max_window_size", MaxWindowSize)
         .GreaterThan(0)
@@ -119,6 +119,9 @@ TGentleLoaderConfig::TGentleLoaderConfig()
 
     RegisterParameter("remove_written_files", RemoveWrittenFiles)
         .Default(true);
+    
+    RegisterParameter("flush_after_write", FlushAfterWrite)
+        .Default(false);
 
     RegisterParameter("stale_files_count_per_writer", StaleFilesCountPerWriter)
         .Default(0);
@@ -142,7 +145,7 @@ TGentleLoaderConfig::TGentleLoaderConfig()
     RegisterParameter("initial_slow_start_threshold", InitialSlowStartThreshold)
         .Default(0);
 
-    RegisterParameter("window_verification_period", WindowVerificationPeriod)
+    RegisterParameter("window_period", WindowPeriod)
         .Default();
 }
 

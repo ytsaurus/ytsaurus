@@ -78,6 +78,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETestingStage,
+    ((None) (0))
+    ((Estimate) (1))
+    ((Verify) (2))
+);
+
 class TLocationLoadTester
     : public TRefCounted
 {
@@ -109,35 +115,16 @@ public:
         if (auto maxWriteRate = Location_->GetMaxWriteRateByDWPD()) {
             mediumConfig->MaxWriteRate = maxWriteRate;
         }
-
-        auto randomFileProvider = New<TRandomFileProvider>(
-            ChunkStore_,
-            Location_->GetUuid(),
-            mediumConfig->PacketSize,
-            Logger);
-
-        auto loader = CreateGentleLoader(
-            mediumConfig,
-            Location_->GetPath(),
-            Location_->GetIOEngineModel(),
-            randomFileProvider,
-            Invoker_,
-            Logger);
-
+    
         auto now = TInstant::Now();
         Session_ = TSession{
-            .Loader = loader,
             .Timestamp = now,
             .LastCongested = now,
             .Config = config,
             .MediumConfig = mediumConfig,
         };
 
-        loader->SubscribeCongested(
-            BIND(&TLocationLoadTester::SessionCongested, MakeWeak(this), Session_->Timestamp));
-
-        // TODO(capone212): think about using workload model.
-        loader->Start({});
+        StartTest(ETestingStage::Estimate);
     }
 
     bool Running() const
@@ -159,7 +146,7 @@ public:
                 Location_->GetId());
         }
 
-        if (session) {
+        if (session && session->Loader) {
             session->Loader->Stop();
         }
         ScheduledAt_.reset();
@@ -221,17 +208,20 @@ public:
     }
 
 private:
+
     struct TSession
     {
         NIO::IGentleLoaderPtr Loader;
         TInstant Timestamp;
         TInstant LastCongested;
 
+        ETestingStage Stage = ETestingStage::None;
+
         TIOThroughputMeterConfigPtr Config;
         TMediumThroughputMeterConfigPtr MediumConfig;
 
-        TStoreLocation::TIOStatistics BestRoundResult;
         TDuration BestRoundDuration;
+        i64 BestRoundCongestionWindow = 0;
         int RoundsCount = 0;
     };
 
@@ -251,15 +241,90 @@ private:
 
     std::optional<TInstant> ScheduledAt_;
 
-    void SessionCongested(TInstant sessionTimestamp, i64 /*congestionWindow*/)
+    void StartTest(ETestingStage stage)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        if (!Session_ || Session_->Timestamp != sessionTimestamp) {
+        if (!Session_) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Starting test stage (Location: %v, Stage: %v)",
+            Location_->GetId(),
+            stage);
+
+        auto config = NYTree::CloneYsonSerializable(Session_->MediumConfig);
+        if (stage == ETestingStage::Verify) {
+            auto window = Session_->BestRoundCongestionWindow;
+            config->SegmentSize = static_cast<i64>(window * config->VerificationSegmentSizeFactor) + 1;
+            config->InitialWindowSize = static_cast<i64>(window * config->VerificationInitialWindowFactor) + 1;
+            config->InitialSlowStartThreshold = config->InitialWindowSize;
+            config->WindowPeriod = config->VerificationWindowPeriod;
+
+            YT_LOG_DEBUG("Verification stage parameters (Location: %v, SegmentSize: %v, InitialWindowSize: %v, "
+                "InitialSlowStartThreshold: %v, WindowPeriod: %v)",
+                Location_->GetId(),
+                config->SegmentSize,
+                config->InitialWindowSize,
+                config->InitialSlowStartThreshold,
+                config->WindowPeriod);
+        }
+
+        auto randomFileProvider = New<TRandomFileProvider>(
+            ChunkStore_,
+            Location_->GetUuid(),
+            config->PacketSize,
+            Logger);
+
+        auto loader = CreateGentleLoader(
+            config,
+            Location_->GetPath(),
+            Location_->GetIOEngineModel(),
+            randomFileProvider,
+            Invoker_,
+            Logger);
+
+        loader->SubscribeCongested(
+            BIND(&TLocationLoadTester::SessionCongested, MakeWeak(this), Session_->Timestamp, stage));
+        loader->Start({});
+
+        Session_->Stage = stage;
+        std::swap(Session_->Loader, loader);
+
+        // Stop old task.
+        if (loader) {
+            loader->Stop();
+        }
+    }
+
+    void SessionCongested(TInstant sessionTimestamp, ETestingStage stage, i64 congestionWindow)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (!Session_
+            || Session_->Timestamp != sessionTimestamp
+            || Session_->Stage != stage) {
             // Stale event.
             return;
         }
 
+        switch (stage) {
+            case ETestingStage::Estimate:
+                EstimateCongested(congestionWindow);
+                break;
+
+            case ETestingStage::Verify:
+                VerifyCongested(congestionWindow);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void EstimateCongested(i64 congestionWindow)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
         const auto& config = Session_->Config;
 
         // Testing round is defined as a time between two congestions.
@@ -270,38 +335,56 @@ private:
         // longer test duration corelate with more accurate result.
         auto now = TInstant::Now();
         auto roundDuration = now - Session_->LastCongested;
-        auto roundResult = Location_->GetIOStatistics();
-
-        // Use filesystem level statistics if disk stats are not available.
-        // This is mostly for test environment.
-        if (roundResult.DiskReadRate == 0 && roundResult.DiskWriteRate == 0) {
-            roundResult.DiskReadRate = roundResult.FilesystemReadRate;
-            roundResult.DiskWriteRate = roundResult.FilesystemWriteRate;
-        }
 
         if (roundDuration > Session_->BestRoundDuration) {
             Session_->BestRoundDuration = roundDuration;
-            Session_->BestRoundResult = roundResult;
+            Session_->BestRoundCongestionWindow = congestionWindow;
         }
 
         Session_->LastCongested = now;
         ++Session_->RoundsCount;
 
-        auto overallDuration = now - Session_->Timestamp;
+        auto estimateDuration = now - Session_->Timestamp;
 
-        if (Session_->RoundsCount > config->MaxCongestionsPerTest || overallDuration > config->TestingTimeSoftLimit) {
-            YT_LOG_WARNING("Setting test results (Location: %v, OverallDuration: %v, RoundsCount: %v, "
-                "DiskReadRate: %v, DiskWriteRate: %v, BestRoundDuration: %v)",
+        if (Session_->RoundsCount > config->MaxEstimateCongestions || estimateDuration > config->EstimateTimeLimit) {
+            YT_LOG_DEBUG("Estimate stage finished (Location: %v, EstimateDuration: %v, "
+                "RoundsCount: %v, BestRoundDuration: %v, BestRoundWindow: %v)",
                 Location_->GetId(),
-                overallDuration,
+                estimateDuration,
                 Session_->RoundsCount,
-                Session_->BestRoundResult.DiskReadRate,
-                Session_->BestRoundResult.DiskWriteRate,
-                Session_->BestRoundDuration);
-
-            SetResult(Session_->BestRoundResult);
-            Stop();
+                Session_->BestRoundDuration,
+                Session_->BestRoundCongestionWindow);
+            StartTest(ETestingStage::Verify);
         }
+    }
+
+    void VerifyCongested(i64 /*congestionWindow*/)
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        auto statistics = Location_->GetIOStatistics();
+
+        // Use filesystem level statistics if disk stats are not available.
+        // This is mostly for test environment.
+        if (statistics.DiskReadRate == 0 && statistics.DiskWriteRate == 0) {
+            statistics.DiskReadRate = statistics.FilesystemReadRate;
+            statistics.DiskWriteRate = statistics.FilesystemWriteRate;
+        }
+
+        auto now = TInstant::Now();
+        auto overallDuration = now - Session_->Timestamp;
+        auto verifyStageDuration = now - Session_->LastCongested;
+
+        YT_LOG_WARNING("Setting test results (Location: %v, OverallDuration: %v, VerifyStageDuration: %v, "
+            "DiskReadRate: %v, DiskWriteRate: %v)",
+            Location_->GetId(),
+            overallDuration,
+            verifyStageDuration,
+            statistics.DiskReadRate,
+            statistics.DiskWriteRate);
+
+        SetResult(statistics);
+        Stop();
     }
 
     void SetResult(const TStoreLocation::TIOStatistics& result)

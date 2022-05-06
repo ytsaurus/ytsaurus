@@ -404,6 +404,15 @@ TMediumThroughputMeterConfig::TMediumThroughputMeterConfig()
 
     RegisterParameter("enabled", Enabled)
         .Default(false);
+
+    RegisterParameter("verification_initial_window_factor", VerificationInitialWindowFactor)
+        .Default(0.75);
+
+    RegisterParameter("verification_segment_size_factor", VerificationSegmentSizeFactor)
+        .Default(0.05);
+
+    RegisterParameter("verification_window_period", VerificationWindowPeriod)
+        .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,14 +427,14 @@ TIOThroughputMeterConfig::TIOThroughputMeterConfig()
     RegisterParameter("time_between_tests", TimeBetweenTests)
         .Default(TDuration::Hours(12));
 
-    RegisterParameter("testing_time_soft_limit", TestingTimeSoftLimit)
+    RegisterParameter("estimate_time_limit", EstimateTimeLimit)
         .Default(TDuration::Minutes(20));
 
-    RegisterParameter("testing_time_hard_limit", TestingTimeHardLimit)
-        .Default(TDuration::Minutes(60));
-
-    RegisterParameter("max_congestions_per_test", MaxCongestionsPerTest)
+    RegisterParameter("max_estimate_congestions", MaxEstimateCongestions)
         .Default(20);
+
+    RegisterParameter("testing_time_hard_limit", TestingTimeHardLimit)
+        .Default(TDuration::Minutes(120));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

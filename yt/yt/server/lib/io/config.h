@@ -127,6 +127,9 @@ struct TGentleLoaderConfig
     // Cleanup written files after testing finished.
     bool RemoveWrittenFiles;
 
+    // Useful for emulating journal workloads.
+    bool FlushAfterWrite;
+
     // Hold this count of written files before remove.
     // Helps to simulate disk space utilization.
     i32 StaleFilesCountPerWriter;
@@ -146,7 +149,7 @@ struct TGentleLoaderConfig
     // The followings are very low-level settings (do not use if unsure).
     i32 InitialWindowSize;
     i32 InitialSlowStartThreshold;
-    TDuration WindowVerificationPeriod;
+    TDuration WindowPeriod;
 
     TGentleLoaderConfig();
 };
