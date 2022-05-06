@@ -693,15 +693,31 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
 void TDecoratedAutomaton::Initialize()
 {
-    ClearState();
+    ResetState();
+}
+
+void TDecoratedAutomaton::ResetState()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+        ClearState();
+        Automaton_->SetZeroState();
+    }));
 }
 
 void TDecoratedAutomaton::ClearState()
 {
-    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
-        Automaton_->Clear();
-        Automaton_->SetZeroState();
-    }));
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    AutomatonVersion_ = TVersion();
+    RandomSeed_ = 0;
+    SequenceNumber_ = 0;
+    ReliablyAppliedSequenceNumber_ = 0;
+    StateHash_ = 0;
+    Timestamp_ = {};
+
+    Automaton_->Clear();
 }
 
 void TDecoratedAutomaton::OnStartLeading(TEpochContextPtr epochContext)
@@ -796,37 +812,30 @@ void TDecoratedAutomaton::LoadSnapshot(
         SnapshotLoadTime_.Update(timer.GetElapsedTime());
     });
 
-    Automaton_->Clear();
+    ClearState();
+
     try {
-        AutomatonVersion_ = TVersion();
-        RandomSeed_ = 0;
-        SequenceNumber_ = 0;
-        ReliablyAppliedSequenceNumber_ = 0;
-        StateHash_ = 0;
-        Timestamp_ = {};
-        {
-            auto snapshotReign = Automaton_->LoadSnapshot(reader);
+        auto snapshotReign = Automaton_->LoadSnapshot(reader);
 
-            // Snapshot preparation is a "mutation" that is executed before first mutation
-            // in changelog.
-            TVersion hydraContextVersion(snapshotId, -1);
-            // NB: #randomSeed is used as a random seed for the first mutation
-            // in changelog, so ad-hoc seed is used here.
-            auto hydraContextRandomSeed = randomSeed;
-            HashCombine(hydraContextRandomSeed, snapshotId);
+        // Snapshot preparation is a "mutation" that is executed before first mutation
+        // in changelog.
+        TVersion hydraContextVersion(snapshotId, -1);
+        // NB: #randomSeed is used as a random seed for the first mutation
+        // in changelog, so ad-hoc seed is used here.
+        auto hydraContextRandomSeed = randomSeed;
+        HashCombine(hydraContextRandomSeed, snapshotId);
 
-            THydraContext hydraContext(
-                hydraContextVersion,
-                timestamp,
-                hydraContextRandomSeed,
-                snapshotReign);
-            THydraContextGuard hydraContextGuard(&hydraContext);
+        THydraContext hydraContext(
+            hydraContextVersion,
+            timestamp,
+            hydraContextRandomSeed,
+            snapshotReign);
+        THydraContextGuard hydraContextGuard(&hydraContext);
 
-            Automaton_->PrepareState();
-        }
+        Automaton_->PrepareState();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
-        Automaton_->Clear();
+        ClearState();
         throw;
     } catch (const TFiberCanceledException&) {
         YT_LOG_INFO("Snapshot load fiber was canceled");
