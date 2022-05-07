@@ -139,11 +139,9 @@ public:
 
     void Initialize()
     {
-        if (Options_.ConnectionInvoker) {
-            ConnectionInvoker_ = Options_.ConnectionInvoker;
-        } else {
+        if (!Options_.ConnectionInvoker) {
             ConnectionThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Connection");
-            ConnectionInvoker_ = ConnectionThreadPool_->GetInvoker();
+            Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         }
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
@@ -181,7 +179,7 @@ public:
             Config_->JobShellDescriptorCache,
             SchedulerChannel_);
 
-        ClusterDirectory_ = New<TClusterDirectory>(NApi::TConnectionOptions{GetInvoker()});
+        ClusterDirectory_ = New<TClusterDirectory>(Options_);
         ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
             Config_->ClusterDirectorySynchronizer,
             this,
@@ -335,7 +333,7 @@ public:
 
     IInvokerPtr GetInvoker() override
     {
-        return ConnectionInvoker_;
+        return Options_.ConnectionInvoker;
     }
 
     NApi::IClientPtr CreateClient(const TClientOptions& options) override
@@ -599,7 +597,7 @@ public:
 
 private:
     const TConnectionConfigPtr Config_;
-    const TConnectionOptions Options_;
+    TConnectionOptions Options_;
 
     const TString LoggingTag_;
     const TString ClusterId_;
@@ -648,7 +646,6 @@ private:
     IChunkReplicaCachePtr ChunkReplicaCache_;
 
     TThreadPoolPtr ConnectionThreadPool_;
-    IInvokerPtr ConnectionInvoker_;
 
     std::atomic<bool> Terminated_ = false;
 
@@ -749,6 +746,11 @@ private:
     }
 };
 
+TConnectionOptions::TConnectionOptions(IInvokerPtr invoker)
+{
+    ConnectionInvoker = std::move(invoker);
+}
+
 IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
     TConnectionOptions options)
@@ -814,12 +816,7 @@ IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const TString& clusterName)
 {
-    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName);
-    if (!remoteConnection) {
-        return nullptr;
-    }
-
-    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
+    return connection->GetClusterDirectory()->FindConnection(clusterName);
 }
 
 IConnectionPtr GetRemoteConnectionOrThrow(
@@ -857,12 +854,7 @@ IConnectionPtr FindRemoteConnection(
         return connection;
     }
 
-    auto remoteConnection = connection->GetClusterDirectory()->FindConnection(cellTag);
-    if (!remoteConnection) {
-        return nullptr;
-    }
-
-    return dynamic_cast<NNative::IConnection*>(remoteConnection.Get());
+    return connection->GetClusterDirectory()->FindConnection(cellTag);
 }
 
 IConnectionPtr GetRemoteConnectionOrThrow(

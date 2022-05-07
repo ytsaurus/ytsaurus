@@ -1195,7 +1195,7 @@ private:
                 const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
                 return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
             }) /* serialization intentionally omitted */)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::IConnectionPtr& connection) {
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::NNative::IConnectionPtr& connection) {
                 if (connection->GetClusterTag() == Client_->GetConnection()->GetClusterTag()) {
                     return MakeFuture<NApi::ITransactionPtr>(nullptr);
                 }

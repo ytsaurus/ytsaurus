@@ -254,7 +254,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
         , ConnectionThread_(New<TActionQueue>("RTTConnection"))
-        , ClusterDirectory_(New<TClusterDirectory>(NApi::TConnectionOptions{ConnectionThread_->GetInvoker()}))
+        , ClusterDirectory_(New<TClusterDirectory>(NApi::NNative::TConnectionOptions(ConnectionThread_->GetInvoker())))
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
         , ClusterStateCache_(New<TClusterStateCache>(ClusterStateCacheConfig_))
         , ReplicatorHintConfig_(New<NTabletNode::TReplicatorHintConfig>())
@@ -904,7 +904,7 @@ private:
         for (auto it = ClusterToConnection_.begin(); it != ClusterToConnection_.end(); ) {
             auto jt = it++;
             const auto& [clusterName, connectionInfo] = *jt;
-            auto connection = ClusterDirectory_->FindConnection(clusterName);
+            auto connection = static_cast<NApi::IConnectionPtr>(ClusterDirectory_->FindConnection(clusterName));
             if (!connection) {
                 YT_LOG_WARNING("Removed unknown cluster %v from replicated table tracker",
                     clusterName);

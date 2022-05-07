@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
-#include <yt/yt/client/api/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/hive/public.h>
 
@@ -18,7 +18,7 @@ namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Maintains a map for a bunch of cluster connections.
+//! Maintains a map for a bunch of native cluster connections.
 /*!
  *  Thread affinity: any
  */
@@ -26,19 +26,19 @@ class TClusterDirectory
     : public virtual TRefCounted
 {
 public:
-    explicit TClusterDirectory(NApi::TConnectionOptions connectionOptions);
+    explicit TClusterDirectory(NApi::NNative::TConnectionOptions connectionOptions);
 
     //! Returns the connection to cluster with a given #clusterTag.
     //! Only applies to native connections. Returns |nullptr| if no connection is found.
-    NApi::IConnectionPtr FindConnection(NApi::TClusterTag clusterTag) const;
+    NApi::NNative::IConnectionPtr FindConnection(NApi::TClusterTag clusterTag) const;
     //! Same as #FindConnection but throws if no connection is found.
-    NApi::IConnectionPtr GetConnectionOrThrow(NApi::TClusterTag clusterTag) const;
+    NApi::NNative::IConnectionPtr GetConnectionOrThrow(NApi::TClusterTag clusterTag) const;
 
     //! Returns the connection to cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found.
-    NApi::IConnectionPtr FindConnection(const TString& clusterName) const;
+    NApi::NNative::IConnectionPtr FindConnection(const TString& clusterName) const;
     //! Same as #FindConnection but throws if no connection is found.
-    NApi::IConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
+    NApi::NNative::IConnectionPtr GetConnectionOrThrow(const TString& clusterName) const;
 
     //! Returns the list of names of all registered clusters.
     std::vector<TString> GetClusterNames() const;
@@ -51,7 +51,7 @@ public:
     void Clear();
 
     //! Updates the configuration of a cluster with a given #name, recreates the connection.
-    void UpdateCluster(const TString& name, NYTree::INodePtr config);
+    void UpdateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig);
 
     //! Updates configuration of all clusters given in #protoDirectory.
     //! Removes all clusters that are currently known but are missing in #protoDirectory.
@@ -60,18 +60,18 @@ public:
 private:
     struct TCluster
     {
-        NYTree::INodePtr Config;
-        NApi::IConnectionPtr Connection;
+        NYTree::INodePtr NativeConnectionConfig;
+        NApi::NNative::IConnectionPtr Connection;
     };
 
-    const NApi::TConnectionOptions ConnectionOptions_;
+    const NApi::NNative::TConnectionOptions ConnectionOptions_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<NApi::TClusterTag, TCluster> ClusterTagToCluster_;
     THashMap<TString, TCluster> NameToCluster_;
 
 
-    TCluster CreateCluster(const TString& name, NYTree::INodePtr config) const;
+    TCluster CreateCluster(const TString& name, NYTree::INodePtr nativeConnectionConfig) const;
     static NApi::TClusterTag GetClusterTag(const TCluster& cluster);
 };
 
@@ -92,10 +92,10 @@ public:
     //! Returns the client to the cluster with a given #clusterName.
     //! Returns |nullptr| if no connection is found in the underlying cluster
     //! directory.
-    NApi::IClientPtr FindClient(const TString& clusterName) const;
+    NApi::NNative::IClientPtr FindClient(const TString& clusterName) const;
     //! Same as #FindClient but throws if no connection is found in the
     //! underlying cluster directory.
-    NApi::IClientPtr GetClientOrThrow(const TString& clusterName) const;
+    NApi::NNative::IClientPtr GetClientOrThrow(const TString& clusterName) const;
 
 private:
     TClusterDirectoryPtr ClusterDirectory_;

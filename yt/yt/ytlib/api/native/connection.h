@@ -151,6 +151,9 @@ struct TConnectionOptions
 
     //! If non-null, provides an externally-controlled chunk meta cache.
     NChunkClient::IClientChunkMetaCachePtr ChunkMetaCache;
+
+    explicit TConnectionOptions(IInvokerPtr connectionInvoker);
+    TConnectionOptions() = default;
 };
 
 //! Native connection talks directly to the cluster via internal

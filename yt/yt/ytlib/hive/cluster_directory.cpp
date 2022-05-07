@@ -4,9 +4,9 @@
 
 #include <yt/yt_proto/yt/client/hive/proto/cluster_directory.pb.h>
 
-#include <yt/yt/ytlib/api/connection.h>
-
-#include <yt/yt/client/api/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -29,18 +29,18 @@ static const auto& Logger = HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClusterDirectory::TClusterDirectory(NApi::TConnectionOptions connectionOptions)
+TClusterDirectory::TClusterDirectory(NNative::TConnectionOptions connectionOptions)
     : ConnectionOptions_(std::move(connectionOptions))
 { }
 
-IConnectionPtr TClusterDirectory::FindConnection(TClusterTag clusterTag) const
+NNative::IConnectionPtr TClusterDirectory::FindConnection(TClusterTag clusterTag) const
 {
     auto guard = Guard(Lock_);
     auto it = ClusterTagToCluster_.find(clusterTag);
     return it == ClusterTagToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TClusterTag clusterTag) const
+NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TClusterTag clusterTag) const
 {
     auto connection = FindConnection(clusterTag);
     if (!connection) {
@@ -49,14 +49,14 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TClusterTag clusterTag) c
     return connection;
 }
 
-IConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
+NNative::IConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
 {
     auto guard = Guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
     return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
 
-IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterName) const
+NNative::IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterName) const
 {
     auto connection = FindConnection(clusterName);
     if (!connection) {
@@ -95,7 +95,7 @@ void TClusterDirectory::Clear()
     NameToCluster_.clear();
 }
 
-void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
+void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnectionConfig)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto clusterTag = GetClusterTag(cluster);
@@ -108,14 +108,14 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
 
     auto it = NameToCluster_.find(name);
     if (it == NameToCluster_.end()) {
-        auto cluster = CreateCluster(name, config);
+        auto cluster = CreateCluster(name, nativeConnectionConfig);
         auto guard = Guard(Lock_);
         addNewCluster(cluster);
         YT_LOG_DEBUG("Remote cluster registered (Name: %v, ClusterTag: %v)",
             name,
             cluster.Connection->GetClusterTag());
-    } else if (!AreNodesEqual(it->second.Config, config)) {
-        auto cluster = CreateCluster(name, config);
+    } else if (!AreNodesEqual(it->second.NativeConnectionConfig, nativeConnectionConfig)) {
+        auto cluster = CreateCluster(name, nativeConnectionConfig);
         auto guard = Guard(Lock_);
         it->second.Connection->Terminate();
         ClusterTagToCluster_.erase(GetClusterTag(it->second));
@@ -150,9 +150,10 @@ void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDi
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name, INodePtr config) const
 {
     TCluster cluster;
-    cluster.Config = config;
+    cluster.NativeConnectionConfig = config;
     try {
-        cluster.Connection = CreateConnection(config, ConnectionOptions_);
+        auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
+        cluster.Connection = NNative::CreateConnection(typedConfig, ConnectionOptions_);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating connection to cluster %Qv",
             name)
@@ -175,16 +176,16 @@ TClientDirectory::TClientDirectory(
     , ClientOptions_(std::move(clientOptions))
 { }
 
-IClientPtr TClientDirectory::FindClient(const TString& clusterName) const
+NNative::IClientPtr TClientDirectory::FindClient(const TString& clusterName) const
 {
     const auto& connection = ClusterDirectory_->FindConnection(clusterName);
-    return connection->CreateClient(ClientOptions_);
+    return NNative::CreateClient(connection, ClientOptions_);
 }
 
-IClientPtr TClientDirectory::GetClientOrThrow(const TString& clusterName) const
+NNative::IClientPtr TClientDirectory::GetClientOrThrow(const TString& clusterName) const
 {
     const auto& connection = ClusterDirectory_->GetConnectionOrThrow(clusterName);
-    return connection->CreateClient(ClientOptions_);
+    return NNative::CreateClient(connection, ClientOptions_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
