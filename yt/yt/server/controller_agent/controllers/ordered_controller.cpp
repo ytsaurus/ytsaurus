@@ -1353,19 +1353,11 @@ private:
                 *Spec_->ClusterConnection,
                 std::move(connectionOptions));
         } else if (Spec_->ClusterName) {
-            auto connection = Host
+            return Host
                 ->GetClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
                 ->GetConnectionOrThrow(*Spec_->ClusterName);
-
-            auto* nativeConnection = dynamic_cast<NNative::IConnection*>(connection.Get());
-            if (!nativeConnection) {
-                THROW_ERROR_EXCEPTION("No native connection could be established with cluster %Qv",
-                    *Spec_->ClusterName);
-            }
-
-            return nativeConnection;
         } else {
             THROW_ERROR_EXCEPTION("No remote cluster is specified");
         }
