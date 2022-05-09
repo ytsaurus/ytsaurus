@@ -170,6 +170,9 @@ public:
     TChunkTreeBalancerSettingsPtr StrictSettings;
     TChunkTreeBalancerSettingsPtr PermissiveSettings;
 
+    // COMPAT(shakurov)
+    bool EnableRequisitionUpdateAfterRebalancing;
+
     TDynamicChunkTreeBalancerConfig()
     {
         RegisterParameter("strict", StrictSettings)
@@ -177,6 +180,10 @@ public:
 
         RegisterParameter("permissive", PermissiveSettings)
             .Default(TChunkTreeBalancerSettings::NewWithPermissiveDefaults());
+
+        RegisterParameter("enable_requisition_update_after_rebalancing", EnableRequisitionUpdateAfterRebalancing)
+            .Default(true)
+            .DontSerializeDefault();
     }
 
     TChunkTreeBalancerSettingsPtr GetSettingsForMode(EChunkTreeBalancerMode mode);

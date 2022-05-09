@@ -1394,6 +1394,12 @@ public:
         if (Context_->IsSynchronous()) {
             DoTraverse();
         } else {
+            // It's critical that traversal does not start immediately in async mode.
+            // (Example: rebalancing is usually done right after scheduling a
+            // requisition update, which creates and runs a traverser. Failing
+            // to postpone the actual traversal would result in running
+            // rebalancing mid-flight, which could change the set of chunks
+            // eventually reached by the traversal.)
             Context_->GetInvoker()->Invoke(
                 BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
         }
