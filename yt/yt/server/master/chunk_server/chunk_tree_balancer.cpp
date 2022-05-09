@@ -97,9 +97,27 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
     YT_VERIFY(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
-    // Scheduling chunk requisition update to prevent possible data loss in cases where rebalancer
-    // was called before requisition update concluded for the old chunk tree.
-    Callbacks_->ScheduleRequisitionUpdate(root);
+
+    // Should we schedule a requisition update here? We shouldn't. Here's why.
+    // First of all, it would be prohibitively expensive (trust me, I checked).
+    // Second of all, it's not necessary. One reason it may seem so follows.
+    //
+    // In short, there's a risk of conflict between the balancer and the
+    // requisition update traversal. The latter is asynchronous, i.e. it may
+    // pause at any chunk list in the subtree. If the balancer messes up subtree
+    // structure in the meantime, there's a chance the traversal never reaches
+    // all the relevant chunks.
+    //
+    // This scenario, however, is impossible. The balancer does not change
+    // contents of any chunk list that's shared (i.e. has multiple strong refs).
+    // And scheduling a requisition update takes a strong ref.
+    //
+    // The root is the exception: it's contents may, of course, change.
+    // Luckily, rebalancing occurs immediately after scheduling a requisition
+    // update, which does not start the actual traversal immediately.
+    if (GetConfig()->EnableRequisitionUpdateAfterRebalancing) {
+        Callbacks_->ScheduleRequisitionUpdate(root);
+    }
 }
 
 void TChunkTreeBalancer::AppendChunkTree(

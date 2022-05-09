@@ -412,6 +412,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     if (topmostCommit && !isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
         // Rebalance when the topmost transaction commits.
         chunkManager->RebalanceChunkTree(newOriginatingChunkList, EChunkTreeBalancerMode::Permissive);
+        // Don't schedule requisition update for #newOriginatingChunkList here.
+        // See balancer implementation for details.
 
         if (originatingNode->GetChunkMergerMode() != EChunkMergerMode::None) {
             chunkManager->ScheduleChunkMerge(originatingNode);
