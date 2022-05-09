@@ -83,13 +83,13 @@ class TLowGpuPowerUsageOnWindowConfig
 public:
     // Size of window to analyze.
     TDuration WindowSize;
-    
+
     // Period of making cumulative usage records.
     TDuration RecordPeriod;
-    
+
     // Power threshold in Watts.
     double Threshold;
-    
+
     REGISTER_YSON_STRUCT(TLowGpuPowerUsageOnWindowConfig)
 
     static void Register(TRegistrar registrar);
@@ -940,9 +940,6 @@ public:
 
     // Running jobs cached YSON string update period.
     TDuration CachedRunningJobsUpdatePeriod;
-
-    //! Unavailable input chunks cached YSON string update period.
-    TDuration CachedUnavailableChunksUpdatePeriod;
 
     //! Backoff between schedule job statistics logging.
     TDuration ScheduleJobStatisticsLogBackoff;

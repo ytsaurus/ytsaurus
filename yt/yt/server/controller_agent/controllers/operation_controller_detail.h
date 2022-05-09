@@ -533,7 +533,7 @@ protected:
     i64 ForeignInputDataWeight = 0;
 
     int ChunkLocatedCallCount = 0;
-    int UnavailableInputChunkCount = 0;
+    THashSet<NChunkClient::TChunkId> UnavailableInputChunkIds;
     int UnavailableIntermediateChunkCount = 0;
 
     // Maps node ids to descriptors for job input chunks.
@@ -1074,10 +1074,8 @@ private:
     };
 
     mutable TCachedYsonCallback CachedRunningJobs_;
-    mutable TCachedYsonCallback CachedUnavailableChunks_;
 
     NYson::TYsonString DoBuildJobsYson();
-    NYson::TYsonString DoBuildUnavailableInputChunksYson();
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString(TStringBuf(), NYson::EYsonType::MapFragment);
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
@@ -1457,6 +1455,10 @@ private:
     };
 
     TControllerFeatures ControllerFeatures_;
+
+    void RegisterUnavailableInputChunks();
+    void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
+    void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ProbingJobs)                          (300859))
     // 22.2 start here
     ((MajorUpdateTo22_2)                    (300901))
+    ((DropUnavailableInputChunkCount)       (300902))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

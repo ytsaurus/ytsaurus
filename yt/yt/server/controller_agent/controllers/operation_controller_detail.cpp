@@ -191,6 +191,8 @@ using NTabletNode::DefaultMaxOverlappingStoreCount;
 
 using std::placeholders::_1;
 
+static constexpr auto SampleChunkIdCount = 10;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TOperationControllerBase::TStripeDescriptor::Persist(const TPersistenceContext& context)
@@ -266,9 +268,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CachedRunningJobs_(
         Config->CachedRunningJobsUpdatePeriod,
         BIND(&TOperationControllerBase::DoBuildJobsYson, Unretained(this)))
-    , CachedUnavailableChunks_(
-        Config->CachedUnavailableChunksUpdatePeriod,
-        BIND(&TOperationControllerBase::DoBuildUnavailableInputChunksYson, Unretained(this)))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
@@ -1150,16 +1149,11 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             OnOperationCompleted(/*interrupted*/ false);
             return result;
         } else {
-            YT_VERIFY(UnavailableInputChunkCount == 0);
-            for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
-                if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                    ++UnavailableInputChunkCount;
-                }
-            }
-
-            if (UnavailableInputChunkCount > 0) {
-                YT_LOG_INFO("Found unavailable input chunks during materialization (UnavailableInputChunkCount: %v)",
-                    UnavailableInputChunkCount);
+            RegisterUnavailableInputChunks();
+            if (!UnavailableInputChunkIds.empty()) {
+                YT_LOG_INFO("Found unavailable input chunks during materialization (UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
+                    UnavailableInputChunkIds.size(),
+                    MakeShrunkFormattableView(UnavailableInputChunkIds, TDefaultFormatter(), SampleChunkIdCount));
             }
         }
 
@@ -1280,6 +1274,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     }
 
     UpdateAllTasks();
+
+    RegisterUnavailableInputChunks();
 
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
@@ -1687,9 +1683,10 @@ void TOperationControllerBase::InitInputChunkScraper()
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
         Logger);
 
-    if (UnavailableInputChunkCount > 0) {
-        YT_LOG_INFO("Waiting for unavailable input chunks (Count: %v)",
-            UnavailableInputChunkCount);
+    if (!UnavailableInputChunkIds.empty()) {
+        YT_LOG_INFO("Waiting for unavailable input chunks (Count: %v, SampleIds: %v)",
+            UnavailableInputChunkIds.size(),
+            MakeShrunkFormattableView(UnavailableInputChunkIds, TDefaultFormatter(), SampleChunkIdCount));
         InputChunkScraper->Start();
     }
 }
@@ -3696,9 +3693,10 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
     ++ChunkLocatedCallCount;
     if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
         ChunkLocatedCallCount = 0;
-        YT_LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v)",
+        YT_LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
             Config->ChunkScraper->MaxChunksPerRequest,
-            UnavailableInputChunkCount);
+            UnavailableInputChunkIds.size(),
+            MakeShrunkFormattableView(UnavailableInputChunkIds, TDefaultFormatter(), SampleChunkIdCount));
     }
 
     auto& descriptor = GetOrCrash(InputChunkMap, chunkId);
@@ -3725,12 +3723,9 @@ void TOperationControllerBase::OnInputChunkAvailable(
         return;
     }
 
-    YT_LOG_TRACE("Input chunk is available (ChunkId: %v)", chunkId);
+    UnregisterUnavailableInputChunk(chunkId);
 
-    --UnavailableInputChunkCount;
-    YT_VERIFY(UnavailableInputChunkCount >= 0);
-
-    if (UnavailableInputChunkCount == 0) {
+    if (UnavailableInputChunkIds.empty()) {
         InputChunkScraper->Stop();
     }
 
@@ -3761,9 +3756,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
         return;
     }
 
-    YT_LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
-
-    ++UnavailableInputChunkCount;
+    RegisterUnavailableInputChunk(chunkId);
 
     switch (Spec_->UnavailableChunkTactics) {
         case EUnavailableChunkAction::Fail:
@@ -8558,23 +8551,10 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
     }
 }
 
-NYson::TYsonString TOperationControllerBase::DoBuildUnavailableInputChunksYson()
-{
-    return BuildYsonStringFluently<EYsonType::Node>()
-        .BeginList()
-            .DoFor(InputChunkMap, [&] (TFluentList fluent, const std::pair<TChunkId, TInputChunkDescriptor>& pair) {
-                const auto& [chunkId, chunkDescriptor] = pair;
-                if (chunkDescriptor.State == EInputChunkState::Waiting) {
-                    fluent.Item().Value(chunkId);
-                }
-            })
-        .EndList();
-}
-
 void TOperationControllerBase::BuildUnavailableInputChunksYson(TFluentAny fluent) const
 {
     VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
-    fluent.GetConsumer()->OnRaw(CachedUnavailableChunks_.GetValue());
+    fluent.Value(UnavailableInputChunkIds);
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -8902,7 +8882,7 @@ i64 TOperationControllerBase::GetUnavailableInputChunkCount() const
         }
         return result;
     }
-    return UnavailableInputChunkCount;
+    return std::ssize(UnavailableInputChunkIds);
 }
 
 int TOperationControllerBase::GetTotalJobCount() const
@@ -9516,7 +9496,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalEstimatedInputValueCount);
     Persist(context, TotalEstimatedInputCompressedDataSize);
     Persist(context, TotalEstimatedInputDataWeight);
-    Persist(context, UnavailableInputChunkCount);
     Persist(context, UnavailableIntermediateChunkCount);
     Persist(context, InputNodeDirectory_);
     Persist(context, InputTables_);
@@ -10069,6 +10048,30 @@ bool TOperationControllerBase::IsMemoryLimitExceeded() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return MemoryLimitExceeded_;
+}
+
+void TOperationControllerBase::RegisterUnavailableInputChunks()
+{
+    UnavailableInputChunkIds.clear();
+    for (const auto& [chunkId, chunkDescriptor] : InputChunkMap) {
+        if (chunkDescriptor.State == EInputChunkState::Waiting) {
+            RegisterUnavailableInputChunk(chunkId);
+        }
+    }
+}
+
+void TOperationControllerBase::RegisterUnavailableInputChunk(TChunkId chunkId)
+{
+    InsertOrCrash(UnavailableInputChunkIds, chunkId);
+
+    YT_LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
+}
+
+void TOperationControllerBase::UnregisterUnavailableInputChunk(TChunkId chunkId)
+{
+    EraseOrCrash(UnavailableInputChunkIds, chunkId);
+
+    YT_LOG_TRACE("Input chunk is no longer unavailable (ChunkId: %v)", chunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

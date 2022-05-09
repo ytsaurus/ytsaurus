@@ -825,9 +825,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cached_running_jobs_update_period", &TThis::CachedRunningJobsUpdatePeriod)
         .Default();
 
-    registrar.Parameter("cached_unavailable_chunks_update_period", &TThis::CachedUnavailableChunksUpdatePeriod)
-        .Default();
-
     registrar.Parameter("tagged_memory_statistics_update_period", &TThis::TaggedMemoryStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(5));
 
