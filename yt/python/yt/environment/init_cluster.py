@@ -9,6 +9,7 @@ import socket
 import time
 import argparse
 
+
 def create(type_, name, client):
     try:
         client.create(type_, attributes={"name": name})
@@ -18,9 +19,11 @@ def create(type_, name, client):
         else:
             raise
 
+
 def is_member_of(subject, group, client):
     members = client.get("//sys/groups/{0}/@members".format(group))
     return subject in members
+
 
 def add_member(subject, group, client):
     try:
@@ -32,6 +35,7 @@ def add_member(subject, group, client):
         else:
             raise
 
+
 def check_acl(acl, required_keys, optional_keys):
     for k in required_keys:
         if k not in acl:
@@ -42,6 +46,7 @@ def check_acl(acl, required_keys, optional_keys):
             logger.warning("Found unknown key '%s' in ACL: %s", k, acl)
             return False
     return True
+
 
 def need_to_add_new_acl(new_acl, current_acls):
     required_keys = ["subjects", "permissions", "action"]
@@ -62,6 +67,7 @@ def need_to_add_new_acl(new_acl, current_acls):
 
     return True
 
+
 def add_acl(path, new_acl, client):
     current_acls = client.get(path + "/@acl")
 
@@ -70,15 +76,17 @@ def add_acl(path, new_acl, client):
     else:
         logger.warning("ACL '%s' is already present in %s/@acl", new_acl, path)
 
-# By default, accounts have empty resource limits upon creation.
+
 def get_default_resource_limits(client):
+    """By default, accounts have empty resource limits upon creation."""
     GB = 1024 ** 3
     TB = 1024 ** 4
 
-    result = {"node_count": 500000,
-              "chunk_count": 1000000,
-              "tablet_count": 1000,
-              "tablet_static_memory": 1 * GB
+    result = {
+        "node_count": 500000,
+        "chunk_count": 1000000,
+        "tablet_count": 1000,
+        "tablet_static_memory": 1 * GB,
     }
 
     # Backwards compatibility.
@@ -88,6 +96,7 @@ def get_default_resource_limits(client):
         result["disk_space"] = 10 * TB
 
     return result
+
 
 def create_account(client, attributes):
     client.create("account", attributes=attributes)
@@ -109,6 +118,7 @@ def create_account(client, attributes):
             "//sys/accounts/{0}/@resource_limits/master_memory".format(account_name),
             100 * GB
         )
+
 
 def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True, is_multicell=False):
     client = get_value(client, yt)
@@ -157,26 +167,28 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     client.set("//sys/tablet_cells/@inherit_acl", "false")
 
     if not client.exists("//sys/accounts/tmp_files"):
-        create_account(client, attributes={"name": "tmp_files",
-                                             "acl": [{
-                                                 "action": "allow",
-                                                 "subjects": ["users"],
-                                                 "permissions": ["use"]
-                                             }],
-                                             "resource_limits": get_default_resource_limits(client)})
+        create_account(client, attributes={
+            "name": "tmp_files",
+            "acl": [{
+                "action": "allow",
+                "subjects": ["users"],
+                "permissions": ["use"]
+            }],
+            "resource_limits": get_default_resource_limits(client)})
         if is_multicell:
             wait(lambda: client.get("//sys/accounts/tmp_files/@life_stage") == 'creation_committed')
     else:
         logger.warning("Account 'tmp_files' already exists")
 
     if not client.exists("//sys/accounts/default"):
-        create_account(client, attributes={"name": "default",
-                                             "acl": [{
-                                                 "action": "allow",
-                                                 "subjects": ["users"],
-                                                 "permissions": ["use"]
-                                             }],
-                                             "resource_limits": get_default_resource_limits(client)})
+        create_account(client, attributes={
+            "name": "default",
+            "acl": [{
+                "action": "allow",
+                "subjects": ["users"],
+                "permissions": ["use"]
+            }],
+            "resource_limits": get_default_resource_limits(client)})
 
         if is_multicell:
             wait(lambda: client.get("//sys/accounts/default/@life_stage") == 'creation_committed')
@@ -184,13 +196,13 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         logger.warning("Account 'default' already exists")
 
     if not client.exists("//sys/accounts/tmp_jobs"):
-        create_account(client, attributes={"name": "tmp_jobs",
-                                             "resource_limits": get_default_resource_limits(client)})
+        create_account(client, attributes={
+            "name": "tmp_jobs",
+            "resource_limits": get_default_resource_limits(client)})
         if is_multicell:
             wait(lambda: client.get("//sys/accounts/tmp_jobs/@life_stage") == 'creation_committed')
     else:
         logger.warning("Account 'tmp_jobs' already exists")
-
 
     if not client.exists("//home"):
         client.create("map_node", "//home",
@@ -258,11 +270,12 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                    ])
 
     if client.exists("//sys/schemas/transaction"):
-        client.set("//sys/schemas/transaction/@acl",
-               [
-                   {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
-                   {"action": "allow", "subjects": ["users"], "permissions": ["write", "create"]}
-               ])
+        client.set(
+            "//sys/schemas/transaction/@acl",
+            [
+                {"action": "allow", "subjects": ["users"], "permissions": ["read"]},
+                {"action": "allow", "subjects": ["users"], "permissions": ["write", "create"]}
+            ])
 
     if not client.exists("//sys/empty_yamr_table"):
         yamr_table_schema = [{"name": name, "type": "any", "sort_order": "ascending"}
@@ -270,15 +283,16 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         client.create("table", "//sys/empty_yamr_table", attributes={"schema": yamr_table_schema})
 
     if client.exists("//sys/schemas/tablet_cell_bundle"):
-        client.set("//sys/schemas/tablet_cell_bundle/@options",
-              [{
-                  "snapshot_replication_factor": 5,
-                  "snapshot_primary_medium": "default",
-                  "changelog_write_quorum": 3,
-                  "changelog_replication_factor": 5,
-                  "changelog_read_quorum": 3,
-                  "changelog_primary_medium": "ssd_journals"
-              }])
+        client.set(
+            "//sys/schemas/tablet_cell_bundle/@options",
+            [{
+                "snapshot_replication_factor": 5,
+                "snapshot_primary_medium": "default",
+                "changelog_write_quorum": 3,
+                "changelog_replication_factor": 5,
+                "changelog_read_quorum": 3,
+                "changelog_primary_medium": "ssd_journals"
+            }])
         client.set("//sys/schemas/tablet_cell_bundle/@enable_bundle_balancer", False)
 
     add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]}, client)
@@ -320,7 +334,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     client.create("map_node", "//tmp/trash", ignore_existing=True)
 
-    client.set("//tmp/trash/@acl",
+    client.set(
+        "//tmp/trash/@acl",
         [
             {"action": "deny", "subjects": ["everyone"], "permissions": ["remove"], "inheritance_mode": "object_only"}
         ])

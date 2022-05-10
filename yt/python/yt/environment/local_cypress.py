@@ -4,6 +4,7 @@ import logging
 
 import yt.yson as yson
 
+from yt.common import YtError
 
 logger = logging.getLogger("YtLocal")
 
@@ -20,9 +21,11 @@ def _get_attributes_from_local_dir(local_path, meta_files_suffix):
             return meta.get("attributes", {})
     return {}
 
+
 def _create_map_node_from_local_dir(local_path, dest_path, meta_files_suffix, client):
     attributes = _get_attributes_from_local_dir(local_path, meta_files_suffix)
     client.create("map_node", dest_path, attributes=attributes, ignore_existing=True)
+
 
 def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffix, client):
     if not os.path.isfile(local_filename + meta_files_suffix):
@@ -60,6 +63,7 @@ def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffi
         else:
             logger.warning("Found file {0} with currently unsupported type {1}"
                            .format(local_filename, meta["type"]))
+
 
 def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client):
     cypress_path_prefix = "//"

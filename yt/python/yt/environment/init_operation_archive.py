@@ -166,6 +166,7 @@ class TableInfo(object):
 
         return default_mapper
 
+
 class Conversion(object):
     def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False):
         self.table = table
@@ -216,6 +217,7 @@ class Conversion(object):
         table_info.alter_table(client, target_table, shard_count, mount=False)
         return False  # need additional swap
 
+
 class ExecAction(object):
     def __init__(self, *args):
         self.args = args
@@ -224,8 +226,10 @@ class ExecAction(object):
         logging.info("Executing: %s", self.args)
         subprocess.check_call(self.args)
 
+
 def get_default_pivots(shard_count):
     return [[]] + [[yson.YsonUint64((i * 2 ** 64) / shard_count)] for i in range(1, shard_count)]
+
 
 def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_obsolete_rows=False):
     if ttl is not None:
@@ -239,6 +243,7 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
     client.set(table + "/@forced_compaction_revision", 1)
     if client.get(table + "/@tablet_state") == "mounted":
         client.remount_table(table)
+
 
 def create_operations_archive_account(client):
     if not client.exists("//sys/accounts/{0}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)):
@@ -1138,7 +1143,8 @@ TRANSFORMS[44] = [
 TRANSFORMS[45] = [
     Conversion(
         "jobs",
-        table_info=TableInfo([
+        table_info=TableInfo(
+            [
                 ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
                 ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),

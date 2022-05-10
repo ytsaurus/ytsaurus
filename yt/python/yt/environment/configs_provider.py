@@ -27,6 +27,7 @@ def _get_timestamp_provider_addresses(yt_config,
     else:
         return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
 
+
 def build_configs(yt_config, ports_generator, dirs, logs_dir):
     clock_configs, clock_connection_config = _build_clock_configs(
         yt_config,
@@ -762,6 +763,7 @@ def _build_node_configs(node_dirs,
 
     return configs, addresses
 
+
 def _build_chaos_node_configs(chaos_node_dirs,
                               master_connection_configs,
                               clock_connection_config,
@@ -811,6 +813,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
         configs.append(config)
 
     return configs
+
 
 def _build_http_proxy_config(proxy_dir,
                              master_connection_configs,
@@ -1288,6 +1291,7 @@ def get_at(config, path, default_value=None):
         config = config[part]
     return config
 
+
 def init_singletons(config, fqdn, name, index, process_tags={}):
     set_at(config, "yp_service_discovery", {
         "enable": False,
@@ -1328,12 +1332,14 @@ def _get_hydra_manager_config():
         "response_keeper": _get_response_keeper_config()
     }
 
+
 def _get_response_keeper_config():
     return {
         "enable_warmup": False,
         "expiration_time": 25000,
         "warmup_time": 30000,
     }
+
 
 def _get_balancing_channel_config():
     return {

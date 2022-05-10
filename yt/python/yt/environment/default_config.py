@@ -3,8 +3,7 @@ import yt.yson as yson
 
 # TODO(babenko): drop settings mirrored in get_dynamic_master_config below
 def get_master_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     enable_provision_lock = %false;
     use_new_hydra = %true;
@@ -50,9 +49,9 @@ b"""
 }
 """)
 
+
 def get_dynamic_master_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     chunk_manager = {
         chunk_refresh_delay = 300;
@@ -140,9 +139,9 @@ b"""
 }
 """)
 
+
 def get_scheduler_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     cluster_connection = {
     };
@@ -185,9 +184,9 @@ b"""
 }
 """)
 
+
 def get_clock_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     timestamp_provider = {
         soft_backoff_time = 100;
@@ -211,9 +210,9 @@ b"""
 }
 """)
 
+
 def get_timestamp_provider_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     timestamp_provider = {
         soft_backoff_time = 100;
@@ -223,9 +222,9 @@ b"""
 }
 """)
 
+
 def get_cell_balancer_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     cluster_connection = {
     };
@@ -243,12 +242,11 @@ b"""
         };
     };
 }
-"""
-)
+""")
+
 
 def get_controller_agent_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     node_directory_synchronizer = {
         sync_period = 100;
@@ -338,9 +336,9 @@ b"""
 }
 """)
 
+
 def get_node_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     orchid_cache_update_period = 0;
 
@@ -553,9 +551,9 @@ b"""
 }
 """)
 
+
 def get_chaos_node_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     orchid_cache_update_period = 0;
 
@@ -654,19 +652,18 @@ b"""
 }
 """)
 
+
 def get_master_cache_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     cluster_connection = {
     };
 }
-"""
-)
+""")
+
 
 def get_dynamic_node_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     "%true" = {
         config_annotation = "default";
@@ -677,9 +674,9 @@ b"""
 }
 """)
 
+
 def get_driver_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     format_defaults = {
         structured = <
@@ -700,9 +697,9 @@ b"""
 }
 """)
 
+
 def get_proxy_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     port = -1;
 
@@ -734,6 +731,7 @@ b"""
 }
 """)
 
+
 def get_watcher_config():
     return {
         "logs_rotate_max_part_count": 100,
@@ -741,9 +739,9 @@ def get_watcher_config():
         "logs_rotate_interval": 600,
     }
 
+
 def get_queue_agent_config():
-    return yson.loads(
-b"""
+    return yson.loads(b"""
 {
     dynamic_config_manager = {
         update_period = 100;
@@ -751,10 +749,6 @@ b"""
 }
 """)
 
+
 def get_tablet_balancer_config():
-    return yson.loads(
-b"""
-{
-}
-"""
-)
+    return {}

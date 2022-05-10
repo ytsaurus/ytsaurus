@@ -2,15 +2,16 @@ from __future__ import print_function
 
 from yt.wrapper.common import generate_uuid
 
-from yt.common import to_native_str, YtError, which
+from yt.common import to_native_str, YtError, which  # noqa
 
 import signal
 import sys
 
 # COMPAT for tests.
 try:
-    from yt.test_helpers import (are_almost_equal, wait, unorderable_list_difference,
-                                 assert_items_equal, WaitFailed, Counter)
+    from yt.test_helpers import (  # noqa
+        are_almost_equal, wait, unorderable_list_difference,
+        assert_items_equal, WaitFailed, Counter)
     assert_almost_equal = are_almost_equal
 except ImportError:
     pass
@@ -48,6 +49,11 @@ else:
     yatest_common_network = None
 
 logger = logging.getLogger("YtLocal")
+
+if PY3:
+    def cmp(a, b):
+        return (a > b) - (a < b)
+
 
 def _dump_netstat(dump_file_path):
     logger.info("Dumping netstat to the file '{}'".format(dump_file_path))
@@ -206,6 +212,7 @@ class OpenPortIteratorNonArcadia(Iterator):
             raise RuntimeError("Failed to generate open port after {0} attempts"
                                .format(self.GEN_PORT_ATTEMPTS))
 
+
 def _is_port_free_for_inet(port, inet, verbose):
     sock = None
     try:
@@ -227,17 +234,21 @@ def _is_port_free_for_inet(port, inet, verbose):
         if sock is not None:
             sock.close()
 
+
 def _is_port_free(port, verbose):
     return _is_port_free_for_inet(port, socket.AF_INET, verbose) and \
         _is_port_free_for_inet(port, socket.AF_INET6, verbose)
 
+
 def is_port_opened(port, verbose=False):
     return not _is_port_free(port, verbose)
+
 
 def versions_cmp(version1, version2):
     def normalize(v):
         return list(imap(int, v.split(".")))
     return cmp(normalize(version1), normalize(version2))
+
 
 def _fix_yson_booleans(obj):
     if isinstance(obj, dict):
@@ -249,6 +260,7 @@ def _fix_yson_booleans(obj):
         for value in obj:
             _fix_yson_booleans(value)
     return obj
+
 
 def write_config(config, filename, format="yson"):
     with open(filename, "wb") as f:
@@ -265,6 +277,7 @@ def write_config(config, filename, format="yson"):
             f.write(config)
         f.write(b"\n")
 
+
 def read_config(filename, format="yson"):
     with open(filename, "rb") as f:
         if format == "yson":
@@ -277,6 +290,7 @@ def read_config(filename, format="yson"):
         else:
             return to_native_str(f.read())
 
+
 def is_dead(pid, verbose=False):
     try:
         waitpid_ret = os.waitpid(pid, os.WNOHANG)
@@ -287,12 +301,13 @@ def is_dead(pid, verbose=False):
         logger.info("XXX os.waitpid({}, WNOHANG) returned {!r}".format(pid, waitpid_ret))
 
     try:
-        with open("/proc/{0}/status".format(pid), "r") as f:
+        with open("/proc/{0}/status".format(pid), "r"):
             return False
     except IOError:
         pass
 
     return True
+
 
 def is_zombie(pid):
     try:
@@ -304,6 +319,7 @@ def is_zombie(pid):
         pass
 
     return False
+
 
 def is_file_locked(lock_file_path):
     if not os.path.exists(lock_file_path):
@@ -321,6 +337,7 @@ def is_file_locked(lock_file_path):
     finally:
         lock_file_descriptor.close()
 
+
 def wait_for_removing_file_lock(lock_file_path, max_wait_time=10, sleep_quantum=0.1):
     current_wait_time = 0
     while current_wait_time < max_wait_time:
@@ -332,12 +349,14 @@ def wait_for_removing_file_lock(lock_file_path, max_wait_time=10, sleep_quantum=
 
     raise YtError("File lock is not removed after {0} seconds".format(max_wait_time))
 
+
 def canonize_uuid(uuid):
     def canonize_part(part):
         if part != "0":
             return part.lstrip("0")
         return part
     return "-".join(map(canonize_part, uuid.split("-")))
+
 
 def get_value_from_config(config, key, name):
     d = config
@@ -347,6 +366,7 @@ def get_value_from_config(config, key, name):
         if d is None:
             raise YtError('Failed to get required key "{0}" from {1} config'.format(key, name))
     return d
+
 
 def emergency_exit_within_tests(test_environment, process, call_arguments):
     if int(process.returncode) < 0:
@@ -370,6 +390,7 @@ MASTERS_SERVICE = "masters"
 MASTER_CACHES_SERVICE = "master_caches"
 QUEUE_AGENTS_SERVICE = "queue_agents"
 RPC_PROXIES_SERVICE = "rpc_proxies"
+
 
 class Restarter(object):
     def __init__(self, yt_instance, components, sync=True, *args, **kwargs):

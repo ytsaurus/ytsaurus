@@ -19,6 +19,7 @@ except ImportError:
 
 logger = logging.getLogger("YtLocal")
 
+
 class ProcessWatcher(object):
     def __init__(self,
                  watcher_binary,
