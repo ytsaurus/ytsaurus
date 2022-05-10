@@ -1,3 +1,4 @@
+MaxFailedJobsLimitExceeded = 215
 OperationFailedToPrepare = 216
 WatcherHandlerFailed = 217
 NoSuchJobShell = 219

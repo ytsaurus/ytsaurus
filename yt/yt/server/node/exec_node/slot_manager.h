@@ -25,10 +25,11 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESlotManagerAlertType,
-    ((GenericPersistentError)         (0))
-    ((GpuCheckFailed)                 (1))
-    ((TooManyConsecutiveJobAbortions) (2))
-    ((JobProxyUnavailable)            (3))
+    ((GenericPersistentError)           (0))
+    ((GpuCheckFailed)                   (1))
+    ((TooManyConsecutiveJobAbortions)   (2))
+    ((JobProxyUnavailable)              (3))
+    ((TooManyConsecutiveGpuJobFailures) (4))
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,9 +137,14 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
+
     //! If we observe too many consecutive aborts, we disable user slots on
-    //! the node until restart and fire alert.
+    //! the node until restart or alert reset.
     int ConsecutiveAbortedJobCount_ = 0;
+
+    //! If we observe too many consecutive GPU job failures, we disable user slots on
+    //! the node until restart or alert reset.
+    int ConsecutiveFailedGpuJobCount_ = 0;
 
     int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
@@ -166,6 +172,7 @@ private:
     void OnJobsCpuLimitUpdated();
     void UpdateAliveLocations();
     void ResetConsecutiveAbortedJobCount();
+    void ResetConsecutiveFailedGpuJobCount();
     void PopulateAlerts(std::vector<TError>* alerts);
 };
 

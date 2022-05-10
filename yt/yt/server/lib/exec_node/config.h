@@ -188,7 +188,9 @@ public:
 
     TDuration SlotLocationStatisticsUpdatePeriod;
 
-    int MaxConsecutiveAborts;
+    int MaxConsecutiveJobAborts;
+    
+    int MaxConsecutiveGpuJobFailures;
 
     TDuration DisableJobsTimeout;
 
@@ -218,8 +220,11 @@ public:
         RegisterParameter("slot_location_statistics_update_period", SlotLocationStatisticsUpdatePeriod)
             .Default(TDuration::Seconds(30));
 
-        RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
+        RegisterParameter("max_consecutive_job_aborts", MaxConsecutiveJobAborts)
+            .Alias("max_consecutive_aborts")
             .Default(500);
+        RegisterParameter("max_consecutive_gpu_job_failures", MaxConsecutiveGpuJobFailures)
+            .Default(50);
         RegisterParameter("disable_jobs_timeout", DisableJobsTimeout)
             .Default(TDuration::Minutes(10));
 

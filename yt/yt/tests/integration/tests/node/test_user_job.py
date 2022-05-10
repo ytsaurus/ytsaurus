@@ -2316,3 +2316,64 @@ class TestUnusedMemoryAlertWithMemoryReserveFactorSet(YTEnvSetup):
         )
 
         assert len(op.get_alerts()) == 0
+
+
+##################################################################
+
+
+class TestConsecutiveJobAborts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs": True,
+            "job_controller": {
+                "gpu_manager": {
+                    "driver_version": "0",
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                },
+            },
+            "slot_manager": {
+                "max_consecutive_gpu_job_failures": 2,
+                "max_consecutive_job_aborts": 2,
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+    }
+
+    @authors("ignat")
+    def test_consecutive_gpu_job_failures(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        op = run_test_vanilla(
+            command="sleep 2; exit 17",
+            spec={
+                "max_failed_job_count": 3,
+            },
+            task_patch={
+                "job_count": 1,
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            },
+        )
+
+        with raises_yt_error(yt_error_codes.MaxFailedJobsLimitExceeded):
+            op.track()
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node)))
+
+        alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+        assert len(alerts) == 1
+
+        alert = alerts[0]
+        assert "Too many consecutive GPU job failures" == alert["message"]
