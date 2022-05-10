@@ -109,6 +109,7 @@ public:
     int GetSlotIndex() const override;
 
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage() const override;
+    bool GpuRequested() const override;
 
     std::vector<int> GetPorts() const override;
 
@@ -277,6 +278,7 @@ private:
     IVolumePtr RootVolume_;
 
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
+    bool GpuRequested_;
     std::vector<int> Ports_;
 
     EJobState JobState_ = EJobState::Waiting;

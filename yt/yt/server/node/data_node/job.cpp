@@ -260,6 +260,11 @@ public:
 
         return ResourceLimits_;
     }
+    
+    bool GpuRequested() const override
+    {
+        return false;
+    }
 
     std::vector<int> GetPorts() const override
     {

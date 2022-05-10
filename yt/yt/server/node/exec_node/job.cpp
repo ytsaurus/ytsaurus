@@ -142,6 +142,7 @@ TJob::TJob(
         OperationId_,
         GetType()))
     , ResourceUsage_(resourceUsage)
+    , GpuRequested_(ResourceUsage_.gpu() > 0)
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
     , FinishGuard_(TraceContext_)
 {
@@ -657,6 +658,11 @@ TNodeResources TJob::GetResourceUsage() const
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return ResourceUsage_;
+}
+
+bool TJob::GpuRequested() const
+{
+    return GpuRequested_;
 }
 
 std::vector<int> TJob::GetPorts() const
@@ -1679,7 +1685,7 @@ void TJob::Cleanup()
         HandleJobReport(MakeDefaultJobReport().Error(error));
     }
 
-    YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
+    YT_LOG_INFO(error, "Setting final job state (JobState: %v, ResourceUsage: %v)", GetState(), ResourceUsage_);
     JobFinished_.Fire();
 
     // Release resources.
@@ -2397,7 +2403,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/max_memory_used", totalMaxMemoryUsed);
     statistics->AddSample("/user_job/gpu/memory_total", totalMemoryTotal);
 }
-        
+
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 {
     auto diskStatistics = Slot_->GetDiskStatistics();
