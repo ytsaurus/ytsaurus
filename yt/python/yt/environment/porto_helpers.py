@@ -14,6 +14,7 @@ except ImportError:
 
 logger = logging.getLogger("YtLocal")
 
+
 def porto_avaliable():
     global disable_porto
     if disable_porto:
@@ -27,6 +28,7 @@ def porto_avaliable():
         disable_porto = True
         logger.exception("Failed to connect to porto, '%s'", err)
         return False
+
 
 def remove_all_volumes(path):
     if not porto_avaliable():

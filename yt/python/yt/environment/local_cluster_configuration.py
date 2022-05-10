@@ -1,6 +1,5 @@
 from yt.wrapper.common import MB, GB
 
-from yt.common import update
 from yt.common import update_inplace
 
 from yt.packages.six import iteritems, itervalues
@@ -185,6 +184,7 @@ NODE_STORE_LOCATION_PATCHES = [
 
 DRIVER_CONFIG_PATCH = CLUSTER_CONNECTION_CONFIG_PATCH
 
+
 def _remove_none_fields(node):
     def process(key, value, keys_to_remove):
         if value is None:
@@ -207,6 +207,7 @@ def _remove_none_fields(node):
             del node[key]
 
     traverse(node)
+
 
 def modify_cluster_configuration(yt_config, cluster_configuration):
     master = cluster_configuration["master"]

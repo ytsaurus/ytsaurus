@@ -32,6 +32,7 @@ import logging
 import os
 import copy
 import errno
+import itertools
 import time
 import signal
 import socket
@@ -40,7 +41,6 @@ import sys
 import traceback
 from collections import defaultdict, namedtuple, OrderedDict
 from threading import RLock
-from itertools import count
 
 logger = logging.getLogger("YtLocal")
 
@@ -110,7 +110,7 @@ def _configure_logger(path):
 
 def _get_ports_generator(yt_config):
     if yt_config.port_range_start:
-        return count(yt_config.port_range_start)
+        return itertools.count(yt_config.port_range_start)
     elif yt_config.listen_port_pool is not None:
         return iter(yt_config.listen_port_pool)
     else:
@@ -184,7 +184,7 @@ class YTInstance(object):
 
         with push_front_env_path(self.bin_path):
             self._binary_to_version = _get_yt_versions(custom_paths=self.custom_paths)
-        
+
         if "ytserver-master" not in self._binary_to_version:
             raise YtError("Failed to find YT binaries; specify ytserver-all path using "
                           "ytserver_all_path keyword in Python/--ytserver-all-path argument of yt_local/$YTSERVER_ALL_PATH, or "
@@ -1132,7 +1132,7 @@ class YTInstance(object):
                 for instance in instances:
                     if not client.exists("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent"):
                         return False
-            except YtError as err:
+            except YtError:
                 logger.exception("Error while waiting for queue agents")
                 return False
 
@@ -1265,8 +1265,6 @@ class YTInstance(object):
     def start_nodes(self, sync=True):
         self._run_yt_component("node")
 
-        client = self._create_cluster_client()
-
         def nodes_ready():
             self._validate_processes_are_running("node")
 
@@ -1303,8 +1301,6 @@ class YTInstance(object):
 
     def start_chaos_nodes(self, sync=True):
         self._run_yt_component("node", name="chaos_node")
-
-        client = self._create_cluster_client()
 
         def chaos_nodes_ready():
             self._validate_processes_are_running("node")
