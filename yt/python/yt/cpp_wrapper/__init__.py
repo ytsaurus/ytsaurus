@@ -18,4 +18,4 @@ Check mapreduce/yt/examples/python-tutorial/cpp_simple_map_protobuf and 'IJob::P
 Check mapreduce/yt/examples/python-tutorial/cpp_* for examples.
 """
 
-from .cpp_wrapper import CppJob, exec_cpp_job
+from .cpp_wrapper import CppJob, exec_cpp_job  # noqa
