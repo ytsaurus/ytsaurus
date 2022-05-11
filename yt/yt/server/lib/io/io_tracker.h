@@ -57,6 +57,7 @@ struct IIOTracker
     //! The amount of handled events can be pretty large, so the code will slow down significantly.
     DECLARE_INTERFACE_SIGNAL(void(const TIOCounters&, const TIOTagList&), OnRawEventLogged);
     DECLARE_INTERFACE_SIGNAL(void(const TIOCounters&, const TIOTagList&), OnAggregateEventLogged);
+    DECLARE_INTERFACE_SIGNAL(void(const TIOCounters&, const TIOTagList&), OnPathAggregateEventLogged);
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOTracker)

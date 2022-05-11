@@ -171,16 +171,19 @@ public: \
     virtual void Subscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0; \
     virtual void Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) = 0;
 
-#define DELEGATE_SIGNAL(declaringType, TSignature, name, delegateTo) \
+#define DELEGATE_SIGNAL_WITH_RENAME(declaringType, TSignature, name, delegateTo, delegateName) \
     void declaringType::Subscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \
-        (delegateTo).Subscribe##name(callback); \
+        (delegateTo).Subscribe##delegateName(callback); \
     } \
     \
     void declaringType::Unsubscribe##name(const ::NYT::TCallback<TSignature>& callback) \
     { \
-        (delegateTo).Unsubscribe##name(callback); \
+        (delegateTo).Unsubscribe##delegateName(callback); \
     }
+
+#define DELEGATE_SIGNAL(declaringType, TSignature, name, delegateTo) \
+    DELEGATE_SIGNAL_WITH_RENAME(declaringType, TSignature, name, delegateTo, name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
