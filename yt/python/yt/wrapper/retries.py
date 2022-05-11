@@ -4,10 +4,10 @@ from yt import logger as yt_logger
 
 import abc
 import copy
-import inspect
 import random
 import time
 from datetime import datetime, timedelta
+
 
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
@@ -44,6 +44,7 @@ def default_chaos_monkey(enable):
     def chaos_monkey():
         return enable and random.randint(1, 5) == 1
     return chaos_monkey
+
 
 def run_chaos_monkey(chaos_monkey):
     if chaos_monkey is not None and chaos_monkey():
@@ -130,6 +131,7 @@ class Retrier(object):
 
     def except_action(self, exception, attempt):
         pass
+
 
 class IteratorRetrier(Retrier):
     def __init__(self, retry_config, timeout=None, exceptions=(YtError,), chaos_monkey=None):

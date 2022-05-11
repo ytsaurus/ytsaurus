@@ -1,5 +1,6 @@
 """YT command misc"""
 
+
 class Command(object):
     """Properties of YT command."""
     def __init__(self, input_type, output_type, is_volatile, is_heavy):
@@ -15,6 +16,7 @@ class Command(object):
             return "POST"
         else:
             return "GET"
+
 
 def parse_commands(description):
     """Parse tree-like description from /api response into commands dictionary."""

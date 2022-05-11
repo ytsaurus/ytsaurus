@@ -30,6 +30,7 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
+
 # TODO(ignat): avoid copypaste (same function presented in py_wrapper.py)
 def md5sum(filename):
     with open(filename, mode="rb") as fin:
@@ -37,6 +38,7 @@ def md5sum(filename):
         for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
     return h.hexdigest()
+
 
 class LocalFile(object):
     """Represents a local path of a file and its path in job's sandbox"""
@@ -92,6 +94,7 @@ class LocalFile(object):
     def attributes(self):
         return self._attributes
 
+
 def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_thread):
     offset = get_value(offset, 0)
     offset = min(offset, data_size)
@@ -108,9 +111,11 @@ def _prepare_ranges_for_parallel_read(offset, length, data_size, data_size_per_t
 
     return result
 
+
 def _prepare_params_for_parallel_read(params, range):
     params["offset"], params["length"] = range[0], range[1]
     return params
+
 
 class _ReadFileRetriableState(object):
     def __init__(self, params, client, process_response_action=None):
@@ -209,9 +214,9 @@ def write_file(destination, stream,
     :type destination: str or :class:`FilePath <yt.wrapper.ypath.FilePath>`
     :param stream: stream or bytes generator.
     :param dict file_writer: spec of upload operation.
-    :param bool is_stream_compressed: expect stream to contain compressed data. \
-    This data can be passed directly to proxy without recompression. Be careful! this option \
-    disables write retries.
+    :param bool is_stream_compressed: expect stream to contain compressed data.
+        This data can be passed directly to proxy without recompression. Be careful! this option
+        disables write retries.
     :param bool force_create: unconditionally create file and ignores exsting file.
     :param bool compute_md5: compute md5 of file content.
     """
@@ -243,7 +248,6 @@ def write_file(destination, stream,
                 "min_upload_replication_factor": 2,
             },
             get_value(file_writer, {}))
-
 
     params = {}
     set_param(params, "file_writer", file_writer)
@@ -292,14 +296,17 @@ def write_file(destination, stream,
             progress_monitor=progress_monitor,
             client=client)
 
+
 def _get_remote_temp_files_directory(client=None):
     path = get_config(client)["remote_temp_files_directory"]
     if path is not None:
         return path
     return "//tmp/yt_wrapper/file_storage"
 
+
 def _get_cache_path(client):
     return ypath_join(_get_remote_temp_files_directory(client), "new_cache")
+
 
 class PutFileToCacheRetrier(Retrier):
     def __init__(self, params, client=None):
@@ -324,6 +331,7 @@ class PutFileToCacheRetrier(Retrier):
             format=None,
             client=self._client)
 
+
 def put_file_to_cache(path, md5, cache_path=None, client=None):
     """Puts file to cache
 
@@ -343,6 +351,7 @@ def put_file_to_cache(path, md5, cache_path=None, client=None):
     retrier = PutFileToCacheRetrier(params, client)
     return retrier.run()
 
+
 def get_file_from_cache(md5, cache_path=None, client=None):
     """Gets file path in cache
 
@@ -357,8 +366,10 @@ def get_file_from_cache(md5, cache_path=None, client=None):
 
     return _make_formatted_transactional_request("get_file_from_cache", params, format=None, client=client)
 
+
 def is_executable(filename, client=None):
     return os.access(filename, os.X_OK) or get_config(client)["yamr_mode"]["always_set_executable_flag_on_files"]
+
 
 def _upload_file_to_cache_legacy(filename, hash, client=None):
     last_two_digits_of_hash = ("0" + hash.split("-")[-1])[-2:]
@@ -426,6 +437,7 @@ def _upload_file_to_cache_legacy(filename, hash, client=None):
 
     return destination
 
+
 def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None):
     if hash is None:
         hash = md5sum(filename)
@@ -478,6 +490,7 @@ def upload_file_to_cache(filename, hash=None, progress_monitor=None, client=None
 
     return destination
 
+
 def _touch_file_in_cache(filepath, client=None):
     use_legacy = get_config(client)["use_legacy_file_cache"]
     if use_legacy is None:
@@ -495,30 +508,31 @@ def _touch_file_in_cache(filepath, client=None):
         dirname, hash = ypath_split(filepath)
         get_file_from_cache(hash, client=client)
 
+
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
                       ignore_set_attributes_error=True, hash=None, client=None):
     """Uploads file to destination path with custom placement strategy.
 
     :param str filename: path to file on local machine.
     :param str destination: desired file path in Cypress.
-    :param str yt_filename: "file_name" attribute of file in Cypress (visible in operation name of file), \
-    by default basename of `destination` (or `filename` if `destination` is not set)
+    :param str yt_filename: "file_name" attribute of file in Cypress (visible in operation name of file),
+        by default basename of `destination` (or `filename` if `destination` is not set)
     :param str placement_strategy: one of ["replace", "ignore", "random", "hash"], "hash" by default.
-    :param bool ignore_set_attributes_error: ignore :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` \
-    during attributes setting.
+    :param bool ignore_set_attributes_error: ignore :class:`YtResponseError <yt.wrapper.errors.YtResponseError>`
+        during attributes setting.
     :return: YSON structure with result destination path
 
     `placement_strategy` can be set to:
 
-    * "replace" or "ignore" -> destination path will be `destination` \
-    or ``yt.wrapper.config["remote_temp_files_directory"]/<basename>`` if destination is not specified.
+    * "replace" or "ignore" -> destination path will be `destination`
+        or ``yt.wrapper.config["remote_temp_files_directory"]/<basename>`` if destination is not specified.
 
-    * "random" (only if `destination` parameter is `None`) -> destination path will be \
-    ``yt.wrapper.config["remote_temp_files_directory"]/<basename><random_suffix>``.
+    * "random" (only if `destination` parameter is `None`) -> destination path will be
+        ``yt.wrapper.config["remote_temp_files_directory"]/<basename><random_suffix>``.
 
-    * "hash" (only if `destination` parameter is `None`) -> destination path will be \
-    ``yt.wrapper.config["remote_temp_files_directory"]/hash/<md5sum_of_file>`` or this path will be link \
-    to some random Cypress path.
+    * "hash" (only if `destination` parameter is `None`) -> destination path will be
+        ``yt.wrapper.config["remote_temp_files_directory"]/hash/<md5sum_of_file>`` or this path will be link
+        to some random Cypress path.
     """
 
     def upload_with_check(path):

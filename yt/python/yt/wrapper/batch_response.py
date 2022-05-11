@@ -1,5 +1,6 @@
 from .common import YtError
 
+
 class BatchResponse(object):
     def __init__(self):
         self._output = None
@@ -38,6 +39,7 @@ class BatchResponse(object):
         self._output = result.get("output")
         self._error = result.get("error")
         self._executed = True
+
 
 def apply_function_to_result(function, result, include_error=False):
     if not isinstance(result, BatchResponse):

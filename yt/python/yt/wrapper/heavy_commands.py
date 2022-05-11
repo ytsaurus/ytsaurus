@@ -23,6 +23,7 @@ from yt.packages.six.moves import xrange
 import sys
 import time
 
+
 class _ProgressReporter(object):
     def __init__(self, monitor):
         self._monitor = monitor
@@ -36,11 +37,13 @@ class _ProgressReporter(object):
     def __del__(self):
         self._monitor.finish()
 
+
 class _IteratorProgressReporter(_ProgressReporter):
     def wrap_stream(self, stream):
         for chunk in stream:
             self._monitor.update(len(chunk))
             yield chunk
+
 
 class _FileProgressReporter(_ProgressReporter):
     def wrap_file(self, target):
@@ -60,6 +63,7 @@ class _FileProgressReporter(_ProgressReporter):
             self._monitor.update(len(result[-1]))
         return b"".join(result)
 
+
 class _FakeFileProgressReporter:
     def wrap_file(self, target):
         return target
@@ -73,8 +77,10 @@ class _FakeFileProgressReporter:
     def __exit__(self, type, value, traceback):
         pass
 
+
 def process_read_exception(exception):
     logger.warning("Read request failed with error: %s", str(exception))
+
 
 class FakeTransaction(object):
     def __enter__(self):
@@ -96,6 +102,7 @@ class FakeTransaction(object):
         return True
 
     __nonzero__ = __bool__
+
 
 class WriteRequestRetrier(Retrier):
     def __init__(self, transaction_timeout, write_action, client=None):
@@ -130,6 +137,7 @@ class WriteRequestRetrier(Retrier):
 
         self.chunk = None
         self.params = None
+
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries,
                        is_stream_compressed=False, size_hint=None, filename_hint=None,
@@ -212,6 +220,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                     use_heavy_proxy=True,
                     client=client)
 
+
 def _get_read_response(command_name, params, transaction_id, client=None):
     make_request = lambda: _make_transactional_request(
         command_name,
@@ -229,11 +238,13 @@ def _get_read_response(command_name, params, transaction_id, client=None):
         response = make_request()
     return response
 
+
 def _abort_transaction_on_close(transaction, from_delete):
     if from_delete:
         add_transaction_to_abort(transaction)
     else:
         transaction.abort()
+
 
 class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state, client=None):
@@ -307,6 +318,7 @@ class ReadIterator(IteratorRetrier):
         self.response = None
         process_read_exception(exception)
 
+
 def _try_get_size(path, client, request_size):
     if request_size:
         try:
@@ -314,6 +326,7 @@ def _try_get_size(path, client, request_size):
         except (ValueError, YtError):
             pass
     return None
+
 
 def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False):
     if sys.stderr.isatty():
@@ -327,6 +340,7 @@ def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False
         return _FileProgressReporter(bar) if filelike else _IteratorProgressReporter(bar)
     else:
         return _FakeFileProgressReporter()
+
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
                       filename_hint=None, request_size=False):

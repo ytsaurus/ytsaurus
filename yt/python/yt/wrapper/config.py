@@ -17,6 +17,7 @@ import types
 # To support backward compatibility we must translate uppercase fields as config values.
 # To implement this translation we replace config module with special class Config!
 
+
 class Config(types.ModuleType, client_state.ClientState):
     DEFAULT_PICKLING_FRAMEWORK = "dill"
 

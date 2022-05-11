@@ -14,6 +14,7 @@ from yt.packages.six.moves import xrange, map as imap, builtins
 from copy import deepcopy
 from random import Random
 
+
 def _get_compression_ratio(table, codec, client, spec):
     def exact_chunk_index_limit(chunk_index):
         return {"lower_limit": {"chunk_index": chunk_index}, "upper_limit": {"chunk_index": chunk_index + 1}}
@@ -39,6 +40,7 @@ def _get_compression_ratio(table, codec, client, spec):
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)
         return get(tmp + "/@compression_ratio", client=client)
 
+
 def _check_codec(table, codec_name, codec_value, client):
     if codec_value is None:
         return True
@@ -51,6 +53,7 @@ def _check_codec(table, codec_name, codec_value, client):
                 return False
             else:
                 raise
+
 
 def transform(source_table, destination_table=None, erasure_codec=None, compression_codec=None,
               desired_chunk_size=None, spec=None, check_codecs=False, optimize_for=None, client=None):

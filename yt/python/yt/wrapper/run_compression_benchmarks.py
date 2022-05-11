@@ -15,6 +15,7 @@ For each codec prints compression ratio, cpu_write and cpu_read.
 
 CODEC_WITH_LEVEL_PATTERN = re.compile(r"(.+)_(\d+)$")
 
+
 def compute_row_count(attributes, sample_size):
     uncompressed_size = attributes["uncompressed_data_size"]
     row_count = attributes["row_count"]
@@ -24,6 +25,7 @@ def compute_row_count(attributes, sample_size):
     average_row_size = uncompressed_size / row_count
 
     return min(row_count, int(math.ceil(sample_size / average_row_size)))
+
 
 def get_compression_codec_list(client, return_all):
     features = client.get_supported_features()
@@ -53,15 +55,18 @@ def get_compression_codec_list(client, return_all):
 
     return codecs
 
+
 def get_value_by_path(node, path):
     tokens = path.split("/")
     for token in tokens:
         node = node[token]
     return node
 
+
 def wait_available_operation(tracker, max_operations):
     while tracker.get_operation_count() >= max_operations:
         time.sleep(1)
+
 
 def get_stats_list(stats):
     def sort_key(x):
@@ -82,11 +87,13 @@ def get_stats_list(stats):
     stats_list.sort(key=sort_key)
     return stats_list
 
+
 def check_timeout(operation_info):
     error_message = get_value_by_path(operation_info, "result/error/message")
 
     if "too long" not in error_message:
         raise yt.YtError("Operation finished unsuccessfully: {}".format(error_message))
+
 
 def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=None):
     TIMED_OUT = "Timed out"
@@ -193,6 +200,7 @@ def run(table, time_limit_sec, max_operations, sample_size, all_codecs, client=N
                 stats[codec]["codec/cpu/decode"] = cpu_read
         client.abort_transaction(tx)
     return stats
+
 
 def run_compression_benchmarks(table, format, time_limit_sec, max_operations, sample_size, all_codecs, client=None):
     stats = run(table, time_limit_sec, max_operations, sample_size, all_codecs, client)

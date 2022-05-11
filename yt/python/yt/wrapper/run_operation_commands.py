@@ -87,10 +87,10 @@ def run_merge(source_table, destination_table, mode=None,
     :type source_table: list[str or :class:`TablePath <yt.wrapper.ypath.TablePath>`]
     :param destination_table: path to result table.
     :type destination_table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param str mode: one of ["auto", "unordered", "ordered", "sorted"]. "auto" by default. \
-    Mode `sorted` keeps sortedness of output tables. \
-    Mode `ordered` is about chunk magic, not for ordinary users. \
-    In `auto` mode system chooses proper mode depending on the table sortedness.
+    :param str mode: one of ["auto", "unordered", "ordered", "sorted"]. "auto" by default.
+        Mode `sorted` keeps sortedness of output tables.
+        Mode `ordered` is about chunk magic, not for ordinary users.
+        In `auto` mode system chooses proper mode depending on the table sortedness.
     :param int job_count: recommendation how many jobs should run.
     :param dict job_io: job io specification.
     :param dict table_writer: standard operation parameter.
@@ -108,6 +108,7 @@ def run_merge(source_table, destination_table, mode=None,
         .job_count(job_count) \
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
+
 
 @forbidden_inside_job
 def run_sort(source_table, destination_table=None, sort_by=None,
@@ -130,6 +131,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         .merge_job_io(job_io) \
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
+
 
 @forbidden_inside_job
 def run_map_reduce(mapper, reducer, source_table, destination_table,
@@ -246,6 +248,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             .end_reduce_combiner()
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
+
 def run_map(binary, source_table, destination_table=None,
             local_files=None, yt_files=None,
             format=None, input_format=None, output_format=None,
@@ -285,6 +288,7 @@ def run_map(binary, source_table, destination_table=None,
         .job_io(job_io) \
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
+
 
 def run_reduce(binary, source_table, destination_table=None,
                local_files=None, yt_files=None,
@@ -405,6 +409,7 @@ def run_remote_copy(source_table, destination_table,
         .spec(spec)
     return run_operation(spec_builder, sync=sync, enable_optimizations=True, client=client)
 
+
 class OperationRequestRetrier(Retrier):
     def __init__(self, operation_type, spec, retry_actions, client=None):
         self.operation_type = operation_type
@@ -445,6 +450,7 @@ class OperationRequestRetrier(Retrier):
                        sleep_backoff, iter_number, error_tail)
         time.sleep(sleep_backoff)
 
+
 def _make_operation_request(operation_type, spec, sync,
                             finalization_actions=None,
                             retry_actions=None,
@@ -467,7 +473,6 @@ def _make_operation_request(operation_type, spec, sync,
         if sync:
             operation.wait()
         return operation
-
 
     attached = not get_config(client)["detached"]
     transaction_id = get_command_param("transaction_id", client)
@@ -504,6 +509,7 @@ def _make_operation_request(operation_type, spec, sync,
     else:
         return _manage_operation(finalization_actions)
 
+
 def _run_sort_optimizer(spec, client=None):
     operation_type = "sort"
     is_sorted = all(spec.get("sort_by") == get_sorted_by(table, [], client=client)
@@ -522,6 +528,7 @@ def _run_sort_optimizer(spec, client=None):
         spec = builder.build(client=client)
 
     return [(operation_type, spec, [])]
+
 
 def _run_reduce_optimizer(spec, client=None):
     operations_list = [("reduce", spec, [])]
@@ -563,6 +570,7 @@ def _run_reduce_optimizer(spec, client=None):
                 operations_list = [("map_reduce", spec, [])]
 
     return operations_list
+
 
 @forbidden_inside_job
 def run_operation(spec_builder, sync=True, enable_optimizations=False, client=None):

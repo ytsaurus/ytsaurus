@@ -37,6 +37,7 @@ class AclBuilder(object):
     def build(self):
         return self._acl
 
+
 def check_permission(user, permission, path,
                      format=None, read_from=None, cache_sticky_group_size=None,
                      columns=None, client=None):
@@ -61,6 +62,7 @@ def check_permission(user, permission, path,
         format=format,
         client=client)
 
+
 def add_member(member, group, client=None):
     """Adds member to Cypress node group.
 
@@ -76,6 +78,7 @@ def add_member(member, group, client=None):
             "group": group
         },
         client=client)
+
 
 def remove_member(member, group, client=None):
     """Removes member from Cypress node group.

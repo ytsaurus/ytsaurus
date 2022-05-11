@@ -13,10 +13,12 @@ from yt.packages.six.moves import zip as izip
 
 from copy import deepcopy
 
+
 class YtBatchRequestFailedError(YtError):
     """Batch request failed error.
        Can be raised if at least one request in batch failed."""
     pass
+
 
 class BatchRequestRetrier(Retrier):
     def __init__(self, tasks, responses, max_batch_size, client=None):
@@ -54,6 +56,7 @@ class BatchRequestRetrier(Retrier):
         self._responses = responses
         if tasks:
             raise YtBatchRequestFailedError()
+
 
 class BatchExecutor(object):
     def __init__(self, raise_errors=False, max_batch_size=None, client=None):

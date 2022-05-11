@@ -37,12 +37,16 @@ try:
 except ImportError:
     yatest_common = None
 
+requests = None
+
 RECEIVE_TOKEN_FROM_SSH_SESSION = \
     int(os.environ.get("RECEIVE_TOKEN_FROM_SSH_SESSION", True)) and \
     "TEST_TOOL" not in os.environ
 
+
 def format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
+
 
 def _hexify(message):
     def convert(byte):
@@ -51,6 +55,7 @@ def _hexify(message):
         else:
             return hex(byte)
     return "".join(map(convert, iterbytes(message)))
+
 
 def _hexify_recursively(obj):
     if isinstance(obj, dict):
@@ -64,6 +69,7 @@ def _hexify_recursively(obj):
     else:
         return obj
 
+
 def get_retriable_errors():
     """List or errors that API will retry in HTTP requests."""
     from yt.packages.requests import HTTPError, ConnectionError, ReadTimeout, Timeout
@@ -75,6 +81,7 @@ def get_retriable_errors():
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
             YtRequestTimedOut, YtRetriableError, YtTransportError)
 
+
 @add_metaclass(ABCMeta)
 class ProxyProvider(object):
     @abstractmethod
@@ -85,12 +92,13 @@ class ProxyProvider(object):
     def on_error_occured(self, error):
         pass
 
-requests = None
+
 def lazy_import_requests():
     global requests
     if requests is None:
         import yt.packages.requests
         requests = yt.packages.requests
+
 
 def _setup_new_session(client):
     lazy_import_requests()
@@ -100,15 +108,18 @@ def _setup_new_session(client):
                  get_config(client)["proxy"]["force_ipv6"])
     return session
 
+
 def _get_session(client=None):
     if get_option("_requests_session", client) is None:
         session = _setup_new_session(client)
         set_option("_requests_session", session, client)
     return get_option("_requests_session", client)
 
+
 def _cleanup_http_session(client=None):
     session = _setup_new_session(client)
     set_option("_requests_session", session, client)
+
 
 def configure_ip(session, force_ipv4=False, force_ipv6=False):
     lazy_import_requests()
@@ -122,10 +133,12 @@ def configure_ip(session, force_ipv4=False, force_ipv6=False):
                                                                  **kwargs)
         session.mount("http://", HTTPAdapter())
 
+
 def get_error_from_headers(headers):
     if int(headers.get("x-yt-response-code", 0)) != 0:
         return headers["x-yt-error"]
     return None
+
 
 def get_header_format(client):
     if get_config(client)["proxy"]["header_format"] is not None:
@@ -138,6 +151,7 @@ def get_header_format(client):
             return "json"
         return structured_data_format
     return "yson"
+
 
 def check_response_is_decodable(response, format):
     if format == "json":
@@ -203,6 +217,7 @@ def create_response(response, request_info, error_format, client):
     response.framing_error = None
     return response
 
+
 def _process_request_backoff(current_time, client):
     backoff = get_config(client)["proxy"]["request_backoff_time"]
     if backoff is not None:
@@ -212,6 +227,7 @@ def _process_request_backoff(current_time, client):
         if diff * 1000.0 < float(backoff):
             time.sleep(float(backoff) / 1000.0 - diff)
         _get_session(client=client).last_request_time = now_seconds
+
 
 def raise_for_token(response, request_info):
     request_id = response.headers.get("X-YT-Request-ID", "missing")
@@ -230,6 +246,7 @@ def raise_for_token(response, request_info):
         "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
         .format(request_id, proxy),
         inner_errors=[error_exc])
+
 
 def _raise_for_status(response, request_info):
     if response.status_code in (500, 503):
@@ -402,6 +419,7 @@ class RequestRetrier(Retrier):
             time.sleep(backoff)
         logger.warning("New retry (%d) for request id %s...", attempt + 1, self.request_id)
 
+
 def make_request_with_retries(method, url=None, **kwargs):
     """Performs HTTP request to YT proxy with retries.
 
@@ -422,6 +440,7 @@ def get_proxy_url(required=True, client=None):
 
     return proxy
 
+
 def _request_api(version=None, client=None):
     proxy = get_proxy_url(client=client)
     location = "api" if version is None else "api/" + version
@@ -431,6 +450,7 @@ def _request_api(version=None, client=None):
         response_format="json",
         client=client
     ).json()
+
 
 def get_http_api_version(client=None):
     api_version_option = get_option("_api_version", client)
@@ -457,6 +477,7 @@ def get_http_api_version(client=None):
 
     return api_version
 
+
 def get_http_api_commands(client=None):
     if get_option("_commands", client):
         return get_option("_commands", client)
@@ -469,6 +490,7 @@ def get_http_api_commands(client=None):
 
     return commands
 
+
 def get_fqdn(client=None):
     if get_option("_fqdn", client):
         return get_option("_fqdn", client)
@@ -477,6 +499,7 @@ def get_fqdn(client=None):
     set_option("_fqdn", fqdn, client)
 
     return fqdn
+
 
 def _get_token_by_ssh_session(client):
     if yatest_common is not None:
@@ -498,6 +521,7 @@ def _get_token_by_ssh_session(client):
 
     return token
 
+
 def validate_token(token, client):
     if token is not None:
         require(all(33 <= ord(c) <= 126 for c in token),
@@ -506,11 +530,13 @@ def validate_token(token, client):
     if token is None and get_config(client)["check_token"]:
         raise YtTokenError("Token must be specified, to disable this check set 'check_token' option to False")
 
+
 def _get_token_from_config(client):
     token = get_config(client)["token"]
     if token is not None:
         logger.debug("Token got from environment variable or config")
         return token
+
 
 def _check_token_file_permissions(token_path):
     file_mode = os.stat(token_path).st_mode
@@ -532,6 +558,7 @@ def _get_token_from_file(client):
         logger.debug("Token got from file %s", token_path)
         _check_token_file_permissions(token_path)
         return token
+
 
 def get_token(token=None, client=None):
     """Extracts token from given `token` and `client` arguments. Also checks token for correctness."""
@@ -582,6 +609,7 @@ def get_token(token=None, client=None):
         set_option("_token_cached", True, client=client)
 
     return token
+
 
 @forbidden_inside_job
 def get_user_name(token=None, headers=None, client=None):

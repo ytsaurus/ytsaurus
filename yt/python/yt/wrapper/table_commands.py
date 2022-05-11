@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 
 # Auxiliary methods
 
+
 def _get_format_from_tables(tables, ignore_unexisting_tables):
     """Tries to get format from tables, raises :class:`YtError <yt.common.YtError>` if tables \
        have different _format attribute."""
@@ -67,6 +68,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
 
     return formats[0]
 
+
 def _create_table(path, recursive=None, ignore_existing=False, attributes=None, client=None):
     table = TablePath(path, client=client)
     attributes = get_value(attributes, {})
@@ -76,6 +78,7 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
         attributes = update({"compression_codec": "zlib_6"}, attributes)
     return create("table", table, recursive=recursive, ignore_existing=ignore_existing,
                   attributes=attributes, client=client)
+
 
 @deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
@@ -93,6 +96,7 @@ def create_table(path, recursive=None, ignore_existing=False,
     """
 
     return _create_table(path, recursive, ignore_existing, attributes, client)
+
 
 def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeout=None, client=None):
     """Creates temporary table by given path with given prefix and return name.
@@ -125,25 +129,26 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     _create_table(name, attributes=attributes, client=client)
     return name
 
+
 def write_table(table, input_stream, format=None, table_writer=None, max_row_buffer_size=None,
                 is_stream_compressed=False, force_create=None, raw=None,
                 client=None):
     """Writes rows from input_stream to table.
 
-    :param table: output table. Specify `TablePath` attributes for append mode or something like this. \
-    Table can not exist.
+    :param table: output table. Specify `TablePath` attributes for append mode or something like this.
+        Table can not exist.
     :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
     :param input_stream: python file-like object, string, list of strings.
     :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param dict table_writer: spec of "write" operation.
     :param int max_row_buffer_size: option for testing purposes only, consult yt@ if you want to use it.
-    :param bool is_stream_compressed: expect stream to contain compressed table data. \
-    This data can be passed directly to proxy without recompression. Be careful! This option \
-    disables write retries.
-    :param bool force_create: try to create table regardless of its existence \
-    (if not specified the pure write_table call will create table if it is doesn't exist). \
-    Use this option only if you know what you do.
+    :param bool is_stream_compressed: expect stream to contain compressed table data.
+        This data can be passed directly to proxy without recompression. Be careful! This option
+        disables write retries.
+    :param bool force_create: try to create table regardless of its existence
+        (if not specified the pure write_table call will create table if it is doesn't exist).
+        Use this option only if you know what you do.
 
     The function tries to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
@@ -230,6 +235,7 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     if get_config(client)["yamr_mode"]["delete_empty_tables"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
+
 def _try_get_schema(table, client=None):
     table = TablePath(table, client=client)
     try:
@@ -239,6 +245,7 @@ def _try_get_schema(table, client=None):
         if err.is_resolve_error():
             return None
         raise
+
 
 def _try_infer_schema(table, row_type):
     if table.attributes.get("schema") is not None:
@@ -251,6 +258,7 @@ def _try_infer_schema(table, row_type):
         schema = schema.build_schema_sorted_by(sorted_by)
         del table.attributes["sorted_by"]
     table.attributes["schema"] = schema
+
 
 def write_table_structured(table, row_type, input_stream, table_writer=None, max_row_buffer_size=None,
                            force_create=None, client=None):
@@ -271,6 +279,7 @@ def write_table_structured(table, row_type, input_stream, table_writer=None, max
         raw=False,
         client=client,
     )
+
 
 def _prepare_table_path_for_read_blob_table(table, part_index_column_name, client=None):
     table = TablePath(table, client=client)
@@ -309,6 +318,7 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
 
     range["lower_limit"]["key"].append(0)
     return table
+
 
 class _ReadBlobTableRetriableState(object):
     def __init__(self, params, client, process_response_action):
@@ -379,6 +389,7 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
 
     return response
 
+
 def _slice_row_ranges_for_parallel_read(ranges, row_count, data_size, data_size_per_thread):
     result = []
     if row_count > 0:
@@ -407,10 +418,12 @@ def _slice_row_ranges_for_parallel_read(ranges, row_count, data_size, data_size_
 
     return result
 
+
 def _prepare_params_for_parallel_read(params, range):
     params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range[0]},
                                             "upper_limit": {"row_index": range[1]}}]
     return params
+
 
 class _ReadTableRetriableState(object):
     def __init__(self, params, client, process_response_action):
@@ -736,6 +749,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     else:
         return format.load_rows(response)
 
+
 def read_table_structured(table, row_type, table_reader=None, unordered=None,
                           response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table in structured format. Cf. docstring for read_table"""
@@ -762,12 +776,14 @@ def read_table_structured(table, row_type, table_reader=None, unordered=None,
         client=client,
     )
 
+
 def _are_valid_nodes(source_tables, destination_table):
     return \
         len(source_tables) == 1 and \
         not source_tables[0].has_delimiters() and \
         not destination_table.append and \
         destination_table != source_tables[0]
+
 
 def copy_table(source_table, destination_table, replace=True, client=None):
     """Copies table(s).
@@ -807,6 +823,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         mode = "sorted" if is_sorted_merge else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
 
+
 def move_table(source_table, destination_table, replace=True, client=None):
     """Moves table.
 
@@ -844,6 +861,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
                 continue
             remove(table, client=client, force=True)
 
+
 def row_count(table, client=None):
     """Returns number of rows in the table.
 
@@ -856,6 +874,7 @@ def row_count(table, client=None):
         return 0
     return get_attribute(table, "row_count", client=client)
 
+
 def is_empty(table, client=None):
     """Is table empty?
 
@@ -866,6 +885,7 @@ def is_empty(table, client=None):
     return apply_function_to_result(
         lambda res: res == 0,
         row_count(TablePath(table, client=client), client=client))
+
 
 def get_sorted_by(table, default=None, client=None):
     """Returns "sorted_by" table attribute or `default` if attribute doesn't exist.
@@ -878,6 +898,7 @@ def get_sorted_by(table, default=None, client=None):
     if default is None:
         default = [] if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] else None
     return get_attribute(TablePath(table, client=client), "sorted_by", default=default, client=client)
+
 
 def is_sorted(table, client=None):
     """Is table sorted?
@@ -894,6 +915,7 @@ def is_sorted(table, client=None):
             "sorted",
             default=False,
             client=client)
+
 
 def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, client=None):
     """Performs schema and other table meta information modifications.
@@ -912,6 +934,7 @@ def alter_table(path, schema=None, dynamic=None, upstream_replica_id=None, clien
     set_param(params, "upstream_replica_id", upstream_replica_id)
 
     return make_request("alter_table", params, client=client)
+
 
 def get_table_columnar_statistics(paths, client=None):
     """ Gets columnar statistics of tables listed in paths

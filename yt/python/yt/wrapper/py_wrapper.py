@@ -45,6 +45,7 @@ OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 SINGLE_INDEPENDENT_BINARY_CASE = None
 
+
 class TarInfo(tarfile.TarInfo):
     @property
     def mtime(self):
@@ -54,14 +55,17 @@ class TarInfo(tarfile.TarInfo):
     def mtime(self, value):
         pass
 
+
 class WrapResult(object):
     __slots__ = ["cmd", "tmpfs_size", "environment", "local_files_to_remove", "title"]
+
     def __init__(self, cmd, tmpfs_size=0, environment=None, local_files_to_remove=None, title=None):
         self.cmd = cmd
         self.tmpfs_size = tmpfs_size
         self.environment = environment
         self.local_files_to_remove = local_files_to_remove
         self.title = title
+
 
 class OperationParameters(object):
     __slots__ = ["input_format", "output_format", "operation_type", "job_type", "group_by", "should_process_key_switch",
@@ -85,19 +89,21 @@ class OperationParameters(object):
         self.is_local_mode = is_local_mode
         self.has_state = has_state
 
+
 def get_local_temp_directory(client):
     local_temp_directory = get_config(client)["local_temp_directory"]
     if local_temp_directory is not None:
         return local_temp_directory
     return tempfile.gettempdir()
 
-# Md5 tools.
+
 def calc_md5_from_file(filename):
     with open(filename, mode="rb") as fin:
         md5_hash = hashlib.md5()
         for buf in chunk_iter_stream(fin, 1024):
             md5_hash.update(buf)
     return md5_hash.hexdigest()
+
 
 def is_running_interactively():
     # Does not work in bpython
@@ -106,6 +112,7 @@ def is_running_interactively():
     else:
         # Old IPython (0.12 at least) has no sys.ps1 defined
         return "__IPYTHON__" in globals()
+
 
 class TempfilesManager(object):
     def __init__(self, remove_temp_files, directory):
@@ -136,7 +143,19 @@ class TempfilesManager(object):
         self._tempfiles_pool.append(filepath)
         return filepath
 
+
 def module_relpath(module_names, module_file, client):
+    """
+    !!! This comment shows trivial but wrong solution, because modules can affect sys.path while importing.
+    !!! Do not delete it to prevent wrong refactoring in the future.
+    module_path = module.__file__
+    for path in sys.path:
+        if module_path.startswith(path):
+            relpath = module_path[len(path):]
+            if relpath.startswith("/"):
+                relpath = relpath[1:]
+            return relpath
+    """
     search_extensions = get_config(client)["pickling"]["search_extensions"]
     if search_extensions is None:
         if PY3:
@@ -165,15 +184,7 @@ def module_relpath(module_names, module_file, client):
         return os.path.basename(module_file)
 
     return None
-    #!!! It is wrong solution, because modules can affect sys.path while importing
-    #!!! Do not delete it to prevent wrong refactoring in the future.
-    # module_path = module.__file__
-    #for path in sys.path:
-    #    if module_path.startswith(path):
-    #        relpath = module_path[len(path):]
-    #        if relpath.startswith("/"):
-    #            relpath = relpath[1:]
-    #        return relpath
+
 
 def find_file(path):
     if path == "<frozen>":
@@ -185,6 +196,7 @@ def find_file(path):
         if dirname == path:
             return None
         path = dirname
+
 
 def list_dynamic_library_dependencies(library_path):
     if not which("ldd"):
@@ -203,6 +215,7 @@ def list_dynamic_library_dependencies(library_path):
             if lib_path:
                 result.append(lib_path)
     return result
+
 
 class Tar(object):
     def __init__(self, prefix, tempfiles_manager, client):
@@ -250,10 +263,12 @@ class Tar(object):
         if type is None:
             self.md5 = calc_md5_from_file(self.filename)
 
+
 def load_function(func):
     if isinstance(func, str):
         func = eval(func)
     return func
+
 
 def split_files_into_chunks(files, chunk_size):
     chunk = []
@@ -267,6 +282,7 @@ def split_files_into_chunks(files, chunk_size):
             size = 0
     if chunk:
         yield chunk
+
 
 def create_modules_archive_default(tempfiles_manager, custom_python_used, client):
     for module_name in OPERATION_REQUIRED_MODULES:
@@ -394,6 +410,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
     return result
 
+
 def create_modules_archive(tempfiles_manager, custom_python_used, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
     if create_modules_archive_function is not None:
@@ -420,6 +437,7 @@ def simplify(function_name):
         return sym
     return "".join(imap(fix, function_name[:30]))
 
+
 def get_function_name(function):
     if hasattr(function, "__name__"):
         return simplify(function.__name__)
@@ -427,6 +445,7 @@ def get_function_name(function):
         return simplify(function.__class__.__name__)
     else:
         return "operation"
+
 
 def get_use_local_python_in_jobs(client):
     python_binary = get_config(client)["pickling"]["python_binary"]
@@ -439,6 +458,7 @@ def get_use_local_python_in_jobs(client):
         use_local_python_in_jobs = True
 
     return use_local_python_in_jobs
+
 
 def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_argument_builder, environment, client):
     use_py_runner = None
@@ -474,6 +494,7 @@ def build_caller_arguments(is_standalone_binary, use_local_python_in_jobs, file_
 
     return arguments
 
+
 def build_function_and_config_arguments(function, create_temp_file, file_argument_builder,
                                         is_local_mode, params, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
@@ -495,6 +516,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
     return list(imap(file_argument_builder, [function_filename, config_filename]))
+
 
 def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
@@ -519,6 +541,7 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
         standard_pickle.dump(modules_info, fout)
 
     return [file_argument_builder(modules_info_filename)], tmpfs_size
+
 
 def build_main_file_arguments(function, create_temp_file, file_argument_builder):
     main_filename = create_temp_file(prefix="_main_module", suffix=".py")
@@ -551,6 +574,7 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
         shutil.copy(function_source_filename, main_filename)
 
     return [file_argument_builder(main_filename), module_import_path, main_module_type]
+
 
 def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, client):
     assert params.job_type in ["mapper", "reducer", "reduce_combiner", "vanilla"]
@@ -628,10 +652,12 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, clien
     return WrapResult(cmd=cmd, tmpfs_size=tmpfs_size, environment=environment,
                       title=title, local_files_to_remove=None)
 
+
 def wrap(client, **kwargs):
     result = do_wrap(client=client, **kwargs)
     result.local_files_to_remove = []
     return result
+
 
 def enable_python_job_processing_for_standalone_binary():
     """Enables alternative method to run python functions as jobs in YT operations.
@@ -654,6 +680,7 @@ def enable_python_job_processing_for_standalone_binary():
     else:
         SINGLE_INDEPENDENT_BINARY_CASE = True
 
+
 def initialize_python_job_processing():
     """Checks if program is build as standalone binary or arcadia python used.
     And call enable_python_job_processing_for_standalone_binary if it is the case.
@@ -662,6 +689,7 @@ def initialize_python_job_processing():
     """
     if getattr(sys, "is_standalone_binary", False) or is_arcadia_python():
         enable_python_job_processing_for_standalone_binary()
+
 
 def _get_callable_func(func):
     if inspect.isfunction(func):
@@ -674,28 +702,34 @@ def _get_callable_func(func):
                 .format(repr(func)))
         return func.__call__
 
+
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
         func.attributes = {}
     func.attributes[key] = value
     return func
 
+
 def aggregator(func):
     """Decorates function to consume *iterator of rows* instead of single row."""
     return _set_attribute(func, "is_aggregator", True)
+
 
 def reduce_aggregator(func):
     """Decorates function to consume *iterator of pairs* where each pair consists \
        of key and records with this key."""
     return _set_attribute(func, "is_reduce_aggregator", True)
 
+
 def raw(func):
     """Decorates function to consume *raw data stream* instead of single row."""
     return _set_attribute(func, "is_raw", True)
 
+
 def raw_io(func):
     """Decorates function to run as is. No arguments are passed. Function handles IO."""
     return _set_attribute(func, "is_raw_io", True)
+
 
 def with_context(func):
     """Decorates function to run with control attributes argument."""
@@ -704,6 +738,7 @@ def with_context(func):
         raise TypeError('Decorator "with_context" applied to function {0} that has no argument "context"'
                         .format(func.__name__))
     return _set_attribute(func, "with_context", True)
+
 
 def with_skiff_schemas(func):
     """Mark python function as skiff-compatible."""
@@ -717,6 +752,7 @@ def with_skiff_schemas(func):
             'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_output_schemas"'
             .format(func.__name__))
     return _set_attribute(func, "with_skiff_schemas", True)
+
 
 def with_formats(func, input_format=None, output_format=None):
     if input_format is not None:

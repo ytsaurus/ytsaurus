@@ -10,6 +10,7 @@ from .ypath import TablePath
 
 import random
 
+
 def _sample_rows_from_table_in_mapreduce(table, output_table, total_table_row_count, row_count, client=None):
     with TempTable(client=client) as temp_table:
         sampling_rate = min(float(row_count) / total_table_row_count * 2, 1.0)
@@ -20,6 +21,7 @@ def _sample_rows_from_table_in_mapreduce(table, output_table, total_table_row_co
         shuffle_table(temp_table, spec=spec, client=client)
 
         run_merge(TablePath(temp_table, end_index=row_count), output_table, client=client)
+
 
 def _sample_rows_from_table_generator(table, total_table_row_count, row_count, client=None):
     used_indexes = set()
@@ -33,6 +35,7 @@ def _sample_rows_from_table_generator(table, total_table_row_count, row_count, c
         iterator = read_table(TablePath(table, exact_index=index), client=client)
         row = next(iterator)
         yield row
+
 
 @forbidden_inside_job
 def sample_rows_from_table(table, output_table, row_count, client=None):

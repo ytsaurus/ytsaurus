@@ -41,6 +41,7 @@ try:
 except ImportError:
     job_shell_supported = False
 
+
 class JobShell(object):
     def __init__(self, job_id, shell_name=None, interactive=True, timeout=None, client=None):
         if not job_shell_supported:

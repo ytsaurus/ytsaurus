@@ -21,6 +21,7 @@ from datetime import datetime
 
 import os
 
+
 def dump_params(obj, header_format):
     if header_format == "json":
         return JsonFormat().dumps_node(obj)
@@ -29,12 +30,14 @@ def dump_params(obj, header_format):
     else:
         assert False, "Invalid header format"
 
+
 # NB: It is necessary to avoid reference loop.
 # We cannot store proxy provider in client and client in proxy provider.
 class HeavyProxyProviderState(object):
     def __init__(self):
         self.banned_proxies = {}
         self.last_provided_proxy = None
+
 
 class HeavyProxyProvider(ProxyProvider):
     def __init__(self, client, state=None):
@@ -99,6 +102,7 @@ class HeavyProxyProvider(ProxyProvider):
             "get",
             "http://{0}/{1}".format(self._get_light_proxy(), discovery_url),
             client=self.client).json()
+
 
 class TokenAuth(AuthBase):
     def __init__(self, token):

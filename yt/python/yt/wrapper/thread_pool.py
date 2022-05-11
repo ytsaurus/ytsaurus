@@ -4,6 +4,7 @@ from yt.packages.six import Iterator
 
 import threading
 
+
 class _ImapQueue(object):
     def __init__(self, maxsize=0):
         self._data = {}
@@ -104,6 +105,7 @@ class _Worker(threading.Thread):
 
         self.state = self.TERMINATED
 
+
 class _ImapIterator(Iterator):
     FREE = 0
     BUSY = 1
@@ -174,6 +176,7 @@ class _ImapIterator(Iterator):
 
     def __del__(self):
         self.close()
+
 
 class ThreadPool(object):
     """Class representing a thread pool.

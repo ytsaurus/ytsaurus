@@ -1,20 +1,20 @@
-from .types import yt_dataclass, is_yt_dataclass, create_annotated_type, OutputRow
-from .table_schema import ColumnSchema, TableSchema, SortColumn
+from .types import yt_dataclass, is_yt_dataclass, create_annotated_type, OutputRow  # noqa
+from .table_schema import ColumnSchema, TableSchema, SortColumn  # noqa
 
-from .internal_schema import _row_py_schema_to_skiff_schema, _validate_py_schema
+from .internal_schema import _row_py_schema_to_skiff_schema, _validate_py_schema  # noqa
 from . import internal_schema
 from .helpers import check_schema_module_available, is_schema_module_available
 
 from ..errors import YtError
 
+if is_schema_module_available():
+    from .types import (  # noqa
+        Int8, Int16, Int32, Int64, Uint8, Uint16, Uint32, Uint64,
+        YsonBytes, OtherColumns)
+
 
 class SkiffError(YtError):
     pass
-
-
-if is_schema_module_available():
-    from .types import (Int8, Int16, Int32, Int64, Uint8, Uint16, Uint32, Uint64,
-                        YsonBytes, OtherColumns)
 
 
 def _create_row_py_schema(py_type, schema=None, control_attributes=None, column_renaming=None):

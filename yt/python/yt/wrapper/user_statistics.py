@@ -3,6 +3,7 @@ from . import yson
 import os
 import sys
 
+
 def write_statistics(dict):
     """Writes user statistics to proper file descriptor.
     This function must be called from job.
@@ -15,11 +16,13 @@ def write_statistics(dict):
     except OSError:
         sys.stderr.write("Failed to write user statistics\n")
 
+
 def _get_field(path, name):
     data = open(path, "r").read()
     for line in data.split("\n"):
         if line.startswith(name):
             return int(line.split()[1])
+
 
 def _get_value(path):
     return int(open(path, "r").read())

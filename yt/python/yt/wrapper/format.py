@@ -45,6 +45,7 @@ _ENCODING_SENTINEL = object()
 
 JSON_ENCODING_LEGACY_MODE = False
 
+
 class _AttributeDict(dict):
     def __init__(self, *args, **kwargs):
         super(_AttributeDict, self).__init__(*args, **kwargs)
@@ -56,13 +57,16 @@ class _AttributeDict(dict):
     def __copy__(self):
         return _AttributeDict(**self.__dict__)
 
+
 class YtFormatError(YtError):
     """Wrong format."""
     pass
 
+
 class YtFormatReadError(YtFormatError):
     """Problem with parsing that can be caused by network problems."""
     pass
+
 
 # This class should not be put inside class method to avoid reference loop.
 class RowsIterator(Iterator):
@@ -274,8 +278,8 @@ class Format(object):
         :param bool raw: if `True`, don't perform parsing, iterate unparsed rows instead.
 
         :return: parsed row.
-        :rtype: dict or :class:`Record <yt.wrapper.yamr_record.Record>`. \
-        If stream is empty - `None`. If `raw` is `True` - bytes.
+        :rtype: dict or :class:`Record <yt.wrapper.yamr_record.Record>`.
+            If stream is empty - `None`. If `raw` is `True` - bytes.
         """
         pass
 
@@ -495,6 +499,7 @@ class SkiffFormat(Format):
     def __setstate__(self, state):
         self.__init__(**state)
 
+
 class DsvFormat(Format):
     """Tabular format widely used in Statistics.
 
@@ -637,6 +642,7 @@ class DsvFormat(Format):
             return decode(key, value)
 
         return dict(imap(unescape_dsv_field, ifilter(None, string.strip(b"\n").split(b"\t"))))
+
 
 class YsonFormat(Format):
     """Main and default YT data format.
@@ -811,6 +817,7 @@ class YsonFormat(Format):
     def dumps_node(self, object):
         """Dumps python object."""
         return yson.dumps(object, yson_format=self.attributes["format"], encoding=self._dump_encoding)
+
 
 class YamrFormat(Format):
     """YAMR legacy data format.
@@ -1012,6 +1019,7 @@ class YamrFormat(Format):
 
             self.dump_row(row, stream_or_streams)
 
+
 class JsonFormat(Format):
     """Open standard text data format for attribute-value data.
 
@@ -1097,7 +1105,7 @@ class JsonFormat(Format):
 
         if self.encode_utf8 is False and self._encoding == "utf-8":
             return string
-        if not self.encode_utf8 is False:
+        if self.encode_utf8 is not False:
             byte_string = string.encode("latin1")
         else:
             byte_string = string.encode("utf-8")
@@ -1277,6 +1285,7 @@ class JsonFormat(Format):
             value = value.encode("utf-8")
         return value
 
+
 class YamredDsvFormat(YamrFormat):
     """Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
 
@@ -1307,6 +1316,7 @@ class YamredDsvFormat(YamrFormat):
     key_column_names = Format._create_property("key_column_names")
 
     subkey_column_names = Format._create_property("subkey_column_names")
+
 
 class SchemafulDsvFormat(Format):
     """Schemaful dsv format. It accepts column names and outputs values of these columns.
@@ -1421,6 +1431,7 @@ class SchemafulDsvFormat(Format):
         return dict(izip(imap(self._coerce_column_key, self._columns),
                          imap(unescape_field, line.rstrip(b"\n").split(b"\t"))))
 
+
 class CppUninitializedFormat(Format):
     """Dummy plug for cpp jobs. It's replaced by further preparation of such jobs."""
     def __init__(self):
@@ -1436,6 +1447,7 @@ class CppUninitializedFormat(Format):
 
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()
+
 
 def create_format(yson_name, attributes=None, **kwargs):
     """Creates format by YSON string.
@@ -1469,21 +1481,25 @@ def create_format(yson_name, attributes=None, **kwargs):
 
     return NAME_TO_FORMAT[name](attributes=attributes, **kwargs)
 
+
 def loads_row(string, format=None, client=None):
     """Converts string to parsed row."""
     format = get_value(format, get_config(client)["tabular_data_format"])
     return format.loads_row(string)
+
 
 def dumps_row(row, format=None, client=None):
     """Converts parsed row to string."""
     format = get_value(format, get_config(client)["tabular_data_format"])
     return format.dumps_row(row)
 
+
 def extract_key(rec, fields):
     if isinstance(rec, SimpleRecord) or isinstance(rec, SubkeyedRecord):
         return rec.key
     else:
         return FrozenDict((key, rec[key]) for key in fields if key in rec)
+
 
 def create_table_switch(table_index):
     """Returns YSON that represents table switch row."""

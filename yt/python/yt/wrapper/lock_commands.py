@@ -8,12 +8,14 @@ from .driver import get_api_version
 import time
 from datetime import timedelta, datetime
 
+
 def _is_batch_client(client):
     # XXX: Import inside function to avoid import loop.
     # batch_client imports all API, including current module
     from .batch_client import BatchClient
 
     return isinstance(client, BatchClient)
+
 
 def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribute_key=None, client=None):
     """Tries to lock the path.
@@ -63,6 +65,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
                 .format(wait_for.microseconds // 1000 + wait_for.seconds * 1000, lock_id))
 
     return lock_response
+
 
 def unlock(path, client=None):
     """Tries to unlock the path.

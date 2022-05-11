@@ -49,13 +49,16 @@ JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
 FULL_INPUT_MODE = "full_input"
 INPUT_CONTEXT_MODE = "input_context"
 
+
 def shellquote(s):
     # https://stackoverflow.com/questions/35817/how-to-escape-os-system-calls-in-python
     return "'" + s.replace("'", "'\\''") + "'"
 
+
 def make_environment_string(environment):
     return ''.join("export {var}={value}\n".format(var=var, value=shellquote(environment[var]))
                    for var in environment)
+
 
 def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     if use_yamr_descriptors:
@@ -63,6 +66,7 @@ def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     else:
         # descriptor #5 is for job statistics
         return [2, 5] + [3 * i + 1 for i in xrange(output_table_count)]
+
 
 def parse_bash_command_line(command_line):
     """Splits command_line into 3 strings: environment_variables, command, arguments.
@@ -78,6 +82,7 @@ def parse_bash_command_line(command_line):
             return environment_variables.strip(), command_with_args[0], command_with_args[1]
 
     return "", command_line, ""
+
 
 def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environment,
                 input_path, output_path, output_table_count, use_yamr_descriptors):
@@ -129,7 +134,6 @@ export SHELL=/bin/bash
         job_id=job_id,
         run_bash_env_command=run_bash_env_command,
         environment=make_environment_string(environment),
-        input_rel_path=input_rel_path,
         output_rel_path=output_rel_path)
 
     command_script = """\
@@ -157,20 +161,24 @@ gdb {gdb_command} -ex 'set args {gdb_args} < {input_rel_path} {output_descriptor
             out.write(environment_script + script)
         os.chmod(run_sh_path, 0o744)
 
+
 def add_hybrid_argument(parser, name, group_required=True, **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
     group.add_argument(name, nargs="?", action=DoNotReplaceAction, **kwargs)
     group.add_argument("--" + name.replace("_", "-"), **kwargs)
+
 
 def download_file(path, destination_path, client):
     with open(destination_path, "wb") as f:
         for chunk in chunk_iter_stream(client.read_file(path), 16 * MB):
             f.write(chunk)
 
+
 def download_table(path, destination_path, client):
     with open(destination_path, "wb") as f:
         for r in client.read_table(path, format=path.attributes["format"], raw=True):
             f.write(r)
+
 
 def run_job(job_path, env=None):
     if not os.path.exists(job_path):
@@ -179,6 +187,7 @@ def run_job(job_path, env=None):
     run_script = os.path.join(job_path, "run.sh")
     p = subprocess.Popen([run_script], env=env, close_fds=False)
     sys.exit(p.wait())
+
 
 def download_job_input(operation_id, job_id, job_input_path, get_context_action, client):
     if get_context_action == "dump_job_context":
@@ -208,10 +217,12 @@ def download_job_input(operation_id, job_id, job_input_path, get_context_action,
 
     logger.info("Job input is downloaded to %s", job_input_path)
 
+
 def get_job_info(operation_id, job_id, client):
     job_info = client.get_job(operation_id, job_id)
     job_is_running = job_info["state"] == "running"
     return JobInfo(job_info["type"], is_running=job_is_running)
+
 
 def ensure_backend_is_supported(client):
     backend = yt.config.get_backend_type(client=client)
@@ -221,6 +232,7 @@ def ensure_backend_is_supported(client):
             "but is configured to use `{0}' backend".format(backend),
             file=sys.stderr)
         exit(1)
+
 
 def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
     def _download_files(op_spec, sandbox_path, client):
@@ -362,9 +374,11 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     if run:
         run_job(job_path)
     else:
-        logger.info("Done! Job can be started with \"run\" script in job directory or "
-                    "with \"yt-job-tool run-job\" subcommand".format(job_path))
+        logger.info(
+            "Done! Job can be started with \"run\" script in job directory ({}) or "
+            "with \"yt-job-tool run-job\" subcommand".format(job_path))
         return job_path
+
 
 def create_job_tool_parser(parser):
     subparsers = parser.add_subparsers(metavar="command", dest="command")
@@ -390,10 +404,12 @@ def create_job_tool_parser(parser):
     add_hybrid_argument(run_job_parser, "job_path", help="path to prepared job environment")
     run_job_parser.add_argument("--env", action=ParseStructuredArgument, help="enviroment to use in script run in YSON format")
 
+
 def run_prepare_job_environment(**args):
     result = prepare_job_environment(**args)
     if result is not None:
         print(result)
+
 
 def process_job_tool_arguments(**args):
     commands = {

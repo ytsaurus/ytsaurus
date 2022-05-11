@@ -37,10 +37,12 @@ import itertools
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
+
 def iter_by_chunks(iterable, count):
     iterator = iter(iterable)
     for first in iterator:
         yield itertools.chain([first], itertools.islice(iterator, count - 1))
+
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_size):
     if isinstance(stream, (text_type, binary_type)):
@@ -74,6 +76,7 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
             stream = (format.dumps_rows(chunk) for chunk in iter_by_chunks(stream, rows_chunk_size))
     return ItemStream(stream)
 
+
 def _prepare_command_format(format, raw, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
@@ -85,6 +88,7 @@ def _prepare_command_format(format, raw, client):
     require(format is not None,
             lambda: YtError("You should specify format"))
     return format
+
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [TablePath(table, client=client) for table in flatten(tables)]
@@ -146,6 +150,7 @@ def _remove_tables(tables, client=None):
 
     batch_apply(remove, tables_to_remove, client=client)
 
+
 class _MultipleFilesProgressBar(object):
     def __init__(self, total_size, file_count, enable):
         self.total_size = total_size
@@ -180,6 +185,7 @@ class _MultipleFilesProgressBar(object):
         self._current_filename = filename
         return _UploadProgressMonitor(self)
 
+
 class _UploadProgressMonitor(object):
     def __init__(self, bar):
         self._bar = bar
@@ -192,6 +198,7 @@ class _UploadProgressMonitor(object):
 
     def finish(self, status="ok"):
         self._bar._set_status(status)
+
 
 class FileManager(object):
     def __init__(self, client):
@@ -248,8 +255,10 @@ class FileManager(object):
                     self.uploaded_files.append(path)
         return file_paths
 
+
 def _is_python_function(binary):
     return isinstance(binary, types.FunctionType) or hasattr(binary, "__call__")
+
 
 def _prepare_format(format, default_format=None):
     if format is None:
@@ -258,6 +267,7 @@ def _prepare_format(format, default_format=None):
         return create_format(format)
     return format
 
+
 def _prepare_format_from_binary(format, binary, format_type):
     format_from_binary = getattr(binary, "attributes", {}).get(format_type, None)
     if format is None:
@@ -265,6 +275,7 @@ def _prepare_format_from_binary(format, binary, format_type):
     if format_from_binary is None:
         return format
     raise YtError("'{}' specified both implicitely and as function attribute".format(format_type))
+
 
 def _get_skiff_schema_from_tables(tables, client):
     def _get_schema(table):
@@ -291,6 +302,7 @@ def _get_skiff_schema_from_tables(tables, client):
         schemas.append(schema)
     return list(imap(convert_to_skiff_schema, schemas))
 
+
 def _prepare_default_format(binary, format_type, tables, client):
     is_python_function = _is_python_function(binary)
     if is_python_function and getattr(binary, "attributes", {}).get("with_skiff_schemas", False):
@@ -303,6 +315,7 @@ def _prepare_default_format(binary, format_type, tables, client):
     if format is None:
         raise YtError("You should specify " + format_type)
     return format
+
 
 def _prepare_operation_formats(format, input_format, output_format, binary, input_tables, output_tables, client):
     format = _prepare_format(format)
@@ -318,6 +331,7 @@ def _prepare_operation_formats(format, input_format, output_format, binary, inpu
         output_format = _prepare_default_format(binary, "output_format", output_tables, client)
 
     return input_format, output_format
+
 
 def _prepare_python_command(binary, file_manager, tempfiles_manager, params, local_mode, client=None):
     start_time = time.time()
@@ -335,6 +349,7 @@ def _prepare_python_command(binary, file_manager, tempfiles_manager, params, loc
 
     return result
 
+
 def _prepare_destination_tables(tables, client=None):
     from .table_commands import _create_table
     if tables is None:
@@ -348,12 +363,14 @@ def _prepare_destination_tables(tables, client=None):
     batch_client.commit_batch()
     return tables
 
+
 def _prepare_job_io(job_io=None, table_writer=None):
     if job_io is None:
         job_io = {}
     if table_writer is not None:
         job_io.setdefault("table_writer", table_writer)
     return job_io
+
 
 def _prepare_operation_files(local_files=None, yt_files=None):
     result = []
@@ -364,6 +381,7 @@ def _prepare_operation_files(local_files=None, yt_files=None):
     local_files = flatten(get_value(local_files, []))
     result += map(LocalFile, local_files)
     return result
+
 
 def _prepare_stderr_table(name, client=None):
     from .table_commands import _create_table

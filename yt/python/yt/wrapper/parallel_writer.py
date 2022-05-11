@@ -17,6 +17,7 @@ import copy
 import random
 import threading
 
+
 class _ParallelProgressReporter(object):
     def __init__(self, monitor):
         self._monitor = monitor
@@ -39,6 +40,7 @@ class _ParallelProgressReporter(object):
         with self._lock:
             self._monitor.update(size)
 
+
 class _SubstreamWrapper(object):
     def __init__(self, substream, update):
         self._substream = substream
@@ -48,6 +50,7 @@ class _SubstreamWrapper(object):
         for chunk in self._substream:
             self._update(len(chunk))
             yield chunk
+
 
 class ParallelWriter(object):
     def __init__(self, path, params, create_object, unordered, transaction_timeout,
@@ -152,6 +155,7 @@ def _get_chunk_size_and_thread_count(size_hint, config):
         # NB: make sure that 1 <= thread_count <= 15
         thread_count = min(max(memory_limit // chunk_size, 1), 15)
     return chunk_size, thread_count
+
 
 def make_parallel_write_request(command_name, stream, path, params, unordered,
                                 create_object, remote_temp_directory, size_hint=None,

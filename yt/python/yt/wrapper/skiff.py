@@ -7,6 +7,7 @@ except ImportError:
 
 import yt.skiff
 
+
 def check_skiff_bindings():
     if not yt.skiff.AVAILABLE:
         raise YtError('Skiff bingings are not available. '
@@ -15,29 +16,36 @@ def check_skiff_bindings():
                       'can be installed as Debian package "yandex-yt-python-yson" or as pip '
                       'package "yandex-yt-yson-bindings"')
 
+
 def load(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.load(*args, **kwargs)
+
 
 def loads(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.loads(*args, **kwargs)
 
+
 def dump(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.dump(*args, **kwargs)
+
 
 def dumps(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.dumps(*args, **kwargs)
 
+
 def load_structured(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.load_structured(*args, **kwargs)
 
+
 def dump_structured(*args, **kwargs):
     check_skiff_bindings()
     return yt.skiff.dump_structured(*args, **kwargs)
+
 
 def _convert_to_skiff_type(type_name):
     types_dict = {
@@ -49,6 +57,7 @@ def _convert_to_skiff_type(type_name):
         "boolean": "boolean"
     }
     return types_dict[type_name]
+
 
 def convert_to_skiff_schema(table_schema):
     """Converts table schema to skiff format schema."""

@@ -21,25 +21,33 @@ from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 import string
 from copy import deepcopy, copy as shallowcopy
 
+
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
 # instead of None value to distinguish case when default argument
 # is passed and is None from case when default is not passed.
 class _KwargSentinelClass(object):
     __instance = None
+
     def __new__(cls):
         if cls.__instance is None:
             cls.__instance = object.__new__(cls)
             cls.__instance.name = "_KwargSentinelClassInstance"
         return cls.__instance
+
+
 _KWARG_SENTINEL = _KwargSentinelClass()
+
 
 class _MapOrderSorted(object):
     __instance = None
+
     def __new__(cls):
         if cls.__instance is None:
             cls.__instance = object.__new__(cls)
             cls.__instance.name = "_MapOrderSorted"
         return cls.__instance
+
+
 MAP_ORDER_SORTED = _MapOrderSorted()
 
 
@@ -49,6 +57,7 @@ def _is_batch_client(client):
     from .batch_client import BatchClient
 
     return isinstance(client, BatchClient)
+
 
 def get(path, max_size=None, attributes=None, format=None, read_from=None,
         cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
@@ -82,6 +91,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
         client=client)
     return result
 
+
 def set(path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None, client=None):
     """Sets new value to Cypress node.
 
@@ -112,6 +122,7 @@ def set(path, value, format=None, recursive=False, force=None, suppress_transact
         params,
         data=value,
         client=client)
+
 
 def copy(source_path, destination_path,
          recursive=None, force=None, ignore_existing=None, lock_existing=None,
@@ -158,6 +169,7 @@ def copy(source_path, destination_path,
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
     return _make_formatted_transactional_request("copy", params, format=None, client=client)
 
+
 def move(source_path, destination_path,
          recursive=None, force=None,
          preserve_account=None, preserve_owner=None,
@@ -196,6 +208,7 @@ def move(source_path, destination_path,
     set_param(params, "preserve_modification_time", preserve_modification_time)
     set_param(params, "pessimistic_quota_check", pessimistic_quota_check)
     return _make_formatted_transactional_request("move", params, format=None, client=client)
+
 
 class _ConcatenateRetrier(Retrier):
     def __init__(self, type, source_paths, destination_path, client):
@@ -330,6 +343,7 @@ def list(path,
         client=client)
     return apply_function_to_result(_process_result, result)
 
+
 def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
     """Checks if Cypress node exists.
 
@@ -350,6 +364,7 @@ def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transact
         client=client)
     return apply_function_to_result(_process_result, result)
 
+
 def remove(path, recursive=False, force=False, client=None):
     """Removes Cypress node.
 
@@ -366,6 +381,7 @@ def remove(path, recursive=False, force=False, client=None):
     set_param(params, "recursive", recursive)
     set_param(params, "force", force)
     return _make_transactional_request("remove", params, client=client)
+
 
 def create(type, path=None, recursive=False, ignore_existing=False, lock_existing=None,
            force=None, attributes=None, client=None):
@@ -404,6 +420,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, lock_existin
     result = _make_formatted_transactional_request("create", params, format=None, client=client)
     return apply_function_to_result(_process_result, result)
 
+
 def externalize(path, cell_tag, client=None):
     """Externalize cypress node
 
@@ -417,6 +434,7 @@ def externalize(path, cell_tag, client=None):
     }
     return _make_transactional_request("externalize", params, client=client)
 
+
 def internalize(path, client=None):
     """Internalize cypress node
 
@@ -428,6 +446,7 @@ def internalize(path, client=None):
     }
     return _make_transactional_request("internalize", params, client=client)
 
+
 def mkdir(path, recursive=None, client=None):
     """Makes directory (Cypress node of map_node type).
 
@@ -438,11 +457,13 @@ def mkdir(path, recursive=None, client=None):
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
 
+
 def _check_attribute_name(attribute_name):
     if "/" in attribute_name:
         raise YtError("Attribute commands forbid to use '/' in attribute names")
     if "@" in attribute_name:
         raise YtError("Attribute commands forbid to use '@' in attribute names")
+
 
 def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
     """Gets attribute of Cypress node.
@@ -475,6 +496,7 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
                 return default
             raise
 
+
 def has_attribute(path, attribute, client=None):
     """Checks if Cypress node has attribute.
 
@@ -483,6 +505,7 @@ def has_attribute(path, attribute, client=None):
     """
     _check_attribute_name(attribute)
     return exists("%s/@%s" % (path, attribute), client=client)
+
 
 def set_attribute(path, attribute, value, client=None):
     """Sets Cypress node `attribute` to `value`.
@@ -494,6 +517,7 @@ def set_attribute(path, attribute, value, client=None):
     _check_attribute_name(attribute)
     return set("%s/@%s" % (path, attribute), value, client=client)
 
+
 def remove_attribute(path, attribute, client=None):
     """Removes Cypress node `attribute`
 
@@ -503,6 +527,7 @@ def remove_attribute(path, attribute, client=None):
     _check_attribute_name(attribute)
     return remove("%s/@%s" % (path, attribute), client=client)
 
+
 @deprecated(alternative="get 'type' attribute")
 def get_type(path, client=None):
     """Gets Cypress node attribute type.
@@ -510,6 +535,7 @@ def get_type(path, client=None):
     :param str path: path.
     """
     return get_attribute(path, "type", client=client)
+
 
 def find_free_subpath(path, client=None):
     """Generates some free random subpath.
@@ -755,6 +781,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             for yson_path in process_node(node, nodes_to_request):
                 yield yson_path
 
+
 def remove_with_empty_dirs(path, force=True, client=None):
     """Removes path and all empty dirs that appear after deletion.
 
@@ -784,6 +811,7 @@ def remove_with_empty_dirs(path, force=True, client=None):
             else:
                 raise
 
+
 def create_revision_parameter(path, transaction_id=None, revision=None, client=None):
     """Creates revision parameter of the path.
 
@@ -797,4 +825,3 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     if transaction_id is None:
         transaction_id = get_command_param("transaction_id", client)
     return {"path": path, "transaction_id": transaction_id, "revision": revision}
-

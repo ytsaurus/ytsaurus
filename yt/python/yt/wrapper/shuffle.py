@@ -3,6 +3,7 @@ from .run_operation_commands import run_map_reduce
 from .cypress_commands import get
 from .ypath import TablePath
 
+
 @forbidden_inside_job
 def shuffle_table(table, sync=True, temp_column_name="__random_number", spec=None, client=None):
     """Shuffles table randomly.

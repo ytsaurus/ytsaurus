@@ -2,6 +2,7 @@ from .system_random import SystemRandom
 
 from copy import deepcopy
 
+
 class ClientState(object):
     def __init__(self, other=None):
         if other is None:

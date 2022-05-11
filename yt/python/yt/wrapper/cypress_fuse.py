@@ -375,6 +375,7 @@ class OpenedFile(object):
     def close(self):
         self._tx.abort()
 
+
 class OpenedTable(object):
     """Stores information and cache for currently opened table."""
 
@@ -448,6 +449,7 @@ class OpenedTable(object):
 
     def close(self):
         self._tx.abort()
+
 
 class Cypress(fuse.Operations):
     """An implementation of FUSE operations on a Cypress tree."""

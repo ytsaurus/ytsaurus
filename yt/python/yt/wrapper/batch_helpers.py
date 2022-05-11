@@ -5,6 +5,7 @@ def create_batch_client(raise_errors=False, max_batch_size=None, client=None):
     batch_executor = BatchExecutor(raise_errors, max_batch_size, client)
     return batch_executor.get_client()
 
+
 def batch_apply(function, data, client=None):
     """Applies function to each element from data in a batch mode and returns result."""
     batch_client = create_batch_client(raise_errors=True, client=client)

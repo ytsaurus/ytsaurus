@@ -2,6 +2,7 @@ from . import batch_api
 from .client_helpers import initialize_client, create_class_method
 from .client_state import ClientState
 
+
 class BatchClient(ClientState):
     """Implements YT batch client.
     An object of this class is a copy of object of YtClient class

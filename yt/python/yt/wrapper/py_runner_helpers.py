@@ -13,8 +13,10 @@ import os
 import sys
 import types
 
+
 class YtStandardStreamAccessError(YtError):
     pass
+
 
 class StreamWrapper(object):
     # NB: close and flush are added to allowed attributes
@@ -29,6 +31,7 @@ class StreamWrapper(object):
             return self.original_stream.__getattribute__(attr)
         raise YtStandardStreamAccessError("Stdin, stdout are inaccessible for Python operations"
                                           " without raw_io attribute")
+
 
 class WrappedStreams(object):
     def __init__(self, wrap_stdin=True, wrap_stdout=True):
@@ -48,12 +51,14 @@ class WrappedStreams(object):
         sys.stdin = self.stdin
         sys.stdout = self.stdout
 
+
 class Context(object):
     def __init__(self, table_index=None, row_index=None, range_index=None, tablet_index=None):
         self.table_index = table_index
         self.row_index = row_index
         self.range_index = range_index
         self.tablet_index = tablet_index
+
 
 def convert_callable_to_generator(func):
     def generator(*args):
@@ -67,6 +72,7 @@ def convert_callable_to_generator(func):
                               ' Did you mean "yield" instead of "return"?')
     return generator
 
+
 def extract_operation_methods(operation, context, with_skiff_schemas, skiff_input_schemas, skiff_output_schemas):
     if hasattr(operation, "start") and inspect.ismethod(operation.start):
         start = convert_callable_to_generator(operation.start)
@@ -77,7 +83,6 @@ def extract_operation_methods(operation, context, with_skiff_schemas, skiff_inpu
         finish = convert_callable_to_generator(operation.finish)
     else:
         finish = lambda: EMPTY_GENERATOR
-
 
     kwargs = {}
 
@@ -93,6 +98,7 @@ def extract_operation_methods(operation, context, with_skiff_schemas, skiff_inpu
     else:
         operation_func = operation
     return start, convert_callable_to_generator(operation_func), finish
+
 
 def enrich_context(rows, context):
     def generate_rows():
@@ -112,6 +118,7 @@ def check_job_environment_variables():
             sys.stderr.write("Warning! {0} is not set. If this job is not run "
                              "manually for testing purposes then this is a bug.\n".format(name))
 
+
 class FDOutputStream(object):
     def __init__(self, fd):
         self.fd = fd
@@ -124,6 +131,7 @@ class FDOutputStream(object):
 
     def dup(self):
         return FDOutputStream(os.dup(self.fd))
+
 
 class StructuredKeySwitchGroup(object):
     def __init__(self, structured_iterator, first_row):
@@ -155,6 +163,7 @@ class StructuredKeySwitchGroup(object):
         self._with_context = True
         return self
 
+
 def group_structured_rows_by_key_switch(structured_iterator):
     try:
         first_row = next(structured_iterator)
@@ -170,6 +179,7 @@ def group_structured_rows_by_key_switch(structured_iterator):
         # Check if there is next row to start group with.
         if first_row is None:
             break
+
 
 class group_by_key_switch(object):
     def __init__(self, rows, extract_key_by_group_by, context=None):
@@ -213,6 +223,7 @@ class group_by_key_switch(object):
                 return
             if self.rows.key_switch:
                 break
+
 
 def apply_stdout_fd_protection(output_streams, protection_type):
     if protection_type == "none":

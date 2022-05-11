@@ -14,13 +14,13 @@ import yt.yson as yson
 
 from yt.packages.six import string_types, raise_from
 
-import os
 from copy import deepcopy
 
 _DEFAULT_COMMAND_PARAMS = {
     "transaction_id": YT_NULL_TRANSACTION_ID,
     "ping_ancestor_transactions": False
 }
+
 
 def get_command_list(client=None):
     if get_option("_client_type", client) == "batch":
@@ -32,9 +32,11 @@ def get_command_list(client=None):
     else:  # backend == "http"
         return list(get_http_api_commands(client))
 
+
 def set_master_read_params(params, read_from, cache_sticky_group_size):
     set_param(params, "read_from", read_from)
     set_param(params, "cache_sticky_group_size", cache_sticky_group_size)
+
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)
@@ -58,6 +60,7 @@ def get_api_version(client=None):
     set_option("_api_version", api_version, client)
 
     return api_version
+
 
 def make_request(command_name,
                  params,
@@ -135,6 +138,7 @@ def make_request(command_name,
 
     return result
 
+
 def get_structured_format(format, client):
     if format is None:
         format = get_config(client)["structured_data_format"]
@@ -148,6 +152,7 @@ def get_structured_format(format, client):
     if isinstance(format, string_types):
         format = create_format(format)
     return format
+
 
 def make_formatted_request(command_name, params, format, **kwargs):
     # None format means that we want to return parsed output (as YSON structure)

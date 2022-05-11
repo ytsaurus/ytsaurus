@@ -59,6 +59,7 @@ class OperationInfoRetrier(Retrier):
 
 # Public functions
 
+
 def abort_operation(operation, reason=None, client=None):
     """Aborts operation.
 
@@ -73,6 +74,7 @@ def abort_operation(operation, reason=None, client=None):
     command_name = "abort_operation" if get_api_version(client) == "v4" else "abort_op"
     make_request(command_name, params, client=client)
 
+
 def suspend_operation(operation, abort_running_jobs=False, client=None):
     """Suspends operation.
 
@@ -82,6 +84,7 @@ def suspend_operation(operation, abort_running_jobs=False, client=None):
     params = {"operation_id": operation, "abort_running_jobs": abort_running_jobs}
     return make_request(command_name, params, client=client)
 
+
 def resume_operation(operation, client=None):
     """Continues operation after suspending.
 
@@ -89,6 +92,7 @@ def resume_operation(operation, client=None):
     """
     command_name = "resume_operation" if get_api_version(client) == "v4" else "resume_op"
     return make_request(command_name, {"operation_id": operation}, client=client)
+
 
 def complete_operation(operation, client=None):
     """Completes operation.
@@ -103,6 +107,7 @@ def complete_operation(operation, client=None):
         return
     command_name = "complete_operation" if get_api_version(client) == "v4" else "complete_op"
     return make_request(command_name, {"operation_id": operation}, client=client)
+
 
 def get_operation(operation_id, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
@@ -161,6 +166,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool_tree=Non
         client=client,
         timeout=timeout)
 
+
 def iterate_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                        from_time=None, to_time=None, cursor_direction="past", limit_per_request=100,
                        include_archive=None, attributes=None, format=None, client=None):
@@ -195,6 +201,7 @@ def iterate_operations(user=None, state=None, type=None, filter=None, pool=None,
             break
         cursor_time = datetime_to_string(date_string_to_datetime(cursor_time) - timedelta(microseconds=step))
 
+
 def update_operation_parameters(operation_id, parameters, client=None):
     """Updates operation runtime parameters."""
     command_name = "update_operation_parameters" if get_api_version(client) == "v4" else "update_op_parameters"
@@ -204,6 +211,7 @@ def update_operation_parameters(operation_id, parameters, client=None):
         client=client)
 
 # Helpers
+
 
 class OperationState(object):
     """State of operation (simple wrapper for string name)."""
@@ -278,6 +286,7 @@ class OperationProgressFormatter(logging.Formatter):
             elapsed = total_minutes(datetime.now() - self._start_time)
             return "{0} ({1:2} min)".format(super(OperationProgressFormatter, self).formatTime(record), elapsed)
 
+
 def get_operation_attributes(operation, fields=None, client=None):
     """Returns dict with operation attributes.
 
@@ -290,6 +299,7 @@ def get_operation_attributes(operation, fields=None, client=None):
     else:
         operation_path = ypath_join(OPERATIONS_PATH, operation)
         return get(operation_path + "/@", attributes=fields, client=client)
+
 
 def get_operation_state(operation, client=None):
     """Returns current state of operation.
@@ -305,6 +315,7 @@ def get_operation_state(operation, client=None):
         return OperationState(get_operation_attributes(operation, fields=["state"], client=client)["state"])
     finally:
         config["proxy"]["retries"]["count"] = retry_count
+
 
 def get_operation_progress(operation, with_build_time=False, client=None):
     def calculate_total(counter):
@@ -337,6 +348,7 @@ def get_operation_progress(operation, with_build_time=False, client=None):
     else:
         return progress
 
+
 def order_progress(progress):
     filter_out = ("completed_details",)
     filter_out_if_zero = ("suspended", "invalidated", "uncategorized")
@@ -363,6 +375,7 @@ def order_progress(progress):
         result.append((key, value))
 
     return result
+
 
 class PrintOperationInfo(object):
     """Caches operation state and prints info by update."""
@@ -426,6 +439,7 @@ class PrintOperationInfo(object):
             logger.set_formatter(self.formatter)
             logger.log(self.level, *args, **kwargs)
             logger.set_formatter(old_formatter)
+
 
 def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
     """
@@ -546,6 +560,7 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
             pool.join()
     return result
 
+
 def format_operation_stderr(job_with_stderr, output):
     output.write("Host: ")
     output.write(job_with_stderr["host"])
@@ -560,6 +575,7 @@ def format_operation_stderr(job_with_stderr, output):
         output.write(job_with_stderr["stderr"])
         output.write("\n")
 
+
 def format_operation_stderrs(jobs_with_stderr):
     """Formats operation jobs with stderr to string."""
     output = StringIO()
@@ -567,6 +583,7 @@ def format_operation_stderrs(jobs_with_stderr):
         format_operation_stderr(job_with_stderr, output)
         output.write("\n")
     return output.getvalue()
+
 
 # TODO(ignat): is it convinient and generic way to get stderrs? Move to tests? Or remove it completely?
 def add_failed_operation_stderrs_to_error_message(func):
@@ -579,6 +596,7 @@ def add_failed_operation_stderrs_to_error_message(func):
             raise
     return decorator(_add_failed_operation_stderrs_to_error_message, func)
 
+
 def get_operation_error(operation, client=None):
     # NB(ignat): conversion to json type necessary for json.dumps in TM.
     # TODO(ignat): we should decide what format should be used in errors (now it is yson both here and in http.py).
@@ -586,6 +604,7 @@ def get_operation_error(operation, client=None):
     if "error" in result and result["error"]["code"] != 0:
         return result["error"]
     return None
+
 
 # TODO(ignat): remove this method with all usages in arcadia.
 def _create_operation_failed_error(operation, state):
@@ -598,6 +617,7 @@ def _create_operation_failed_error(operation, state):
         stderrs=stderrs,
         url=operation.url)
 
+
 def process_operation_unsuccesful_finish_state(operation, error):
     assert error is not None
     if get_config(operation.client)["operation_tracker"]["enable_logging_failed_operation"]:
@@ -607,6 +627,7 @@ def process_operation_unsuccesful_finish_state(operation, error):
             format_operation_stderr(error.attributes["stderrs"][0], job_output)
             logger.warning("One of the failed jobs:\n%s", job_output.getvalue())
     raise error
+
 
 def get_operation_url(operation, client=None):
     proxy_url = get_proxy_url(required=False, client=client)
@@ -629,6 +650,7 @@ def get_operation_url(operation, client=None):
         proxy=proxy,
         cluster_path=cluster_path,
         id=operation)
+
 
 class Operation(object):
     """Holds information about started operation."""

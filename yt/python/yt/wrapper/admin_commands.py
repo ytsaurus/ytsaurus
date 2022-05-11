@@ -1,5 +1,6 @@
 from .driver import make_request
 
+
 def switch_leader(cell_id=None, new_leader_address=None, client=None):
     """Switch leader of given master cell."""
     params = {
@@ -8,6 +9,7 @@ def switch_leader(cell_id=None, new_leader_address=None, client=None):
     }
 
     return make_request("switch_leader", params=params, client=client)
+
 
 def add_switch_leader_parser(subparsers):
     parser = subparsers.add_parser("switch-leader", help="Switch master cell leader")
