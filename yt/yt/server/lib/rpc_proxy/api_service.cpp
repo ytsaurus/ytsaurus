@@ -177,6 +177,9 @@ void FromProto(
     if (proto.has_expire_after_failed_update_time()) {
         FromProto(&options->ExpireAfterFailedUpdateTime, proto.expire_after_failed_update_time());
     }
+    if (proto.has_success_staleness_bound()) {
+        FromProto(&options->SuccessStalenessBound, proto.success_staleness_bound());
+    }
     if (proto.has_cache_sticky_group_size()) {
         options->CacheStickyGroupSize = proto.cache_sticky_group_size();
     }
