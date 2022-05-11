@@ -20,11 +20,11 @@ import shutil
 import socket
 import time
 import codecs
-from functools import partial
 
 logger = logging.getLogger("YtLocal")
 
 YT_LOCAL_STOP_WAIT_TIME = 5
+
 
 def _load_config(config, is_proxy_config=False):
     if config is None:
@@ -40,17 +40,21 @@ def _load_config(config, is_proxy_config=False):
         else:
             return json.load(codecs.getreader("utf-8")(fin))
 
+
 def get_root_path(path=None):
     if path is not None:
         return path
     else:
         return os.environ.get("YT_LOCAL_ROOT_PATH", os.getcwd())
 
+
 def get_main_process_pid_file_path(path):
     return os.path.join(path, "main_process_pid.txt")
 
+
 def touch(path):
     open(path, 'a').close()
+
 
 def _get_bool_from_env(name, default=False):
     value = os.environ.get(name, None)
@@ -62,9 +66,11 @@ def _get_bool_from_env(name, default=False):
         return default
     return value == 1
 
+
 def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
         return list(imap(int, f))
+
 
 def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare_only):
     logger.info("Local YT {0}, id: {1}".format(
@@ -76,6 +82,7 @@ def log_started_instance_info(environment, start_proxy, start_rpc_proxy, prepare
             logger.info("UI address: http://yt.yandex.net/%s", environment.get_proxy_address())
     if start_rpc_proxy:
         logger.info("GRPC proxy address: %s", environment.get_grpc_proxy_address())
+
 
 def _safe_kill(pid, signal_number=signal.SIGKILL):
     try:
@@ -89,6 +96,7 @@ def _safe_kill(pid, signal_number=signal.SIGKILL):
             # According to "man 2 killpg" possible error values are
             # (EINVAL, EPERM, ESRCH)
             raise
+
 
 def _safe_remove(path):
     try:
@@ -241,10 +249,11 @@ def start(master_count=1,
     if not prepare_only:
         environment.start()
 
-    log_started_instance_info(environment, http_proxy_count > 0,rpc_proxy_count > 0, prepare_only)
+    log_started_instance_info(environment, http_proxy_count > 0, rpc_proxy_count > 0, prepare_only)
     touch(is_started_file)
 
     return environment
+
 
 def _is_stopped(id, path=None, verbose=False):
     sandbox_path = os.path.join(get_root_path(path), id)
@@ -267,9 +276,11 @@ def _is_stopped(id, path=None, verbose=False):
 
     return True
 
+
 def _is_exists(id, path=None):
     sandbox_path = os.path.join(get_root_path(path), id)
     return os.path.isdir(sandbox_path)
+
 
 def stop(id, remove_working_dir=False, remove_runtime_data=False, path=None, ignore_lock=False):
     require(_is_exists(id, path),
@@ -313,12 +324,14 @@ def stop(id, remove_working_dir=False, remove_runtime_data=False, path=None, ign
         runtime_data_path = os.path.join(sandbox_dir, "runtime_data")
         shutil.rmtree(runtime_data_path, ignore_errors=True)
 
+
 def delete(id, force=False, path=None):
     require(_is_exists(id, path) or force,
             lambda: yt.YtError("Local YT with id {0} not found".format(id)))
     require(_is_stopped(id, path),
             lambda: yt.YtError("Local YT environment with id {0} is not stopped".format(id)))
     shutil.rmtree(os.path.join(get_root_path(path), id), ignore_errors=True)
+
 
 def get_proxy(id, path=None):
     require(_is_exists(id, path), lambda: yt.YtError("Local YT with id {0} not found".format(id)))
@@ -336,6 +349,7 @@ def get_proxy(id, path=None):
             return info["proxy"]["address"]
         else:
             raise yt.YtError("Local YT with id {0} does not have started proxy".format(id))
+
 
 def list_instances(path=None):
     path = get_root_path(path)
