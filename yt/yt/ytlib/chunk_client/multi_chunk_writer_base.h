@@ -45,6 +45,8 @@ public:
      */
     const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const override;
 
+    const TChunkWithReplicasList& GetWrittenChunkWithReplicasList() const override;
+
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
     NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
@@ -102,6 +104,8 @@ private:
     TCodecStatistics CodecStatistics;
 
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunkSpecs_;
+    TChunkWithReplicasList WrittenChunkWithReplicasList_;
+
 
     void InitSession();
     void FinishSession();
