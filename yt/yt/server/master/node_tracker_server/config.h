@@ -109,6 +109,9 @@ public:
 
     bool EnableStructuredLog;
 
+    // COMPAT(ignat): Drop this after hosts migration.
+    bool EnableNodeCpuStatistics;
+
     // COMPAT(gritukan): Drop this after hosts migration.
     bool PreserveRackForNewHost;
     bool ReplicateHostNameDuringRegistration;
@@ -169,6 +172,10 @@ public:
             .DontSerializeDefault();
 
         RegisterParameter("enable_structured_log", EnableStructuredLog)
+            .Default(false)
+            .DontSerializeDefault();
+
+        RegisterParameter("enable_node_cpu_statistics", EnableNodeCpuStatistics)
             .Default(false)
             .DontSerializeDefault();
 
