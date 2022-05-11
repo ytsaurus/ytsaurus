@@ -866,7 +866,7 @@ public:
     {
         return AggregatedOnlineNodeCount_;
     }
-
+    
     const std::vector<TNode*>& GetNodesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Nodes();
@@ -1258,6 +1258,9 @@ private:
     {
         auto nodeId = request->node_id();
         auto& statistics = *request->mutable_statistics();
+        if (!GetDynamicConfig()->EnableNodeCpuStatistics) {
+            statistics.clear_cpu();
+        }
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Registered) {
@@ -1329,6 +1332,9 @@ private:
     {
         auto nodeId = request->node_id();
         auto& statistics = *request->mutable_statistics();
+        if (!GetDynamicConfig()->EnableNodeCpuStatistics) {
+            statistics.clear_cpu();
+        }
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Online) {
@@ -1475,6 +1481,9 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
         auto& statistics = *request->mutable_statistics();
+        if (!GetDynamicConfig()->EnableNodeCpuStatistics) {
+            statistics.clear_cpu();
+        }
         node->SetClusterNodeStatistics(std::move(statistics));
 
         node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
