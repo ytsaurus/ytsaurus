@@ -14,6 +14,7 @@ import sys
 import traceback
 from argparse import Action
 
+
 def write_silently(strings, force_use_text_stdout=False):
     output_stream = sys.stdout
     if not force_use_text_stdout:
@@ -47,6 +48,7 @@ def write_silently(strings, force_use_text_stdout=False):
             finally:
                 pass
 
+
 def print_to_output(string_or_bytes, output_stream=sys.stdout, eoln=True):
     if isinstance(string_or_bytes, binary_type):
         get_binary_std_stream(output_stream).write(string_or_bytes)
@@ -56,12 +58,14 @@ def print_to_output(string_or_bytes, output_stream=sys.stdout, eoln=True):
     if eoln:
         output_stream.write("\n")
 
+
 def die(message=None, return_code=1):
     if message is not None:
         print(message, file=sys.stderr)
     if "YT_LOG_EXIT_CODE" in os.environ:
         logger.error("Exiting with code %d", return_code)
     sys.exit(return_code)
+
 
 def run_main(main_func):
     try:
@@ -87,6 +91,7 @@ def run_main(main_func):
         traceback.print_exc(file=sys.stderr)
         die()
 
+
 class ParseStructuredArgument(Action):
     def __init__(self, option_strings, dest, action_load_method=yson._loads_from_native_str, **kwargs):
         Action.__init__(self, option_strings, dest, **kwargs)
@@ -97,6 +102,7 @@ class ParseStructuredArgument(Action):
         old_value = get_value(getattr(namespace, self.dest), {})
         new_value = update(old_value, self.action_load_method(values))
         setattr(namespace, self.dest, new_value)
+
 
 def populate_argument_help(parser):
     old_add_argument = parser.add_argument

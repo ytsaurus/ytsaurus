@@ -80,7 +80,7 @@ def _is_py_type_optional(py_type):
     return getattr(py_type, "__module__", None) == "typing" and \
         getattr(py_type, "__origin__", None) == typing.Union and \
         len(args) == 2 and \
-        args[-1] == type(None)
+        args[-1] == type(None)  # noqa
 
 
 def _get_integer_info():

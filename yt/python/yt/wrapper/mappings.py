@@ -9,6 +9,7 @@ try:
 except ImportError:
     from collections import Mapping, MutableMapping
 
+
 class VerifiedDict(MutableMapping):
     def __init__(self, template_dict, keys_to_ignore=None, transform_func=None):
         self._enable_check = False
@@ -52,6 +53,7 @@ class VerifiedDict(MutableMapping):
         self.update(template_dict)
         self._enable_check = True
         return self
+
 
 class FrozenDict(Mapping):
     def __init__(self, *args, **kwargs):

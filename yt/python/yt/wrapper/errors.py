@@ -8,6 +8,7 @@ from yt.common import YtError, YtResponseError, PrettyPrintableDict, get_value
 
 from yt.yson import yson_to_json
 
+
 class YtOperationFailedError(YtError):
     """Operation failed during waiting completion."""
     def __init__(self, id, state, error, stderrs, url):
@@ -34,6 +35,7 @@ class YtOperationFailedError(YtError):
 
 # COMPAT
 YtHttpResponseError = yt.common.YtResponseError
+
 
 def create_response_error(underlying_error):
     sample_error = YtResponseError(underlying_error)
@@ -104,11 +106,13 @@ class YtRequestRateLimitExceeded(YtResponseError):
        It is used in retries."""
     pass
 
+
 class YtRequestQueueSizeLimitExceeded(YtResponseError):
     """Request queue size limit exceeded error.
        It is used in retries.
     """
     pass
+
 
 class YtRpcUnavailable(YtResponseError):
     """Rpc unavailable error.
@@ -116,44 +120,53 @@ class YtRpcUnavailable(YtResponseError):
     """
     pass
 
+
 class YtConcurrentOperationsLimitExceeded(YtResponseError):
     """Concurrent operations limit exceeded.
        It is used in retries."""
     pass
+
 
 class YtMasterDisconnectedError(YtResponseError):
     """Indicates that master has disconnected from scheduler.
        It is used in retries."""
     pass
 
+
 class YtRequestTimedOut(YtResponseError):
     """Request timed out.
        It is used in retries."""
     pass
+
 
 class YtNoSuchTransaction(YtResponseError):
     """No such transaction.
        It is used in retries."""
     pass
 
+
 class YtAccountLimitExceeded(YtResponseError):
     """Account limit exceeded, used to avoid excessive retries."""
     pass
+
 
 class YtMasterCommunicationError(YtResponseError):
     """Master communication error.
        It is used in retries."""
     pass
 
+
 class YtChunkUnavailable(YtResponseError):
     """Chunk unavalable error
        It is used in read retries"""
     pass
 
+
 class YtCypressTransactionLockConflict(YtResponseError):
     """Concurrent transaction lock conflict error.
        It is used in upload_file_to_cache retries."""
     pass
+
 
 class YtTabletTransactionLockConflict(YtResponseError):
     """Tablet transaction lock conflict error."""
@@ -162,29 +175,36 @@ class YtTabletTransactionLockConflict(YtResponseError):
 # Deprecated.
 YtConcurrentTransactionLockConflict = YtCypressTransactionLockConflict
 
+
 class YtNoSuchService(YtResponseError):
     """No such service error"""
     pass
+
 
 class YtTabletIsInIntermediateState(YtResponseError):
     """Tablet is in intermediate state error"""
     pass
 
+
 class YtNoSuchTablet(YtResponseError):
     """No such tablet error"""
     pass
+
 
 class YtTabletNotMounted(YtResponseError):
     """Tablet is not mounted error"""
     pass
 
+
 class YtNoSuchCell(YtResponseError):
     """No such cell error"""
     pass
 
+
 class YtTransportError(YtResponseError):
     """Transport error"""
     pass
+
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
@@ -198,6 +218,7 @@ class YtProxyUnavailable(YtError):
             message="Proxy is unavailable",
             attributes=attributes,
             inner_errors=[response.error()])
+
 
 class YtIncorrectResponse(YtError):
     """Incorrect proxy response."""
@@ -215,33 +236,41 @@ class YtIncorrectResponse(YtError):
             return str[:100] + "...truncated"
         return str
 
+
 class YtTokenError(YtError):
     """Some problem occurred with authentication token."""
     pass
+
 
 class YtRetriableError(Exception):
     """Just simple retriable error for test purposes."""
     pass
 
+
 class YtTransactionPingError(BaseException):
     """Raised in signal handler when thread was unable to ping transaction."""
     pass
+
 
 class YtAllTargetNodesFailed(YtResponseError):
     """Failed to write chunk since all target nodes have failed."""
     pass
 
+
 class YtRetriableArchiveError(YtResponseError):
     """Operation progress in Cypress is outdated while archive request failed."""
     pass
+
 
 class YtResolveError(YtResponseError):
     """Cypress node not found"""
     pass
 
+
 class YtRowIsBlocked(YtResponseError):
     """Row is blocked"""
     pass
+
 
 class YtBlockedRowWaitTimeout(YtResponseError):
     """Timed out waiting on blocked row"""

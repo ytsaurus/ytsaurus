@@ -6,6 +6,7 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
+
 class StringIterIO(Iterator):
     """Read-only IO stream wraps strings iterator."""
 

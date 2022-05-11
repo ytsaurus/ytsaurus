@@ -9,10 +9,12 @@ import sys
 
 from copy import deepcopy
 
+
 class Namespace(object):
     def __init__(self, **kwargs):
         for key, value in iteritems(kwargs):
             setattr(self, key, value)
+
 
 def decode_permissions(string):
     permissions = set()
@@ -31,6 +33,7 @@ def decode_permissions(string):
         permissions.add("remove")
     order = ("read", "write", "remove", "mount", "use")
     return sorted(permissions, key=lambda s: order.index(s))
+
 
 class Subject(object):
     def __init__(self, subject, inherited=False):
@@ -81,6 +84,7 @@ class Subject(object):
         else:
             return dict(group=self.group, group_name=self.human_readable_name, url=self.url)
 
+
 class Role(object):
     def __init__(self, role, comment=None):
         self.key = role["role_key"]
@@ -122,6 +126,7 @@ class Role(object):
         result["role_key"] = self.key
         result["subject"] = self.subject.to_json_type()
         return result
+
 
 class ObjectIdmSnapshot(object):
     def __init__(self, object_id, idm_client):
@@ -277,11 +282,14 @@ class ObjectIdmSnapshot(object):
                 assert role.key
                 self.idm_client.remove_role(role_key=role.key)
 
+
 def print_aligned(left, right, indent=0):
     print("{}{:<30}{}".format(" " * indent, left, right))
 
+
 def print_indented(string, indent=2):
     print(" " * indent + string)
+
 
 def pretty_print_idm_info(object_idm_snapshot, indent=0, immediate=False):
 
@@ -303,8 +311,10 @@ def pretty_print_idm_info(object_idm_snapshot, indent=0, immediate=False):
         if not immediate or not role.inherited:
             print_indented(role.to_pretty_string(), indent + 2)
 
+
 def subjects_from_string(subjects):
     return [Subject.from_string(subj) for subj in subjects]
+
 
 def apply_flags(object_idm_snapshot, args):
     if (
@@ -320,6 +330,7 @@ def apply_flags(object_idm_snapshot, args):
     if getattr(args, "boss_approval", None) is not None:
         object_idm_snapshot.require_boss_approval = args.boss_approval
 
+
 @contextmanager
 def modify_idm_snapshot(snapshot, dry_run):
     if dry_run:
@@ -331,6 +342,7 @@ def modify_idm_snapshot(snapshot, dry_run):
         pretty_print_idm_info(snapshot, indent=2)
     else:
         snapshot.commit()
+
 
 def extract_object_id(**kwargs):
     object_types = ["path", "account", "pool", "tablet_cell_bundle", "group"]
@@ -353,6 +365,7 @@ def extract_object_id(**kwargs):
 
     return object_id, Namespace(**kwargs)
 
+
 def with_idm_info(func):
     def wrapper(**kwargs):
         object_id, args = extract_object_id(**kwargs)
@@ -361,9 +374,11 @@ def with_idm_info(func):
         return func(snapshot, args)
     return wrapper
 
+
 @with_idm_info
 def show(object_idm_snapshot, args):
     pretty_print_idm_info(object_idm_snapshot, immediate=args.immediate)
+
 
 @with_idm_info
 def request(object_idm_snapshot, args):
@@ -379,6 +394,7 @@ def request(object_idm_snapshot, args):
             args.permissions,
             args.comment,
         )
+
 
 @with_idm_info
 def revoke(object_idm_snapshot, args):
@@ -396,6 +412,7 @@ def revoke(object_idm_snapshot, args):
                 subjects_from_string(args.subjects),
                 args.comment,
             )
+
 
 @with_idm_info
 def copy(source_idm_snapshot, args):

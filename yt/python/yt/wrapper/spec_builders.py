@@ -45,11 +45,13 @@ def _convert_to_bytes(value):
     else:
         return value
 
+
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
         logger.info('Comma found in column name "%s". '
                     'Did you mean to %s by a composite key?',
                     columns[0], type)
+
 
 def _prepare_reduce_by(reduce_by, client, required=True):
     if reduce_by is None:
@@ -62,6 +64,7 @@ def _prepare_reduce_by(reduce_by, client, required=True):
         _check_columns(reduce_by, "reduce")
     return reduce_by
 
+
 def _prepare_join_by(join_by, required=True):
     if join_by is None:
         if required:
@@ -70,6 +73,7 @@ def _prepare_join_by(join_by, required=True):
         join_by = flatten(join_by)
         _check_columns(join_by, "join_reduce")
     return join_by
+
 
 def _prepare_sort_by(sort_by, client):
     if sort_by is None:
@@ -81,10 +85,12 @@ def _prepare_sort_by(sort_by, client):
     _check_columns(sort_by, "sort")
     return sort_by
 
+
 def _set_spec_value(builder, key, value):
     if value is not None:
         builder._spec[key] = value
     return builder
+
 
 def _is_tables_sorted(table, client):
     def _is_sorted(sort_attributes):
@@ -99,8 +105,10 @@ def _is_tables_sorted(table, client):
     sort_attributes = get(table + "/@", attributes=["sorted", "sorted_by"], client=client)
     return apply_function_to_result(_is_sorted, sort_attributes)
 
+
 def _is_cpp_job(command):
     return _CPP_WRAPPER_AVAILABLE and isinstance(command, CppJob)
+
 
 class Finalizer(object):
     """Entity for operation finalizing: checking size of result chunks, deleting of \
@@ -174,6 +182,7 @@ class Finalizer(object):
                         "--spec '{{combine_chunks=true;data_size_per_job={2}}}'"
                         .format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
 
+
 class Toucher(object):
     """Entity for touch operation files in case of retries.
     """
@@ -184,6 +193,7 @@ class Toucher(object):
     def __call__(self):
         for file in self.uploaded_files:
             _touch_file_in_cache(file, client=self.client)
+
 
 def spec_option(description=None, nested_spec_builder=None):
     def spec_method_decorator(func):
@@ -196,6 +206,7 @@ def spec_option(description=None, nested_spec_builder=None):
         spec_method.is_spec_method = True
         return spec_method
     return spec_method_decorator
+
 
 class AclBuilderBase(AclBuilder):
     """Base builder for acl sections in specs.
@@ -213,6 +224,7 @@ class AclBuilderBase(AclBuilder):
         setter(self.build())
         return spec_builder
 
+
 class OperationAclBuilder(AclBuilderBase):
     """Builder for acl section in operation spec.
     """
@@ -222,6 +234,7 @@ class OperationAclBuilder(AclBuilderBase):
     def end_acl(self):
         self._end_acl()
 
+
 class IntermediateDataAclBuilder(AclBuilderBase):
     """Builder for intermediate_data_acl section in MapReduce operation spec.
     """
@@ -230,6 +243,7 @@ class IntermediateDataAclBuilder(AclBuilderBase):
 
     def end_intermediate_data_acl(self):
         self._end_acl()
+
 
 class JobIOSpecBuilder(object):
     """Base builder for job_io section in operation spec.
@@ -284,6 +298,7 @@ class JobIOSpecBuilder(object):
         self._spec_patch = {}
         return spec
 
+
 class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
     """Builder for partition_job_io section in operation spec.
     """
@@ -293,6 +308,7 @@ class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
     def end_partition_job_io(self):
         """Ends partition_job_io section."""
         return self._end_job_io()
+
 
 class SortJobIOSpecBuilder(JobIOSpecBuilder):
     """Builder for sort_job_io section in operation spec.
@@ -304,6 +320,7 @@ class SortJobIOSpecBuilder(JobIOSpecBuilder):
         """Ends sort_job_io section."""
         return self._end_job_io()
 
+
 class MergeJobIOSpecBuilder(JobIOSpecBuilder):
     """Builder for merge_job_io section in operation spec.
     """
@@ -313,6 +330,7 @@ class MergeJobIOSpecBuilder(JobIOSpecBuilder):
     def end_merge_job_io(self):
         """Ends merge_job_io section."""
         return self._end_job_io()
+
 
 class ReduceJobIOSpecBuilder(JobIOSpecBuilder):
     """Builder for reduce_job_io section in operation spec.
@@ -324,6 +342,7 @@ class ReduceJobIOSpecBuilder(JobIOSpecBuilder):
         """Ends reduce_job_io section."""
         return self._end_job_io()
 
+
 class MapJobIOSpecBuilder(JobIOSpecBuilder):
     """Builder for map_job_io section in operation spec.
     """
@@ -333,6 +352,7 @@ class MapJobIOSpecBuilder(JobIOSpecBuilder):
     def end_map_job_io(self):
         """Ends map_job_io section."""
         return self._end_job_io()
+
 
 class UserJobSpecBuilder(object):
     """Base builder for user_job sections in operation spec.
@@ -575,7 +595,6 @@ class UserJobSpecBuilder(object):
                 title=None)
             local_files = file_manager.upload_files()
 
-
         tmpfs_size = prepare_result.tmpfs_size
         environment = prepare_result.environment
         binary = prepare_result.cmd
@@ -787,6 +806,7 @@ class UserJobSpecBuilder(object):
         spec = update(get_config(client)["user_job_spec_defaults"], spec)
         return spec, input_tables, output_tables
 
+
 class TaskSpecBuilder(UserJobSpecBuilder):
     """Builder for task section in vanilla operation spec.
     """
@@ -808,6 +828,7 @@ class TaskSpecBuilder(UserJobSpecBuilder):
         spec_builder._spec["tasks"][self._job_name] = self
         return spec_builder
 
+
 class MapperSpecBuilder(UserJobSpecBuilder):
     """Builder for mapper section in operation spec.
     """
@@ -817,6 +838,7 @@ class MapperSpecBuilder(UserJobSpecBuilder):
     def end_mapper(self):
         """Ends mapper section."""
         return self._end_script()
+
 
 class ReducerSpecBuilder(UserJobSpecBuilder):
     """Builder for reducer section in operation spec.
@@ -828,6 +850,7 @@ class ReducerSpecBuilder(UserJobSpecBuilder):
         """Ends reducer section."""
         return self._end_script()
 
+
 class ReduceCombinerSpecBuilder(UserJobSpecBuilder):
     """Builder for reducer_combiner section in operation spec.
     """
@@ -837,6 +860,7 @@ class ReduceCombinerSpecBuilder(UserJobSpecBuilder):
     def end_reduce_combiner(self):
         """Ends reduce_combiner section."""
         return self._end_script()
+
 
 class SpecBuilder(object):
     """Base builder for operation spec.
@@ -1205,6 +1229,7 @@ class SpecBuilder(object):
             return Toucher(self._uploaded_files, client=client)
         return lambda: None
 
+
 class ReduceSpecBuilder(SpecBuilder):
     """Builder for spec of reduce operation.
     """
@@ -1320,6 +1345,7 @@ class ReduceSpecBuilder(SpecBuilder):
         """Whether operation has some user job sections."""
         return True
 
+
 class JoinReduceSpecBuilder(SpecBuilder):
     """Builder for spec of join_reduce operation.
     """
@@ -1399,6 +1425,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
         """Whether operation has some user job sections."""
         return True
 
+
 class MapSpecBuilder(SpecBuilder):
     """Builder for spec of map operation.
     """
@@ -1473,6 +1500,7 @@ class MapSpecBuilder(SpecBuilder):
     def supports_user_job_spec(self):
         """Whether operation has some user job sections."""
         return True
+
 
 class MapReduceSpecBuilder(SpecBuilder):
     """Builder for spec of map_reduce operation.
@@ -1778,6 +1806,7 @@ class MapReduceSpecBuilder(SpecBuilder):
         """Whether operation has some user job sections."""
         return True
 
+
 class MergeSpecBuilder(SpecBuilder):
     """Builder for spec of merge operation.
     """
@@ -1847,6 +1876,7 @@ class MergeSpecBuilder(SpecBuilder):
         spec["mode"] = mode
 
         self._prepare_spec(spec, client=client)
+
 
 class SortSpecBuilder(SpecBuilder):
     """Builder for spec of sort operation.
@@ -1982,6 +2012,7 @@ class SortSpecBuilder(SpecBuilder):
         spec["sort_by"] = _prepare_sort_by(spec.get("sort_by"), client=client)
         self._prepare_spec(spec, client=client)
 
+
 class RemoteCopySpecBuilder(SpecBuilder):
     """Builder for spec of remote_copy operation.
     """
@@ -2038,6 +2069,7 @@ class RemoteCopySpecBuilder(SpecBuilder):
         self._prepare_tables(spec, single_output_table=True, client=client)
         self._prepare_spec(spec, client=client)
 
+
 class EraseSpecBuilder(SpecBuilder):
     """Builder for spec of erase operation.
     """
@@ -2077,6 +2109,7 @@ class EraseSpecBuilder(SpecBuilder):
 
         self._input_table_paths = [spec["table_path"]]
         self._prepare_spec(spec, client=client)
+
 
 class VanillaSpecBuilder(SpecBuilder):
     """Builder for spec of vanilla operation.

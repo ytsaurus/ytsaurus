@@ -7,6 +7,7 @@ from yt.packages.six import PY3
 from copy import deepcopy
 import inspect
 
+
 def fix_argspec(argspec, is_init_method):
     args = deepcopy(argspec.args)
     defaults = deepcopy(argspec.defaults)
@@ -44,6 +45,7 @@ def fix_argspec(argspec, is_init_method):
     argspec.args = args
     argspec.defaults = defaults
     return argspec
+
 
 def create_class_method(func):
     original_func = func
@@ -89,8 +91,10 @@ def create_class_method(func):
         __wrapped__=func,
         argspec_transformer=lambda args: fix_argspec(args, is_class))
 
+
 def are_signatures_equal(lhs, rhs):
     return get_arg_spec(lhs) == get_arg_spec(rhs)
+
 
 def initialize_client(client, proxy, token, config):
     client.config = get_default_config()

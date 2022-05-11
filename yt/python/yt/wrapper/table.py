@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 
+
 @contextmanager
 def TempTable(path=None, prefix=None, attributes=None, client=None):
     """Creates temporary table in given path with given prefix on scope enter and \

@@ -13,12 +13,14 @@ def _is_freshly_opened_file(stream):
     except IOError:
         return False
 
+
 def _get_file_size(fstream):
     # We presuppose that current position in file is 0
     fstream.seek(0, os.SEEK_END)
     size = fstream.tell()
     fstream.seek(0, os.SEEK_SET)
     return size
+
 
 def _stream_or_empty_bytes(stream):
     has_some = False
@@ -28,6 +30,7 @@ def _stream_or_empty_bytes(stream):
     if not has_some:
         yield b""
 
+
 def _flatten_stream(stream):
     for chunk in stream:
         if isinstance(chunk, (list, tuple, types.GeneratorType)):
@@ -35,6 +38,7 @@ def _flatten_stream(stream):
                 yield subchunk
         else:
             yield chunk
+
 
 def _split_chunks_by_max_size(stream, max_size):
     for chunk in stream:
@@ -44,6 +48,7 @@ def _split_chunks_by_max_size(stream, max_size):
             pieces = [chunk[start_index:start_index + max_size]
                       for start_index in xrange(0, len(chunk), max_size)]
             yield pieces
+
 
 def _resplit_chunks(chunks, chunk_size):
     group = []
@@ -69,6 +74,7 @@ def _resplit_chunks(chunks, chunk_size):
     if group:
         yield b"".join(group)
 
+
 def _merge_items_into_chunks(items, chunk_size):
     length = 0
     chunk_items = []
@@ -83,11 +89,13 @@ def _merge_items_into_chunks(items, chunk_size):
     if chunk_items:
         yield b"".join(chunk_items)
 
+
 def _stream_isatty(stream):
     if hasattr(stream, "isatty"):
         return stream.isatty()
     else:
         return False
+
 
 class Stream(object):
     """
@@ -117,6 +125,7 @@ class Stream(object):
 
     def isatty(self):
         return self._isatty
+
 
 class RawStream(Stream):
     """
@@ -162,6 +171,7 @@ class RawStream(Stream):
     def into_chunks(self, chunk_size):
         return _ChunkStream(self, chunk_size, allow_resplit=True)
 
+
 class ItemStream(Stream):
     """
         Represents a stream of blobs, where each blob must NOT be split in the middle.
@@ -169,6 +179,7 @@ class ItemStream(Stream):
 
     def into_chunks(self, chunk_size):
         return _ChunkStream(self, chunk_size, allow_resplit=False)
+
 
 class _ChunkStream(Stream):
     def __init__(self, input, chunk_size, allow_resplit=False):
@@ -193,6 +204,7 @@ class _ChunkStream(Stream):
 
     def split_chunks(self, piece_max_size):
         return ChunkGroupStream(self, self.chunk_size, piece_max_size)
+
 
 class ChunkGroupStream(Stream):
     item_type = list

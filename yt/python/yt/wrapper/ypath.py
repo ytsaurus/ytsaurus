@@ -30,6 +30,7 @@ class TokensByPath(object):
     def to_path_type(self, text):
         return text if self.string_type == text_type else text.encode("latin1")
 
+
 def _process_prefix(path, prefix):
     tokens = TokensByPath(path)
     if prefix is not None:
@@ -53,6 +54,7 @@ def _process_prefix(path, prefix):
         require(prefix.endswith("/"),
                 lambda: YtError("PREFIX %r should end with /" % prefix))
         return yson.to_yson_type(prefix + tokens.raw_path if tokens.raw_path else prefix[:-1], path.attributes)
+
 
 def ypath_join(*paths):
     """Joins parts of cypress paths."""
@@ -85,6 +87,7 @@ def ypath_join(*paths):
             result.append(path)
 
     return "".join(result)
+
 
 def ypath_split(path):
     """Splits the pathname path into a pair, (head, tail)
@@ -142,6 +145,7 @@ def ypath_split(path):
         raise YtError('Unexpected "/" at the end of YPath')
 
     return path[:slash_pos], path[slash_pos + 1:]
+
 
 def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
     """Escapes string to use it as key in ypath."""
@@ -256,6 +260,7 @@ class YPath(object):
     def __add__(self, other):
         return YPath(str(self) + other, simplify=False)
 
+
 class YPathSupportingAppend(YPath):
     def __init__(self, path, simplify=True, attributes=None, append=None, client=None):
         super(YPathSupportingAppend, self).__init__(path, simplify=simplify, attributes=attributes, client=client)
@@ -281,11 +286,13 @@ class YPathSupportingAppend(YPath):
             if "append" in self.attributes:
                 del self.attributes["append"]
 
+
 def to_ypath(object, client=None):
     if isinstance(object, YPath):
         return object
     else:
         return YPath(object, client=client)
+
 
 class TablePath(YPathSupportingAppend):
     """YPath descendant to be used in table commands.
@@ -478,6 +485,7 @@ class TablePath(YPathSupportingAppend):
                     return True
         return False
 
+
 class FilePath(YPathSupportingAppend):
     """YPath descendant to be used in file commands."""
     def __init__(self, path, append=None, executable=None, file_name=None, simplify=None, attributes=None, client=None):
@@ -486,6 +494,7 @@ class FilePath(YPathSupportingAppend):
             self.attributes["executable"] = executable
         if file_name is not None:
             self.attributes["file_name"] = file_name
+
 
 def ypath_dirname(path):
     """Returns path one level above specified `path`.

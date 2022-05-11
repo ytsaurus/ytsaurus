@@ -16,13 +16,20 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
+
+driver_bindings = None
+logging_configured = False
+address_resolver_configured = False
+
+
 class NullStream(object):
     def write(self, data):
         pass
+
     def close(self):
         pass
 
-driver_bindings = None
+
 def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
     global driver_bindings
     if driver_bindings is not None:
@@ -46,6 +53,7 @@ def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
         except ImportError:
             pass
 
+
 def read_config(path):
     driver_config = yson.load(open(path, "rb"))
     if "driver" in driver_config:
@@ -61,7 +69,7 @@ def read_config(path):
             None
         )
 
-logging_configured = False
+
 def configure_logging(logging_config_from_file, client):
     global logging_configured
     if logging_configured:
@@ -97,7 +105,7 @@ def configure_logging(logging_config_from_file, client):
 
     logging_configured = True
 
-address_resolver_configured = False
+
 def configure_address_resolver(address_resolver_config, client):
     global address_resolver_configured
     if address_resolver_configured:
@@ -110,6 +118,7 @@ def configure_address_resolver(address_resolver_config, client):
         driver_bindings.configure_address_resolver(address_resolver_config)
 
     address_resolver_configured = True
+
 
 def get_driver_instance(client):
     driver = get_option("_driver", client=client)
@@ -168,6 +177,7 @@ def get_driver_instance(client):
 
     return driver
 
+
 def create_driver_for_cell(driver, cell_id):
     config = driver.get_config()
     if config["primary_master"]["cell_id"] == cell_id:
@@ -192,6 +202,7 @@ def create_driver_for_cell(driver, cell_id):
 
     return driver_bindings.Driver(config)
 
+
 def convert_to_stream(data):
     if data is None:
         return data
@@ -204,9 +215,11 @@ def convert_to_stream(data):
     else:
         return StringIterIO(data)
 
+
 def get_command_descriptors(client=None):
     driver = get_driver_instance(client)
     return driver.get_command_descriptors()
+
 
 def chunk_iter(stream, response, size):
     while True:
@@ -219,6 +232,7 @@ def chunk_iter(stream, response, size):
 
     while not stream.empty():
         yield stream.read(size)
+
 
 def make_request(command_name, params,
                  data=None,

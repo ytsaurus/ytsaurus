@@ -5,6 +5,7 @@ from .batch_response import apply_function_to_result
 
 from datetime import datetime
 
+
 def transaction_params(transaction, client=None):
     params = {}
     set_param(params, "transaction_id", get_value(transaction, get_command_param("transaction_id", client)))
@@ -12,11 +13,14 @@ def transaction_params(transaction, client=None):
     set_param(params, "suppress_transaction_coordinator_sync", get_command_param("suppress_transaction_coordinator_sync", client))
     return params
 
+
 def _make_transactional_request(command_name, params, **kwargs):
     return make_request(command_name, params, **kwargs)
 
+
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
     return make_formatted_request(command_name, params, format, **kwargs)
+
 
 def start_transaction(parent_transaction=None, timeout=None, deadline=None, attributes=None, type="master",
                       sticky=False, prerequisite_transaction_ids=None, client=None):
@@ -48,6 +52,7 @@ def start_transaction(parent_transaction=None, timeout=None, deadline=None, attr
 
     return apply_function_to_result(_process_result, make_formatted_request(command_name, params, None, client=client))
 
+
 def abort_transaction(transaction, client=None):
     """Aborts transaction. All changes will be lost.
 
@@ -59,6 +64,7 @@ def abort_transaction(transaction, client=None):
     command_name = "abort_transaction" if get_api_version(client) == "v4" else "abort_tx"
     return make_request(command_name, params, client=client)
 
+
 def commit_transaction(transaction, client=None):
     """Saves all transaction changes.
 
@@ -69,6 +75,7 @@ def commit_transaction(transaction, client=None):
     params = transaction_params(transaction, client=client)
     command_name = "commit_transaction" if get_api_version(client) == "v4" else "commit_tx"
     return make_request(command_name, params, client=client)
+
 
 def ping_transaction(transaction, timeout=None, retry_config=None, client=None):
     """Prolongs transaction lifetime.

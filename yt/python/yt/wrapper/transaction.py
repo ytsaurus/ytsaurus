@@ -32,6 +32,7 @@ PING_FAILED_MODES = (
     "terminate_process",
 )
 
+
 def _get_ping_failed_mode(client):
     if get_config(client)["ping_failed_mode"] is not None:
         return get_config(client)["ping_failed_mode"]
@@ -40,9 +41,11 @@ def _get_ping_failed_mode(client):
     else:
         return "interrupt_main"
 
+
 def _set_sigusr_received(value):
     global _sigusr_received
     _sigusr_received = value
+
 
 def _sigusr_handler(signum, frame):
     # XXX(asaitgalin): handler is always executed in main thread so it is safe
@@ -50,6 +53,7 @@ def _sigusr_handler(signum, frame):
     if signum == signal.SIGUSR1 and not _sigusr_received:
         _set_sigusr_received(True)
         raise YtTransactionPingError()
+
 
 class TransactionStack(object):
     def __init__(self):
@@ -407,6 +411,7 @@ class PingTransaction(Thread):
     def __del__(self):
         self.stop()
 
+
 def get_current_transaction_id(client=None):
     """
     Returns current transaction id of client.
@@ -416,6 +421,7 @@ def get_current_transaction_id(client=None):
         return null_transaction_id
     else:
         return transaction_stack.get()[0]
+
 
 class _TransactionAborter(Thread):
     def __init__(self):
@@ -440,6 +446,7 @@ class _TransactionAborter(Thread):
                 time.sleep(10)
 
 _transaction_aborter = None
+
 
 def add_transaction_to_abort(transaction):
     global _transaction_aborter

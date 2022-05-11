@@ -2,6 +2,7 @@ from . import common
 
 from yt.packages.six import Iterator
 
+
 class ResponseStream(Iterator):
     """Iterator over response."""
     def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
@@ -131,6 +132,7 @@ class ResponseStream(Iterator):
                 action(from_delete)
             self._is_closed = True
 
+
 class EmptyResponseStream(Iterator):
     def read(self, length=None):
         return b""
@@ -150,12 +152,14 @@ class EmptyResponseStream(Iterator):
     def __next__(self):
         raise StopIteration()
 
+
 class ResponseStreamWithDel(ResponseStream):
     def __init__(self, *args, **kwargs):
         super(ResponseStreamWithDel, self).__init__(*args, **kwargs)
 
     def __del__(self):
         self.close(from_delete=True)
+
 
 class ResponseStreamWithReadRow(ResponseStreamWithDel):
     def __init__(self, *args, **kwargs):

@@ -3,6 +3,7 @@ from yt.packages import tqdm
 
 import os
 
+
 class CustomTqdm(tqdm.tqdm):
     # Disable the monitor thread.
     monitor_interval = 0
@@ -23,6 +24,7 @@ class CustomTqdm(tqdm.tqdm):
             # Quick way to remove colon from the progress bar
             ind = meter.find(" :")
             return meter[:ind] + meter[ind + 2:]
+
 
 class SimpleProgressBar(object):
     def __init__(self, default_status, size_hint=None, filename_hint=None, enable=None):
@@ -55,6 +57,7 @@ class SimpleProgressBar(object):
 
     def update(self, size):
         self._tqdm.update(size)
+
 
 class FakeProgressReporter(object):
     def __init__(self, *args, **kwargs):

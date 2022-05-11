@@ -16,6 +16,7 @@ from yt.common import join_exceptions
 import copy
 import threading
 
+
 class ParallelReadRetrier(Retrier):
     def __init__(self, command_name, transaction_id, client):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
@@ -43,6 +44,7 @@ class ParallelReadRetrier(Retrier):
     def run_read(self, params):
         self._params = params
         return self.run()
+
 
 class ParallelReader(object):
     def __init__(self, command_name, transaction, params, prepare_params_func, unordered, thread_count, client):
@@ -94,6 +96,7 @@ class ParallelReader(object):
                 self._transaction = None
             else:
                 self._transaction.abort()
+
 
 def make_read_parallel_request(command_name, path, ranges, params,
                                prepare_params_func, unordered, response_parameters, client):

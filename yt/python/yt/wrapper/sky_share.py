@@ -7,6 +7,7 @@ import yt.yson as yson
 
 import time
 
+
 def sky_share(path, cluster=None, key_columns=[], enable_fastbone=False, client=None):
     """Shares table on cluster via skynet
     :param path: path to table

@@ -17,6 +17,7 @@ from datetime import timedelta
 
 DEFAULT_WRITE_CHUNK_SIZE = 128 * common.MB
 
+
 def retry_backoff_config(**kwargs):
     config_dict = {
         # Backoff options for failed requests.
@@ -43,6 +44,7 @@ def retry_backoff_config(**kwargs):
     config.update(**kwargs)
     return config
 
+
 def retries_config(**kwargs):
     config_dict = {
         "count": None,
@@ -55,6 +57,7 @@ def retries_config(**kwargs):
     config = VerifiedDict(template_dict=config_dict)
     config.update(**kwargs)
     return config
+
 
 def get_dynamic_table_retries():
     return retries_config(enable=True, total_timeout=timedelta(minutes=10), backoff={
@@ -611,6 +614,7 @@ default_config = {
 
 # pydoc :: default_config :: end
 
+
 def transform_value(value, original_value):
     if original_value is False or original_value is True:
         if isinstance(value, str):
@@ -619,13 +623,13 @@ def transform_value(value, original_value):
         return None
     return value
 
+
 def get_default_config():
     """Returns default configuration of python API."""
     return VerifiedDict(
         template_dict=deepcopy(default_config),
         keys_to_ignore=["spec_defaults", "spec_overrides", "table_writer", "user_job_spec_defaults"],
         transform_func=transform_value)
-
 
 
 SHORTCUTS = {
@@ -700,6 +704,7 @@ SHORTCUTS = {
     "USE_YAMR_DEFAULTS": "yamr_mode/use_yamr_defaults",
     "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list"
 }
+
 
 def update_config_from_env(config):
     def _get_var_type(value):
@@ -808,6 +813,7 @@ def update_config_from_env(config):
             _set(config, name, _apply_type(var_type, key, value))
 
     return config
+
 
 def get_config_from_env():
     return update_config_from_env(get_default_config())

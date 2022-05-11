@@ -4,7 +4,7 @@ from yt.common import (require, flatten, update, update_inplace, which, YtError,
 import yt.yson as yson
 
 from yt.packages.decorator import decorator
-from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type, binary_type
+from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type, binary_type, string_types
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
 
 try:
@@ -233,7 +233,7 @@ def chunk_iter_string(string, chunk_size):
 def get_stream_size_or_none(stream):
     if (
         PY3 and isinstance(stream, (bytes, str))
-        or not PY3 and isinstance(stream, basestring)
+        or not PY3 and isinstance(stream, string_types)
     ):
         return len(stream)
     return None

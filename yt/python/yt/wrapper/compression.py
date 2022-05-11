@@ -10,9 +10,11 @@ except ImportError:
     import zlib
     _ZLIB_FORK_SAFE = False
 
+
 def is_zlib_parallel():
     # NB: zlib in non-Arcadia Python 2.7 is single-threaded.
     return PY3 or is_arcadia_python() or _ZLIB_FORK_SAFE
+
 
 def try_enable_parallel_write_gzip(config_enable):
     enable = config_enable
@@ -25,6 +27,7 @@ def try_enable_parallel_write_gzip(config_enable):
     return enable
 
 _CODECS = {}
+
 
 class _Compressor(object):
     def __init__(self, compress_func, finish_func):
@@ -46,14 +49,17 @@ class _Compressor(object):
         if tail:
             yield tail
 
+
 def get_compressor(codec_name):
     if codec_name not in _CODECS:
         raise YtError('Compression module for codec "{0}" not found. Make sure you have '
                       'installed all necessary packages'.format(codec_name))
     return _CODECS[codec_name]()
 
+
 def has_compressor(codec_name):
     return codec_name in _CODECS
+
 
 def _create_zlib_compressor():
     zlib_obj = zlib.compressobj()

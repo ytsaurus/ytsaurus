@@ -14,12 +14,14 @@ from yt.packages.six.moves import xrange, map as imap
 
 import os.path
 
+
 def bytes_to_str(byte_string):
     """Converts bytes to str for PY3. Does nothing for PY2.
     """
     if PY3:
         return byte_string.decode(encoding="latin-1")
     return byte_string
+
 
 def stringify_core_table(row):
     str_row = {}
@@ -30,6 +32,7 @@ def stringify_core_table(row):
             v = bytes_to_str(v)
         str_row[k] = v
     return str_row
+
 
 def get_core_infos(job_id, operation_id=None, client=None):
     """If operation id is specified, retrieves the core infos of the given job.
@@ -51,6 +54,7 @@ def get_core_infos(job_id, operation_id=None, client=None):
     raise YtError("Information in operation node in Cypress in inconsistent with core table content: "
                   "missing node for job {0} in operation {1}".format(job_id, operation_id))
 
+
 def get_core_table_path(operation_id, client=None):
     """Fetches core_table_path from the operation spec.
     """
@@ -58,6 +62,7 @@ def get_core_table_path(operation_id, client=None):
     if "core_table_path" not in spec:
         raise YtError("Operation {0} does not have a specified core_table_path".format(operation_id))
     return spec["core_table_path"]
+
 
 class CoreDumpWriter(object):
     def __init__(self, job_id, core_infos, core_indices, output_directory, sparse):
@@ -176,11 +181,13 @@ class CoreDumpWriter(object):
         logger.info("{0} core(-s) written, total size is {1} bytes, actual disk usage is {2} bytes"
                     .format(len(self.saved_core_dumps), self.total_size, self.total_disk_usage))
 
+
 def process_errored_core_dumps(core_infos, core_indices):
     for index, core_info in enumerate(core_infos):
         if "error" in core_info and (core_indices is None or index in core_indices):
             logger.warning("Core dump with index {0} was not saved due to the following error: {1}".format(
                 index, core_info["error"]))
+
 
 def download_core_dump(output_directory, job_id=None, operation_id=None, core_table_path=None, core_indices=None,
                        client=None):

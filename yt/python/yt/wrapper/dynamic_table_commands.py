@@ -32,6 +32,7 @@ ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
 TABLET_ACTION_KEEPALIVE_PERIOD = 55  # s
 
+
 def _waiting_for_condition(condition, error_message, check_interval=None, timeout=None, client=None):
     if check_interval is None:
         check_interval = get_config(client)["tablets_check_interval"] / 1000.0
@@ -44,6 +45,7 @@ def _waiting_for_condition(condition, error_message, check_interval=None, timeou
             raise YtError(error_message)
 
         time.sleep(check_interval)
+
 
 def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index=None, client=None):
     if first_tablet_index is not None or last_tablet_index is not None:
@@ -58,9 +60,11 @@ def _waiting_for_tablets(path, state, first_tablet_index=None, last_tablet_index
 
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
 
+
 def _waiting_for_tablet_transition(path, client=None):
     is_tablets_ready = lambda: get(path + "/@tablet_state", client=client) != "transient"
     _waiting_for_condition(is_tablets_ready, "Timed out while waiting for tablets", client=client)
+
 
 def _waiting_for_sync_tablet_actions(tablet_action_ids, client=None):
     def wait_func():
@@ -104,6 +108,7 @@ def _waiting_for_sync_tablet_actions(tablet_action_ids, client=None):
         check_interval=1.0,
         client=client)
 
+
 def _check_transaction_type(client):
     transaction_id = get_command_param("transaction_id", client=client)
     if transaction_id == null_transaction_id:
@@ -112,6 +117,7 @@ def _check_transaction_type(client):
         return
     require(not is_master_transaction(transaction_id),
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
+
 
 def get_dynamic_table_retriable_errors():
     return tuple(
@@ -125,6 +131,7 @@ def get_dynamic_table_retriable_errors():
             YtBlockedRowWaitTimeout,
             YtNoSuchCell,
         ])
+
 
 class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, return_content=True, data=None, client=None):
@@ -163,6 +170,7 @@ class DynamicTableRequestRetrier(Retrier):
     def except_action(self, error, attempt):
         logger.warning('Request %s failed with error %s',
                        self.command, repr(error))
+
 
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
@@ -218,6 +226,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     else:
         return format.load_rows(response)
 
+
 def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
                 require_sync_replica=None, format=None, raw=None, client=None):
     """Inserts rows from input_stream to dynamic table.
@@ -227,9 +236,9 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
     :param input_stream: python file-like object, string, list of strings.
     :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
-    :param bool raw: if `raw` is specified stream with unparsed records (strings) \
-    in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
-    are expected.
+    :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
     :param bool require_sync_replica: require sync replica write.
     """
     if raw is None:
@@ -272,9 +281,11 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         data=input_data,
         client=client).run()
 
-def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
-            max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
-            format=None, raw=None, execution_pool=None, retention_timestamp=None, client=None):
+
+def explain_query(
+        query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
+        max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
+        format=None, raw=None, execution_pool=None, retention_timestamp=None, client=None):
     """Explains a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
@@ -317,6 +328,7 @@ def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=
     else:
         return format.load_rows(response)
 
+
 def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None,
                 require_sync_replica=None, client=None):
     """Deletes rows with keys from input_stream from dynamic table.
@@ -326,9 +338,9 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
     :param input_stream: python file-like object, string, list of strings.
     :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
-    :param bool raw: if `raw` is specified stream with unparsed records (strings) \
-    in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
-    are expected.
+    :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
     :param bool require_sync_replica: require sync replica write.
     """
     if raw is None:
@@ -369,6 +381,7 @@ def delete_rows(table, input_stream, atomicity=None, durability=None, format=Non
         data=input_data,
         client=client).run()
 
+
 def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, format=None, raw=None, client=None):
     """Lock rows with keys from input_stream from dynamic table.
 
@@ -377,9 +390,9 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
     :param input_stream: python file-like object, string, list of strings.
     :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
-    :param bool raw: if `raw` is specified stream with unparsed records (strings) \
-    in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>` \
-    are expected.
+    :param bool raw: if `raw` is specified stream with unparsed records (strings)
+        in specified `format` is expected. Otherwise dicts or :class:`Record <yt.wrapper.yamr_record.Record>`
+        are expected.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]
@@ -415,6 +428,7 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
         params,
         data=input_data,
         client=client).run()
+
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
                 enable_partial_result=None, use_lookup_cache=None,
@@ -473,6 +487,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     else:
         return format.load_rows(response)
 
+
 def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=None,
                 freeze=False, sync=False, target_cell_ids=None, client=None):
     """Mounts table.
@@ -498,6 +513,7 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
     return response
 
+
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, sync=False, client=None):
     """Unmounts table.
 
@@ -517,6 +533,7 @@ def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=N
         _waiting_for_tablets(path, "unmounted", first_tablet_index, last_tablet_index, client)
 
     return response
+
 
 def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=None):
     """Remounts table.
@@ -549,6 +566,7 @@ def freeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=Fal
 
     return response
 
+
 def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
     """Unfreezes table.
 
@@ -567,6 +585,7 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=F
         _waiting_for_tablets(path, "mounted", first_tablet_index, last_tablet_index, client)
 
     return response
+
 
 def reshard_table(path,
                   pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None,
@@ -595,6 +614,7 @@ def reshard_table(path,
 
     return response
 
+
 def reshard_table_automatic(path, sync=False, client=None):
     """Automatically balance tablets of a mounted table according to tablet balancer config.
 
@@ -617,6 +637,7 @@ def reshard_table_automatic(path, sync=False, client=None):
         _waiting_for_sync_tablet_actions(tablet_action_ids, client=client)
 
     return tablet_action_ids
+
 
 def balance_tablet_cells(bundle, tables=None, sync=False, client=None):
     """Reassign tablets evenly among tablet cells.
@@ -641,6 +662,7 @@ def balance_tablet_cells(bundle, tables=None, sync=False, client=None):
 
     return tablet_action_ids
 
+
 def trim_rows(path, tablet_index, trimmed_row_count, client=None):
     """Trim rows of the dynamic table.
 
@@ -657,6 +679,7 @@ def trim_rows(path, tablet_index, trimmed_row_count, client=None):
 
     return make_request("trim_rows", params, client=client)
 
+
 def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
     """TODO"""
     if mode is not None:
@@ -668,10 +691,12 @@ def alter_table_replica(replica_id, enabled=None, mode=None, client=None):
 
     return make_request("alter_table_replica", params, client=client)
 
+
 def get_tablet_infos(path, tablet_indexes, format=None, client=None):
     """TODO"""
     params = {"path": path, "tablet_indexes": tablet_indexes}
     return make_formatted_request("get_tablet_infos", params, format=format, client=client)
+
 
 def get_tablet_errors(path, limit=None, format=None, client=None):
     """Gets dynamic table tablet and replication errors.

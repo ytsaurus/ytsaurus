@@ -1,8 +1,9 @@
-from yt.packages.argcomplete import autocomplete
+from yt.packages.argcomplete import autocomplete  # noqa
 import yt.wrapper as yt
 
 if not yt.config["argcomplete_verbose"]:
     warn = lambda *args, **kwargs: None
+
 
 def complete_map_node(path):
     path = str(path).rsplit("/", 1)[0]
@@ -47,6 +48,7 @@ def complete_attributes(path):
         suggestions.append(path + "@" + attribute + ("/" if attribute != "" else "") + child_attribute)
 
     return suggestions
+
 
 def complete_ypath(prefix, parsed_args, **kwargs):
     if prefix in ["", "/"]:

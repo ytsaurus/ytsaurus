@@ -3,6 +3,7 @@ from .driver import make_request, make_formatted_request
 from .common import set_param
 from .ypath import YPath
 
+
 def list_jobs(operation_id,
               job_type=None, job_state=None, address=None, job_competition_id=None, with_competitors=None,
               sort_field=None, sort_order=None,
@@ -37,6 +38,7 @@ def list_jobs(operation_id,
         client=client,
         timeout=timeout)
 
+
 def get_job(operation_id, job_id, format=None, client=None):
     """Get job of operation.
 
@@ -52,6 +54,7 @@ def get_job(operation_id, job_id, format=None, client=None):
         client=client,
         timeout=timeout)
 
+
 def run_job_shell(job_id, shell_name=None, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.
 
@@ -61,6 +64,7 @@ def run_job_shell(job_id, shell_name=None, timeout=None, command=None, client=No
     from .job_shell import JobShell
 
     JobShell(job_id, shell_name=shell_name, interactive=True, timeout=timeout, client=client).run(command=command)
+
 
 def get_job_stderr(operation_id, job_id, client=None):
     """Gets stderr of the specified job.
@@ -74,6 +78,7 @@ def get_job_stderr(operation_id, job_id, client=None):
         return_content=False,
         client=client)
 
+
 def get_job_input(job_id, client=None):
     """Get full input of the specified job.
 
@@ -85,6 +90,7 @@ def get_job_input(job_id, client=None):
         return_content=False,
         use_heavy_proxy=True,
         client=client)
+
 
 def get_job_input_paths(job_id, client=None):
     """Get input paths of the specified job.
@@ -101,6 +107,7 @@ def get_job_input_paths(job_id, client=None):
         client=client)
     return list(map(YPath, yson_paths))
 
+
 def abort_job(job_id, interrupt_timeout=None, client=None):
     """Interrupts running job with preserved result.
 
@@ -111,9 +118,11 @@ def abort_job(job_id, interrupt_timeout=None, client=None):
     set_param(params, "interrupt_timeout", interrupt_timeout)
     return make_request("abort_job", params, client=client)
 
+
 def dump_job_context(job_id, path, client=None):
     """Dumps job input context to specified path."""
     return make_request("dump_job_context", {"job_id": job_id, "path": path}, client=client)
+
 
 def get_job_fail_context(operation_id, job_id, client=None):
     """Get fail context of the specified job.
@@ -127,6 +136,7 @@ def get_job_fail_context(operation_id, job_id, client=None):
         return_content=False,
         use_heavy_proxy=True,
         client=client)
+
 
 def get_job_spec(job_id,
                  omit_node_directory=None,
