@@ -11,7 +11,7 @@ from yt_commands import (
     unmount_table, remount_table,
     generate_timestamp, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_flush_table, sync_reshard_table,
-    get_singular_chunk_id)
+    get_singular_chunk_id, update_op_parameters)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -488,6 +488,61 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         create("table", "//tmp/t_out")
         op = merge(in_="//tmp/t_in", out="//tmp/t_out", mode="ordered", track=False)
         wait(lambda: op.get_state() == "materializing")
+
+        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), False)
+        op.track()
+
+    def test_dynamic_store_not_unavailable_after_job_aborted(self):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get("#{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(cell_node), True)
+
+        self._prepare_simple_table(
+            "//tmp/t_in",
+            enable_store_rotation=False,
+            replication_factor=1)
+        chunk_id = get_singular_chunk_id("//tmp/t_in")
+        stored_replicas = get("#{}/@stored_replicas".format(chunk_id))
+        assert len(stored_replicas) == 1
+        chunk_node = stored_replicas[0]
+        assert chunk_node != cell_node
+
+        create("table", "//tmp/t_out")
+        op = merge(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mode="ordered",
+            track=False,
+            spec={
+                "resource_limits": {"user_slots": 0},
+                "max_failed_job_count": 1000,
+                "job_io": {
+                    "table_reader": {
+                        "pass_count": 1,
+                        "retry_count": 1,
+                    },
+                },
+            })
+        wait(lambda: op.get_state() == "running")
+
+        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), True)
+        wait(lambda: get("#{}/@replication_status/default/lost".format(chunk_id)))
+
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {"resource_limits": {"user_slots": 1}}
+                }
+            })
+
+        ca_address = ls("//sys/controller_agents/instances")[0]
+        orchid_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}/unavailable_input_chunks".format(
+            ca_address,
+            op.id)
+
+        wait(lambda: get(orchid_path))
+        assert get(orchid_path) == [chunk_id]
 
         set("//sys/cluster_nodes/{}/@banned".format(chunk_node), False)
         op.track()

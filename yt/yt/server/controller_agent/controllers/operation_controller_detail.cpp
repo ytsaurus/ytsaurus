@@ -3648,6 +3648,11 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
         return;
     }
 
+    // Dynamic stores cannot be located by the controller, let the job do its job.
+    if (IsDynamicTabletStoreType(TypeFromId(chunkId))) {
+        return;
+    }
+
     auto it = InputChunkMap.find(chunkId);
     if (it == InputChunkMap.end()) {
         YT_LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v)", chunkId);
