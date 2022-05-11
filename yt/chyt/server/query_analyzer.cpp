@@ -914,13 +914,17 @@ void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
         upperBound);
 
     auto createBoundCondition = [&] (const auto& bound) -> DB::ASTPtr {
+        if (bound.IsUniversal()) {
+            return std::make_shared<DB::ASTLiteral>(true);
+        }
+        if (bound.IsEmpty()) {
+            return std::make_shared<DB::ASTLiteral>(false);
+        }
+
         auto tableSchema = Storages_[0]->GetSchema();
         auto boundLiterals = UnversionedRowToFields(bound.Prefix, *tableSchema);
-
-        // Nothing to compare. Condition is always true or false.
-        if (boundLiterals.empty()) {
-            return std::make_shared<DB::ASTLiteral>(!bound.IsUpper);
-        }
+        // The bound is not universal nor empty, so it should contain at least one literal.
+        YT_VERIFY(!boundLiterals.empty());
 
         int literalsSize = boundLiterals.size();
 
