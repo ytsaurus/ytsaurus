@@ -140,7 +140,8 @@ class YtEventLogFsInputStream(conf: Configuration, path: String, details: YtEven
   }
 
   override def skip(n: Long): Long = {
-    log.debugLazy(s"Skip $n started, $details, $finished $order $globalPos")
+    log.debugLazy(s"Skip $n started; details: $details; is file finished: $finished; " +
+      s"read blocks: $order; current position: $globalPos")
     if (finished && n > 0) {
       throw new IOException(s"Try to skip $n in $details, but data is finished")
     } else {
