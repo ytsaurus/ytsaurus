@@ -373,7 +373,7 @@ protected:
 
     std::vector<TChunkId> OriginalChunks_;
 
-    IChunkPoolPtr ChunkPool_;
+    IPersistentChunkPoolPtr ChunkPool_;
 
     //! Set containing all unversioned input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedChunks_;
@@ -740,11 +740,11 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         }
     };
 
-    // All chunks from the IChunkPoolInput point of view.
+    // All chunks from the IPersistentChunkPoolInput point of view.
     THashMap<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
     THashSet<TChunkId> suspendedChunks;
     THashSet<TChunkId> resumedChunks;
-    // All chunks from the IChunkPoolOutput point of view.
+    // All chunks from the IPersistentChunkPoolOutput point of view.
     THashMap<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
     THashSet<TChunkId> pendingChunks;
     THashSet<TChunkId> startedChunks;

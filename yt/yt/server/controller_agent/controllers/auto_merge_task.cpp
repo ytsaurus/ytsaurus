@@ -27,7 +27,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
-    IChunkPoolPtr underlyingPool,
+    IPersistentChunkPoolPtr underlyingPool,
     int poolIndex,
     TAutoMergeTask* task)
     : TChunkPoolAdapterBase(underlyingPool)
@@ -175,7 +175,7 @@ TAutoMergeTask::TAutoMergeTask(
         ChunkPools_.push_back(New<TAutoMergeChunkPoolAdapter>(unorderedPool, poolIndex, this));
     }
 
-    std::vector<IChunkPoolPtr> underlyingPools;
+    std::vector<IPersistentChunkPoolPtr> underlyingPools;
     for (const auto& chunkPool : ChunkPools_) {
         underlyingPools.push_back(chunkPool);
     }
@@ -272,12 +272,12 @@ TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joble
     return result;
 }
 
-NChunkPools::IChunkPoolInputPtr TAutoMergeTask::GetChunkPoolInput() const
+NChunkPools::IPersistentChunkPoolInputPtr TAutoMergeTask::GetChunkPoolInput() const
 {
     return ChunkPool_;
 }
 
-NChunkPools::IChunkPoolOutputPtr TAutoMergeTask::GetChunkPoolOutput() const
+NChunkPools::IPersistentChunkPoolOutputPtr TAutoMergeTask::GetChunkPoolOutput() const
 {
     return ChunkPool_;
 }

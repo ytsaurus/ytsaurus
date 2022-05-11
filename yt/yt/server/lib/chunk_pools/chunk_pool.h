@@ -1,12 +1,14 @@
 #pragma once
 
 #include "private.h"
-#include "chunk_stripe.h"
-#include "chunk_stripe_key.h"
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_pool.h>
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -18,39 +20,17 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkPoolInput
-    : public virtual TRefCounted
+struct IPersistentChunkPoolInput
+    : public virtual IChunkPoolInput
     , public virtual IPersistent
-{
-    using TCookie = TInputCookie;
-    static constexpr TCookie NullCookie = -1;
+{ };
 
-    virtual TCookie Add(TChunkStripePtr stripe) = 0;
-
-    virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey /* key */)
-    {
-        return Add(stripe);
-    }
-
-    virtual void Suspend(TCookie cookie) = 0;
-    virtual void Resume(TCookie cookie) = 0;
-
-    //! When called, pool is forced to replace an input stripe corresponding
-    //! to a given cookie with a given new stripe, to apply the given mapping
-    //! to the rest of stripes and to form jobs once again.
-    virtual void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) = 0;
-
-    virtual void Finish() = 0;
-
-    virtual bool IsFinished() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IChunkPoolInput)
+DEFINE_REFCOUNTED_TYPE(IPersistentChunkPoolInput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMultiChunkPoolInput
-    : public virtual IChunkPoolInput
+    : public virtual IPersistentChunkPoolInput
 {
     //! Finishes underlying pool with given index.
     //! NB: One should not finish underlying pools directlty.
@@ -63,10 +43,10 @@ DEFINE_REFCOUNTED_TYPE(IMultiChunkPoolInput)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolInputBase
-    : public virtual IChunkPoolInput
+    : public virtual IPersistentChunkPoolInput
 {
 public:
-    // IChunkPoolInput implementation.
+    // IPersistentChunkPoolInput implementation.
     void Finish() override;
 
     bool IsFinished() const override;
@@ -89,77 +69,33 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This interface is a chunk pool counterpart for a job splitter.
-struct IChunkPoolJobSplittingHost
-    : public virtual TRefCounted
+struct IPersistentChunkPoolJobSplittingHost
+    : public virtual IChunkPoolJobSplittingHost
     , public virtual IPersistent
-{
-    //! Returns true if a job corresponding to this cookie may be considered for splitting and false otherwise.
-    virtual bool IsSplittable(TOutputCookie cookie) const = 0;
-};
+{ };
 
-DEFINE_REFCOUNTED_TYPE(IChunkPoolJobSplittingHost)
+DEFINE_REFCOUNTED_TYPE(IPersistentChunkPoolJobSplittingHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkPoolOutput
-    : public virtual TRefCounted
+struct IPersistentChunkPoolOutput
+    : public virtual IChunkPoolOutput
     , public virtual IPersistent
-    , public virtual IChunkPoolJobSplittingHost
-{
-    using TCookie = TOutputCookie;
-    static constexpr TCookie NullCookie = -1;
+    , public virtual IPersistentChunkPoolJobSplittingHost
+{ };
 
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
-    virtual const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const = 0;
-    virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const = 0;
-    virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const = 0;
-
-    virtual TOutputOrderPtr GetOutputOrder() const = 0;
-
-    virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const = 0;
-
-    //! Approximate average stripe list statistics to estimate memory usage.
-    virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
-
-    virtual TCookie Extract(
-        NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;
-
-    virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
-
-    virtual bool IsCompleted() const = 0;
-
-    //! The main purpose of this method is to be much cheaper than #GetStripeList,
-    //! and to eliminate creation/desctuction of a stripe list if we have already reached
-    //! JobSpecSliceThrottler limit. This is particularly useful for a shuffle chunk pool.
-    virtual int GetStripeListSliceCount(TCookie cookie) const = 0;
-
-    virtual void Completed(TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) = 0;
-    virtual void Failed(TCookie cookie) = 0;
-    virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
-    virtual void Lost(TCookie cookie) = 0;
-
-
-    //! Raises when chunk teleports.
-    DECLARE_INTERFACE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
-
-    //! Raises when chunk pool completes.
-    DECLARE_INTERFACE_SIGNAL(void(), Completed);
-    //! Raises when chunk pool uncompletes.
-    DECLARE_INTERFACE_SIGNAL(void(), Uncompleted);
-};
-
-DEFINE_REFCOUNTED_TYPE(IChunkPoolOutput)
+DEFINE_REFCOUNTED_TYPE(IPersistentChunkPoolOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMultiChunkPoolOutput
-    : public virtual IChunkPoolOutput
+    : public virtual IPersistentChunkPoolOutput
 {
     //! Should be called when all underlying pools are added.
     virtual void Finalize() = 0;
 
     //! Adds new underlying chunk pool output to multi chunk pool.
-    virtual void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) = 0;
+    virtual void AddPoolOutput(IPersistentChunkPoolOutputPtr pool, int poolIndex) = 0;
 
     //! Extracts cookie from underlying pool `underlyingPoolIndexHint' if possible.
     virtual TCookie ExtractFromPool(
@@ -172,7 +108,7 @@ DEFINE_REFCOUNTED_TYPE(IMultiChunkPoolOutput)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolOutputBase
-    : public virtual IChunkPoolOutput
+    : public virtual IPersistentChunkPoolOutput
 {
 public:
     TOutputOrderPtr GetOutputOrder() const override;
@@ -204,7 +140,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(max42): maybe make job manager implement IChunkPoolOutput itself?
+// TODO(max42): maybe make job manager implement IPersistentChunkPoolOutput itself?
 template <class TJobManager>
 class TChunkPoolOutputWithJobManagerBase
     : public TChunkPoolOutputBase
@@ -257,7 +193,7 @@ using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase
 //! (*) If the prerequisite is not met, IsSplittable is guaranteed to always return true
 //! and state of this base is trivial, i.e. the derived class may skip persisting the base class.
 class TJobSplittingBase
-    : public virtual IChunkPoolJobSplittingHost
+    : public virtual IPersistentChunkPoolJobSplittingHost
     , public virtual NLogging::TLoggerOwner
 {
 public:
@@ -306,22 +242,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkPool
-    : public virtual IChunkPoolInput
-    , public virtual IChunkPoolOutput
+struct IPersistentChunkPool
+    : public virtual IChunkPool
+    , public virtual IPersistentChunkPoolInput
+    , public virtual IPersistentChunkPoolOutput
 { };
 
-DEFINE_REFCOUNTED_TYPE(IChunkPool)
+DEFINE_REFCOUNTED_TYPE(IPersistentChunkPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMultiChunkPool
     : public virtual IMultiChunkPoolInput
     , public virtual IMultiChunkPoolOutput
-    , public virtual IChunkPool
+    , public virtual IPersistentChunkPool
 {
     //! Adds new underlying chunk pool to multi chunk pool.
-    virtual void AddPool(IChunkPoolPtr pool, int poolIndex) = 0;
+    virtual void AddPool(IPersistentChunkPoolPtr pool, int poolIndex) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiChunkPool)
@@ -332,8 +269,8 @@ struct IShuffleChunkPool
     : public virtual TRefCounted
     , public virtual IPersistent
 {
-    virtual IChunkPoolInputPtr GetInput() = 0;
-    virtual IChunkPoolOutputPtr GetOutput(int partitionIndex) = 0;
+    virtual IPersistentChunkPoolInputPtr GetInput() = 0;
+    virtual IPersistentChunkPoolOutputPtr GetOutput(int partitionIndex) = 0;
     virtual i64 GetTotalDataSliceCount() const = 0;
     virtual i64 GetTotalJobCount() const = 0;
 };

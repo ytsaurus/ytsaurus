@@ -17,7 +17,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkStripeStatistics::Persist(const TPersistenceContext& context)
+void TChunkStripeStatistics::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ChunkCount);
@@ -88,7 +88,7 @@ int TChunkStripe::GetInputStreamIndex() const
     return DataSlices.front()->GetInputStreamIndex();
 }
 
-void TChunkStripe::Persist(const TPersistenceContext& context)
+void TChunkStripe::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, DataSlices);
@@ -177,7 +177,7 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
     Stripes.emplace_back(std::move(stripe));
 }
 
-void TChunkStripeList::Persist(const TPersistenceContext& context)
+void TChunkStripeList::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Stripes);

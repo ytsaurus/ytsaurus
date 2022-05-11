@@ -7,9 +7,10 @@
 #include <yt/yt/server/lib/chunk_pools/mock/chunk_pool.h>
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 namespace NYT::NControllerAgent::NControllers {
 namespace {

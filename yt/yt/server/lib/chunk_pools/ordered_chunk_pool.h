@@ -33,7 +33,7 @@ struct TOrderedChunkPoolOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkPoolPtr CreateOrderedChunkPool(
+IPersistentChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory);
 

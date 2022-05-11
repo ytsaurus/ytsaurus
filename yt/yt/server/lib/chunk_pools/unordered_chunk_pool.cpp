@@ -37,7 +37,7 @@ using namespace NLogging;
 class TUnorderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithCountersBase
-    , public IChunkPool
+    , public IPersistentChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
@@ -104,7 +104,7 @@ public:
         UpdateFreeJobCounter();
     }
 
-    // IChunkPoolInput implementation.
+    // IPersistentChunkPoolInput implementation.
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
@@ -195,7 +195,7 @@ public:
         JobManager_->Resume(cookie);
     }
 
-    // IChunkPoolOutput implementation.
+    // IPersistentChunkPoolOutput implementation.
 
     bool IsCompleted() const override
     {
@@ -840,7 +840,7 @@ void TUnorderedChunkPoolOptions::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkPoolPtr CreateUnorderedChunkPool(
+IPersistentChunkPoolPtr CreateUnorderedChunkPool(
     const TUnorderedChunkPoolOptions& options,
     TInputStreamDirectory directory)
 {

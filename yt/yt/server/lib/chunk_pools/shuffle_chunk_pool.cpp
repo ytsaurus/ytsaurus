@@ -58,17 +58,17 @@ public:
 
     // IShuffleChunkPool implementation.
 
-    IChunkPoolInputPtr GetInput() override
+    IPersistentChunkPoolInputPtr GetInput() override
     {
         return this;
     }
 
-    IChunkPoolOutputPtr GetOutput(int partitionIndex) override
+    IPersistentChunkPoolOutputPtr GetOutput(int partitionIndex) override
     {
         return Outputs_[partitionIndex];
     }
 
-    // IChunkPoolInput implementation.
+    // IPersistentChunkPoolInput implementation.
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
@@ -275,7 +275,7 @@ private:
             CheckCompleted();
         }
 
-        // IChunkPoolOutput implementation.
+        // IPersistentChunkPoolOutput implementation.
 
         TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {

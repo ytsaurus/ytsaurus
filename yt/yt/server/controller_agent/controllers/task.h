@@ -12,7 +12,6 @@
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
 
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe_key.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
@@ -23,6 +22,8 @@
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 #include <yt/yt/server/lib/controller_agent/read_range_registry.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -192,8 +193,8 @@ public:
 
     virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
-    virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const = 0;
-    virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const = 0;
+    virtual NChunkPools::IPersistentChunkPoolInputPtr GetChunkPoolInput() const = 0;
+    virtual NChunkPools::IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const = 0;
 
     virtual EJobType GetJobType() const = 0;
     virtual void AddJobTypeToJoblet(const TJobletPtr& joblet) const;
@@ -386,7 +387,7 @@ private:
 
     bool CompletedFired_ = false;
 
-    using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInputPtr>;
+    using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IPersistentChunkPoolInputPtr>;
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;

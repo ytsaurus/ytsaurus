@@ -5,7 +5,7 @@
 #include "conversion.h"
 #include "subquery_spec.h"
 
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/client/ypath/rich.h>
 

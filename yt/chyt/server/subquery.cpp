@@ -12,7 +12,6 @@
 #include "table.h"
 #include "virtual_column.h"
 
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
@@ -32,6 +31,8 @@
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/object_attribute_cache.h>
@@ -897,7 +898,7 @@ std::vector<TSubquery> BuildThreadSubqueries(
         samplingRate,
         Logger);
 
-    IChunkPoolPtr chunkPool;
+    IPersistentChunkPoolPtr chunkPool;
 
     if (poolKind == EPoolKind::Unordered) {
         chunkPool = CreateUnorderedChunkPool(

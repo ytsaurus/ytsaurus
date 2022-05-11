@@ -7,10 +7,11 @@
 #include <yt/yt/server/controller_agent/operation_controller.h>
 
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/output_order.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
+#include <yt/yt/ytlib/chunk_pools/output_order.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -308,7 +309,7 @@ protected:
 
     std::vector<TChunkId> OriginalChunks_;
 
-    IChunkPoolPtr ChunkPool_;
+    IPersistentChunkPoolPtr ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
@@ -583,11 +584,11 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         }
     };
 
-    // All chunks from the IChunkPoolInput point of view.
+    // All chunks from the IPersistentChunkPoolInput point of view.
     THashMap<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
     THashSet<TChunkId> suspendedChunks;
     THashSet<TChunkId> resumedChunks;
-    // All chunks from the IChunkPoolOutput point of view.
+    // All chunks from the IPersistentChunkPoolOutput point of view.
     THashMap<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
     THashSet<TChunkId> pendingChunks;
     THashSet<TChunkId> startedChunks;

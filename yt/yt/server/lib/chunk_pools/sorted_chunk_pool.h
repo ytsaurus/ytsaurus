@@ -33,7 +33,7 @@ struct TSortedChunkPoolOptions
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISortedChunkPool
-    : public IChunkPool
+    : public IPersistentChunkPool
 {
     //! Return keys (limits) that define range corresponding to cookie `cookie`.
     virtual std::pair<NTableClient::TKeyBound, NTableClient::TKeyBound>

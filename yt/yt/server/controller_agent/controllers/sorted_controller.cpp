@@ -160,12 +160,12 @@ protected:
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
 
-        IChunkPoolInputPtr GetChunkPoolInput() const override
+        IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return ChunkPool_;
         }
 
-        IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return ChunkPool_;
         }
@@ -233,7 +233,7 @@ protected:
         bool UseNewSortedPool_;
 
         //! Initialized in descendandt tasks.
-        IChunkPoolPtr ChunkPool_;
+        IPersistentChunkPoolPtr ChunkPool_;
 
         i64 TotalOutputRowCount_ = 0;
 

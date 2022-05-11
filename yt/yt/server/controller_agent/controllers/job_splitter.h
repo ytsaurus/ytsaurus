@@ -42,7 +42,7 @@ struct IJobSplitter
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     TJobSplitterConfigPtr config,
-    NChunkPools::IChunkPoolJobSplittingHost* chunkPool,
+    NChunkPools::IPersistentChunkPoolJobSplittingHost* chunkPool,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

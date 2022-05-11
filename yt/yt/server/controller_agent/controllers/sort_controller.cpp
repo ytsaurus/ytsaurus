@@ -318,12 +318,12 @@ protected:
         IShuffleChunkPoolPtr ShuffleChunkPool;
 
         //! Input of shuffle chunk pool wrapped into intermediate live preview adapter.
-        IChunkPoolInputPtr ShuffleChunkPoolInput;
+        IPersistentChunkPoolInputPtr ShuffleChunkPoolInput;
 
         //! Chunk pool containing data of this partition.
         //! For root partition it is either partition pool or simple sort pool.
         //! For non-root partitions it's an output of parent partition's shuffle pool.
-        IChunkPoolOutputPtr ChunkPoolOutput;
+        IPersistentChunkPoolOutputPtr ChunkPoolOutput;
 
         TSerializableLogger Logger;
 
@@ -494,8 +494,8 @@ protected:
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
     IJobSizeConstraintsPtr RootPartitionPoolJobSizeConstraints;
-    IChunkPoolPtr RootPartitionPool;
-    IChunkPoolPtr SimpleSortPool;
+    IPersistentChunkPoolPtr RootPartitionPool;
+    IPersistentChunkPoolPtr SimpleSortPool;
 
     //! i-th element is a multi chunk pool built over the inputs of i-th level partitions' shuffle chunk pools.
     std::vector<IMultiChunkPoolInputPtr> ShuffleMultiChunkPoolInputs;
@@ -617,7 +617,7 @@ protected:
             return result;
         }
 
-        IChunkPoolInputPtr GetChunkPoolInput() const override
+        IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             if (IsRoot()) {
                 return Controller_->RootPartitionPool;
@@ -626,7 +626,7 @@ protected:
             }
         }
 
-        IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             if (IsRoot()) {
                 return Controller_->RootPartitionPool;
@@ -1304,12 +1304,12 @@ protected:
             }
         }
 
-        IChunkPoolInputPtr GetChunkPoolInput() const override
+        IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller_->ShuffleMultiChunkPoolInputs.back();
         }
 
-        IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return MultiChunkPoolOutput_;
         }
@@ -1465,12 +1465,12 @@ protected:
             return Format("SimpleSort");
         }
 
-        IChunkPoolInputPtr GetChunkPoolInput() const override
+        IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller_->SimpleSortPool;
         }
 
-        IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return Controller_->SimpleSortPool;
         }
@@ -1598,7 +1598,7 @@ protected:
             return resources;
         }
 
-        IChunkPoolInputPtr GetChunkPoolInput() const override
+        IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return ChunkPoolInput_;
         }
@@ -1734,9 +1734,9 @@ protected:
         std::vector<TPartitionPtr> Partitions_;
 
         IMultiChunkPoolPtr MultiChunkPool_;
-        IChunkPoolInputPtr ChunkPoolInput_;
+        IPersistentChunkPoolInputPtr ChunkPoolInput_;
 
-        THashMap<int, IChunkPoolPtr> SortedMergeChunkPools_;
+        THashMap<int, IPersistentChunkPoolPtr> SortedMergeChunkPools_;
 
         //! Partition index -> list of active joblets.
         std::vector<THashSet<TJobletPtr>> ActiveJoblets_;
@@ -1779,7 +1779,7 @@ protected:
             return result;
         }
 
-        IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return MultiChunkPool_;
         }
@@ -1880,12 +1880,12 @@ protected:
             return result;
         }
 
-        IChunkPoolInputPtr GetChunkPoolInput() const override
+        IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller_->ShuffleMultiChunkPoolInputs.back();
         }
 
-        IChunkPoolOutputPtr GetChunkPoolOutput() const override
+        IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return MultiChunkPoolOutput_;
         }
@@ -2084,7 +2084,7 @@ protected:
     IMultiChunkPoolOutputPtr CreateLevelMultiChunkPoolOutput(int level) const
     {
         const auto& partitions = PartitionsByLevels[level];
-        std::vector<IChunkPoolOutputPtr> outputs;
+        std::vector<IPersistentChunkPoolOutputPtr> outputs;
         outputs.reserve(partitions.size());
         for (const auto& partition : partitions) {
             outputs.push_back(partition->ChunkPoolOutput);
@@ -2273,7 +2273,7 @@ protected:
         ShuffleMultiInputChunkMappings.reserve(PartitionTreeDepth);
         for (int level = 0; level < PartitionTreeDepth; ++level) {
             const auto& partitions = PartitionsByLevels[level];
-            std::vector<IChunkPoolInputPtr> shuffleChunkPoolInputs;
+            std::vector<IPersistentChunkPoolInputPtr> shuffleChunkPoolInputs;
             shuffleChunkPoolInputs.reserve(partitions.size());
             for (auto& partition : partitions) {
                 IShuffleChunkPoolPtr shuffleChunkPool;
@@ -2917,7 +2917,7 @@ protected:
         return {streamDescriptor};
     }
 
-    IChunkPoolPtr CreateSortedMergeChunkPool(TString name)
+    IPersistentChunkPoolPtr CreateSortedMergeChunkPool(TString name)
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;

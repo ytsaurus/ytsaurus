@@ -40,7 +40,7 @@ TOutputOrder::TEntry::TEntry()
     : Content_(-1)
 { }
 
-void TOutputOrder::TEntry::Persist(const TPersistenceContext& context)
+void TOutputOrder::TEntry::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -133,7 +133,7 @@ std::vector<TOutputOrder::TEntry> TOutputOrder::ToEntryVector() const
     return entries;
 }
 
-void TOutputOrder::Persist(const TPersistenceContext& context)
+void TOutputOrder::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
 

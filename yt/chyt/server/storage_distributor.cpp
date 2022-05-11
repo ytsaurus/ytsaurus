@@ -17,11 +17,11 @@
 #include "subquery.h"
 #include "table.h"
 
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
