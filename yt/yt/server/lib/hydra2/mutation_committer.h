@@ -111,6 +111,7 @@ public:
 
     TReachableState GetCommittedState() const;
     TVersion GetLoggedVersion() const;
+    i64 GetLoggedSequenceNumber() const;
 
     bool CanBuildSnapshot() const;
     TFuture<int> BuildSnapshot(bool waitForCompletion, bool readOnly);
