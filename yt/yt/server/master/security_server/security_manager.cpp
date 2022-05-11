@@ -3569,11 +3569,11 @@ private:
 
         if (multicellManager->IsPrimaryMaster()) {
             YT_LOG_INFO("Sending account statistics gossip message to secondary cells");
-            NProto::TReqSetAccountStatistics request;
             // For each secondary cell, account statistics are being combined and sent.
             // Note, however, that every cell receives the sum of all other cells' information with it's own data excluded.
             // This is done because cell statistics on the primary master might be outdated for any particular cell.
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                NProto::TReqSetAccountStatistics request;
                 for (auto [accountId, account] : AccountMap_) {
                     if (!IsObjectAlive(account)) {
                         continue;
