@@ -703,6 +703,7 @@ private:
                 key,
                 FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time()),
                 FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time()),
+                FromProto<TDuration>(cachingRequestHeaderExt.success_staleness_bound()),
                 refreshRevision);
 
             if (cookie.IsActive()) {

@@ -157,6 +157,18 @@ TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TProfiler& pr
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TObjectServiceCache::TCookie::TCookie(TUnderlyingCookie&& underlyingCookie, TObjectServiceCacheEntryPtr expiredEntry)
+    : TUnderlyingCookie(std::move(underlyingCookie))
+    , ExpiredEntry_(std::move(expiredEntry))
+{ }
+
+const TObjectServiceCacheEntryPtr& TObjectServiceCache::TCookie::ExpiredEntry() const
+{
+    return ExpiredEntry_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectServiceCache::TObjectServiceCache(
     TObjectServiceCacheConfigPtr config,
     IMemoryUsageTrackerPtr memoryTracker,
@@ -177,6 +189,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     const TObjectServiceCacheKey& key,
     TDuration expireAfterSuccessfulUpdateTime,
     TDuration expireAfterFailedUpdateTime,
+    TDuration successStalenessBound,
     NHydra::TRevision refreshRevision)
 {
     auto entry = Find(key);
@@ -221,7 +234,8 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
         auto guard = ReaderGuard(ExpiredEntriesLock_);
 
         if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
-            TouchEntry(it->second);
+            entry = it->second;
+            TouchEntry(entry);
         }
     }
 
@@ -233,7 +247,20 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
         counters->MissRequestCount.Increment();
     }
 
-    return BeginInsert(key);
+    auto underlyingCookie = BeginInsert(key);
+
+    if (underlyingCookie.GetValue().IsSet()) {
+        // Do not return stale response, when actual one is available.
+        entry = nullptr;
+    } else if (entry && entry->GetSuccess()) {
+        // Verify stale response validity.
+        if ((TInstant::Now() > entry->GetTimestamp() + successStalenessBound) ||
+            (refreshRevision && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= refreshRevision))
+        {
+            entry = nullptr;
+        }
+    }
+    return TCookie(std::move(underlyingCookie), std::move(entry));
 }
 
 void TObjectServiceCache::EndLookup(

@@ -48,6 +48,7 @@ void SetCachingHeader(
     cachingHeaderExt->set_disable_per_user_cache(options.DisablePerUserCache);
     cachingHeaderExt->set_expire_after_successful_update_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
     cachingHeaderExt->set_expire_after_failed_update_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
+    cachingHeaderExt->set_success_staleness_bound(ToProto<i64>(options.SuccessStalenessBound));
     if (refreshRevision != NHydra::NullRevision) {
         cachingHeaderExt->set_refresh_revision(refreshRevision);
     }

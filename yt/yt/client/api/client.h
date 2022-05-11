@@ -147,6 +147,11 @@ struct TMasterReadOptions
     TDuration ExpireAfterFailedUpdateTime = TDuration::Seconds(15);
     std::optional<int> CacheStickyGroupSize;
     bool EnableClientCacheStickiness = false;
+
+    // When staleness bound is non-zero, master cache is allowed to
+    // return successful expired response, with staleness not exceeding the bound.
+    // This allows non-blocking master cache reponses, with async on-demand updates.
+    TDuration SuccessStalenessBound;
 };
 
 struct TPrerequisiteRevisionConfig

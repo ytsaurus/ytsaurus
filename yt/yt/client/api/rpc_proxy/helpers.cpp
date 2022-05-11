@@ -72,6 +72,7 @@ void ToProto(
     proto->set_disable_per_user_cache(options.DisablePerUserCache);
     proto->set_expire_after_successful_update_time(NYT::ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
     proto->set_expire_after_failed_update_time(NYT::ToProto<i64>(options.ExpireAfterFailedUpdateTime));
+    proto->set_success_staleness_bound(NYT::ToProto<i64>(options.SuccessStalenessBound));
     if (options.CacheStickyGroupSize) {
         proto->set_cache_sticky_group_size(*options.CacheStickyGroupSize);
     }

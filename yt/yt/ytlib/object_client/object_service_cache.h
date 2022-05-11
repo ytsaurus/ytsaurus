@@ -26,7 +26,7 @@ struct TObjectServiceCacheKey
     size_t RequestBodyHash;
 
     TObjectServiceCacheKey(
-        TCellTag CellTag,
+        TCellTag cellTag,
         TString user,
         NYPath::TYPath path,
         TString service,
@@ -97,18 +97,31 @@ class TObjectServiceCache
     : public TMemoryTrackingAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>
 {
 public:
+    using TUnderlyingCookie = TAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>::TInsertCookie;
+
+    class TCookie
+        : public TUnderlyingCookie
+    {
+    public:
+        TCookie(TUnderlyingCookie&& underlyingCookie, TObjectServiceCacheEntryPtr expiredEntry);
+        const TObjectServiceCacheEntryPtr& ExpiredEntry() const;
+
+    private:
+        const TObjectServiceCacheEntryPtr ExpiredEntry_;
+    };
+
     TObjectServiceCache(
         TObjectServiceCacheConfigPtr config,
         IMemoryUsageTrackerPtr memoryTracker,
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler);
 
-    using TCookie = TAsyncSlruCacheBase<TObjectServiceCacheKey, TObjectServiceCacheEntry>::TInsertCookie;
     TCookie BeginLookup(
         NRpc::TRequestId requestId,
         const TObjectServiceCacheKey& key,
         TDuration expireAfterSuccessfulUpdateTime,
         TDuration expireAfterFailedUpdateTime,
+        TDuration successStalenessBound,
         NHydra::TRevision refreshRevision);
 
     void EndLookup(

@@ -160,6 +160,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
         auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_successful_update_time());
         auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt->expire_after_failed_update_time());
+        auto successStalenessBound = FromProto<TDuration>(cachingRequestHeaderExt->success_staleness_bound());
 
         auto cacheTtlRatio = CacheTtlRatio_.load();
         auto nodeExpireAfterSuccessfulUpdateTime = expireAfterSuccessfulUpdateTime * cacheTtlRatio;
@@ -171,9 +172,17 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             key,
             cachingEnabled ? nodeExpireAfterSuccessfulUpdateTime : expireAfterSuccessfulUpdateTime,
             cachingEnabled ? nodeExpireAfterFailedUpdateTime : expireAfterFailedUpdateTime,
+            successStalenessBound,
             refreshRevision);
 
-        cacheEntryFutures.push_back(cookie.GetValue());
+        if (cookie.ExpiredEntry()) {
+            cacheEntryFutures.push_back(MakeFuture(cookie.ExpiredEntry()));
+            // Since stale response was successfully found on this cache level,
+            // we forbid stale responses on upper levels.
+            cachingRequestHeaderExt->set_success_staleness_bound(ToProto<i64>(TDuration::Zero()));
+        } else {
+            cacheEntryFutures.push_back(cookie.GetValue());
+        }
 
         if (cookie.IsActive()) {
             TObjectServiceProxy proxy(MasterChannel_);
