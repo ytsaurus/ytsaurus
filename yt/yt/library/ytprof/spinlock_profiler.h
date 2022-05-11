@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/threading/spin_wait_hook.h>
 
+#include <mutex>
+
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +23,7 @@ class TSpinlockProfiler
     : public TSignalSafeProfiler
 {
 public:
-    TSpinlockProfiler(TSpinlockProfilerOptions options);
+    explicit TSpinlockProfiler(TSpinlockProfilerOptions options);
     ~TSpinlockProfiler();
 
 private:
@@ -30,11 +32,12 @@ private:
     static std::atomic<int> SamplingRate_;
     static std::atomic<TSpinlockProfiler*> ActiveProfiler_;
     static std::atomic<bool> HandlingEvent_;
+    static std::once_flag HookInitialized_;
 
     void EnableProfiler() override;
     void DisableProfiler() override;
-    void AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify) override;
-    i64 TransformValue(i64 value) override;
+    void AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify) override;
+    i64 EncodeValue(i64 value) override;
 
     static void OnEvent(const void *lock, int64_t waitCycles);
     void RecordEvent(const void *lock, int64_t waitCycles);
@@ -47,7 +50,7 @@ class TBlockingProfiler
     : public TSignalSafeProfiler
 {
 public:
-    TBlockingProfiler(TSpinlockProfilerOptions options);
+    explicit TBlockingProfiler(TSpinlockProfilerOptions options);
     ~TBlockingProfiler();
 
 private:
@@ -56,11 +59,12 @@ private:
     static std::atomic<int> SamplingRate_;
     static std::atomic<TBlockingProfiler*> ActiveProfiler_;
     static std::atomic<bool> HandlingEvent_;
+    static std::once_flag HookInitialized_;
 
     void EnableProfiler() override;
     void DisableProfiler() override;
-    void AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify) override;
-    i64 TransformValue(i64 value) override;
+    void AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify) override;
+    i64 EncodeValue(i64 value) override;
 
     static void OnEvent(
         TCpuDuration cpuDelay,

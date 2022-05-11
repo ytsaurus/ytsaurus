@@ -5,6 +5,8 @@
 
 #include <util/system/yield.h>
 
+#include <mutex>
+
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,21 +21,21 @@ TSpinlockProfiler::~TSpinlockProfiler()
     Stop();
 }
 
-std::atomic<int> TSpinlockProfiler::SamplingRate_{0};
-std::atomic<TSpinlockProfiler*> TSpinlockProfiler::ActiveProfiler_{nullptr};
-std::atomic<bool> TSpinlockProfiler::HandlingEvent_{false};
+std::atomic<int> TSpinlockProfiler::SamplingRate_;
+std::atomic<TSpinlockProfiler*> TSpinlockProfiler::ActiveProfiler_;
+std::atomic<bool> TSpinlockProfiler::HandlingEvent_;
+std::once_flag TSpinlockProfiler::HookInitialized_;
 
 void TSpinlockProfiler::EnableProfiler()
 {
-    static bool hookInitialized = [] {
+    std::call_once(HookInitialized_, [] {
         absl::base_internal::RegisterSpinLockProfiler(&TSpinlockProfiler::OnEvent);
         return true;
-    }();
-    Y_UNUSED(hookInitialized);
+    });
 
     TSpinlockProfiler* expected = nullptr;
     if (!ActiveProfiler_.compare_exchange_strong(expected, this)) {
-        throw yexception() << "another instance of spinlock profiler is running";
+        throw yexception() << "Another instance of spinlock profiler is running";
     }
     SamplingRate_ = Options_.ProfileFraction;
 }
@@ -94,15 +96,14 @@ void TSpinlockProfiler::OnEvent(const void *lock, int64_t waitCycles)
         SchedYield();
     }
 
-    auto profiler = ActiveProfiler_.load();
-    if (profiler) {
+    if (auto profiler = ActiveProfiler_.load(); profiler) {
         profiler->RecordEvent(lock, waitCycles);
     }
 
     HandlingEvent_.store(false);
 }
 
-void TSpinlockProfiler::AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify)
+void TSpinlockProfiler::AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify)
 {
     auto sampleType = profile->add_sample_type();
     sampleType->set_type(stringify("sample"));
@@ -119,7 +120,7 @@ void TSpinlockProfiler::AnnotateProfile(NProto::Profile* profile, std::function<
     profile->set_period(Options_.ProfileFraction);
 }
 
-i64 TSpinlockProfiler::TransformValue(i64 value)
+i64 TSpinlockProfiler::EncodeValue(i64 value)
 {
     return value / absl::base_internal::CycleClock::Frequency() * 1e9;
 }
@@ -137,21 +138,21 @@ TBlockingProfiler::~TBlockingProfiler()
     Stop();
 }
 
-std::atomic<int> TBlockingProfiler::SamplingRate_{0};
-std::atomic<TBlockingProfiler*> TBlockingProfiler::ActiveProfiler_{nullptr};
-std::atomic<bool> TBlockingProfiler::HandlingEvent_{false};
+std::atomic<int> TBlockingProfiler::SamplingRate_;
+std::atomic<TBlockingProfiler*> TBlockingProfiler::ActiveProfiler_;
+std::atomic<bool> TBlockingProfiler::HandlingEvent_;
+std::once_flag TBlockingProfiler::HookInitialized_;
 
 void TBlockingProfiler::EnableProfiler()
 {
-    static bool hookInitialized = [] {
+    std::call_once(HookInitialized_, [] {
         NThreading::RegisterSpinWaitSlowPathHook(&TBlockingProfiler::OnEvent);
         return true;
-    }();
-    Y_UNUSED(hookInitialized);
+    });
 
     TBlockingProfiler* expected = nullptr;
     if (!ActiveProfiler_.compare_exchange_strong(expected, this)) {
-        throw yexception() << "another instance of spinlock profiler is running";
+        throw yexception() << "Another instance of spinlock profiler is running";
     }
     SamplingRate_ = Options_.ProfileFraction;
 }
@@ -218,15 +219,14 @@ void TBlockingProfiler::OnEvent(
         SchedYield();
     }
 
-    auto profiler = ActiveProfiler_.load();
-    if (profiler) {
+    if (auto profiler = ActiveProfiler_.load(); profiler) {
         profiler->RecordEvent(cpuDelay, location, activityKind);
     }
 
     HandlingEvent_.store(false);
 }
 
-void TBlockingProfiler::AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify)
+void TBlockingProfiler::AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify)
 {
     auto sampleType = profile->add_sample_type();
     sampleType->set_type(stringify("sample"));
@@ -243,7 +243,7 @@ void TBlockingProfiler::AnnotateProfile(NProto::Profile* profile, std::function<
     profile->set_period(Options_.ProfileFraction);
 }
 
-i64 TBlockingProfiler::TransformValue(i64 value)
+i64 TBlockingProfiler::EncodeValue(i64 value)
 {
     return CpuDurationToDuration(value).NanoSeconds();
 }

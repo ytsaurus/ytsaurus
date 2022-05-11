@@ -32,10 +32,10 @@ void TCpuProfiler::EnableProfiler()
 void TCpuProfiler::DisableProfiler()
 { }
 
-void TCpuProfiler::AnnotateProfile(NProto::Profile* /* profile */, std::function<i64(const TString&)> /* stringify */)
+void TCpuProfiler::AnnotateProfile(NProto::Profile* /* profile */, const std::function<i64(const TString&)>& /* stringify */)
 { }
 
-i64 TCpuProfiler::TransformValue(i64 value)
+i64 TCpuProfiler::EncodeValue(i64 value)
 {
     return value;
 }
@@ -82,7 +82,7 @@ void TCpuProfiler::EnableProfiler()
 {
     TCpuProfiler* expected = nullptr;
     if (!ActiveProfiler_.compare_exchange_strong(expected, this)) {
-        throw yexception() << "another instance of CPU profiler is running";
+        throw yexception() << "Another instance of CPU profiler is running";
     }
 
     struct sigaction sig;
@@ -126,7 +126,7 @@ void TCpuProfiler::DisableProfiler()
     }
 }
 
-void TCpuProfiler::AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify)
+void TCpuProfiler::AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify)
 {
     auto sampleType = profile->add_sample_type();
     sampleType->set_type(stringify("sample"));
@@ -147,7 +147,7 @@ void TCpuProfiler::AnnotateProfile(NProto::Profile* profile, std::function<i64(c
     }
 }
 
-i64 TCpuProfiler::TransformValue(i64 value)
+i64 TCpuProfiler::EncodeValue(i64 value)
 {
     return value;
 }

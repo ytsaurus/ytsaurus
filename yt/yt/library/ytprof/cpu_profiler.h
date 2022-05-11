@@ -37,7 +37,7 @@ class TCpuProfiler
     : public TSignalSafeProfiler
 {
 public:
-    TCpuProfiler(TCpuProfilerOptions options = {});
+    explicit TCpuProfiler(TCpuProfilerOptions options = {});
     ~TCpuProfiler();
 
 private:
@@ -56,8 +56,8 @@ private:
 
     void EnableProfiler() override;
     void DisableProfiler() override;
-    void AnnotateProfile(NProto::Profile* profile, std::function<i64(const TString&)> stringify) override;
-    i64 TransformValue(i64 value) override;
+    void AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify) override;
+    i64 EncodeValue(i64 value) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
