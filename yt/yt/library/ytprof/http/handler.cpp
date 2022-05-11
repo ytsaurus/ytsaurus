@@ -138,15 +138,15 @@ public:
             options.ProfileFraction = FromString<int>(it->second);
         }
 
-        if (!YT_) {
-            TSpinlockProfiler profiler{options};
+        if (YT_) {
+            TBlockingProfiler profiler{options};
             profiler.Start();
             TDelayedExecutor::WaitForDuration(duration);
             profiler.Stop();
 
             return profiler.ReadProfile();
         } else {
-            TBlockingProfiler profiler{options};
+            TSpinlockProfiler profiler{options};
             profiler.Start();
             TDelayedExecutor::WaitForDuration(duration);
             profiler.Stop();
