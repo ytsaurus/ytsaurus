@@ -171,7 +171,7 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
               details.meta.modificationTs, new Path(f, details.fileName))
           }
         }.toArray
-      case _ => throw new IllegalArgumentException(s"Can't visit $f")
+      case _ => throw new IllegalArgumentException(s"Can't list $f")
     }
   }
 
@@ -204,7 +204,8 @@ class YtEventLogFileSystem extends FileSystem with LogLazy {
       selectedRows match {
         case Nil => None
         case meta :: Nil => Some(YtEventLogFileDetails(meta))
-        case _ => throw new RuntimeException(s"Meta table $meta_path has a few rows with file_name=$fileName")
+        case many => throw new RuntimeException(
+          s"Meta table $meta_path has a few rows with file_name=$fileName: ${many.map(YtEventLogFileDetails(_))}")
       }
     }
   }

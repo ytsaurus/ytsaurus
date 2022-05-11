@@ -167,7 +167,7 @@ class YtEventLogFsOutputStream(conf: Configuration, path: String, fileName: Stri
       updateInfo(Some(transaction))
     }
     if (tryCount > 1) {
-      log.info(s"$id was updated using $tryCount tries")
+      log.info(s"UUID: $id (filename: $fileName) was updated using $tryCount tries")
     }
   }
 
