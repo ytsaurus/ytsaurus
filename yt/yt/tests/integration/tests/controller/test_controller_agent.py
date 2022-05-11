@@ -545,6 +545,7 @@ class TestControllerAgentTags(YTEnvSetup):
 
         op = self._run_with_tag("foo")
         wait(lambda: self._get_controller_agent(op) == foo_agent)
+        wait(lambda: op.get_state() == "running")
         update_op_parameters(op.id, parameters={"controller_agent_tag": "bar"})
         time.sleep(2.0)
         assert self._get_controller_agent(op) == foo_agent
