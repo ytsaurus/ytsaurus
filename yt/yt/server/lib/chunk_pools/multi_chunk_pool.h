@@ -7,13 +7,13 @@ namespace NYT::NChunkPools {
 ////////////////////////////////////////////////////////////////////////////////
 
 IMultiChunkPoolInputPtr CreateMultiChunkPoolInput(
-    std::vector<IChunkPoolInputPtr> underlyingPools);
+    std::vector<IPersistentChunkPoolInputPtr> underlyingPools);
 
 IMultiChunkPoolOutputPtr CreateMultiChunkPoolOutput(
-    std::vector<IChunkPoolOutputPtr> underlyingPools);
+    std::vector<IPersistentChunkPoolOutputPtr> underlyingPools);
 
 IMultiChunkPoolPtr CreateMultiChunkPool(
-    std::vector<IChunkPoolPtr> underlyingPools);
+    std::vector<IPersistentChunkPoolPtr> underlyingPools);
 
 ////////////////////////////////////////////////////////////////////////////////
 

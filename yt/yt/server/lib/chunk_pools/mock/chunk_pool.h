@@ -16,7 +16,7 @@ struct TDummyPersistent
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolInputMock
-    : public virtual IChunkPoolInput
+    : public virtual IPersistentChunkPoolInput
     , public virtual TDummyPersistent
 {
 public:
@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkPoolInputMock)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolJobSplittingHostMock
-    : public virtual IChunkPoolJobSplittingHost
+    : public virtual IPersistentChunkPoolJobSplittingHost
     , public virtual TDummyPersistent
 {
 public:
@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkPoolJobSplittingHostMock)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolOutputMockBase
-    : public virtual IChunkPoolOutput
+    : public virtual IPersistentChunkPoolOutput
     , public virtual TDummyPersistent
 {
 public:

@@ -652,10 +652,10 @@ protected:
         }
     }
 
-    IChunkPoolPtr ChunkPool_;
+    IPersistentChunkPoolPtr ChunkPool_;
     IMultiChunkPoolPtr MultiChunkPool_;
 
-    std::vector<IChunkPoolPtr> UnderlyingPools__;
+    std::vector<IPersistentChunkPoolPtr> UnderlyingPools__;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
@@ -3223,7 +3223,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     bool useMultiPool = get<1>(GetParam());
     int underlyingPoolCount = 0;
-    std::vector<IChunkPoolPtr> UnderlyingPools_;
+    std::vector<IPersistentChunkPoolPtr> UnderlyingPools_;
     THashSet<int> pendingUnderlyingPoolIndexes;
 
     if (useMultiPool) {
@@ -3261,13 +3261,13 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         }
     };
 
-    // All stuff from the IChunkPoolInput point of view.
+    // All stuff from the IPersistentChunkPoolInput point of view.
     THashMap<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
     THashSet<IChunkPoolInput::TCookie> suspendedCookies;
     THashSet<IChunkPoolInput::TCookie> resumedCookies;
     THashSet<TChunkId> suspendedChunks;
     THashSet<TChunkId> resumedChunks;
-    // All stuff from the IChunkPoolOutput point of view.
+    // All stuff from the IPersistentChunkPoolOutput point of view.
     THashMap<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
     THashSet<TChunkId> pendingChunks;
     THashSet<TChunkId> startedChunks;

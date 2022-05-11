@@ -658,7 +658,7 @@ void TOperationControllerBase::InitOutputTables()
     RegisterOutputTables(GetOutputTablePaths());
 }
 
-const IChunkPoolInputPtr& TOperationControllerBase::GetSink()
+const IPersistentChunkPoolInputPtr& TOperationControllerBase::GetSink()
 {
     return Sink_;
 }
@@ -9796,7 +9796,7 @@ void TOperationControllerBase::LoadSnapshot(const NYT::NControllerAgent::TOperat
 
 void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath>& outputTablePaths)
 {
-    std::vector<IChunkPoolInputPtr> sinks;
+    std::vector<IPersistentChunkPoolInputPtr> sinks;
     sinks.reserve(outputTablePaths.size());
     for (const auto& outputTablePath : outputTablePaths) {
         auto it = PathToOutputTable_.find(outputTablePath.GetPath());

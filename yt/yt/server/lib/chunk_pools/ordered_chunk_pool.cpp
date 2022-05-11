@@ -2,13 +2,14 @@
 
 #include "helpers.h"
 #include "new_job_manager.h"
-#include "output_order.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
+#include <yt/yt/ytlib/chunk_pools/output_order.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -50,7 +51,7 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
 class TOrderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithNewJobManagerBase
-    , public IChunkPool
+    , public IPersistentChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
@@ -90,7 +91,7 @@ public:
             SingleJob_);
     }
 
-    // IChunkPoolInput implementation.
+    // IPersistentChunkPoolInput implementation.
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
@@ -482,7 +483,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkPoolPtr CreateOrderedChunkPool(
+IPersistentChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory)
 {

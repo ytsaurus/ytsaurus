@@ -15,8 +15,8 @@ struct TVanillaChunkPoolOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: Vanilla chunk pool implements only IChunkPoolOutput.
-IChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options);
+// NB: Vanilla chunk pool implements only IPersistentChunkPoolOutput.
+IPersistentChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

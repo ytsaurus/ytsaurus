@@ -68,13 +68,13 @@ public:
         return Spec_->TaskTitle;
     }
 
-    IChunkPoolInputPtr GetChunkPoolInput() const override
+    IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
     {
-        static IChunkPoolInputPtr NullPool = nullptr;
+        static IPersistentChunkPoolInputPtr NullPool = nullptr;
         return NullPool;
     }
 
-    IChunkPoolOutputPtr GetChunkPoolOutput() const override
+    IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
     {
         return VanillaChunkPool_;
     }
@@ -168,7 +168,7 @@ private:
     TJobSpec JobSpecTemplate_;
 
     //! This chunk pool does not really operate with chunks, it is used as an interface for a job counter in it.
-    IChunkPoolOutputPtr VanillaChunkPool_;
+    IPersistentChunkPoolOutputPtr VanillaChunkPool_;
 
     void InitJobSpecTemplate()
     {

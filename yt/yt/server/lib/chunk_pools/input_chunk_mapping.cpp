@@ -1,9 +1,9 @@
 #include "input_chunk_mapping.h"
 
-#include "chunk_stripe.h"
-
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 

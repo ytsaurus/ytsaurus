@@ -32,7 +32,7 @@ struct TUnorderedChunkPoolOptions
     void Persist(const TPersistenceContext& context);
 };
 
-IChunkPoolPtr CreateUnorderedChunkPool(
+IPersistentChunkPoolPtr CreateUnorderedChunkPool(
     const TUnorderedChunkPoolOptions& options,
     TInputStreamDirectory dataSourceDirectory);
 

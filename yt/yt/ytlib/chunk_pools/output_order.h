@@ -30,7 +30,7 @@ public:
 
         bool operator ==(const TEntry& other) const;
 
-        void Persist(const TPersistenceContext& context);
+        void Persist(const NTableClient::TPersistenceContext& context);
     private:
         using TContentType = std::variant<NChunkClient::TInputChunkPtr, int>;
         TContentType Content_;
@@ -48,7 +48,7 @@ public:
 
     std::vector<TOutputOrder::TEntry> ToEntryVector() const;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 
 private:
     std::vector<int> CookieToPosition_;

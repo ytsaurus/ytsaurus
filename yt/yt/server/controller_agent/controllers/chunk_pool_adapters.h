@@ -11,13 +11,13 @@ namespace NYT::NControllerAgent::NControllers {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolInputAdapterBase
-    : public virtual NChunkPools::IChunkPoolInput
+    : public virtual NChunkPools::IPersistentChunkPoolInput
     , public virtual NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TChunkPoolInputAdapterBase() = default;
 
-    explicit TChunkPoolInputAdapterBase(NChunkPools::IChunkPoolInputPtr underlyingInput);
+    explicit TChunkPoolInputAdapterBase(NChunkPools::IPersistentChunkPoolInputPtr underlyingInput);
 
     virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
 
@@ -37,20 +37,20 @@ public:
 
 protected:
     // NB: Underlying input is owned by the owner of the adapter.
-    NChunkPools::IChunkPoolInputPtr UnderlyingInput_;
+    NChunkPools::IPersistentChunkPoolInputPtr UnderlyingInput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolOutputAdapterBase
-    : public virtual NChunkPools::IChunkPoolOutput
+    : public virtual NChunkPools::IPersistentChunkPoolOutput
     , public virtual NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
     TChunkPoolOutputAdapterBase() = default;
 
-    explicit TChunkPoolOutputAdapterBase(NChunkPools::IChunkPoolOutputPtr underlyingOutput);
+    explicit TChunkPoolOutputAdapterBase(NChunkPools::IPersistentChunkPoolOutputPtr underlyingOutput);
 
     virtual const TProgressCounterPtr& GetJobCounter() const override;
     virtual const TProgressCounterPtr& GetDataWeightCounter() const override;
@@ -86,13 +86,13 @@ public:
     DECLARE_SIGNAL_OVERRIDE(void(), Uncompleted);
 
 protected:
-    NChunkPools::IChunkPoolOutputPtr UnderlyingOutput_;
+    NChunkPools::IPersistentChunkPoolOutputPtr UnderlyingOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolAdapterBase
-    : public virtual NChunkPools::IChunkPool
+    : public virtual NChunkPools::IPersistentChunkPool
     , public TChunkPoolInputAdapterBase
     , public TChunkPoolOutputAdapterBase
 {
@@ -100,19 +100,19 @@ public:
     //! Used only for persistence.
     TChunkPoolAdapterBase() = default;
 
-    explicit TChunkPoolAdapterBase(NChunkPools::IChunkPoolPtr underlyingPool);
+    explicit TChunkPoolAdapterBase(NChunkPools::IPersistentChunkPoolPtr underlyingPool);
 
     void Persist(const TPersistenceContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkPools::IChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
-    NChunkPools::IChunkPoolInputPtr chunkPoolInput,
+NChunkPools::IPersistentChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
+    NChunkPools::IPersistentChunkPoolInputPtr chunkPoolInput,
     ITaskHost* taskHost);
 
-NChunkPools::IChunkPoolInputPtr CreateTaskUpdatingAdapter(
-    NChunkPools::IChunkPoolInputPtr chunkPoolInput,
+NChunkPools::IPersistentChunkPoolInputPtr CreateTaskUpdatingAdapter(
+    NChunkPools::IPersistentChunkPoolInputPtr chunkPoolInput,
     TTask* task);
 
 ////////////////////////////////////////////////////////////////////////////////

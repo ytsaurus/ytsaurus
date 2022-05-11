@@ -3,12 +3,13 @@
 #include "private.h"
 #include "query_analyzer.h"
 
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <yt/yt/client/ypath/rich.h>
 

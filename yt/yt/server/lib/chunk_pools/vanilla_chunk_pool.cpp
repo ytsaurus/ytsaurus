@@ -82,7 +82,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
+IPersistentChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
 {
     return New<TVanillaChunkPool>(options);
 }

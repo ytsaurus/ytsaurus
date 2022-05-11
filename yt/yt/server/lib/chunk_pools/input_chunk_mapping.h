@@ -12,7 +12,7 @@ DEFINE_ENUM(EChunkMappingMode,
     (SortedWithoutKeyGuarantree)
 );
 
-//! This class is companion for IChunkPoolInput.
+//! This class is companion for IPersistentChunkPoolInput.
 //! During the operation lifetime an input chunk may be suspended and replaced with
 //! another chunks (or chunks) on resumption. We keep the mapping that
 //! provides for each original input chunk all its substitutes.

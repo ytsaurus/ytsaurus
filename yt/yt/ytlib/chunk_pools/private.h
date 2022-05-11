@@ -1,0 +1,17 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/serialize.h>
+
+namespace NYT::NChunkPools {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TOutputOrder)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChunkPools
+

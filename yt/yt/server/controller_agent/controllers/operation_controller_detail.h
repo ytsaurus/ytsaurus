@@ -25,7 +25,6 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/public.h>
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe_key.h>
 #include <yt/yt/server/lib/chunk_pools/input_stream.h>
 
 #include <yt/yt/server/lib/misc/release_queue.h>
@@ -36,6 +35,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
@@ -1010,7 +1011,7 @@ protected:
 
     virtual void InitOutputTables();
 
-    const NChunkPools::IChunkPoolInputPtr& GetSink();
+    const NChunkPools::IPersistentChunkPoolInputPtr& GetSink();
 
     void ValidateAccountPermission(const TString& account, NYTree::EPermission permission) const;
 
@@ -1183,7 +1184,7 @@ private:
     THashMap<TJobId, NJobTrackerClient::TReleaseJobFlags> ReleaseJobFlags_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
-    NChunkPools::IChunkPoolInputPtr Sink_;
+    NChunkPools::IPersistentChunkPoolInputPtr Sink_;
 
     std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
 
@@ -1424,9 +1425,9 @@ private:
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
 
-    //! Helper class that implements IChunkPoolInput interface for output tables.
+    //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
     class TSink
-        : public NChunkPools::IChunkPoolInput
+        : public NChunkPools::IPersistentChunkPoolInput
         , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
     {
     public:

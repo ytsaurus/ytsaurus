@@ -20,7 +20,7 @@ public:
     TAutoMergeChunkPoolAdapter() = default;
 
     TAutoMergeChunkPoolAdapter(
-        NChunkPools::IChunkPoolPtr underlyingPool,
+        NChunkPools::IPersistentChunkPoolPtr underlyingPool,
         int poolIndex,
         TAutoMergeTask* task);
 
@@ -84,9 +84,9 @@ public:
 
     virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
-    virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const override;
+    virtual NChunkPools::IPersistentChunkPoolInputPtr GetChunkPoolInput() const override;
 
-    virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const override;
+    virtual NChunkPools::IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override;
 
     virtual EJobType GetJobType() const override;
     void AddJobTypeToJoblet(const TJobletPtr& joblet) const override;
@@ -131,7 +131,7 @@ private:
     std::vector<TIntrusivePtr<TAutoMergeChunkPoolAdapter>> ChunkPools_;
 
     //! Multi chunk pool built over wrapped unordered chunk pools.
-    NChunkPools::IChunkPoolPtr ChunkPool_;
+    NChunkPools::IPersistentChunkPoolPtr ChunkPool_;
 
     //! Output chunk pool index -> number of the intermediate chunks in it.
     std::vector<int> CurrentChunkCounts_;

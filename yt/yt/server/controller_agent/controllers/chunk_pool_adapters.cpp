@@ -12,7 +12,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IChunkPoolInputPtr underlyingInput)
+TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IPersistentChunkPoolInputPtr underlyingInput)
     : UnderlyingInput_(std::move(underlyingInput))
 { }
 
@@ -60,7 +60,7 @@ void TChunkPoolInputAdapterBase::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPoolOutputAdapterBase::TChunkPoolOutputAdapterBase(IChunkPoolOutputPtr underlyingOutput)
+TChunkPoolOutputAdapterBase::TChunkPoolOutputAdapterBase(IPersistentChunkPoolOutputPtr underlyingOutput)
     : UnderlyingOutput_(std::move(underlyingOutput))
 { }
 
@@ -157,7 +157,7 @@ DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(), Uncompleted, *UnderlyingOut
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPoolAdapterBase::TChunkPoolAdapterBase(IChunkPoolPtr underlyingPool)
+TChunkPoolAdapterBase::TChunkPoolAdapterBase(IPersistentChunkPoolPtr underlyingPool)
     : TChunkPoolInputAdapterBase(underlyingPool)
     , TChunkPoolOutputAdapterBase(underlyingPool)
 { }
@@ -176,7 +176,7 @@ class TIntermediateLivePreviewAdapter
 public:
     TIntermediateLivePreviewAdapter() = default;
 
-    TIntermediateLivePreviewAdapter(IChunkPoolInputPtr chunkPoolInput, ITaskHost* taskHost)
+    TIntermediateLivePreviewAdapter(IPersistentChunkPoolInputPtr chunkPoolInput, ITaskHost* taskHost)
         : TChunkPoolInputAdapterBase(std::move(chunkPoolInput))
         , TaskHost_(taskHost)
     { }
@@ -213,8 +213,8 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TIntermediateLivePreviewAdapter);
 
-IChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
-    IChunkPoolInputPtr chunkPoolInput,
+IPersistentChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
+    IPersistentChunkPoolInputPtr chunkPoolInput,
     ITaskHost* taskHost)
 {
     return New<TIntermediateLivePreviewAdapter>(std::move(chunkPoolInput), taskHost);
@@ -228,7 +228,7 @@ class TTaskUpdatingAdapter
 public:
     TTaskUpdatingAdapter() = default;
 
-    TTaskUpdatingAdapter(IChunkPoolInputPtr chunkPoolInput, TTask* task)
+    TTaskUpdatingAdapter(IPersistentChunkPoolInputPtr chunkPoolInput, TTask* task)
         : TChunkPoolInputAdapterBase(std::move(chunkPoolInput))
         , Task_(task)
     { }
@@ -262,8 +262,8 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TTaskUpdatingAdapter);
 
-IChunkPoolInputPtr CreateTaskUpdatingAdapter(
-    IChunkPoolInputPtr chunkPoolInput,
+IPersistentChunkPoolInputPtr CreateTaskUpdatingAdapter(
+    IPersistentChunkPoolInputPtr chunkPoolInput,
     TTask* task)
 {
     return New<TTaskUpdatingAdapter>(std::move(chunkPoolInput), task);

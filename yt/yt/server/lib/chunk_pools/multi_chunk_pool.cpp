@@ -1,8 +1,9 @@
 #include "multi_chunk_pool.h"
 #include "chunk_pool.h"
-#include "chunk_stripe.h"
 
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
 #include <util/generic/noncopyable.h>
 
@@ -27,7 +28,7 @@ public:
     //! Used only for persistence.
     TMultiChunkPoolInput() = default;
 
-    explicit TMultiChunkPoolInput(std::vector<IChunkPoolInputPtr> underlyingPools)
+    explicit TMultiChunkPoolInput(std::vector<IPersistentChunkPoolInputPtr> underlyingPools)
         : UnderlyingPools_(std::move(underlyingPools))
     { }
 
@@ -110,7 +111,7 @@ public:
 protected:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolInput, 0xe712ad5b);
 
-    std::vector<IChunkPoolInputPtr> UnderlyingPools_;
+    std::vector<IPersistentChunkPoolInputPtr> UnderlyingPools_;
 
     //! Mapping external_cookie -> cookie_descriptor.
     std::vector<TCookieDescriptor> Cookies_;
@@ -133,7 +134,7 @@ protected:
         return externalCookie;
     }
 
-    IChunkPoolInput* Pool(int poolIndex)
+    IPersistentChunkPoolInput* Pool(int poolIndex)
     {
         YT_VERIFY(poolIndex >= 0);
         YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
@@ -141,7 +142,7 @@ protected:
         return UnderlyingPools_[poolIndex].Get();
     }
 
-    void AddPoolInput(IChunkPoolInputPtr pool, int poolIndex)
+    void AddPoolInput(IPersistentChunkPoolInputPtr pool, int poolIndex)
     {
         if (poolIndex >= std::ssize(UnderlyingPools_)) {
             UnderlyingPools_.resize(poolIndex + 1);
@@ -174,7 +175,7 @@ public:
     //! Used only for persistence.
     TMultiChunkPoolOutput() = default;
 
-    explicit TMultiChunkPoolOutput(std::vector<IChunkPoolOutputPtr> underlyingPools)
+    explicit TMultiChunkPoolOutput(std::vector<IPersistentChunkPoolOutputPtr> underlyingPools)
     {
         UnderlyingPools_.reserve(underlyingPools.size());
         PendingPoolIterators_.reserve(underlyingPools.size());
@@ -334,7 +335,7 @@ public:
         CheckCompleted();
     }
 
-    void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) override
+    void AddPoolOutput(IPersistentChunkPoolOutputPtr pool, int poolIndex) override
     {
         YT_VERIFY(pool);
         YT_VERIFY(!pool->GetOutputOrder());
@@ -396,7 +397,7 @@ public:
 protected:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPoolOutput, 0x135ffa20);
 
-    std::vector<IChunkPoolOutputPtr> UnderlyingPools_;
+    std::vector<IPersistentChunkPoolOutputPtr> UnderlyingPools_;
 
     //! Number of uncompleted pools.
     int ActivePoolCount_ = 0;
@@ -436,7 +437,7 @@ protected:
     //! Whether pool is completed.
     bool IsCompleted_ = false;
 
-    const IChunkPoolOutput* Pool(int poolIndex) const
+    const IPersistentChunkPoolOutput* Pool(int poolIndex) const
     {
         YT_VERIFY(poolIndex >= 0);
         YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
@@ -444,7 +445,7 @@ protected:
         return UnderlyingPools_[poolIndex].Get();
     }
 
-    IChunkPoolOutput* Pool(int poolIndex)
+    IPersistentChunkPoolOutput* Pool(int poolIndex)
     {
         YT_VERIFY(poolIndex >= 0);
         YT_VERIFY(poolIndex < std::ssize(UnderlyingPools_));
@@ -459,7 +460,7 @@ protected:
         return *PendingPools_.begin();
     }
 
-    const IChunkPoolOutput* CurrentPool() const
+    const IPersistentChunkPoolOutput* CurrentPool() const
     {
         return Pool(CurrentPoolIndex());
     }
@@ -543,15 +544,15 @@ public:
     TMultiChunkPool() = default;
 
     TMultiChunkPool(
-        std::vector<IChunkPoolInputPtr> underlyingPoolsInput,
-        std::vector<IChunkPoolOutputPtr> underlyingPoolsOutput)
+        std::vector<IPersistentChunkPoolInputPtr> underlyingPoolsInput,
+        std::vector<IPersistentChunkPoolOutputPtr> underlyingPoolsOutput)
         : TMultiChunkPoolInput(std::move(underlyingPoolsInput))
         , TMultiChunkPoolOutput(std::move(underlyingPoolsOutput))
     {
         YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
     }
 
-    void AddPool(IChunkPoolPtr pool, int poolIndex) override
+    void AddPool(IPersistentChunkPoolPtr pool, int poolIndex) override
     {
         AddPoolInput(pool, poolIndex);
         AddPoolOutput(std::move(pool), poolIndex);
@@ -572,22 +573,22 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPool);
 ////////////////////////////////////////////////////////////////////////////////
 
 IMultiChunkPoolInputPtr CreateMultiChunkPoolInput(
-    std::vector<IChunkPoolInputPtr> underlyingPools)
+    std::vector<IPersistentChunkPoolInputPtr> underlyingPools)
 {
     return New<TMultiChunkPoolInput>(std::move(underlyingPools));
 }
 
 IMultiChunkPoolOutputPtr CreateMultiChunkPoolOutput(
-    std::vector<IChunkPoolOutputPtr> underlyingPools)
+    std::vector<IPersistentChunkPoolOutputPtr> underlyingPools)
 {
     return New<TMultiChunkPoolOutput>(std::move(underlyingPools));
 }
 
 IMultiChunkPoolPtr CreateMultiChunkPool(
-    std::vector<IChunkPoolPtr> underlyingPools)
+    std::vector<IPersistentChunkPoolPtr> underlyingPools)
 {
-    std::vector<IChunkPoolInputPtr> inputPools(underlyingPools.begin(), underlyingPools.end());
-    std::vector<IChunkPoolOutputPtr> outputPools(underlyingPools.begin(), underlyingPools.end());
+    std::vector<IPersistentChunkPoolInputPtr> inputPools(underlyingPools.begin(), underlyingPools.end());
+    std::vector<IPersistentChunkPoolOutputPtr> outputPools(underlyingPools.begin(), underlyingPools.end());
     return New<TMultiChunkPool>(std::move(inputPools), std::move(outputPools));
 }
 

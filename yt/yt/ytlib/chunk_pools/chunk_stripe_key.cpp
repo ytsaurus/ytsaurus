@@ -4,7 +4,7 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBoundaryKeys::Persist(const TPersistenceContext& context)
+void TBoundaryKeys::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, MinKey);
@@ -89,7 +89,7 @@ const TOutputOrder::TEntry& TChunkStripeKey::AsOutputOrderEntry() const
     return std::get<TOutputOrder::TEntry>(Key_);
 }
 
-void TChunkStripeKey::Persist(const TPersistenceContext& context)
+void TChunkStripeKey::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Key_);

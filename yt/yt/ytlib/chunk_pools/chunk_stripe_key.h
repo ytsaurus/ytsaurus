@@ -14,7 +14,7 @@ struct TBoundaryKeys
     NTableClient::TKey MinKey;
     NTableClient::TKey MaxKey;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 
     bool operator ==(const TBoundaryKeys& other) const;
 
@@ -46,7 +46,7 @@ public:
     NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry();
     const NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry() const;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 
     bool operator ==(const TChunkStripeKey& other) const;
 

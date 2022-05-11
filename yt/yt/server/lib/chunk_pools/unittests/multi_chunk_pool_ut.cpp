@@ -5,7 +5,6 @@
 #include <yt/yt/server/scheduler/public.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/chunk_stripe_key.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
@@ -13,6 +12,8 @@
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
 #include <random>
 
@@ -56,7 +57,7 @@ protected:
     TMultiChunkPoolInputTest()
     {
         constexpr int UnderlyingPoolCount = 10;
-        std::vector<IChunkPoolInputPtr> mockPtrs;
+        std::vector<IPersistentChunkPoolInputPtr> mockPtrs;
         Mocks_.reserve(UnderlyingPoolCount);
         mockPtrs.reserve(UnderlyingPoolCount);
         for (int poolIndex = 0; poolIndex < UnderlyingPoolCount; ++poolIndex) {
@@ -277,7 +278,7 @@ protected:
 
     void CreatePool(int poolsToAdd)
     {
-        std::vector<IChunkPoolOutputPtr> mockPtrs;
+        std::vector<IPersistentChunkPoolOutputPtr> mockPtrs;
         mockPtrs.reserve(poolsToAdd);
         for (int poolIndex = 0; poolIndex < poolsToAdd; ++poolIndex) {
             const auto& mock = Mocks_[poolIndex];

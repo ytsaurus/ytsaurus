@@ -17,7 +17,7 @@ struct TChunkStripeStatistics
     i64 ValueCount = 0;
     i64 MaxBlockSize = 0;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 };
 
 TChunkStripeStatistics operator + (
@@ -51,7 +51,7 @@ struct TChunkStripe
 
     int GetInputStreamIndex() const;
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 
     TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
@@ -81,7 +81,7 @@ struct TChunkStripeList
 
     void AddStripe(TChunkStripePtr stripe);
 
-    void Persist(const TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 
     std::vector<TChunkStripePtr> Stripes;
 

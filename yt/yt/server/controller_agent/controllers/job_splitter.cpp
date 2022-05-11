@@ -33,7 +33,7 @@ public:
 
     TJobSplitter(
         TJobSplitterConfigPtr config,
-        IChunkPoolJobSplittingHost* chunkPool,
+        IPersistentChunkPoolJobSplittingHost* chunkPool,
         const NLogging::TLogger& logger)
         : Config_(config)
         , CanSplitJobs_(config->EnableJobSplitting)
@@ -485,7 +485,7 @@ private:
     i64 MaxRunningJobCount_ = 0;
     TDuration SuccessJobPrepareDurationSum_;
     int SuccessJobCount_ = 0;
-    IChunkPoolJobSplittingHost* ChunkPool_;
+    IPersistentChunkPoolJobSplittingHost* ChunkPool_;
     NLogging::TSerializableLogger Logger;
 
     void OnJobFinished(const TJobSummary& summary)
@@ -518,7 +518,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 std::unique_ptr<IJobSplitter> CreateJobSplitter(
     TJobSplitterConfigPtr config,
-    IChunkPoolJobSplittingHost* chunkPool,
+    IPersistentChunkPoolJobSplittingHost* chunkPool,
     const NLogging::TLogger& logger)
 {
     return std::make_unique<TJobSplitter>(std::move(config), chunkPool, logger);
