@@ -1023,6 +1023,11 @@ TVersion TLeaderCommitter::GetLoggedVersion() const
     return NextLoggedVersion_;
 }
 
+i64 TLeaderCommitter::GetLoggedSequenceNumber() const
+{
+    return PeerStates_[CellManager_->GetSelfPeerId()].LastLoggedSequenceNumber;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerCommitter::TFollowerCommitter(

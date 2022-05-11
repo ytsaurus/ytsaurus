@@ -1475,17 +1475,22 @@ private:
         }
 
         auto controlState = GetControlState();
-        auto getElectionPriority = [&] {
-            if (controlState == EPeerState::Leading || controlState == EPeerState::Following) {
-                YT_VERIFY(ControlEpochContext_);
-                // TODO(aleksandra-zh): our priority is logged state, not automaton.
-                return TElectionPriority(DecoratedAutomaton_->GetLastMutationTerm(), DecoratedAutomaton_->GetReachableState());
-            } else {
-                return *ElectionPriority_;
+        auto getElectionPriority = [&] () -> std::pair<int, i64> {
+            switch (controlState) {
+                case EPeerState::Leading:
+                    YT_VERIFY(ControlEpochContext_);
+                    return {ControlEpochContext_->Term, ControlEpochContext_->LeaderCommitter->GetLoggedSequenceNumber()};
+
+                case EPeerState::Following:
+                    YT_VERIFY(ControlEpochContext_);
+                    return {ControlEpochContext_->Term, ControlEpochContext_->FollowerCommitter->GetLoggedSequenceNumber()};
+
+                default:
+                    return {ElectionPriority_->LastMutationTerm, ElectionPriority_->ReachableState.SequenceNumber};
             }
         };
         auto priority = getElectionPriority();
-        return {priority.LastMutationTerm, priority.ReachableState.SequenceNumber * 2 + (EnablePriorityBoost_ ? 1 : 0)};
+        return {priority.first, priority.second * 2 + (EnablePriorityBoost_ ? 1 : 0)};
     }
 
     void Participate()
