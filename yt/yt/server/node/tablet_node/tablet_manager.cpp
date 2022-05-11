@@ -2787,17 +2787,29 @@ private:
 
     void PrecacheChunkReplicas(TTablet* tablet)
     {
+        std::vector<TChunkId> storeChunkIds;
+        storeChunkIds.reserve(std::ssize(tablet->StoreIdMap()));
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            if (store->IsChunk()) {
+                storeChunkIds.push_back(storeId);
+            }
+        }
         auto hunkChunkIds = GetKeys(tablet->HunkChunkMap());
 
-        YT_LOG_DEBUG("Started precaching chunk replicas (ChunkCount: %v)",
+        YT_LOG_DEBUG("Started precaching chunk replicas (StoreChunkCount: %v, HunkChunkCount: %v)",
+            storeChunkIds.size(),
             hunkChunkIds.size());
 
-        auto futures = Bootstrap_
+        const auto& chunkReplicaCache = Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
-            ->GetChunkReplicaCache()
-            ->GetReplicas(hunkChunkIds);
+            ->GetChunkReplicaCache();
 
+        auto storeChunkFutures = chunkReplicaCache->GetReplicas(storeChunkIds);
+        auto hunkChunkFutures = chunkReplicaCache->GetReplicas(hunkChunkIds);
+
+        auto futures = std::move(storeChunkFutures);
+        std::move(hunkChunkFutures.begin(), hunkChunkFutures.end(), std::back_inserter(futures));
         AllSet(std::move(futures))
             .AsVoid()
             .Subscribe(BIND([Logger = Logger] (const TError& /*error*/) {
