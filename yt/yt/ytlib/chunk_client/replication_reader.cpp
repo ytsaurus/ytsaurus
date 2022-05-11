@@ -9,7 +9,7 @@
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
-#include "chunk_replica_locator.h"
+#include "chunk_replica_cache.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -187,29 +187,21 @@ public:
         , RpsThrottler_(std::move(rpsThrottler))
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(ChunkClientLogger.WithTag("ChunkId: %v", ChunkId_))
-        , ChunkReplicaLocator_(New<TChunkReplicaLocator>(
-            Client_,
-            NodeDirectory_,
-            ChunkId_,
-            Config_->SeedsTimeout,
-            seedReplicas,
-            Logger))
+        , InitialSeeds_(std::move(seedReplicas))
     {
         YT_VERIFY(NodeDirectory_);
 
-        if (!Options_->AllowFetchingSeedsFromMaster && seedReplicas.empty()) {
+        if (!Options_->AllowFetchingSeedsFromMaster && InitialSeeds_.empty()) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoChunkSeedsGiven,
                 "Cannot read chunk %v: master seeds retries are disabled and no initial seeds are given",
                 ChunkId_);
         }
 
-        ChunkReplicaLocator_->SubscribeReplicasLocated(
-            BIND(&TReplicationReader::OnChunkReplicasLocated, MakeWeak(this)));
-
-        YT_LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
+        YT_LOG_DEBUG("Reader initialized "
+            "(InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
-            MakeFormattableView(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            MakeFormattableView(InitialSeeds_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             LocalDescriptor_,
             Config_->PopulateCache,
@@ -299,18 +291,39 @@ private:
     const TNetworkPreferenceList Networks_;
 
     const NLogging::TLogger Logger;
-    const TChunkReplicaLocatorPtr ChunkReplicaLocator_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PeersSpinLock_);
+    NHydra::TRevision FreshSeedsRevision_ = NHydra::NullRevision;
     //! Peers returning NoSuchChunk error are banned forever.
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     THashMap<TString, int> PeerBanCountMap_;
+    //! If AllowFetchingSeedsFromMaster is |true| these seeds (if present) are used
+    //! until 'DiscardSeeds' is called for the first time.
+    //! If AllowFetchingSeedsFromMaster is |false| these seeds must be given and cannot be discarded.
+    TChunkReplicaList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
-
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
+
+    TFuture<TAllyReplicasInfo> GetReplicasFuture()
+    {
+        {
+            auto guard = Guard(PeersSpinLock_);
+
+            if (!InitialSeeds_.empty()) {
+                auto seeds = InitialSeeds_;
+                guard.Release();
+                return MakeFuture(TAllyReplicasInfo::FromChunkReplicas(seeds));
+            }
+        }
+
+        YT_VERIFY(Options_->AllowFetchingSeedsFromMaster);
+        auto futures = Client_->GetNativeConnection()->GetChunkReplicaCache()->GetReplicas({ChunkId_});
+        YT_VERIFY(futures.size() == 1);
+        return futures[0];
+    }
 
     void DiscardSeeds(const TFuture<TAllyReplicasInfo>& future)
     {
@@ -320,12 +333,24 @@ private:
             return;
         }
 
-        ChunkReplicaLocator_->DiscardReplicas(future);
+        {
+            auto guard = Guard(PeersSpinLock_);
+            InitialSeeds_.clear();
+        }
+
+        Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(ChunkId_, future);
     }
 
     void OnChunkReplicasLocated(const TAllyReplicasInfo& seedReplicas)
     {
         auto guard = Guard(PeersSpinLock_);
+
+        if (FreshSeedsRevision_ >= seedReplicas.Revision) {
+            return;
+        }
+
+        FreshSeedsRevision_ = seedReplicas.Revision;
+
         for (auto replica : seedReplicas.Replicas) {
             const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!nodeDescriptor) {
@@ -795,10 +820,9 @@ protected:
 
         RetryStartTime_ = TInstant::Now();
 
-        SeedsFuture_ = reader->ChunkReplicaLocator_->GetReplicasFuture();
-        SeedsFuture_.Subscribe(
-            BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
-                .Via(SessionInvoker_));
+        SeedsFuture_ = reader->GetReplicasFuture();
+        SeedsFuture_.Subscribe(BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
+            .Via(SessionInvoker_));
     }
 
     void OnRetryFailed()
@@ -812,7 +836,7 @@ protected:
 
         ++RetryIndex_;
         if (RetryIndex_ >= retryCount) {
-            OnSessionFailed(/* fatal */ true);
+            OnSessionFailed(/*fatal*/ true);
             return;
         }
 
@@ -837,11 +861,9 @@ protected:
             return;
         }
 
-        SeedsFuture_ = reader->ChunkReplicaLocator_->MaybeResetReplicas(
-            allyReplicas,
-            SeedsFuture_);
-        YT_VERIFY(SeedsFuture_.IsSet() && SeedsFuture_.Get().IsOK());
-        SeedReplicas_ = SeedsFuture_.Get().Value();
+        // NB: We could have changed current pass seeds,
+        // but for the sake of simplicity that will be done upon next retry within standard reading pipeline.
+        reader->Client_->GetNativeConnection()->GetChunkReplicaCache()->UpdateReplicas(ChunkId_, allyReplicas);
     }
 
     void DiscardSeeds()
@@ -905,7 +927,7 @@ protected:
                     "Cannot find any of %v addresses for seed %v",
                     Networks_,
                     descriptor->GetDefaultAddress()));
-                OnSessionFailed(/* fatal */ true);
+                OnSessionFailed(/*fatal*/ true);
                 return false;
             }
 
@@ -936,7 +958,7 @@ protected:
             if (ReaderOptions_->AllowFetchingSeedsFromMaster) {
                 OnRetryFailed();
             } else {
-                OnSessionFailed(/* fatal */ true);
+                OnSessionFailed(/*fatal*/ true);
             }
             return false;
         }
@@ -1187,18 +1209,20 @@ private:
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Error requesting seeds from master")
                 << result);
-            OnSessionFailed(/* fatal */ true);
+            OnSessionFailed(/*fatal*/ true);
             return;
         }
 
         SeedReplicas_ = result.Value();
+        reader->OnChunkReplicasLocated(SeedReplicas_);
+
         if (!SeedReplicas_) {
             RegisterError(TError(
                 NChunkClient::EErrorCode::ChunkIsLost,
                 "Chunk is lost"));
             if (ReaderConfig_->FailOnNoSeeds) {
                 DiscardSeeds();
-                OnSessionFailed(/* fatal */ true);
+                OnSessionFailed(/*fatal*/ true);
             } else {
                 OnRetryFailed();
             }
@@ -1221,7 +1245,7 @@ private:
                 "Replication reader session timed out")
                  << TErrorAttribute("session_start_time", StartTime_)
                  << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
-            OnSessionFailed(/* fatal */ false);
+            OnSessionFailed(/*fatal*/ false);
             return true;
         }
 
@@ -1232,7 +1256,7 @@ private:
                 "Read session of chunk %v is slow; may attempting repair",
                 ChunkId_)
                 << error);
-            OnSessionFailed(/* fatal */ false);
+            OnSessionFailed(/*fatal*/ false);
             return true;
         }
 
@@ -1645,7 +1669,8 @@ private:
                             peerDescriptor.delivery_barier());
                     }
                 } else {
-                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing (SuggestedAddress: %v, Networks: %v)",
+                    YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
+                        "(SuggestedAddress: %v, Networks: %v)",
                         maybeSuggestedDescriptor->GetDefaultAddress(),
                         Networks_);
                 }
@@ -1653,7 +1678,6 @@ private:
         }
 
         if (probeResult.AllyReplicas) {
-            // NB: New peers (if any) will be requested upon next pass.
             MaybeUpdateSeeds(probeResult.AllyReplicas);
         }
 
@@ -2686,7 +2710,8 @@ private:
             if (WaitedForSchemaForTooLong_) {
                 RegisterError(TError(
                     NChunkClient::EErrorCode::WaitedForSchemaForTooLong,
-                    "Some data node was healthy but was waiting for schema for too long; probably other tablet node has failed"));
+                    "Some data node was healthy but was waiting for schema for too long; "
+                    "probably other tablet node has failed"));
             }
             if (RetryIndex_ >= ReaderConfig_->LookupRequestRetryCount) {
                 OnSessionFailed(true);
@@ -3062,7 +3087,6 @@ private:
     bool UpdatePeerBlockMap(const TPeerProbeResult& probeResult) override
     {
         if (probeResult.AllyReplicas) {
-            // NB: New peers (if any) will be requested upon next pass.
             MaybeUpdateSeeds(probeResult.AllyReplicas);
         }
 

@@ -281,20 +281,28 @@ private:
         WaitFor(BlockCache_->Finish(chunkInfos))
             .ThrowOnError();
 
-        if (HunkChunkPayloadWriter_->HasHunks() && TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
-            // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
-            TChunkReplicaWithMediumList legacyReplicas;
-            const auto& writtenReplicas = HunkChunkWriter_->GetWrittenChunkReplicas();
-            legacyReplicas.reserve(writtenReplicas.size());
-            for (auto replica : writtenReplicas) {
-                legacyReplicas.push_back(replica);
+        if (TabletSnapshot_->Settings.MountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+            auto registerReplicas = [&] (TChunkId chunkId, const auto& writtenReplicas) {
+                // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
+                TChunkReplicaWithMediumList replicas;
+                replicas.reserve(writtenReplicas.size());
+                for (auto replica : writtenReplicas) {
+                    replicas.push_back(replica);
+                }
+
+                chunkReplicaCache->RegisterReplicas(chunkId, replicas);
+            };
+
+            for (const auto& writer : Writers_) {
+                for (const auto& [chunkId, replicas] : writer->GetWrittenChunkWithReplicasList()) {
+                    registerReplicas(chunkId, replicas);
+                }
             }
-            Bootstrap_
-                ->GetMasterConnection()
-                ->GetChunkReplicaCache()
-                ->RegisterReplicas(
-                    HunkChunkWriter_->GetChunkId(),
-                    legacyReplicas);
+
+            if (HunkChunkPayloadWriter_->HasHunks()) {
+                registerReplicas(HunkChunkWriter_->GetChunkId(), HunkChunkWriter_->GetWrittenChunkReplicas());
+            }
         }
     }
 
@@ -1200,7 +1208,8 @@ private:
             pair.first->second += delta;
         }
         const auto& Logger = TabletNodeLogger;
-        YT_LOG_DEBUG("Accounting for the future effect of the compaction/partitioning (TabletId: %v, FutureEffect: %v -> %v)",
+        YT_LOG_DEBUG("Accounting for the future effect of the compaction/partitioning "
+            "(TabletId: %v, FutureEffect: %v -> %v)",
             tabletId,
             pair.first->second - delta,
             pair.first->second);
@@ -1354,7 +1363,8 @@ private:
             auto typedStore = store->AsSortedChunk();
             YT_VERIFY(typedStore);
             if (typedStore->GetCompactionState() != EStoreCompactionState::None) {
-                YT_LOG_DEBUG("Eden store is in improper state, aborting partitioning (StoreId: %v, CompactionState: %v)",
+                YT_LOG_DEBUG("Eden store is in improper state, aborting partitioning "
+                    "(StoreId: %v, CompactionState: %v)",
                     storeId,
                     typedStore->GetCompactionState());
                 logFailure("improper_store_state")
@@ -1481,10 +1491,12 @@ private:
                 for (const auto& chunkSpec : writer->GetWrittenChunkSpecs()) {
                     storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
-                tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount += writer->GetDataStatistics().data_weight();
+                tabletSnapshot->PerformanceCounters->PartitioningDataWeightCount +=
+                    writer->GetDataStatistics().data_weight();
             }
 
-            YT_LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
+            YT_LOG_INFO("Eden partitioning completed "
+                "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
                 partitioningResult.RowCount,
                 storeIdsToAdd,
                 MakeFormattableView(stores, TStoreIdFormatter()),
@@ -1605,7 +1617,8 @@ private:
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
             AddStoresToRemove(&actionRequest, stores);
 
-            YT_LOG_INFO("Partition stores discarded by TTL (UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
+            YT_LOG_INFO("Partition stores discarded by TTL "
+                "(UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
                 partition->GetUnmergedRowCount(),
                 partition->GetCompressedDataSize(),
                 MakeFormattableView(stores, TStoreIdFormatter()));
@@ -1846,9 +1859,11 @@ private:
             for (const auto& chunkSpec : compactionResult.StoreWriter->GetWrittenChunkSpecs()) {
                 storeIdsToAdd.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
-            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount += compactionResult.StoreWriter->GetDataStatistics().data_weight();
+            tabletSnapshot->PerformanceCounters->CompactionDataWeightCount +=
+                compactionResult.StoreWriter->GetDataStatistics().data_weight();
 
-            YT_LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
+            YT_LOG_INFO("Partition compaction completed "
+                "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
                 compactionResult.RowCount,
                 storeIdsToAdd,
                 MakeFormattableView(stores, TStoreIdFormatter()),
@@ -1941,7 +1956,8 @@ private:
         const auto& mountConfig = tablet->GetSettings().MountConfig;
         return
             hunkChunk->GetTotalHunkLength() >= mountConfig->MinHunkCompactionTotalHunkLength &&
-            static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) / hunkChunk->GetTotalHunkLength() < 1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
+            static_cast<double>(hunkChunk->GetReferencedTotalHunkLength()) / hunkChunk->GetTotalHunkLength() <
+                1.0 - mountConfig->MaxHunkCompactionGarbageRatio;
     }
 
     static bool IsSmallHunkCompactionNeeded(
@@ -2126,7 +2142,9 @@ private:
             descriptor->set_store_type(ToProto<int>(EStoreType::SortedChunk));
             *descriptor->mutable_store_id() = chunkSpec.chunk_id();
             *descriptor->mutable_chunk_meta() = chunkSpec.chunk_meta();
-            FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+            FilterProtoExtensions(
+                descriptor->mutable_chunk_meta()->mutable_extensions(),
+                GetMasterChunkMetaExtensionTagsFilter());
         }
     }
 
@@ -2141,7 +2159,9 @@ private:
         auto* descriptor = actionRequest->add_hunk_chunks_to_add();
         ToProto(descriptor->mutable_chunk_id(), writer->GetChunkId());
         *descriptor->mutable_chunk_meta() = *writer->GetMeta();
-        FilterProtoExtensions(descriptor->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+        FilterProtoExtensions(
+            descriptor->mutable_chunk_meta()->mutable_extensions(),
+            GetMasterChunkMetaExtensionTagsFilter());
     }
 };
 

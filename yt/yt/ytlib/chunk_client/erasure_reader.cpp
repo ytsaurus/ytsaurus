@@ -75,7 +75,7 @@ private:
         const TClientChunkReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
-    
+
     // ReadBlocks implementation with customizable readers list.
     TFuture<std::vector<TBlock>> ReadBlocksImpl(
         const TClientChunkReadOptions& options,

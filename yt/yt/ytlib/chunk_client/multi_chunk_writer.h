@@ -13,10 +13,15 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TChunkWithReplicasList = std::vector<std::pair<TChunkId, TChunkReplicaWithLocationList>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IMultiChunkWriter
     : public virtual IWriterBase
 {
     virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const = 0;
+    virtual const TChunkWithReplicasList& GetWrittenChunkWithReplicasList() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 

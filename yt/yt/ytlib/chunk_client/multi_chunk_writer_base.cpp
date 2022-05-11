@@ -104,6 +104,11 @@ const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunk
     return WrittenChunkSpecs_;
 }
 
+const TChunkWithReplicasList& TNontemplateMultiChunkWriterBase::GetWrittenChunkWithReplicasList() const
+{
+    return WrittenChunkWithReplicasList_;
+}
+
 TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 {
     return NodeDirectory_;
@@ -155,14 +160,19 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
         .ThrowOnError();
 
     {
+        auto chunkId = CurrentSession_.UnderlyingWriter->GetChunkId();
+        auto writtenChunkReplicas = CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas();
+
         auto& chunkSpec = WrittenChunkSpecs_.emplace_back();
-        ToProto(chunkSpec.mutable_chunk_id(), CurrentSession_.UnderlyingWriter->GetChunkId());
-        ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
+        ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+        ToProto(chunkSpec.mutable_replicas(), writtenChunkReplicas);
         chunkSpec.set_erasure_codec(ToProto<int>(Options_->ErasureCodec));
         if (Options_->TableIndex != TMultiChunkWriterOptions::InvalidTableIndex) {
             chunkSpec.set_table_index(Options_->TableIndex);
         }
         *chunkSpec.mutable_chunk_meta() = *CurrentSession_.TemplateWriter->GetMeta();
+
+        WrittenChunkWithReplicasList_.emplace_back(chunkId, std::move(writtenChunkReplicas));
     }
 
     {

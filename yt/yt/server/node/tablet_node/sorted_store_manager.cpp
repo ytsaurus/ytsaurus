@@ -890,21 +890,29 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             ToProto(descriptor.mutable_chunk_id(), hunkChunkPayloadWriter->GetChunkId());
             *descriptor.mutable_chunk_meta() = *hunkChunkPayloadWriter->GetMeta();
             FilterProtoExtensions(descriptor.mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+        }
 
-            if (mountConfig->RegisterChunkReplicasOnStoresUpdate) {
-                const auto& writtenReplicas = hunkChunkWriter->GetWrittenChunkReplicas();
+        if (mountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            const auto& chunkReplicaCache = TabletContext_->GetChunkReplicaCache();
+            // TODO(kvk1920): Consider using chunk + location instead of chunk + node + medium.
+            auto registerReplicas = [&] (const IChunkWriterPtr& chunkWriter) {
+                const auto& writtenReplicas = chunkWriter->GetWrittenChunkReplicas();
                 TChunkReplicaWithMediumList replicas;
                 replicas.reserve(writtenReplicas.size());
                 for (auto replica : writtenReplicas) {
                     replicas.push_back(replica);
                 }
-                TabletContext_
-                    ->GetChunkReplicaCache()
-                    ->RegisterReplicas(
-                        hunkChunkWriter->GetChunkId(),
-                        replicas);
+
+                chunkReplicaCache->RegisterReplicas(chunkWriter->GetChunkId(), replicas);
+            };
+
+            registerReplicas(storeChunkWriter);
+
+            if (hunkChunkPayloadWriter->HasHunks()) {
+                registerReplicas(hunkChunkWriter);
             }
         }
+
         return result;
     });
 }
