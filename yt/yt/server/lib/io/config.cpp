@@ -12,6 +12,8 @@ TIOTrackerConfig::TIOTrackerConfig()
         .Default(false);
     RegisterParameter("enable_raw", EnableRaw)
         .Default(false);
+    RegisterParameter("enable_path", EnablePath)
+        .Default(false);
     RegisterParameter("queue_size_limit", QueueSizeLimit)
         .Default(10'000);
     RegisterParameter("aggregation_size_limit", AggregationSizeLimit)
@@ -20,6 +22,8 @@ TIOTrackerConfig::TIOTrackerConfig()
         .Default(TDuration::Minutes(15));
     RegisterParameter("period_quant", PeriodQuant)
         .Default(TDuration::MilliSeconds(50));
+    RegisterParameter("path_aggregate_tags", PathAggregateTags)
+        .Default();
     RegisterParameter("enable_event_dequeue", EnableEventDequeue)
         .Default(true);
 }

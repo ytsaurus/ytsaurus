@@ -22,7 +22,9 @@ TIOEvent CreateEvent(
     TString firstTagName = "",
     TString firstTagValue = "",
     TString secondTagName = "",
-    TString secondTagValue = "")
+    TString secondTagValue = "",
+    TString thirdTagName = "",
+    TString thirdTagValue = "")
 {
     TIOEvent ioEvent;
     ioEvent.Counters.Bytes = bytes;
@@ -32,6 +34,9 @@ TIOEvent CreateEvent(
     }
     if (!secondTagName.empty()) {
         EmplaceOrCrash(ioEvent.LocalTags, std::move(secondTagName), std::move(secondTagValue));
+    }
+    if (!thirdTagName.empty()) {
+        EmplaceOrCrash(ioEvent.LocalTags, std::move(thirdTagName), std::move(thirdTagValue));
     }
     return ioEvent;
 }
@@ -300,6 +305,63 @@ TEST(TIOTrackerTest, Baggage)
         sort(expected.begin(), expected.end());
         sort(found.begin(), found.end());
         EXPECT_EQ(expected, found);
+    }
+}
+
+TEST(TIOTrackerTest, PathAggr)
+{
+    auto config = New<TIOTrackerConfig>();
+    config->Enable = true;
+    config->EnableRaw = true;
+    config->EnablePath = true;
+    config->AggregationPeriod = TDuration::MilliSeconds(100);
+    config->PathAggregateTags = {"first@", "third@"};
+    auto ioTracker = CreateIOTracker(std::move(config));
+
+    NThreading::TSpinLock lock;
+    std::vector<TIOTagList> events;
+    int totalBytes = 0;
+
+    ioTracker->SubscribeOnPathAggregateEventLogged(BIND([&] (const TIOCounters& counters, const TIOTagList& list) {
+        auto guard = Guard(lock);
+        events.push_back(list);
+        totalBytes += counters.Bytes;
+    }));
+
+    ioTracker->Enqueue(CreateEvent(1, 1, "object_path", "mypath", "first@", "value1", "second@", "a"));
+    ioTracker->Enqueue(CreateEvent(1, 1, "object_path", "mypath", "first@", "value1", "second@", "b"));
+
+    ioTracker->Enqueue(CreateEvent(1, 1, "object_path", "mypath", "first@", "value2", "third@", "a"));
+
+    ioTracker->Enqueue(CreateEvent(1, 1, "first@", "value1"));
+    ioTracker->Enqueue(CreateEvent(1, 1, "first@", "value1", "second@", "qqq"));
+    ioTracker->Enqueue(CreateEvent(1, 1, "first@", "value1", "rawtag", "a"));
+    ioTracker->Enqueue(CreateEvent(1, 1, "first@", "value1", "hello", "world", "nice", "tag"));
+
+    ioTracker->Enqueue(CreateEvent(1, 1, "object_path", "otherpath", "first@", "value2", "third@", "a"));
+
+    ioTracker->Enqueue(CreateEvent(1, 1, "object_path", "otherpath", "first@", "value2", "third@", "b"));
+
+    ioTracker->Enqueue(CreateEvent(1, 1, "object_path", "otherpath", "second@", "c", "third@", "b"));
+
+    NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(200));
+
+    {
+        auto guard = Guard(lock);
+        EXPECT_EQ(totalBytes, 10);
+        EXPECT_EQ(std::ssize(events), 6);
+        std::sort(events.begin(), events.end());
+
+        std::vector<TIOTagList> expected = {
+            {{"first@", "value1"}},
+            {{"object_path", "mypath"}, {"first@", "value1"}},
+            {{"object_path", "mypath"}, {"first@", "value2"}, {"third@", "a"}},
+            {{"object_path", "otherpath"}, {"first@", "value2"}, {"third@", "a"}},
+            {{"object_path", "otherpath"}, {"first@", "value2"}, {"third@", "b"}},
+            {{"object_path", "otherpath"}, {"third@", "b"}},
+        };
+
+        EXPECT_EQ(events, expected);
     }
 }
 

@@ -18,6 +18,9 @@ public:
     //! If set to true, raw IO events can be logged. Otherwise, only aggregated events are logged.
     bool EnableRaw;
 
+    //! If set to true, logs aggregated by path are enabled.
+    bool EnablePath;
+
     //! Queue size for IO events that were enqueued but were not logged. If the queue size exceeds
     //! its limit, incoming events will be dropped.
     int QueueSizeLimit;
@@ -32,6 +35,9 @@ public:
 
     //! Period used to poll the queue for new events.
     TDuration PeriodQuant;
+
+    //! Allowed tags for logs aggregated by path.
+    THashSet<TString> PathAggregateTags;
 
     //! If set to true, the events will be dequeued and processed, otherwise they will stay in the queue.
     //! This option is used only for testing and must be always set to true in production.

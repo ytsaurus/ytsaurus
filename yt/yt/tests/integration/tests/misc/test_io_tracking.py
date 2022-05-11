@@ -29,8 +29,10 @@ class TestNodeIOTrackingBase(YTEnvSetup):
             "io_tracker": {
                 "enable": True,
                 "enable_raw": True,
+                "enable_path": True,
                 "period_quant": 10,
                 "aggregation_period": 5000,
+                "path_aggregate_tags": ["direction@", "account@", "user@"]
             }
         })
 
@@ -87,6 +89,9 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def wait_for_aggregate_events(self, *args, **kwargs):
         return self._wait_for_events("IOAggregate", *args, **kwargs)
 
+    def wait_for_path_aggr_events(self, *args, **kwargs):
+        return self._wait_for_events("IOPathAggr", *args, **kwargs)
+
     def read_raw_events(self, *args, **kwargs):
         return self._read_events("IORaw", *args, **kwargs)
 
@@ -138,6 +143,64 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["chunk_id"] == chunk_id
         for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0 and raw_events[0][counter] == aggregate_events[0][counter]
+
+    @authors("gepardo")
+    def test_path_aggregation(self):
+        from_barrier = write_log_barrier(self.get_node_address())
+        create("table", "//tmp/table1")
+        write_table("//tmp/table1", [{"a": 1, "b": 2, "c": 3}])
+        assert read_table("//tmp/table1") == [{"a": 1, "b": 2, "c": 3}]
+        write_table("//tmp/table1", [{"a": 4, "b": 5, "c": 6}])
+        assert read_table("//tmp/table1") == [{"a": 4, "b": 5, "c": 6}]
+        create("table", "//tmp/table2")
+        write_table("//tmp/table2", [{"a": 1, "b": 2, "c": 3}])
+        write_table("<append=%true>//tmp/table2", [{"a": 2, "b": 3, "c": 4}])
+        raw_events = self.wait_for_raw_events(count=6, from_barrier=from_barrier)
+        path_aggr_events = self.wait_for_path_aggr_events(count=3, from_barrier=from_barrier)
+
+        sum_bytes = 0
+        sum_io_requests = 0
+        for event in raw_events:
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            sum_bytes += event["bytes"]
+            sum_io_requests += event["io_requests"]
+
+        sum_bytes_aggr = 0
+        sum_io_requests_aggr = 0
+        for event in path_aggr_events:
+            assert event["bytes"] > 0
+            assert event["io_requests"] > 0
+            sum_bytes_aggr += event["bytes"]
+            sum_io_requests_aggr += event["io_requests"]
+
+        assert sum_bytes == sum_bytes_aggr
+        assert sum_io_requests == sum_io_requests_aggr
+
+        events = [
+            {"object_path": event["object_path"], "tags": event["tags"]}
+            for event in path_aggr_events
+        ]
+
+        def flatten(src_dict):
+            result = []
+            for key, value in src_dict.items():
+                if isinstance(value, dict):
+                    for subkey, subvalue in flatten(value):
+                        result.append((key + "/" + subkey, subvalue))
+                    continue
+                result.append((key, value))
+            return result
+
+        def deep_sorted_dicts(list_of_dicts):
+            return sorted(list_of_dicts, key=lambda dict: sorted(flatten(dict)))
+
+        expected_events = [
+            {"object_path": "//tmp/table1", "tags": {"direction@": "read", "account@": "tmp", "user@": "root"}},
+            {"object_path": "//tmp/table1", "tags": {"direction@": "write", "account@": "tmp", "user@": "root"}},
+            {"object_path": "//tmp/table2", "tags": {"direction@": "write", "account@": "tmp", "user@": "root"}},
+        ]
+        assert deep_sorted_dicts(events) == deep_sorted_dicts(expected_events)
 
     @authors("gepardo")
     def test_two_chunks(self):
