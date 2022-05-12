@@ -1,6 +1,7 @@
 #include "scheduler_api.h"
 #include "fls.h"
 #include "private.h"
+#include "propagating_storage.h"
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/common.h>
@@ -221,6 +222,7 @@ protected:
         MemoryTag_ = SwapMemoryTag(MemoryTag_);
         FsdHolder_ = NDetail::SetCurrentFsdHolder(FsdHolder_);
         FiberId_ = SwapFiberId(FiberId_);
+        PropagatingStorage_ = SwapCurrentPropagatingStorage(PropagatingStorage_);
     }
 
     ~TBaseSwitchHandler()
@@ -229,13 +231,16 @@ protected:
         YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
         YT_VERIFY(FsdHolder_ == nullptr);
         YT_VERIFY(FiberId_ == InvalidFiberId);
+        YT_VERIFY(PropagatingStorage_.IsNull());
     }
 
 private:
     NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
+    // TODO(gepardo): Remove this once trace context is moved into PropagatingStorage_.
     NTracing::TTraceContextPtr TraceContext_ = nullptr;
     NDetail::TFsdHolder* FsdHolder_ = nullptr;
     TFiberId FiberId_ = InvalidFiberId;
+    TPropagatingStorage PropagatingStorage_;
 
     static NYTAlloc::TMemoryTag SwapMemoryTag(NYTAlloc::TMemoryTag tag)
     {

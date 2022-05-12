@@ -6,6 +6,7 @@
 #undef BIND_INL_H_
 
 
+#include <yt/yt/core/concurrency/propagating_storage.h>
 #include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT {
@@ -425,16 +426,29 @@ struct TSplitHelper<N, TR (TA0, TAs...)>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool CaptureTraceContext>
-class TTraceContextMixin;
+template <bool Propagate>
+class TPropagateMixin;
 
 template <>
-class TTraceContextMixin<true>
+class TPropagateMixin<true>
     : public NYT::NTracing::TTraceContextHandler
-{ };
+{
+public:
+    TPropagateMixin()
+        : Storage_(NConcurrency::GetCurrentPropagatingStorage())
+    { }
+
+    NConcurrency::TPropagatingStorageGuard GetPropagatingStorageGuard()
+    {
+        return NConcurrency::TPropagatingStorageGuard(Storage_);
+    }
+
+private:
+    NConcurrency::TPropagatingStorage Storage_;
+};
 
 template <>
-class TTraceContextMixin<false>
+class TPropagateMixin<false>
 {
 public:
     struct TDummyGuard { };
@@ -443,17 +457,22 @@ public:
     {
         return TDummyGuard();
     }
+
+    TDummyGuard GetPropagatingStorageGuard()
+    {
+        return TDummyGuard();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <bool CaptureTraceContext, class TFunctor, class TSequence, class... TBs>
+template <bool Propagate, class TFunctor, class TSequence, class... TBs>
 class TBindState;
 
-template <bool CaptureTraceContext, class TFunctor, class... TBs, size_t... BoundIndexes>
-class TBindState<CaptureTraceContext, TFunctor, std::index_sequence<BoundIndexes...>, TBs...>
+template <bool Propagate, class TFunctor, class... TBs, size_t... BoundIndexes>
+class TBindState<Propagate, TFunctor, std::index_sequence<BoundIndexes...>, TBs...>
     : public NDetail::TBindStateBase
-    , public TTraceContextMixin<CaptureTraceContext>
+    , public TPropagateMixin<Propagate>
 {
 public:
     template <class XFunctor, class... XBs>
@@ -478,8 +497,11 @@ public:
     {
         auto* state = static_cast<TBindState*>(base);
 
-        auto guard = state->GetTraceContextGuard();
-        Y_UNUSED(guard);
+        // TODO(gepardo): Put trace context into PropagatingStorage and leave only one guard here.
+        auto traceGuard = state->GetTraceContextGuard();
+        auto propagatingStorageGuard = state->GetPropagatingStorageGuard();
+        Y_UNUSED(traceGuard);
+        Y_UNUSED(propagatingStorageGuard);
 
         return state->Functor(
             NDetail::Unwrap(std::get<BoundIndexes>(state->BoundArgs))...,
@@ -511,7 +533,7 @@ struct TBindHelper<TR(TAs...)>
 ////////////////////////////////////////////////////////////////////////////////
 
 template <
-    bool CaptureTraceContext,
+    bool Propagate,
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     class TTag,
     int Counter,
@@ -536,7 +558,7 @@ auto Bind(
     Y_UNUSED(checkParamsIsRawPtrToRefCountedType);
 
     using TState = NYT::NDetail::TBindState<
-        CaptureTraceContext,
+        Propagate,
         typename TTraits::TInvoker,
         typename std::make_index_sequence<sizeof...(TBs)>,
         typename std::decay_t<TBs>...>;
@@ -553,7 +575,7 @@ auto Bind(
 }
 
 template <
-    bool CaptureTraceContext,
+    bool Propagate,
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     class TTag,
     int Counter,
