@@ -106,6 +106,10 @@ public:
     //! without additional allocations.
     size_t GetCurrentChunkSpareSize() const;
 
+    //! Moves all the allocated memory from other memory pool to the current one.
+    //! The other pool becomes empty, like after Purge() call.
+    void Absorb(TChunkedMemoryPool&& other);
+
 private:
     const TRefCountedTypeCookie TagCookie_;
     // A common usecase is to construct TChunkedMemoryPool with the default

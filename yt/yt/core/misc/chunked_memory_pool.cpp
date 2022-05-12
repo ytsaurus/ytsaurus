@@ -141,6 +141,45 @@ char* TChunkedMemoryPool::AllocateSlowCore(size_t size)
     return nullptr;
 }
 
+void TChunkedMemoryPool::Absorb(TChunkedMemoryPool&& other)
+{
+    YT_VERIFY(ChunkProvider_ == other.ChunkProvider_);
+
+    OtherBlocks_.reserve(OtherBlocks_.size() + other.OtherBlocks_.size());
+    for (auto& block : other.OtherBlocks_) {
+        OtherBlocks_.push_back(std::move(block));
+    }
+    other.OtherBlocks_.clear();
+
+    // Suppose that
+    // - "A" is filled blocks of the current pool;
+    // - "a" is free blocks of the current pool;
+    // - "B" is filled blocks of the other pool;
+    // - "b" is free blocks of the other pool.
+    // Then, from the initial layouts "AA...Aaa...a" and "BB...Bbb...b" we obtain "BB..BAA..Aaa...abb...b".
+    Chunks_.reserve(Chunks_.size() + other.Chunks_.size());
+    size_t oldSize = Chunks_.size();
+    for (auto& chunk : other.Chunks_) {
+        Chunks_.push_back(std::move(chunk));
+    }
+    // Transform "AA...Aaa...aBB...B" => "BB...BAA...Aaa...a"
+    std::rotate(Chunks_.begin(), Chunks_.begin() + oldSize, Chunks_.begin() + oldSize + other.NextChunkIndex_);
+    if (NextChunkIndex_ == 0) {
+        FreeZoneBegin_ = other.FreeZoneBegin_;
+        FreeZoneEnd_ = other.FreeZoneEnd_;
+    }
+    NextChunkIndex_ += other.NextChunkIndex_;
+    other.Chunks_.clear();
+    other.FreeZoneBegin_ = nullptr;
+    other.FreeZoneEnd_ = nullptr;
+    other.NextChunkIndex_ = 0;
+
+    Size_ += other.Size_;
+    Capacity_ += other.Capacity_;
+    other.Size_ = 0;
+    other.Capacity_ = 0;
+}
+
 size_t TChunkedMemoryPool::GetSize() const
 {
     return Size_;
