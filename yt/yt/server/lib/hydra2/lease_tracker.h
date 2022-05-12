@@ -92,6 +92,9 @@ public:
     //! Activates the tracking mode.
     void EnableTracking();
 
+    //! Must be called whenever the tracker is no longer needed to prevent certain promises from being stuck in forever-unset state.
+    void Finalize();
+
     //! When invoked at instant |T|, returns a future that becomes set
     //! when the first ping round started after |T| finishes
     //! (either with success or error).
@@ -113,6 +116,7 @@ private:
 
     bool TermSendingEnabled_ = false;
     bool TrackingEnabled_ = false;
+    bool Finalized_ = false;
     TPromise<void> NextCheckPromise_ = NewPromise<void>();
     TSingleShotCallbackList<void(const TError&)> LeaseLost_;
 
