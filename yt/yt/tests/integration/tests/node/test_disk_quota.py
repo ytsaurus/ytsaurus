@@ -6,7 +6,8 @@ from yt_commands import (
     write_table, map,
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
-    abort_job, run_test_vanilla)
+    abort_job, run_test_vanilla,
+    with_breakpoint, wait_breakpoint)
 
 from yt.common import YtError, update
 
@@ -167,7 +168,7 @@ class TestDiskUsagePorto(YTEnvSetup):
 
         op1 = map(
             track=False,
-            command="sleep 1000",
+            command=with_breakpoint("BREAKPOINT"),
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={
@@ -175,8 +176,9 @@ class TestDiskUsagePorto(YTEnvSetup):
                 "max_failed_job_count": 1,
             },
         )
-        op1.ensure_running()
-        wait(lambda: op1.get_job_count("running") == 1)
+        wait_breakpoint()
+
+        assert op1.get_job_count("running") == 1
 
         op2 = map(
             track=False,
@@ -189,6 +191,9 @@ class TestDiskUsagePorto(YTEnvSetup):
             },
         )
         op2.ensure_running()
+
+        time.sleep(2)
+
         for type in ("running", "aborted", "failed"):
             assert op2.get_job_count(type) == 0
 
