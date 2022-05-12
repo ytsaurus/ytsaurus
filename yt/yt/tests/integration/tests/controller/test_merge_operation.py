@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy,
+    alter_table, authors, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
@@ -2109,6 +2109,56 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               spec={"force_transform": True})
 
         assert read_table("//tmp/t_narrow") == [{"k1": 1, "k2": 10}]
+
+    @authors("gepardo")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_sorted_merge_with_alter_table(self, optimize_for):
+        if self.Env.get_component_version("ytserver-job-proxy").abi <= (22, 1):
+            pytest.skip("Job proxy does not contain fix for the bug yet")
+
+        create("table", "//tmp/table1", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+            ],
+            "optimize_for": optimize_for,
+        })
+        create("table", "//tmp/table2", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+            ],
+            "optimize_for": optimize_for,
+        })
+        create("table", "//tmp/table3", attributes={
+            "schema": [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+            ],
+            "optimize_for": optimize_for,
+        })
+        write_table("//tmp/table1", [{"a": 1}])
+        write_table("//tmp/table2", [{"a": 1}])
+        write_table("//tmp/table3", [{"a": 1, "b": 2}])
+        alter_table("//tmp/table1", schema=[
+            {"name": "a", "type": "int64", "sort_order": "ascending"},
+            {"name": "b", "type": "int64", "sort_order": "ascending"},
+        ])
+        create("table", "//tmp/table0")
+
+        merge(
+            in_=["//tmp/table3", "//tmp/table2", "//tmp/table1"],
+            out="//tmp/table0",
+            mode="sorted",
+            merge_by=["a", "b"],
+            spec={"force_transform": True},
+        )
+
+        expected = [
+            {"a": 1, "b": yson.YsonEntity()},
+            {"a": 1, "b": yson.YsonEntity()},
+            {"a": 1, "b": 2},
+        ]
+        assert expected == read_table("//tmp/table0")
 
 
 ##################################################################

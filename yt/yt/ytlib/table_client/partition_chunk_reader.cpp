@@ -130,7 +130,8 @@ void TPartitionChunkReader::InitFirstBlock()
         GetCompositeColumnFlags(schema),
         ChunkToReaderIdMapping_,
         SortOrders_,
-        SortOrders_.size());
+        SortOrders_.size(),
+        /*keyWideningOptions*/ {});
 
     BlockReaders_.emplace_back(BlockReader_);
 }

@@ -62,6 +62,23 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TKeyWideningOptions BuildKeyWideningOptions(
+    const std::vector<TString>& sortColumns,
+    const TNameTablePtr& nameTable,
+    int commonKeyPrefix)
+{
+    TKeyWideningOptions keyWideningOptions{
+        .InsertPosition = commonKeyPrefix,
+    };
+    keyWideningOptions.InsertedColumnIds.reserve(std::ssize(sortColumns) - commonKeyPrefix);
+    for (int i = commonKeyPrefix; i < std::ssize(sortColumns); ++i) {
+        keyWideningOptions.InsertedColumnIds.push_back(nameTable->GetIdOrRegisterName(sortColumns[i]));
+    }
+    return keyWideningOptions;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
 {
     if (options->EnableRowIndex) {
@@ -525,6 +542,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
         std::optional<int> partitionTag,
         const TChunkReaderMemoryManagerPtr& memoryManager,
@@ -547,6 +565,7 @@ public:
             virtualRowIndex)
         , ReadRange_(readRange)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
+        , KeyWideningOptions_(keyWideningOptions)
     {
         YT_LOG_DEBUG("Reading range of a chunk (Range: %v)", ReadRange_);
 
@@ -612,6 +631,7 @@ private:
     TReadRange ReadRange_;
 
     const int InterruptDescriptorKeyLength_;
+    const TKeyWideningOptions KeyWideningOptions_;
 
     void InitFirstBlock() override;
     void InitNextBlock() override;
@@ -645,6 +665,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
+        KeyWideningOptions_,
         GetVirtualColumnCount()));
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
@@ -781,6 +802,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         std::optional<int> partitionTag = std::nullopt,
@@ -802,6 +824,7 @@ public:
         , Keys_(keys)
         , PerformanceCounters_(std::move(performanceCounters))
         , KeyFilterTest_(Keys_.Size(), true)
+        , KeyWideningOptions_(keyWideningOptions)
     {
         const auto& misc = ChunkMeta_->Misc();
         if (!misc.sorted()) {
@@ -840,6 +863,7 @@ private:
     const TSharedRange<TLegacyKey> Keys_;
     const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
     std::vector<bool> KeyFilterTest_;
+    TKeyWideningOptions KeyWideningOptions_;
 
     void InitFirstBlock() override;
     void InitNextBlock() override;
@@ -954,6 +978,7 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
         ChunkToReaderIdMapping_,
         SortOrders_,
         CommonKeyPrefix_,
+        KeyWideningOptions_,
         GetVirtualColumnCount()));
 }
 
@@ -978,6 +1003,7 @@ public:
     void InitializeColumnReaders(
         int chunkKeyColumnCount,
         const std::vector<int>& columnIdMapping,
+        const TKeyWideningOptions& keyWideningOptions,
         TRange<ESortOrder> sortOrders)
     {
         const auto& chunkSchema = *ChunkMeta_->GetChunkSchema();
@@ -1013,10 +1039,21 @@ public:
         int schemafulColumnCount = chunkSchema.GetColumnCount();
 
         int valueIndex = 0;
-        for (int columnIndex = 0; columnIndex < schemafulColumnCount; ++columnIndex) {
+
+        auto pushNullValue = [&](int columnId) {
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
+                valueIndex,
+                columnId,
+                /*sortOrder*/ std::nullopt);
+            RowColumnReaders_.push_back(columnReader.get());
+            Columns_.emplace_back(std::move(columnReader), -1, columnId);
+            ++valueIndex;
+        };
+
+        auto pushRegularValue = [&](int columnIndex) {
             auto columnId = columnIdMapping[columnIndex];
             if (columnId == -1) {
-                continue;
+                return;
             }
 
             auto columnReader = CreateUnversionedColumnReader(
@@ -1028,6 +1065,22 @@ public:
             RowColumnReaders_.push_back(columnReader.get());
             Columns_.emplace_back(std::move(columnReader), columnIndex, columnId);
             ++valueIndex;
+        };
+
+        if (keyWideningOptions.InsertPosition < 0) {
+            for (int columnIndex = 0; columnIndex < schemafulColumnCount; ++columnIndex) {
+                pushRegularValue(columnIndex);
+            }
+        } else {
+            for (int columnIndex = 0; columnIndex < keyWideningOptions.InsertPosition; ++columnIndex) {
+                pushRegularValue(columnIndex);
+            }
+            for (int columnId : keyWideningOptions.InsertedColumnIds) {
+                pushNullValue(columnId);
+            }
+            for (int columnIndex = keyWideningOptions.InsertPosition; columnIndex < schemafulColumnCount; ++columnIndex) {
+                pushRegularValue(columnIndex);
+            }
         }
 
         if (HasColumnsInMapping(MakeRange(columnIdMapping).Slice(
@@ -1075,6 +1128,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         std::optional<i64> virtualRowIndex,
@@ -1122,6 +1176,7 @@ public:
         InitializeColumnReaders(
             CommonKeyPrefix_,
             ChunkToReaderIdMapping_,
+            keyWideningOptions,
             SortOrders_);
 
         YT_VERIFY(std::ssize(KeyColumnReaders_) == std::ssize(SortOrders_));
@@ -1619,6 +1674,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         const TChunkReaderMemoryManagerPtr& memoryManager)
@@ -1657,6 +1713,7 @@ public:
         InitializeColumnReaders(
             CommonKeyPrefix_,
             ChunkToReaderIdMapping_,
+            keyWideningOptions,
             SortOrders_);
 
         Initialize();
@@ -1787,6 +1844,8 @@ struct TReaderParams
     int RowIndexId;
     TReaderVirtualValues VirtualColumns;
     std::vector<int> ChunkToReaderIdMapping;
+    int CommonKeyPrefix;
+    TKeyWideningOptions KeyWideningOptions;
 
     TReaderParams(
         const TChunkStatePtr& chunkState,
@@ -1796,6 +1855,7 @@ struct TReaderParams
         const TNameTablePtr& nameTable,
         const TColumnFilter& columnFilter,
         const std::vector<TString>& omittedInaccessibleColumns,
+        const std::vector<TString>& sortColumnNames,
         std::optional<i64> virtualRowIndex = std::nullopt)
     {
         YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
@@ -1832,6 +1892,13 @@ struct TReaderParams
                 << TErrorAttribute("chunk_id", chunkId)
                 << ex;
         }
+
+        CommonKeyPrefix = GetCommonKeyPrefix(
+            chunkMeta->GetChunkSchema()->GetKeyColumns(),
+            sortColumnNames);
+        if (options->EnableKeyWidening) {
+            KeyWideningOptions = BuildKeyWideningOptions(sortColumnNames, nameTable, CommonKeyPrefix);
+        }
     }
 };
 
@@ -1864,6 +1931,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
         nameTable,
         columnFilter,
         omittedInaccessibleColumns,
+        GetColumnNames(sortColumns),
         virtualRowIndex);
 
     // Check that read ranges suit sortColumns if sortColumns are provided.
@@ -1875,10 +1943,6 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     }
 
     auto sortOrders = GetSortOrders(sortColumns);
-
-    int commonKeyPrefix = GetCommonKeyPrefix(
-        chunkMeta->GetChunkSchema()->GetKeyColumns(),
-        GetColumnNames(sortColumns));
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableSchemalessHorizontal:
@@ -1893,7 +1957,8 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 params.VirtualColumns,
                 chunkReadOptions,
                 sortOrders,
-                commonKeyPrefix,
+                params.CommonKeyPrefix,
+                params.KeyWideningOptions,
                 readRange,
                 partitionTag,
                 memoryManager,
@@ -1912,7 +1977,8 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 params.VirtualColumns,
                 chunkReadOptions,
                 sortOrders,
-                commonKeyPrefix,
+                params.CommonKeyPrefix,
+                params.KeyWideningOptions,
                 readRange,
                 memoryManager,
                 virtualRowIndex,
@@ -1950,15 +2016,12 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
         options,
         nameTable,
         columnFilter,
-        omittedInaccessibleColumns);
+        omittedInaccessibleColumns,
+        GetColumnNames(sortColumns));
 
     for (auto key : keys) {
         YT_VERIFY(key.GetCount() == sortColumns.size());
     }
-
-    int commonKeyPrefix = GetCommonKeyPrefix(
-        chunkMeta->GetChunkSchema()->GetKeyColumns(),
-        GetColumnNames(sortColumns));
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableSchemalessHorizontal:
@@ -1973,7 +2036,8 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.VirtualColumns,
                 chunkReadOptions,
                 GetSortOrders(sortColumns),
-                commonKeyPrefix,
+                params.CommonKeyPrefix,
+                params.KeyWideningOptions,
                 keys,
                 std::move(performanceCounters),
                 partitionTag,
@@ -1991,7 +2055,8 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 params.VirtualColumns,
                 chunkReadOptions,
                 GetSortOrders(sortColumns),
-                commonKeyPrefix,
+                params.CommonKeyPrefix,
+                params.KeyWideningOptions,
                 keys,
                 std::move(performanceCounters),
                 memoryManager);

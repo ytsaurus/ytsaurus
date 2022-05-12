@@ -32,11 +32,13 @@ THorizontalBlockReader::THorizontalBlockReader(
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
+    const TKeyWideningOptions& keyWideningOptions,
     int extraColumnCount)
     : Block_(block)
     , Meta_(meta)
     , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
     , CompositeColumnFlags_(compositeColumnFlags)
+    , KeyWideningOptions_(keyWideningOptions)
     , SortOrders_(sortOrders.begin(), sortOrders.end())
     , CommonKeyPrefix_(commonKeyPrefix)
     , ExtraColumnCount_(extraColumnCount)
@@ -140,10 +142,11 @@ int THorizontalBlockReader::GetKeyColumnCount() const
 
 TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_ + ExtraColumnCount_);
+    int totalValueCount = ValueCount_ + std::ssize(KeyWideningOptions_.InsertedColumnIds) + ExtraColumnCount_;
+    auto row = TMutableUnversionedRow::Allocate(memoryPool, totalValueCount);
     int valueCount = 0;
 
-    for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
+    auto pushRegularValue = [&]() {
         TUnversionedValue value;
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
@@ -154,7 +157,29 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
             row[valueCount] = value;
             ++valueCount;
         }
+    };
+
+    auto pushNullValue = [&](int id) {
+        row[valueCount] = MakeUnversionedNullValue(id);
+        ++valueCount;
+    };
+
+    if (KeyWideningOptions_.InsertPosition < 0) {
+        for (int i = 0; i < static_cast<int>(ValueCount_); ++i) {
+            pushRegularValue();
+        }
+    } else {
+        for (int i = 0; i < KeyWideningOptions_.InsertPosition; ++i) {
+            pushRegularValue();
+        }
+        for (int id : KeyWideningOptions_.InsertedColumnIds) {
+            pushNullValue(id);
+        }
+        for (int i = KeyWideningOptions_.InsertPosition; i < static_cast<int>(ValueCount_); ++i) {
+            pushRegularValue();
+        }
     }
+
     row.SetCount(valueCount);
     return row;
 }
