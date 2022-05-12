@@ -46,7 +46,7 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetChunkSliceDataWeights(
+i64 GetChunkSliceDataWeight(
     const NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
     const NProto::TChunkMeta& meta);
 

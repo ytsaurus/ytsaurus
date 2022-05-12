@@ -198,6 +198,7 @@ void TReshardPivotKeysBuilder::ComputeSlicedChunksPivotKeys()
         if (!IsKeyLowerThanNextPivot(boundaryIt, tabletIndex)) {
             ++boundaryIt;
             UpdateCurrentChunksAndSizes(boundaryIt, boundaryEnd);
+            continue;
         }
 
         if (Pivots_[tabletIndex].TabletSize) {
@@ -306,12 +307,20 @@ bool TReshardPivotKeysBuilder::IsBetterSize(i64 newSize, i64 currentSize) const
 
 bool TReshardPivotKeysBuilder::CanSplitHere(TBoundaryKeyIterator boundaryKey, i64 tabletIndex) const
 {
-    return ((boundaryKey->GetKeyBound().IsUpper &&
-        !boundaryKey->GetKeyBound().IsInclusive &&
-        State_.CurrentChunkToSize.empty()) ||
-        (!boundaryKey->GetKeyBound().IsUpper &&
-        std::ssize(State_.CurrentChunkToSize) == 1)) &&
-        IsPivotKeyZone(State_.CurrentFinishedChunksSize, tabletIndex);
+    if (!IsPivotKeyZone(State_.CurrentFinishedChunksSize, tabletIndex) ||
+        !IsKeyGreaterThanPreviousPivot(boundaryKey, tabletIndex) ||
+        !IsKeyLowerThanNextPivot(boundaryKey, tabletIndex))
+    {
+        return false;
+    }
+
+    if (State_.CurrentChunkToSize.empty()) {
+        return boundaryKey->GetKeyBound().IsUpper && !boundaryKey->GetKeyBound().IsInclusive;
+    } else if (std::ssize(State_.CurrentChunkToSize) == 1) {
+        return !boundaryKey->GetKeyBound().IsUpper;
+    }
+
+    return false;
 }
 
 bool TReshardPivotKeysBuilder::IsKeyGreaterThanPreviousPivot(
@@ -346,10 +355,6 @@ TReshardPivotKeysBuilder::TBoundaryKeyIterator TReshardPivotKeysBuilder::AddChun
         UpdateCurrentChunksAndSizes(boundaryIt, ChunkBoundaryKeys_.end());
 
         if (CanSplitHere(boundaryIt, tabletIndex)) {
-            if (!IsKeyGreaterThanPreviousPivot(boundaryIt, tabletIndex)) {
-                continue;
-            }
-
             i64 tabletSize = State_.CurrentFinishedChunksSize - ExpectedTabletSize_ * (tabletIndex - 1);
             if (!Pivots_[tabletIndex].TabletSize ||
                 IsBetterSize(tabletSize, *Pivots_[tabletIndex].TabletSize))

@@ -372,14 +372,13 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetChunkSliceDataWeights(
+i64 GetChunkSliceDataWeight(
     const NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
     const NProto::TChunkMeta& chunkMeta)
 {
     auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
     auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
 
-    i64 rowCount = 0;
     i64 chunkDataWeight = miscExt.data_weight();
     i64 chunkRowCount = miscExt.row_count();
 
@@ -425,43 +424,33 @@ i64 GetChunkSliceDataWeights(
         ? sliceUpperLimit.KeyBound()
         : chunkUpperBound;
 
-    TOwningKeyBound prevBlockUpperBound;
+    i64 lowerBlockChunkRowCount = 0;
+    std::optional<i64> upperBlockChunkRowCount;
+
     auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
     auto blockCount = blockMetaExt.data_blocks_size();
     for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
         const auto& block = blockMetaExt.data_blocks(blockIndex);
         YT_VERIFY(block.block_index() == blockIndex);
 
-        auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
-        TUnversionedOwningRow trimmedBlockLastKey(
-            blockLastKey.begin(),
-            blockLastKey.begin() + chunkComparator.GetLength());
-        auto blockUpperBound = TOwningKeyBound::FromRow(
-            /*row*/ std::move(trimmedBlockLastKey),
-            /*isInclusive*/ true,
-            /*isUpper*/ true);
+        auto blockLastKeyRow = FromProto<TUnversionedOwningRow>(block.last_key());
+        auto blockLastKey = TKey::FromRowUnchecked(blockLastKeyRow);
 
-        auto blockLowerBound = blockIndex == 0
-            ? chunkLowerBound
-            : prevBlockUpperBound.Invert();
-
-        prevBlockUpperBound = blockUpperBound;
-
-        if (chunkComparator.IsRangeEmpty(blockLowerBound, blockUpperBound)) {
-            blockLowerBound = blockLowerBound.ToggleInclusiveness();
-            YT_VERIFY(!chunkComparator.IsRangeEmpty(blockLowerBound, blockUpperBound));
-        }
-
-        if (chunkComparator.IsRangeEmpty(sliceLowerBound, blockUpperBound)) {
+        if (!chunkComparator.TestKey(blockLastKey, sliceLowerBound)) {
+            lowerBlockChunkRowCount = block.chunk_row_count();
             continue;
         }
 
-        if (chunkComparator.IsRangeEmpty(blockLowerBound, sliceUpperBound)) {
+        if (!chunkComparator.TestKey(blockLastKey, sliceUpperBound)) {
             break;
         }
 
-        rowCount += block.row_count();
+        upperBlockChunkRowCount = block.chunk_row_count();
     }
+
+    auto rowCount = upperBlockChunkRowCount
+        ? upperBlockChunkRowCount.value() - lowerBlockChunkRowCount
+        : 0;
 
     return chunkDataWeight * rowCount / chunkRowCount;
 }
