@@ -122,6 +122,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("object_type", EValueType::String),
     TColumnSchema("dynamic", EValueType::Boolean),
     TColumnSchema("sorted", EValueType::Boolean),
+    TColumnSchema("synchronization_error", EValueType::Any),
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +148,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(TRange<TUnversionedRow
     auto revisionId = nameTable->FindId("revision");
     auto dynamicId = nameTable->FindId("dynamic");
     auto sortedId = nameTable->FindId("sorted");
+    auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
@@ -174,6 +176,9 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(TRange<TUnversionedRow
         }
         if (auto sorted = findValue(sortedId)) {
             typedRow.Sorted = sorted->Data.Boolean;
+        }
+        if (auto synchronizationError = findValue(synchronizationErrorId)) {
+            typedRow.SynchronizationError = ConvertTo<TError>(TYsonStringBuf{synchronizationError->AsStringBuf()});
         }
     }
 
@@ -203,6 +208,10 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
         }
         if (row.Sorted) {
             rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.Sorted, nameTable->GetIdOrThrow("sorted")));
+        }
+        if (row.SynchronizationError) {
+            auto errorYson = ConvertToYsonString(*row.SynchronizationError);
+            rowBuilder.AddValue(MakeUnversionedAnyValue(errorYson.AsStringBuf(), nameTable->GetIdOrThrow("synchronization_error")));
         }
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
@@ -243,6 +252,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .ObjectType = cypressAttributes->Find<EObjectType>("type"),
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
+        .SynchronizationError = TError(),
     };
 }
 
@@ -287,6 +297,7 @@ TTableSchemaPtr TConsumerTableDescriptor::Schema = New<TTableSchema>(std::vector
     TColumnSchema("schema", EValueType::Any),
     TColumnSchema("vital", EValueType::Boolean),
     TColumnSchema("owner", EValueType::String),
+    TColumnSchema("synchronization_error", EValueType::Any),
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -317,6 +328,7 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
     auto schemaId = nameTable->FindId("schema");
     auto vitalId = nameTable->FindId("vital");
     auto ownerId = nameTable->FindId("owner");
+    auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
         auto& typedRow = typedRows.emplace_back();
@@ -358,6 +370,9 @@ std::vector<TConsumerTableRow> TConsumerTableRow::ParseRowRange(TRange<TUnversio
         if (auto owner = findValue(ownerId)) {
             typedRow.Owner = owner->AsString();
         }
+        if (auto synchronizationError = findValue(synchronizationErrorId)) {
+            typedRow.SynchronizationError = ConvertTo<TError>(TYsonStringBuf{synchronizationError->AsStringBuf()});
+        }
     }
 
     return typedRows;
@@ -388,10 +403,9 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         if (row.TreatAsQueueConsumer) {
             rowBuilder.AddValue(MakeUnversionedBooleanValue(*row.TreatAsQueueConsumer, nameTable->GetIdOrThrow("treat_as_queue_consumer")));
         }
-        TYsonString schemaYson;
         if (row.Schema) {
             // Enclosing into a list is a workaround for storing YSON with top-level attributes.
-            schemaYson = ConvertToYsonString(std::vector<TTableSchema>{*row.Schema});
+            auto schemaYson = ConvertToYsonString(std::vector<TTableSchema>{*row.Schema});
             rowBuilder.AddValue(MakeUnversionedAnyValue(schemaYson.AsStringBuf(), nameTable->GetIdOrThrow("schema")));
         }
         if (row.Vital) {
@@ -399,6 +413,10 @@ IUnversionedRowsetPtr TConsumerTableRow::InsertRowRange(TRange<TConsumerTableRow
         }
         if (row.Owner) {
             rowBuilder.AddValue(MakeUnversionedStringValue(*row.Owner, nameTable->GetIdOrThrow("owner")));
+        }
+        if (row.SynchronizationError) {
+            auto errorYson = ConvertToYsonString(*row.SynchronizationError);
+            rowBuilder.AddValue(MakeUnversionedAnyValue(errorYson.AsStringBuf(), nameTable->GetIdOrThrow("synchronization_error")));
         }
 
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
@@ -445,6 +463,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
         .Vital = cypressAttributes->Get<bool>("vital_queue_consumer", false),
         .Owner = cypressAttributes->Get<TString>("owner", ""),
+        .SynchronizationError = TError(),
     };
 }
 

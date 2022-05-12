@@ -98,6 +98,7 @@ private:
         std::vector<TQueueTableRow> queueRows;
         std::vector<TConsumerTableRow> consumerRows;
 
+        // NB: Must provide a strong exception-safety guarantee.
         void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes)
         {
             switch (object.Type) {
@@ -116,6 +117,24 @@ private:
             }
         }
 
+        void AppendObjectWithError(const TObject& object, const TError& error)
+        {
+            switch (object.Type) {
+                case ECypressSyncObjectType::Queue:
+                    queueRows.push_back({
+                        .Queue = object.Object,
+                        .SynchronizationError = error,
+                    });
+                    break;
+                case ECypressSyncObjectType::Consumer:
+                    consumerRows.push_back({
+                        .Consumer = object.Object,
+                        .SynchronizationError = error,
+                    });
+                    break;
+            }
+        }
+
         void AppendObjectKey(const TObject& object)
         {
             switch (object.Type) {
@@ -127,6 +146,17 @@ private:
                     break;
             }
         }
+
+        void MergeWith(const TObjectRowList& rhs)
+        {
+            queueRows.insert(queueRows.end(), rhs.queueRows.begin(), rhs.queueRows.end());
+            consumerRows.insert(consumerRows.end(), rhs.consumerRows.begin(), rhs.consumerRows.end());
+        }
+
+        bool Empty() const
+        {
+            return queueRows.empty() && consumerRows.empty();
+        }
     };
 
     // Session state.
@@ -134,6 +164,7 @@ private:
     TObjectMap ClusterToDynamicStateObjects_;
     TObjectMap ClusterToModifiedObjects_;
     std::vector<TObject> ObjectsToDelete_;
+    TObjectRowList RowsWithErrors_;
     TObjectRowList RowsToDelete_;
     TObjectRowList RowsToWrite_;
 
@@ -174,7 +205,7 @@ private:
             const auto& batchRsp = combinedResults[index];
             const auto& cluster = clusters[index];
             if (!batchRsp.IsOK()) {
-                // TODO(achulkov2): Propagate this error to objects for later introspection.
+                // TODO(achulkov2): Export alert.
                 YT_LOG_ERROR(
                     GetCumulativeError(batchRsp),
                     "Error fetching object revisions from cluster %v",
@@ -186,11 +217,11 @@ private:
                 const auto& responseOrError = responses[objectIndex];
                 const auto& object = GetOrCrash(ClusterToDynamicStateObjects_, cluster)[objectIndex];
                 if (!responseOrError.IsOK()) {
-                    // TODO(achulkov2): Propagate this error to the object for later introspection.
                     YT_LOG_DEBUG(
                         responseOrError,
                         "Error fetching revision for object %v",
                         object.Object);
+                    RowsWithErrors_.AppendObjectWithError(object, responseOrError);
                     continue;
                 }
 
@@ -198,11 +229,11 @@ private:
                 try {
                     revision = ConvertTo<NHydra::TRevision>(TYsonString(responseOrError.Value()->value()));
                 } catch (const std::exception& ex) {
-                    // TODO(achulkov2): Propagate this error to the object for later introspection.
                     YT_LOG_DEBUG(
                         ex,
                         "Error parsing revision for object %v",
                         object.Object);
+                    RowsWithErrors_.AppendObjectWithError(object, ex);
                     continue;
                 }
                 if (!object.Revision || *object.Revision < *revision) {
@@ -264,6 +295,7 @@ private:
             const auto& cluster = Clusters_[index];
 
             if (!rspOrError.IsOK()) {
+                // TODO(achulkov2): Export alert.
                 YT_LOG_ERROR(
                     rspOrError,
                     "Error retrieving queue agent object revisions from cluster (Cluster: %v)",
@@ -387,7 +419,7 @@ private:
             const auto& batchRsp = combinedResults[index];
             const auto& cluster = clusters[index];
             if (!batchRsp.IsOK()) {
-                // TODO(achulkov2): Propagate this error to objects for later introspection.
+                // TODO(achulkov2): Export alert.
                 YT_LOG_ERROR(
                     GetCumulativeError(batchRsp),
                     "Error fetching object attributes from cluster %v",
@@ -399,11 +431,11 @@ private:
                 const auto& responseOrError = responses[objectIndex];
                 const auto& object = GetOrCrash(ClusterToModifiedObjects_, cluster)[objectIndex];
                 if (!responseOrError.IsOK()) {
-                    // TODO(achulkov2): Propagate this error to the object for later introspection.
                     YT_LOG_ERROR(
                         responseOrError,
                         "Error fetching attributes for object ",
                         object.Object);
+                    RowsWithErrors_.AppendObjectWithError(object, responseOrError);
                     continue;
                 }
                 auto attributes = ConvertToAttributes(TYsonString(responseOrError.Value()->value()));
@@ -412,7 +444,15 @@ private:
                     object.Object,
                     ConvertToYsonString(attributes, EYsonFormat::Text));
 
-                RowsToWrite_.AppendObject(object, attributes);
+                try {
+                    RowsToWrite_.AppendObject(object, attributes);
+                } catch (const std::exception& ex) {
+                    YT_LOG_DEBUG(
+                        ex,
+                        "Error converting attributes to object %v",
+                        object.Object);
+                    RowsWithErrors_.AppendObjectWithError(object, ex);
+                }
             }
         }
     }
@@ -420,6 +460,13 @@ private:
     //! Write rows to dynamic state.
     void WriteRows()
     {
+        if (!RowsWithErrors_.Empty()) {
+            YT_LOG_DEBUG(
+                "Some rows contain synchronization errors (QueueCount: %v, ConsumerCount: %v)",
+                RowsWithErrors_.queueRows.size(),
+                RowsWithErrors_.consumerRows.size());
+            RowsToWrite_.MergeWith(RowsWithErrors_);
+        }
         YT_LOG_DEBUG(
             "Writing updated rows (QueueCount: %v, ConsumerCount: %v)",
             RowsToWrite_.queueRows.size(),
@@ -442,7 +489,7 @@ private:
     //! Delete key rows from dynamic state.
     void DeleteRows()
     {
-        if (RowsToDelete_.consumerRows.empty() && RowsToDelete_.queueRows.empty()) {
+        if (RowsToDelete_.Empty()) {
             return;
         }
 

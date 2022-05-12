@@ -6,6 +6,7 @@ QUEUE_TABLE_SCHEMA = [
     {"name": "object_type", "type": "string"},
     {"name": "dynamic", "type": "boolean"},
     {"name": "sorted", "type": "boolean"},
+    {"name": "synchronization_error", "type": "any"},
 ]
 
 CONSUMER_TABLE_SCHEMA = [
@@ -20,6 +21,7 @@ CONSUMER_TABLE_SCHEMA = [
     {"name": "schema", "type": "any"},
     {"name": "vital", "type": "boolean"},
     {"name": "owner", "type": "string"},
+    {"name": "synchronization_error", "type": "any"},
 ]
 
 
