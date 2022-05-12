@@ -5,7 +5,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
-#include <yt/yt/ytlib/chunk_client/chunk_replica_locator.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
@@ -23,6 +23,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <util/generic/algorithm.h>
 
@@ -46,8 +48,8 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
     TTrafficMeterPtr trafficMeter,
-    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler)
 {
     if (replicas.empty()) {
         return {};
@@ -113,6 +115,8 @@ std::vector<TBlock> RowsToBlocks(const std::vector<TSharedRef>& rows)
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TErasureChunkReader)
 
 class TErasureChunkReader
@@ -128,11 +132,10 @@ public:
         IBlockCachePtr blockCache,
         IClientChunkMetaCachePtr chunkMetaCache,
         TTrafficMeterPtr trafficMeter,
-        NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-        NConcurrency::IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler)
         : Config_(std::move(config))
         , Client_(std::move(client))
-        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false))
         , ChunkId_(chunkId)
         , Codec_(codec)
         , BlockCache_(std::move(blockCache))
@@ -141,20 +144,13 @@ public:
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
         , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
-        , ChunkReplicaLocator_(New<TChunkReplicaLocator>(
-            Client_,
-            NodeDirectory_,
-            ChunkId_,
-            Config_->SeedsTimeout,
-            replicas,
-            Logger))
+        , InitialReplicas_(replicas)
     {
-        YT_VERIFY(NodeDirectory_);
-
+        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false);
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
             ChunkId_,
             Codec_->GetId(),
-            MakeFormattableView(replicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+            MakeFormattableView(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -178,6 +174,7 @@ public:
             , Options_(options)
             , FirstBlockIndex_(firstBlockIndex)
             , BlockCount_(blockCount)
+            , InitialReplicas_(Reader_->InitialReplicas_.Load())
             , Logger(Reader_->Logger.WithTag("SessionId: %v", TGuid::Create()))
         {
             DoRetry();
@@ -193,6 +190,7 @@ public:
         const TClientChunkReadOptions Options_;
         const int FirstBlockIndex_;
         const int BlockCount_;
+        const TChunkReplicaList InitialReplicas_;
 
         const NLogging::TLogger Logger;
         const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
@@ -201,6 +199,7 @@ public:
         std::vector<TError> InnerErrors_;
         TFuture<TAllyReplicasInfo> ReplicasFuture_;
 
+
         void DoRetry()
         {
             ++RetryIndex_;
@@ -208,7 +207,15 @@ public:
                 RetryIndex_,
                 Reader_->Config_->RetryCount);
 
-            ReplicasFuture_ = Reader_->ChunkReplicaLocator_->GetReplicasFuture();
+            if (!InitialReplicas_.empty()) {
+                ReplicasFuture_ = MakeFuture(TAllyReplicasInfo::FromChunkReplicas(InitialReplicas_));
+            } else {
+                const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
+                auto futures = chunkReplicaCache->GetReplicas({Reader_->ChunkId_});
+                YT_VERIFY(futures.size() == 1);
+                ReplicasFuture_ = std::move(futures[0]);
+            }
+
             ReplicasFuture_.Subscribe(BIND(&TReadBlocksSession::OnGotReplicas, MakeStrong(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
         }
@@ -276,7 +283,10 @@ public:
             }
 
             if (error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
-                Reader_->ChunkReplicaLocator_->DiscardReplicas(ReplicasFuture_);
+                Reader_->InitialReplicas_.Store(TChunkReplicaList{});
+                Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(
+                    Reader_->ChunkId_,
+                    ReplicasFuture_);
             }
 
             DoRetry();
@@ -319,17 +329,17 @@ public:
 private:
     const TChunkReaderConfigPtr Config_;
     const IClientPtr Client_;
-    const TNodeDirectoryPtr NodeDirectory_;
     const TChunkId ChunkId_;
     NErasure::ICodec* const Codec_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
     const TTrafficMeterPtr TrafficMeter_;
-    const NConcurrency::IThroughputThrottlerPtr BandwidthThrottler_;
-    const NConcurrency::IThroughputThrottlerPtr RpsThrottler_;
+    const IThroughputThrottlerPtr BandwidthThrottler_;
+    const IThroughputThrottlerPtr RpsThrottler_;
 
     const NLogging::TLogger Logger;
-    const TChunkReplicaLocatorPtr ChunkReplicaLocator_;
+
+    TAtomicObject<TChunkReplicaList> InitialReplicas_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TErasureChunkReader)
