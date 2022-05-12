@@ -2008,8 +2008,12 @@ private:
 
         auto epochContext = ControlEpochContext_;
 
+        if (auto leaseTracker = epochContext->LeaseTracker) {
+            leaseTracker->Finalize();
+        }
+
         // Save for later to respect the thread affinity.
-        auto leaderCommitter = ControlEpochContext_->LeaderCommitter;
+        auto leaderCommitter = epochContext->LeaderCommitter;
 
         StopEpoch();
 

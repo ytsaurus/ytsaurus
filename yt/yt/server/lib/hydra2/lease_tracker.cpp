@@ -223,13 +223,23 @@ void TLeaseTracker::EnableSendingTerm()
     TermSendingEnabled_ = true;
 }
 
+void TLeaseTracker::Finalize()
+{
+    LeaseCheckExecutor_->Stop();
+
+    auto error = TError("Hydra instance is finalizing");
+    NextCheckPromise_.TrySet(error);
+
+    Finalized_ = true;
+}
+
 TFuture<void> TLeaseTracker::GetNextQuorumFuture()
 {
     auto result =
         BIND([=, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            while (true) {
+            while (!Finalized_) {
                 auto future = NextCheckPromise_.ToFuture();
                 auto error = WaitFor(future);
                 if (error.IsOK()) {
@@ -256,6 +266,8 @@ void TLeaseTracker::OnLeaseCheck()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    YT_VERIFY(!Finalized_);
+
     auto startTime = NProfiling::GetCpuInstant();
     auto trackingEnabled = TrackingEnabled_;
     auto checkPromise = std::move(NextCheckPromise_);
@@ -278,7 +290,7 @@ void TLeaseTracker::OnLeaseCheck()
             LeaseLost_.Fire(checkResult);
         }
     }
-    checkPromise.Set(checkResult);
+    checkPromise.TrySet(checkResult);
 }
 
 TFuture<void> TLeaseTracker::FireLeaseCheck()
