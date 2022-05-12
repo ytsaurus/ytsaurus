@@ -96,8 +96,9 @@ protected:
             Meta,
             compositeColumnFlags,
             idMapping,
-            {},
-            0);
+            /*sortOrders*/ {},
+            /*commonKeyPrefix*/ 0,
+            /*keyWideningOptions*/ {});
 
         CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
     }
@@ -136,10 +137,11 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        std::vector<bool>{},
+        /*compositeColumnFlags*/ std::vector<bool>{},
         idMapping,
-        {},
-        0);
+        /*sortOrders*/ {},
+        /*commonKeyPrefix*/ 0,
+        /*keyWideningOptions*/ {});
 
     CheckResult(blockReader, rows);
 }
@@ -164,7 +166,8 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         std::vector<bool>{},
         idMapping,
         sortOrders,
-        sortOrders.size());
+        sortOrders.size(),
+        /*keyWideningOptions*/ {});
 
     {
         TUnversionedOwningRowBuilder builder;
@@ -233,7 +236,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
         std::vector<bool>{},
         idMapping,
         sortOrders,
-        sortOrders.size());
+        sortOrders.size(),
+        /*keyWideningOptions*/ {});
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));
@@ -254,7 +258,8 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
         std::vector<bool>{},
         idMapping,
         sortOrders,
-        1);
+        /*commonKeyPrefix*/ 1,
+        /*keyWideningOptions*/ {});
 
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedInt64Value(42));

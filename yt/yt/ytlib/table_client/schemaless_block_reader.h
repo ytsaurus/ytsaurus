@@ -13,6 +13,18 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Options to insert null values with given column IDs into the resulting rows.
+//!
+//! This is required if the chunk schema has smaller key length than table schema. Usually, this is
+//! the result of alter-table with key extension or chunk teleportation.
+struct TKeyWideningOptions
+{
+    int InsertPosition = -1;
+    std::vector<int> InsertedColumnIds;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<bool> GetCompositeColumnFlags(const TTableSchemaPtr& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +46,7 @@ public:
         const std::vector<int>& chunkToReaderIdMapping,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
         int extraColumnCount = 0);
 
     bool NextRow();
@@ -58,6 +71,8 @@ private:
     // Maps chunk name table ids to client name table ids.
     std::vector<int> ChunkToReaderIdMapping_;
     std::vector<bool> CompositeColumnFlags_;
+
+    const TKeyWideningOptions KeyWideningOptions_;
 
     // If chunk key column count is smaller than key column count, key is extended with Nulls.
     // If chunk key column count is larger than key column count, key is trimmed.

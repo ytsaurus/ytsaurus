@@ -344,6 +344,9 @@ public:
         // We must always enable table index to merge rows with the same index in the proper order.
         options->EnableTableIndex = true;
 
+        // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
+        options->EnableKeyWidening = true;
+
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {

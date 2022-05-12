@@ -497,7 +497,8 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
         compositeColumnFlags,
         chunkToReaderIdMapping,
         sortOrders,
-        commonKeyPrefix)
+        commonKeyPrefix,
+        /*keyWideningOptions*/ {})
     , Timestamp_(timestamp)
 { }
 

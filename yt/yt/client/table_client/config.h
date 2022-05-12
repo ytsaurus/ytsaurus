@@ -184,6 +184,7 @@ public:
     bool EnableRowIndex;
     bool DynamicTable;
     bool EnableTabletIndex;
+    bool EnableKeyWidening;
 
     static TChunkReaderOptionsPtr GetDefault()
     {

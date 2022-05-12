@@ -62,6 +62,9 @@ public:
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
         auto readerOptions = ConvertTo<NTableClient::TTableReaderOptionsPtr>(TYsonString(SchedulerJobSpecExt_.table_reader_options()));
 
+        // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
+        readerOptions->EnableKeyWidening = true;
+
         YT_VERIFY(!dataSourceDirectory->DataSources().empty());
 
         ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
