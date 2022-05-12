@@ -262,6 +262,11 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     return capturedRow;
 }
 
+void TRowBuffer::Absorb(TRowBuffer&& other)
+{
+    Pool_.Absorb(std::move(other.Pool_));
+}
+
 i64 TRowBuffer::GetSize() const
 {
     return Pool_.GetSize();

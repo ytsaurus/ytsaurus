@@ -95,6 +95,10 @@ public:
     i64 GetSize() const;
     i64 GetCapacity() const;
 
+    //! Moves all the rows from other row buffer to the current one.
+    //! The other buffer becomes empty, like after Purge() call.
+    void Absorb(TRowBuffer&& other);
+
     void Clear();
     void Purge();
 
