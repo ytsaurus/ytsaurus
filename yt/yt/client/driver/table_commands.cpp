@@ -337,33 +337,6 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
 
     auto transaction = AttachTransaction(context, false);
 
-    // NB(psushin): This keepalive is an ugly hack for a long-running command with structured output - YT-9713.
-    // Remove once framing is implemented - YT-9838.
-    static auto keepAliveSpace = TSharedRef::FromString(" ");
-
-    // TODO(prime@): this code should be removed, once HTTP framing is deployed.
-    auto writeLock = std::make_shared<NThreading::TSpinLock>();
-    auto writeRequested = std::make_shared<bool>(false);
-    auto writeStopped = NewPromise<void>();
-
-    auto keepAliveCallback = [context, writeLock, writeStopped, writeRequested] () {
-        auto guard = Guard(*writeLock);
-        if (*writeRequested) {
-            writeStopped.TrySet();
-            return;
-        }
-
-        auto error = WaitFor(context->Request().OutputStream->Write(keepAliveSpace));
-        // Ignore errors here. If user closed connection, it must be handled on the upper layer.
-        Y_UNUSED(error);
-    };
-
-    auto keepAliveExecutor = New<TPeriodicExecutor>(
-        GetCurrentInvoker(),
-        BIND(keepAliveCallback),
-        TDuration::MilliSeconds(100));
-    keepAliveExecutor->Start();
-
     std::vector<TFuture<NYson::TYsonString>> asyncSchemaYsons;
     for (int index = 0; index < std::ssize(Paths); ++index) {
         if (Paths[index].GetColumns()) {
@@ -389,16 +362,6 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     }
 
     auto allStatisticsOrError = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options));
-
-    {
-        auto guard = Guard(*writeLock);
-        *writeRequested = true;
-    }
-
-    WaitFor(writeStopped.ToFuture())
-        .ThrowOnError();
-    WaitFor(keepAliveExecutor->Stop())
-        .ThrowOnError();
 
     auto allStatistics = allStatisticsOrError.ValueOrThrow();
 
