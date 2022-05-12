@@ -939,7 +939,7 @@ void TSlotLocation::UpdateDiskResources()
 
             const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
             const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
-            if (dynamicConfig->CheckDiskSpaceLimit && sandboxOptions.DiskSpaceLimit) {
+            if (sandboxOptions.DiskSpaceLimit) {
                 i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
                 diskUsage += slotDiskLimit;
                 YT_LOG_DEBUG("Slot disk usage info (Path: %v, SlotIndex: %v, Usage: %v, Limit: %v)",
@@ -947,7 +947,7 @@ void TSlotLocation::UpdateDiskResources()
                     slotIndex,
                     slotDiskUsage,
                     slotDiskLimit);
-                if (slotDiskUsage > slotDiskLimit) {
+                if (dynamicConfig->CheckDiskSpaceLimit && slotDiskUsage > slotDiskLimit) {
                     auto error = TError("Disk usage overdrafted: %v > %v",
                         slotDiskUsage,
                         slotDiskLimit);
