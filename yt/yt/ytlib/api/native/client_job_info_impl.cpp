@@ -576,7 +576,9 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
         TNodeDescriptor(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
-        /*chunkReadOptions*/ {},
+        TClientChunkReadOptions{ 
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive) 
+        },
         /*localHostName*/ {},
         GetNullBlockCache(),
         /*chunkMetaCache*/ nullptr,
