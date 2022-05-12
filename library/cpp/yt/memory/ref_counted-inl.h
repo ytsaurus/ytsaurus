@@ -66,7 +66,7 @@ struct TMemoryReleaser<T, std::enable_if_t<T::EnableHazard>>
 
 Y_FORCE_INLINE int TRefCounter::GetRefCount() const noexcept
 {
-    return StrongCount_.load(std::memory_order_relaxed);
+    return StrongCount_.load(std::memory_order_acquire);
 }
 
 Y_FORCE_INLINE void TRefCounter::Ref() const noexcept

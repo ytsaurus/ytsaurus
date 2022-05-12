@@ -183,7 +183,7 @@ struct TExtendedCallback<TR(TAs...)>
 ////////////////////////////////////////////////////////////////////////////////
 
 template <
-    bool CaptureTraceContext,
+    bool Propagate,
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     class TTag,
     int Counter,
@@ -200,7 +200,7 @@ auto Bind(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <
-    bool CaptureTraceContext,
+    bool Propagate,
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     class TTag,
     int Counter,
@@ -216,12 +216,14 @@ auto Bind(
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-    #define BIND_IMPL(captureTraceContext, ...) ::NYT::Bind<captureTraceContext, ::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
+    #define BIND_IMPL(propagate, ...) ::NYT::Bind<propagate, ::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
 #else
-    #define BIND_IMPL(captureTraceContext, ...) ::NYT::Bind<captureTraceContext>(__VA_ARGS__)
+    #define BIND_IMPL(propagate, ...) ::NYT::Bind<propagate>(__VA_ARGS__)
 #endif
 
 #define BIND(...)                            BIND_IMPL(true, __VA_ARGS__)
+
+// TODO(gepardo): Rename to BIND_DONT_PROPAGATE
 #define BIND_DONT_CAPTURE_TRACE_CONTEXT(...) BIND_IMPL(false, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
