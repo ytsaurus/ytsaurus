@@ -653,7 +653,6 @@ class TestCypressCommands(object):
 
         assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
 
-
         fileA = TEST_DIR + "/fileA"
         fileB = TEST_DIR + "/fileB"
         output_file = TEST_DIR + "/outputFile"
@@ -808,7 +807,7 @@ class TestCypressCommands(object):
         cli_impl._set_attribute(TEST_DIR, "my_attr", "my_value", recursive=True)
         for path in paths:
             assert yt.get(path + "&/@my_attr") == "my_value"
-        
+
         cli_impl._set_attribute(yt.ypath_join(TEST_DIR, "dir"), "my_attr", {"key": 10}, recursive=True)
         for path in paths[:2]:
             assert yt.get(path + "&/@my_attr") == "my_value"

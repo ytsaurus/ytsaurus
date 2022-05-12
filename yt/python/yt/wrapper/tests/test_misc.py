@@ -63,6 +63,7 @@ def is_process_alive(pid):
     else:
         return True
 
+
 @authors("asaitgalin")
 def test_docs_exist():
     functions = inspect.getmembers(
@@ -76,8 +77,9 @@ def test_docs_exist():
         assert inspect.getdoc(cl)
         if name == "PingTransaction":
             continue  # Python Thread is not documented O_o
-        public_methods = inspect.getmembers(cl, lambda o: inspect.ismethod(o) and \
-                                                          not o.__name__.startswith("_"))
+        public_methods = inspect.getmembers(
+            cl,
+            lambda o: inspect.ismethod(o) and not o.__name__.startswith("_"))
         ignore_methods = set()
         if issubclass(cl, collections_abc.Iterator) and not PY3:
             ignore_methods.add("next")
@@ -85,6 +87,7 @@ def test_docs_exist():
         methods_without_doc = [method for name, method in public_methods
                                if name not in ignore_methods and not inspect.getdoc(method)]
         assert not methods_without_doc
+
 
 @authors("ignat")
 def test_ypath_join():
@@ -102,6 +105,7 @@ def test_ypath_join():
     assert ypath_join(YPath("//a"), "b") == "//a/b"
     assert ypath_join("a", YPath("//b")) == "//b"
 
+
 @authors("ostyakov")
 def test_ypath_split():
     assert ypath_split("/") == ("/", "")
@@ -112,6 +116,7 @@ def test_ypath_split():
 
     assert ypath_split("#a-b-c-d/a/b") == ("#a-b-c-d/a", "b")
     assert ypath_split("//a/b\\\\\\/c") == ("//a", "b\\\\\\/c")
+
 
 @authors("asaitgalin")
 def test_ypath_dirname():
@@ -146,6 +151,7 @@ def test_ypath_dirname():
         assert ypath_dirname("#a-b-c-d/a/")
     with pytest.raises(yt.YtError):
         assert ypath_dirname("abc/def")
+
 
 @pytest.mark.timeout(1200)
 @flaky(max_runs=3)
@@ -240,6 +246,7 @@ class TestDriverLogging(object):
 
         assert len(driver_log_default) < len(driver_log_info)
         assert len(driver_log_warning) == 0
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
@@ -608,9 +615,9 @@ class TestRetries(object):
         yt.create("table", table, attributes={
             "schema": [
                 {"name": "x", "type": "string", "sort_order": "ascending"},
-                {"name": "y", "type": "string"}
-             ],
-             "dynamic": True})
+                {"name": "y", "type": "string"},
+            ],
+            "dynamic": True})
 
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != "good":
@@ -692,6 +699,7 @@ class TestRetries(object):
             retrier.run()
         assert 0.5 * total_timeout / 1000. < time.time() - start < total_timeout / 1000. + 1
 
+
 @authors("asaitgalin")
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers
@@ -710,6 +718,7 @@ def test_wrapped_streams():
     with runner_helpers.WrappedStreams(wrap_stdout=False):
         print("")
         sys.stdout.write("")
+
 
 @authors("asaitgalin", "ignat")
 def test_keyboard_interrupts_catcher():
@@ -732,6 +741,7 @@ def test_keyboard_interrupts_catcher():
         with KeyboardInterruptsCatcher(append_and_raise, enable=False):
             raise KeyboardInterrupt()
     assert len(list) == 0
+
 
 @authors("asaitgalin", "ignat")
 def test_verified_dict():
@@ -761,6 +771,7 @@ def test_verified_dict():
 
     vdict["a"] = "E"
     assert vdict["a"] == "e"
+
 
 @authors("asaitgalin")
 def test_frozen_dict():
@@ -807,6 +818,7 @@ def test_frozen_dict():
 
     with pytest.raises(TypeError):
         fdict["a"] = 3
+
 
 class TestResponseStream(object):
     @authors("asaitgalin")
@@ -893,6 +905,7 @@ class TestResponseStream(object):
         with pytest.raises(StopIteration):
             next(stream)
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestExecuteBatch(object):
     @authors("ignat")
@@ -917,6 +930,7 @@ class TestExecuteBatch(object):
         err = yt.YtResponseError(rsp[2]["error"])
         assert err.is_resolve_error()
 
+
 @pytest.mark.usefixtures("yt_env_multicell")
 class TestCellId(object):
     @authors("ignat")
@@ -934,6 +948,7 @@ class TestCellId(object):
             cell_id = secondary_master["cell_id"]
             client.COMMAND_PARAMS["master_cell_id"] = cell_id
             assert client.get("//sys/@cell_id") == cell_id
+
 
 @pytest.mark.usefixtures("yt_env_multicell")
 class TestExternalize(object):
@@ -1015,12 +1030,13 @@ class TestExternalize(object):
         assert yt.get("//tmp/m/d") == {"hello": "world"}
         assert yt.get("//tmp/m/d/@creation_time") == ct
         # XXX(babenko): modification time is not preserved yet
-        #assert get("//tmp/m/d/@modification_time") == mt
+        # assert get("//tmp/m/d/@modification_time") == mt
 
         assert yt.get("//tmp/m/m/@account") == "a"
         assert yt.get("//tmp/m/m/@compression_codec") == "brotli_8"
 
         assert yt.get("//tmp/m/et/@expiration_time") == "2100-01-01T00:00:00.000000Z"
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestGenerateTimestamp(object):
@@ -1028,6 +1044,7 @@ class TestGenerateTimestamp(object):
     def test_generate_timestamp(self):
         ts = yt.generate_timestamp()
         assert ts >= 0
+
 
 class TestStream(object):
     @authors("se4min")
@@ -1047,6 +1064,7 @@ class TestStream(object):
         for pieces in make_stream().split_chunks(2):
             chunk = b"".join(pieces)
             assert chunk[-1:] == b"\n"
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTransferAccountResources(object):
@@ -1072,7 +1090,6 @@ class TestTransferAccountResources(object):
         yt.transfer_account_resources("a2", "a1", {"node_count": 3, "chunk_count": 0})
         assert yt.get("//sys/accounts/a1/@resource_limits/node_count") == 6
         assert yt.get("//sys/accounts/a2/@resource_limits/node_count") == 4
-
 
     @authors("kiselyovp")
     def test_transfer_account_resources(self):

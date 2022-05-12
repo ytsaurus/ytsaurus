@@ -26,6 +26,7 @@ class NonCopyable:
     def __copy__(self):
         raise TypeError("not copyable")
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestSpecBuilders(object):
     def setup(self):
@@ -105,16 +106,16 @@ class TestSpecBuilders(object):
             .output_table_path(table)
         yt.run_operation(spec_builder)
 
-        #with pytest.raises(yt.YtError):
-        #    spec_builder = ReduceSpecBuilder() \
-        #        .begin_reducer() \
-        #            .command("cat") \
-        #            .format("json") \
-        #        .end_reducer() \
-        #        .input_table_paths(table) \
-        #        .output_table_paths([]) \
-        #        .reduce_by(["x"])
-        #    yt.run_operation(spec_builder)
+        # with pytest.raises(yt.YtError):
+        #     spec_builder = ReduceSpecBuilder() \
+        #         .begin_reducer() \
+        #             .command("cat") \
+        #             .format("json") \
+        #         .end_reducer() \
+        #         .input_table_paths(table) \
+        #         .output_table_paths([]) \
+        #         .reduce_by(["x"])
+        #     yt.run_operation(spec_builder)
 
         spec_builder = ReduceSpecBuilder() \
             .begin_reducer() \

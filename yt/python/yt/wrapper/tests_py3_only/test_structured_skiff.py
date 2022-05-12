@@ -17,7 +17,6 @@ import yt.wrapper as yt
 
 import io
 import math
-import operator
 import pytest
 import struct
 import typing

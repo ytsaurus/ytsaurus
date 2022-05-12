@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from yt.testlib import authors, yatest_common
+from yt.testlib import authors, yatest_common  # noqa
 
 from yt.wrapper.errors import create_http_response_error, YtRpcUnavailable
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
@@ -33,11 +33,13 @@ def test_update():
     assert update({"a": 10}, {"a": 20, "b": {"c": 10}}) == {"a": 20, "b": {"c": 10}}
     assert update({"a": 10, "b": "some"}, {"a": 20, "b": {"c": 10}}) == {"a": 20, "b": {"c": 10}}
 
+
 @authors("asaitgalin")
 def test_unlist():
     assert unlist(["a"]) == "a"
     assert unlist(4) == 4
     assert unlist("abc") == "abc"
+
 
 @authors("asaitgalin")
 def test_parse_bool():
@@ -47,6 +49,7 @@ def test_parse_bool():
     assert not parse_bool("False")
     with pytest.raises(yt.YtError):
         parse_bool("42")
+
 
 @authors("asaitgalin")
 def test_dict_depth():
@@ -66,6 +69,7 @@ def test_is_prefix():
     assert is_prefix([], [1, 2, 3])
     assert not is_prefix(list(xrange(100)), [1])
 
+
 @authors("asaitgalin")
 def test_prefix():
     assert list(prefix([1, 2, 3], 1)) == [1]
@@ -74,12 +78,14 @@ def test_prefix():
     assert list(prefix([], 1)) == []
     assert list(prefix([1, 2], 0)) == []
 
+
 @authors("asaitgalin")
 def test_first_not_none():
     assert first_not_none([None, None, None, 1]) == 1
     assert first_not_none(["a", None]) == "a"
     with pytest.raises(StopIteration):
         first_not_none([])
+
 
 @authors("levysotsky")
 def test_merge_blobs_by_size():
@@ -88,6 +94,7 @@ def test_merge_blobs_by_size():
     assert list(merge_blobs_by_size(lines, 3)) == \
         [b"ababc", b"def", b"ghijklmn", b"op"]
     assert list(merge_blobs_by_size([b"abcdef"], 2)) == [b"abcdef"]
+
 
 @authors("levysotsky")
 @flaky(max_runs=3)
@@ -101,6 +108,7 @@ def test_merge_blobs_by_size_performance():
     assert list(merge_blobs_by_size(s, size)) == [b"x" * size]
     assert datetime.now() - start < timedelta(seconds=1)
 
+
 @authors("ignat")
 def test_time_functions():
     now = datetime.now()
@@ -110,6 +118,7 @@ def test_time_functions():
     tm1 = date_string_to_timestamp(str1)
     tm2 = date_string_to_timestamp(str2)
     assert abs(tm1 - tm2) < 10
+
 
 @authors("ignat")
 def test_error_pickling():
@@ -136,6 +145,7 @@ def test_error_pickling():
     assert loaded_error.url == error.url
     assert loaded_error.message == error.message
 
+
 @authors("ignat")
 def test_error_str():
     error = yt.YtError(u"моя ошибка", code=100, attributes={"аттрибут": 10, "другой атрибут": "со странным значением"})
@@ -147,12 +157,14 @@ def test_error_str():
         url="http://a.b", request_headers={}, response_headers={}, params={"x": yt.yson.YsonEntity()})
     assert "null" in str(error)
 
+
 @authors("ostyakov")
 def test_chunk_iter_list():
     assert list(chunk_iter_list([1, 2, 3], chunk_size=1)) == [[1], [2], [3]]
     assert list(chunk_iter_list([1, 2, 3], chunk_size=2)) == [[1, 2], [3]]
     assert list(chunk_iter_list([1, 2, 3], chunk_size=5)) == [[1, 2, 3]]
     assert list(chunk_iter_list([], chunk_size=1)) == []
+
 
 @authors("ignat")
 def test_escape_c():

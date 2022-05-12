@@ -16,6 +16,7 @@ import pytest
 import uuid
 import threading
 
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestDynamicTableCommands(object):
     def _sync_create_tablet_cell(self):
@@ -168,7 +169,6 @@ class TestDynamicTableCommands(object):
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
 
-            #with pytest.raises(yt.YtError):
             with yt.Transaction(type="tablet"):
                 yt.lock_rows(table, [{"x": "b"}, {"x": "c"}], raw=False)
 

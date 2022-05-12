@@ -12,6 +12,7 @@ import time
 import tempfile
 from copy import deepcopy
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestClient(object):
     def setup(self):
@@ -105,8 +106,12 @@ class TestClient(object):
 
             client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", [{"x": 1}, {"x": 2}])
             client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", [{"x": 2}, {"x": 3}])
-            client.run_join_reduce("cat", [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],
-                TEST_DIR + "/join_output", join_by=["x"], format=yt.DsvFormat())
+            client.run_join_reduce(
+                "cat",
+                [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],
+                TEST_DIR + "/join_output",
+                join_by=["x"],
+                format=yt.DsvFormat())
             assert client.row_count(TEST_DIR + "/join_output") == 3
 
             mr_operation = client.run_map_reduce("cat", "head -n 3", temp_table, TEST_DIR + "/mapreduce_output",
@@ -200,12 +205,12 @@ class TestClient(object):
             # With disabled authentication in proxy it always return root
             assert yt.get_user_name("") == "root"
 
-        #assert get_user_name("") == None
-        #assert get_user_name("12345") == None
+        # assert get_user_name("") == None
+        # assert get_user_name("12345") == None
 
-        #token = "".join(["a"] * 16)
-        #yt.set("//sys/tokens/" + token, "user")
-        #assert get_user_name(token) == "user"
+        # token = "".join(["a"] * 16)
+        # yt.set("//sys/tokens/" + token, "user")
+        # assert get_user_name(token) == "user"
 
     @authors("asaitgalin", "ignat")
     def test_get_token(self):
@@ -226,4 +231,4 @@ class TestClient(object):
         with pytest.raises(yt.YtTokenError):
             http.get_token(client=yt.YtClient(config={"token": "\x01\x02"}))
 
-        assert http.get_token(client=yt.YtClient(config={"token": ""})) == None
+        assert http.get_token(client=yt.YtClient(config={"token": ""})) is None

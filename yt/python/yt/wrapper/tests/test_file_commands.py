@@ -20,6 +20,7 @@ try:
 except ImportError:  # Python 3
     from io import BytesIO
 
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestFileCommands(object):
     @authors("asaitgalin")

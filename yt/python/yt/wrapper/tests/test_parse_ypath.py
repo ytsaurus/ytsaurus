@@ -91,6 +91,7 @@ FAILED_TEST_PATHS = ["<ds>><test",
                      "//home/test[]s",
                      "//home/test[]щ"]
 
+
 def make_parse_ypath_request(path, client=None):
     attributes = {}
     if isinstance(path, (YsonString, YsonUnicode)):
@@ -107,6 +108,7 @@ def make_parse_ypath_request(path, client=None):
     result.attributes = update(attributes, result.attributes)
 
     return result
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestParseYpath(object):

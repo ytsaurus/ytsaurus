@@ -30,6 +30,7 @@ import sys
 import time
 import os
 
+
 @pytest.mark.usefixtures("yt_env_with_increased_memory")
 class TestOperationsPickling(object):
     def setup(self):
@@ -152,6 +153,7 @@ from __future__ import print_function
 import yt.wrapper as yt
 from module_in_egg import hello_provider
 
+
 def mapper(rec):
     yield {{"x": hello_provider.get_message()}}
 
@@ -219,6 +221,7 @@ from __future__ import print_function
 
 import yt.wrapper as yt
 
+
 def mapper(rec):
     yield rec
 
@@ -230,6 +233,7 @@ print(yt.run_map(mapper, "{1}", "{2}", sync=False).id)
 from __future__ import print_function
 
 import yt.wrapper as yt
+
 
 def mapper(rec):
     yt.get("//@")
@@ -306,6 +310,7 @@ class AbstractClass(object):
     def __init__(self):
         pass
 
+
 class DoSomething(AbstractClass):
     def __init__(self):
         pass
@@ -314,6 +319,7 @@ class DoSomething(AbstractClass):
         if "x" in rec:
             rec["x"] = int(rec["x"]) + 1
         return rec
+
 
 class MapperWithMetaclass(object):
     def __init__(self):
