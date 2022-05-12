@@ -2356,11 +2356,22 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
 
-class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
+class TestReshardWithSlicing(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 2
+
+    @staticmethod
+    def _value_by_optimize_for(optimize_for):
+        if optimize_for == 'scan':
+            return 'a' * 66000
+        return 'value'
+
     @authors("alexelexa")
-    def test_reshard_with_slicing_empty(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reshard_with_slicing_empty(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
         tablet_count = 3
         with pytest.raises(YtError):
             sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
@@ -2376,9 +2387,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize(
         "first_tablet_index,last_tablet_index",
         [(0, 0), (0, 1), (1, 3), (3, 4), (4, 4), (0, 4), (None, None)])
-    def test_reshard_with_slicing(self, first_tablet_index, last_tablet_index):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reshard_with_slicing(self, first_tablet_index, last_tablet_index, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
         set("//tmp/t/@chunk_writer", {"block_size": 1})
 
         def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=None, last_tablet_index=None):
@@ -2392,7 +2406,8 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(150)]
+        value = self._value_by_optimize_for(optimize_for)
+        rows = [{"key": i, "value": value} for i in range(420)]
         insert_rows("//tmp/t", rows)
 
         sync_unmount_table("//tmp/t")
@@ -2419,9 +2434,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
             assert(abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= max(0.1 * expected_size, 100))
 
     @authors("alexelexa")
-    def test_reshard_with_slicing_and_compaction_small(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reshard_with_slicing_and_compaction_small(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
         set("//tmp/t/@chunk_writer", {"block_size": 1})
 
         def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index, last_tablet_index):
@@ -2437,7 +2455,8 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        value = self._value_by_optimize_for(optimize_for)
+        rows = [{"key": i, "value": value} for i in range(10)]
         insert_rows("//tmp/t", rows)
         with pytest.raises(YtError):
             reshard_and_check(2 * len(rows), 2 * len(rows), first_tablet_index=None, last_tablet_index=None)
@@ -2445,9 +2464,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
         reshard_and_check(5, 5, first_tablet_index=None, last_tablet_index=None)
 
     @authors("alexelexa")
-    def test_reshard_with_slicing_and_compaction_big(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reshard_with_slicing_and_compaction_big(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
         set("//tmp/t/@chunk_writer", {"block_size": 100})
 
         def reshard_and_check(tablet_count, tablet_count_expected, first_tablet_index=None,
@@ -2474,7 +2496,8 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(1000)]
+        value = self._value_by_optimize_for(optimize_for)
+        rows = [{"key": i, "value": value} for i in range(1000)]
         insert_rows("//tmp/t", rows)
 
         base_tablet_count = 5
@@ -2498,15 +2521,21 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
     @authors("alexelexa")
     @pytest.mark.parametrize("with_alter", [True, False])
     @pytest.mark.parametrize("with_pivots", [True, False])
-    def test_reshard_with_slicing_after_alter(self, with_alter, with_pivots):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reshard_with_slicing_after_alter(self, with_alter, with_pivots, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        set("//tmp/t/@chunk_writer", {"block_size": 100})
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
+        set("//tmp/t/@chunk_writer", {"block_size": 1})
         if with_pivots:
             sync_reshard_table("//tmp/t", [[], [65]])
 
         sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": str(i)} for i in range(99)]
+
+        value = self._value_by_optimize_for(optimize_for)
+        rows = [{"key": i, "value": value} for i in range(99)]
+
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
 
@@ -2525,7 +2554,7 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
         ]
 
         tablet_count = 3
-        expected = [[], [33], [65]]
+        expected = [[], [32], [65]]
         if with_alter:
             alter_table("//tmp/t", schema=new_schema)
             if with_pivots:
@@ -2536,9 +2565,12 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
         assert(self._get_pivot_keys("//tmp/t") == expected)
 
     @authors("alexelexa")
-    def test_reshard_with_slicing_multi(self):
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_reshard_with_slicing_multi(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
         set("//tmp/t/@chunk_writer", {"block_size": 5})
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
@@ -2548,12 +2580,14 @@ class TestSortedDynamicTablesReshardWithSlicing(TestSortedDynamicTablesBase):
             assert(get("//tmp/t/@tablet_count") == tablet_count)
 
         sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": str(i)} for i in range(150)]
+
+        value = self._value_by_optimize_for(optimize_for)
+        rows = [{"key": i, "value": value} for i in range(150)]
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in range(150, 300)]
+        rows = [{"key": i, "value": value} for i in range(150, 300)]
         insert_rows("//tmp/t", rows)
 
         tablet_count = 4

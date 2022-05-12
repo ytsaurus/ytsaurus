@@ -1633,7 +1633,7 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
             }
 
-            auto dataWeight = NChunkClient::GetChunkSliceDataWeights(
+            auto dataWeight = NChunkClient::GetChunkSliceDataWeight(
                 weightedChunkRequest,
                 *chunkMeta);
 
