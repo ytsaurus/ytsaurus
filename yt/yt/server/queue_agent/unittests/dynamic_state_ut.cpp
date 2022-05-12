@@ -59,6 +59,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .ObjectType = NObjectClient::EObjectType::Table,
             .Dynamic = true,
             .Sorted = false,
+            .SynchronizationError = TError(),
         });
 }
 
@@ -80,6 +81,7 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
             .Vital = true,
             .Owner = "nosokhvost",
+            .SynchronizationError = TError(),
         });
 
     // Check with optional fields absent.
@@ -99,6 +101,7 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
             .Vital = false,
             .Owner = "hydra",
+            .SynchronizationError = TError(),
         });
 }
 

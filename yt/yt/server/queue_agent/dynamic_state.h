@@ -66,6 +66,7 @@ struct TQueueTableRow
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
+    std::optional<TError> SynchronizationError;
 
     static std::vector<TQueueTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,
@@ -114,6 +115,7 @@ struct TConsumerTableRow
     std::optional<NTableClient::TTableSchema> Schema;
     std::optional<bool> Vital;
     std::optional<TString> Owner;
+    std::optional<TError> SynchronizationError;
 
     static std::vector<TConsumerTableRow> ParseRowRange(
         TRange<NTableClient::TUnversionedRow> rows,

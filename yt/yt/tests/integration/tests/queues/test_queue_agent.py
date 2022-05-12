@@ -217,7 +217,10 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert_yt_error(orchid.get_poll_error(), yt_error_codes.ResolveErrorCode)
 
         wrong_schema = copy.deepcopy(init_queue_agent_state.QUEUE_TABLE_SCHEMA)
-        wrong_schema[-1]["type"] = "int64"
+        for i in range(len(wrong_schema)):
+            if wrong_schema[i]["name"] == "object_type":
+                wrong_schema[i]["type"] = "int64"
+                break
         self._prepare_tables(queue_table_schema=wrong_schema)
 
         orchid.wait_fresh_poll()
@@ -1047,16 +1050,17 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
     QUEUE_REGISTRY = []
     CONSUMER_REGISTRY = []
 
-    def _create_queue_object(self, path, **queue_attributes):
+    def _create_queue_object(self, path, initiate_helpers=True, **queue_attributes):
         update_inplace(queue_attributes, {"dynamic": True, "schema": [{"name": "useless", "type": "string"}]})
         create("table",
                path,
                attributes=queue_attributes,
                force=True)
         sync_mount_table(path)
-        self.QUEUE_REGISTRY.append(path)
-        assert path not in self.LAST_REVISIONS
-        self.LAST_REVISIONS[path] = 0
+        if initiate_helpers:
+            self.QUEUE_REGISTRY.append(path)
+            assert path not in self.LAST_REVISIONS
+            self.LAST_REVISIONS[path] = 0
 
     def _create_and_register_queue(self, path, **queue_attributes):
         self._create_queue_object(path, **queue_attributes)
@@ -1071,7 +1075,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
             del self.LAST_REVISIONS[queue]
         self.QUEUE_REGISTRY.clear()
 
-    def _create_consumer_object(self, path):
+    def _create_consumer_object(self, path, initiate_helpers=True):
         create("table",
                path,
                attributes={"dynamic": True,
@@ -1079,9 +1083,10 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
                                       {"name": "also_useless", "type": "string"}],
                            "treat_as_queue_consumer": True},
                force=True)
-        self.CONSUMER_REGISTRY.append(path)
-        assert path not in self.LAST_REVISIONS
-        self.LAST_REVISIONS[path] = 0
+        if initiate_helpers:
+            self.CONSUMER_REGISTRY.append(path)
+            assert path not in self.LAST_REVISIONS
+            self.LAST_REVISIONS[path] = 0
 
     def _create_and_register_consumer(self, path):
         self._create_consumer_object(path)
@@ -1106,19 +1111,33 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
         column_counts = [len(row) for row in consumers]
         assert column_counts == [len(init_queue_agent_state.CONSUMER_TABLE_SCHEMA)] * size
 
-    def _get_queues_and_check_invariants(self, expected_count=None):
+    # expected_synchronization_errors should contain functions that assert for an expected error YSON
+    def _get_queues_and_check_invariants(self, expected_count=None, expected_synchronization_errors=None):
         queues = select_rows("* from [//sys/queue_agents/queues]")
         if expected_count is not None:
             self._check_queue_count_and_column_counts(queues, expected_count)
         for queue in queues:
+            if queue["synchronization_error"] != YsonEntity():
+                synchronization_error = YtError.from_dict(queue["synchronization_error"])
+                if expected_synchronization_errors is not None and queue["path"] in expected_synchronization_errors:
+                    expected_synchronization_errors[queue["path"]](synchronization_error)
+                    continue
+                assert synchronization_error.code == 0
             assert queue["revision"] == get(queue["path"] + "/@attribute_revision")
         return queues
 
-    def _get_consumers_and_check_invariants(self, expected_count=None):
+    # expected_synchronization_errors should contain functions that assert for an expected error YSON
+    def _get_consumers_and_check_invariants(self, expected_count=None, expected_synchronization_errors=None):
         consumers = select_rows("* from [//sys/queue_agents/consumers]")
         if expected_count is not None:
             self._check_consumer_count_and_column_counts(consumers, expected_count)
         for consumer in consumers:
+            if consumer["synchronization_error"] != YsonEntity():
+                synchronization_error = YtError.from_dict(consumer["synchronization_error"])
+                if expected_synchronization_errors is not None and consumer["path"] in expected_synchronization_errors:
+                    expected_synchronization_errors[consumer["path"]](synchronization_error)
+                    continue
+                assert synchronization_error.code == 0
             assert consumer["revision"] == get(consumer["path"] + "/@attribute_revision")
             assert consumer["treat_as_queue_consumer"] == get(consumer["path"] + "/@treat_as_queue_consumer")
             # Enclosing into a list is a workaround for storing YSON with top-level attributes.
@@ -1255,6 +1274,82 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         self._drop_consumers()
         self._drop_tables()
 
+    @authors("achulkov2")
+    def test_synchronization_errors(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._prepare_tables()
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        c1 = self._get_consumer_name("a")
+        c2 = self._get_consumer_name("b")
+
+        self._create_and_register_queue(q1)
+        self._create_and_register_consumer(c1)
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
+        for queue in queues:
+            self._assert_increased_revision(queue)
+        for consumer in consumers:
+            self._assert_increased_revision(consumer)
+
+        remove(q1)
+        remove(c1)
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1, expected_synchronization_errors={
+            q1: lambda error: assert_yt_error(error, yt_error_codes.ResolveErrorCode),
+        })
+        consumers = self._get_consumers_and_check_invariants(expected_count=1, expected_synchronization_errors={
+            c1: lambda error: assert_yt_error(error, yt_error_codes.ResolveErrorCode),
+        })
+
+        for queue in queues:
+            self._assert_constant_revision(queue)
+        for consumer in consumers:
+            self._assert_constant_revision(consumer)
+
+        self._create_queue_object(q1, initiate_helpers=False)
+        self._create_consumer_object(c1, initiate_helpers=False)
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
+        for queue in queues:
+            self._assert_increased_revision(queue)
+        for consumer in consumers:
+            self._assert_increased_revision(consumer)
+
+        self._create_and_register_consumer(c2)
+        set(c1 + "/@target_queue", -1)
+        set(c2 + "/@target_queue", "sugar_sugar:honey_honey")
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2, expected_synchronization_errors={
+            # This error has code 1, which is not very useful.
+            c1: lambda error: assert_yt_error(error, 'Error parsing attribute "target_queue"')
+        })
+
+        for queue in queues:
+            self._assert_constant_revision(queue)
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                self._assert_constant_revision(consumer)
+            elif consumer["path"] == c2:
+                self._assert_increased_revision(consumer)
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
+
 
 class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -1382,6 +1477,53 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         queues = self._get_queues_and_check_invariants(expected_count=1)
         # This checks that the revision doesn't change when dynamic stores are flushed.
         self._assert_constant_revision(queues[0])
+
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
+
+    @authors("achulkov2")
+    def test_synchronization_errors(self):
+        orchid = CypressSynchronizerOrchid()
+
+        self._prepare_tables()
+        self._prepare_tables()
+
+        q1 = self._get_queue_name("a")
+        c1 = self._get_consumer_name("a")
+        c2 = self._get_consumer_name("b")
+
+        self._create_queue_object(q1)
+        self._create_consumer_object(c1)
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=1)
+        for queue in queues:
+            self._assert_increased_revision(queue)
+        for consumer in consumers:
+            self._assert_increased_revision(consumer)
+
+        self._create_consumer_object(c2)
+        set(c1 + "/@target_queue", -1)
+        set(c2 + "/@target_queue", "sugar_sugar:honey_honey")
+
+        orchid.wait_fresh_poll()
+
+        queues = self._get_queues_and_check_invariants(expected_count=1)
+        consumers = self._get_consumers_and_check_invariants(expected_count=2, expected_synchronization_errors={
+            # This error has code 1, which is not very useful.
+            c1: lambda error: assert_yt_error(error, 'Error parsing attribute "target_queue"')
+        })
+
+        for queue in queues:
+            self._assert_constant_revision(queue)
+        for consumer in consumers:
+            if consumer["path"] == c1:
+                self._assert_constant_revision(consumer)
+            elif consumer["path"] == c2:
+                self._assert_increased_revision(consumer)
 
         self._drop_queues()
         self._drop_consumers()
