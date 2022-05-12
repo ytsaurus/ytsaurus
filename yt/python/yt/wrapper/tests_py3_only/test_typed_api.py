@@ -97,6 +97,7 @@ ROWS = [
     ),
 ]
 
+
 @yt.with_context
 class IdentityMapper(TypedJob):
     def __init__(self, row_types=None):
@@ -517,7 +518,6 @@ class TestTypedApi(object):
             return (d["int32_field"], "struct_field" not in d)
 
         assert sorted(read_rows, key=sort_key) == sorted(TWO_INPUT_REDUCER_OUTPUT_ROWS, key=sort_key)
-
 
     def _do_test_grouping(self, input_rows, row_types, expected_output_rows, reducer):
         table_count = len(input_rows)
@@ -1025,14 +1025,14 @@ class TestTypedApi(object):
 
         class MapperWithMissingInput(TypedJobNotToBeCalled):
             def prepare_operation(self, context, preparer):
-                preparer.inputs([0,2], type=TheRow).output(0, type=TheRow)
+                preparer.inputs([0, 2], type=TheRow).output(0, type=TheRow)
 
         with pytest.raises(ValueError, match="Missing type for input table no. 1 \\(//tmp/in_1\\)"):
             yt.run_map(MapperWithMissingInput(), input_tables, output_tables)
 
         class MapperWithMissingOutput(TypedJobNotToBeCalled):
             def prepare_operation(self, context, preparer):
-                preparer.inputs(range(3), type=TheRow).outputs([0,1], type=TheRow)
+                preparer.inputs(range(3), type=TheRow).outputs([0, 1], type=TheRow)
 
         with pytest.raises(ValueError, match="Missing type for output table no. 2 \\(//tmp/out_2\\)"):
             yt.run_map(MapperWithMissingOutput(), input_tables, output_tables)

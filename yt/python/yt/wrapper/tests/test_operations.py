@@ -36,7 +36,6 @@ import yt.wrapper as yt
 
 from yandex.type_info import typing
 
-import copy
 import io
 import json
 import logging
@@ -48,6 +47,7 @@ import tempfile
 import time
 import uuid
 
+
 class AggregateMapper(object):
     def __init__(self):
         self.sum = 0
@@ -57,6 +57,7 @@ class AggregateMapper(object):
 
     def finish(self):
         yield {"sum": self.sum}
+
 
 class AggregateReducer(object):
     def __init__(self):
@@ -73,9 +74,11 @@ class AggregateReducer(object):
     def finish(self):
         yield {"sum": self.sum}
 
+
 class CreateModulesArchive(object):
     def __call__(self, tempfiles_manager=None, custom_python_used=False):
         return create_modules_archive_default(tempfiles_manager, custom_python_used, None)
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperations(object):
@@ -531,7 +534,6 @@ print(op.id)
             assert len(job_infos) == 1
             assert job_infos[0]["stderr"] == "\xF1\xF2\xF3\xF4"
 
-
         with set_config_option("operation_tracker/stderr_logging_level", "NOTSET"):
             op = yt.run_map(mapper, input_table, output_table)
             job_infos = op.get_jobs_with_error_or_stderr()
@@ -569,7 +571,6 @@ print(op.id)
             wait(lambda: op.get_attributes(fields=["alerts"]).get("alerts", {}))
         finally:
             yt.remove("//sys/controller_agents/config", recursive=True, force=True)
-
 
     @authors("ignat")
     def test_operations_spec(self):
@@ -727,6 +728,7 @@ print(op.id)
 
         yt.run_map(foo, input_table, output_table, yt_files=[table_file_with_format])
 
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestStderrTable(object):
     def setup(self):
@@ -754,7 +756,6 @@ class TestStderrTable(object):
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
             assert r["data"] == "map\n"
-
 
         yt.run_reduce("echo reduce >&2 ; cat",
                       table, other_table, stderr_table=stderr_table,
@@ -799,6 +800,7 @@ class TestStderrTable(object):
         assert yt.has_attribute(stderr_table, "part_size")
         for r in row_list:
             assert r["data"] == "map\n"
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationCommands(object):
@@ -1252,7 +1254,6 @@ class TestPythonOperations(object):
             with pytest.raises(yt.YtError):
                 yt.run_map(mapper, table, table)
 
-
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_aggregator(self):
@@ -1353,13 +1354,13 @@ class TestPythonOperations(object):
 
             with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
                 yt.config["pickling"]["create_modules_archive_function"] = \
-                        lambda: create_modules_archive_default(tempfiles_manager, False, None)
+                    lambda: create_modules_archive_default(tempfiles_manager, False, None)
                 yt.run_map(foo, table, table)
 
             with TempfilesManager(remove_temp_files=True, directory=yt.config["local_temp_directory"]) as tempfiles_manager:
                 with set_config_option("pickling/modules_chunk_size", MB):
                     yt.config["pickling"]["create_modules_archive_function"] = \
-                            lambda: create_modules_archive_default(tempfiles_manager, False, None)[0]["filename"]
+                        lambda: create_modules_archive_default(tempfiles_manager, False, None)[0]["filename"]
                     yt.run_map(foo, table, table)
 
             yt.config["pickling"]["create_modules_archive_function"] = CreateModulesArchive()
@@ -1672,6 +1673,7 @@ class TestOperationsTmpfs(object):
         yt.run_map(mapper, table, table, local_files=['<file_name="cool_name.dat">' + f.name])
         check_rows_equality(yt.read_table(table), [{"k": "etwas"}])
 
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsSeveralOutputTables(object):
     def setup(self):
@@ -1835,6 +1837,7 @@ class TestOperationsSeveralOutputTables(object):
             check_rows_equality([{"b": i}], list(yt.read_table(mapper_output_table)))
         for i, reducer_output_table in enumerate(reducer_output_tables):
             check_rows_equality([{"a": i}], list(yt.read_table(reducer_output_table)))
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsSkiffFormat(object):

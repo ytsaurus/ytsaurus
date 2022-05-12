@@ -5,6 +5,7 @@ import yt.wrapper as yt
 
 import pytest
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestPrerequisite(object):
     @authors("ostyakov")
@@ -65,6 +66,7 @@ class TestPrerequisite(object):
 
         assert not yt.exists(TEST_DIR + "/prerequisite/test")
         assert not yt.exists(TEST_DIR + "/prerequisite_test/test")
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestTransactionsWithCommandParams(object):

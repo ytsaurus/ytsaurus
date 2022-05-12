@@ -24,6 +24,7 @@ import random
 import time
 from itertools import chain
 
+
 @authors("ignat")
 def test_string_iter_io_read():
     strings = [b"ab", b"", b"c", b"de", b""]
@@ -33,6 +34,7 @@ def test_string_iter_io_read():
         sep = b"\n" if add_eoln else b""
         for c in iterbytes(sep.join(strings)):
             assert c == byte2int(io.read(1))
+
 
 @authors("ignat")
 def test_string_iter_io_readline():
@@ -47,6 +49,7 @@ def test_string_iter_io_readline():
             if i + 1 != len(lines):
                 line += b"\n"
             assert line == io.readline()
+
 
 def check_format(format, strings, row):
     # In some formats (e.g. dsv) dict '{"a": "b", "c": "d"}' can be
@@ -68,6 +71,7 @@ def check_format(format, strings, row):
     format.dump_row(row, stream)
     assert any(stream.getvalue().rstrip(b"\n") == s.rstrip(b"\n") for s in strings)
 
+
 def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=None):
     input_stream = BytesIO(b"".join([raw_row, raw_table_switcher, raw_row]))
     input_stream_str = input_stream.getvalue()
@@ -82,6 +86,7 @@ def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=
 
     assert output_stream_str == input_stream_str
 
+
 @authors("ignat")
 def test_yson_format():
     format = yt.YsonFormat(format="text")
@@ -95,6 +100,7 @@ def test_yson_format():
 
     format = yt.YsonFormat(format="binary")
     assert format.dumps_row({"a": 1}).rstrip(b";\n") == yson.dumps({"a": 1}, yson_format="binary")
+
 
 @authors("ignat")
 def test_yson_table_switch():
@@ -112,6 +118,7 @@ def test_yson_table_switch():
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
     assert dumped_output == b'{"a"=1;};\n<"table_index"=1;>#;\n{"a"=1;};\n{"b"=2;};\n'
+
 
 @authors("ignat")
 def test_yson_iterator_mode():
@@ -157,6 +164,7 @@ def test_yson_iterator_mode():
     with pytest.raises(StopIteration):
         next(iterator)
 
+
 @authors("ignat")
 def test_yson_dump_sort_keys():
     keys = ["key_" + chr(ord("a") + i) for i in range(26)]
@@ -180,11 +188,13 @@ def test_yson_dump_sort_keys():
     # Non necessarily fails but very likely should.
     assert _extract_keys_in_order(non_sorted_keys) != keys
 
+
 @authors("ignat")
 def test_dsv_format():
     format = yt.DsvFormat()
     check_format(format, [b"a=1\tb=2\n", b"b=2\ta=1\n"], {"a": "1", "b": "2"})
     check_format(format, [b"a=1\\t\tb=2\n", b"b=2\ta=1\\t\n"], {"a": "1\t", "b": "2"})
+
 
 @authors("ignat")
 def test_yamr_format():
@@ -199,12 +209,14 @@ def test_yamr_format():
     format = yt.YamrFormat(lenval=True, has_subkey=False)
     check_format(format, b"\x01\x00\x00\x00a\x01\x00\x00\x00b", yt.Record("a", "b"))
 
+
 @authors("ignat")
 def test_yamr_load_records_raw():
     records = [b"a\tb\tc\n", b"d\te\tf\n", b"g\th\ti\n"]
     stream = BytesIO(b"".join(records))
     format = yt.YamrFormat(has_subkey=True)
     assert list(format.load_rows(stream, raw=True)) == records
+
 
 @authors("ignat")
 def test_yamr_table_switcher():
@@ -217,6 +229,7 @@ def test_yamr_table_switcher():
     table_switcher = struct.pack("ii", -1, 1)
     check_table_index(format, b"\x01\x00\x00\x00a\x01\x00\x00\x00b", table_switcher,
                       [yt.Record("a", "b", tableIndex=0), yt.Record("a", "b", tableIndex=1)])
+
 
 @authors("ignat")
 def test_yamr_record_index():
@@ -237,6 +250,7 @@ def test_yamr_record_index():
                yt.Record("a", "b", tableIndex=1, recordIndex=3)]
     assert list(format.load_rows(BytesIO(data))) == records
 
+
 @authors("ignat")
 def test_json_format():
     format = yt.JsonFormat(enable_ujson=False)
@@ -244,6 +258,7 @@ def test_json_format():
 
     stream = BytesIO(b'{"a": 1}\n{"b": 2}')
     assert list(format.load_rows(stream)) == [{"a": 1}, {"b": 2}]
+
 
 @authors("ignat")
 def test_json_format_table_index():
@@ -258,6 +273,7 @@ def test_json_format_table_index():
         list(format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1}}\n'
                                       b'{"a": 1}')))
 
+
 @authors("ignat")
 def test_json_format_row_index():
     format = yt.JsonFormat(control_attributes_mode="row_fields", enable_ujson=False)
@@ -266,6 +282,7 @@ def test_json_format_row_index():
         list(format.load_rows(BytesIO(b'{"$value": null, "$attributes": {"table_index": 1, "row_index": 5}}\n'
                                       b'{"a": 1}\n'
                                       b'{"a": 2}')))
+
 
 @authors("ignat")
 def test_json_format_row_iterator():
@@ -284,11 +301,13 @@ def test_json_format_row_iterator():
     assert iterator.row_index == 6
     assert iterator.range_index is None
 
+
 @authors("ignat")
 def test_schemaful_dsv_format():
     format = yt.SchemafulDsvFormat(columns=["a", "b"])
     check_format(format, b"1\t2\n", {"a": "1", "b": "2"})
     check_format(format, b"\\n\t2\n", {"a": "\n", "b": "2"})
+
 
 @authors("ignat")
 def test_yamred_dsv_format():
@@ -297,11 +316,13 @@ def test_yamred_dsv_format():
     check_format(format, b"a\tb\n", yt.Record("a", "b"))
     check_format(format, b"a\tb\tc\n", yt.Record("a", "b\tc"))
 
+
 @authors("ignat")
 def test_extract_key():
     assert extract_key(yt.Record("k", "s", "v"), ["k"]) == "k"
     assert extract_key(yt.Record("k", "v"), ["k"]) == "k"
     assert extract_key({"k": "v", "x": "y"}, ["k"]) == {"k": "v"}
+
 
 @authors("ignat")
 def test_create_format():
@@ -347,6 +368,7 @@ def test_create_format():
     skiff_format = create_format(yson.to_yson_type("skiff", attributes={"table_skiff_schemas": table_skiff_schemas}))
     assert skiff_format.name() == "skiff"
 
+
 @authors("ignat")
 def test_raw_dump_records():
     def check_format(format, value):
@@ -369,6 +391,7 @@ def test_raw_dump_records():
     check_format(yt.SchemafulDsvFormat(columns=["x"]), [b"x=1\n", b"x=2\n"])
     check_format(yt.YsonFormat(), [b'{"x"=1}', b'{"x"=2}'])
     check_format(yt.JsonFormat(), [b'{"x":1}', b'{"x":2}'])
+
 
 @flaky(max_runs=5)
 @authors("ignat")
@@ -431,6 +454,7 @@ if PY3:
               fail_exc=KeyError)
         check(yt.JsonFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x": "y"}\n',
               fail_exc=None)
+
 
 @authors("levysotsky")
 def test_default_encoding():

@@ -1,8 +1,6 @@
 from .conftest import authors
 from .helpers import get_operation_path, wait, yatest_common
 
-from yt.environment.arcadia_interop import yatest_common
-
 from yt.wrapper.native_driver import get_driver_instance
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 

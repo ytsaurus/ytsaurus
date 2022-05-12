@@ -113,7 +113,6 @@ class TestPingFailedModes(object):
             with pytest.raises(KeyboardInterrupt):
                 reproduce_transaction_loss(expects_exception=True)
 
-
     @authors("marat-khalili")
     def test_pass(self):
         with set_config_option("ping_failed_mode", "pass"):

@@ -16,6 +16,7 @@ import tempfile
 import time
 import os
 
+
 @pytest.mark.usefixtures("yt_env")
 class TestBatchExecution(object):
     def setup(self):

@@ -8,6 +8,7 @@ import pytest
 import threading
 import time
 
+
 @authors("ostyakov")
 def test_thread_pool():
     n = threading.active_count()
@@ -16,7 +17,7 @@ def test_thread_pool():
     time.sleep(0.5)
     assert threading.active_count() == n + 5
     del pool
-    
+
     time.sleep(0.5)
     assert threading.active_count() == n
 
@@ -73,7 +74,8 @@ def test_thread_pool():
     assert threading.active_count() == n
 
     with pytest.raises(ValueError):
-        pool = ThreadPool(0)
+        ThreadPool(0)
+
 
 @authors("ostyakov")
 def test_imap_unordered():
@@ -96,6 +98,7 @@ def test_imap_unordered():
     pool = ThreadPool(30)
     result = pool.imap_unordered(lambda item: -item, xrange(10 ** 5))
     assert set(result) == set(-item for item in xrange(10 ** 5))
+
 
 @authors("ostyakov")
 def test_imap():

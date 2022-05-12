@@ -6,22 +6,26 @@ import yt.wrapper as yt
 
 import pytest
 
+
 def _create_error(code):
     return yt.YtResponseError({
         "code": 1,
         "inner_errors": [{
-           "code": code,
-           "inner_errors": [],
+            "code": code,
+            "inner_errors": [],
         }]
     })
+
 
 @authors("bidzilya", "ignat")
 def test_response_error():
     assert _create_error(str(904)).is_request_rate_limit_exceeded()
 
+
 @authors("max42", "bidzilya")
 def test_rpc_unavailable():
     assert _create_error(str(105)).is_rpc_unavailable()
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestYtError(object):
@@ -38,7 +42,7 @@ class TestYtError(object):
             assert err.find_matching_error(code=1205).code == 1205
             assert err.find_matching_error(code=301).code == 301
             assert err.find_matching_error(code=42) is None
-            assert err.find_matching_error(predicate=lambda error: error.attributes.get("fatal") == True).code == 1205
+            assert err.find_matching_error(predicate=lambda error: error.attributes.get("fatal")).code == 1205
             assert err.contains_text("job failed")
             assert err.contains_text("order violation")
             assert err.contains_text("closing table")

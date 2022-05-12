@@ -34,6 +34,7 @@ from copy import deepcopy
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 
+
 class FakeFileManager(object):
     def __init__(self, client):
         self.client = client
@@ -48,6 +49,7 @@ class FakeFileManager(object):
 
     def upload_files(self):
         return []
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommands(object):
@@ -346,7 +348,7 @@ class TestTableCommands(object):
         # NB: we cannot unban proxy using proxy, so we must use client for that.
         client = yt.YtClient(config={"backend": "native", "driver_config": yt.config["driver_config"]})
         proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
-        client.set(proxy + "/@banned".format(proxy), value)
+        client.set(proxy + "/@banned", value)
 
         def check():
             try:
@@ -450,7 +452,6 @@ class TestTableCommands(object):
                 else:
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
                     check_rows_equality([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
-
 
     @authors("ignat")
     def test_read_lost_chunk(self):
@@ -694,6 +695,7 @@ class TestTableCommandsControlAttributes(object):
         with set_config_option("read_parallel/enable", True):
             self.test_read_with_table_path(yt_env_with_rpc)
 
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestBlobTables(object):
     def _test_read_blob_table(self):
@@ -797,6 +799,7 @@ class TestBlobTables(object):
     def test_read_blob_table_without_retries(self):
         with set_config_option("read_retries/enable", False):
             self._test_read_blob_table()
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsOperations(object):

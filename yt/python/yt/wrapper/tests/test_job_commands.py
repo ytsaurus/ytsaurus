@@ -12,6 +12,7 @@ import yt.wrapper as yt
 import pytest
 import re
 
+
 @pytest.mark.usefixtures("yt_env_with_porto")
 class TestJobCommands(object):
     def _poll_until_prompt(self, shell):
@@ -62,9 +63,10 @@ class TestJobCommands(object):
         output = self._poll_until_prompt(shell)
 
         expected = command + b"\nscreen-256color\r\n50\r\n132\r\n"
-        assert output.startswith(expected) == True
+        assert output.startswith(expected)
 
         ids = re.match(b"(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
+        assert ids
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
@@ -136,7 +138,6 @@ class TestJobCommands(object):
 
         job_events.release_breakpoint()
         op.wait()
-
 
         job_events = create_job_events()
         mapper = job_events.with_breakpoint("cat ; BREAKPOINT")
