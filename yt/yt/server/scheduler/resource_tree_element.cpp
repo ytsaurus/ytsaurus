@@ -34,7 +34,7 @@ TJobResources TResourceTreeElement::GetResourceUsageWithPrecommit()
     return ResourceUsage_ + ResourceUsagePrecommit_;
 }
 
-bool TResourceTreeElement::CheckDemand(
+bool TResourceTreeElement::CheckAvailableDemand(
     const TJobResources& delta,
     const TJobResources& resourceDemand)
 {

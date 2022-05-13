@@ -20,7 +20,6 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)
-DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElementSharedState)
 DECLARE_REFCOUNTED_CLASS(TSchedulerCompositeElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerPoolElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerRootElement)
@@ -30,11 +29,10 @@ DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeJobScheduler)
+DECLARE_REFCOUNTED_CLASS(TFairShareTreeJobSchedulerOperationSharedState)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeSchedulingSnapshot)
 DECLARE_REFCOUNTED_CLASS(TFairShareTreeProfileManager)
-
-class TScheduleJobsContext;
 
 class TJobMetrics;
 
@@ -82,6 +80,14 @@ DEFINE_ENUM(EOperationPreemptionPriority,
     (SsdAggressive)
 );
 
+DEFINE_ENUM(EOperationPreemptionStatus,
+    (AllowedUnconditionally)
+    (AllowedConditionally)
+    (ForbiddenSinceStarving)
+    (ForbiddenSinceUnsatisfied)
+    (ForbiddenSinceLowJobCount)
+);
+
 DEFINE_ENUM(EJobPreemptionLevel,
     (SsdNonPreemptable)
     (SsdAggressivelyPreemptable)
@@ -117,6 +123,8 @@ DEFINE_ENUM(EJobPreemptionReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
+
 using TJobPreemptionStatusMap = THashMap<TJobId, EJobPreemptionStatus>;
 using TJobPreemptionStatusMapPerOperation = THashMap<TOperationId, TJobPreemptionStatusMap>;
 
@@ -140,6 +148,8 @@ inline const NLogging::TLogger NodeShardLogger{"NodeShard"};
 inline constexpr char DefaultOperationTag[] = "default";
 
 inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
+
+constexpr int UndefinedSchedulingIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

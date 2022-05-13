@@ -45,7 +45,16 @@ TSchedulerOperationElement* TFairShareTreeSnapshot::FindDisabledOperationElement
     auto it = DisabledOperationMap_.find(operationId);
     return it != DisabledOperationMap_.end() ? it->second : nullptr;
 }
-    
+
+bool TFairShareTreeSnapshot::IsElementEnabled(const TSchedulerElement* element) const
+{
+    if (element->IsOperation()) {
+        const auto* operationElement = static_cast<const TSchedulerOperationElement*>(element);
+        return static_cast<bool>(FindEnabledOperationElement(operationElement->GetOperationId()));
+    }
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

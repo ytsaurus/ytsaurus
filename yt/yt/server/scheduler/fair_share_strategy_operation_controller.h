@@ -17,6 +17,7 @@ public:
         const TFairShareStrategyOperationControllerConfigPtr& config,
         int NodeShardCount);
 
+    // TODO(eshcherbin): Use scheduling context instead of node shard ID.
     void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
@@ -32,6 +33,7 @@ public:
     void ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard();
     int GetMaxConcurrentControllerScheduleJobCallsPerNodeShard() const;
     void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
+    // TODO(eshcherbin): Remove unnecessary second argument.
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         const ISchedulingContextPtr& schedulingContext,
         int maxConcurrentScheduleJobCallsPerNodeShard) const;

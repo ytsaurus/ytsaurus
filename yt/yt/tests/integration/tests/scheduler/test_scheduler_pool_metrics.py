@@ -8,7 +8,7 @@ from yt_commands import (
     authors, get_job, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls,
     get, set, exists,
     create_pool, create_pool_tree, write_table, map, run_test_vanilla, run_sleeping_vanilla, abort_job,
-    get_operation_cypress_path, extract_statistic_v2, update_pool_tree_config)
+    get_operation_cypress_path, extract_statistic_v2, update_pool_tree_config, update_scheduler_config)
 
 from yt_helpers import profiler_factory
 
@@ -263,6 +263,8 @@ class TestPoolMetrics(YTEnvSetup):
 
         # 1 preempted job * 3 CPU-seconds.
         wait(lambda: preempted_cpu_time_preemption_child1_counter.get_delta() >= 3)
+
+        update_scheduler_config("allowed_node_resources_overcommit_duration", 1000)
 
         wait(lambda: len(op1.list_jobs()) == 2)
         job = op1.list_jobs()[0]

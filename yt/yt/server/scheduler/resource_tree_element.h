@@ -28,7 +28,7 @@ public:
 
     TJobResources GetResourceUsageWithPrecommit();
 
-    bool CheckDemand(
+    bool CheckAvailableDemand(
         const TJobResources& delta,
         const TJobResources& resourceDemand);
 
@@ -40,6 +40,7 @@ public:
     inline bool GetAlive() const;
     inline void SetNonAlive();
 
+    // TODO(eshcherbin): Move fair share from resource tree element to job scheduler operation shared state.
     inline TResourceVector GetFairShare() const;
     inline void SetFairShare(TResourceVector fairShare);
 

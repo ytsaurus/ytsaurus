@@ -44,9 +44,24 @@ public:
     TSchedulerPoolElement* FindPool(const TString& poolName) const;
     TSchedulerOperationElement* FindEnabledOperationElement(TOperationId operationId) const;
     TSchedulerOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
+
+    bool IsElementEnabled(const TSchedulerElement* element) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TResourceUsageSnapshot final
+{
+    static constexpr bool EnableHazard = true;
+
+    THashSet<TOperationId> AliveOperationIds;
+    THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
+    THashMap<TString, TJobResources> PoolToResourceUsage;
+};
+
+using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

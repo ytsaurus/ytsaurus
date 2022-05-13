@@ -74,11 +74,10 @@ struct TSchedulableAttributes
 
     std::optional<int> FifoIndex;
 
-    // TODO(ignat): extract post update attributes to separate structure.
+    // TODO(eshcherbin): Extract post update attributes to separate structure.
     // NB: calculated in postupdate.
     TJobResources UnschedulableOperationsResourceUsage;
     // NB: calculated in postupdate and used for diagnostics purposes.
-    bool Alive = false;
     double SatisfactionRatio = 0.0;
     double LocalSatisfactionRatio = 0.0;
 
