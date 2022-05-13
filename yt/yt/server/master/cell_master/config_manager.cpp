@@ -50,7 +50,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
 
             Bootstrap_->GetAlertManager()->RegisterAlertSource(
                 BIND(&TImpl::GetAlerts, MakeStrong(this)));
@@ -135,7 +135,7 @@ private:
         DoSetConfig(std::move(newConfig));
     }
 
-    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
