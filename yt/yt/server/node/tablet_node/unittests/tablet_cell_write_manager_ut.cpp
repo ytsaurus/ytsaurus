@@ -84,7 +84,7 @@ TEST_F(TTestSortedTabletWriteBasic, TestSimple)
         ToString(BuildVersionedRow(1, {{0x25, 1}})),
         ToString(result));
 
-    // Handle transaction barrier. 
+    // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 
@@ -297,7 +297,7 @@ TEST_F(TTestSortedTabletWriteSignature, TestSignaturesSuccess)
 
     ExpectFullyUnlocked();
 
-    // Handle transaction barrier. 
+    // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 }
@@ -418,7 +418,7 @@ TEST_P(TTestSortedTabletWriteGenerationOneBatch, OneBatchRetry)
 
     ExpectFullyUnlocked();
 
-    // Handle transaction barrier. 
+    // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 }
@@ -521,7 +521,7 @@ TEST_P(TTestSortedTabletWriteGenerationTwoBatch, TwoBatchRetry)
 
     ExpectFullyUnlocked();
 
-    // Handle transaction barrier. 
+    // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 }
@@ -657,7 +657,7 @@ TEST_F(TTestOrderedTabletWriteBasic, TestSimple)
 
     ExpectFullyUnlocked();
 
-    // Handle transaction barrier. 
+    // Handle transaction barrier.
     EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
     HydraManager()->ApplyAll();
 }

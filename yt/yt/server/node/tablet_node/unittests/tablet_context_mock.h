@@ -1,5 +1,7 @@
 #pragma once
 
+#include "sorted_store_helpers.h"
+
 #include <yt/yt/server/node/tablet_node/tablet.h>
 
 #include <yt/yt/ytlib/query_client/config.h>
@@ -13,6 +15,8 @@ class TTabletContextMock
     : public ITabletContext
 {
 public:
+    TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
+
     // ITabletContext implementation.
     TCellId GetCellId() override;
     const TString& GetTabletCellBundleName() override;
@@ -42,6 +46,8 @@ private:
 
     const NTabletClient::IRowComparerProviderPtr RowComparerProvider_ =
         NTabletClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
+
+    const TMockBackendChunkReadersHolderPtr BackendChunkReadersHolder_ = New<TMockBackendChunkReadersHolder>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

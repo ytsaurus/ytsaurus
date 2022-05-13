@@ -904,7 +904,9 @@ private:
             GetDynamicConfigManager(),
             ChunkMetaManager_);
 
-        VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(Config_->TabletNode->VersionedChunkMetaCache, this);
+        VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(
+            Config_->TabletNode->VersionedChunkMetaCache,
+            GetMemoryUsageTracker()->WithCategory(EMemoryCategory::VersionedChunkMeta));
 
         NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 

@@ -57,6 +57,8 @@ public:
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
+    const NLogging::TLogger& GetLogger() const;
+
 protected:
     const TTabletManagerConfigPtr Config_;
     const TStoreId StoreId_;
@@ -172,7 +174,6 @@ class TChunkStoreBase
 {
 public:
     TChunkStoreBase(
-        IBootstrap* bootstrap,
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
@@ -181,10 +182,7 @@ public:
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         IVersionedChunkMetaManagerPtr chunkMetaManager,
-        NDataNode::IChunkRegistryPtr chunkRegistry,
-        NDataNode::IChunkBlockManagerPtr chunkBlockManager,
-        NApi::NNative::IClientPtr client,
-        const NNodeTrackerClient::TNodeDescriptor& localDescriptor);
+        IBackendChunkReadersHolderPtr backendReadersHolder);
 
     void Initialize() override;
 
@@ -192,10 +190,12 @@ public:
     TTimestamp GetMinTimestamp() const override;
     TTimestamp GetMaxTimestamp() const override;
 
+    NErasure::ECodec GetErasureCodecId() const;
+    bool IsStripedErasure() const;
+
     i64 GetCompressedDataSize() const override;
     i64 GetUncompressedDataSize() const override;
     i64 GetRowCount() const override;
-    NErasure::ECodec GetErasureCodecId() const;
 
     void Save(TSaveContext& context) const override;
     void Load(TLoadContext& context) override;
@@ -230,9 +230,12 @@ public:
     bool IsChunk() const override;
     IChunkStorePtr AsChunk() override;
 
-    TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) override;
-    TTabletStoreReaderConfigPtr GetReaderConfig() override;
-    void InvalidateCachedReaders(const TTableSettings& settings) override;
+    TBackendReaders GetBackendReaders(
+        std::optional<EWorkloadCategory> workloadCategory) override;
+    void InvalidateCachedReaders(
+        const TTableSettings& settings) override;
+    NChunkClient::TChunkReplicaList GetReplicas(
+        NNodeTrackerClient::TNodeId localNodeId) override;
 
     NTabletClient::EInMemoryMode GetInMemoryMode() const override;
     void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
@@ -242,24 +245,19 @@ public:
     NChunkClient::TChunkId GetChunkId() const override;
     TTimestamp GetOverrideTimestamp() const override;
 
-    NChunkClient::TChunkReplicaList GetReplicas(
-        NNodeTrackerClient::TNodeId localNodeId) const override;
-
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const override;
 
     const std::vector<THunkChunkRef>& HunkChunkRefs() const override;
 
+    NChunkClient::IBlockCachePtr GetBlockCache();
+
 protected:
-    IBootstrap* const Bootstrap_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
-    const NDataNode::IChunkRegistryPtr ChunkRegistry_;
-    const NDataNode::IChunkBlockManagerPtr ChunkBlockManager_;
-    const NApi::NNative::IClientPtr Client_;
-    const NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     std::vector<THunkChunkRef> HunkChunkRefs_;
 
+    // NB: These fields are accessed under SpinLock_.
     NTabletClient::EInMemoryMode InMemoryMode_ = NTabletClient::EInMemoryMode::None;
     EStorePreloadState PreloadState_ = EStorePreloadState::None;
     TInstant AllowedPreloadTimestamp_;
@@ -283,8 +281,6 @@ protected:
 
     void OnLocalReaderFailed();
 
-    NChunkClient::IBlockCachePtr GetBlockCache();
-
     NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
 
     NTableClient::TChunkStatePtr FindPreloadedChunkState();
@@ -296,24 +292,15 @@ protected:
 
     virtual NTableClient::TKeyComparer GetKeyComparer() = 0;
 
-private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
-    NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
-    TReaders CachedReaders_;
-    THashMap<std::optional<EWorkloadCategory>, TReaders> CachedRemoteReaderAdapters_;
-    bool CachedReadersLocal_ = false;
-    TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
-    TTabletStoreReaderConfigPtr ReaderConfig_;
+    TTabletStoreReaderConfigPtr GetReaderConfig();
 
+private:
+    const IBackendChunkReadersHolderPtr BackendReadersHolder_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     IDynamicStorePtr BackingStore_;
 
     NChunkClient::IBlockCachePtr DoGetBlockCache();
-
-    bool IsLocalChunkValid(const NDataNode::IChunkPtr& chunk) const;
-
-    void DoInvalidateCachedReaders();
-
-    friend TPreloadedBlockCache;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,6 +343,43 @@ protected:
 TLegacyOwningKey RowToKey(const TTableSchema& schema, TSortedDynamicRow row);
 
 TTimestamp CalculateRetainedTimestamp(TTimestamp currentTimestamp, TDuration minDataTtl);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This interface provides means of creating and holding appropriate backend chunk readers,
+//! i.e. remote (replication and erasure) or local ones.
+//! These readers are then used by readers of higher level.
+//! This interface is helpful for unittesting of lookups and versioned chunk readers.
+struct IBackendChunkReadersHolder
+    : public TRefCounted
+{
+    //! #workloadCategory is used to pick relevant throughput throttlers.
+    virtual TBackendReaders GetBackendReaders(
+        TChunkStoreBase* owner,
+        std::optional<EWorkloadCategory> workloadCategory) = 0;
+
+    virtual NChunkClient::TChunkReplicaList GetReplicas(
+        TChunkStoreBase* owner,
+        NNodeTrackerClient::TNodeId localNodeId) const = 0;
+
+    //! Will reset config unless #config is null.
+    virtual void InvalidateCachedReadersAndTryResetConfig(
+        const TTabletStoreReaderConfigPtr& config) = 0;
+
+    virtual TTabletStoreReaderConfigPtr GetReaderConfig() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IBackendChunkReadersHolder)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBackendChunkReadersHolderPtr CreateBackendChunkReadersHolder(
+    IBootstrap* bootstrap,
+    NDataNode::IChunkBlockManagerPtr chunkBlockManager,
+    NApi::NNative::IClientPtr client,
+    NNodeTrackerClient::TNodeDescriptor localNodeDescriptor,
+    NDataNode::IChunkRegistryPtr chunkRegistry,
+    TTabletStoreReaderConfigPtr readerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,7 +22,6 @@ class TSortedChunkStore
 {
 public:
     TSortedChunkStore(
-        IBootstrap* bootstrap,
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
@@ -33,10 +32,7 @@ public:
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         IVersionedChunkMetaManagerPtr chunkMetaManager,
-        NDataNode::IChunkRegistryPtr chunkRegistry = nullptr,
-        NDataNode::IChunkBlockManagerPtr chunkBlockManager = nullptr,
-        NApi::NNative::IClientPtr client = nullptr,
-        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
+        IBackendChunkReadersHolderPtr backendReadersHolder);
 
     void Initialize() override;
 

@@ -152,6 +152,8 @@ DECLARE_REFCOUNTED_CLASS(TRowCache)
 
 DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 
+DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
+
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 

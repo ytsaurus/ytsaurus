@@ -13,17 +13,13 @@ class TOrderedChunkStore
 {
 public:
     TOrderedChunkStore(
-        IBootstrap* bootstrap,
         TTabletManagerConfigPtr config,
         TStoreId id,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         IVersionedChunkMetaManagerPtr chunkMetaManager,
-        NDataNode::IChunkRegistryPtr chunkRegistry = nullptr,
-        NDataNode::IChunkBlockManagerPtr chunkBlockManager = nullptr,
-        NApi::NNative::IClientPtr client = nullptr,
-        const NNodeTrackerClient::TNodeDescriptor& localDescriptor = {});
+        IBackendChunkReadersHolderPtr backendReadersHolder);
 
     // IStore implementation.
     TOrderedChunkStorePtr AsOrderedChunk() override;
