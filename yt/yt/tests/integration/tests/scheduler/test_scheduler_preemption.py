@@ -547,7 +547,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_conditional_preemption(self):
-        set("//sys/scheduler/config/min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+        update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
 
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 1)
         set("//sys/pool_trees/default/@config/enable_conditional_preemption", False)
@@ -641,6 +641,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production", "scheduling_tag_filter": nodes[2]})
         wait(lambda: len(op1.get_running_jobs()) == 5)
         wait(lambda: earlier_job in op1.get_running_jobs())
+
 
 ##################################################################
 
@@ -1178,6 +1179,66 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
         time.sleep(1.0)
         wait(lambda: are_almost_equal(get_usage_ratio(op_special.id), 0.08), iter=10)
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_big.id), 0.32))
+
+
+##################################################################
+
+
+class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+
+    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
+
+    def setup_method(self, method):
+        super(TestIncreasedStarvationToleranceForFullySatisfiedDemand, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.2,
+            "preemption_satisfaction_threshold": 1.0,
+            "fair_share_starvation_tolerance": 0.8,
+            "max_unpreemptable_running_job_count": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_aggressive_starvation_timeout": 200,
+            "preemptive_scheduling_backoff": 0,
+            "max_ephemeral_pools_per_user": 5,
+        })
+
+    @authors("eshcherbin")
+    def test_increase_for_operation(self):
+        update_scheduler_config("operation_hangup_check_period", 1000000000)
+
+        create_pool("regular_pool", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
+        create_pool("starving_pool", attributes={"strong_guarantee_resources": {"cpu": 9.0}})
+
+        regular_op = run_sleeping_vanilla(task_patch={"cpu_limit": 2.0}, spec={"pool": "regular_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 2.0)
+
+        starving_op = run_sleeping_vanilla(job_count=9, spec={"pool": "starving_pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/resource_usage/cpu", default=None) == 8.0)
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status") == "starving")
+
+        time.sleep(3.0)
+        assert get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status") == "starving"
+
+    @authors("eshcherbin")
+    def test_no_increase_for_pool(self):
+        update_scheduler_config("operation_hangup_check_period", 1000000000)
+
+        create_pool("pool")
+
+        regular_op = run_sleeping_vanilla(job_count=9, spec={"pool": "pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=None) == 9.0)
+
+        starving_op = run_sleeping_vanilla(spec={"pool": "pool", "scheduling_tag_filter": "nonexistent_tag"})
+        wait(lambda: get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status", default=None) == "starving")
+
+        time.sleep(3.0)
+        assert get(scheduler_orchid_operation_path(starving_op.id) + "/starvation_status") == "starving"
+        assert get(scheduler_orchid_pool_path("pool") + "/starvation_status") == "non_starving"
+
 
 ##################################################################
 

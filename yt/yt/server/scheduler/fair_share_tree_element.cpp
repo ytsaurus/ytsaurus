@@ -920,10 +920,6 @@ ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance, bool atUpd
         ? Attributes_.UsageShare
         : GetResourceUsageShare();
 
-    if (Dominates(Attributes_.FairShare.Total + TResourceVector::Epsilon(), Attributes_.DemandShare)) {
-        tolerance = 1.0;
-    }
-
     // Fair share may be slightly greater than demand share due to precision errors. See: YT-15359.
     auto adjustedFairShareBound = TResourceVector::Min(Attributes_.FairShare.Total * tolerance, Attributes_.DemandShare);
     if (IsStrictlyDominatesNonBlocked(adjustedFairShareBound, usageShare)) {
@@ -3547,7 +3543,12 @@ ESchedulableStatus TSchedulerOperationElement::GetStatus(bool atUpdate) const
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElement::GetStatusImpl(EffectiveFairShareStarvationTolerance_, atUpdate);
+    double tolerance = EffectiveFairShareStarvationTolerance_;
+    if (Dominates(Attributes_.FairShare.Total + TResourceVector::Epsilon(), Attributes_.DemandShare)) {
+        tolerance = 1.0;
+    }
+
+    return TSchedulerElement::GetStatusImpl(tolerance, atUpdate);
 }
 
 void TSchedulerOperationElement::SetStarvationStatus(EStarvationStatus starvationStatus)
