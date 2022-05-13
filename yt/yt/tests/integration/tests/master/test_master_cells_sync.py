@@ -7,7 +7,6 @@ from yt_commands import (
     create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_area, wait_for_cells,
     get_driver)
 
-import pytest
 from flaky import flaky
 
 ##################################################################
@@ -32,7 +31,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     def _check_true_for_secondary(self, check):
         if self.delayed_secondary_cells_start:
-            self.Env.start_secondary_master_cells()
+            self.Env.start_secondary_master_cells(set_config=False)
         try:
 
             def _check():
@@ -40,12 +39,14 @@ class TestMasterCellsSync(YTEnvSetup):
                     if not check(get_driver(i + 1)):
                         return False
                 return True
-            wait(_check)
+
+            timeout = 120 if self.delayed_secondary_cells_start else 60
+            wait(_check, timeout=timeout, sleep_backoff=1.0)
 
         finally:
             if self.delayed_secondary_cells_start:
                 for cell_index in range(self.Env.yt_config.secondary_cell_count):
-                    self.Env.kill_master_cell(cell_index + 1)
+                    self.Env.kill_masters_at_cells(cell_indexes=[cell_index + 1])
 
     def teardown_method(self, method):
         if self.delayed_secondary_cells_start:
@@ -55,7 +56,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_users_sync(self):
-        create_user("tester")
+        create_user("tester", sync_creation=False)
 
         for i in range(10):
             set("//sys/users/tester/@custom{0}".format(i), "value")
@@ -66,12 +67,12 @@ class TestMasterCellsSync(YTEnvSetup):
         )
         self._check_true_for_secondary(lambda driver: "tester" in ls("//sys/users", driver=driver))
 
-        remove_user("tester")
+        remove_user("tester", sync_deletion=False)
         self._check_true_for_secondary(lambda driver: "tester" not in ls("//sys/users", driver=driver))
 
     @authors("asaitgalin")
     def test_groups_sync(self):
-        create_user("tester")
+        create_user("tester", sync_creation=False)
         create_group("sudoers")
         add_member("tester", "sudoers")
 
@@ -104,7 +105,7 @@ class TestMasterCellsSync(YTEnvSetup):
             )
         )
 
-        remove_account("tst")
+        remove_account("tst", sync_deletion=False)
         self._check_true_for_secondary(lambda driver: "tst" not in ls("//sys/accounts", driver=driver))
 
     @authors("asaitgalin")
@@ -282,9 +283,15 @@ class TestMasterCellsSync(YTEnvSetup):
 ##################################################################
 
 
-@pytest.mark.skipif("True", reason="Currently broken")
 class TestMasterCellsSyncDelayed(TestMasterCellsSync):
     DEFER_SECONDARY_CELL_START = True
+    NUM_TEST_PARTITIONS = 2
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "sync_directories_on_connect": False
+        }
+    }
 
     @classmethod
     def setup_class(cls):

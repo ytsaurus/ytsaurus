@@ -737,8 +737,9 @@ class YTEnvSetup(object):
                 self._clear_ql_pools(driver=driver)
                 self._restore_default_bundle_options(driver=driver)
 
-            yt_commands.wait_for_nodes(driver=driver)
-            yt_commands.wait_for_chunk_replicator_enabled(driver=driver)
+            if not self.get_param("DEFER_SECONDARY_CELL_START", cluster_index):
+                yt_commands.wait_for_nodes(driver=driver)
+                yt_commands.wait_for_chunk_replicator_enabled(driver=driver)
 
             if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 for response in yt_commands.execute_batch(

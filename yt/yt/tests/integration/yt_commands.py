@@ -1723,16 +1723,18 @@ def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=Tru
 
 
 def create_user(name, **kwargs):
+    sync = kwargs.pop("sync_creation", True)
     kwargs["type"] = "user"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     driver = kwargs.get("driver")
     result = execute_command("create", kwargs)
-    wait(
-        lambda: exists("//sys/users/{0}".format(name), driver=driver)
-        and get("//sys/users/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
-    )
+    if sync:
+        wait(
+            lambda: exists("//sys/users/{0}".format(name), driver=driver)
+            and get("//sys/users/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
+        )
     return result
 
 
