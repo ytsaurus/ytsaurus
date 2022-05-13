@@ -76,6 +76,318 @@ static const auto ChunkReaderEvictionTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBackendChunkReadersHolder
+    : public IBackendChunkReadersHolder
+{
+public:
+    TBackendChunkReadersHolder(
+        IBootstrap* bootstrap,
+        IChunkBlockManagerPtr chunkBlockManager,
+        NNative::IClientPtr client,
+        TNodeDescriptor localNodeDescriptor,
+        IChunkRegistryPtr chunkRegistry,
+        TTabletStoreReaderConfigPtr readerConfig)
+        : Bootstrap_(bootstrap)
+        , ChunkBlockManager_(std::move(chunkBlockManager))
+        , Client_(std::move(client))
+        , LocalNodeDescriptor_(std::move(localNodeDescriptor))
+        , ChunkRegistry_(std::move(chunkRegistry))
+        , ReaderConfig_(std::move(readerConfig))
+    { }
+
+    TBackendReaders GetBackendReaders(
+        TChunkStoreBase* owner,
+        std::optional<EWorkloadCategory> workloadCategory) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        const auto& Logger = owner->GetLogger();
+
+        auto hasValidCachedRemoteReaderAdapter = [&] {
+            if (!ChunkReader_) {
+                return false;
+            }
+            if (CachedReadersLocal_) {
+                return false;
+            }
+            if (!CachedRemoteReaderAdapters_.contains(workloadCategory)) {
+                return false;
+            }
+            return true;
+        };
+
+        auto hasValidCachedLocalReader = [&] {
+            if (!ReaderConfig_->PreferLocalReplicas) {
+                return false;
+            }
+            if (!ChunkReader_) {
+                return false;
+            }
+            if (!CachedReadersLocal_) {
+                return false;
+            }
+            auto chunk = CachedWeakChunk_.Lock();
+            if (!IsLocalChunkValid(chunk)) {
+                return false;
+            }
+            return true;
+        };
+
+        auto setCachedReaders = [&] (bool local, IChunkReaderPtr chunkReader) {
+            CachedReadersLocal_ = local;
+
+            ChunkReader_ = std::move(chunkReader);
+            LookupReader_ = dynamic_cast<ILookupReader*>(ChunkReader_.Get());
+        };
+
+        auto createLocalReaders = [&] (const IChunkPtr& chunk, IBlockCachePtr blockCache) {
+            CachedRemoteReaderAdapters_.clear();
+
+            CachedWeakChunk_ = chunk;
+            setCachedReaders(
+                true,
+                CreateLocalChunkReader(
+                    ReaderConfig_,
+                    chunk,
+                    ChunkBlockManager_,
+                    std::move(blockCache),
+                    /*blockMetaCache*/ nullptr));
+
+            YT_LOG_DEBUG("Local chunk reader created and cached");
+        };
+
+        auto createRemoteReaders = [&] (IBlockCachePtr blockCache) {
+            TChunkSpec chunkSpec;
+            ToProto(chunkSpec.mutable_chunk_id(), owner->GetChunkId());
+            chunkSpec.set_erasure_codec(ToProto<int>(owner->GetErasureCodecId()));
+            chunkSpec.set_striped_erasure(owner->IsStripedErasure());
+            *chunkSpec.mutable_chunk_meta() = owner->GetChunkMeta();
+            CachedWeakChunk_.Reset();
+            auto nodeStatusDirectory = Bootstrap_
+                ? Bootstrap_->GetHintManager()
+                : nullptr;
+
+            // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
+            setCachedReaders(
+                false,
+                CreateRemoteReader(
+                    chunkSpec,
+                    ReaderConfig_,
+                    New<TRemoteReaderOptions>(),
+                    Client_,
+                    LocalNodeDescriptor_,
+                    std::move(blockCache),
+                    /*chunkMetaCache*/ nullptr,
+                    /*trafficMeter*/ nullptr,
+                    std::move(nodeStatusDirectory),
+                    /*bandwidthThrottler*/ GetUnlimitedThrottler(),
+                    /*rpsThrottler*/ GetUnlimitedThrottler()));
+
+            YT_LOG_DEBUG("Remote chunk reader created and cached");
+        };
+
+        auto createRemoteReaderAdapter = [&] {
+            auto bandwidthThrottler = workloadCategory
+                ? Bootstrap_->GetInThrottler(*workloadCategory)
+                : GetUnlimitedThrottler();
+
+            TBackendReaders backendReaders;
+            backendReaders.ChunkReader = CreateRemoteReaderThrottlingAdapter(
+                owner->GetChunkId(),
+                ChunkReader_,
+                std::move(bandwidthThrottler),
+                /*rpsThrottler*/ GetUnlimitedThrottler());
+            backendReaders.LookupReader = dynamic_cast<ILookupReader*>(backendReaders.ChunkReader.Get());
+            backendReaders.ReaderConfig = ReaderConfig_;
+
+            CachedRemoteReaderAdapters_.emplace(
+                workloadCategory,
+                std::move(backendReaders));
+        };
+
+        auto now = NProfiling::GetCpuInstant();
+        auto createCachedReader = [&] (IBlockCachePtr blockCache) {
+            ChunkReaderEvictionDeadline_ = now + NProfiling::DurationToCpuDuration(ChunkReaderEvictionTimeout);
+
+            if (hasValidCachedLocalReader()) {
+                return;
+            }
+
+            if (CachedReadersLocal_) {
+                CachedReadersLocal_ = false;
+                ChunkReader_.Reset();
+                LookupReader_.Reset();
+                CachedWeakChunk_.Reset();
+                YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
+            }
+
+            if (ChunkRegistry_ && ReaderConfig_->PreferLocalReplicas) {
+                auto chunk = ChunkRegistry_->FindChunk(owner->GetChunkId()); // ChunkId_);
+                if (IsLocalChunkValid(chunk)) {
+                    createLocalReaders(chunk, std::move(blockCache));
+                    return;
+                }
+            }
+
+            if (!ChunkReader_) {
+                createRemoteReaders(std::move(blockCache));
+            }
+            if (!CachedRemoteReaderAdapters_.contains(workloadCategory)) {
+                createRemoteReaderAdapter();
+            }
+        };
+
+        auto makeResult = [&] {
+            if (CachedReadersLocal_) {
+                return TBackendReaders{
+                    .ChunkReader = ChunkReader_,
+                    .LookupReader = LookupReader_,
+                    .ReaderConfig = ReaderConfig_
+                };
+            } else {
+                return GetOrCrash(CachedRemoteReaderAdapters_, workloadCategory);
+            }
+        };
+
+        // Fast lane.
+        {
+            auto guard = ReaderGuard(ReaderLock_);
+            if (now < ChunkReaderEvictionDeadline_ && (hasValidCachedLocalReader() || hasValidCachedRemoteReaderAdapter())) {
+                return makeResult();
+            }
+        }
+
+        // Slow lane.
+        {
+            // NB: We do this off of guarded scope as this call is blocking and could interfere with ReaderLock_.
+            auto blockCache = owner->GetBlockCache();
+
+            auto guard = WriterGuard(ReaderLock_);
+            createCachedReader(std::move(blockCache));
+            return makeResult();
+        }
+    }
+
+    TChunkReplicaList GetReplicas(
+        TChunkStoreBase* owner,
+        TNodeId localNodeId) const override
+    {
+        const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
+        auto replicasList = chunkReplicaCache->FindReplicas({owner->GetChunkId()});
+        YT_VERIFY(replicasList.size() == 1);
+        auto replicas = std::move(replicasList[0]);
+
+        if (replicas) {
+            TChunkReplicaList result;
+            result.reserve(replicas.Replicas.size());
+            for (const auto& replica : replicas.Replicas) {
+                result.push_back(replica);
+            }
+            return result;
+        }
+
+        // Erasure chunks do not have local readers.
+        if (TypeFromId(owner->GetChunkId()) != EObjectType::Chunk) {
+            return {};
+        }
+
+        auto guard = ReaderGuard(ReaderLock_);
+
+        auto makeLocalReplicas = [&] {
+            TChunkReplicaList replicas;
+            replicas.emplace_back(localNodeId, GenericChunkReplicaIndex);
+            return replicas;
+        };
+
+        if (CachedReadersLocal_) {
+            return makeLocalReplicas();
+        }
+
+        auto localChunk = CachedWeakChunk_.Lock();
+        if (ChunkRegistry_ && !localChunk) {
+            localChunk = ChunkRegistry_->FindChunk(owner->GetChunkId());
+        }
+
+        if (IsLocalChunkValid(localChunk)) {
+            return makeLocalReplicas();
+        }
+
+        return {};
+    }
+
+    void InvalidateCachedReadersAndTryResetConfig(
+        const TTabletStoreReaderConfigPtr& config) override
+    {
+        auto guard = WriterGuard(ReaderLock_);
+
+        ChunkReader_.Reset();
+        LookupReader_.Reset();
+        CachedRemoteReaderAdapters_.clear();
+        CachedReadersLocal_ = false;
+        CachedWeakChunk_.Reset();
+
+        if (config) {
+            ReaderConfig_ = config;
+        }
+    }
+
+    TTabletStoreReaderConfigPtr GetReaderConfig() override
+    {
+        auto guard = ReaderGuard(ReaderLock_);
+
+        return ReaderConfig_;
+    }
+
+private:
+    IBootstrap* const Bootstrap_;
+    const IChunkBlockManagerPtr ChunkBlockManager_;
+    const NApi::NNative::IClientPtr Client_;
+    const TNodeDescriptor LocalNodeDescriptor_;
+    const IChunkRegistryPtr ChunkRegistry_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
+    NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
+    IChunkReaderPtr ChunkReader_;
+    ILookupReaderPtr LookupReader_;
+    THashMap<std::optional<EWorkloadCategory>, TBackendReaders> CachedRemoteReaderAdapters_;
+    bool CachedReadersLocal_ = false;
+    TWeakPtr<IChunk> CachedWeakChunk_;
+    TTabletStoreReaderConfigPtr ReaderConfig_;
+
+
+    static bool IsLocalChunkValid(const IChunkPtr& chunk)
+    {
+        if (!chunk) {
+            return false;
+        }
+        if (chunk->IsRemoveScheduled()) {
+            return false;
+        }
+        return true;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBackendChunkReadersHolderPtr CreateBackendChunkReadersHolder(
+    IBootstrap* bootstrap,
+    IChunkBlockManagerPtr chunkBlockManager,
+    NNative::IClientPtr client,
+    TNodeDescriptor localNodeDescriptor,
+    IChunkRegistryPtr chunkRegistry,
+    TTabletStoreReaderConfigPtr readerConfig)
+{
+    return New<TBackendChunkReadersHolder>(
+        bootstrap,
+        std::move(chunkBlockManager),
+        std::move(client),
+        std::move(localNodeDescriptor),
+        std::move(chunkRegistry),
+        std::move(readerConfig));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStoreBase::TStoreBase(
     TTabletManagerConfigPtr config,
     TStoreId id,
@@ -215,6 +527,11 @@ void TStoreBase::UpdateTabletDynamicMemoryUsage(i64 multiplier)
 {
     RuntimeData_->DynamicMemoryUsagePerType[DynamicMemoryTypeFromState(StoreState_)] +=
         DynamicMemoryUsage_ * multiplier;
+}
+
+const NLogging::TLogger& TStoreBase::GetLogger() const
+{
+    return Logger;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -438,7 +755,6 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStoreBase::TChunkStoreBase(
-    IBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     TChunkId chunkId,
@@ -447,22 +763,14 @@ TChunkStoreBase::TChunkStoreBase(
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
     IVersionedChunkMetaManagerPtr chunkMetaManager,
-    IChunkRegistryPtr chunkRegistry,
-    IChunkBlockManagerPtr chunkBlockManager,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor)
+    IBackendChunkReadersHolderPtr backendReadersHolder)
     : TStoreBase(std::move(config), id, tablet)
-    , Bootstrap_(bootstrap)
     , BlockCache_(std::move(blockCache))
     , ChunkMetaManager_(std::move(chunkMetaManager))
-    , ChunkRegistry_(std::move(chunkRegistry))
-    , ChunkBlockManager_(std::move(chunkBlockManager))
-    , Client_(std::move(client))
-    , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , ChunkId_(chunkId)
     , OverrideTimestamp_(overrideTimestamp)
-    , ReaderConfig_(Tablet_->GetSettings().StoreReaderConfig)
+    , BackendReadersHolder_(std::move(backendReadersHolder))
 {
     /* If store is over chunk, chunkId == storeId.
      * If store is over chunk view, chunkId and storeId are different,
@@ -529,7 +837,7 @@ i64 TChunkStoreBase::GetRowCount() const
 
 NErasure::ECodec TChunkStoreBase::GetErasureCodecId() const
 {
-    return FromProto<NErasure::ECodec>(MiscExt_.erasure_codec());
+    return CheckedEnumCast<NErasure::ECodec>(MiscExt_.erasure_codec());
 }
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
@@ -540,6 +848,11 @@ TTimestamp TChunkStoreBase::GetMinTimestamp() const
 TTimestamp TChunkStoreBase::GetMaxTimestamp() const
 {
     return OverrideTimestamp_ != NullTimestamp ? OverrideTimestamp_ : MiscExt_.max_timestamp();
+}
+
+bool TChunkStoreBase::IsStripedErasure() const
+{
+    return MiscExt_.striped_erasure();
 }
 
 void TChunkStoreBase::Save(TSaveContext& context) const
@@ -597,7 +910,7 @@ IDynamicStorePtr TChunkStoreBase::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(ReaderLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return BackingStore_;
 }
 
@@ -605,7 +918,7 @@ void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(ReaderLock_);
+    auto guard = WriterGuard(SpinLock_);
     std::swap(store, BackingStore_);
 }
 
@@ -613,7 +926,7 @@ bool TChunkStoreBase::HasBackingStore() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(ReaderLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return BackingStore_.operator bool();
 }
 
@@ -658,172 +971,15 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
     return this;
 }
 
-IChunkStore::TReaders TChunkStoreBase::GetReaders(
+TBackendReaders TChunkStoreBase::GetBackendReaders(
     std::optional<EWorkloadCategory> workloadCategory)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto hasValidCachedRemoteReaderAdapter = [&] {
-        if (!CachedReaders_) {
-            return false;
-        }
-        if (CachedReadersLocal_) {
-            return false;
-        }
-        if (!CachedRemoteReaderAdapters_.contains(workloadCategory)) {
-            return false;
-        }
-        return true;
-    };
-
-    auto hasValidCachedLocalReader = [&] {
-        if (!ReaderConfig_->PreferLocalReplicas) {
-            return false;
-        }
-        if (!CachedReaders_) {
-            return false;
-        }
-        if (!CachedReadersLocal_) {
-            return false;
-        }
-        auto chunk = CachedWeakChunk_.Lock();
-        if (!IsLocalChunkValid(chunk)) {
-            return false;
-        }
-        return true;
-    };
-
-    auto setCachedReaders = [&] (bool local, IChunkReaderPtr chunkReader) {
-        CachedReadersLocal_ = local;
-
-        CachedReaders_.ChunkReader = std::move(chunkReader);
-        CachedReaders_.LookupReader = dynamic_cast<ILookupReader*>(CachedReaders_.ChunkReader.Get());
-    };
-
-    auto createLocalReaders = [&] (const IChunkPtr& chunk) {
-        CachedRemoteReaderAdapters_.clear();
-
-        CachedWeakChunk_ = chunk;
-        setCachedReaders(
-            true,
-            CreateLocalChunkReader(
-                ReaderConfig_,
-                chunk,
-                ChunkBlockManager_,
-                DoGetBlockCache(),
-                /*blockMetaCache*/ nullptr));
-
-        YT_LOG_DEBUG("Local chunk reader created and cached");
-    };
-
-    auto createRemoteReaders = [&] {
-        TChunkSpec chunkSpec;
-        ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
-        chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
-        chunkSpec.set_striped_erasure(MiscExt_.striped_erasure());
-        *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
-        CachedWeakChunk_.Reset();
-        auto nodeStatusDirectory = Bootstrap_
-            ? Bootstrap_->GetHintManager()
-            : nullptr;
-
-        // NB: Bandwidth throttler will be set in createRemoteReaderAdapter.
-        setCachedReaders(
-            false,
-            CreateRemoteReader(
-                chunkSpec,
-                ReaderConfig_,
-                New<TRemoteReaderOptions>(),
-                Client_,
-                LocalDescriptor_,
-                DoGetBlockCache(),
-                /*chunkMetaCache*/ nullptr,
-                /*trafficMeter*/ nullptr,
-                std::move(nodeStatusDirectory),
-                /*bandwidthThrottler*/ GetUnlimitedThrottler(),
-                /*rpsThrottler*/ GetUnlimitedThrottler()));
-
-        YT_LOG_DEBUG("Remote chunk reader created and cached");
-    };
-
-    auto createRemoteReaderAdapter = [&] {
-        auto bandwidthThrottler = workloadCategory
-            ? Bootstrap_->GetInThrottler(*workloadCategory)
-            : GetUnlimitedThrottler();
-
-        TReaders readers;
-        readers.ChunkReader = CreateRemoteReaderThrottlingAdapter(
-            ChunkId_,
-            CachedReaders_.ChunkReader,
-            std::move(bandwidthThrottler),
-            /*rpsThrottler*/ GetUnlimitedThrottler());
-        readers.LookupReader = dynamic_cast<ILookupReader*>(readers.ChunkReader.Get());
-
-        CachedRemoteReaderAdapters_.emplace(
-            workloadCategory,
-            std::move(readers));
-    };
-
-    auto now = NProfiling::GetCpuInstant();
-    auto createCachedReader = [&] {
-        ChunkReaderEvictionDeadline_ = now + NProfiling::DurationToCpuDuration(ChunkReaderEvictionTimeout);
-
-        if (hasValidCachedLocalReader()) {
-            return;
-        }
-
-        if (CachedReadersLocal_) {
-            CachedReadersLocal_ = false;
-            CachedReaders_.Reset();
-            CachedWeakChunk_.Reset();
-            YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
-        }
-
-        if (ChunkRegistry_ && ReaderConfig_->PreferLocalReplicas) {
-            auto chunk = ChunkRegistry_->FindChunk(ChunkId_);
-            if (IsLocalChunkValid(chunk)) {
-                createLocalReaders(chunk);
-                return;
-            }
-        }
-
-        if (!CachedReaders_) {
-            createRemoteReaders();
-        }
-        if (!CachedRemoteReaderAdapters_.contains(workloadCategory)) {
-            createRemoteReaderAdapter();
-        }
-    };
-
-    auto makeResult = [&] {
-        if (CachedReadersLocal_) {
-            return CachedReaders_;
-        } else {
-            return GetOrCrash(CachedRemoteReaderAdapters_, workloadCategory);
-        }
-    };
-
-    // Fast lane.
-    {
-        auto guard = ReaderGuard(ReaderLock_);
-        if (now < ChunkReaderEvictionDeadline_ && (hasValidCachedLocalReader() || hasValidCachedRemoteReaderAdapter())) {
-            return makeResult();
-        }
-    }
-
-    // Slow lane.
-    {
-        auto guard = WriterGuard(ReaderLock_);
-        createCachedReader();
-        return makeResult();
-    }
+    return BackendReadersHolder_->GetBackendReaders(this, workloadCategory);
 }
 
 TTabletStoreReaderConfigPtr TChunkStoreBase::GetReaderConfig()
 {
-    auto guard = ReaderGuard(ReaderLock_);
-
-    return ReaderConfig_;
+    return BackendReadersHolder_->GetReaderConfig();
 }
 
 void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
@@ -835,19 +991,7 @@ void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
         guard.Release();
     }
 
-    auto guard = WriterGuard(ReaderLock_);
-
-    DoInvalidateCachedReaders();
-
-    ReaderConfig_ = settings.StoreReaderConfig;
-}
-
-void TChunkStoreBase::DoInvalidateCachedReaders()
-{
-    CachedReaders_.Reset();
-    CachedRemoteReaderAdapters_.clear();
-    CachedReadersLocal_ = false;
-    CachedWeakChunk_.Reset();
+    BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(settings.StoreReaderConfig);
 }
 
 TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
@@ -927,7 +1071,7 @@ EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(ReaderLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return InMemoryMode_;
 }
 
@@ -935,7 +1079,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(ReaderLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     if (InMemoryMode_ != mode) {
         YT_LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
@@ -946,7 +1090,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 
         ChunkState_.Reset();
         PreloadedBlockCache_.Reset();
-        DoInvalidateCachedReaders();
+        BackendReadersHolder_->InvalidateCachedReadersAndTryResetConfig(/*config*/ nullptr);
 
         if (PreloadFuture_) {
             PreloadFuture_.Cancel(TError("Preload canceled due to in-memory mode change"));
@@ -967,7 +1111,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = WriterGuard(ReaderLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     // Otherwise action must be cancelled.
     YT_VERIFY(chunkData->InMemoryMode == InMemoryMode_);
@@ -1004,82 +1148,31 @@ TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
     return OverrideTimestamp_;
 }
 
-TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId) const
+TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId)
 {
-    const auto& chunkReplicaCache = Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
-    auto replicasList = chunkReplicaCache->FindReplicas({ChunkId_});
-    YT_VERIFY(replicasList.size() == 1);
-    auto replicas = replicasList[0];
-
-    if (replicas) {
-        TChunkReplicaList result;
-        result.reserve(replicas.Replicas.size());
-        for (const auto& replica : replicas.Replicas) {
-            result.push_back(replica);
-        }
-        return result;
-    }
-
-    // Erasure chunks do not have local readers.
-    if (TypeFromId(ChunkId_) != EObjectType::Chunk) {
-        return {};
-    }
-
-    auto guard = ReaderGuard(ReaderLock_);
-
-    auto makeLocalReplicas = [&] {
-        TChunkReplicaList replicas;
-        replicas.emplace_back(localNodeId, GenericChunkReplicaIndex);
-        return replicas;
-    };
-
-    if (CachedReadersLocal_) {
-        return makeLocalReplicas();
-    }
-
-    auto localChunk = CachedWeakChunk_.Lock();
-    if (ChunkRegistry_ && !localChunk) {
-        localChunk = ChunkRegistry_->FindChunk(ChunkId_);
-    }
-
-    if (IsLocalChunkValid(localChunk)) {
-        return makeLocalReplicas();
-    }
-
-    return {};
+    return BackendReadersHolder_->GetReplicas(this, localNodeId);
 }
 
 IBlockCachePtr TChunkStoreBase::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(ReaderLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return DoGetBlockCache();
 }
 
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 {
-    VERIFY_SPINLOCK_AFFINITY(ReaderLock_);
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
-}
-
-bool TChunkStoreBase::IsLocalChunkValid(const IChunkPtr& chunk) const
-{
-    if (!chunk) {
-        return false;
-    }
-    if (chunk->IsRemoveScheduled()) {
-        return false;
-    }
-    return true;
 }
 
 TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(ReaderLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     if (InMemoryMode_ == EInMemoryMode::None) {
         return nullptr;

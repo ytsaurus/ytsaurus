@@ -1,10 +1,9 @@
 #include "sorted_dynamic_store_ut_helpers.h"
+#include "sorted_store_helpers.h"
 
-#include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
 
 namespace NYT::NTabletNode {
 
@@ -14,56 +13,6 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NTabletClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline TVersionedOwningRow VersionedLookupRowImpl(
-    TTablet* tablet,
-    const TLegacyOwningKey& key,
-    int minDataVersions = 100,
-    TTimestamp timestamp = AsyncLastCommittedTimestamp,
-    TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
-{
-    TSharedRef request;
-    {
-        TReqVersionedLookupRows req;
-        std::vector<TUnversionedRow> keys(1, key);
-
-        auto writer = CreateWireProtocolWriter();
-        writer->WriteMessage(req);
-        writer->WriteSchemafulRowset(keys);
-
-        struct TMergedTag { };
-        request = MergeRefsToRef<TMergedTag>(writer->Finish());
-    }
-
-    TSharedRef response;
-    {
-        auto retentionConfig = New<NTableClient::TRetentionConfig>();
-        retentionConfig->MinDataVersions = minDataVersions;
-        retentionConfig->MaxDataVersions = minDataVersions;
-
-        auto reader = CreateWireProtocolReader(request);
-        auto writer = CreateWireProtocolWriter();
-        VersionedLookupRows(
-            tablet->BuildSnapshot(nullptr),
-            timestamp,
-            false,
-            chunkReadOptions,
-            retentionConfig,
-            reader.get(),
-            writer.get());
-        struct TMergedTag { };
-        response = MergeRefsToRef<TMergedTag>(writer->Finish());
-    }
-
-    {
-        auto reader = CreateWireProtocolReader(response);
-        auto schemaData = IWireProtocolReader::GetSchemaData(*tablet->GetPhysicalSchema(), TColumnFilter());
-        auto row = reader->ReadVersionedRow(schemaData, false);
-        return TVersionedOwningRow(row);
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,61 +144,32 @@ public:
 
     using TSortedDynamicStoreTestBase::LookupRow;
 
-    TUnversionedOwningRow LookupRow(const TLegacyOwningKey& key, TTimestamp timestamp)
-    {
-        return LookupRow(key, timestamp, /*columnIndexes*/ {}, Tablet_->BuildSnapshot(nullptr));
-    }
-
     TUnversionedOwningRow LookupRow(
         const TLegacyOwningKey& key,
         TTimestamp timestamp,
-        const std::vector<int>& columnIndexes,
-        const TTabletSnapshotPtr& tabletSnapshot)
+        const std::vector<int>& columnIndexes = {},
+        TTabletSnapshotPtr tabletSnapshot = nullptr)
     {
-        TSharedRef request;
-        {
-            TReqLookupRows req;
-            if (!columnIndexes.empty()) {
-                ToProto(req.mutable_column_filter()->mutable_indexes(), columnIndexes);
-            }
-            std::vector<TUnversionedRow> keys(1, key);
-
-            auto writer = CreateWireProtocolWriter();
-            writer->WriteMessage(req);
-            writer->WriteSchemafulRowset(keys);
-
-            struct TMergedTag { };
-            request = MergeRefsToRef<TMergedTag>(writer->Finish());
-        }
-
-        TSharedRef response;
-        {
-            auto reader = CreateWireProtocolReader(request);
-            auto writer = CreateWireProtocolWriter();
-            LookupRows(
-                tabletSnapshot,
-                TReadTimestampRange{
-                    .Timestamp = timestamp,
-                },
-                false,
-                ChunkReadOptions_,
-                reader.get(),
-                writer.get());
-            struct TMergedTag { };
-            response = MergeRefsToRef<TMergedTag>(writer->Finish());
-        }
-
-        {
-            auto reader = CreateWireProtocolReader(response);
-            auto schemaData = IWireProtocolReader::GetSchemaData(*Tablet_->GetPhysicalSchema(), TColumnFilter());
-            auto row = reader->ReadSchemafulRow(schemaData, false);
-            return TUnversionedOwningRow(row);
-        }
+        return LookupRowImpl(
+            Tablet_.get(),
+            key,
+            timestamp,
+            columnIndexes,
+            tabletSnapshot,
+            ChunkReadOptions_);
     }
 
-    TVersionedOwningRow VersionedLookupRow(const TLegacyOwningKey& key, int minDataVersions = 100, TTimestamp timestamp = AsyncLastCommittedTimestamp)
+    TVersionedOwningRow VersionedLookupRow(
+        const TLegacyOwningKey& key,
+        int minDataVersions = 100,
+        TTimestamp timestamp = AsyncLastCommittedTimestamp)
     {
-        return VersionedLookupRowImpl(Tablet_.get(), key, minDataVersions, timestamp, ChunkReadOptions_);
+        return VersionedLookupRowImpl(
+            Tablet_.get(),
+            key,
+            minDataVersions,
+            timestamp,
+            ChunkReadOptions_);
     }
 
 

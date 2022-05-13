@@ -153,19 +153,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrderedChunkStore::TOrderedChunkStore(
-    IBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
     IVersionedChunkMetaManagerPtr chunkMetaManager,
-    IChunkRegistryPtr chunkRegistry,
-    IChunkBlockManagerPtr chunkBlockManager,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor)
+    IBackendChunkReadersHolderPtr backendReadersHolder)
     : TChunkStoreBase(
-        bootstrap,
         config,
         /*storeId*/ id,
         /*chunkId*/ id,
@@ -174,10 +169,7 @@ TOrderedChunkStore::TOrderedChunkStore(
         addStoreDescriptor,
         blockCache,
         chunkMetaManager,
-        chunkRegistry,
-        chunkBlockManager,
-        client,
-        localDescriptor)
+        std::move(backendReadersHolder))
 {
     if (addStoreDescriptor) {
         YT_VERIFY(addStoreDescriptor->has_starting_row_index());
@@ -251,17 +243,19 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         return reader;
     }
 
-    auto chunkReader = GetReaders(workloadCategory).ChunkReader;
+    auto backendReaders = GetBackendReaders(workloadCategory);
 
-    auto chunkMeta = GetCachedVersionedChunkMeta(chunkReader, chunkReadOptions);
+    auto chunkMeta = GetCachedVersionedChunkMeta(
+        backendReaders.ChunkReader,
+        chunkReadOptions);
 
     auto chunkState = New<TChunkState>(GetBlockCache());
 
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,
         chunkMeta,
-        GetReaderConfig(),
-        std::move(chunkReader),
+        std::move(backendReaders.ReaderConfig),
+        std::move(backendReaders.ChunkReader),
         chunkReadOptions,
         readSchema,
         /* sortColumns */ {},

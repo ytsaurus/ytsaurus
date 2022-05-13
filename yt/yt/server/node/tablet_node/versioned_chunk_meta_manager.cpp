@@ -53,14 +53,11 @@ class TVersionedChunkMetaManager
 public:
     TVersionedChunkMetaManager(
         TSlruCacheConfigPtr config,
-        IBootstrapBase* bootstrap)
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : TAsyncSlruCacheBase(
             std::move(config),
             TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
-        , Bootstrap_(bootstrap)
-        , MemoryUsageTracker_(Bootstrap_
-            ->GetMemoryUsageTracker()
-            ->WithCategory(EMemoryCategory::VersionedChunkMeta))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     {
         // TODO(akozhikhov): Employ memory tracking cache.
         MemoryUsageTracker_->SetLimit(GetCapacity());
@@ -122,7 +119,6 @@ public:
     }
 
 private:
-    IBootstrapBase* const Bootstrap_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
@@ -135,11 +131,11 @@ private:
 
 IVersionedChunkMetaManagerPtr CreateVersionedChunkMetaManager(
     TSlruCacheConfigPtr config,
-    IBootstrapBase* bootstrap)
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
     return New<TVersionedChunkMetaManager>(
         std::move(config),
-        bootstrap);
+        std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -167,11 +167,11 @@ public:
             TSortedStoreManagerStressTest* owner,
             TLookupRequest request,
             bool async)
-        : Owner_(owner)
-        , Request_(std::move(request))
-        , TabletSnapshot_(Owner_->Tablet_->BuildSnapshot(nullptr))
-        , Async_(async)
-        , Wait_(Owner_->Rng() % 3)
+            : Owner_(owner)
+            , Request_(std::move(request))
+            , TabletSnapshot_(Owner_->Tablet_->BuildSnapshot(nullptr))
+            , Async_(async)
+            , Wait_(Owner_->Rng() % 3)
         { }
 
         void Run()
@@ -236,7 +236,11 @@ public:
                 }
             }
 
-            auto row = Owner_->LookupRow(key, Request_.Timestamp, std::move(columnFilter), TabletSnapshot_);
+            auto row = Owner_->LookupRow(
+                key,
+                Request_.Timestamp,
+                std::move(columnFilter),
+                TabletSnapshot_);
             if (!row) {
                 Result_.Set(TLookupResult{
                     .Row = std::nullopt,
@@ -1244,5 +1248,5 @@ INSTANTIATE_TEST_SUITE_P(Instantation,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace
 } // namespace NYT::NTabletNode

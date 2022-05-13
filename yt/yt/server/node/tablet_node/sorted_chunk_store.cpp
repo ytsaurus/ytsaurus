@@ -171,7 +171,6 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedChunkStore::TSortedChunkStore(
-    IBootstrap* bootstrap,
     TTabletManagerConfigPtr config,
     TStoreId id,
     NChunkClient::TChunkId chunkId,
@@ -182,12 +181,8 @@ TSortedChunkStore::TSortedChunkStore(
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
     IBlockCachePtr blockCache,
     IVersionedChunkMetaManagerPtr chunkMetaManager,
-    IChunkRegistryPtr chunkRegistry,
-    IChunkBlockManagerPtr chunkBlockManager,
-    NNative::IClientPtr client,
-    const TNodeDescriptor& localDescriptor)
+    IBackendChunkReadersHolderPtr backendReadersHolder)
     : TChunkStoreBase(
-        bootstrap,
         config,
         id,
         chunkId,
@@ -196,10 +191,7 @@ TSortedChunkStore::TSortedChunkStore(
         addStoreDescriptor,
         blockCache,
         chunkMetaManager,
-        chunkRegistry,
-        chunkBlockManager,
-        client,
-        localDescriptor)
+        std::move(backendReadersHolder))
     , KeyComparer_(tablet->GetRowKeyComparer().UUComparer)
     , MaxClipTimestamp_(maxClipTimestamp)
 {
@@ -329,8 +321,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             /*workloadCategory*/ std::nullopt);
     }
 
-    auto chunkReader = GetReaders(workloadCategory).ChunkReader;
-    auto chunkState = PrepareChunkState(chunkReader, chunkReadOptions, enableNewScanReader);
+    auto backendReaders = GetBackendReaders(workloadCategory);
+    auto chunkState = PrepareChunkState(
+        backendReaders.ChunkReader,
+        chunkReadOptions,
+        enableNewScanReader);
 
     const auto& chunkMeta = chunkState->ChunkMeta;
 
@@ -352,8 +347,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             chunkState->BlockCache,
-            GetReaderConfig(),
-            chunkReader,
+            std::move(backendReaders.ReaderConfig),
+            std::move(backendReaders.ChunkReader),
             chunkState->PerformanceCounters,
             chunkReadOptions,
             produceAllVersions));
@@ -362,8 +357,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
     // timestamp resetting adapter.
     return CreateVersionedChunkReader(
-        GetReaderConfig(),
-        std::move(chunkReader),
+        std::move(backendReaders.ReaderConfig),
+        std::move(backendReaders.ChunkReader),
         chunkState,
         chunkMeta,
         chunkReadOptions,
@@ -504,11 +499,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             /*workloadCategory*/ std::nullopt);
     }
 
-    auto readers = GetReaders(workloadCategory);
+    auto backendReaders = GetBackendReaders(workloadCategory);
 
-    if (mountConfig->EnableDataNodeLookup && readers.LookupReader) {
+    if (mountConfig->EnableDataNodeLookup && backendReaders.LookupReader) {
         auto reader = CreateRowLookupReader(
-            std::move(readers.LookupReader),
+            std::move(backendReaders.LookupReader),
             chunkReadOptions,
             filteredKeys,
             tabletSnapshot,
@@ -521,7 +516,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 
-    auto chunkState = PrepareChunkState(readers.ChunkReader, chunkReadOptions, enableNewScanReader);
+    auto chunkState = PrepareChunkState(
+        backendReaders.ChunkReader,
+        chunkReadOptions,
+        enableNewScanReader);
     const auto& chunkMeta = chunkState->ChunkMeta;
 
     ValidateBlockSize(tabletSnapshot, chunkState, chunkReadOptions.WorkloadDescriptor);
@@ -535,8 +533,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             columnFilter,
             chunkState->ChunkColumnMapping,
             BlockCache_,
-            GetReaderConfig(),
-            readers.ChunkReader,
+            std::move(backendReaders.ReaderConfig),
+            std::move(backendReaders.ChunkReader),
             PerformanceCounters_,
             chunkReadOptions,
             produceAllVersions);
@@ -544,8 +542,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto reader = CreateVersionedChunkReader(
-        GetReaderConfig(),
-        std::move(readers.ChunkReader),
+        std::move(backendReaders.ReaderConfig),
+        std::move(backendReaders.ChunkReader),
         chunkState,
         chunkMeta,
         chunkReadOptions,

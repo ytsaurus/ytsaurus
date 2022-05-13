@@ -399,7 +399,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     readerProfiler->SetChunkReaderStatistics(chunkReadOptions.ChunkReaderStatistics);
 
-    auto reader = store->GetReaders(EWorkloadCategory::SystemTabletPreload).ChunkReader;
+    auto reader = store->GetBackendReaders(EWorkloadCategory::SystemTabletPreload).ChunkReader;
     auto meta = WaitFor(reader->GetMeta(chunkReadOptions))
         .ValueOrThrow();
 

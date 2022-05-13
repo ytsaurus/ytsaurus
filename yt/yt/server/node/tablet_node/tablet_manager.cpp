@@ -3347,7 +3347,6 @@ private:
                 }
 
                 return New<TSortedChunkStore>(
-                    Bootstrap_,
                     Config_,
                     storeId,
                     chunkId,
@@ -3358,10 +3357,13 @@ private:
                     descriptor,
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
-                    Bootstrap_->GetChunkRegistry(),
-                    Bootstrap_->GetChunkBlockManager(),
-                    Bootstrap_->GetMasterClient(),
-                    Bootstrap_->GetLocalDescriptor());
+                    CreateBackendChunkReadersHolder(
+                        Bootstrap_,
+                        Bootstrap_->GetChunkBlockManager(),
+                        Bootstrap_->GetMasterClient(),
+                        Bootstrap_->GetLocalDescriptor(),
+                        Bootstrap_->GetChunkRegistry(),
+                        tablet->GetSettings().StoreReaderConfig));
             }
 
             case EStoreType::SortedDynamic:
@@ -3377,17 +3379,19 @@ private:
                 }
 
                 return New<TOrderedChunkStore>(
-                    Bootstrap_,
                     Config_,
                     storeId,
                     tablet,
                     descriptor,
                     Bootstrap_->GetBlockCache(),
                     Bootstrap_->GetVersionedChunkMetaManager(),
-                    Bootstrap_->GetChunkRegistry(),
-                    Bootstrap_->GetChunkBlockManager(),
-                    Bootstrap_->GetMasterClient(),
-                    Bootstrap_->GetLocalDescriptor());
+                    CreateBackendChunkReadersHolder(
+                        Bootstrap_,
+                        Bootstrap_->GetChunkBlockManager(),
+                        Bootstrap_->GetMasterClient(),
+                        Bootstrap_->GetLocalDescriptor(),
+                        Bootstrap_->GetChunkRegistry(),
+                        tablet->GetSettings().StoreReaderConfig));
             }
 
             case EStoreType::OrderedDynamic:

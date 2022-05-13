@@ -43,6 +43,15 @@ TString ToString(const THunkChunkRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBackendReaders
+{
+    NChunkClient::IChunkReaderPtr ChunkReader;
+    NTableClient::ILookupReaderPtr LookupReader;
+    TTabletStoreReaderConfigPtr ReaderConfig;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IStore
     : public virtual TRefCounted
 {
@@ -156,19 +165,11 @@ struct IChunkStore
     virtual TFuture<void> GetPreloadFuture() const = 0;
     virtual void SetPreloadFuture(TFuture<void> future) = 0;
 
-    struct TReaders
-    {
-        NChunkClient::IChunkReaderPtr ChunkReader;
-        NTableClient::ILookupReaderPtr LookupReader;
-
-        explicit operator bool() const;
-
-        void Reset();
-    };
-
-    virtual TReaders GetReaders(std::optional<EWorkloadCategory> workloadCategory) = 0;
-    virtual TTabletStoreReaderConfigPtr GetReaderConfig() = 0;
+    virtual TBackendReaders GetBackendReaders(
+        std::optional<EWorkloadCategory> workloadCategory) = 0;
     virtual void InvalidateCachedReaders(const TTableSettings& settings) = 0;
+    virtual NChunkClient::TChunkReplicaList GetReplicas(
+        NNodeTrackerClient::TNodeId localNodeId) = 0;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const = 0;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) = 0;
@@ -184,9 +185,6 @@ struct IChunkStore
     virtual NChunkClient::TChunkId GetChunkId() const = 0;
     //! Returns the timestamp provided by the chunk view, if any, and NullTimestamp otherwise.
     virtual TTimestamp GetOverrideTimestamp() const = 0;
-
-    virtual NChunkClient::TChunkReplicaList GetReplicas(
-        NNodeTrackerClient::TNodeId localNodeId) const = 0;
 
     virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const = 0;
 
