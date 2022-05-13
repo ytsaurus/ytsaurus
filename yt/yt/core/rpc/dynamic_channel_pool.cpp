@@ -4,6 +4,7 @@
 #include "client.h"
 #include "config.h"
 #include "private.h"
+#include "viable_peer_registry.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -57,6 +58,7 @@ public:
             TGuid::Create(),
             EndpointDescription_,
             ServiceName_))
+       , ViablePeerRegistry_(CreateViablePeerRegistry(Config_, BIND(&TImpl::CreateChannel, Unretained(this)), Logger))
     { }
 
     TFuture<IChannelPtr> GetRandomChannel()
@@ -109,10 +111,10 @@ public:
             }
 
             for (const auto& address : addressesToRemove) {
-                RemovePeer(address, guard);
+                RemovePeer(address);
             }
 
-            DoAddPeers(addresses, guard);
+            DoAddPeers(addresses);
         }
 
         PeersSetPromise_.TrySet();
@@ -130,20 +132,18 @@ public:
 
     void Terminate(const TError& error)
     {
-        decltype(AddressToIndex_) addressToIndex;
-        decltype(ViablePeers_) viablePeers;
-        decltype(HashToViableChannel_) hashToViableChannel;
+        std::vector<IChannelPtr> activeChannels;
+
         {
             auto guard = WriterGuard(SpinLock_);
             Terminated_ = true;
             TerminationError_ = error;
-            AddressToIndex_.swap(addressToIndex);
-            ViablePeers_.swap(viablePeers);
-            HashToViableChannel_.swap(hashToViableChannel);
+            activeChannels = ViablePeerRegistry_->GetActiveChannels();
+            ViablePeerRegistry_->Clear();
         }
 
-        for (const auto& peer : viablePeers) {
-            peer.Channel->Terminate(error);
+        for (auto& channel : activeChannels) {
+            channel->Terminate(error);
         }
     }
 
@@ -163,7 +163,6 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
     const TPromise<void> PeersSetPromise_ = NewPromise<void>();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
@@ -180,16 +179,7 @@ private:
 
     THashMap<TString, TPeerPollerPtr> AddressToPoller_;
 
-    struct TViablePeer
-    {
-        TString Address;
-        IChannelPtr Channel;
-    };
-
-    THashMap<TString, int> AddressToIndex_;
-    std::vector<TViablePeer> ViablePeers_;
-    std::map<std::pair<size_t, TString>, IChannelPtr> HashToViableChannel_;
-
+    IViablePeerRegistryPtr ViablePeerRegistry_;
 
     struct TTooManyConcurrentRequests { };
     struct TNoMorePeers { };
@@ -224,11 +214,9 @@ private:
             DoRun();
         }
 
-        void OnPeerDiscovered(
-            const TString& address,
-            const IChannelPtr& channel)
+        void OnPeerDiscovered(const TString& address)
         {
-            AddViablePeer(address, channel);
+            AddViablePeer(address);
             Success_.store(true);
             FirstPeerDiscoveredPromise_.TrySet();
         }
@@ -293,13 +281,11 @@ private:
             req->Invoke().Subscribe(BIND(
                 &TDiscoverySession::OnResponse,
                 MakeStrong(this),
-                address,
-                channel));
+                address));
         }
 
         void OnResponse(
             const TString& address,
-            const IChannelPtr& channel,
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
             auto owner = Owner_.Lock();
@@ -330,7 +316,7 @@ private:
                     up);
 
                 if (up) {
-                    OnPeerDiscovered(address, channel);
+                    OnPeerDiscovered(address);
                 } else {
                     auto error = owner->MakePeerDownError(address);
                     BanPeer(address, error, owner->Config_->SoftBackoffTime);
@@ -393,14 +379,14 @@ private:
             return DiscoveryErrors_;
         }
 
-        void AddViablePeer(const TString& address, const IChannelPtr& channel)
+        void AddViablePeer(const TString& address)
         {
             auto owner = Owner_.Lock();
             if (!owner) {
                 return;
             }
 
-            owner->AddViablePeer(address, channel);
+            owner->AddViablePeer(address);
         }
 
         void InvalidatePeer(const TString& address)
@@ -538,7 +524,7 @@ private:
                             owner->UnbanPeer(PeerAddress_);
                             auto discoverySessionOrError = owner->RunDiscoverySession();
                             if (discoverySessionOrError.IsOK()) {
-                                discoverySessionOrError.Value()->OnPeerDiscovered(PeerAddress_, channel);
+                                discoverySessionOrError.Value()->OnPeerDiscovered(PeerAddress_);
                             } else {
                                 YT_LOG_DEBUG(discoverySessionOrError, "Failed to get discovery session");
                             }
@@ -554,110 +540,15 @@ private:
         }
     };
 
-    static bool IsRequestSticky(const IClientRequestPtr& request)
-    {
-        if (!request) {
-            return false;
-        }
-        const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
-        return balancingExt.enable_stickiness();
-    }
-
     IChannelPtr PickViableChannel(
         const IClientRequestPtr& request,
         const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
+        auto guard = ReaderGuard(SpinLock_);
         return IsRequestSticky(request)
-            ? PickStickyViableChannel(request)
-            : PickRandomViableChannel(request, hedgingOptions);
+            ? ViablePeerRegistry_->PickStickyChannel(request)
+            : ViablePeerRegistry_->PickRandomChannel(request, hedgingOptions);
     }
-
-    IChannelPtr PickStickyViableChannel(const IClientRequestPtr& request)
-    {
-        const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
-        auto hash = request->GetHash();
-        auto randomNumber = balancingExt.enable_client_stickiness() ? ClientStickinessRandomNumber_ : RandomNumber<size_t>();
-        int stickyGroupSize = balancingExt.sticky_group_size();
-        auto randomIndex = randomNumber % stickyGroupSize;
-
-        auto guard = ReaderGuard(SpinLock_);
-
-        if (ViablePeers_.empty()) {
-            return nullptr;
-        }
-
-        auto it = HashToViableChannel_.lower_bound(std::make_pair(hash, TString()));
-        auto rebaseIt = [&] {
-            if (it == HashToViableChannel_.end()) {
-                it = HashToViableChannel_.begin();
-            }
-        };
-
-        TCompactSet<TStringBuf, 16> seenAddresses;
-        auto currentRandomIndex = randomIndex % ViablePeers_.size();
-        while (true) {
-            rebaseIt();
-            const auto& address = it->first.second;
-            if (seenAddresses.count(address) == 0) {
-                if (currentRandomIndex == 0) {
-                    break;
-                }
-                seenAddresses.insert(address);
-                --currentRandomIndex;
-            } else {
-                ++it;
-            }
-        }
-
-        YT_LOG_DEBUG("Sticky peer selected (RequestId: %v, RequestHash: %llx, RandomIndex: %v/%v, Address: %v)",
-            request->GetRequestId(),
-            hash,
-            randomIndex,
-            stickyGroupSize,
-            it->first.second);
-
-        return it->second;
-    }
-
-    IChannelPtr PickRandomViableChannel(
-        const IClientRequestPtr& request,
-        const std::optional<THedgingChannelOptions>& hedgingOptions)
-    {
-        auto guard = ReaderGuard(SpinLock_);
-
-        if (ViablePeers_.empty()) {
-            return nullptr;
-        }
-
-        auto peerIndex = RandomNumber<size_t>(ViablePeers_.size());
-
-        IChannelPtr channel;
-        if (hedgingOptions && std::ssize(ViablePeers_) > 1) {
-            const auto& primaryPeer = ViablePeers_[peerIndex];
-            const auto& backupPeer = peerIndex + 1 == ViablePeers_.size()
-                ? ViablePeers_[0]
-                : ViablePeers_[peerIndex + 1];
-            channel = CreateHedgingChannel(
-                primaryPeer.Channel,
-                backupPeer.Channel,
-                *hedgingOptions);
-
-            YT_LOG_DEBUG("Random peers selected (RequestId: %v, PrimaryAddress: %v, BackupAddress: %v)",
-                request ? request->GetRequestId() : TRequestId(),
-                primaryPeer.Address,
-                backupPeer.Address);
-        } else {
-            const auto& peer = ViablePeers_[peerIndex];
-            channel = peer.Channel;
-
-            YT_LOG_DEBUG("Random peer selected (RequestId: %v, Address: %v)",
-                request ? request->GetRequestId() : TRequestId(),
-                peer.Address);
-        }
-
-        return channel;
-    }
-
 
     TErrorOr<TDiscoverySessionPtr> RunDiscoverySession()
     {
@@ -770,11 +661,13 @@ private:
     void AddPeers(const std::vector<TString>& addresses)
     {
         auto guard = WriterGuard(SpinLock_);
-        DoAddPeers(addresses, guard);
+        DoAddPeers(addresses);
     }
 
-    void DoAddPeers(const std::vector<TString>& addresses, TWriterGuard<TReaderWriterSpinLock>& guard)
+    void DoAddPeers(const std::vector<TString>& addresses)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         PeerDiscoveryError_ = {};
 
         std::vector<TString> newAddresses;
@@ -784,42 +677,31 @@ private:
             }
         }
 
-        if (std::ssize(ActiveAddresses_) + std::ssize(BannedAddresses_) + std::ssize(newAddresses) > Config_->MaxPeerCount) {
-            MaybeEvictRandomPeer(guard);
-        }
-
         for (const auto& address : newAddresses) {
-            if (std::ssize(ActiveAddresses_) + std::ssize(BannedAddresses_) >= Config_->MaxPeerCount) {
-                break;
-            }
-
-            AddPeer(address, guard);
+            AddPeer(address);
         }
+
+        MaybeEvictRandomPeer();
     }
 
-    void MaybeEvictRandomPeer(TWriterGuard<TReaderWriterSpinLock>& guard)
+    void MaybeEvictRandomPeer()
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         auto now = TInstant::Now();
         if (now < RandomEvictionDeadline_) {
             return;
         }
 
-        std::vector<TString> addresses;
-        addresses.insert(addresses.end(), ActiveAddresses_.begin(), ActiveAddresses_.end());
-        addresses.insert(addresses.end(), BannedAddresses_.begin(), BannedAddresses_.end());
-        if (addresses.empty()) {
-            return;
-        }
-
-        const auto& address = addresses[RandomNumber(addresses.size())];
-        YT_LOG_DEBUG("Evicting random peer (Address: %v)", address);
-        RemovePeer(address, guard);
+        ViablePeerRegistry_->MaybeRotateRandomPeer();
 
         RandomEvictionDeadline_ = now + Config_->RandomPeerEvictionPeriod + RandomDuration(Config_->RandomPeerEvictionPeriod);
     }
 
-    void AddPeer(const TString& address, TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
+    void AddPeer(const TString& address)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         YT_VERIFY(ActiveAddresses_.insert(address).second);
 
         if (Config_->EnablePeerPolling) {
@@ -831,15 +713,15 @@ private:
         YT_LOG_DEBUG("Peer added (Address: %v)", address);
     }
 
-    void RemovePeer(const TString& address, TWriterGuard<TReaderWriterSpinLock>& guard)
+    void RemovePeer(const TString& address)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         if (ActiveAddresses_.erase(address) == 0 && BannedAddresses_.erase(address) == 0) {
             return;
         }
 
-        if (auto it = AddressToIndex_.find(address)) {
-            UnregisterViablePeer(it, guard);
-        }
+        ViablePeerRegistry_->UnregisterPeer(address);
 
         if (Config_->EnablePeerPolling) {
             const auto& poller = GetOrCrash(AddressToPoller_, address);
@@ -922,96 +804,42 @@ private:
         UnbanPeer(address);
     }
 
-    template <class F>
-    void GeneratePeerHashes(const TString& address, F f)
+    void AddViablePeer(const TString& address)
     {
-        TRandomGenerator generator(ComputeHash(address));
-        for (int index = 0; index < Config_->HashesPerPeer; ++index) {
-            f(generator.Generate<size_t>());
-        }
-    }
-
-
-    void AddViablePeer(const TString& address, const IChannelPtr& channel)
-    {
-        auto wrappedChannel = CreateFailureDetectingChannel(
-            channel,
-            Config_->AcknowledgementTimeout,
-            BIND(&TImpl::OnChannelFailed, MakeWeak(this), address));
-
-        bool updated;
+        bool added;
         {
             auto guard = WriterGuard(SpinLock_);
-            updated = RegisterViablePeer(address, wrappedChannel, guard);
+            added = ViablePeerRegistry_->RegisterPeer(address);
         }
 
-        YT_LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
+        YT_LOG_DEBUG("Peer is viable (Address: %v, Added: %v)",
             address,
-            updated);
+            added);
     }
 
     void InvalidatePeer(const TString& address)
     {
         auto guard = WriterGuard(SpinLock_);
-        auto it = AddressToIndex_.find(address);
-        if (it != AddressToIndex_.end()) {
-            UnregisterViablePeer(it, guard);
-        }
+        ViablePeerRegistry_->UnregisterPeer(address);
     }
 
     void OnChannelFailed(const TString& address, const IChannelPtr& channel, const TError& error)
     {
         bool evicted = false;
+
         {
             auto guard = WriterGuard(SpinLock_);
-            auto it = AddressToIndex_.find(address);
-            if (it != AddressToIndex_.end() && ViablePeers_[it->second].Channel == channel) {
+            if (auto storedChannel = ViablePeerRegistry_->GetChannel(address); storedChannel && *storedChannel == channel) {
+                ViablePeerRegistry_->UnregisterPeer(address);
                 evicted = true;
-                UnregisterViablePeer(it, guard);
             }
         }
 
-        YT_LOG_DEBUG(error, "Peer is no longer viable (Address: %v, Evicted: %v)",
+        YT_LOG_DEBUG(
+            error,
+            "Peer is no longer viable due to channel failure (Address: %v, Evicted: %v)",
             address,
             evicted);
-    }
-
-
-    bool RegisterViablePeer(const TString& address, const IChannelPtr& channel, TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
-    {
-        GeneratePeerHashes(address, [&] (size_t hash) {
-            HashToViableChannel_[std::make_pair(hash, address)] = channel;
-        });
-
-        bool updated = false;
-        auto it = AddressToIndex_.find(address);
-        if (it == AddressToIndex_.end()) {
-            int index = static_cast<int>(ViablePeers_.size());
-            ViablePeers_.push_back({address, channel});
-            YT_VERIFY(AddressToIndex_.emplace(address, index).second);
-        } else {
-            int index = it->second;
-            ViablePeers_[index].Channel = channel;
-            updated = true;
-        }
-        return updated;
-    }
-
-    void UnregisterViablePeer(THashMap<TString, int>::iterator it, TWriterGuard<TReaderWriterSpinLock>& /*guard*/)
-    {
-        const auto& address = it->first;
-        GeneratePeerHashes(address, [&] (size_t hash) {
-            HashToViableChannel_.erase(std::make_pair(hash, address));
-        });
-
-        int index1 = it->second;
-        int index2 = static_cast<int>(ViablePeers_.size() - 1);
-        if (index1 != index2) {
-            std::swap(ViablePeers_[index1], ViablePeers_[index2]);
-            AddressToIndex_[ViablePeers_[index1].Address] = index1;
-        }
-        ViablePeers_.pop_back();
-        AddressToIndex_.erase(it);
     }
 
     TGenericProxy CreateGenericProxy(IChannelPtr peerChannel)
@@ -1019,6 +847,14 @@ private:
         auto serviceDescriptor = TServiceDescriptor(ServiceName_)
             .SetProtocolVersion(GenericProtocolVersion);
         return TGenericProxy(std::move(peerChannel), serviceDescriptor);
+    }
+
+    IChannelPtr CreateChannel(const TString& address)
+    {
+        return CreateFailureDetectingChannel(
+            ChannelFactory_->CreateChannel(address),
+            Config_->AcknowledgementTimeout,
+            BIND(&TImpl::OnChannelFailed, MakeWeak(this), address));
     }
 };
 
