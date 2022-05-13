@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/yson/null_consumer.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -105,12 +103,12 @@ public:
 
     TJobResources GetResourceUsage(const TSchedulingTagFilter& /*filter*/) const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     void Disconnect(const TError& /*error*/) override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     TInstant GetConnectionTime() const override
@@ -215,12 +213,12 @@ public:
 
     void SerializeResources(const TJobResourcesWithQuota& /*resources*/, NYson::IYsonConsumer* /*consumer*/) const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
     
     void SerializeDiskQuota(const TDiskQuota& /*diskQuota*/, NYson::IYsonConsumer* /*consumer*/) const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     void LogResourceMetering(
@@ -242,7 +240,7 @@ public:
         return MediumDirectory_;
     }
 
-    void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
+    void InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/) override
     { }
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
@@ -351,11 +349,10 @@ public:
 
     EOperationState GetState() const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
-
-    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& /* treeId */) const override
+    std::optional<EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& /*treeId*/) const override
     {
         return std::nullopt;
     }
@@ -365,7 +362,7 @@ public:
         return StartTime_;
     }
 
-    std::optional<int> FindSlotIndex(const TString& /* treeId */) const override
+    std::optional<int> FindSlotIndex(const TString& /*treeId*/) const override
     {
         return 0;
     }
@@ -393,17 +390,17 @@ public:
 
     TStrategyOperationSpecPtr GetStrategySpec() const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& /*treeId*/) const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     const NYson::TYsonString& GetSpecString() const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     const NYson::TYsonString& GetTrimmedAnnotations() const override
@@ -413,7 +410,7 @@ public:
 
     TOperationRuntimeParametersPtr GetRuntimeParameters() const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     TOperationControllerStrategyHostMock& GetOperationControllerStrategyHost()
@@ -458,9 +455,29 @@ public:
         return ResourceTree_.Get();
     }
 
+    void OnOperationStarvationStatusChanged(
+        TOperationId /*operationId*/,
+        EStarvationStatus /*oldStatus*/,
+        EStarvationStatus /*newStatus*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void BuildElementLoggingStringAttributes(
+        const TFairShareTreeSnapshotPtr& /*treeSnapshot*/,
+        const TSchedulerElement* /*element*/,
+        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     TResourceTreePtr ResourceTree_;
 };
+
+using TFairShareTreeElementHostMockPtr = TIntrusivePtr<TFairShareTreeElementHostMock>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareTreeElementTest
     : public testing::Test
@@ -478,23 +495,10 @@ public:
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
-    TIntrusivePtr<TFairShareTreeElementHostMock> FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
-    TScheduleJobsStage NonPreemptiveSchedulingStage_{
-        .Type = EJobSchedulingStage::NonPreemptive,
-        .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/non_preemptive_test_scheduling_stage"})};
-    TScheduleJobsStage PreemptiveSchedulingStage_{
-        .Type = EJobSchedulingStage::Preemptive,
-        .ProfilingCounters = TScheduleJobsProfilingCounters(NProfiling::TProfiler{"/preemptive_test_scheduling_stage"})};
+    TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
 
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = 0;
-
-    TDiskQuota CreateDiskQuota(i64 diskSpace)
-    {
-        TDiskQuota diskQuota;
-        diskQuota.DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex] = diskSpace;
-        return diskQuota;
-    }
 
     TSchedulerRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* strategyHost)
     {
@@ -513,7 +517,7 @@ protected:
             FairShareTreeElementHostMock_.Get(),
             name,
             std::move(config),
-            /* defaultConfigured */ true,
+            /*defaultConfigured*/ true,
             TreeConfig_,
             "default",
             SchedulerLogger);
@@ -577,11 +581,10 @@ protected:
             SchedulerLogger);
         operationElement->AttachParent(parent, SlotIndex_++);
         parent->EnableChild(operationElement);
-        operationElement->Enable();
         return operationElement;
     }
 
-    std::pair<TSchedulerOperationElementPtr, TIntrusivePtr<TOperationStrategyHostMock>> CreateOperationWithJobs(
+    std::pair<TSchedulerOperationElementPtr, TOperationStrategyHostMockPtr> CreateOperationWithJobs(
         int jobCount,
         ISchedulerStrategyHost* strategyHost,
         TSchedulerCompositeElement* parent)
@@ -620,7 +623,7 @@ protected:
         return execNodes;
     }
 
-    TIntrusivePtr<TSchedulerStrategyHostMock> CreateHostWith10NodesAnd10Cpu()
+    TSchedulerStrategyHostMockPtr CreateHostWith10NodesAnd10Cpu()
     {
         TJobResourcesWithQuota nodeResources;
         nodeResources.SetUserSlots(10);
@@ -630,66 +633,16 @@ protected:
         return New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
     }
 
-    TJobPtr CreateTestJob(
-        TJobId jobId,
-        TOperationId operationId,
-        const TExecNodePtr& execNode,
-        TInstant startTime,
-        TJobResources jobResources)
+    void IncreaseOperationResourceUsage(const TSchedulerOperationElementPtr& operationElement, TJobResources resourceUsageDelta)
     {
-        return New<TJob>(
-            jobId,
-            EJobType::Vanilla,
-            operationId,
-            /*incarnationId*/ TGuid::Create(),
-            /*controllerEpoch*/ 0,
-            execNode,
-            startTime,
-            jobResources,
-            TDiskQuota(),
-            /*interruptible*/ false,
-            /*preemptionMode*/ EPreemptionMode::Normal,
-            /*treeId*/ "",
-            /*schedulingIndex*/ UndefinedSchedulingIndex);
-    }
-
-    void DoTestSchedule(
-        const TSchedulerRootElementPtr& rootElement,
-        const TSchedulerOperationElementPtr& operationElement,
-        const TExecNodePtr& execNode,
-        const TSchedulerStrategyHostMock* strategyHost)
-    {
-        auto schedulingContext = CreateSchedulingContext(
-            /* nodeShardId */ 0,
-            SchedulerConfig_,
-            execNode,
-            /* runningJobs */ {},
-            strategyHost->GetMediumDirectory());
-
-        DoFairShareUpdate(strategyHost, rootElement);
-
-        TScheduleJobsContext context(
-            schedulingContext,
-            /* registeredSchedulingTagFilters */ {},
-            /* enableSchedulingInfoLogging */ true,
-            SchedulerLogger);
-        context.StartStage(&NonPreemptiveSchedulingStage_);
-
-        context.PrepareForScheduling(rootElement);
-        rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-        rootElement->PrescheduleJob(&context, /*targetOperationPreemptionPriority*/ {});
-
-        operationElement->ScheduleJob(&context, /* ignorePacking */ true);
-
-        context.FinishStage();
+        operationElement->CommitHierarchicalResourceUsage(resourceUsageDelta, /*precommitedResources*/ {});
     }
 
     void DoFairShareUpdate(
         const ISchedulerStrategyHost* strategyHost,
         const TSchedulerRootElementPtr& rootElement,
         TInstant now = TInstant(),
-        std::optional<TInstant> previousUpdateTime = std::nullopt,
-        bool checkForStarvation = false)
+        std::optional<TInstant> previousUpdateTime = std::nullopt)
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
@@ -711,17 +664,13 @@ protected:
 		updateExecutor.Run();
 
 		rootElement->PostUpdate(&fairSharePostUpdateContext);
-
-		if (checkForStarvation) {
-            rootElement->UpdateStarvationAttributes(now, /*enablePoolStarvation*/ true);
-        }
     }
 
 private:
     void ResetFairShareFunctionsRecursively(TSchedulerCompositeElement* compositeElement)
     {
         compositeElement->ResetFairShareFunctions();
-        for (const auto& child : compositeElement->GetEnabledChildren()) {
+        for (const auto& child : compositeElement->EnabledChildren()) {
             if (auto* childPool = dynamic_cast<TSchedulerCompositeElement*>(child.Get())) {
                 ResetFairShareFunctionsRecursively(childPool);
             } else {
@@ -807,7 +756,7 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     poolC->AttachParent(rootElement.Get());
     poolD->AttachParent(rootElement.Get());
 
-    std::array<TIntrusivePtr<TOperationStrategyHostMock>, OperationCount> operations;
+    std::array<TOperationStrategyHostMockPtr, OperationCount> operations;
     std::array<TSchedulerOperationElementPtr, OperationCount> operationElements;
 
     for (auto& operation : operations) {
@@ -830,16 +779,8 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     }
 
     for (int i = 0; i < 10; ++i) {
-        operationElements[0]->OnJobStarted(
-            TGuid::Create(),
-            jobResources.ToJobResources(),
-            /*precommitedResources*/ {},
-            /*scheduleJobEpoch*/ 0);
-        operationElements[2]->OnJobStarted(
-            TGuid::Create(),
-            jobResources.ToJobResources(),
-            /*precommitedResources*/ {},
-            /*scheduleJobEpoch*/ 0);
+        IncreaseOperationResourceUsage(operationElements[0], jobResources.ToJobResources());
+        IncreaseOperationResourceUsage(operationElements[2], jobResources.ToJobResources());
     }
 
     {
@@ -860,16 +801,8 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
     }
 
     for (int i = 0; i < 10; ++i) {
-        operationElements[1]->OnJobStarted(
-            TGuid::Create(),
-            jobResources.ToJobResources(),
-            /*precommitedResource */ {},
-            /*scheduleJobEpoch*/ 0);
-        operationElements[3]->OnJobStarted(
-            TGuid::Create(),
-            jobResources.ToJobResources(),
-            /*precommitedResources*/ {},
-            /*scheduleJobEpoch*/ 0);
+        IncreaseOperationResourceUsage(operationElements[1], jobResources.ToJobResources());
+        IncreaseOperationResourceUsage(operationElements[3], jobResources.ToJobResources());
     }
 
     {
@@ -1185,11 +1118,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA.Get(), pool.Get());
-    operationElementA->OnJobStarted(
-        TGuid::Create(),
-        jobResourcesA,
-        /*precommitedResources*/ {},
-        /*scheduleJobEpoch*/ 0);
+    IncreaseOperationResourceUsage(operationElementA, jobResourcesA);
 
     TJobResources jobResourcesB;
     jobResourcesB.SetUserSlots(1);
@@ -1200,11 +1129,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
     auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB.Get(), pool.Get());
-    operationElementB->OnJobStarted(
-        TGuid::Create(),
-        jobResourcesB,
-        /*precommitedResources*/ {},
-        /*scheduleJobEpoch*/ 0);
+    IncreaseOperationResourceUsage(operationElementB, jobResourcesB);
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
 
@@ -1213,7 +1138,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
         pool->Attributes().DemandShare + TResourceVector::SmallEpsilon(),
         pool->Attributes().FairShare.Total));
 
-    EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus(/* atUpdate */ true));
+    EXPECT_EQ(ESchedulableStatus::Normal, pool->GetStatus(/*atUpdate*/ true));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1420,470 +1345,6 @@ TEST_F(TFairShareTreeElementTest, TestPoolCapacityDoesntDecreaseExistingAccumula
         EXPECT_EQ(hugeVolume.GetUserSlots(), updatedVolume.GetUserSlots());
         EXPECT_EQ(hugeVolume.GetGpu(), updatedVolume.GetGpu());
         EXPECT_EQ(hugeVolume.GetNetwork(), updatedVolume.GetNetwork());
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Schedule jobs tests.
-
-TEST_F(TFairShareTreeElementTest, TestUpdatePreemptableJobsList)
-{
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(10);
-    nodeResources.SetCpu(10);
-    nodeResources.SetMemory(100);
-
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(10);
-
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
-
-    auto rootElement = CreateTestRootElement(strategyHost.Get());
-
-    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions);
-
-    std::vector<TJobId> jobIds;
-    for (int i = 0; i < 150; ++i) {
-        auto jobId = TGuid::Create();
-        jobIds.push_back(jobId);
-        // LORDF: How to add jobs easily?
-        operationElementX->OnJobStarted(
-            jobId,
-            jobResources.ToJobResources(),
-            /*precommitedResources*/ {},
-            /*scheduleJobEpoch*/ 0);
-    }
-
-    DoFairShareUpdate(strategyHost.Get(), rootElement);
-
-    EXPECT_EQ(1.6, MaxComponent(operationElementX->Attributes().DemandShare));
-    EXPECT_EQ(1.0, MaxComponent(operationElementX->Attributes().FairShare.Total));
-
-    for (int i = 0; i < 50; ++i) {
-        EXPECT_FALSE(operationElementX->IsJobPreemptable(jobIds[i], true));
-    }
-    for (int i = 50; i < 100; ++i) {
-        EXPECT_FALSE(operationElementX->IsJobPreemptable(jobIds[i], false));
-        EXPECT_TRUE(operationElementX->IsJobPreemptable(jobIds[i], true));
-    }
-    for (int i = 100; i < 150; ++i) {
-        EXPECT_TRUE(operationElementX->IsJobPreemptable(jobIds[i], false));
-    }
-}
-
-TEST_F(TFairShareTreeElementTest, DontSuggestMoreResourcesThanOperationNeeds)
-{
-    // Create 3 nodes.
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
-
-    std::vector<TExecNodePtr> execNodes(3);
-    for (int i = 0; i < std::ssize(execNodes); ++i) {
-        execNodes[i] = CreateTestExecNode(nodeResources);
-    }
-
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(execNodes.size(), nodeResources));
-
-    auto rootElement = CreateTestRootElement(strategyHost.Get());
-
-    // Create an operation with 2 jobs.
-    TJobResourcesWithQuota operationJobResources;
-    operationJobResources.SetCpu(10);
-    operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
-
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-    auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
-    auto operationElement = CreateTestOperationElement(strategyHost.Get(), operation.Get(), rootElement.Get(), operationOptions);
-
-    // We run operation with 2 jobs and simulate 3 concurrent heartbeats.
-    // Two of them must succeed and call controller ScheduleJob,
-    // the third one must skip ScheduleJob call since resource usage precommit is limited by operation demand.
-
-    auto readyToGo = NewPromise<void>();
-    auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
-    std::atomic<int> heartbeatsInScheduling(0);
-    EXPECT_CALL(
-        operationControllerStrategyHost,
-        ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
-        .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
-            heartbeatsInScheduling.fetch_add(1);
-            EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
-            return MakeFuture<TControllerScheduleJobResultPtr>(
-                TErrorOr<TControllerScheduleJobResultPtr>(New<TControllerScheduleJobResult>()));
-        }));
-
-    std::vector<TFuture<void>> futures;
-    auto actionQueue = New<NConcurrency::TActionQueue>();
-    for (int i = 0; i < 2; ++i) {
-        auto future = BIND([&, i]() {
-            DoTestSchedule(rootElement, operationElement, execNodes[i], strategyHost.Get());
-        }).AsyncVia(actionQueue->GetInvoker()).Run();
-        futures.push_back(std::move(future));
-    }
-
-    while (heartbeatsInScheduling.load() != 2) {
-        // Actively waiting.
-    }
-    // Number of expected calls to `operationControllerStrategyHost.ScheduleJob(...)` is set to 2.
-    // In this way, the mock object library checks that this heartbeat doesn't get to actual scheduling.
-    DoTestSchedule(rootElement, operationElement, execNodes[2], strategyHost.Get());
-    readyToGo.Set();
-
-    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
-}
-
-TEST_F(TFairShareTreeElementTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
-{
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
-
-    auto execNode = CreateTestExecNode(nodeResources);
-
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-
-    auto rootElement = CreateTestRootElement(strategyHost.Get());
-
-    // Create an operation with 4 jobs.
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetCpu(10);
-    jobResources.SetMemory(10);
-    jobResources.SetDiskQuota(CreateDiskQuota(0));
-
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-    auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
-    auto operationElement = CreateTestOperationElement(strategyHost.Get(), operation.Get(), rootElement.Get(), operationOptions);
-
-    std::vector<TJobId> jobIds;
-    for (int i = 0; i < 4; ++i) {
-        auto jobId = TGuid::Create();
-        jobIds.push_back(jobId);
-        operationElement->OnJobStarted(
-            jobId,
-            jobResources.ToJobResources(),
-            /*precommitedResources*/ {},
-            /*scheduleJobEpoch*/ 0);
-    }
-
-	DoFairShareUpdate(strategyHost.Get(), rootElement);
-
-    EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().DemandShare);
-    EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().FairShare.Total);
-
-    for (int i = 0; i < 2; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
-    }
-    for (int i = 2; i < 4; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ false));
-        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
-    }
-
-    TJobResources newResources;
-    newResources.SetCpu(20);
-    newResources.SetMemory(20);
-    // FairShare is now less than usage and we would start preempting jobs of this operation.
-    operationElement->SetJobResourceUsage(jobIds[0], newResources);
-
-    for (int i = 0; i < 1; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
-    }
-    for (int i = 1; i < 4; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ false));
-        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
-    }
-}
-
-TEST_F(TFairShareTreeElementTest, TestConditionalPreemption)
-{
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(30);
-    nodeResources.SetCpu(30);
-    nodeResources.SetMemory(300_MB);
-    auto execNode = CreateTestExecNode(nodeResources);
-
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-    auto rootElement = CreateTestRootElement(strategyHost.Get());
-    auto blockingPool = CreateTestPool(strategyHost.Get(), "blocking", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 10.0));
-    auto guaranteedPool = CreateTestPool(strategyHost.Get(), "guaranteed", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 20.0));
-
-    blockingPool->AttachParent(rootElement.Get());
-    guaranteedPool->AttachParent(rootElement.Get());
-
-    TJobResources jobResources;
-    jobResources.SetUserSlots(15);
-    jobResources.SetCpu(15);
-    jobResources.SetMemory(150_MB);
-
-    auto blockingOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto blockingOperationElement = CreateTestOperationElement(strategyHost.Get(), blockingOperation.Get(), blockingPool.Get());
-    blockingOperationElement->OnJobStarted(
-        TGuid::Create(),
-        jobResources,
-        /*precommitedResources*/ {},
-        /*scheduleJobEpoch*/ 0);
-
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(10_MB);
-
-    auto donorOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResources));
-    auto donorOperationSpec = New<TStrategyOperationSpec>();
-    donorOperationSpec->MaxUnpreemptableRunningJobCount = 0;
-    auto donorOperationElement = CreateTestOperationElement(
-        strategyHost.Get(),
-        donorOperation.Get(),
-        guaranteedPool.Get(),
-        /*operationOptions*/ nullptr,
-        donorOperationSpec);
-
-    auto now = TInstant::Now();
-
-    std::vector<TJobPtr> donorJobs;
-    for (int i = 0; i < 15; ++i) {
-        auto job = CreateTestJob(TGuid::Create(), donorOperation->GetId(), execNode, now, jobResources);
-        donorJobs.push_back(job);
-        donorOperationElement->OnJobStarted(
-            job->GetId(),
-            job->ResourceLimits(),
-            /*precommitedResources*/ {},
-            /*scheduleJobEpoch*/ 0);
-    }
-
-    auto [starvingOperationElement, starvingOperation] = CreateOperationWithJobs(10, strategyHost.Get(), guaranteedPool.Get());
-
-    {
-        DoFairShareUpdate(strategyHost.Get(), rootElement, now, /*previousUpdateTime*/ std::nullopt, /*checkForStarvation*/ true);
-
-        TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
-        EXPECT_RV_NEAR(unit / 3.0, blockingPool->Attributes().FairShare.Total);
-        EXPECT_RV_NEAR(unit * 2.0 / 3.0, guaranteedPool->Attributes().FairShare.Total);
-        EXPECT_NEAR(1.5, blockingPool->Attributes().LocalSatisfactionRatio, 1e-7);
-        EXPECT_NEAR(0.75, guaranteedPool->Attributes().LocalSatisfactionRatio, 1e-7);
-
-        EXPECT_RV_NEAR(unit / 3.0, blockingOperationElement->Attributes().FairShare.Total);
-        EXPECT_RV_NEAR(unit / 3.0, donorOperationElement->Attributes().FairShare.Total);
-        EXPECT_RV_NEAR(unit / 3.0, starvingOperationElement->Attributes().FairShare.Total);
-        EXPECT_NEAR(1.5, blockingOperationElement->Attributes().LocalSatisfactionRatio, 1e-7);
-        EXPECT_NEAR(1.5, donorOperationElement->Attributes().LocalSatisfactionRatio, 1e-7);
-        EXPECT_NEAR(0.0, starvingOperationElement->Attributes().LocalSatisfactionRatio, 1e-7);
-
-        EXPECT_NEAR(0.8, starvingOperationElement->GetEffectiveFairShareStarvationTolerance(), 1e-7);
-        EXPECT_NEAR(0.8, guaranteedPool->GetEffectiveFairShareStarvationTolerance(), 1e-7);
-
-        EXPECT_EQ(ESchedulableStatus::BelowFairShare, starvingOperationElement->GetStatus(/*atUpdate*/ true));
-        EXPECT_EQ(ESchedulableStatus::BelowFairShare, guaranteedPool->GetStatus(/*atUpdate*/ true));
-
-        EXPECT_EQ(now, starvingOperationElement->PersistentAttributes().BelowFairShareSince);
-        EXPECT_EQ(now, guaranteedPool->PersistentAttributes().BelowFairShareSince);
-    }
-
-    {
-        auto timeout = starvingOperationElement->GetEffectiveFairShareStarvationTimeout() + TDuration::MilliSeconds(100);
-        now += timeout;
-        DoFairShareUpdate(strategyHost.Get(), rootElement, now, now - timeout, /*checkForStarvation*/ true);
-
-        EXPECT_EQ(EStarvationStatus::NonStarving, donorOperationElement->GetStarvationStatus());
-        EXPECT_EQ(EStarvationStatus::Starving, starvingOperationElement->GetStarvationStatus());
-        EXPECT_EQ(EStarvationStatus::Starving, guaranteedPool->GetStarvationStatus());
-
-        EXPECT_EQ(nullptr, blockingOperationElement->GetLowestStarvingAncestor());
-        EXPECT_EQ(guaranteedPool.Get(), donorOperationElement->GetLowestStarvingAncestor());
-        EXPECT_EQ(starvingOperationElement.Get(), starvingOperationElement->GetLowestStarvingAncestor());
-
-        EXPECT_EQ(nullptr, blockingOperationElement->GetLowestAggressivelyStarvingAncestor());
-        EXPECT_EQ(nullptr, donorOperationElement->GetLowestAggressivelyStarvingAncestor());
-        EXPECT_EQ(nullptr, starvingOperationElement->GetLowestAggressivelyStarvingAncestor());
-    }
-
-    auto schedulingContext = CreateSchedulingContext(
-        /*nodeShardId*/ 0,
-        SchedulerConfig_,
-        execNode,
-        /*runningJobs*/ {},
-        strategyHost->GetMediumDirectory());
-
-    TScheduleJobsContext context(
-        schedulingContext,
-        /*registeredSchedulingTagFilters*/ {},
-        /*enableSchedulingInfoLogging*/ true,
-        SchedulerLogger);
-    context.StartStage(&PreemptiveSchedulingStage_);
-    context.PrepareForScheduling(rootElement);
-
-    for (int jobIndex = 0; jobIndex < 10; ++jobIndex) {
-        EXPECT_FALSE(donorOperationElement->IsJobPreemptable(donorJobs[jobIndex]->GetId(), /*aggressivePreemptionEnabled*/ false));
-    }
-
-    auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Regular;
-    EXPECT_EQ(guaranteedPool.Get(), donorOperationElement->FindPreemptionBlockingAncestor(
-        targetOperationPreemptionPriority,
-        context.DynamicAttributesList(),
-        TreeConfig_));
-    for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
-        const auto& job = donorJobs[jobIndex];
-        auto preemptionStatus = donorOperationElement->GetJobPreemptionStatus(job->GetId());
-        EXPECT_EQ(EJobPreemptionStatus::Preemptable, preemptionStatus);
-        context.ConditionallyPreemptableJobSetMap()[guaranteedPool->GetTreeIndex()].insert(TJobWithPreemptionInfo{
-            .Job = job,
-            .PreemptionStatus = preemptionStatus,
-            .OperationElement = donorOperationElement
-        });
-    }
-
-    context.PrepareConditionalUsageDiscounts(rootElement.Get(), targetOperationPreemptionPriority);
-
-    auto jobs = context.GetConditionallyPreemptableJobsInPool(guaranteedPool.Get());
-    EXPECT_EQ(5, std::ssize(jobs));
-    for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
-        const auto& job = donorJobs[jobIndex];
-        EXPECT_TRUE(jobs.contains(TJobWithPreemptionInfo{
-            .Job = job,
-            .PreemptionStatus = donorOperationElement->GetJobPreemptionStatus(job->GetId()),
-            .OperationElement = donorOperationElement,
-        }));
-    }
-
-    EXPECT_TRUE(context.GetConditionallyPreemptableJobsInPool(blockingPool.Get()).empty());
-    EXPECT_TRUE(context.GetConditionallyPreemptableJobsInPool(rootElement.Get()).empty());
-
-    TJobResources expectedDiscount;
-    expectedDiscount.SetUserSlots(5);
-    expectedDiscount.SetCpu(5);
-    expectedDiscount.SetMemory(50_MB);
-
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetMaxConditionalUsageDiscount());
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()));
-    // It's a bit weird that a preemptable job's usage is added to the discount of its operation, but this is how we do it.
-    EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()));
-    EXPECT_EQ(TJobResources(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
-}
-
-TEST_F(TFairShareTreeElementTest, TestChildHeap)
-{
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(CreateDiskQuota(100));
-    auto execNode = CreateTestExecNode(nodeResources);
-
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-
-    // Root element.
-    auto rootElement = CreateTestRootElement(strategyHost.Get());
-
-    // 1/10 of all resources.
-    TJobResourcesWithQuota operationJobResources;
-    operationJobResources.SetCpu(10);
-    operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
-
-    // Create 5 operations.
-    constexpr int OperationCount = 5;
-    std::vector<TOperationStrategyHostMockPtr> operations(OperationCount);
-    std::vector<TSchedulerOperationElementPtr> operationElements(OperationCount);
-    for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
-        auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-        operationOptions->Weight = 1.0;
-        // Operation with 2 jobs.
-
-        operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
-        operationElements[opIndex] = CreateTestOperationElement(
-            strategyHost.Get(),
-            operations[opIndex].Get(),
-            rootElement.Get(),
-            operationOptions);
-    }
-
-    // Expect 2 ScheduleJob calls for each operation.
-    for (auto operation : operations) {
-        auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
-        EXPECT_CALL(
-            operationControllerStrategyHost,
-            ScheduleJob(testing::_, testing::_, testing::_, testing::_, testing::_))
-            .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
-                auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TGuid::Create(), EJobType::Vanilla, operationJobResources, /* interruptible */ false);
-                return MakeFuture<TControllerScheduleJobResultPtr>(
-                    TErrorOr<TControllerScheduleJobResultPtr>(result));
-            }));
-    }
-
-	DoFairShareUpdate(strategyHost.Get(), rootElement);
-
-    auto schedulingContext = CreateSchedulingContext(
-        /* nodeShardId */ 0,
-        SchedulerConfig_,
-        execNode,
-        /* runningJobs */ {},
-        strategyHost->GetMediumDirectory());
-
-    TScheduleJobsContext context(
-        schedulingContext,
-        /* registeredSchedulingTagFilters */ {},
-        /* enableSchedulingInfoLogging */ true,
-        SchedulerLogger);
-    context.StartStage(&NonPreemptiveSchedulingStage_);
-    context.PrepareForScheduling(rootElement);
-    rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-    rootElement->PrescheduleJob(&context, /*targetOperationPreemptionPriority*/ {});
-
-    for (auto operationElement : operationElements) {
-        const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
-        ASSERT_TRUE(dynamicAttributes.Active);
-    }
-
-    for (int iter = 0; iter < 2; ++iter) {
-        for (auto operationElement : operationElements) {
-            auto scheduleJobResult = operationElement->ScheduleJob(&context, /* ignorePacking */ true);
-            ASSERT_TRUE(scheduleJobResult.Scheduled);
-
-            const auto& childHeapMap = context.ChildHeapMap();
-            YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
-
-            const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
-
-            int heapIndex = 0;
-            for (auto* element : childHeap.GetHeap()) {
-                ASSERT_EQ(context.DynamicAttributesFor(element).HeapIndex, heapIndex);
-                ++heapIndex;
-            }
-        }
-    }
-    context.FinishStage();
-
-    // NB(eshcherbin): It is impossible to have two consecutive non-preemptive scheduling stages, however
-    // here we only need to trigger the second PrescheduleJob call so that the child heap is rebuilt.
-    context.StartStage(&NonPreemptiveSchedulingStage_);
-    context.PrepareForScheduling(rootElement);
-    rootElement->FillResourceUsageInDynamicAttributes(&context.DynamicAttributesList(), /*resourceUsageSnapshot*/ nullptr);
-    rootElement->PrescheduleJob(&context, /*targetOperationPreemptionPriority*/ {});
-
-    for (auto operationElement : operationElements) {
-        const auto& childHeapMap = context.ChildHeapMap();
-        YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
-
-        const auto& childHeap = GetOrCrash(context.ChildHeapMap(), rootElement->GetTreeIndex());
-        int heapIndex = 0;
-        for (auto* element : childHeap.GetHeap()) {
-            ASSERT_EQ(context.DynamicAttributesFor(element).HeapIndex, heapIndex);
-            ++heapIndex;
-        }
     }
 }
 

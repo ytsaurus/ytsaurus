@@ -1938,6 +1938,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
 void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs, TInstant now)
 {
+    // TODO(eshcherbin): Think about how to partially move this logic to tree job scheduler.
     auto cachedJobPreemptionStatuses =
         Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
     TRunningJobStatistics runningJobStatistics;
@@ -1961,6 +1962,7 @@ void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std:
 
 void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const
 {
+    // TODO(eshcherbin): Think about how to partially move this logic to tree job scheduler.
     auto cachedJobPreemptionStatuses =
         Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
     for (const auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {

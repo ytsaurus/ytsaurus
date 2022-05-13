@@ -14,7 +14,7 @@ from yt_commands import (
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
     vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config,
-    update_controller_agent_config, update_pool_tree_config_option)
+    update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
@@ -151,12 +151,12 @@ class TestSchedulingSegments(YTEnvSetup):
             == 1000
         )
         # Not to let preemption abort the jobs instead of segments manager.
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
+        update_pool_tree_config("default", {
+            "preemptive_scheduling_backoff": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_starvation_tolerance": 0.95,
+            "max_unpreemptable_running_job_count": 80,
+        })
 
     @authors("eshcherbin")
     def test_large_gpu_segment_extended(self):
@@ -1029,12 +1029,12 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             ) == 1000
         )
         # Not to let preemption abort the jobs instead of segments manager.
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
+        update_pool_tree_config("default", {
+            "preemptive_scheduling_backoff": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_starvation_tolerance": 0.95,
+            "max_unpreemptable_running_job_count": 80,
+        })
 
     @authors("eshcherbin")
     def test_module_locality_for_large_multihost_operations(self):
@@ -1744,12 +1744,12 @@ class TestRunningJobStatistics(YTEnvSetup):
                     == 1000
         )
         # Not to let preemption abort the jobs instead of segments manager.
-        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_timeout_limit", 100)
-        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
+        update_pool_tree_config("default", {
+            "preemptive_scheduling_backoff": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_starvation_tolerance": 0.95,
+            "max_unpreemptable_running_job_count": 80,
+        })
 
     @authors("eshcherbin")
     def test_long_job_preparation(self):

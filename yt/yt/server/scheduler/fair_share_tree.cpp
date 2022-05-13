@@ -12,6 +12,7 @@
 #include "serialize.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
+#include "fields_filter.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -35,14 +36,6 @@
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
-
-#define ITEM_DO_IF_SUITABLE_FOR_FILTER(filter, field, ...) DoIf(filter.IsFieldSuitable(field), [&] (TFluentMap fluent) { \
-        fluent.Item(field).Do(__VA_ARGS__); \
-    })
-
-#define ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, field, ...) DoIf(filter.IsFieldSuitable(field), [&] (TFluentMap fluent) { \
-        fluent.Item(field).Value(__VA_ARGS__); \
-    })
 
 namespace NYT::NScheduler {
 
@@ -238,7 +231,7 @@ public:
         , FeasibleInvokers_(feasibleInvokers)
         , TreeId_(std::move(treeId))
         , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
-        , TreeScheduler_(New<TFairShareTreeJobScheduler>(TreeId_, StrategyHost_, Config_, TreeProfiler_))
+        , TreeScheduler_(New<TFairShareTreeJobScheduler>(TreeId_, Logger, StrategyHost_, Config_, TreeProfiler_->GetProfiler()))
         , FairSharePreUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_preupdate_time"))
         , FairShareUpdateTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_->GetProfiler().Timer("/fair_share_fluent_log_time"))
@@ -385,8 +378,7 @@ public:
             TreeId_,
             Logger);
 
-        int index = TreeScheduler_->RegisterSchedulingTagFilter(TSchedulingTagFilter(spec->SchedulingTagFilter));
-        operationElement->SetSchedulingTagFilterIndex(index);
+        TreeScheduler_->RegisterOperation(operationElement.Get());
 
         YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);
 
@@ -431,13 +423,13 @@ public:
         // Profile finished operation.
         TreeProfiler_->ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
-        operationElement->Disable(/* markAsNonAlive */ true);
+        TreeScheduler_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ true);
         operationElement->DetachParent();
 
         ReleaseOperationSlotIndex(state, pool->GetId());
         OnOperationRemovedFromPool(state, operationElement, pool);
 
-        TreeScheduler_->UnregisterSchedulingTagFilter(operationElement->GetSchedulingTagFilterIndex());
+        TreeScheduler_->UnregisterOperation(operationElement.Get());
 
         EraseOrCrash(OperationIdToElement_, operationId);
 
@@ -455,7 +447,7 @@ public:
 
         operationElement->GetMutableParent()->EnableChild(operationElement);
 
-        operationElement->Enable();
+        TreeScheduler_->EnableOperation(operationElement.Get());
     }
 
     void DisableOperation(const TFairShareStrategyOperationStatePtr& state) override
@@ -463,7 +455,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
-        operationElement->Disable(/* markAsNonAlive */ false);
+        TreeScheduler_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
         operationElement->GetMutableParent()->DisableChild(operationElement);
     }
 
@@ -513,19 +505,10 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
-        for (const auto& job : jobs) {
-            TJobResourcesWithQuota resourceUsageWithQuota = job->ResourceUsage();
-            resourceUsageWithQuota.SetDiskQuota(job->DiskQuota());
-            element->OnJobStarted(
-                job->GetId(),
-                resourceUsageWithQuota,
-                /*precommittedResources*/ {},
-                // NB: |scheduleJobEpoch| is ignored in case |force| is true.
-                /*scheduleJobEpoch*/ 0,
-                /*force*/ true);
-        }
+        TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), jobs);
     }
 
+    // TODO(eshcherbin): Move this method to tree scheduler?
     TError CheckOperationIsHung(
         TOperationId operationId,
         TDuration safeTimeout,
@@ -544,7 +527,7 @@ public:
         TInstant activationTime;
         {
             auto it = OperationIdToActivationTime_.find(operationId);
-            if (!element->Attributes().Alive) {
+            if (!element->IsAlive()) {
                 if (it != OperationIdToActivationTime_.end()) {
                     it->second = TInstant::Max();
                 }
@@ -591,23 +574,16 @@ public:
             }
         }
 
-        int deactivationCount = 0;
-        auto deactivationReasonToCount = element->GetDeactivationReasonsFromLastNonStarvingTime();
-        for (auto reason : deactivationReasons) {
-            deactivationCount += deactivationReasonToCount[reason];
-        }
-
-        if (activationTime + safeTimeout < now &&
-            element->GetLastScheduleJobSuccessTime() + safeTimeout < now &&
-            element->GetLastNonStarvingTime() + safeTimeout < now &&
-            element->GetRunningJobCount() == 0 &&
-            deactivationCount > minScheduleJobCallAttempts)
-        {
-            return TError("Operation has no successful scheduled jobs for a long period")
-                << TErrorAttribute("period", safeTimeout)
-                << TErrorAttribute("deactivation_count", deactivationCount)
-                << TErrorAttribute("last_schedule_job_success_time", element->GetLastScheduleJobSuccessTime())
-                << TErrorAttribute("last_non_starving_time", element->GetLastNonStarvingTime());
+        auto jobSchedulerError = TFairShareTreeJobScheduler::CheckOperationIsHung(
+            TreeSnapshot_,
+            element,
+            now,
+            activationTime,
+            safeTimeout,
+            minScheduleJobCallAttempts,
+            deactivationReasons);
+        if (!jobSchedulerError.IsOK()) {
+            return jobSchedulerError;
         }
 
         // NB(eshcherbin): See YT-14393.
@@ -927,18 +903,11 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TSchedulerOperationElement* element = nullptr;
         if (TreeSnapshot_) {
-            if (auto elementFromSnapshot = TreeSnapshot_->FindEnabledOperationElement(operationId)) {
-                element = elementFromSnapshot;
+            if (auto element = TreeSnapshot_->FindEnabledOperationElement(operationId)) {
+                DoBuildOperationProgress(TreeSnapshot_, element, StrategyHost_, fluent);
             }
         }
-
-        if (!element) {
-            return;
-        }
-
-        DoBuildOperationProgress(element, StrategyHost_, fluent);
     }
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
@@ -993,45 +962,6 @@ public:
             .Run()));
     }
 
-    class TFieldsFilter final
-    {
-    public:
-        TFieldsFilter()
-            : Filter_{ParseFiterFromOptions({})}
-        { }
-
-        TFieldsFilter(const IAttributeDictionaryPtr& options)
-            : Filter_{ParseFiterFromOptions(options)}
-        { }
-
-        bool IsFieldSuitable(TStringBuf field) const
-        {
-            if (!Filter_) {
-                return true;
-            }
-
-            return Filter_->contains(field);
-        }
-
-    private:
-        std::optional<THashSet<TString>> Filter_;
-
-        static std::optional<THashSet<TString>> ParseFiterFromOptions(
-            const IAttributeDictionaryPtr& options)
-        {
-            if (!options) {
-                return std::nullopt;
-            }
-
-            auto fields = options->Find<THashSet<TString>>("fields");
-            if (!fields) {
-                return std::nullopt;
-            }
-
-            return std::move(*fields);
-        }
-    };
-
     static IYPathServicePtr FromProducer(
         NYson::TExtendedYsonProducer<const TFieldsFilter&> producer)
     {
@@ -1062,6 +992,7 @@ public:
                     .Item(operation->GetId()).BeginMap()
                         .Do(BIND(
                             &TFairShareTree::DoBuildOperationProgress,
+                            ConstRef(treeSnapshot),
                             Unretained(operation),
                             StrategyHost_))
                     .EndMap();
@@ -1276,6 +1207,7 @@ private:
                                 .Item(operation->GetId()).BeginMap()
                                     .Do(BIND(
                                         &TFairShareTree::DoBuildOperationProgress,
+                                        ConstRef(fairShareTreeSnapshot),
                                         Unretained(operation),
                                         FairShareTree_->StrategyHost_))
                                 .EndMap();
@@ -1341,17 +1273,17 @@ private:
             now,
             LastFairShareUpdateTime_);
 
-        TFairSharePostUpdateContext fairSharePostUpdateContext{
-            .TreeConfig = Config_,
-            .Now = updateContext.Now,
-        };
-        auto jobSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(totalResourceLimits);
-
         auto rootElement = RootElement_->Clone();
         {
             TEventTimerGuard timer(FairSharePreUpdateTimer_);
             rootElement->PreUpdate(&updateContext);
         }
+
+        TFairSharePostUpdateContext fairSharePostUpdateContext{
+            .TreeConfig = Config_,
+            .Now = updateContext.Now,
+        };
+        auto jobSchedulerPostUpdateContext = TreeScheduler_->CreatePostUpdateContext(rootElement.Get());
 
         auto asyncUpdate = BIND([&]
             {
@@ -1386,7 +1318,7 @@ private:
         }
 
         // Update starvation flags for operations and pools.
-        rootElement->UpdateStarvationAttributes(now, Config_->EnablePoolStarvation);
+        rootElement->UpdateStarvationStatuses(now, Config_->EnablePoolStarvation);
 
         // Copy persistent attributes back to the original tree.
         for (const auto& [operationId, element] : fairSharePostUpdateContext.EnabledOperationIdToElement) {
@@ -1408,7 +1340,7 @@ private:
         const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
         const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
 
-        auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(rootElement, &jobSchedulerPostUpdateContext);
+        auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(&jobSchedulerPostUpdateContext);
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             treeSnapshotId,
             std::move(rootElement),
@@ -1437,8 +1369,6 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        int index = TreeScheduler_->RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
-        pool->SetSchedulingTagFilterIndex(index);
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
@@ -1462,14 +1392,7 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto oldSchedulingTagFilter = pool->GetSchedulingTagFilter();
         pool->SetConfig(config);
-        auto newSchedulingTagFilter = pool->GetSchedulingTagFilter();
-        if (oldSchedulingTagFilter != newSchedulingTagFilter) {
-            TreeScheduler_->UnregisterSchedulingTagFilter(oldSchedulingTagFilter);
-            int index = TreeScheduler_->RegisterSchedulingTagFilter(newSchedulingTagFilter);
-            pool->SetSchedulingTagFilterIndex(index);
-        }
     }
 
     void UnregisterPool(const TSchedulerPoolElementPtr& pool)
@@ -1480,8 +1403,6 @@ private:
         if (userName && pool->IsEphemeralInDefaultParentPool()) {
             EraseOrCrash(UserToEphemeralPoolsInDefaultPool_[*userName], pool->GetId());
         }
-
-        TreeScheduler_->UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
         EraseOrCrash(PoolToMinUnusedSlotIndex_, pool->GetId());
 
@@ -1526,7 +1447,7 @@ private:
             this,
             poolName.GetPool(),
             poolConfig,
-            /* defaultConfigured */ true,
+            /*defaultConfigured*/ true,
             Config_,
             TreeId_,
             Logger);
@@ -1626,6 +1547,21 @@ private:
             *slotIndex);
     }
 
+    void OnOperationStarvationStatusChanged(
+        TOperationId operationId,
+        EStarvationStatus oldStatus,
+        EStarvationStatus newStatus) const override
+    {
+        TreeScheduler_->OnOperationStarvationStatusChanged(operationId, oldStatus, newStatus);
+    }
+
+    void BuildElementLoggingStringAttributes(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TSchedulerElement* element,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+    {
+        TreeScheduler_->BuildElementLoggingStringAttributes(treeSnapshot,element, delimitedBuilder);
+    }
 
     void OnOperationRemovedFromPool(
         const TFairShareStrategyOperationStatePtr& state,
@@ -2026,11 +1962,8 @@ private:
 
     TSchedulerOperationElement* FindOperationElementInSnapshot(TOperationId operationId) const
     {
-        auto treeSnapshot = GetTreeSnapshot();
-        if (treeSnapshot) {
-            if (auto element = treeSnapshot->FindEnabledOperationElement(operationId)) {
-                return element;
-            }
+        if (auto treeSnapshot = GetTreeSnapshot()) {
+            return treeSnapshot->FindEnabledOperationElement(operationId);
         }
         return nullptr;
     }
@@ -2076,35 +2009,19 @@ private:
 
         YT_VERIFY(treeSnapshot);
 
-        // NB: Should be filtered out on large clusters.
-        YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
-
         *shouldAbortJob = false;
 
-        auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
-        if (operationElement) {
-            operationElement->SetJobResourceUsage(jobId, jobResources);
-
-            const auto& operationSchedulingSegment = operationElement->SchedulingSegment();
-            if (operationSchedulingSegment && IsModuleAwareSchedulingSegment(*operationSchedulingSegment)) {
-                const auto& operationModule = operationElement->PersistentAttributes().SchedulingSegmentModule;
-                const auto& jobModule = TNodeSchedulingSegmentManager::GetNodeModule(
-                    jobDataCenter,
-                    jobInfinibandCluster,
-                    treeSnapshot->TreeConfig()->SchedulingSegments->ModuleType);
-                bool jobIsRunningInTheRightModule = operationModule && (operationModule == jobModule);
-                if (!jobIsRunningInTheRightModule) {
-                    *shouldAbortJob = true;
-
-                    YT_LOG_DEBUG(
-                        "Requested to abort job because it is running in a wrong module "
-                        "(OperationId: %v, JobId: %v, OperationModule: %v, JobModule: %v)",
-                        operationId,
-                        jobId,
-                        operationModule,
-                        jobModule);
-                }
-            }
+        // NB: Should be filtered out on large clusters.
+        YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
+        if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
+            TreeScheduler_->ProcessUpdatedJob(
+                treeSnapshot,
+                operationElement,
+                jobId,
+                jobResources,
+                jobDataCenter,
+                jobInfinibandCluster,
+                shouldAbortJob);
         }
     }
 
@@ -2116,9 +2033,8 @@ private:
 
         // NB: Should be filtered out on large clusters.
         YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
-        auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
-        if (operationElement) {
-            operationElement->OnJobFinished(jobId);
+        if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
+            TreeScheduler_->ProcessFinishedJob(treeSnapshot, operationElement, jobId);
             return true;
         }
         return false;
@@ -2402,8 +2318,9 @@ private:
 
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
             for (const auto& [operationId, element] : operationIdToElement) {
+                // TODO(eshcherbin): Rethink format of fair share info log message.
                 YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    element->GetLoggingString(),
+                    element->GetLoggingString(treeSnapshot),
                     operationId);
             }
         };
@@ -2418,13 +2335,15 @@ private:
 
         for (const auto& [poolName, element] : treeSnapshot->PoolMap()) {
             YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
-                element->GetLoggingString(),
+                element->GetLoggingString(treeSnapshot),
                 poolName);
         }
     }
 
     void DoBuildFullFairShareInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
     {
+        VERIFY_INVOKER_AFFINITY(StrategyHost_->GetOrchidWorkerInvoker());
+
         if (!treeSnapshot) {
             YT_LOG_DEBUG("Skipping construction of full fair share info, since shapshot is not constructed yet");
             return;
@@ -2457,6 +2376,7 @@ private:
         YT_LOG_DEBUG("Started building serialized fair share info (MaxOperationBatchSize: %v)",
             maxOperationBatchSize);
 
+        // TODO(eshcherbin): Wrap tree snapshot with ConstRef.
         TSerializedFairShareInfo fairShareInfo;
         fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("pool_count").Value(treeSnapshot->PoolMap().size())
@@ -2490,7 +2410,7 @@ private:
                     auto* element = *it;
                     fluent
                         .Item(element->GetId()).BeginMap()
-                            .Do(BIND(&TFairShareTree::DoBuildOperationProgress, Unretained(element), StrategyHost_))
+                            .Do(BIND(&TFairShareTree::DoBuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), StrategyHost_))
                         .EndMap();
                 })
                 .Finish();
@@ -2525,7 +2445,8 @@ private:
                     fluent
                         .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
                 }))
-                .Do(std::bind(&TFairShareTree::DoBuildElementYson, element, filter, std::placeholders::_1));
+                // TODO(eshcherbin): Change to BIND?
+                .Do(std::bind(&TFairShareTree::DoBuildElementYson, treeSnapshot, element, filter, std::placeholders::_1));
         };
 
         auto buildPoolInfo = [&] (const TSchedulerPoolElement* pool, TFluentMap fluent) {
@@ -2613,7 +2534,7 @@ private:
                     .Item("pool").Value(parent->GetId())
                     .Item("accumulated_resource_usage").Value(accumulatedUsage)
                     .Item("user").Value(operation->GetUserName())
-                    .Item("operation_type").Value(operation->GetType())
+                    .Item("operation_type").Value(operation->GetOperationType())
                     .OptionalItem("trimmed_annotations", operation->GetTrimmedAnnotations())
                 .EndMap();
         };
@@ -2628,6 +2549,7 @@ private:
     }
 
     static void DoBuildOperationProgress(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerOperationElement* element,
         ISchedulerStrategyHost* const strategyHost,
         TFluentMap fluent)
@@ -2639,12 +2561,7 @@ private:
             .Item("scheduling_segment").Value(element->SchedulingSegment())
             .Item("scheduling_segment_module").Value(element->PersistentAttributes().SchedulingSegmentModule)
             .Item("start_time").Value(element->GetStartTime())
-            .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
-            .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
             .OptionalItem("fifo_index", element->Attributes().FifoIndex)
-            .Item("scheduling_index").Value(element->GetSchedulingIndex())
-            .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
-            .Item("min_needed_resources_unsatisfied_count").Value(element->GetMinNeededResourcesUnsatisfiedCount())
             .Item("detailed_min_needed_job_resources").BeginList()
                 .DoFor(element->DetailedMinNeededJobResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
                     fluent.Item().Do([&] (TFluentAny fluent) {
@@ -2661,15 +2578,15 @@ private:
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
-            .Item("disk_quota_usage").BeginMap()
-                .Do([&] (TFluentMap fluent) {
-                    strategyHost->SerializeDiskQuota(element->GetTotalDiskQuota(), fluent.GetConsumer());
-                })
-            .EndMap()
-            .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(element), TFieldsFilter{}));
+            .Do(BIND(&TFairShareTreeJobScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
+            .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }
 
-    static void DoBuildElementYson(const TSchedulerElement* element, const TFieldsFilter& filter, TFluentMap fluent)
+    static void DoBuildElementYson(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TSchedulerElement* element,
+        const TFieldsFilter& filter,
+        TFluentMap fluent)
     {
         const auto& attributes = element->Attributes();
         const auto& persistentAttributes = element->PersistentAttributes();
@@ -2702,11 +2619,6 @@ private:
                 filter,
                 "effective_aggressive_starvation_enabled",
                 element->GetEffectiveAggressiveStarvationEnabled())
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_preemption_allowed", element->IsAggressivePreemptionAllowed())
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-                filter,
-                "effective_aggressive_preemption_allowed",
-                element->GetEffectiveAggressivePreemptionAllowed())
             .DoIf(element->GetLowestAggressivelyStarvingAncestor(), [&] (TFluentMap fluent) {
                 fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
                     filter,
@@ -2764,7 +2676,8 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "best_allocation_share", persistentAttributes.BestAllocationShare)
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", attributes.SatisfactionRatio)
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", attributes.LocalSatisfactionRatio);
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", attributes.LocalSatisfactionRatio)
+            .Do(BIND(&TFairShareTreeJobScheduler::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
     void DoBuildEssentialFairShareInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const

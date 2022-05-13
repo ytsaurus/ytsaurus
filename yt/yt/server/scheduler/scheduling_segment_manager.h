@@ -127,11 +127,11 @@ private:
 
 struct TOperationSchedulingSegmentContext
 {
-    const TJobResources& ResourceDemand;
-    const TJobResources& ResourceUsage;
-    const TResourceVector& DemandShare;
-    const TResourceVector& FairShare;
-    const std::optional<ESchedulingSegment>& Segment;
+    TJobResources ResourceDemand;
+    TJobResources ResourceUsage;
+    TResourceVector DemandShare;
+    TResourceVector FairShare;
+    std::optional<ESchedulingSegment> Segment;
 
     TSchedulingSegmentModule Module;
     std::optional<THashSet<TString>> SpecifiedModules;
@@ -140,8 +140,8 @@ struct TOperationSchedulingSegmentContext
 
 struct TManageTreeSchedulingSegmentsContext
 {
-    const TFairShareStrategyTreeConfigPtr& TreeConfig;
-    const TJobResources& TotalResourceLimits;
+    TFairShareStrategyTreeConfigPtr TreeConfig;
+    TJobResources TotalResourceLimits;
     THashMap<TSchedulingSegmentModule, TJobResources> ResourceLimitsPerModule;
     THashMap<TOperationId, TOperationSchedulingSegmentContext> Operations;
 
