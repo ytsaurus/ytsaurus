@@ -79,7 +79,7 @@ type Testsuites struct {
 	Testsuites []Testsuite `xml:"testsuite"`
 }
 
-const contribPath = "yt/python/yt/wrapper/new_system_python_tests/contrib/"
+const contribPath = "yt/python/yt/wrapper/tests/system_python/contrib/"
 
 func PrepareBinaries(destination string) error {
 	var err error
@@ -254,7 +254,7 @@ func TestPyTest(t *testing.T) {
 	pythonPaths := GetPythonPaths(pythonVersion)
 	pythonPaths = append(pythonPaths, preparedPythonPath)
 
-	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/new_system_python_tests/test_paths.txt")
+	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/tests/system_python/test_paths.txt")
 	testPathsBlob, err := ioutil.ReadFile(testPathsFilePath)
 	require.NoError(t, err)
 
