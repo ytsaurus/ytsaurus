@@ -403,7 +403,7 @@ class TestCudaLayer(YTEnvSetup):
                 },
                 "gpu_manager": {
                     "driver_version": "0",
-                    "toolkit_min_driver_version": {"0": "0"},
+                    "cuda_toolkit_min_driver_version": {"0": "0"},
                     "test_resource": True,
                     "test_layers": True,
                     "test_gpu_count": 1,
@@ -486,7 +486,7 @@ class TestCudaLayer(YTEnvSetup):
             "exec_agent": {
                 "job_controller": {
                     "gpu_manager": {
-                        "toolkit_min_driver_version": {"1": "0"},
+                        "cuda_toolkit_min_driver_version": {"1": "0"},
                     },
                 },
             },
@@ -534,7 +534,7 @@ class TestForceCudaLayer(YTEnvSetup):
                 "gpu_manager": {
                     "driver_version": "0",
                     "driver_layer_directory_path": "//tmp/drivers",
-                    "toolkit_min_driver_version": {"0": "0"},
+                    "cuda_toolkit_min_driver_version": {"0": "0"},
                     "job_setup_command": {
                         "path": "/static-bin/static-bash",
                         "args": [
