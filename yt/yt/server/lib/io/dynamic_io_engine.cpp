@@ -22,7 +22,7 @@ public:
     {
         for (auto engineType : GetSupportedIOEngineTypes()) {
             State_->Engines[engineType] = CreateIOEngine(
-                defaultEngineType,
+                engineType,
                 ioConfig,
                 locationId,
                 profiler,
