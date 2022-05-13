@@ -1187,9 +1187,6 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
 ##################################################################
 
 
-##################################################################
-
-
 class TestSchedulerHangingOperations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
