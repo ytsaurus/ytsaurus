@@ -75,7 +75,9 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (SecurityGossip)
     (Periodic)
     (Mutation)
-    (ChunkMaintenance)
+    (ChunkRefresher)
+    (ChunkRequisitionUpdater)
+    (ChunkSealer)
     (ChunkLocator)
     (ChunkFetchingTraverser)
     (ChunkStatisticsTraverser)
@@ -117,6 +119,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
 
 DEFINE_ENUM(EAutomatonThreadBucket,
     (Gossips)
+    (ChunkMaintenance)
 );
 
 using NCellMasterClient::EMasterCellRole;

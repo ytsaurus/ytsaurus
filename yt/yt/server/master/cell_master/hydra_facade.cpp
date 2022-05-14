@@ -373,6 +373,11 @@ private:
             EAutomatonThreadQueue::MulticellGossip,
             EAutomatonThreadQueue::SecurityGossip,
         };
+        buckets[EAutomatonThreadBucket::ChunkMaintenance] = {
+            EAutomatonThreadQueue::ChunkRefresher,
+            EAutomatonThreadQueue::ChunkRequisitionUpdater,
+            EAutomatonThreadQueue::ChunkSealer,
+        };
         return buckets;
     }
 };

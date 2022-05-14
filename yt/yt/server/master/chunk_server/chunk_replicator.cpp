@@ -292,7 +292,7 @@ TChunkReplicator::TChunkReplicator(
     , ChunkPlacement_(std::move(chunkPlacement))
     , JobRegistry_(std::move(jobRegistry))
     , RefreshExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this))))
     , BlobRefreshScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
@@ -303,7 +303,7 @@ TChunkReplicator::TChunkReplicator(
         EChunkScanKind::Refresh,
         true /*journal*/))
     , RequisitionUpdateExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
         BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this))))
     , BlobRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
@@ -314,7 +314,7 @@ TChunkReplicator::TChunkReplicator(
         EChunkScanKind::RequisitionUpdate,
         true /*journal*/))
     , FinishedRequisitionTraverseFlushExecutor_(New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRequisitionUpdater),
         BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this))))
     , MissingPartChunkRepairQueueBalancer_(
         Config_->RepairQueueBalancerWeightDecayFactor,

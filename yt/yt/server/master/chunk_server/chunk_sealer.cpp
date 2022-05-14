@@ -126,7 +126,7 @@ public:
         , SuccessfulSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/successful_seals"))
         , UnsuccessfuleSealCounter_(ChunkServerProfiler.Counter("/chunk_sealer/unsuccessful_seals"))
         , SealExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkSealer),
             BIND(&TChunkSealer::OnRefresh, MakeWeak(this))))
         , SealScanner_(std::make_unique<TChunkScanner>(
             Bootstrap_->GetObjectManager(),
