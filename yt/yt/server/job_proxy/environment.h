@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 #include <yt/yt/library/process/process.h>
 
 namespace NYT::NJobProxy {
@@ -19,6 +21,23 @@ namespace NYT::NJobProxy {
 using TCpuStatistics = NCGroup::TCpuAccounting::TStatistics;
 using TBlockIOStatistics = NCGroup::TBlockIO::TStatistics;
 using TMemoryStatistics = NCGroup::TMemory::TStatistics;
+
+class TNetworkStatistics
+    : public NYTree::TYsonStructLite
+{
+public:
+    i64 TxBytes;
+    i64 TxPackets;
+    i64 TxDrops;
+
+    i64 RxBytes;
+    i64 RxPackets;
+    i64 RxDrops;
+
+    REGISTER_YSON_STRUCT(TNetworkStatistics);
+
+    static void Register(TRegistrar registrar);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +85,8 @@ struct IUserJobEnvironment
     virtual TDuration GetBlockIOWatchdogPeriod() const = 0;
 
     virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const = 0;
+
+    virtual std::optional<TNetworkStatistics> GetNetworkStatistics() const = 0;
 
     virtual void CleanProcesses() = 0;
 

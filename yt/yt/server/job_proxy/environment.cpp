@@ -51,6 +51,31 @@ static inline const NLogging::TLogger Logger("JobProxyEnvironment");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNetworkStatistics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tx_bytes", &TThis::TxBytes)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("tx_packets", &TThis::TxPackets)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("tx_drops", &TThis::TxDrops)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+    registrar.Parameter("rx_bytes", &TThis::RxBytes)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("rx_packets", &TThis::RxPackets)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("rx_drops", &TThis::RxDrops)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef _linux_
 
 class TPortoResourceTracker
@@ -110,6 +135,23 @@ public:
             });
     }
 
+    TNetworkStatistics GetNetworkStatistics() const
+    {
+        return GetStatistics(
+            CachedNetworkStatistics_,
+            "network",
+            [&] {
+                TNetworkStatistics result;
+                result.TxBytes = GetFieldOrThrow(ResourceUsage_, EStatField::NetTxBytes);
+                result.TxPackets = GetFieldOrThrow(ResourceUsage_, EStatField::NetTxPackets);
+                result.TxDrops = GetFieldOrThrow(ResourceUsage_, EStatField::NetTxDrops);
+                result.RxBytes = GetFieldOrThrow(ResourceUsage_, EStatField::NetRxBytes);
+                result.RxPackets = GetFieldOrThrow(ResourceUsage_, EStatField::NetRxPackets);
+                result.RxDrops = GetFieldOrThrow(ResourceUsage_, EStatField::NetRxDrops);
+                return result;
+            });
+    }
+
 private:
     const IInstancePtr Instance_;
     const TDuration UpdatePeriod_;
@@ -121,6 +163,7 @@ private:
     mutable std::optional<TCpuStatistics> CachedCpuStatistics_;
     mutable std::optional<TMemoryStatistics> CachedMemoryStatistics_;
     mutable std::optional<TBlockIOStatistics> CachedBlockIOStatistics_;
+    mutable std::optional<TNetworkStatistics> CachedNetworkStatistics_;
 
     mutable ui64 PeakThreadCount_ = 0;
 
@@ -191,6 +234,12 @@ private:
             EStatField::MappedFiles,
             EStatField::MajorFaults,
             EStatField::ThreadCount,
+            EStatField::NetTxBytes,
+            EStatField::NetTxPackets,
+            EStatField::NetTxDrops,
+            EStatField::NetRxBytes,
+            EStatField::NetRxPackets,
+            EStatField::NetRxDrops,
         });
 
         {
@@ -246,6 +295,16 @@ public:
             return resourceTracker->GetBlockIOStatistics();
         } else {
             return {};
+        }
+    }
+
+    std::optional<TNetworkStatistics> GetNetworkStatistics() const override
+    {
+        auto resourceTracker = ResourceTracker_.Load();
+        if (!Options_.NetworkAddresses.empty() && resourceTracker) {
+            return resourceTracker->GetNetworkStatistics();
+        } else {
+            return std::nullopt;
         }
     }
 
@@ -564,6 +623,11 @@ public:
     }
 
     std::optional<TMemoryStatistics> GetMemoryStatistics() const override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<TNetworkStatistics> GetNetworkStatistics() const override
     {
         return std::nullopt;
     }

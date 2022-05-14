@@ -26,6 +26,12 @@ DEFINE_ENUM(EStatField,
     (IOWriteByte)
     (IOOperations)
     (ThreadCount)
+    (NetTxBytes)
+    (NetTxPackets)
+    (NetTxDrops)
+    (NetRxBytes)
+    (NetRxPackets)
+    (NetRxDrops)
 );
 
 DEFINE_ENUM(EEnablePorto,
