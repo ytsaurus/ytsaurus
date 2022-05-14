@@ -109,6 +109,18 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::ThreadCount,      { "thread_count",
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::NetTxBytes,       { "net_tx_bytes[Uplink]",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::NetTxPackets,     { "net_tx_packets[Uplink]",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::NetTxDrops,       { "net_tx_drops[Uplink]",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::NetRxBytes,       { "net_rx_bytes[Uplink]",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::NetRxPackets,     { "net_rx_packets[Uplink]",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::NetRxDrops,       { "net_rx_drops[Uplink]",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
 };
 
 std::optional<TString> GetParentName(const TString& name)

@@ -1289,6 +1289,15 @@ private:
                 YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
 
+            try {
+                auto networkStatistics = UserJobEnvironment_->GetNetworkStatistics();
+                if (networkStatistics) {
+                    statistics.AddSample("/user_job/network", *networkStatistics);
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Unable to get network statistics for user job");
+            }
+
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
