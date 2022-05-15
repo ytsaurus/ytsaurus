@@ -69,6 +69,14 @@ std::unique_ptr<TMutation> CreateMutation(
     void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
     TTarget* target);
 
+template <class TRequest, class TResponse, class TTarget>
+std::unique_ptr<TMutation> CreateMutation(
+    ISimpleHydraManagerPtr hydraManager,
+    TRequest* request,
+    TResponse* response,
+    void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
+    TTarget* target);
+
 template <class TRpcRequest, class TResponse, class THandlerRequest, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
     ISimpleHydraManagerPtr hydraManager,

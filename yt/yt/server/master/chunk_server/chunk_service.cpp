@@ -20,6 +20,8 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -462,7 +464,7 @@ private:
         SortUnique(transactionIds);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto config = configManager->GetConfig()->ChunkService;
+        const auto& config = configManager->GetConfig()->ChunkService;
         // TODO(shakurov): use mutation idempotizer when handling these
         // mutations and comply with config->EnableMutationBoomerangs.
         const auto enableMutationBoomerangs = false;
@@ -474,14 +476,45 @@ private:
             }
         }
 
-        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
-            !suppressUpstreamSync,
-            Bootstrap_,
-            std::move(transactionIds),
-            context,
-            chunkManager->CreateExecuteBatchMutation(context),
-            enableMutationBoomerangs);
-        YT_VERIFY(preparationFuture);
+        if (!configManager->GetConfig()->SequoiaManager->Enable) {
+            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+                !suppressUpstreamSync,
+                Bootstrap_,
+                std::move(transactionIds),
+                context,
+                chunkManager->CreateExecuteBatchMutation(context),
+                enableMutationBoomerangs);
+            YT_VERIFY(preparationFuture);
+        } else {
+            // TODO(aleksandra-zh): YT-16872, Respect the Response Keeper!
+            auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+                !suppressUpstreamSync,
+                Bootstrap_,
+                std::move(transactionIds),
+                context->GetRequestId());
+
+            preparationFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                if (error.IsOK()) {
+                    auto preparedRequest = chunkManager->PrepareExecuteBatchRequest(context->Request());
+                    auto mutation = chunkManager->CreateExecuteBatchMutation(
+                        &preparedRequest->MutationRequest,
+                        &preparedRequest->MutationResponse);
+
+                    std::vector<TFuture<void>> futures({
+                        mutation->Commit().AsVoid(),
+                        chunkManager->ExecuteBatchSequoia(preparedRequest),
+                    });
+                    return AllSucceeded(std::move(futures))
+                        .Apply(BIND([=, this_ = MakeStrong(this)] () mutable {
+                            chunkManager->PrepareExecuteBatchResponse(preparedRequest, &context->Response());
+                            context->Reply();
+                        }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+                } else {
+                    context->Reply(error);
+                    return VoidFuture;
+                }
+            }));
+        }
     }
 
     void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)

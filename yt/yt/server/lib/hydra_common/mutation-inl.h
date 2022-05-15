@@ -81,6 +81,27 @@ std::unique_ptr<TMutation> CreateMutation(
     return mutation;
 }
 
+template <class TRequest, class TResponse, class TTarget>
+std::unique_ptr<TMutation> CreateMutation(
+    ISimpleHydraManagerPtr hydraManager,
+    TRequest* request,
+    TResponse* response,
+    void (TTarget::* handler)(const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>&, TRequest*, TResponse*),
+    TTarget* target)
+{
+    auto mutation = CreateMutation(std::move(hydraManager), *request);
+    mutation->SetHandler(
+        BIND([=] (TMutationContext* mutationContext) {
+            try {
+                (target->*handler)(nullptr, request, response);
+                mutationContext->SetResponseData(NRpc::CreateResponseMessage(*response));
+            } catch (const std::exception& ex) {
+                mutationContext->SetResponseData(NRpc::CreateErrorResponseMessage(ex));
+            }
+        }));
+    return mutation;
+}
+
 template <class TRpcRequest, class TResponse, class THandlerRequest, class TTarget>
 std::unique_ptr<TMutation> CreateMutation(
     ISimpleHydraManagerPtr hydraManager,

@@ -57,6 +57,7 @@ def get_dynamic_master_config():
         chunk_refresh_delay = 300;
         chunk_refresh_period = 200;
         chunk_seal_backoff_time = 1000;
+        sequoia_chunk_probability = 100;
     };
 
     chunk_service = {

@@ -467,6 +467,9 @@ public:
 
     TDuration ProfilingPeriod;
 
+    //! Probability (in percents) that newly created chunk will be Sequoia.
+    int SequoiaChunkProbability;
+
     TDynamicChunkManagerConfig();
 };
 

@@ -70,8 +70,52 @@ public:
         NChunkClient::NProto::TReqExecuteBatch,
         NChunkClient::NProto::TRspExecuteBatch>;
     using TCtxExecuteBatchPtr = TIntrusivePtr<TCtxExecuteBatch>;
+
     std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         TCtxExecuteBatchPtr context);
+
+    std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
+        NChunkClient::NProto::TReqExecuteBatch* request,
+        NChunkClient::NProto::TRspExecuteBatch* response);
+
+    using TCreateChunkRequest = NChunkClient::NProto::TReqExecuteBatch::TCreateChunkSubrequest;
+    using TCreateChunkResponse = NChunkClient::NProto::TRspExecuteBatch::TCreateChunkSubresponse;
+
+    struct TSequoiaExecuteBatchRequest
+    {
+        std::vector<TCreateChunkRequest> CreateChunkSubrequests;
+    };
+
+    struct TSequoiaExecuteBatchResponse
+    {
+        std::vector<TCreateChunkResponse> CreateChunkSubresponses;
+    };
+
+    struct TPreparedExecuteBatchRequest final
+    {
+        //! Mutation for non-Sequoia requests.
+        NChunkClient::NProto::TReqExecuteBatch MutationRequest;
+        NChunkClient::NProto::TRspExecuteBatch MutationResponse;
+
+        //! Sequoia subrequests.
+        TSequoiaExecuteBatchRequest SequoiaRequest;
+        TSequoiaExecuteBatchResponse SequoiaResponse;
+
+        //! Original request split info.
+        std::vector<bool> IsCreateChunkSubrequestSequoia;
+    };
+    using TPreparedExecuteBatchRequestPtr = TIntrusivePtr<TPreparedExecuteBatchRequest>;
+
+    TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(
+        const NChunkClient::NProto::TReqExecuteBatch& request);
+
+    void PrepareExecuteBatchResponse(
+        TPreparedExecuteBatchRequestPtr request,
+        NChunkClient::NProto::TRspExecuteBatch* response);
+
+    TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request);
+
+    TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request);
 
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,

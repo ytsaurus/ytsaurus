@@ -14,8 +14,11 @@ DECLARE_REFCOUNTED_CLASS(TDynamicSequoiaManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EAevum,
-    ((None)                  (0))
+    ((None)                                           (0))
+    ((SequoiaChunkMetaExtensions)                     (1)) // gritukan
 );
+
+EAevum GetCurrentAevum();
 
 ////////////////////////////////////////////////////////////////////////////////
 

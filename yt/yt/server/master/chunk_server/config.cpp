@@ -471,6 +471,10 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
     RegisterParameter("profiling_period", ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
+    RegisterParameter("sequoia_chunk_probability", SequoiaChunkProbability)
+        .Default(0)
+        .InRange(0, 100);
+
     RegisterPreprocessor([&] {
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {

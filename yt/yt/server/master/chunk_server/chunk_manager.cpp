@@ -42,8 +42,12 @@
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
+#include <yt/yt/server/lib/hive/helpers.h>
+
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
+
+#include <yt/yt/server/lib/sequoia_client/transaction.h>
 
 #include <yt/yt/server/master/node_tracker_server/config.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -57,6 +61,8 @@
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -64,6 +70,8 @@
 
 #include <yt/yt/server/master/journal_server/journal_node.h>
 #include <yt/yt/server/master/journal_server/journal_manager.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
@@ -81,6 +89,8 @@
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/sequoia_client/tables.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -110,6 +120,8 @@
 
 #include <util/generic/cast.h>
 
+#include <util/random/random.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NConcurrency;
@@ -133,6 +145,8 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NJournalClient;
 using namespace NJournalServer;
+using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTabletServer;
 using namespace NTabletClient;
 
@@ -423,6 +437,14 @@ public:
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareCreateChunk, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(
+                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NHiveServer::TTransactionCommitOptions&>()),
+            MakeTransactionActionHandlerDescriptor(
+                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NHiveServer::TTransactionAbortOptions&>()));
+
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
             .WithDefaultDisabled()
@@ -542,6 +564,123 @@ public:
             this);
     }
 
+    std::unique_ptr<TMutation> CreateExecuteBatchMutation(
+        TReqExecuteBatch* request,
+        TRspExecuteBatch* response)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            response,
+            &TImpl::HydraExecuteBatch,
+            this);
+    }
+
+    TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(const TReqExecuteBatch& request)
+    {
+        auto preparedRequest = New<TPreparedExecuteBatchRequest>();
+        preparedRequest->MutationRequest = request;
+
+        auto splitSubrequests = [&]<class TSubrequest>(
+            const ::google::protobuf::RepeatedPtrField<TSubrequest>& subrequests,
+            ::google::protobuf::RepeatedPtrField<TSubrequest>* mutationSubrequests,
+            std::vector<TSubrequest>* sequoiaSubrequests,
+            std::vector<bool>* isSubrequestSequoia,
+            auto sequoiaFilter)
+        {
+            mutationSubrequests->Clear();
+            isSubrequestSequoia->reserve(subrequests.size());
+
+            for (const auto& subrequest : subrequests) {
+                auto isSequoia = sequoiaFilter(subrequest);
+                isSubrequestSequoia->push_back(isSequoia);
+
+                if (isSequoia) {
+                    sequoiaSubrequests->push_back(subrequest);
+                } else {
+                    *mutationSubrequests->Add() = subrequest;
+                }
+            }
+        };
+
+        auto isCreateChunkRequestSequoia = [&] (const TCreateChunkRequest& request) {
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            if (!config->SequoiaManager->Enable) {
+                return false;
+            }
+
+            auto account = FromProto<TString>(request.account());
+            if (account == NSecurityClient::SequoiaAccountName) {
+                return false;
+            }
+
+            auto probability = config->ChunkManager->SequoiaChunkProbability;
+            return static_cast<int>(RandomNumber<ui32>() % 100) < probability;
+        };
+        splitSubrequests(
+            request.create_chunk_subrequests(),
+            preparedRequest->MutationRequest.mutable_create_chunk_subrequests(),
+            &preparedRequest->SequoiaRequest.CreateChunkSubrequests,
+            &preparedRequest->IsCreateChunkSubrequestSequoia,
+            isCreateChunkRequestSequoia);
+
+        return preparedRequest;
+    }
+
+    void PrepareExecuteBatchResponse(
+        TPreparedExecuteBatchRequestPtr request,
+        TRspExecuteBatch* response)
+    {
+        *response = request->MutationResponse;
+
+        auto mergeSubresponses = [&]<class TSubresponse>(
+            const ::google::protobuf::RepeatedPtrField<TSubresponse>& mutationSubresponses,
+            const std::vector<TSubresponse>& sequoiaSubresponses,
+            ::google::protobuf::RepeatedPtrField<TSubresponse>* subresponses,
+            const std::vector<bool>& isSubrequestSequoia)
+        {
+            subresponses->Clear();
+
+            int mutationIndex = 0;
+            int sequoiaIndex = 0;
+
+            for (auto isSequoia : isSubrequestSequoia) {
+                auto* subresponse = subresponses->Add();
+
+                if (isSequoia) {
+                    *subresponse = sequoiaSubresponses[sequoiaIndex++];
+                } else {
+                    *subresponse = mutationSubresponses[mutationIndex++];
+                }
+            }
+        };
+        mergeSubresponses(
+            request->MutationResponse.create_chunk_subresponses(),
+            request->SequoiaResponse.CreateChunkSubresponses,
+            response->mutable_create_chunk_subresponses(),
+            request->IsCreateChunkSubrequestSequoia);
+    }
+
+    TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request)
+    {
+        int createChunkSubrequestCount = request->SequoiaRequest.CreateChunkSubrequests.size();
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(createChunkSubrequestCount);
+        request->SequoiaResponse.CreateChunkSubresponses.resize(createChunkSubrequestCount);
+        for (int index = 0; index < createChunkSubrequestCount; ++index) {
+            const auto& subrequest = request->SequoiaRequest.CreateChunkSubrequests[index];
+            auto* subresponse = &request->SequoiaResponse.CreateChunkSubresponses[index];
+
+            auto future = CreateChunk(subrequest)
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TCreateChunkResponse& response) {
+                    *subresponse = response;
+                }));
+            futures.push_back(future);
+        }
+
+        return AllSet(std::move(futures)).AsVoid();
+    }
 
     TNodeList AllocateWriteTargets(
         TMedium* medium,
@@ -800,14 +939,15 @@ public:
         bool vital,
         bool overlayed,
         TConsistentReplicaPlacementHash consistentReplicaPlacementHash,
-        i64 replicaLagLimit)
+        i64 replicaLagLimit,
+        TChunkId hintId = NullChunkId)
     {
         YT_VERIFY(HasMutationContext());
 
         bool isErasure = IsErasureChunkType(chunkType);
         bool isJournal = IsJournalChunkType(chunkType);
 
-        auto* chunk = DoCreateChunk(chunkType);
+        auto* chunk = hintId ? DoCreateChunk(hintId) : DoCreateChunk(chunkType);
         chunk->SetReadQuorum(readQuorum);
         chunk->SetWriteQuorum(writeQuorum);
         chunk->SetReplicaLagLimit(replicaLagLimit);
@@ -867,6 +1007,78 @@ public:
             }));
 
         return chunk;
+    }
+
+    TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request)
+    {
+        return GuardedCreateChunk(request)
+            .Apply(BIND([] (const TErrorOr<TCreateChunkResponse>& responseOrError) {
+                if (responseOrError.IsOK()) {
+                    return responseOrError.Value();
+                } else {
+                    TCreateChunkResponse response;
+                    ToProto(response.mutable_error(), TError(responseOrError));
+                    return response;
+                }
+            }));
+    }
+
+    TFuture<TCreateChunkResponse> GuardedCreateChunk(TCreateChunkRequest request)
+    {
+        const auto& client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+        auto transaction = CreateSequoiaTransaction(client, Logger);
+
+        int mediumIndex;
+        try {
+            mediumIndex = GetMediumByNameOrThrow(request.medium_name())->GetIndex();
+        } catch (const std::exception& ex) {
+            return MakeFuture<TCreateChunkResponse>(TError(ex));
+        }
+
+        return transaction->Start(/*startOptions*/ {})
+            .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
+                auto chunkType = CheckedEnumCast<EObjectType>(request.type());
+                auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
+
+                TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow{
+                    .Id = ToString(chunkId),
+                    .MiscExt = "tilted",
+                };
+                transaction->WriteRow(chunkMetaExtensionRow);
+
+                ToProto(request.mutable_chunk_id(), chunkId);
+
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(request));
+
+                NApi::TTransactionCommitOptions commitOptions{
+                    .CoordinatorCellId = Bootstrap_->GetCellId(),
+                    // TODO(gritukan): Joint prepare and commit!
+                };
+
+
+                WaitFor(transaction->Commit(commitOptions))
+                    .ThrowOnError();
+
+                TCreateChunkResponse response;
+                auto sessionId = TSessionId(chunkId, mediumIndex);
+                ToProto(response.mutable_session_id(), sessionId);
+                return response;
+            }));
+    }
+
+    void HydraPrepareCreateChunk(
+        TTransaction* /*transaction*/,
+        TCreateChunkRequest* request,
+        const NHiveServer::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+        // TODO(gritukan): Check if prepare is late.
+
+        ExecuteCreateChunkSubrequest(
+            request,
+            /*response*/ nullptr);
     }
 
     void DestroyChunk(TChunk* chunk)
@@ -971,6 +1183,10 @@ public:
         }
 
         ++ChunksDestroyed_;
+
+        if (chunk->IsSequoia()) {
+            --SequoiaChunkCount_;
+        }
     }
 
     void UnstageChunk(TChunk* chunk)
@@ -2171,6 +2387,8 @@ private:
     i64 ChunkListsCreated_ = 0;
     i64 ChunkListsDestroyed_ = 0;
 
+    i64 SequoiaChunkCount_ = 0;
+
     i64 ImmediateAllyReplicasAnnounced_ = 0;
     i64 DelayedAllyReplicasAnnounced_ = 0;
     i64 LazyAllyReplicasAnnounced_ = 0;
@@ -2295,9 +2513,17 @@ private:
     {
         auto chunkHolder = TPoolAllocator::New<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
+        if (chunk->IsSequoia()) {
+            chunk->SetAevum(GetCurrentAevum());
+        }
+
         RegisterChunk(chunk);
         chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
-        ChunksCreated_++;
+        ++ChunksCreated_;
+        if (chunk->IsSequoia()) {
+            ++SequoiaChunkCount_;
+        }
+
         return chunk;
     }
 
@@ -3421,6 +3647,8 @@ private:
             chunkList->ValidateUniqueAncestors();
         }
 
+        auto hintId = FromProto<TChunkId>(subrequest->chunk_id());
+
         // NB: Once the chunk is created, no exceptions could be thrown.
         auto* chunk = CreateChunk(
             transaction,
@@ -3436,7 +3664,8 @@ private:
             subrequest->vital(),
             overlayed,
             consistentReplicaPlacementHash,
-            replicaLagLimit);
+            replicaLagLimit,
+            hintId);
 
         if (chunk->HasConsistentReplicaPlacementHash()) {
             ConsistentChunkPlacement_->AddChunk(chunk);
@@ -3725,6 +3954,10 @@ private:
                 YT_VERIFY(ForeignChunks_.insert(chunk).second);
             }
 
+            if (chunk->IsSequoia()) {
+                ++SequoiaChunkCount_;
+            }
+
             // COMPAT(shakurov)
             if (chunk->GetExpirationTime()) {
                 ExpirationTracker_->ScheduleExpiration(chunk);
@@ -3825,6 +4058,8 @@ private:
         ChunkViewsDestroyed_ = 0;
         ChunkListsCreated_ = 0;
         ChunkListsDestroyed_ = 0;
+
+        SequoiaChunkCount_ = 0;
 
         ImmediateAllyReplicasAnnounced_ = 0;
         DelayedAllyReplicasAnnounced_ = 0;
@@ -4623,6 +4858,7 @@ private:
         ChunkAutotomizer_->OnProfiling(&buffer);
 
         buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
+        buffer.AddGauge("/sequoia_chunk_count", SequoiaChunkCount_);
         buffer.AddCounter("/chunks_created", ChunksCreated_);
         buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
 
@@ -4992,6 +5228,36 @@ std::unique_ptr<TMutation> TChunkManager::CreateImportChunksMutation(TCtxImportC
 std::unique_ptr<TMutation> TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
 {
     return Impl_->CreateExecuteBatchMutation(std::move(context));
+}
+
+std::unique_ptr<TMutation> TChunkManager::CreateExecuteBatchMutation(
+    TReqExecuteBatch* request,
+    TRspExecuteBatch* response)
+{
+    return Impl_->CreateExecuteBatchMutation(request, response);
+}
+
+TChunkManager::TPreparedExecuteBatchRequestPtr TChunkManager::PrepareExecuteBatchRequest(
+    const TReqExecuteBatch& request)
+{
+    return Impl_->PrepareExecuteBatchRequest(request);
+}
+
+void TChunkManager::PrepareExecuteBatchResponse(
+    TChunkManager::TPreparedExecuteBatchRequestPtr request,
+    TRspExecuteBatch* response)
+{
+    Impl_->PrepareExecuteBatchResponse(request, response);
+}
+
+TFuture<void> TChunkManager::ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request)
+{
+    return Impl_->ExecuteBatchSequoia(request);
+}
+
+TFuture<TChunkManager::TCreateChunkResponse> TChunkManager::CreateChunk(const TCreateChunkRequest& request)
+{
+    return Impl_->CreateChunk(request);
 }
 
 TChunkList* TChunkManager::CreateChunkList(EChunkListKind kind)

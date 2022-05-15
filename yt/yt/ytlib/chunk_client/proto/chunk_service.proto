@@ -233,6 +233,9 @@ message TReqExecuteBatch
         // Writer guarantees that the difference between length of any two replicas
         // will not exceed this value. Journal chunks only.
         optional int64 replica_lag_limit = 15;
+
+        // The id of chunk being created. Set only in Sequoia commits.
+        optional NYT.NProto.TGuid chunk_id = 16;
     }
 
     repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
