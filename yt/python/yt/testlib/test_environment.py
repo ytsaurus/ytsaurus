@@ -274,7 +274,9 @@ class YtTestEnvironment(object):
 def _cleanup_transactions():
     test_cleanup.abort_transactions(
         list_action=yt.list,
-        abort_action=yt.abort_transaction)
+        abort_action=yt.abort_transaction,
+        exists_action=yt.exists,
+        get_action=yt.get)
 
 
 def _cleanup_operations(remove_operations_archive):

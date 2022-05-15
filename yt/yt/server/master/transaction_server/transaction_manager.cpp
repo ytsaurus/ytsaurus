@@ -210,6 +210,7 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedNestedTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::UploadTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::UploadNestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::AtomicTabletTransaction));
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),

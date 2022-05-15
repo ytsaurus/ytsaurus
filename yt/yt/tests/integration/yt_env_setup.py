@@ -905,7 +905,9 @@ class YTEnvSetup(object):
         test_cleanup.abort_transactions(
             list_action=lambda *args, **kwargs: yt_commands.ls(*args, driver=driver, **kwargs),
             abort_action=lambda transaction_id: requests.append(
-                yt_commands.make_batch_request(abort_command, transaction_id=transaction_id)))
+                yt_commands.make_batch_request(abort_command, transaction_id=transaction_id)),
+            exists_action=lambda *args, **kwargs: yt_commands.exists(*args, driver=driver, **kwargs),
+            get_action=lambda *args, **kwargs: yt_commands.get(*args, driver=driver, **kwargs))
 
         yt_commands.execute_batch(requests)
 

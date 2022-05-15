@@ -6,7 +6,12 @@ import logging
 logger = logging.getLogger("TestHelpers")
 
 
-def abort_transactions(list_action, abort_action):
+def abort_transactions(list_action, abort_action, exists_action, get_action):
+    sequoia_tablet_cells = []
+    # COMPAT(gritukan, aleksandra-zh)
+    if exists_action("//sys/tablet_cell_bundles/sequoia"):
+        sequoia_tablet_cells = get_action("//sys/tablet_cell_bundles/sequoia/@tablet_cell_ids")
+
     for tx in list_action("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")
         if "Scheduler lock" in title:
@@ -23,6 +28,14 @@ def abort_transactions(list_action, abort_action):
             continue
         if "QueueAgent" in title:
             continue
+
+        sequoia = False
+        for cell_id in sequoia_tablet_cells:
+            if cell_id in title:
+                sequoia = True
+        if sequoia:
+            continue
+
         try:
             abort_action(tx)
         except YtError:

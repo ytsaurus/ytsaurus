@@ -461,7 +461,11 @@ private:
             auto req = proxy.StartTransaction();
             ToProto(req->mutable_id(), Transaction_->GetId());
             req->set_timeout(::NYT::ToProto<i64>(*StartOptions_.Timeout));
-            ToProto(req->mutable_attributes(), *StartOptions_.Attributes);
+            if (const auto& attributes = StartOptions_.Attributes) {
+                ToProto(req->mutable_attributes(), *attributes);
+            } else {
+                ToProto(req->mutable_attributes(), *NYTree::CreateEphemeralAttributes());
+            }
             ToProto(req->mutable_write_set(), session->WriteSet);
             for (const auto& action : session->TransactionActions) {
                 ToProto(req->add_actions(), action);
