@@ -14,16 +14,20 @@ try:
 except ImportError:
     yatest_common = None
 
+
 def sudo_rmtree(path):
     subprocess.check_call(["sudo", "rm", "-rf", path])
 
+
 def sudo_move(src_path, dst_path):
     subprocess.check_call(["sudo", "mv", src_path, dst_path])
+
 
 def is_inside_arcadia(inside_arcadia):
     if inside_arcadia is None:
         inside_arcadia = int(yatest_common.get_param("inside_arcadia", True))
     return inside_arcadia
+
 
 def search_binary_path(binary_name, build_path_dir=None):
     """
@@ -67,6 +71,7 @@ def insert_sudo_wrapper(bin_dir):
             trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
             os.chmod(bin_path, 0o755)
 
+
 def get_binary_path(path, arcadia_root, **kwargs):
     if arcadia_root is None:
         return search_binary_path(path, **kwargs)
@@ -89,6 +94,7 @@ PROGRAMS = [("master", "master/bin"),
             ("tablet-balancer", "tablet_balancer/bin"),
             ("master-cache", "master_cache/bin"),
             ("queue-agent", "queue_agent/bin")]
+
 
 def prepare_yt_binaries(destination,
                         source_prefix="", arcadia_root=None, inside_arcadia=None,
@@ -122,12 +128,14 @@ def prepare_yt_binaries(destination,
     if need_suid:
         insert_sudo_wrapper(destination)
 
+
 def copy_misc_binaries(destination, arcadia_root=None):
     watcher_path = get_binary_path("yt_env_watcher", arcadia_root)
     shutil.copy(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
     logrotate_path = get_binary_path("logrotate", arcadia_root)
     shutil.copy(logrotate_path, os.path.join(destination, "logrotate"))
+
 
 # Supposed to be used in core YT components only.
 def prepare_yt_environment(destination, artifact_components=None, **kwargs):
@@ -200,6 +208,7 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
 
     return bin_dir
 
+
 def collect_cores(pids, working_directory, binaries, logger=None):
     cores_path = os.path.join(working_directory, "cores")
     if not os.path.isdir(cores_path):
@@ -235,6 +244,7 @@ def collect_cores(pids, working_directory, binaries, logger=None):
         for binary in binaries:
             shutil.copy(binary, cores_path)
 
+
 def save_sandbox(sandbox_path, output_subpath):
     if yatest_common is None:
         return
@@ -255,11 +265,13 @@ def save_sandbox(sandbox_path, output_subpath):
     os.makedirs(output_path)
     sudo_move(sandbox_path, output_path)
 
+
 def get_gdb_path():
     if yatest_common is None:
         return "gdb"
     else:
         return yatest_common.gdb_path()
+
 
 def remove_runtime_data(working_directory):
     runtime_data_paths = []
