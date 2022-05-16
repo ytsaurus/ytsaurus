@@ -147,7 +147,6 @@ void TBootstrap::DoRun()
     TraceSampler_ = New<NTracing::TSampler>();
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     AccessChecker_ = CreateAccessChecker(this);
 
@@ -198,6 +197,9 @@ void TBootstrap::DoRun()
         Config_->ApiService,
         DynamicConfigManager_->GetConfig()->Api,
         RpcProxyProfiler);
+
+    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
     RpcServer_->RegisterService(ApiService_);
 
     if (Config_->DiscoveryService->Enable) {

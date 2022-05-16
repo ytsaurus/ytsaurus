@@ -1,6 +1,6 @@
 from proxy_format_config import _TestProxyFormatConfigBase
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, RPC_PROXIES_SERVICE
 
 from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, create, ls,
@@ -74,6 +74,11 @@ class TestRpcProxy(YTEnvSetup):
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
+
+        with Restarter(self.Env, RPC_PROXIES_SERVICE):
+            pass
+
+        wait(config_updated, ignore_exceptions=True)
 
     @authors("gritukan")
     def test_access_checker(self):
