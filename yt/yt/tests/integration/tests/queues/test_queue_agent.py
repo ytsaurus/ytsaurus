@@ -113,6 +113,23 @@ class TestQueueAgentBase(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     @classmethod
+    def modify_queue_agent_config(cls, config):
+        update_inplace(config, {
+            "cluster_connection": {
+                # Disable cache.
+                "table_mount_cache": {
+                    "expire_after_successful_update_time": 0,
+                    "expire_after_failed_update_time": 0,
+                    "expire_after_access_time": 0,
+                    "refresh_time": 0,
+                },
+                "transaction_manager": {
+                    "retry_attempts": 1,
+                },
+            },
+        })
+
+    @classmethod
     def setup_class(cls):
         super(TestQueueAgentBase, cls).setup_class()
 
@@ -185,18 +202,6 @@ class TestQueueAgentBase(YTEnvSetup):
 
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
-
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
-    }
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -358,15 +363,6 @@ class TestOrchidSelfRedirect(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
     DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
         "queue_agent": {
             "poll_period": 100,
         },
@@ -404,18 +400,6 @@ class TestOrchidSelfRedirect(TestQueueAgentBase):
 
 class TestQueueController(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
-
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
-    }
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -605,15 +589,6 @@ class TestMultipleAgents(TestQueueAgentBase):
     USE_DYNAMIC_TABLES = True
 
     DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
         "election_manager": {
             "transaction_timeout": 5000,
             "transaction_ping_period": 100,
@@ -818,15 +793,6 @@ class TestMasterIntegration(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
 
     DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
         "election_manager": {
             "transaction_timeout": 5000,
             "transaction_ping_period": 100,
@@ -1024,18 +990,6 @@ class CypressSynchronizerOrchid:
 
 class TestCypressSynchronizerBase(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
-
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
-    }
 
     def _get_queue_name(self, name):
         return "//tmp/q-{}".format(name)
@@ -1532,18 +1486,6 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
 class TestDynamicConfig(TestQueueAgentBase):
     NUM_QUEUE_AGENTS = 1
-
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "cluster_connection": {
-            # Disable cache.
-            "table_mount_cache": {
-                "expire_after_successful_update_time": 0,
-                "expire_after_failed_update_time": 0,
-                "expire_after_access_time": 0,
-                "refresh_time": 0,
-            },
-        },
-    }
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
