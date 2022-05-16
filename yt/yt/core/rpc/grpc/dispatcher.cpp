@@ -1,10 +1,10 @@
 #include "dispatcher.h"
-#include "helpers.h"
 
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/concurrency/count_down_latch.h>
 #include <yt/yt/core/concurrency/thread.h>
+#include <yt/yt/core/misc/shutdown_priorities.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 
@@ -68,9 +68,9 @@ public:
         return New<TGrpcLibraryLock>();
     }
 
-    grpc_completion_queue* PickRandomCompletionQueue()
+    TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue()
     {
-        return Threads_[RandomNumber<size_t>() % ThreadCount]->GetCompletionQueue();
+        return Threads_[RandomNumber<size_t>() % ThreadCount]->GetGuardedCompletionQueue();
     }
 
 private:
@@ -79,29 +79,29 @@ private:
     {
     public:
         explicit TDispatcherThread(int index)
-            : TThread(Format("Grpc:%v", index))
+            : TThread(Format("Grpc:%v", index), GrpcDispatcherThreadShutdownPriority)
+            , GuardedCompletionQueue_(TGrpcCompletionQueuePtr(grpc_completion_queue_create_for_next(nullptr)))
         {
             Start();
         }
 
-        grpc_completion_queue* GetCompletionQueue()
+        TGuardedGrpcCompletitionQueuePtr* GetGuardedCompletionQueue()
         {
-            return CompletionQueue_.Unwrap();
+            return &GuardedCompletionQueue_;
         }
 
     private:
         TGrpcLibraryLockPtr LibraryLock_ = New<TGrpcLibraryLock>();
-        TGrpcCompletionQueuePtr CompletionQueue_ = TGrpcCompletionQueuePtr(grpc_completion_queue_create_for_next(nullptr));
-
+        TGuardedGrpcCompletitionQueuePtr GuardedCompletionQueue_;
 
         void StopPrologue() override
         {
-            grpc_completion_queue_shutdown(CompletionQueue_.Unwrap());
+            GuardedCompletionQueue_.Shutdown();
         }
 
         void StopEpilogue() override
         {
-            CompletionQueue_.Reset();
+            GuardedCompletionQueue_.Reset();
             LibraryLock_.Reset();
         }
 
@@ -109,10 +109,14 @@ private:
         {
             YT_LOG_INFO("Dispatcher thread started");
 
+            // Take raw completion queue for fetching tasks,
+            // because `grpc_completion_queue_next` can be concurrent with other operations.
+            grpc_completion_queue* completionQueue = GuardedCompletionQueue_.UnwrapUnsafe();
+
             bool done = false;
             while (!done) {
                 auto event = grpc_completion_queue_next(
-                    CompletionQueue_.Unwrap(),
+                    completionQueue,
                     gpr_inf_future(GPR_CLOCK_REALTIME),
                     nullptr);
                 switch (event.type) {
@@ -160,9 +164,9 @@ TGrpcLibraryLockPtr TDispatcher::CreateLibraryLock()
     return Impl_->CreateLibraryLock();
 }
 
-grpc_completion_queue* TDispatcher::PickRandomCompletionQueue()
+TGuardedGrpcCompletitionQueuePtr* TDispatcher::PickRandomGuardedCompletionQueue()
 {
-    return Impl_->PickRandomCompletionQueue();
+    return Impl_->PickRandomGuardedCompletionQueue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

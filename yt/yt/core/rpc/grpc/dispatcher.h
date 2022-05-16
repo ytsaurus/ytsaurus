@@ -1,5 +1,6 @@
 #pragma once
 
+#include "helpers.h"
 #include "private.h"
 
 #include <yt/yt/core/misc/singleton.h>
@@ -26,7 +27,7 @@ public:
     static TDispatcher* Get();
 
     TGrpcLibraryLockPtr CreateLibraryLock();
-    grpc_completion_queue* PickRandomCompletionQueue();
+    TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue();
 
 private:
     DECLARE_LEAKY_SINGLETON_FRIEND()

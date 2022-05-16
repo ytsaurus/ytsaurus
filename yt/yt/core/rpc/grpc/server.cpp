@@ -5,6 +5,7 @@
 
 #include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
+#include <yt/yt/core/misc/shutdown_priorities.h>
 #include <yt/yt/core/rpc/server_detail.h>
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
@@ -12,6 +13,8 @@
 #include <yt/yt/core/bus/bus.h>
 
 #include <yt/yt/core/misc/compact_vector.h>
+#include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -61,14 +64,22 @@ public:
     explicit TServer(TServerConfigPtr config)
         : TServerBase(GrpcLogger.WithTag("GrpcServerId: %v", TGuid::Create()))
         , Config_(std::move(config))
+        , ShutdownCookie_(RegisterShutdownCallback(
+            "GrpcServer",
+            BIND(&TServer::Shutdown, MakeWeak(this), /*graceful*/ true),
+            /*priority*/ GrpcServerShutdownPriority))
         , LibraryLock_(TDispatcher::Get()->CreateLibraryLock())
-        , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
+        , CompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue()->UnwrapUnsafe())
     { }
 
 private:
     const TServerConfigPtr Config_;
+    const TShutdownCookie ShutdownCookie_;
 
     const TGrpcLibraryLockPtr LibraryLock_;
+
+    // This CompletionQueue_ does not have to be guarded in contrast to Channels completion queue,
+    // because we require server to be shut down before completion queues.
     grpc_completion_queue* const CompletionQueue_;
 
     TGrpcServerPtr Native_;
@@ -143,6 +154,19 @@ private:
         TServerBase::DoStart();
 
         New<TCallHandler>(this);
+    }
+
+    void Shutdown(bool graceful)
+    {
+        try {
+            DoStop(graceful).Get().ThrowOnError();
+        } catch (...) {
+            if (auto* logFile = GetShutdownLogFile()) {
+                ::fprintf(logFile, "GRPC server shutdown failed: %s (ThreadId: %" PRISZT ")\n",
+                    CurrentExceptionMessage().c_str(),
+                    GetCurrentThreadId());
+            }
+        }
     }
 
     TFuture<void> DoStop(bool graceful) override
@@ -263,7 +287,7 @@ private:
     public:
         explicit TCallHandler(TServerPtr owner)
             : Owner_(std::move(owner))
-            , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
+            , CompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue()->UnwrapUnsafe())
             , Logger(Owner_->Logger)
         {
             auto result = grpc_server_request_call(

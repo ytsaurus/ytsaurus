@@ -82,7 +82,7 @@ DEFINE_REFCOUNTED_TYPE(TThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTY::NConcurrency
+} // namespace NYT::NConcurrency
 
 #define THREAD_INL_H_
 #include "thread-inl.h"

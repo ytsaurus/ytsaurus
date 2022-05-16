@@ -472,4 +472,41 @@ std::optional<TString> ParseIssuerFromX509(TStringBuf x509String)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGuardedGrpcCompletitionQueuePtr::TGuardedGrpcCompletitionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr)
+    : CompletionQueuePtr_(std::move(completionQueuePtr))
+{ }
+
+std::optional<TGuardedGrpcCompletitionQueuePtr::TLockGuard<NConcurrency::TAsyncLockReaderTraits>> TGuardedGrpcCompletitionQueuePtr::TryLock()
+{
+    auto guard = TLockGuard<NConcurrency::TAsyncLockReaderTraits>(*this);
+    if (State_ != EState::Opened) {
+        return std::nullopt;
+    }
+    return std::optional{std::move(guard)};
+}
+
+void TGuardedGrpcCompletitionQueuePtr::Shutdown()
+{
+    auto guard = TLockGuard<NConcurrency::TAsyncLockWriterTraits>(*this);
+    if (State_ == EState::Shutdown) {
+        return;
+    }
+    State_ = EState::Shutdown;
+    grpc_completion_queue_shutdown(CompletionQueuePtr_.Unwrap());
+}
+
+void TGuardedGrpcCompletitionQueuePtr::Reset()
+{
+    auto guard = TLockGuard<NConcurrency::TAsyncLockWriterTraits>(*this);
+    YT_VERIFY(State_ == EState::Shutdown);
+    CompletionQueuePtr_.Reset();
+}
+
+grpc_completion_queue* TGuardedGrpcCompletitionQueuePtr::UnwrapUnsafe()
+{
+    return CompletionQueuePtr_.Unwrap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc::NGrpc
