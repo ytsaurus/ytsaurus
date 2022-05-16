@@ -163,7 +163,7 @@ private:
             , Options_(options)
             , Request_(std::move(request))
             , ResponseHandler_(std::move(responseHandler))
-            , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
+            , GuardedCompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue())
             , Logger(GrpcLogger)
         {
             YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v.%v, Timeout: %v)",
@@ -172,18 +172,25 @@ private:
                 Request_->GetMethod(),
                 Options_.Timeout);
 
-            auto methodSlice = BuildGrpcMethodString();
-            Call_ = TGrpcCallPtr(grpc_channel_create_call(
-                Owner_->Channel_.Unwrap(),
-                nullptr,
-                0,
-                CompletionQueue_,
-                methodSlice,
-                nullptr,
-                GetDeadline(),
-                nullptr));
-            grpc_slice_unref(methodSlice);
+            {
+                auto completitionQueueGuard = GuardedCompletionQueue_->TryLock();
+                if (!completitionQueueGuard) {
+                    NotifyError("Failed to initialize request call", TError{"Completion queue is shut down"});
+                    return;
+                }
 
+                auto methodSlice = BuildGrpcMethodString();
+                Call_ = TGrpcCallPtr(grpc_channel_create_call(
+                    Owner_->Channel_.Unwrap(),
+                    nullptr,
+                    0,
+                    completitionQueueGuard->Unwrap(),
+                    methodSlice,
+                    nullptr,
+                    GetDeadline(),
+                    nullptr));
+                grpc_slice_unref(methodSlice);
+            }
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
             InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
             if (Request_->GetUserTag()) {
@@ -268,7 +275,9 @@ private:
             ops[2].flags = 0;
             ops[2].reserved = nullptr;
 
-            StartBatch(ops);
+            if (!TryStartBatch(ops)) {
+                Unref();
+            }
         }
 
         ~TCallHandler()
@@ -330,7 +339,9 @@ private:
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ResponseHandlerLock_);
         IClientResponseHandlerPtr ResponseHandler_;
 
-        grpc_completion_queue* const CompletionQueue_;
+        // Completion queue must be accessed under read lock
+        // in order to prohibit creating new requests after shutting completion queue down.
+        TGuardedGrpcCompletitionQueuePtr* GuardedCompletionQueue_;
         const NLogging::TLogger& Logger;
 
         NProfiling::TWallTimer Timer_;
@@ -358,9 +369,9 @@ private:
             auto guard = Guard(ResponseHandlerLock_);
 
             // NB! Reset response handler explicitly.
-            // Implicit destruction in ~TCallHandler cannot be guaranteed
-            // because of the possible cycle dependency between call handler and
-            // response handler, for example for retrying channels.
+            // Implicit destruction in ~TCallHandler is impossible
+            // because of the following cycle dependencу:
+            // futureState -> TCallHandler -> responseHandler -> futureState.
             result.Swap(ResponseHandler_);
 
             return result;
@@ -419,7 +430,9 @@ private:
             ops[0].reserved = nullptr;
             ops[0].data.recv_initial_metadata.recv_initial_metadata = ResponseInitialMetadata_.Unwrap();
 
-            StartBatch(ops);
+            if (!TryStartBatch(ops)) {
+                Unref();
+            }
         }
 
         void OnInitialMetadataReceived(bool success)
@@ -452,7 +465,9 @@ private:
             ops[1].data.recv_status_on_client.status_details = &ResponseStatusDetails_;
             ops[1].data.recv_status_on_client.error_string = nullptr;
 
-            StartBatch(ops);
+            if (!TryStartBatch(ops)) {
+                Unref();
+            }
         }
 
         void OnResponseReceived(bool success)
@@ -523,8 +538,15 @@ private:
 
 
         template <class TOps>
-        void StartBatch(const TOps& ops)
+        bool TryStartBatch(const TOps& ops)
         {
+
+            auto completitionQueueGuard = GuardedCompletionQueue_->TryLock();
+            if (!completitionQueueGuard) {
+                NotifyError("Failed to enqueue request operations batch", TError{"Completion queue is shut down"});
+                return false;
+            }
+
             auto result = grpc_call_start_batch(
                 Call_.Unwrap(),
                 ops.data(),
@@ -532,6 +554,7 @@ private:
                 GetTag(),
                 nullptr);
             YT_VERIFY(result == GRPC_CALL_OK);
+            return true;
         }
 
         void NotifyError(TStringBuf reason, const TError& error)

@@ -5,6 +5,8 @@
 #include <yt/yt/core/misc/compact_vector.h>
 #include <yt/yt/core/misc/ref.h>
 
+#include <yt/yt/core/concurrency/async_rw_lock.h>
+
 #include <yt/yt/core/crypto/public.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
@@ -57,6 +59,80 @@ using TGrpcServerPtr = TGrpcObjectPtr<grpc_server, grpc_server_destroy>;
 using TGrpcChannelCredentialsPtr = TGrpcObjectPtr<grpc_channel_credentials, grpc_channel_credentials_release>;
 using TGrpcServerCredentialsPtr = TGrpcObjectPtr<grpc_server_credentials, grpc_server_credentials_release>;
 using TGrpcAuthContextPtr = TGrpcObjectPtr<grpc_auth_context, grpc_auth_context_release>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Completion queue must be accessed under read lock
+//! in order to prohibit creating new requests after shutting completion queue down.
+class TGuardedGrpcCompletitionQueuePtr
+{
+public:
+    explicit TGuardedGrpcCompletitionQueuePtr(TGrpcCompletionQueuePtr completionQueuePtr);
+
+    template <class TOperationTraits>
+    class TLockGuard
+        : public TNonCopyable
+    {
+    public:
+        explicit TLockGuard(TGuardedGrpcCompletitionQueuePtr& guardedCompletionQueue)
+            : GuardedCompletionQueue_(guardedCompletionQueue)
+        {
+            Guard_ = WaitFor(NConcurrency::TAsyncReaderWriterLockGuard<TOperationTraits>::Acquire(&GuardedCompletionQueue_.Lock_))
+                .ValueOrThrow();
+        }
+
+        TLockGuard(TLockGuard&& guard)
+            : GuardedCompletionQueue_(guard.GuardedCompletionQueue_)
+            , Guard_(std::move(guard.Guard_))
+        { }
+
+        ~TLockGuard()
+        {
+            Unlock();
+        }
+
+        grpc_completion_queue* Unwrap()
+        {
+            return GuardedCompletionQueue_.UnwrapUnsafe();
+        }
+
+        void Unlock()
+        {
+            if (Guard_) {
+                Guard_.Reset();
+            }
+        }
+
+    private:
+        TGuardedGrpcCompletitionQueuePtr& GuardedCompletionQueue_;
+        TIntrusivePtr<NConcurrency::TAsyncReaderWriterLockGuard<TOperationTraits>> Guard_;
+    };
+
+    std::optional<TLockGuard<NConcurrency::TAsyncLockReaderTraits>> TryLock();
+
+    void Shutdown();
+
+    //! Must be done after Shutdown.
+    void Reset();
+
+    //! Access completion queue without taking locks and checking the state.
+    //! Used in GrpcServer (lock is redundant there because it synchronizes
+    //! with grpc_completion_queue shutdown via thread priorities)
+    //! and in DispatcherThreads (operation grpc_completion_queue_next
+    //! does not need to be synchronized).
+    grpc_completion_queue* UnwrapUnsafe();
+
+private:
+    enum class EState
+    {
+        Opened = 1,
+        Shutdown = 2
+    };
+
+    TGrpcCompletionQueuePtr CompletionQueuePtr_;
+    NConcurrency::TAsyncReaderWriterLock Lock_;
+    EState State_{EState::Opened};
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
