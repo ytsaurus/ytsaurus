@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 from six import iteritems
-from yt.wrapper import YtClient
 
 GiB = 1024 ** 3
 TiB = 1024 * GiB
