@@ -202,7 +202,7 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
         if yatest_common.context.test_stderr:
             yt_logger.LOGGER.addHandler(logging.StreamHandler())
         yt_logger.set_formatter(yt_logger.BASIC_FORMATTER)
-    
+
     with open(prepared_path, "w"):
         pass
 
