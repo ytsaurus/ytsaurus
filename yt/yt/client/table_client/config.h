@@ -15,7 +15,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRetentionConfig
-    : public NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     int MinDataVersions;
@@ -24,7 +24,9 @@ public:
     TDuration MaxDataTtl;
     bool IgnoreMajorTimestamp;
 
-    TRetentionConfig();
+    REGISTER_YSON_STRUCT(TRetentionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRetentionConfig)

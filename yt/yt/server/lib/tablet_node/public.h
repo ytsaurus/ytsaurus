@@ -208,6 +208,8 @@ DEFINE_ENUM(EPeriodicCompactionMode,
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TRelativeReplicationThrottlerConfig)
+DECLARE_REFCOUNTED_CLASS(TBuiltinTableMountConfig)
+DECLARE_REFCOUNTED_CLASS(TCustomTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)

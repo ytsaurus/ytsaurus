@@ -48,296 +48,307 @@ TRelativeReplicationThrottlerConfig::TRelativeReplicationThrottlerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableMountConfig::TTableMountConfig()
+void TBuiltinTableMountConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tablet_cell_bundle", TabletCellBundle)
+    registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
         .Optional();
-    RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
+    registrar.Parameter("in_memory_mode", &TThis::InMemoryMode)
+        .Default(NTabletClient::EInMemoryMode::None);
+    registrar.Parameter("forced_compaction_revision", &TThis::ForcedCompactionRevision)
+        .Default();
+    registrar.Parameter("forced_store_compaction_revision", &TThis::ForcedStoreCompactionRevision)
+        .Default();
+    registrar.Parameter("forced_hunk_compaction_revision", &TThis::ForcedHunkCompactionRevision)
+        .Default();
+    registrar.Parameter("profiling_mode", &TThis::ProfilingMode)
+        .Default(EDynamicTableProfilingMode::Path);
+    registrar.Parameter("profiling_tag", &TThis::ProfilingTag)
+        .Optional();
+    registrar.Parameter("enable_dynamic_store_read", &TThis::EnableDynamicStoreRead)
+        .Default(false);
+    registrar.Parameter("enable_consistent_chunk_replica_placement", &TThis::EnableConsistentChunkReplicaPlacement)
+        .Default(false);
+    registrar.Parameter("enable_detailed_profiling", &TThis::EnableDetailedProfiling)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCustomTableMountConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_dynamic_store_row_count", &TThis::MaxDynamicStoreRowCount)
         .GreaterThan(0)
         .Default(1000000);
-    RegisterParameter("max_dynamic_store_value_count", MaxDynamicStoreValueCount)
+    registrar.Parameter("max_dynamic_store_value_count", &TThis::MaxDynamicStoreValueCount)
         .GreaterThan(0)
         .Default(1000000000);
-    RegisterParameter("max_dynamic_store_timestamp_count", MaxDynamicStoreTimestampCount)
+    registrar.Parameter("max_dynamic_store_timestamp_count", &TThis::MaxDynamicStoreTimestampCount)
         .GreaterThan(0)
         .Default(10000000)
         // NB: This limit is really important; please consult babenko@
         // before changing it.
         .LessThanOrEqual(SoftRevisionsPerDynamicStoreLimit);
-    RegisterParameter("max_dynamic_store_pool_size", MaxDynamicStorePoolSize)
+    registrar.Parameter("max_dynamic_store_pool_size", &TThis::MaxDynamicStorePoolSize)
         .GreaterThan(0)
         .Default(1_GB);
-    RegisterParameter("max_dynamic_store_row_data_weight", MaxDynamicStoreRowDataWeight)
+    registrar.Parameter("max_dynamic_store_row_data_weight", &TThis::MaxDynamicStoreRowDataWeight)
         .GreaterThan(0)
         .Default(NTableClient::MaxClientVersionedRowDataWeight)
         // NB: This limit is important: it ensures that store is flushable.
         // Please consult savrus@ before changing.
         .LessThanOrEqual(NTableClient::MaxServerVersionedRowDataWeight / 2);
 
-    RegisterParameter("dynamic_store_overflow_threshold", DynamicStoreOverflowThreshold)
+    registrar.Parameter("dynamic_store_overflow_threshold", &TThis::DynamicStoreOverflowThreshold)
         .GreaterThan(0.0)
         .Default(0.7)
         .LessThanOrEqual(1.0);
 
-    RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
+    registrar.Parameter("max_partition_data_size", &TThis::MaxPartitionDataSize)
         .Default(320_MB)
         .GreaterThan(0);
-    RegisterParameter("desired_partition_data_size", DesiredPartitionDataSize)
+    registrar.Parameter("desired_partition_data_size", &TThis::DesiredPartitionDataSize)
         .Default(256_MB)
         .GreaterThan(0);
-    RegisterParameter("min_partition_data_size", MinPartitionDataSize)
+    registrar.Parameter("min_partition_data_size", &TThis::MinPartitionDataSize)
         .Default(96_MB)
         .GreaterThan(0);
 
-    RegisterParameter("max_partition_count", MaxPartitionCount)
+    registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
         .Default(10240)
         .GreaterThan(0);
 
-    RegisterParameter("min_partitioning_data_size", MinPartitioningDataSize)
+    registrar.Parameter("min_partitioning_data_size", &TThis::MinPartitioningDataSize)
         .Default(64_MB)
         .GreaterThan(0);
-    RegisterParameter("min_partitioning_store_count", MinPartitioningStoreCount)
+    registrar.Parameter("min_partitioning_store_count", &TThis::MinPartitioningStoreCount)
         .Default(1)
         .GreaterThan(0);
-    RegisterParameter("max_partitioning_data_size", MaxPartitioningDataSize)
+    registrar.Parameter("max_partitioning_data_size", &TThis::MaxPartitioningDataSize)
         .Default(1_GB)
         .GreaterThan(0);
-    RegisterParameter("max_partitioning_store_count", MaxPartitioningStoreCount)
+    registrar.Parameter("max_partitioning_store_count", &TThis::MaxPartitioningStoreCount)
         .Default(5)
         .GreaterThan(0);
 
-    RegisterParameter("min_compaction_store_count", MinCompactionStoreCount)
+    registrar.Parameter("min_compaction_store_count", &TThis::MinCompactionStoreCount)
         .Default(3)
         .GreaterThan(1);
-    RegisterParameter("max_compaction_store_count", MaxCompactionStoreCount)
+    registrar.Parameter("max_compaction_store_count", &TThis::MaxCompactionStoreCount)
         .Default(5)
         .GreaterThan(0);
-    RegisterParameter("compaction_data_size_base", CompactionDataSizeBase)
+    registrar.Parameter("compaction_data_size_base", &TThis::CompactionDataSizeBase)
         .Default(16_MB)
         .GreaterThan(0);
-    RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
+    registrar.Parameter("compaction_data_size_ratio", &TThis::CompactionDataSizeRatio)
         .Default(2.0)
         .GreaterThan(1.0);
 
-    RegisterParameter("flush_throttler", FlushThrottler)
+    registrar.Parameter("flush_throttler", &TThis::FlushThrottler)
         .DefaultNew();
-    RegisterParameter("compaction_throttler", CompactionThrottler)
+    registrar.Parameter("compaction_throttler", &TThis::CompactionThrottler)
         .DefaultNew();
-    RegisterParameter("partitioning_throttler", PartitioningThrottler)
+    registrar.Parameter("partitioning_throttler", &TThis::PartitioningThrottler)
         .DefaultNew();
 
-    RegisterParameter("throttlers", Throttlers)
+    registrar.Parameter("throttlers", &TThis::Throttlers)
         .Default();
 
-    RegisterParameter("samples_per_partition", SamplesPerPartition)
+    registrar.Parameter("samples_per_partition", &TThis::SamplesPerPartition)
         .Default(100)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("backing_store_retention_time", BackingStoreRetentionTime)
+    registrar.Parameter("backing_store_retention_time", &TThis::BackingStoreRetentionTime)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("max_read_fan_in", MaxReadFanIn)
+    registrar.Parameter("max_read_fan_in", &TThis::MaxReadFanIn)
         .GreaterThan(0)
         .Default(30);
 
-    RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
+    registrar.Parameter("max_overlapping_store_count", &TThis::MaxOverlappingStoreCount)
         .GreaterThan(0)
         .Default(DefaultMaxOverlappingStoreCount);
-    RegisterParameter("critical_overlapping_store_count", CriticalOverlappingStoreCount)
+    registrar.Parameter("critical_overlapping_store_count", &TThis::CriticalOverlappingStoreCount)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("overlapping_store_immediate_split_threshold", OverlappingStoreImmediateSplitThreshold)
+    registrar.Parameter("overlapping_store_immediate_split_threshold", &TThis::OverlappingStoreImmediateSplitThreshold)
         .GreaterThan(0)
         .Default(20);
 
-    RegisterParameter("in_memory_mode", InMemoryMode)
-        .Default(NTabletClient::EInMemoryMode::None);
-
-    RegisterParameter("max_stores_per_tablet", MaxStoresPerTablet)
+    registrar.Parameter("max_stores_per_tablet", &TThis::MaxStoresPerTablet)
         .Default(10000)
         .GreaterThan(0);
-    RegisterParameter("max_eden_stores_per_tablet", MaxEdenStoresPerTablet)
+    registrar.Parameter("max_eden_stores_per_tablet", &TThis::MaxEdenStoresPerTablet)
         .Default(100)
         .GreaterThan(0);
 
-    RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
-        .Default();
-    RegisterParameter("forced_store_compaction_revision", ForcedStoreCompactionRevision)
-        .Default();
-    RegisterParameter("forced_hunk_compaction_revision", ForcedHunkCompactionRevision)
-        .Default();
-    RegisterParameter("forced_chunk_view_compaction_revision", ForcedCompactionRevision)
+    registrar.Parameter("forced_chunk_view_compaction_revision", &TThis::ForcedChunkViewCompactionRevision)
         .Default();
 
-    RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
+    registrar.Parameter("dynamic_store_auto_flush_period", &TThis::DynamicStoreAutoFlushPeriod)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("dynamic_store_flush_period_splay", DynamicStoreFlushPeriodSplay)
+    registrar.Parameter("dynamic_store_flush_period_splay", &TThis::DynamicStoreFlushPeriodSplay)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
+    registrar.Parameter("auto_compaction_period", &TThis::AutoCompactionPeriod)
         .Default();
-    RegisterParameter("auto_compaction_period_splay_ratio", AutoCompactionPeriodSplayRatio)
+    registrar.Parameter("auto_compaction_period_splay_ratio", &TThis::AutoCompactionPeriodSplayRatio)
         .Default(0.3);
-    RegisterParameter("periodic_compaction_mode", PeriodicCompactionMode)
+    registrar.Parameter("periodic_compaction_mode", &TThis::PeriodicCompactionMode)
         .Default(EPeriodicCompactionMode::Store);
 
-    RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
+    registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
         .Default(false);
 
-    RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
+    registrar.Parameter("lookup_cache_rows_per_tablet", &TThis::LookupCacheRowsPerTablet)
         .Default(0);
-    RegisterParameter("lookup_cache_rows_ratio", LookupCacheRowsRatio)
+    registrar.Parameter("lookup_cache_rows_ratio", &TThis::LookupCacheRowsRatio)
         .Default(0)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1);
-    RegisterParameter("enable_lookup_cache_by_default", EnableLookupCacheByDefault)
+    registrar.Parameter("enable_lookup_cache_by_default", &TThis::EnableLookupCacheByDefault)
         .Default(false);
 
-    RegisterParameter("row_count_to_keep", RowCountToKeep)
+    registrar.Parameter("row_count_to_keep", &TThis::RowCountToKeep)
         .Default(0);
 
-    RegisterParameter("replication_tick_period", ReplicationTickPeriod)
+    registrar.Parameter("replication_tick_period", &TThis::ReplicationTickPeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
+    registrar.Parameter("min_replication_log_ttl", &TThis::MinReplicationLogTtl)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("max_timestamps_per_replication_commit", MaxTimestampsPerReplicationCommit)
+    registrar.Parameter("max_timestamps_per_replication_commit", &TThis::MaxTimestampsPerReplicationCommit)
         .Default(10000);
-    RegisterParameter("max_rows_per_replication_commit", MaxRowsPerReplicationCommit)
+    registrar.Parameter("max_rows_per_replication_commit", &TThis::MaxRowsPerReplicationCommit)
         .Default(90000);
-    RegisterParameter("max_data_weight_per_replication_commit", MaxDataWeightPerReplicationCommit)
+    registrar.Parameter("max_data_weight_per_replication_commit", &TThis::MaxDataWeightPerReplicationCommit)
         .Default(128_MB);
-    RegisterParameter("replication_throttler", ReplicationThrottler)
+    registrar.Parameter("replication_throttler", &TThis::ReplicationThrottler)
         .DefaultNew();
-    RegisterParameter("relative_replication_throttler", RelativeReplicationThrottler)
+    registrar.Parameter("relative_replication_throttler", &TThis::RelativeReplicationThrottler)
         .DefaultNew();
-    RegisterParameter("enable_replication_logging", EnableReplicationLogging)
+    registrar.Parameter("enable_replication_logging", &TThis::EnableReplicationLogging)
         .Default(false);
 
-    RegisterParameter("enable_profiling", EnableProfiling)
+    registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
-    RegisterParameter("profiling_mode", ProfilingMode)
-        .Default(EDynamicTableProfilingMode::Path);
-    RegisterParameter("profiling_tag", ProfilingTag)
-        .Optional();
 
-    RegisterParameter("enable_structured_logger", EnableStructuredLogger)
+    registrar.Parameter("enable_structured_logger", &TThis::EnableStructuredLogger)
         .Default(true);
 
-    RegisterParameter("enable_compaction_and_partitioning", EnableCompactionAndPartitioning)
+    registrar.Parameter("enable_compaction_and_partitioning", &TThis::EnableCompactionAndPartitioning)
         .Default(true);
 
-    RegisterParameter("enable_store_rotation", EnableStoreRotation)
+    registrar.Parameter("enable_store_rotation", &TThis::EnableStoreRotation)
         .Default(true);
 
-    RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
+    registrar.Parameter("merge_rows_on_flush", &TThis::MergeRowsOnFlush)
         .Default(false);
 
-    RegisterParameter("merge_deletions_on_flush", MergeDeletionsOnFlush)
+    registrar.Parameter("merge_deletions_on_flush", &TThis::MergeDeletionsOnFlush)
         .Default(false);
 
-    RegisterParameter("enable_lsm_verbose_logging", EnableLsmVerboseLogging)
+    registrar.Parameter("enable_lsm_verbose_logging", &TThis::EnableLsmVerboseLogging)
         .Default(false);
 
-    RegisterParameter("max_unversioned_block_size", MaxUnversionedBlockSize)
+    registrar.Parameter("max_unversioned_block_size", &TThis::MaxUnversionedBlockSize)
         .GreaterThan(0)
         .Optional();
 
-    RegisterParameter("preserve_tablet_index", PreserveTabletIndex)
+    registrar.Parameter("preserve_tablet_index", &TThis::PreserveTabletIndex)
         .Default(false);
 
-    RegisterParameter("enable_partition_split_while_eden_partitioning", EnablePartitionSplitWhileEdenPartitioning)
+    registrar.Parameter("enable_partition_split_while_eden_partitioning", &TThis::EnablePartitionSplitWhileEdenPartitioning)
         .Default(false);
 
-    RegisterParameter("enable_discarding_expired_partitions", EnableDiscardingExpiredPartitions)
+    registrar.Parameter("enable_discarding_expired_partitions", &TThis::EnableDiscardingExpiredPartitions)
         .Default(true);
 
-    RegisterParameter("enable_data_node_lookup", EnableDataNodeLookup)
+    registrar.Parameter("enable_data_node_lookup", &TThis::EnableDataNodeLookup)
         .Default(false);
 
-    RegisterParameter("enable_peer_probing_in_data_node_lookup", EnablePeerProbingInDataNodeLookup)
+    registrar.Parameter("enable_peer_probing_in_data_node_lookup", &TThis::EnablePeerProbingInDataNodeLookup)
         .Default(false);
 
-    RegisterParameter("max_parallel_partition_lookups", MaxParallelPartitionLookups)
+    registrar.Parameter("max_parallel_partition_lookups", &TThis::MaxParallelPartitionLookups)
         .Optional()
         .GreaterThan(0)
         .LessThanOrEqual(MaxParallelPartitionLookupsLimit);
 
-    RegisterParameter("enable_rejects_in_data_node_lookup_if_throttling", EnableRejectsInDataNodeLookupIfThrottling)
+    registrar.Parameter("enable_rejects_in_data_node_lookup_if_throttling", &TThis::EnableRejectsInDataNodeLookupIfThrottling)
         .Default(false);
 
-    RegisterParameter("lookup_rpc_multiplexing_parallelism", LookupRpcMultiplexingParallelism)
+    registrar.Parameter("lookup_rpc_multiplexing_parallelism", &TThis::LookupRpcMultiplexingParallelism)
         .Default(1)
         .InRange(1, 16);
 
-    RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
+    registrar.Parameter("enable_new_scan_reader_for_lookup", &TThis::EnableNewScanReaderForLookup)
+        .Default(false);
+    registrar.Parameter("enable_new_scan_reader_for_select", &TThis::EnableNewScanReaderForSelect)
         .Default(false);
 
-    RegisterParameter("enable_new_scan_reader_for_lookup", EnableNewScanReaderForLookup)
-        .Default(false);
-    RegisterParameter("enable_new_scan_reader_for_select", EnableNewScanReaderForSelect)
+    registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
 
-    RegisterParameter("enable_consistent_chunk_replica_placement", EnableConsistentChunkReplicaPlacement)
-        .Default(false);
-
-    RegisterParameter("enable_detailed_profiling", EnableDetailedProfiling)
-        .Default(false);
-    RegisterParameter("enable_hunk_columnar_profiling", EnableHunkColumnarProfiling)
-        .Default(false);
-
-    RegisterParameter("min_hunk_compaction_total_hunk_length", MinHunkCompactionTotalHunkLength)
+    registrar.Parameter("min_hunk_compaction_total_hunk_length", &TThis::MinHunkCompactionTotalHunkLength)
         .GreaterThanOrEqual(0)
         .Default(1_MB);
-    RegisterParameter("max_hunk_compaction_garbage_ratio", MaxHunkCompactionGarbageRatio)
+    registrar.Parameter("max_hunk_compaction_garbage_ratio", &TThis::MaxHunkCompactionGarbageRatio)
         .InRange(0.0, 1.0)
         .Default(0.5);
 
-    RegisterParameter("max_hunk_compaction_size", MaxHunkCompactionSize)
+    registrar.Parameter("max_hunk_compaction_size", &TThis::MaxHunkCompactionSize)
         .GreaterThan(0)
         .Default(8_MB);
-    RegisterParameter("hunk_compaction_size_base", HunkCompactionSizeBase)
+    registrar.Parameter("hunk_compaction_size_base", &TThis::HunkCompactionSizeBase)
         .GreaterThan(0)
         .Default(16_MB);
-    RegisterParameter("hunk_compaction_size_ratio", HunkCompactionSizeRatio)
+    registrar.Parameter("hunk_compaction_size_ratio", &TThis::HunkCompactionSizeRatio)
         .GreaterThan(1.0)
         .Default(100.0);
-    RegisterParameter("min_hunk_compaction_chunk_count", MinHunkCompactionChunkCount)
+    registrar.Parameter("min_hunk_compaction_chunk_count", &TThis::MinHunkCompactionChunkCount)
         .GreaterThan(1)
         .Default(2);
-    RegisterParameter("max_hunk_compaction_chunk_count", MaxHunkCompactionChunkCount)
+    registrar.Parameter("max_hunk_compaction_chunk_count", &TThis::MaxHunkCompactionChunkCount)
         .GreaterThan(1)
         .Default(5);
 
-    RegisterParameter("precache_chunk_replicas_on_mount", PrecacheChunkReplicasOnMount)
+    registrar.Parameter("precache_chunk_replicas_on_mount", &TThis::PrecacheChunkReplicasOnMount)
         .Default(false);
-    RegisterParameter("register_chunk_replicas_on_stores_update", RegisterChunkReplicasOnStoresUpdate)
+    registrar.Parameter("register_chunk_replicas_on_stores_update", &TThis::RegisterChunkReplicasOnStoresUpdate)
         .Default(false);
 
-    RegisterParameter("enable_replication_progress_advance_to_barrier", EnableReplicationProgressAdvanceToBarrier)
+    registrar.Parameter("enable_replication_progress_advance_to_barrier", &TThis::EnableReplicationProgressAdvanceToBarrier)
         .Default(true);
 
-    RegisterPostprocessor([&] () {
-        if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
+    registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
+        if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {
             THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
         }
-        if (MinPartitionDataSize >= DesiredPartitionDataSize) {
+        if (config->MinPartitionDataSize >= config->DesiredPartitionDataSize) {
             THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
         }
-        if (DesiredPartitionDataSize >= MaxPartitionDataSize) {
+        if (config->DesiredPartitionDataSize >= config->MaxPartitionDataSize) {
             THROW_ERROR_EXCEPTION("\"desired_partition_data_size\" must be less than \"max_partition_data_size\"");
         }
-        if (MaxPartitioningStoreCount < MinPartitioningStoreCount) {
+        if (config->MaxPartitioningStoreCount < config->MinPartitioningStoreCount) {
             THROW_ERROR_EXCEPTION("\"max_partitioning_store_count\" must be greater than or equal to \"min_partitioning_store_count\"");
         }
-        if (MaxPartitioningDataSize < MinPartitioningDataSize) {
+        if (config->MaxPartitioningDataSize < config->MinPartitioningDataSize) {
             THROW_ERROR_EXCEPTION("\"max_partitioning_data_size\" must be greater than or equal to \"min_partitioning_data_size\"");
         }
-        if (MaxCompactionStoreCount < MinCompactionStoreCount) {
+        if (config->MaxCompactionStoreCount < config->MinCompactionStoreCount) {
             THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
         }
-        if (MaxHunkCompactionChunkCount < MinHunkCompactionChunkCount) {
+        if (config->MaxHunkCompactionChunkCount < config->MinHunkCompactionChunkCount) {
             THROW_ERROR_EXCEPTION("\"max_hunk_compaction_chunk_count\" must be greater than or equal to \"min_hunk_compaction_chunk_count\"");
         }
-        if (EnableLookupHashTable && InMemoryMode != NTabletClient::EInMemoryMode::Uncompressed) {
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTableMountConfig::Register(TRegistrar registrar)
+{
+    registrar.Postprocessor([&] (TTableMountConfig* config) {
+        if (config->EnableLookupHashTable && config->InMemoryMode != NTabletClient::EInMemoryMode::Uncompressed) {
             THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can only be true if \"in_memory_mode\" is \"uncompressed\"");
         }
     });
