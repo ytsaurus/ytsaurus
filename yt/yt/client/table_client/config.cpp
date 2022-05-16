@@ -18,19 +18,19 @@ TString ToString(const TRetentionConfigPtr& obj)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRetentionConfig::TRetentionConfig()
+void TRetentionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("min_data_versions", MinDataVersions)
+    registrar.Parameter("min_data_versions", &TThis::MinDataVersions)
         .GreaterThanOrEqual(0)
         .Default(1);
-    RegisterParameter("max_data_versions", MaxDataVersions)
+    registrar.Parameter("max_data_versions", &TThis::MaxDataVersions)
         .GreaterThanOrEqual(0)
         .Default(1);
-    RegisterParameter("min_data_ttl", MinDataTtl)
+    registrar.Parameter("min_data_ttl", &TThis::MinDataTtl)
         .Default(TDuration::Minutes(30));
-    RegisterParameter("max_data_ttl", MaxDataTtl)
+    registrar.Parameter("max_data_ttl", &TThis::MaxDataTtl)
         .Default(TDuration::Minutes(30));
-    RegisterParameter("ignore_major_timestamp", IgnoreMajorTimestamp)
+    registrar.Parameter("ignore_major_timestamp", &TThis::IgnoreMajorTimestamp)
         .Default(false);
 }
 

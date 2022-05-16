@@ -73,12 +73,40 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableMountConfig
-    : public NTableClient::TRetentionConfig
+class TBuiltinTableMountConfig
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TString TabletCellBundle;
 
+    NTabletClient::EInMemoryMode InMemoryMode;
+
+    std::optional<NHydra::TRevision> ForcedCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
+
+    EDynamicTableProfilingMode ProfilingMode;
+    TString ProfilingTag;
+
+    bool EnableDynamicStoreRead;
+
+    bool EnableConsistentChunkReplicaPlacement;
+
+    bool EnableDetailedProfiling;
+
+    REGISTER_YSON_STRUCT(TBuiltinTableMountConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBuiltinTableMountConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCustomTableMountConfig
+    : public NTableClient::TRetentionConfig
+{
+public:
     i64 MaxDynamicStoreRowCount;
     i64 MaxDynamicStoreValueCount;
     i64 MaxDynamicStoreTimestampCount;
@@ -118,14 +146,10 @@ public:
     int MaxOverlappingStoreCount;
     int OverlappingStoreImmediateSplitThreshold;
 
-    NTabletClient::EInMemoryMode InMemoryMode;
 
     int MaxStoresPerTablet;
     int MaxEdenStoresPerTablet;
 
-    std::optional<NHydra::TRevision> ForcedCompactionRevision;
-    std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
-    std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
     // TODO(babenko,ifsmirnov): make builtin
     std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
@@ -153,8 +177,6 @@ public:
     bool EnableReplicationLogging;
 
     bool EnableProfiling;
-    EDynamicTableProfilingMode ProfilingMode;
-    TString ProfilingTag;
 
     bool EnableStructuredLogger;
 
@@ -180,13 +202,9 @@ public:
 
     int LookupRpcMultiplexingParallelism;
 
-    bool EnableDynamicStoreRead;
     bool EnableNewScanReaderForLookup;
     bool EnableNewScanReaderForSelect;
 
-    bool EnableConsistentChunkReplicaPlacement;
-
-    bool EnableDetailedProfiling;
     bool EnableHunkColumnarProfiling;
 
     i64 MinHunkCompactionTotalHunkLength;
@@ -203,7 +221,23 @@ public:
 
     bool EnableReplicationProgressAdvanceToBarrier;
 
-    TTableMountConfig();
+    REGISTER_YSON_STRUCT(TCustomTableMountConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCustomTableMountConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableMountConfig
+    : public TBuiltinTableMountConfig
+    , public TCustomTableMountConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TTableMountConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountConfig)
