@@ -18,6 +18,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/combine_data_slices.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -632,130 +633,9 @@ TYsonString TClient::DoGetJobInputPaths(
         }
     }
 
-    auto compareAbsoluteReadLimits = [] (const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs) -> bool {
-        YT_VERIFY(lhs.HasRowIndex() == rhs.HasRowIndex());
+    auto pathByTable = CombineDataSlices(dataSourceDirectory, slicesByTable);
 
-        if (lhs.HasRowIndex() && lhs.GetRowIndex() != rhs.GetRowIndex()) {
-            return lhs.GetRowIndex() < rhs.GetRowIndex();
-        }
-
-        if (lhs.HasLegacyKey() && rhs.HasLegacyKey()) {
-            return lhs.GetLegacyKey() < rhs.GetLegacyKey();
-        } else if (lhs.HasLegacyKey()) {
-            // rhs is less
-            return false;
-        } else if (rhs.HasLegacyKey()) {
-            // lhs is less
-            return true;
-        } else {
-            // These read limits are effectively equal.
-            return false;
-        }
-    };
-
-    auto canMergeSlices = [] (const TDataSliceDescriptor& lhs, const TDataSliceDescriptor& rhs, bool versioned) {
-        if (lhs.GetRangeIndex() != rhs.GetRangeIndex()) {
-            return false;
-        }
-
-        auto lhsUpperLimit = GetAbsoluteUpperReadLimit(lhs, versioned);
-        auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
-
-        YT_VERIFY(lhsUpperLimit.HasRowIndex() == rhsLowerLimit.HasRowIndex());
-        if (lhsUpperLimit.HasRowIndex() && lhsUpperLimit.GetRowIndex() < rhsLowerLimit.GetRowIndex()) {
-            return false;
-        }
-
-        if (lhsUpperLimit.HasLegacyKey() != rhsLowerLimit.HasLegacyKey()) {
-            return false;
-        }
-
-        if (lhsUpperLimit.HasLegacyKey() && lhsUpperLimit.GetLegacyKey() < rhsLowerLimit.GetLegacyKey()) {
-            return false;
-        }
-
-        return true;
-    };
-
-    std::vector<std::vector<std::pair<TDataSliceDescriptor, TDataSliceDescriptor>>> rangesByTable(dataSourceDirectory->DataSources().size());
-    for (int tableIndex = 0; tableIndex < std::ssize(dataSourceDirectory->DataSources()); ++tableIndex) {
-        bool versioned = dataSourceDirectory->DataSources()[tableIndex].GetType() == EDataSourceType::VersionedTable;
-        auto& tableSlices = slicesByTable[tableIndex];
-        std::sort(
-            tableSlices.begin(),
-            tableSlices.end(),
-            [&] (const TDataSliceDescriptor& lhs, const TDataSliceDescriptor& rhs) {
-                if (lhs.GetRangeIndex() != rhs.GetRangeIndex()) {
-                    return lhs.GetRangeIndex() < rhs.GetRangeIndex();
-                }
-
-                auto lhsLowerLimit = GetAbsoluteLowerReadLimit(lhs, versioned);
-                auto rhsLowerLimit = GetAbsoluteLowerReadLimit(rhs, versioned);
-
-                return compareAbsoluteReadLimits(lhsLowerLimit, rhsLowerLimit);
-            });
-
-        int firstSlice = 0;
-        while (firstSlice < static_cast<int>(tableSlices.size())) {
-            int lastSlice = firstSlice + 1;
-            while (lastSlice < static_cast<int>(tableSlices.size())) {
-                if (!canMergeSlices(tableSlices[lastSlice - 1], tableSlices[lastSlice], versioned)) {
-                    break;
-                }
-                ++lastSlice;
-            }
-            rangesByTable[tableIndex].emplace_back(
-                tableSlices[firstSlice],
-                tableSlices[lastSlice - 1]);
-
-            firstSlice = lastSlice;
-        }
-    }
-
-    auto buildSliceLimit = [](const TLegacyReadLimit& limit, TFluentAny fluent) {
-        fluent.BeginMap()
-              .DoIf(limit.HasRowIndex(), [&] (TFluentMap fluent) {
-                  fluent
-                      .Item("row_index").Value(limit.GetRowIndex());
-              })
-              .DoIf(limit.HasLegacyKey(), [&] (TFluentMap fluent) {
-                  fluent
-                      .Item("key").Value(limit.GetLegacyKey());
-              })
-              .EndMap();
-    };
-
-    return BuildYsonStringFluently(EYsonFormat::Pretty)
-        .DoListFor(rangesByTable, [&] (TFluentList fluent, const std::vector<std::pair<TDataSliceDescriptor, TDataSliceDescriptor>>& tableRanges) {
-            fluent
-                .DoIf(!tableRanges.empty(), [&] (TFluentList fluent) {
-                    int dataSourceIndex = tableRanges[0].first.GetDataSourceIndex();
-                    const auto& dataSource =  dataSourceDirectory->DataSources()[dataSourceIndex];
-                    bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable;
-                    fluent
-                        .Item()
-                            .BeginAttributes()
-                        .DoIf(dataSource.GetForeign(), [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("foreign").Value(true);
-                        })
-                        .Item("ranges")
-                        .DoListFor(tableRanges, [&] (TFluentList fluent, const std::pair<TDataSliceDescriptor, TDataSliceDescriptor>& range) {
-                            fluent
-                                .Item()
-                                .BeginMap()
-                                .Item("lower_limit").Do(BIND(
-                                    buildSliceLimit,
-                                    GetAbsoluteLowerReadLimit(range.first, versioned)))
-                                .Item("upper_limit").Do(BIND(
-                                    buildSliceLimit,
-                                    GetAbsoluteUpperReadLimit(range.second, versioned)))
-                                .EndMap();
-                        })
-                        .EndAttributes()
-                        .Value(dataSource.GetPath());
-                });
-        });
+    return ConvertToYsonString(pathByTable, EYsonFormat::Pretty);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

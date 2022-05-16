@@ -362,8 +362,14 @@ class TestGetJobInput(YTEnvSetup):
             b"""[
             <ranges=[{lower_limit={row_index=0};upper_limit={row_index=6}}]>"//tmp/in1";
             <ranges=[
-                {lower_limit={row_index=0;key=["00001"]};upper_limit={row_index=14;key=["00004"]}};
-                {lower_limit={row_index=16;key=["00005"]};upper_limit={row_index=22;key=["00006"]}}
+                {
+                    lower_limit={row_index=0;key=["00001"];key_bound=[">=";["00001"]]};
+                    upper_limit={row_index=14;key=["00004"];key_bound=["<";["00004"]]}
+                };
+                {
+                    lower_limit={row_index=16;key=["00005"];key_bound=[">=";["00005"]]};
+                    upper_limit={row_index=22;key=["00006"];key_bound=["<";["00006"]]}
+                }
             ]>"//tmp/in2"]"""
         )
         actual = yson.loads(get_job_input_paths(job_ids[0]))
