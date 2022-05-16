@@ -194,10 +194,7 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
                                 ytserver_all_suffix=version,
                                 **kwargs)
 
-    copy_misc_binaries(bin_dir, arcadia_root=kwargs.get("arcadia_root"))
-
-    with open(prepared_path, "w"):
-        pass
+        copy_misc_binaries(bin_dir, arcadia_root=kwargs.get("arcadia_root"))
 
     if yatest_common is not None:
         yt_logger.LOGGER = logging.getLogger()
@@ -205,6 +202,9 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
         if yatest_common.context.test_stderr:
             yt_logger.LOGGER.addHandler(logging.StreamHandler())
         yt_logger.set_formatter(yt_logger.BASIC_FORMATTER)
+    
+    with open(prepared_path, "w"):
+        pass
 
     return bin_dir
 
