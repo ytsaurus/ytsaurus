@@ -184,41 +184,22 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EPeerPriorityStrategy,
-    (None)
-);
-
-class TViablePeerRegistryConfig
-    : public TBalancingChannelConfigBase
-{
-public:
-    //! In case too many peers are known, the registry will only maintain this many peers active.
-    int MaxPeerCount;
-
-    //! For sticky mode: number of consistent hash tokens to assign to each peer.
-    int HashesPerPeer;
-
-    //! Configures how random channels are selected.
-    EPeerPriorityStrategy PeerPriorityStrategy;
-
-    REGISTER_YSON_STRUCT(TViablePeerRegistryConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TViablePeerRegistryConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDynamicChannelPoolConfig
-    : public TViablePeerRegistryConfig
+    : public TBalancingChannelConfigBase
 {
 public:
     //! Maximum number of peers to query in parallel when locating alive ones.
     int MaxConcurrentDiscoverRequests;
 
-    //! To avoid being stuck with the same peer set forever,
-    //! one random peer could be evicted after #RandomPeerEvictionPeriod.
+    //! For sticky mode: number of consistent hash tokens to assign to each peer.
+    int HashesPerPeer;
+
+    //! In case too many peers are known, the pool will only maintain this many peers.
+    int MaxPeerCount;
+
+    //! When more than #MaxPeerCount peers are known an attempt to add more is
+    //! typically ignored. To avoid stucking with the same peer set forever, one
+    //! random peer could be evicted after #RandomPeerEvictionPeriod.
     TDuration RandomPeerEvictionPeriod;
 
     bool EnablePeerPolling;

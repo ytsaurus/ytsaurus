@@ -123,23 +123,17 @@ void TBalancingChannelConfigBase::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TViablePeerRegistryConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("max_peer_count", &TThis::MaxPeerCount)
-        .GreaterThan(1)
-        .Default(100);
-    registrar.Parameter("hashes_per_peer", &TThis::HashesPerPeer)
-        .GreaterThan(0)
-        .Default(10);
-    registrar.Parameter("peer_priority_strategy", &TThis::PeerPriorityStrategy)
-        .Default(EPeerPriorityStrategy::None);
-}
-
 void TDynamicChannelPoolConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_discover_requests", &TThis::MaxConcurrentDiscoverRequests)
         .GreaterThan(0)
         .Default(10);
+    registrar.Parameter("hashes_per_peer", &TThis::HashesPerPeer)
+        .GreaterThan(0)
+        .Default(10);
+    registrar.Parameter("max_peer_count", &TThis::MaxPeerCount)
+        .GreaterThan(1)
+        .Default(100);
     registrar.Parameter("random_peer_eviction_period", &TThis::RandomPeerEvictionPeriod)
         .Default(TDuration::Minutes(1));
 
