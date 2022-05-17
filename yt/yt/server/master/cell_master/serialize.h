@@ -145,6 +145,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaGorshok)                                               (2010))  // gritukan
     ((SequoiaTransaction)                                           (2011))  // gritukan
     ((Aevum)                                                        (2012))  // gritukan
+    ((DedicatedChunkHost)                                           (2013))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////

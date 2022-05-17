@@ -66,7 +66,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_validate_cypress_node_host_cell_role(self):
-        set("//sys/@config/multicell_manager/cell_roles", {"11": ["chunk_host"]})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
         with pytest.raises(YtError):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 

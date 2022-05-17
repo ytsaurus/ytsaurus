@@ -4283,7 +4283,9 @@ class TestAccountsMulticell(TestAccounts):
         create_account("a")
         master_memory_sleep()
 
-        set("//sys/@config/multicell_manager/cell_roles", {"11": ["chunk_host"], "12": ["chunk_host"]})
+        set("//sys/@config/multicell_manager/cell_descriptors", {
+            "11": {"roles": ["chunk_host"]},
+            "12": {"roles": ["chunk_host"]}})
         assert get("//sys/accounts/a/@resource_usage/master_memory/chunk_host") == 0
 
         create("table", "//tmp/t1", attributes={"account": "a", "external_cell_tag": 12})
@@ -4323,7 +4325,7 @@ class TestAccountsMulticell(TestAccounts):
     def test_chunk_host_master_memory1(self):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
 
-        set("//sys/@config/multicell_manager/cell_roles", {"11": ["chunk_host"]})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
 
         create_account("a")
         set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)
@@ -4338,8 +4340,9 @@ class TestAccountsMulticell(TestAccounts):
     def test_chunk_host_master_memory2(self):
         set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
 
-        set("//sys/@config/multicell_manager/cell_roles",
-            {"11": ["chunk_host"], "12": ["chunk_host"]})
+        set("//sys/@config/multicell_manager/cell_descriptors", {
+            "11": {"roles": ["chunk_host"]},
+            "12": {"roles": ["chunk_host"]}})
 
         create_account("a")
         set("//sys/accounts/a/@resource_limits/master_memory/total", 1000000)

@@ -8,6 +8,7 @@
 #include "hydra_facade.h"
 #include "world_initializer.h"
 #include "cell_statistics.h"
+#include "alert_manager.h"
 
 #include <yt/yt/core/ytree/ypath_client.h>
 
@@ -109,6 +110,7 @@ public:
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->GetAlertManager()->RegisterAlertSource(BIND(&TImpl::GetAlerts, MakeStrong(this)));
     }
 
 
@@ -345,7 +347,6 @@ public:
             candidates.emplace_back(cellTag, chunkCount);
         };
 
-
         for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
             maybeAddCandidate(cellTag, entry.Statistics.chunk_count());
         }
@@ -470,6 +471,8 @@ public:
 
 private:
     const TMulticellManagerConfigPtr Config_;
+
+    THashMap<TCellTag, TError> ConflictingCellRolesAlerts_;
 
     struct TMasterEntry
     {
@@ -1203,6 +1206,20 @@ private:
         RecomputeMasterCellNames();
     }
 
+    std::vector<TError> GetAlerts() const
+    {
+        std::vector<TError> alerts;
+        alerts.reserve(ConflictingCellRolesAlerts_.size());
+        std::transform(
+            ConflictingCellRolesAlerts_.begin(),
+            ConflictingCellRolesAlerts_.end(),
+            std::back_inserter(alerts),
+            [] (const std::pair<NYT::NObjectClient::TCellTag, NYT::TError>& elem) {
+                return elem.second;
+            });
+
+        return alerts;
+    }
 
     void RecomputeMasterCellRoles()
     {
@@ -1286,8 +1303,15 @@ private:
     EMasterCellRoles ComputeMasterCellRolesFromConfig(TCellTag cellTag)
     {
         const auto& config = GetDynamicConfig();
+        ConflictingCellRolesAlerts_.erase(cellTag);
         auto it = config->CellDescriptors.find(cellTag);
         if (it != config->CellDescriptors.end() && it->second->Roles) {
+            auto roles = *it->second->Roles;
+            if (Any(roles & EMasterCellRoles::ChunkHost) && Any(roles & EMasterCellRoles::DedicatedChunkHost)) {
+                auto alert = TError("Cell received conflicting chunk_host and dedicated_chunk_host roles")
+                    << TErrorAttribute("cell_tag", cellTag);
+                ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
+            }
             return *it->second->Roles;
         }
         return GetDefaultMasterCellRoles(cellTag);
