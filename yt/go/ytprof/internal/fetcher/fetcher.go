@@ -96,7 +96,6 @@ func (f *Fetcher) RunFetcherContinious() error {
 
 	if err != nil {
 		f.l.Fatal("migraton failed", log.Error(err), log.String("table_path", f.tableYTPath.String()))
-		return err
 	}
 
 	f.l.Debug("migraton succeded", log.String("table_path", f.tableYTPath.String()))
@@ -164,46 +163,84 @@ func (sf *ServiceFetcher) fetchService() {
 	}
 
 	sf.f.l.Debug("getting ready to push data", log.Int("data_size", len(resultslice)))
-	err := sf.f.storage.PushData(resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType, context.Background())
+	err := sf.f.storage.PushData(context.Background(), resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType)
 	if err != nil {
 		sf.f.l.Error("error while storing profiles", log.String("cluster", sf.f.config.Cluster), log.Error(err))
 	}
 }
 
-func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []error) {
-	var usedIDs []int
-	var resp *resolver.ResolveEndpointsResponse
-	sizeURL := len(rf.resolver.Urls)
-
+func (rf *ResolverFetcher) resolveFQDNs() ([]string, error) {
 	if len(rf.resolver.YPEndpoint) > 0 {
 		var err error
 		ctx := context.Background()
-		resp, err = rf.r.ResolveEndpoints(ctx, rf.resolver.YPCluster, rf.resolver.YPEndpoint)
+		respEndpoint, err := rf.r.ResolveEndpoints(ctx, rf.resolver.YPCluster, rf.resolver.YPEndpoint)
 		if err != nil {
 			rf.sf.f.l.Error("error while resolving endpoint", log.Error(err))
-			return nil, nil, nil
+			return nil, err
 		}
 
-		if resp.ResolveStatus != resolver.StatusEndpointOK {
-			rf.sf.f.l.Error("not ok response status", log.Int("status", resp.ResolveStatus))
-			return nil, nil, nil
-		}
-
-		rf.resolver.Urls = make([]string, 0, len(resp.EndpointSet.Endpoints))
-
-		sizeURL = len(resp.EndpointSet.Endpoints)
-
-		for _, epoint := range resp.EndpointSet.Endpoints {
-			rf.resolver.Urls = append(rf.resolver.Urls, fmt.Sprintf("http://%v", epoint.FQDN))
+		if respEndpoint.ResolveStatus != resolver.StatusEndpointOK {
+			rf.sf.f.l.Error("not ok response status of endpoint",
+				log.Int("status", respEndpoint.ResolveStatus),
+				log.Int("statusOK", int(resolver.StatusEndpointOK)),
+				log.Int("statusEmpty", int(resolver.StatusEndpointEmpty)),
+				log.Int("statusNotExists", int(resolver.StatusEndpointNotExists)))
+			return nil, err
 		}
 
 		rf.sf.f.l.Debug("url resolving finished",
 			log.String("cluster", rf.resolver.YPCluster),
 			log.String("endpoint", rf.resolver.YPEndpoint),
-			log.Int("resolve_status", resp.ResolveStatus))
+			log.Int("resolve_status", respEndpoint.ResolveStatus))
+
+		sliceFQDN := make([]string, len(respEndpoint.EndpointSet.Endpoints))
+		for i := 0; i < len(sliceFQDN); i++ {
+			sliceFQDN[i] = respEndpoint.EndpointSet.Endpoints[i].FQDN
+		}
+
+		return sliceFQDN, nil
+	} else if len(rf.resolver.YPPodSet) > 0 {
+		var err error
+		ctx := context.Background()
+		respPodSet, err := rf.r.ResolvePods(ctx, rf.resolver.YPCluster, rf.resolver.YPPodSet)
+		if err != nil {
+			rf.sf.f.l.Error("error while resolving podset", log.Error(err))
+			return nil, err
+		}
+
+		if respPodSet.ResolveStatus != resolver.StatusPodOK {
+			rf.sf.f.l.Error("not ok response status of podset",
+				log.Int("status", respPodSet.ResolveStatus),
+				log.Int("statusOK", int(resolver.StatusPodOK)),
+				log.Int("statusEmpty", int(resolver.StatusPodEmpty)),
+				log.Int("statusNotExists", int(resolver.StatusPodNotExists)))
+			return nil, err
+		}
+
+		rf.sf.f.l.Debug("url resolving finished",
+			log.String("cluster", rf.resolver.YPCluster),
+			log.String("podset", rf.resolver.YPPodSet),
+			log.Int("resolve_status", respPodSet.ResolveStatus))
+
+		sliceFQDN := make([]string, len(respPodSet.PodSet.Pods))
+		for i := 0; i < len(sliceFQDN); i++ {
+			sliceFQDN[i] = respPodSet.PodSet.Pods[i].DNS.PersistentFQDN
+		}
+
+		return sliceFQDN, nil
 	}
 
-	for i := 0; i < sizeURL; i++ {
+	return rf.resolver.Urls, nil
+}
+
+func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []error) {
+	var usedIDs []int
+	sliceFQDNs, err := rf.resolveFQDNs()
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	for i := 0; i < len(sliceFQDNs); i++ {
 		result := rand.Float64()
 		if result < rf.sf.service.Probability {
 			usedIDs = append(usedIDs, i)
@@ -219,11 +256,7 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []erro
 	for i := 0; i < len(usedIDs); i++ {
 		go func(id int) {
 			defer wg.Done()
-			if resp == nil {
-				hosts[id] = rf.resolver.Urls[usedIDs[id]]
-			} else {
-				hosts[id] = resp.EndpointSet.Endpoints[usedIDs[id]].FQDN
-			}
+			hosts[id] = sliceFQDNs[usedIDs[id]]
 			results[id], errs[id] = rf.fetchURL(fmt.Sprintf("http://%v", hosts[id]))
 		}(i)
 	}
@@ -235,7 +268,7 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []erro
 }
 
 func (rf *ResolverFetcher) fetchURL(url string) (*profile.Profile, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	requestURL := fmt.Sprintf("%v:%d/%v", url, rf.resolver.Port, rf.sf.service.ProfilePath)

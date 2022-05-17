@@ -1,6 +1,6 @@
 {
     "cluster" = "freud";
-    "table_path" = "//home/kristevalex/ytprof";
+    "table_path" = "//home/kristevalex/ytprof/testing";
     "services" = [
         {
             "service_type" = "node";
@@ -10,14 +10,13 @@
             "resolvers" = [
                 {
                     "port" = 10012;
-                    "urls" = [
-                        "http://man3-1953-node-freud.man.yp-c.yandex.net"; 
-                        "http://man3-1954-node-freud.man.yp-c.yandex.net"; 
-                        "http://man3-1955-node-freud.man.yp-c.yandex.net"; 
-                        "http://man3-1956-node-freud.man.yp-c.yandex.net"; 
-                        "http://man3-1957-node-freud.man.yp-c.yandex.net"; 
-                        "http://man3-1958-node-freud.man.yp-c.yandex.net"
-                    ]
+                    "podset" = "sas-yt-freud-tablet-nodes";
+                    "cluster" = "sas"
+                };
+                {
+                    "port" = 10012;
+                    "podset" = "sas-yt-freud-nodes";
+                    "cluster" = "sas"
                 }
             ]
         }    

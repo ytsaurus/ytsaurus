@@ -1,6 +1,6 @@
 {
     "cluster" = "socrates";
-    "root" = "//home/kristevalex";
+    "root" = "//home/kristevalex/ytprof/testing";
     "services" = [
         {
             "service_type" = "node";
@@ -11,8 +11,8 @@
                 {
                     "port" = 10012;
                     "urls" = [
-                        "http://man0-1003-dat-exe-node-socrates.man-pre.yp-c.yandex.net"; 
-                        "http://man0-1014-dat-exe-node-socrates.man-pre.yp-c.yandex.net"
+                        "man0-1003-dat-exe-node-socrates.man-pre.yp-c.yandex.net"; 
+                        "man0-1014-dat-exe-node-socrates.man-pre.yp-c.yandex.net"
                     ]
                 }
             ]
