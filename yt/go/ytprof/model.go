@@ -2,7 +2,11 @@ package ytprof
 
 import (
 	"context"
+	"fmt"
+	"sort"
+	"strings"
 
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/migrate"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -16,6 +20,7 @@ import (
 const (
 	TableMetadata = "metadata"
 	TableData     = "data"
+	TimeFormat    = "2006-01-02T15:04:05"
 )
 
 var (
@@ -31,6 +36,15 @@ var (
 type ProfID struct {
 	ProfIDHigh uint64 `yson:",key"`
 	ProfIDLow  uint64 `yson:",key"`
+}
+
+func ProfIDFromGUID(g guid.GUID) (profID ProfID) {
+	profID.ProfIDHigh, profID.ProfIDLow = g.Halves()
+	return
+}
+
+func GUIDFormProfID(profID ProfID) guid.GUID {
+	return guid.FromHalves(profID.ProfIDHigh, profID.ProfIDLow)
 }
 
 type Metadata struct {
@@ -76,6 +90,25 @@ func (s *ProfileData) ProfID() ProfID {
 		ProfIDHigh: s.ProfIDHigh,
 		ProfIDLow:  s.ProfIDLow,
 	}
+}
+
+func (s *ProfileMetadata) String() string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("GUID:%v ", GUIDFormProfID(s.ProfID())))
+	sb.WriteString(fmt.Sprintf("Timestamp:%v ", s.Timestamp.Time().Format(TimeFormat)))
+
+	var properties []string
+	for key, val := range s.Metadata.MapData {
+		properties = append(properties, fmt.Sprintf("%v:%v ", key, val))
+	}
+
+	sort.Strings(properties)
+	for _, prop := range properties {
+		sb.WriteString(prop)
+	}
+
+	return sb.String()
 }
 
 func MigrateTables(yc yt.Client, root ypath.Path) error {

@@ -9,31 +9,13 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof/internal/fetcher"
 )
 
 var (
 	flagConfig string
-	flagProxy  string
-
-	YT yt.Client
 )
-
-var rootCmd = &cobra.Command{
-	Use: "ytprof",
-
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-		YT, err = ythttp.NewClient(&yt.Config{
-			Proxy:             flagProxy,
-			ReadTokenFromFile: true,
-		})
-		return err
-	},
-}
 
 var runFetcherCmd = &cobra.Command{
 	Use:   "run-fetcher",
@@ -43,7 +25,6 @@ var runFetcherCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&flagProxy, "proxy", "", "name of the YT cluster, e.g \"hume\"")
 	runFetcherCmd.Flags().StringVar(&flagConfig, "config", "", "config to run fetcher from")
 
 	rootCmd.AddCommand(runFetcherCmd)
@@ -84,15 +65,4 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 
 	f := fetcher.NewFetcher(YT, config, l)
 	return f.RunFetcherContinious()
-}
-
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", err)
-		os.Exit(1)
-	}
-}
-
-func main() {
-	Execute()
 }

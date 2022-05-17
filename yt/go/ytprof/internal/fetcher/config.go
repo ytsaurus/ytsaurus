@@ -9,19 +9,23 @@ type Resolver struct {
 	Port int `yson:"port"`
 
 	// Mode2 is activated if 'YPEndpoint' is not empty
-	// Mode2 deletes old 'Urls'	and sets 'Urls' to relevant reloved list
+	// Mode3 is activated if 'PodSet' is not empty
 
 	// Urls to fetch
 	// -mode1
 	Urls []string `yson:"urls,omitempty"`
 
 	// Cluster to get Urls from
-	// -mode2
+	// -mode2 or mode3
 	YPCluster string `yson:"cluster,omitempty"`
 
 	// Endpoint to get Urls
 	// -mode2
 	YPEndpoint string `yson:"endpoint,omitempty"`
+
+	// PodSet to get Urls
+	// -mode3
+	YPPodSet string `yson:"podset,omitempty"`
 }
 
 type Service struct {
