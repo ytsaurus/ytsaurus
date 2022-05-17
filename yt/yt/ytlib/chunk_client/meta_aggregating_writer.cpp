@@ -158,6 +158,9 @@ private:
     i64 BlockIndex_ = 0;
     i64 ValueCount_ = 0;
 
+    ui64 MinTimestamp_ = NullTimestamp;
+    ui64 MaxTimestamp_ = NullTimestamp;
+
     TComparator SchemaComparator_;
 
     NProto::TMiscExt MiscExt_;
@@ -353,6 +356,14 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     CompressedDataSize_ += miscExt.compressed_data_size();
     DataWeight_ += miscExt.data_weight();
     ValueCount_ += miscExt.value_count();
+    if (miscExt.has_min_timestamp()) {
+        auto minTs = miscExt.min_timestamp();
+        MinTimestamp_ = MinTimestamp_ == NullTimestamp ? minTs : std::min(minTs, MinTimestamp_);
+    }
+    if (miscExt.has_max_timestamp()) {
+        auto maxTs = miscExt.max_timestamp();
+        MaxTimestamp_ = MaxTimestamp_ == NullTimestamp ? maxTs : std::max(maxTs, MaxTimestamp_);
+    }
 }
 
 template <typename T>
@@ -505,6 +516,12 @@ void TMetaAggregatingWriter::FinalizeMeta()
     MiscExt_.set_max_data_block_size(LargestBlockSize_);
     MiscExt_.set_meta_size(ChunkMeta_->ByteSize());
     MiscExt_.set_value_count(ValueCount_);
+    if (MinTimestamp_ != NullTimestamp) {
+        MiscExt_.set_min_timestamp(MinTimestamp_);
+    }
+    if (MaxTimestamp_ != NullTimestamp) {
+        MiscExt_.set_max_timestamp(MaxTimestamp_);
+    }
     SetProtoExtension(ChunkMeta_->mutable_extensions(), MiscExt_);
 
     MetaFinalized_ = true;

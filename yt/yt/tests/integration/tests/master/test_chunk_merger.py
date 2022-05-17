@@ -188,6 +188,34 @@ class TestChunkMerger(YTEnvSetup):
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_merge_static_to_dynamic(self, merge_mode):
+        sync_create_cells(1)
+
+        schema = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            unique_keys=True
+        )
+        create("table", "//tmp/t", attributes={"schema": schema})
+
+        write_table("<append=true>//tmp/t", {"key": 1, "value": "a"})
+        write_table("<append=true>//tmp/t", {"key": 2, "value": "b"})
+        write_table("<append=true>//tmp/t", {"key": 3, "value": "c"})
+
+        rows = read_table("//tmp/t")
+
+        self._wait_for_merge("//tmp/t", merge_mode)
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+
+        merged_rows = read_table("//tmp/t")
+        assert _schematize_rows(rows, schema) == _schematize_rows(merged_rows, schema)
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_merge_remove(self, merge_mode):
         create("table", "//tmp/t")
         write_table("<append=true>//tmp/t", {"a": "b"})

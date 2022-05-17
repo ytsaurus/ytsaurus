@@ -260,7 +260,7 @@ public:
 
         return ResourceLimits_;
     }
-    
+
     bool GpuRequested() const override
     {
         return false;
@@ -1653,12 +1653,27 @@ private:
             chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
 
+        auto minTs = NullTimestamp;
+        auto maxTs = NullTimestamp;
+        for (const auto& context : InputChunkReadContexts_) {
+            auto miscExt = GetProtoExtension<TMiscExt>(context.Meta->extensions());
+            if (miscExt.has_min_timestamp()) {
+                auto currentMinTs = miscExt.min_timestamp();
+                minTs = minTs == NullTimestamp ? currentMinTs : std::min(minTs, currentMinTs);
+            }
+            if (miscExt.has_max_timestamp()) {
+                auto currentMaxTs = miscExt.max_timestamp();
+                maxTs = maxTs == NullTimestamp ? currentMaxTs : std::max(maxTs, currentMaxTs);
+            }
+        }
+
         auto writer = CreateSchemalessChunkWriter(
             New<TChunkWriterConfig>(),
             chunkWriterOptions,
             Schema_,
             confirmingWriter,
-            /*dataSink*/ std::nullopt);
+            /*dataSink*/ std::nullopt,
+            {minTs, maxTs});
 
         auto rowBuffer = New<TRowBuffer>();
         auto writerNameTable = writer->GetNameTable();
