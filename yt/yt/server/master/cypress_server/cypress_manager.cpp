@@ -359,7 +359,7 @@ public:
             } else {
                 externalCellTag = multicellManager->PickSecondaryChunkHostCell(externalCellBias);
                 if (externalCellTag == InvalidCellTag) {
-                    THROW_ERROR_EXCEPTION("No secondary masters registered");
+                    THROW_ERROR_EXCEPTION("No secondary masters with a chunk host role were found");
                 }
             }
         }
@@ -377,7 +377,9 @@ public:
             if (!multicellManager->IsRegisteredMasterCell(externalCellTag)) {
                 THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
             }
-            if (None(multicellManager->GetMasterCellRoles(externalCellTag) & EMasterCellRoles::ChunkHost)) {
+
+            auto cellRoles = multicellManager->GetMasterCellRoles(externalCellTag);
+            if (None(cellRoles & EMasterCellRoles::ChunkHost) && None(cellRoles & EMasterCellRoles::DedicatedChunkHost)) {
                 THROW_ERROR_EXCEPTION("Cell with tag %v cannot host chunks", externalCellTag);
             }
         }

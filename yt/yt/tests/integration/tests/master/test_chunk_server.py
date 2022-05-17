@@ -6,7 +6,7 @@ from yt_commands import (
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
     multicell_sleep, update_nodes_dynamic_config, switch_leader,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address)
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle)
 
 from yt_helpers import profiler_factory
 
@@ -347,7 +347,7 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("babenko")
     def test_validate_chunk_host_cell_role(self):
-        set("//sys/@config/multicell_manager/cell_roles", {"11": ["cypress_node_host"]})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
         with pytest.raises(YtError):
             create(
                 "table",
@@ -381,6 +381,97 @@ class TestChunkServerMulticell(TestChunkServer):
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
         pass
+
+    @authors("h0pless")
+    def test_dedicated_chunk_host_role_alert(self):
+        def has_alert(msg):
+            for alert in get("//sys/@master_alerts"):
+                if msg in str(alert):
+                    return True
+            return False
+
+        set("//sys/@config/multicell_manager/cell_descriptors",
+            {"11": {"roles": ["chunk_host", "dedicated_chunk_host"]}})
+        wait(lambda: has_alert("Cell received conflicting chunk_host and dedicated_chunk_host roles") is True)
+
+        set("//sys/@config/multicell_manager/cell_descriptors",
+            {"11": {"roles": ["chunk_host"]}})
+        wait(lambda: has_alert("Cell received conflicting chunk_host and dedicated_chunk_host roles") is False)
+
+    @authors("h0pless")
+    def test_dedicated_chunk_host_roles_only(self):
+        set("//sys/@config/multicell_manager/cell_descriptors", {
+            "11": {"roles": ["dedicated_chunk_host"]},
+            "12": {"roles": ["dedicated_chunk_host"]}})
+
+        with pytest.raises(YtError, match="No secondary masters with a chunk host role were found"):
+            create("table", "//tmp/t", attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                    {"name": "c", "type": "int64"}
+                ]})
+
+    @authors("h0pless")
+    def test_dedicated_chunk_host_role(self):
+        dedicated_host_cell_tag = 11
+        chunk_host_cell_tag = 12
+
+        set("//sys/@config/multicell_manager/cell_descriptors", {
+            "11": {"roles": ["dedicated_chunk_host"]},
+            "12": {"roles": ["chunk_host"]}})
+
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"}
+            ],
+            "external_cell_tag": dedicated_host_cell_tag})
+
+        create("table", "//tmp/t2", attributes={
+            "schema": [
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"}
+            ],
+            "external_cell_tag": chunk_host_cell_tag})
+
+        create("table", "//tmp/t3", attributes={
+            "schema": [
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"}
+            ]})
+
+        create_tablet_cell_bundle("b1")
+        create_tablet_cell_bundle("b2")
+
+        set("//sys/tablet_cell_bundles/b1/@options/changelog_external_cell_tag", dedicated_host_cell_tag)
+        set("//sys/tablet_cell_bundles/b2/@options/changelog_external_cell_tag", chunk_host_cell_tag)
+
+        sync_create_cells(2, tablet_cell_bundle="b1")
+        sync_create_cells(2, tablet_cell_bundle="b2")
+
+        multicell_sleep()
+
+        tablet_cells = ls("//sys/tablet_cells")
+        for cell in tablet_cells:
+            if (get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell)) == "b1"):
+                expected_cell_tag = dedicated_host_cell_tag
+            else:
+                expected_cell_tag = chunk_host_cell_tag
+            changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(cell))
+            assert changelogs
+            for changelog in changelogs:
+                changelog_path = "//sys/tablet_cells/{0}/changelogs/{1}".format(cell, changelog)
+                is_external = get("{0}/@external".format(changelog_path))
+                if is_external:
+                    assert get("{0}/@external_cell_tag".format(changelog_path)) == expected_cell_tag
+                else:
+                    assert get("{0}/@native_cell_tag".format(changelog_path)) == expected_cell_tag
+                chunk_id = get("{0}/@chunk_ids/0".format(changelog_path))
+                assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
 
 
 ##################################################################
