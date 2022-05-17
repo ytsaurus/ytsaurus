@@ -544,7 +544,13 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_memory_digest", &TThis::JobProxyMemoryDigest)
-        .DefaultCtor([] { return New<TLogDigestConfig>(0.5, 2.0, 1.0);});
+        .DefaultCtor([] { 
+            auto config = New<TLogDigestConfig>();
+            config->LowerBound = 0.5;
+            config->UpperBound = 2.0;
+            config->DefaultValue = 1.0;
+            return config;
+        });
 
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);

@@ -1020,10 +1020,12 @@ protected:
             , Controller_(controller)
             , IsFinalSort_(isFinalSort)
         {
-            JobProxyMemoryDigest_ = CreateLogDigest(New<TLogDigestConfig>(
-                1.0, // LowerLimit - we do not want to adjust memory reserve lower limit for sort jobs - we are pretty sure in our initial estimates.
-                Controller_->Spec->JobProxyMemoryDigest->UpperBound,
-                Controller_->Spec->JobProxyMemoryDigest->DefaultValue.value_or(1.0)));
+            auto config = New<TLogDigestConfig>();
+            // LowerLimit - we do not want to adjust memory reserve lower limit for sort jobs - we are pretty sure in our initial estimates.
+            config->LowerBound = 1.0;
+            config->UpperBound = Controller_->Spec->JobProxyMemoryDigest->UpperBound;
+            config->DefaultValue = Controller_->Spec->JobProxyMemoryDigest->DefaultValue.value_or(1.0);
+            JobProxyMemoryDigest_ = CreateLogDigest(config);
         }
 
         void SetupJobCounters()

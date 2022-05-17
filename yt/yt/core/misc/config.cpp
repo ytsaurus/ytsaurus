@@ -4,14 +4,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogDigestConfig::TLogDigestConfig(double lowerBound, double upperBound, double defaultValue)
-    : TLogDigestConfig()
-{
-    LowerBound = lowerBound;
-    UpperBound = upperBound;
-    DefaultValue = defaultValue;
-}
-
 void TLogDigestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("relative_precision", &TThis::RelativePrecision)

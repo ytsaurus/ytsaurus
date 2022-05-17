@@ -511,12 +511,12 @@ void TTask::ScheduleJob(
     }
 
     auto estimatedResourceUsage = GetNeededResources(joblet);
+    joblet->EstimatedResourceUsage = estimatedResourceUsage;
+    
     TJobResourcesWithQuota neededResources = ApplyMemoryReserve(
         estimatedResourceUsage,
         *joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor);
-
-    joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources.ToJobResources();
 
     auto userJobSpec = GetUserJobSpec();
@@ -1403,7 +1403,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& sta
             // values we introduce additional factor.
             actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * TaskHost_->GetConfig()->ResourceOverdraftFactor);
         }
-        YT_LOG_DEBUG("Adding sample to the job proxy memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
+        YT_LOG_DEBUG("Adding sample to the user job memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
             actualFactor,
             joblet->JobId,
             resourceOverdraft);
@@ -1418,7 +1418,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& sta
         if (resourceOverdraft) {
             actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * TaskHost_->GetConfig()->ResourceOverdraftFactor);
         }
-        YT_LOG_DEBUG("Adding sample to the user job memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
+        YT_LOG_DEBUG("Adding sample to the job proxy memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
             actualFactor,
             joblet->JobId,
             resourceOverdraft);

@@ -1345,7 +1345,7 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason)
     auto now = TInstant::Now();
     for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, abortReason);
-        ParseStatistics(&jobSummary, joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+        ParseAndEnrichStatistics(&jobSummary, joblet, joblet->StatisticsYson);
         joblet->FinishTime = now;
         LogFinishedJobFluently(ELogEventType::JobAborted, joblet, jobSummary)
             .Item("reason").Value(abortReason);
@@ -2184,7 +2184,7 @@ void TOperationControllerBase::UpdateRunningJobStatistics(
     joblet->StderrSize = jobSummary->StderrSize;
 
     if (jobSummary->StatisticsYson) {
-        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime);
+        ParseAndEnrichStatistics(jobSummary.get(), joblet);
         joblet->StatisticsYson = jobSummary->StatisticsYson;
         joblet->LastUpdateTime = TInstant::Now();
 
@@ -3098,8 +3098,8 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                 jobSummary->UnreadInputDataSlices.size(),
                 jobSummary->ReadInputDataSlices.size());
         }
-
-        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+        
+        ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
 
         const auto& statistics = *jobSummary->Statistics;
 
@@ -3221,7 +3221,7 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
         error = FromProto<TError>(result.error());
 
-        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+        ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
 
         FinalizeJoblet(joblet, jobSummary.get());
         LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
@@ -3357,7 +3357,7 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         // Such inconsistencies blocks saving job results in case of operation failure
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->LastUpdateTime, joblet->StatisticsYson);
+        ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
         const auto& statistics = *jobSummary->Statistics;
 
         if (abortReason == EAbortReason::ResourceOverdraft) {
