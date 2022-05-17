@@ -177,6 +177,16 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
         .GreaterThan(0)
         .Default(32_MB);
 
+    RegisterParameter("snapshot_download_total_streaming_timeout", SnapshotDownloadTotalStreamingTimeout)
+        .Default(TDuration::Minutes(30));
+    RegisterParameter("snapshot_download_streaming_stall_timeout", SnapshotDownloadStreamingStallTimeout)
+        .Default(TDuration::Seconds(30));
+    RegisterParameter("snapshot_download_window", SnapshotDownloadWindowSize)
+        .GreaterThan(0)
+        .Default(32_MB);
+    RegisterParameter("snapshot_download_streaming_compression_codec", SnapshotDownloadStreamingCompressionCodec)
+        .Default(NCompression::ECodec::Lz4);
+
     RegisterParameter("max_commit_batch_delay", MaxCommitBatchDelay)
         .Default(TDuration::MilliSeconds(10));
     RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)

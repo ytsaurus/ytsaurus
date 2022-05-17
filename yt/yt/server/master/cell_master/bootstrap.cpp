@@ -34,11 +34,11 @@
 #include <yt/yt/server/master/hive/cell_directory_synchronizer.h>
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/file_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_service.h>
+#include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+
+#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
@@ -690,13 +690,8 @@ void TBootstrap::DoInitialize()
         "ChangelogFlush",
         NProfiling::TProfiler("/changelogs"));
 
-    auto fileSnapshotStore = CreateFileSnapshotStore(
-        Config_->Snapshots);
-
-    SnapshotStore_ = CreateLocalSnapshotStore(
-        Config_->HydraManager,
-        CellManager_,
-        fileSnapshotStore);
+    auto snapshotStore = CreateLocalSnapshotStore(Config_->Snapshots);
+    SnapshotStore_ = snapshotStore;
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
@@ -817,8 +812,6 @@ void TBootstrap::DoInitialize()
                 GetKnownParticipantCellTags())
         });
 
-    fileSnapshotStore->Initialize();
-
     AlertManager_->Initialize();
     ObjectManager_->Initialize();
     // Recalculates roles for master cells.
@@ -874,7 +867,10 @@ void TBootstrap::DoInitialize()
         RpcServer_->RegisterService(service); // cell realm
     }
 
-    RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, fileSnapshotStore)); // cell realm
+
+    if (!Config_->UseNewHydra) {
+        RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, snapshotStore)); // cell realm
+    }
     RpcServer_->RegisterService(CreateNodeTrackerService(this));
     RpcServer_->RegisterService(CreateDataNodeTrackerService(this));
     RpcServer_->RegisterService(CreateExecNodeTrackerService(this));
@@ -1046,7 +1042,7 @@ void TBootstrap::DoLoadSnapshot(
     bool enableTotalWriteCountReport,
     const TSerializationDumperConfigPtr& dumpConfig)
 {
-    auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
+    auto reader = CreateLocalSnapshotReader(fileName, InvalidSegmentId);
     HydraFacade_->LoadSnapshot(reader, dump, enableTotalWriteCountReport, dumpConfig);
 }
 

@@ -790,7 +790,7 @@ void HandleInputStreamingRequest(
         .ThrowOnError();
 
     context->Reply(TError());
-};
+}
 
 void HandleInputStreamingRequest(
     const IServiceContextPtr& context,

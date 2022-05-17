@@ -1,10 +1,11 @@
 #pragma once
 
-#include "private.h"
+#include <yt/yt/server/lib/hydra_common/public.h>
 
 #include <yt/yt/ytlib/election/public.h>
 
 #include <yt/yt/core/actions/future.h>
+#include <yt/yt/core/logging/log.h>
 
 namespace NYT::NHydra {
 
@@ -13,8 +14,9 @@ namespace NYT::NHydra {
 TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     NElection::TCellManagerPtr cellManager,
-    IFileSnapshotStorePtr fileStore,
-    int snapshotId);
+    ILegacySnapshotStorePtr store,
+    int snapshotId,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

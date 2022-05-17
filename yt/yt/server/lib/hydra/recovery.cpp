@@ -1,12 +1,15 @@
 #include "recovery.h"
+#include "changelog_discovery.h"
 #include "changelog_download.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "changelog_discovery.h"
 #include "hydra_service_proxy.h"
+#include "snapshot_discovery.h"
+#include "snapshot_download.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
@@ -65,7 +68,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YT_VERIFY(EpochContext_->ReachableVersion <= targetVersion);
+    auto epochContext = EpochContext_;
+
+    YT_VERIFY(epochContext->ReachableVersion <= targetVersion);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     if (currentVersion > targetVersion) {
@@ -82,15 +87,16 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         }
     }
 
-    auto reachableVersion = EpochContext_->ReachableVersion;
+    auto reachableVersion = epochContext->ReachableVersion;
     YT_VERIFY(reachableVersion <= targetVersion);
 
     int snapshotId = InvalidSegmentId;
     if (targetVersion.SegmentId > currentVersion.SegmentId) {
-        auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
+        auto snapshotParamsOrError = WaitFor(
+            DiscoverLatestSnapshot(Config_, epochContext->CellManager, targetVersion.SegmentId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error computing the latest snapshot id");
 
-        snapshotId = snapshotIdOrError.Value();
+        snapshotId = snapshotParamsOrError.Value().SnapshotId;
         YT_VERIFY(snapshotId <= targetVersion.SegmentId);
     }
 
@@ -112,10 +118,43 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             currentVersion);
 
         YT_VERIFY(snapshotId != InvalidSegmentId);
-        auto snapshotReader = SnapshotStore_->CreateReader(snapshotId);
 
-        WaitFor(snapshotReader->Open())
-            .ThrowOnError();
+        auto createAndOpenReaderOrThrow = [&] {
+            auto reader = SnapshotStore_->CreateReader(snapshotId);
+            WaitFor(reader->Open())
+                .ThrowOnError();
+            return reader;
+        };
+
+        ISnapshotReaderPtr snapshotReader;
+        try {
+            snapshotReader = createAndOpenReaderOrThrow();
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(EErrorCode::NoSuchSnapshot)) {
+                if (auto legacySnapshotStore = DynamicPointerCast<ILegacySnapshotStore>(SnapshotStore_)) {
+                    YT_LOG_INFO(ex, "Snapshot is missing; attempting to download (SnapshotId: %v)",
+                        snapshotId);
+                    WaitFor(DownloadSnapshot(
+                        Config_,
+                        epochContext->CellManager,
+                        std::move(legacySnapshotStore),
+                        snapshotId,
+                        Logger))
+                        .ThrowOnError();
+                    snapshotReader = createAndOpenReaderOrThrow();
+                } else {
+                    // Snapshot downloading is not supported by remote snapshot store in old Hydra.
+                    YT_LOG_INFO(ex, "Snapshot is missing, and downloading is not supported (SnapshotId: %v)", snapshotId);
+                    throw;
+                }
+            } else {
+                YT_LOG_INFO(ex, "Failed to open snapshot (SnapshotId: %v)", snapshotId);
+                throw;
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Failed to open snapshot (SnapshotId: %v)", snapshotId);
+            throw;
+        }
 
         auto meta = snapshotReader->GetParams().Meta;
         auto randomSeed = meta.random_seed();

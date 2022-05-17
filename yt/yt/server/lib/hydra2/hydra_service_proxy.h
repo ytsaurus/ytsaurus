@@ -15,9 +15,13 @@ class TInternalHydraServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TInternalHydraServiceProxy, InternalHydraService,
-        .SetProtocolVersion(3)
+        .SetProtocolVersion(4)
         .SetAcceptsBaggage(false));
 
+    DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto, ReadSnapshot,
+        .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupChangelog,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));

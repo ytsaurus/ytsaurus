@@ -15,7 +15,6 @@
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/election/election_manager.h>

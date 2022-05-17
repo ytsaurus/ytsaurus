@@ -1,9 +1,11 @@
 #include "recovery.h"
+#include "changelog_discovery.h"
 #include "changelog_download.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "changelog_discovery.h"
 #include "hydra_service_proxy.h"
+#include "snapshot_discovery.h"
+#include "snapshot_download.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -89,9 +91,9 @@ TRecoveryResult TRecovery::DoRun()
 
     int snapshotId = InvalidSegmentId;
     if (TargetState_.SegmentId > currentState.SegmentId) {
-        auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId());
-        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
-        snapshotId = snapshotIdOrError.Value();
+        auto snapshotParamsOrError = WaitFor(DiscoverLatestSnapshot(Config_, epochContext->CellManager));
+        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error computing the latest snapshot id");
+        snapshotId = snapshotParamsOrError.Value().SnapshotId;
     }
 
      YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",
@@ -106,10 +108,37 @@ TRecoveryResult TRecovery::DoRun()
             snapshotId);
 
         YT_VERIFY(snapshotId != InvalidSegmentId);
-        auto snapshotReader = SnapshotStore_->CreateReader(snapshotId);
 
-        WaitFor(snapshotReader->Open())
-            .ThrowOnError();
+        auto createAndOpenReaderOrThrow = [&] {
+            auto reader = SnapshotStore_->CreateReader(snapshotId);
+            WaitFor(reader->Open())
+                .ThrowOnError();
+            return reader;
+        };
+
+        ISnapshotReaderPtr snapshotReader;
+        try {
+            snapshotReader = createAndOpenReaderOrThrow();
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(EErrorCode::NoSuchSnapshot)) {
+                YT_LOG_INFO(ex, "Snapshot is missing, attempting to download (SnapshotId: %v)",
+                    snapshotId);
+                WaitFor(DownloadSnapshot(
+                    Config_,
+                    epochContext->CellManager,
+                    SnapshotStore_,
+                    snapshotId,
+                    Logger))
+                    .ThrowOnError();
+                snapshotReader = createAndOpenReaderOrThrow();
+            } else {
+                YT_LOG_INFO(ex, "Failed to open snapshot (SnapshotId: %v)", snapshotId);
+                throw;
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_INFO(ex, "Failed to open snapshot (SnapshotId: %v)", snapshotId);
+            throw;
+        }
 
         auto snapshotMeta = snapshotReader->GetParams().Meta;
         auto snapshoRandomSeed = snapshotMeta.random_seed();

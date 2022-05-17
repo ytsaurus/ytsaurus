@@ -1,10 +1,11 @@
 #include "private.h"
 #include "local_snapshot_service.h"
+#include "snapshot_service_proxy.h"
 
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_service_proxy.h>
+
 #include <yt/yt/server/lib/hydra_common/private.h>
-#include <yt/yt/server/lib/hydra_common/file_snapshot_store.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -22,13 +23,13 @@ class TLocalSnapshotService
 public:
     TLocalSnapshotService(
         TCellId cellId,
-        IFileSnapshotStorePtr fileStore)
+        ILegacySnapshotStorePtr store)
         : TServiceBase(
             GetHydraIOInvoker(),
             TSnapshotServiceProxy::GetDescriptor(),
             HydraLogger,
             cellId)
-        , FileStore_(std::move(fileStore))
+        , Store_(std::move(store))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot)
@@ -36,7 +37,7 @@ public:
     }
 
 private:
-    const IFileSnapshotStorePtr FileStore_;
+    const ILegacySnapshotStorePtr Store_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
     {
@@ -51,7 +52,9 @@ private:
         if (exactId) {
             snapshotId = maxSnapshotId;
         } else {
-            snapshotId = FileStore_->GetLatestSnapshotId(maxSnapshotId);
+            auto asyncSnapshotId = Store_->GetLatestSnapshotId(maxSnapshotId);
+            snapshotId = WaitFor(asyncSnapshotId)
+                .ValueOrThrow();
             if (snapshotId == InvalidSegmentId) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::NoSuchSnapshot,
@@ -59,7 +62,7 @@ private:
             }
         }
 
-        auto reader = FileStore_->CreateReader(snapshotId);
+        auto reader = Store_->CreateReader(snapshotId);
 
         WaitFor(reader->Open())
             .ThrowOnError();
@@ -89,7 +92,7 @@ private:
         YT_VERIFY(offset >= 0);
         YT_VERIFY(length >= 0);
 
-        auto reader = FileStore_->CreateRawReader(snapshotId, offset);
+        auto reader = Store_->CreateRawReader(snapshotId, offset);
 
         WaitFor(reader->Open())
             .ThrowOnError();
@@ -97,7 +100,7 @@ private:
         auto copyingReader = CreateCopyingAdapter(reader);
 
         struct TSnapshotBlockTag { };
-        auto buffer = TSharedMutableRef::Allocate<TSnapshotBlockTag>(length, false);
+        auto buffer = TSharedMutableRef::Allocate<TSnapshotBlockTag>(length, /* initializeStorage */ false);
 
         auto bytesRead = WaitFor(copyingReader->Read(buffer))
             .ValueOrThrow();
@@ -111,11 +114,11 @@ private:
 
 IServicePtr CreateLocalSnapshotService(
     TCellId cellId,
-    IFileSnapshotStorePtr fileStore)
+    ILegacySnapshotStorePtr store)
 {
     return New<TLocalSnapshotService>(
         cellId,
-        std::move(fileStore));
+        std::move(store));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

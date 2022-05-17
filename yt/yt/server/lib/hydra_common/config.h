@@ -205,10 +205,28 @@ public:
     int MaxChangelogRecordsPerRequest;
 
     //! Generic timeout for RPC calls during snapshot download.
+    // COMPAT(shakurov): no longer used in Hydra2.
     TDuration SnapshotDownloadRpcTimeout;
 
     //! Block size used during snapshot download.
+    // COMPAT(shakurov): no longer used in Hydra2.
     i64 SnapshotDownloadBlockSize;
+
+    //! Timeout for RPC calls during snapshot download.
+    // NB: only used by Hydra2.
+    TDuration SnapshotDownloadTotalStreamingTimeout;
+
+    //! Streaming stall timeout for snapshot download.
+    // NB: only used by Hydra2.
+    TDuration SnapshotDownloadStreamingStallTimeout;
+
+    //! Streaming sliding window size for snapshot download.
+    // NB: only used by Hydra2.
+    ssize_t SnapshotDownloadWindowSize;
+
+    //! Compression codec for snapshot download.
+    // NB: only used by Hydra2.
+    NCompression::ECodec SnapshotDownloadStreamingCompressionCodec;
 
     //! Maximum time to wait before flushing the current batch.
     // COMPAT(babenko): no longer used in Hydra2.

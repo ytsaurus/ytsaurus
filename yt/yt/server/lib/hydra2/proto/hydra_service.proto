@@ -3,6 +3,8 @@ package NYT.NHydra2.NProto;
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 
+import "yt/ytlib/hydra/proto/hydra_manager.proto";
+
 import "yt/ytlib/election/proto/election_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,6 +20,34 @@ message TRspReadChangeLog
 {
     // Changelog records are passed in the attachment and are packed with PackRefs.
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLookupSnapshot
+{
+    required int32 max_snapshot_id = 1;
+    required bool exact_id = 2;
+}
+
+message TRspLookupSnapshot
+{
+    required int32 snapshot_id = 1;
+    required int64 compressed_length = 2;
+    required int64 uncompressed_length = 3;
+    required uint64 checksum = 4;
+    required NYT.NHydra.NProto.TSnapshotMeta meta = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadSnapshot
+{
+    required int32 snapshot_id = 1;
+    // No offset/length here - snapshots are streamed.
+}
+
+message TRspReadSnapshot
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
