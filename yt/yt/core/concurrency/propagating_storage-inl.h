@@ -50,9 +50,6 @@ template <class T>
 TPropagatingValueGuard<T>::TPropagatingValueGuard(T value)
 {
     auto& storage = GetCurrentPropagatingStorage();
-    if (storage.IsNull()) {
-        return;
-    }
     OldValue_ = storage.Exchange<T>(std::move(value));
 }
 
@@ -60,9 +57,6 @@ template <class T>
 TPropagatingValueGuard<T>::~TPropagatingValueGuard()
 {
     auto& storage = GetCurrentPropagatingStorage();
-    if (storage.IsNull()) {
-        return;
-    }
     if (OldValue_) {
         storage.Exchange<T>(std::move(*OldValue_));
     } else {

@@ -29,13 +29,13 @@ TEST(TPropagatingStorageTest, Simple)
 {
     auto actionQueue = New<TActionQueue>();
 
-    auto& storage = GetOrCreateCurrentPropagatingStorage();
+    auto& storage = GetCurrentPropagatingStorage();
     storage.Exchange<TFirst>({"hello"});
     ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "hello");
 
     WaitFor(
         BIND([actionQueue] {
-            auto& storage = GetOrCreateCurrentPropagatingStorage();
+            auto& storage = GetCurrentPropagatingStorage();
             ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "hello");
             storage.Exchange<TFirst>({"inner"});
             ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "inner");
@@ -43,7 +43,7 @@ TEST(TPropagatingStorageTest, Simple)
 
             WaitFor(
                 BIND([] {
-                    auto& storage = GetOrCreateCurrentPropagatingStorage();
+                    auto& storage = GetCurrentPropagatingStorage();
                     ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "inner");
                     storage.Remove<TFirst>();
                     ASSERT_FALSE(storage.Has<TFirst>());
@@ -68,7 +68,7 @@ TEST(TPropagatingStorageTest, Cow)
 {
     auto actionQueue = New<TActionQueue>();
 
-    auto& storage = GetOrCreateCurrentPropagatingStorage();
+    auto& storage = GetCurrentPropagatingStorage();
     storage.Exchange<TFirst>({"hello"});
     ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "hello");
 
@@ -76,7 +76,7 @@ TEST(TPropagatingStorageTest, Cow)
     for (int i = 0; i < 10; ++i) {
         futures.push_back(
             BIND([] {
-                auto& storage = GetOrCreateCurrentPropagatingStorage();
+                auto& storage = GetCurrentPropagatingStorage();
                 ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "hello");
                 TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
                 ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "hello");
@@ -87,7 +87,7 @@ TEST(TPropagatingStorageTest, Cow)
 
     futures.push_back(
         BIND([] {
-            auto& storage = GetOrCreateCurrentPropagatingStorage();
+            auto& storage = GetCurrentPropagatingStorage();
             ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "hello");
             storage.Exchange<TFirst>({"goodbye"});
             ASSERT_EQ(storage.GetOrCrash<TFirst>().Value, "goodbye");
@@ -101,9 +101,27 @@ TEST(TPropagatingStorageTest, Cow)
         .ThrowOnError();
 }
 
+TEST(TPropagatingStorageTest, Null)
+{
+    TNullPropagatingStorageGuard guard;
+
+    auto &storage = GetCurrentPropagatingStorage();
+
+    ASSERT_TRUE(storage.IsNull());
+    ASSERT_TRUE(storage.IsEmpty());
+
+    storage.Exchange<TFirst>({"goodbye"});
+    ASSERT_FALSE(storage.IsNull());
+    ASSERT_FALSE(storage.IsEmpty());
+
+    storage.Remove<TFirst>();
+    ASSERT_FALSE(storage.IsNull());
+    ASSERT_TRUE(storage.IsEmpty());
+}
+
 TEST(TPropagatingStorageTest, PropagatingValue)
 {
-    auto& storage = GetOrCreateCurrentPropagatingStorage();
+    auto& storage = GetCurrentPropagatingStorage();
     storage.Exchange<TFirst>({"hello"});
     storage.Exchange<TSecond>({"world"});
 
