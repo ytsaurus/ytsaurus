@@ -1,4 +1,5 @@
 #include "job_helpers.h"
+#include "job_info.h"
 
 #include <yt/yt/server/controller_agent/controller_agent.h>
 #include <yt/yt/server/controller_agent/config.h>
@@ -167,10 +168,9 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     return briefStatistics;
 }
 
-void ParseStatistics(
+void ParseAndEnrichStatistics(
     TJobSummary* jobSummary,
-    TInstant startTime,
-    TInstant lastUpdateTime,
+    const TJobletPtr& joblet,
     const TYsonString& lastObservedStatisticsYson)
 {
     auto& statistics = jobSummary->Statistics;
@@ -199,9 +199,12 @@ void ParseStatistics(
     }
 
     {
-        auto endTime = std::max(jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now(), lastUpdateTime);
-        auto duration = endTime - startTime;
+        auto endTime = std::max(
+            jobSummary->FinishTime ? *jobSummary->FinishTime : TInstant::Now(),
+            joblet->LastUpdateTime);
+        auto duration = endTime - joblet->StartTime;
         statistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
+        statistics->ReplacePathWithSample("/job_proxy/estimated_memory", joblet->EstimatedResourceUsage.GetJobProxyMemory());
     }
 
     jobSummary->StatisticsYson = ConvertToYsonString(statistics);
