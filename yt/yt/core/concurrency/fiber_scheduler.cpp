@@ -415,7 +415,11 @@ void FiberMain()
     while (fiberThread = GetFiberThread()) {
         YT_VERIFY(!ResumerFiber());
 
-        auto callback = fiberThread->OnExecute();
+        TCallback<void()> callback;
+        {
+            TNullPropagatingStorageGuard guard;
+            callback = fiberThread->OnExecute();
+        }
 
         if (callback) {
              try {

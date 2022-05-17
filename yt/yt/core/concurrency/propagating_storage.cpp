@@ -12,6 +12,11 @@ class TPropagatingStorage::TImpl
 public:
     using TStorage = TCompactFlatMap<std::type_index, std::any, 16>;
 
+    bool IsEmpty() const
+    {
+        return Data_.empty();
+    }
+
     const std::any* GetRaw(const std::type_info& typeInfo) const
     {
         auto iter = Data_.find(std::type_index(typeInfo));
@@ -76,8 +81,16 @@ bool TPropagatingStorage::IsNull() const
     return Impl_ == nullptr;
 }
 
+bool TPropagatingStorage::IsEmpty() const
+{
+    return !Impl_ || Impl_->IsEmpty();
+}
+
 const std::any* TPropagatingStorage::GetRaw(const std::type_info& typeInfo) const
 {
+    if (!Impl_) {
+        return nullptr;
+    }
     return Impl_->GetRaw(typeInfo);
 }
 
@@ -100,6 +113,11 @@ TPropagatingStorage TPropagatingStorage::Create()
 
 void TPropagatingStorage::EnsureUnique()
 {
+    if (!Impl_) {
+        Impl_ = New<TImpl>();
+        return;
+    }
+
     // NB(gepardo). It can be proved that this code doesn't clone only if there are no references to this storage
     // in other threads, so our copy-on-write mechanism doesn't result in data races.
     //
@@ -128,14 +146,6 @@ TPropagatingStorage& GetCurrentPropagatingStorage()
     return CurrentPropagatingStorage;
 }
 
-TPropagatingStorage& GetOrCreateCurrentPropagatingStorage()
-{
-    if (CurrentPropagatingStorage.IsNull()) {
-        CurrentPropagatingStorage = TPropagatingStorage::Create();
-    }
-    return CurrentPropagatingStorage;
-}
-
 TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage)
 {
     return std::exchange(CurrentPropagatingStorage, std::move(storage));
@@ -149,6 +159,10 @@ TPropagatingStorageGuard::~TPropagatingStorageGuard()
 {
     SwapCurrentPropagatingStorage(std::move(OldStorage_));
 }
+
+TNullPropagatingStorageGuard::TNullPropagatingStorageGuard()
+    : TPropagatingStorageGuard(TPropagatingStorage())
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

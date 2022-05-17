@@ -20,7 +20,6 @@ class TPropagatingStorage
 {
 public:
     //! Creates a null storage.
-    //! When the storage is null, you cannot read from it or write into it.
     TPropagatingStorage();
 
     //! Creates an empty, non-null storage.
@@ -35,8 +34,18 @@ public:
     TPropagatingStorage& operator=(TPropagatingStorage&& other);
 
     //! Returns true if the storage is null.
-    //! When the storage is null, you cannot read from it or write into it.
+    //!
+    //! If the propagating storage is null, it means that there is no underlying storage to keep
+    //! the data in it.
+    //!
+    //! In all other ways, it is indistinguishable from empty storage. If you read from it, you
+    //! will get nulls. If you try to modify it, the underlying storage will be created.
+    //!
+    //! You probably don't want to use this function, as it's mostly used in fiber scheduler to
+    //! verify that propagating storage doesn't leak to unwanted places. Use IsEmpty() instead.
     bool IsNull() const;
+
+    bool IsEmpty() const;
 
     template <class T>
     bool Has() const;
@@ -69,7 +78,6 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TPropagatingStorage& GetCurrentPropagatingStorage();
-TPropagatingStorage& GetOrCreateCurrentPropagatingStorage();
 TPropagatingStorage SwapCurrentPropagatingStorage(TPropagatingStorage storage);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +95,12 @@ public:
 
 private:
     TPropagatingStorage OldStorage_;
+};
+
+class TNullPropagatingStorageGuard : public TPropagatingStorageGuard
+{
+public:
+    TNullPropagatingStorageGuard();
 };
 
 template <class T>
