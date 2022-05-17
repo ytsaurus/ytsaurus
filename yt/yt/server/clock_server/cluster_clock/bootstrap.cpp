@@ -5,11 +5,11 @@
 #include "hydra_facade.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
-#include <yt/yt/server/lib/hydra_common/file_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_service.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+
+#include <yt/yt/server/lib/hydra/local_snapshot_service.h>
 
 #include <yt/yt/server/lib/timestamp_server/timestamp_manager.h>
 
@@ -239,13 +239,8 @@ void TBootstrap::DoInitialize()
         "ChangelogFlush",
         NProfiling::TProfiler("/changelogs"));
 
-    auto fileSnapshotStore = CreateFileSnapshotStore(
-        Config_->Snapshots);
-
-    SnapshotStore_ = CreateLocalSnapshotStore(
-        Config_->HydraManager,
-        CellManager_,
-        fileSnapshotStore);
+    auto snapshotStore = CreateLocalSnapshotStore(Config_->Snapshots);
+    SnapshotStore_ = snapshotStore;
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
@@ -256,10 +251,9 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton(),
         GetCellTag());
 
-    fileSnapshotStore->Initialize();
-
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
-    RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, fileSnapshotStore)); // cell realm
+    // TODO(shakurov): only register when using old Hydra.
+    RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, snapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 
     RpcServer_->Configure(Config_->RpcServer);
@@ -303,7 +297,7 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
 {
-    auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
+    auto reader = CreateLocalSnapshotReader(fileName, InvalidSegmentId);
     HydraFacade_->LoadSnapshot(reader, dump);
 }
 

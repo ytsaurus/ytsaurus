@@ -61,10 +61,22 @@ struct TRemoteSnapshotParams
     int SnapshotId = InvalidSegmentId;
 };
 
-//! Manages a collection snapshots.
+//! Manages a collection of snapshots on a peer.
 struct ISnapshotStore
     : public virtual TRefCounted
 {
+    //! Creates a reader for a given snapshot id.
+    /*!
+     *  The reader must be opened before usage.
+     *
+     *  Attempting to read a non-existent snapshot may result in:
+     *    - CreateReader throwing a EErrorCode::NoSuchSnapshot exception;
+     *    - CreateReader returning without throwing but subsequent opening of
+     *      the reader throwing a EErrorCode::NoSuchSnapshot exception;
+     *    - both CreateReader and opening the reader returning without throwing
+     *      but the latter resulting in an (async) EErrorCode::NoSuchSnapshot error.
+     *  The client must be prepared to handle all of these scenarios.
+     */
     virtual ISnapshotReaderPtr CreateReader(int snapshotId) = 0;
 
     //! Creates a writer for a given snapshot id.
@@ -75,9 +87,8 @@ struct ISnapshotStore
     virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const NProto::TSnapshotMeta& meta) = 0;
 
     //! Returns the largest snapshot id not exceeding #maxSnapshotId that is known to exist
-    //! in the store or #NonexistingSnapshotId if no such snapshot is present.
+    //! in the store or #InvalidSegmentId if no such snapshot is present.
     virtual TFuture<int> GetLatestSnapshotId(int maxSnapshotId = std::numeric_limits<i32>::max()) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(ISnapshotStore)

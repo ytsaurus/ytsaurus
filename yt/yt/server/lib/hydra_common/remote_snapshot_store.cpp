@@ -1,5 +1,4 @@
 #include "private.h"
-#include "file_snapshot_store.h"
 #include "remote_snapshot_store.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -193,6 +192,16 @@ private:
                         .ValueOrThrow();
                 }
                 YT_LOG_DEBUG("Remote snapshot reader opened");
+            } catch (const TErrorException& ex) {
+                if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "Error opening remote snapshot for reading")
+                        << TErrorAttribute("snapshot_path", Path_)
+                        << ex;
+                } else {
+                    THROW_ERROR_EXCEPTION("Error opening remote snapshot for reading")
+                        << TErrorAttribute("snapshot_path", Path_)
+                        << ex;
+                }
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error opening remote snapshot for reading")
                     << TErrorAttribute("snapshot_path", Path_)
@@ -426,15 +435,15 @@ private:
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStore)
 
 ISnapshotStorePtr CreateRemoteSnapshotStore(
-    TRemoteSnapshotStoreConfigPtr config,
-    TRemoteSnapshotStoreOptionsPtr options,
+    TRemoteSnapshotStoreConfigPtr storeConfig,
+    TRemoteSnapshotStoreOptionsPtr storeOptions,
     const TYPath& path,
     IClientPtr client,
     TTransactionId prerequisiteTransactionId)
 {
     return New<TRemoteSnapshotStore>(
-        config,
-        options,
+        storeConfig,
+        storeOptions,
         path,
         client,
         prerequisiteTransactionId);

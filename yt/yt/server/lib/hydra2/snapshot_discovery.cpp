@@ -1,19 +1,19 @@
 #include "snapshot_discovery.h"
 #include "private.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_service_proxy.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
-namespace NYT::NHydra {
+namespace NYT::NHydra2 {
 
 using namespace NElection;
-using namespace NConcurrency;
+using namespace NHydra;
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 class TDiscoverSnapshotSession
     : public TRefCounted
@@ -64,7 +64,7 @@ public:
             YT_LOG_DEBUG("Requesting snapshot info (PeerId: %v)",
                 peerId);
 
-            TSnapshotServiceProxy proxy(channel);
+            TInternalHydraServiceProxy proxy(std::move(channel));
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
             auto req = proxy.LookupSnapshot();
@@ -94,7 +94,7 @@ private:
 
     void OnResponse(
         TPeerId peerId,
-        const TSnapshotServiceProxy::TErrorOrRspLookupSnapshotPtr& rspOrError)
+        const TInternalHydraServiceProxy::TErrorOrRspLookupSnapshotPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError, "Error requesting snapshot info (PeerId: %v)",
@@ -140,16 +140,18 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<TRemoteSnapshotParams> DiscoverLatestSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
     int maxSnapshotId)
 {
     auto session = New<TDiscoverSnapshotSession>(
-        config,
-        cellManager,
+        std::move(config),
+        std::move(cellManager),
         maxSnapshotId,
-        false);
+        /* exactId */ false);
     return session->Run();
 }
 
@@ -159,13 +161,15 @@ TFuture<TRemoteSnapshotParams> DiscoverSnapshot(
     int snapshotId)
 {
     auto session = New<TDiscoverSnapshotSession>(
-        config,
-        cellManager,
+        std::move(config),
+        std::move(cellManager),
         snapshotId,
-        true);
+        /* exactId */ true);
     return session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra
+} // namespace NYT::NHydra2
+
+

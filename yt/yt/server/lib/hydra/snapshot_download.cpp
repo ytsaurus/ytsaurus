@@ -1,11 +1,11 @@
 #include "snapshot_download.h"
 #include "private.h"
 #include "snapshot_discovery.h"
-#include "file_snapshot_store.h"
+#include "snapshot_service_proxy.h"
 
 #include <yt/yt/server/lib/hydra_common/config.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_service_proxy.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -15,6 +15,7 @@ namespace NYT::NHydra {
 
 using namespace NElection;
 using namespace NConcurrency;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,12 +24,12 @@ namespace {
 void DoDownloadSnapshot(
     const TDistributedHydraManagerConfigPtr& config,
     const TCellManagerPtr& cellManager,
-    const IFileSnapshotStorePtr& fileStore,
-    int snapshotId)
+    const ILegacySnapshotStorePtr& store,
+    int snapshotId,
+    TLogger logger)
 {
-    auto Logger = HydraLogger.WithTag("SnapshotId: %v, CellId: %v, SelfPeerId: %v",
+    const auto& Logger = logger.WithTag("SnapshotId: %v, SelfPeerId: %v",
         snapshotId,
-        cellManager->GetCellId(),
         cellManager->GetSelfPeerId());
 
     try {
@@ -37,7 +38,7 @@ void DoDownloadSnapshot(
         auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId))
             .ValueOrThrow();
 
-        auto writer = fileStore->CreateRawWriter(snapshotId);
+        auto writer = store->CreateRawWriter(snapshotId);
         WaitFor(writer->Open())
             .ThrowOnError();
 
@@ -91,12 +92,13 @@ void DoDownloadSnapshot(
 TFuture<void> DownloadSnapshot(
     TDistributedHydraManagerConfigPtr config,
     TCellManagerPtr cellManager,
-    IFileSnapshotStorePtr fileStore,
-    int snapshotId)
+    ILegacySnapshotStorePtr store,
+    int snapshotId,
+    TLogger logger)
 {
     return BIND(DoDownloadSnapshot)
         .AsyncVia(GetCurrentInvoker())
-        .Run(std::move(config), std::move(cellManager), std::move(fileStore), snapshotId);
+        .Run(std::move(config), std::move(cellManager), std::move(store), snapshotId, std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

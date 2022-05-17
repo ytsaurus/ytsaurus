@@ -1,11 +1,12 @@
 #include "distributed_hydra_manager.h"
 #include "private.h"
 #include "changelog_acquisition.h"
+#include "changelog_discovery.h"
 #include "decorated_automaton.h"
+#include "hydra_service_proxy.h"
 #include "lease_tracker.h"
 #include "mutation_committer.h"
 #include "recovery.h"
-#include "changelog_discovery.h"
 
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -14,7 +15,6 @@
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
 #include <yt/yt/server/lib/hydra_common/mutation_context.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/snapshot_discovery.h>
 #include <yt/yt/server/lib/hydra_common/state_hash_checker.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 #include <yt/yt/server/lib/hydra_common/serialize.h>
@@ -25,8 +25,6 @@
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
-
-#include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -762,6 +760,10 @@ private:
             TInternalHydraServiceProxy::GetDescriptor(),
             cellId)
         {
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
+            RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot)
+                .SetStreamingEnabled(true)
+                .SetCancelable(true));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(GetLatestChangelogId));
             RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
@@ -776,6 +778,55 @@ private:
         }
 
     private:
+        DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
+        {
+            auto owner = GetOwnerOrThrow();
+
+            auto maxSnapshotId = request->max_snapshot_id();
+            auto exactId = request->exact_id();
+            context->SetRequestInfo("MaxSnapshotId: %v, ExactId: %v",
+                maxSnapshotId,
+                exactId);
+
+            auto snapshotId = maxSnapshotId;
+            if (!exactId) {
+                snapshotId = WaitFor(owner->SnapshotStore_->GetLatestSnapshotId(maxSnapshotId))
+                    .ValueOrThrow();
+            }
+
+            auto reader = owner->SnapshotStore_->CreateReader(snapshotId);
+            WaitFor(reader->Open())
+                .ThrowOnError();
+
+            auto params = reader->GetParams();
+            response->set_snapshot_id(snapshotId);
+            response->set_compressed_length(params.CompressedLength);
+            response->set_uncompressed_length(params.UncompressedLength);
+            response->set_checksum(params.Checksum);
+            *response->mutable_meta() = params.Meta;
+
+            context->SetResponseInfo("SnapshotId: %v", snapshotId);
+            context->Reply();
+        }
+
+        DECLARE_RPC_SERVICE_METHOD(NProto, ReadSnapshot)
+        {
+            auto owner = GetOwnerOrThrow();
+
+            auto snapshotId = request->snapshot_id();
+
+            context->SetRequestInfo("SnapshotId: %v, ResponseCodec: %v",
+                snapshotId,
+                context->GetResponseCodec());
+
+            auto reader = owner->SnapshotStore_->CreateReader(snapshotId);
+
+            WaitFor(reader->Open())
+                .ThrowOnError();
+
+            HandleInputStreamingRequest(context, reader);
+        }
+
         DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
         {
             int changelogId = request->changelog_id();

@@ -1778,6 +1778,38 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows("//tmp/t", keys) == []
         assert select_rows("* from [//tmp/t]") == []
 
+    @authors("shakurov")
+    def test_chaos_cell_peer_snapshot_loss(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
+
+        build_snapshot(cell_id=cell_id)
+        wait(lambda: len(ls("//sys/chaos_cells/{}/0/snapshots".format(cell_id))) != 0)
+        wait(lambda: len(ls("//sys/chaos_cells/{}/1/snapshots".format(cell_id), driver=remote_driver0)) != 0)
+        wait(lambda: len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0)
+
+        assert get("//sys/chaos_cells/{}/@health".format(cell_id)) == "good"
+        set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "empty_set_of_nodes", driver=remote_driver1)
+        wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id), driver=remote_driver1) != "good")
+
+        remove("//sys/chaos_cells/{}/2/snapshots/*".format(cell_id), driver=remote_driver1)
+
+        set("//sys/chaos_cell_bundles/chaos_bundle/@node_tag_filter", "", driver=remote_driver1)
+        wait(lambda: get("//sys/chaos_cells/{}/@health".format(cell_id), driver=remote_driver1) == "good")
+        assert len(ls("//sys/chaos_cells/{}/2/snapshots".format(cell_id), driver=remote_driver1)) != 0
 
 ##################################################################
 
