@@ -88,8 +88,6 @@ struct IClientRequest
 
 DEFINE_REFCOUNTED_TYPE(IClientRequest)
 
-bool IsRequestSticky(const IClientRequestPtr& request);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientContext

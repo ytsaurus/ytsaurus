@@ -478,15 +478,6 @@ TSharedRefArray TClientRequest::GetHeaderlessMessage() const
     return message;
 }
 
-bool IsRequestSticky(const IClientRequestPtr& request)
-{
-    if (!request) {
-        return false;
-    }
-    const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
-    return balancingExt.enable_stickiness();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TClientResponse::TClientResponse(TClientContextPtr clientContext)
