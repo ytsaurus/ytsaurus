@@ -203,7 +203,7 @@ public:
 
     void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
     {
-        if (PendingRegisterNodeAddreses_.find(address) != PendingRegisterNodeAddreses_.end()) {
+        if (PendingRegisterNodeAddreses_.contains(address)) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Node is already being registered"));
@@ -221,7 +221,7 @@ public:
             }
         }
 
-        YT_VERIFY(PendingRegisterNodeAddreses_.insert(address).second);
+        InsertOrCrash(PendingRegisterNodeAddreses_, address);
         for (auto* group : groups) {
             ++group->PendingRegisterNodeMutationCount;
         }
@@ -238,7 +238,11 @@ public:
             &TNodeTracker::HydraRegisterNode,
             this);
         mutation->SetCurrentTraceContext();
-        mutation->CommitAndReply(context);
+        mutation->CommitAndReply(context)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /*error*/) {
+                // NB: May be missing if OnLeadingStopped was called prior to mutation failure.
+                PendingRegisterNodeAddreses_.erase(address);
+            }).Via(GetCurrentInvoker()));
     }
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override
@@ -1042,7 +1046,6 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster() && IsLeader()) {
-            YT_VERIFY(PendingRegisterNodeAddreses_.erase(address) == 1);
             auto groups = GetGroupsForNode(address);
             for (auto* group : groups) {
                 --group->PendingRegisterNodeMutationCount;
@@ -1757,7 +1760,6 @@ private:
             FullNodeStatesGossipExecutor_->Start();
         }
 
-        PendingRegisterNodeAddreses_.clear();
         for (auto& group : NodeGroups_) {
             group.PendingRegisterNodeMutationCount = 0;
         }
@@ -1785,6 +1787,8 @@ private:
             FullNodeStatesGossipExecutor_->Stop();
             FullNodeStatesGossipExecutor_.Reset();
         }
+
+        PendingRegisterNodeAddreses_.clear();
     }
 
 
