@@ -128,9 +128,9 @@ DEFINE_ENUM(EMasterReign,
     ((ExecNodeIsNotDataNode)                                        (1959))  // gritukan
     ((ProfilingPeriodDynamicConfig_22_1)                            (1960))  // shakurov
     ((ExecNodeIsDefinitelyNotDataNode)                              (1961))  // gritukan
+    ((EnableStripedErasureAttribute)                                (1962))  // gritukan
     // 22.1 but cherry-picked later.
     ((BackupOrdered)                                                (1980))  // ifsmirnov
-    ((EnableStripedErasureAttribute)                                (1981))  // gritukan
     // 22.2 starts here.
     ((LogicalDataWeight)                                            (2000))  // achulkov2
     ((DropEnableForcedRotationBackingMemoryAccounting)              (2001))  // babenko
