@@ -8,6 +8,8 @@ import os.path
 import glob
 import subprocess
 import signal
+import time
+import requests
 import library.python.svn_version
 import yt.yson
 
@@ -146,9 +148,13 @@ def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid, monitoring_port):
     return start_process(args)
 
 
+def list_core_dumps():
+    return glob.glob("./core*")
+
+
 def move_core_dumps(destination):
     logger.info("Hardlinking core dumps to %s", destination)
-    for file in glob.glob("./core*"):
+    for file in list_core_dumps():
         logger.debug("Hardlinking %s to point to %s", destination, file)
         logger.debug("Core %s size is %s", file, os.stat(file).st_size)
         destination_file = os.path.join(destination, file)
@@ -184,6 +190,38 @@ def is_inside_mtn():
                                              "YT_IP_ADDRESS_BACKBONE"))
 
 
+def wait_for_readiness(timeout, ytserver_clickhouse_process):
+    http_address = "http://localhost:{}".format(os.environ["YT_PORT_3"])
+    logger.info("Checking HTTP server readiness (timeout = %s sec, http_address = %s)", timeout, http_address)
+    start_time = time.time()
+    # Just in case some request hangs during HTTP server initialization.
+    REQUEST_TIMEOUT = 3
+    BACKOFF = 3
+    while time.time() - start_time < timeout:
+        # Check if clickhouse process is not dead yet.
+        if ytserver_clickhouse_process.poll() is not None:
+            logger.info("ytserver-clickhouse is already dead, stopping checking readiness")
+            return
+        try:
+            if requests.get(http_address, timeout=REQUEST_TIMEOUT).content == 'Ok.\n':
+                logger.info("HTTP server ready")
+                return
+        except:
+            logger.exception("Exception while making HTTP request")
+        time.sleep(BACKOFF)
+    logger.error("HTTP server is not ready for %s seconds, sending SIGABRT to ytserver-clickhouse", timeout)
+    ytserver_clickhouse_process.send_signal(signal.SIGABRT)
+    exit_code = ytserver_clickhouse_process.wait()
+    core_dumps = list_core_dumps()
+    logger.info("Core dumps: %s", core_dumps)
+    for core_dump in core_dumps:
+        gdb_args = ["gdb", "--batch", "-c", core_dump, "-ex", "bt"]
+        logger.info("Invoking GDB for %s", core_dump)
+        gdb_process = start_process(gdb_args)
+        exit_code = gdb_process.wait()
+        logger.info("GDB exit code is %s", exit_code)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Process that setups environment for running ytserver-clickhouse")
     parser.add_argument("--version", action="store_true", help="Print commit this binary is built from")
@@ -201,6 +239,9 @@ def main():
     parser.add_argument("--log-file", help="Path to trampoline log file")
     parser.add_argument("--stderr-file", help="Redirect stderr to this file (substituting $YT_JOB_INDEX from env, "
                                               "if needed)")
+    parser.add_argument("--readiness-timeout", type=int,
+                        help="Timeout in seconds; if CH process is not replying 'Ok.' on HTTP port after this timeout, "
+                             "process will be killed with SIGABRT and core dump will (hopefully) be produced")
     args = parser.parse_args()
 
     setup_logging(args.log_file)
@@ -240,6 +281,9 @@ def main():
         logger.info("Running ytserver-log-tailer")
         log_tailer_process = run_log_tailer(
             args.log_tailer_bin, ytserver_clickhouse_process.pid, args.log_tailer_monitoring_port)
+
+    if args.readiness_timeout:
+        wait_for_readiness(args.readiness_timeout, ytserver_clickhouse_process)
 
     logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()

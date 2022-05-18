@@ -125,6 +125,8 @@ def get_clique_spec_builder(instance_count,
     if stderr_file:
         args += ["--stderr-file", stderr_file]
 
+    args += ["--readiness-timeout", "40"]
+
     trampoline_command = " ".join(args)
 
     spec_builder = \
