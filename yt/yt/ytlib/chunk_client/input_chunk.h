@@ -151,7 +151,8 @@ TString ToString(const TInputChunkPtr& inputChunk);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUnavailable(const TInputChunkPtr& inputChunk, bool checkParityParts = false);
+bool IsUnavailable(const TInputChunkPtr& inputChunk, EChunkAvailabilityPolicy policy);
+
 TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, NNodeTrackerClient::TNodeId nodeId);
 
 ////////////////////////////////////////////////////////////////////////////////

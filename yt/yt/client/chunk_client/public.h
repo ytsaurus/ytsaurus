@@ -160,4 +160,12 @@ class TReadRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EChunkAvailabilityPolicy,
+    ((DataPartsAvailable)           (0))
+    ((AllPartsAvailable)            (1))
+    ((Repairable)                   (2))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

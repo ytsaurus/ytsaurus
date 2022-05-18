@@ -3677,7 +3677,7 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(TChunkId chunkId, 
     }
 
     // Intermediate chunks are always replicated.
-    if (IsUnavailable(replicas, NErasure::ECodec::None)) {
+    if (IsUnavailable(replicas, NErasure::ECodec::None, GetChunkAvailabilityPolicy())) {
         OnIntermediateChunkUnavailable(chunkId);
     } else {
         OnIntermediateChunkAvailable(chunkId, replicas);
@@ -3710,7 +3710,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(TChunkId chunkId, const T
     const auto& chunkSpec = descriptor.InputChunks.front();
     auto codecId = NErasure::ECodec(chunkSpec->GetErasureCodec());
 
-    if (IsUnavailable(replicas, codecId, CheckParityReplicas())) {
+    if (IsUnavailable(replicas, codecId, GetChunkAvailabilityPolicy())) {
         OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
         OnInputChunkAvailable(chunkId, replicas, &descriptor);
@@ -5518,7 +5518,7 @@ void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChu
     auto& chunkDescriptor = InputChunkMap[chunkId];
     chunkDescriptor.InputChunks.push_back(inputChunk);
 
-    if (IsUnavailable(inputChunk, CheckParityReplicas())) {
+    if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
         chunkDescriptor.State = EInputChunkState::Waiting;
     }
 }
@@ -7029,7 +7029,7 @@ void TOperationControllerBase::CollectTotals()
     i64 totalInputDataWeight = 0;
     for (const auto& table : InputTables_) {
         for (const auto& inputChunk : table->Chunks) {
-            if (IsUnavailable(inputChunk, CheckParityReplicas())) {
+            if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
                 auto chunkId = inputChunk->GetChunkId();
 
                 switch (Spec_->UnavailableChunkStrategy) {
@@ -7240,7 +7240,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool 
     for (const auto& table : InputTables_) {
         if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
             for (const auto& chunk : table->Chunks) {
-                if (IsUnavailable(chunk, CheckParityReplicas())) {
+                if (IsUnavailable(chunk, GetChunkAvailabilityPolicy())) {
                     switch (Spec_->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;
@@ -7300,7 +7300,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             YT_VERIFY(table->Comparator);
 
             for (const auto& chunk : table->Chunks) {
-                if (IsUnavailable(chunk, CheckParityReplicas()) &&
+                if (IsUnavailable(chunk, GetChunkAvailabilityPolicy()) &&
                     Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip)
                 {
                     continue;
@@ -7417,7 +7417,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 for (auto& dataSlice : dataSlices) {
                     dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
 
-                    if (IsUnavailable(dataSlice, CheckParityReplicas())) {
+                    if (IsUnavailable(dataSlice, GetChunkAvailabilityPolicy())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;
@@ -7434,7 +7434,7 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 }
             } else {
                 for (const auto& inputChunk : table->Chunks) {
-                    if (IsUnavailable(inputChunk, CheckParityReplicas())) {
+                    if (IsUnavailable(inputChunk, GetChunkAvailabilityPolicy())) {
                         switch (Spec_->UnavailableChunkStrategy) {
                             case EUnavailableChunkAction::Skip:
                                 continue;
@@ -7709,9 +7709,9 @@ TOutputOrderPtr TOperationControllerBase::GetOutputOrder() const
     return nullptr;
 }
 
-bool TOperationControllerBase::CheckParityReplicas() const
+EChunkAvailabilityPolicy TOperationControllerBase::GetChunkAvailabilityPolicy() const
 {
-    return false;
+    return Spec_->ChunkAvailabilityPolicy;
 }
 
 bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const

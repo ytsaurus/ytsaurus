@@ -6,6 +6,8 @@
 
 namespace NYT::NTableClient {
 
+using namespace NChunkClient;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TRetentionConfigPtr& obj)
@@ -123,6 +125,8 @@ void TTableReaderConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("unavailable_chunk_strategy", &TThis::UnavailableChunkStrategy)
         .Default(EUnavailableChunkStrategy::Restore);
+    registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
+        .Default(EChunkAvailabilityPolicy::Repairable);
     registrar.Parameter("max_read_duration", &TThis::MaxReadDuration)
         .Default();
     registrar.Parameter("dynamic_store_reader", &TThis::DynamicStoreReader)

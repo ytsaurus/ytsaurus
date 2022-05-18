@@ -881,8 +881,7 @@ protected:
 
     virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
 
-    //! Enables fetching all input replicas (not only data)
-    virtual bool CheckParityReplicas() const;
+    virtual NChunkClient::EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const;
 
     //! Enables fetching boundary keys for chunk specs.
     virtual bool IsBoundaryKeysFetchEnabled() const;

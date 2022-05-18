@@ -10,31 +10,52 @@ namespace NYT::NChunkClient {
 
 using namespace NChunkClient::NProto;
 
-using NYT::FromProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId, bool checkParityParts)
+bool IsUnavailable(
+    const TChunkReplicaList& replicas,
+    NErasure::ECodec codecId,
+    EChunkAvailabilityPolicy policy)
 {
     if (codecId == NErasure::ECodec::None) {
         return replicas.empty();
     } else {
         auto* codec = NErasure::GetCodec(codecId);
-        int partCount = checkParityParts ? codec->GetTotalPartCount() : codec->GetDataPartCount();
-        NErasure::TPartIndexSet missingIndexSet((1 << partCount) - 1);
-        for (auto replica : replicas) {
-            missingIndexSet.reset(replica.GetReplicaIndex());
+
+        NErasure::TPartIndexSet erasedIndexSet;
+        for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+            erasedIndexSet.set(index);
         }
-        return missingIndexSet.any();
+        for (auto replica : replicas) {
+            erasedIndexSet.reset(replica.GetReplicaIndex());
+        }
+
+        switch (policy) {
+            case EChunkAvailabilityPolicy::DataPartsAvailable:
+                for (int index = codec->GetDataPartCount(); index < codec->GetTotalPartCount(); ++index) {
+                    erasedIndexSet.reset(index);
+                }
+                return erasedIndexSet.any();
+            case EChunkAvailabilityPolicy::AllPartsAvailable:
+                return erasedIndexSet.any();
+            case EChunkAvailabilityPolicy::Repairable:
+                return !codec->CanRepair(erasedIndexSet);
+            default:
+                YT_ABORT();
+        }
     }
 }
 
-bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool checkParityParts)
+bool IsUnavailable(
+    const NProto::TChunkSpec& chunkSpec,
+    EChunkAvailabilityPolicy policy)
 {
     auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
     auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
-    return IsUnavailable(replicas, codecId, checkParityParts);
+    return IsUnavailable(replicas, codecId, policy);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
 {

@@ -191,6 +191,7 @@ private:
             .FetchChunkSpecConfig = Config_,
             .FetchParityReplicas = tableReaderConfig->EnableAutoRepair,
             .UnavailableChunkStrategy = tableReaderConfig->UnavailableChunkStrategy,
+            .ChunkAvailabilityPolicy = tableReaderConfig->ChunkAvailabilityPolicy,
         };
 
         TClientChunkReadOptions chunkReadOptions;

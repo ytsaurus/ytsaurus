@@ -400,13 +400,17 @@ TString ToString(const TInputChunkPtr& inputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsUnavailable(const TInputChunkPtr& inputChunk, bool checkParityParts)
+bool IsUnavailable(const TInputChunkPtr& inputChunk, EChunkAvailabilityPolicy policy)
 {
     if (inputChunk->IsDynamicStore()) {
         // It is up to the reader to locate the dynamic store.
         return false;
     }
-    return IsUnavailable(inputChunk->GetReplicaList(), inputChunk->GetErasureCodec(), checkParityParts);
+
+    return IsUnavailable(
+        inputChunk->GetReplicaList(),
+        inputChunk->GetErasureCodec(),
+        policy);
 }
 
 TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, TNodeId nodeId)

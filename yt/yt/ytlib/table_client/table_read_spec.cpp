@@ -130,9 +130,12 @@ TTableReadSpec FetchRegularTableReadSpec(
                     SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
                 },
                 Logger,
-                /* skipUnavailableChunks */ options.UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);
+                /*skipUnavailableChunks*/ options.UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);
 
-            CheckUnavailableChunks(options.UnavailableChunkStrategy, &chunkSpecs);
+            CheckUnavailableChunks(
+                options.UnavailableChunkStrategy,
+                options.ChunkAvailabilityPolicy,
+                &chunkSpecs);
         }
     }
 

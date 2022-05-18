@@ -544,7 +544,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_memory_digest", &TThis::JobProxyMemoryDigest)
-        .DefaultCtor([] { 
+        .DefaultCtor([] {
             auto config = New<TLogDigestConfig>();
             config->LowerBound = 0.5;
             config->UpperBound = 2.0;
@@ -647,6 +647,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_squashfs", &TThis::EnableSquashFS)
         .Default();
+
+    registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
+        .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

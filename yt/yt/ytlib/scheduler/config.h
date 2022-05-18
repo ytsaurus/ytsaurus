@@ -907,6 +907,8 @@ public:
     //! Use SquashFS for layer storage.
     std::optional<bool> EnableSquashFS;
 
+    NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -914,7 +916,6 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase, 0xf0494353);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TOperationSpecBase);
 
