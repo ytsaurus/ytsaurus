@@ -304,6 +304,11 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
                 return TRemoteObjectPayload{objectId};
             }
 
+            auto* transaction = GetTransaction();
+            if (transaction && transaction->GetState(/*persistent*/ true) != ETransactionState::Active) {
+                transaction->ThrowInvalidState();
+            }
+
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto* root = Method_ == "Exists"
                 ? objectManager->FindObject(objectId)
