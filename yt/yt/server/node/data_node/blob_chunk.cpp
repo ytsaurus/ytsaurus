@@ -570,8 +570,10 @@ void TBlobChunkBase::OnBlocksRead(
             auto block = blocks[relativeBlockIndex];
 
             // NB: Copy block to prevent cache from holding the whole block sequence.
-            struct TCachedBlobChunkBlockTag { };
-            block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
+            if (blocks.size() > 1) {
+                struct TCachedBlobChunkBlockTag { };
+                block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
+            }
             entry.Block = block;
 
             ++usefulBlockCount;
