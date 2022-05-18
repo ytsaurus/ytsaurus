@@ -514,6 +514,7 @@ protected:
                 request.Handle->Resize(*request.Size);
             }
             if (request.Flush && StaticConfig_->EnableSync) {
+                TRequestStatsGuard statsGuard(Sensors_->SyncSensors);
                 request.Handle->Flush();
             }
             request.Handle->Close();
