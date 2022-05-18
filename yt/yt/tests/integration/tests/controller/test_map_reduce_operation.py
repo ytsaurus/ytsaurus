@@ -4,13 +4,13 @@ from yt_commands import (
     authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create,
     ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
-    write_table, map, reduce, map_reduce, sort,
+    write_table, map, reduce, map_reduce, sort, alter_table,
     abort_job, get_operation,
     raises_yt_error)
 
-from yt_type_helpers import struct_type, list_type, tuple_type, optional_type
+from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_no_descending
+from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
 
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
@@ -702,6 +702,55 @@ print "x={0}\ty={1}".format(x, y)
         )
 
         assert read_table("//tmp/tout") == [{"b": 42, "a": 25}]
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_rename_columns_alter_table(self, optimize_for, sort_order):
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+        skip_if_renaming_disabled(self.Env)
+
+        input_table = "//tmp/tin"
+        output_table = "//tmp/tout"
+
+        schema1 = make_schema([
+            make_column("a", "int64"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ])
+        create(
+            "table",
+            input_table,
+            attributes={
+                "schema": schema1,
+                "optimize_for": optimize_for,
+            },
+        )
+        create("table", output_table)
+        write_table(input_table, [{"a": 42, "b": "42", "c": False}])
+
+        schema2 = make_schema([
+            make_column("b", "string"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("a_new", "int64", stable_name="a"),
+        ])
+        alter_table(input_table, schema=schema2)
+
+        write_table("<append=%true>" + input_table, [{"a_new": 43, "b": "43", "c_new": False}])
+
+        map_reduce(
+            in_=input_table,
+            out=output_table,
+            mapper_command="cat",
+            reducer_command="cat",
+            sort_by=[{"name": "a_new", "sort_order": sort_order}],
+        )
+
+        assert sorted(read_table(output_table), key=lambda r: r["a_new"]) == [
+            {"a_new": 42, "b": "42", "c_new": False},
+            {"a_new": 43, "b": "43", "c_new": False},
+        ]
 
     def _ban_nodes_with_intermediate_chunks(self):
         # Figure out the intermediate chunk

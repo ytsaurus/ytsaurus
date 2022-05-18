@@ -5,7 +5,9 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, copy, remove, set,
     exists, create_table,
-    start_transaction, abort_transaction, commit_transaction, insert_rows, alter_table, read_table, write_table,
+    start_transaction, abort_transaction, commit_transaction,
+    insert_rows, select_rows, lookup_rows,
+    alter_table, read_table, write_table,
     merge, sort,
     mount_table, wait_for_tablet_state, sync_create_cells, sync_mount_table, sync_unmount_table,
     raises_yt_error, get_driver)
@@ -16,6 +18,8 @@ from yt_type_helpers import (
     make_schema, normalize_schema, make_sorted_column, make_column,
     optional_type, list_type, dict_type, struct_type, tuple_type, variant_tuple_type, variant_struct_type,
     decimal_type, tagged_type)
+
+from yt_helpers import skip_if_renaming_disabled
 
 import yt_error_codes
 
@@ -28,6 +32,7 @@ import collections
 import decimal
 import json
 import random
+from copy import deepcopy
 
 
 # Run our tests on all decimal precisions might be expensive so we create
@@ -1103,21 +1108,21 @@ class TestLogicalType(YTEnvSetup):
     def test_special_float_values(self):
         create(
             "table",
-            "//test-table",
+            "//tmp/test-table",
             attributes={
                 "schema": [
                     {"name": "value", "type": "float"}
                 ]
             },
         )
-        write_table("//test-table", [
+        write_table("//tmp/test-table", [
             {"value": float("nan")},
             {"value": float("-nan")},
             {"value": float("inf")},
             {"value": float("+inf")},
             {"value": float("-inf")},
         ])
-        rows = read_table("//test-table")
+        rows = read_table("//tmp/test-table")
         assert [str(r["value"]) for r in rows] == [
             "nan",
             "nan",
@@ -1129,12 +1134,12 @@ class TestLogicalType(YTEnvSetup):
     @authors("ermolovd")
     def test_bad_alter_table(self):
         def expect_error_alter_table(schema_before, schema_after):
-            remove("//test-alter-table", force=True)
-            create("table", "//test-alter-table", attributes={"schema": schema_before})
+            remove("//tmp/test-alter-table", force=True)
+            create("table", "//tmp/test-alter-table", attributes={"schema": schema_before})
             # Make table nonempty, since empty table allows any alter
-            tx_write_table("//test-alter-table", [{}])
+            tx_write_table("//tmp/test-alter-table", [{}])
             with raises_yt_error(yt_error_codes.IncompatibleSchemas):
-                alter_table("//test-alter-table", schema=schema_after)
+                alter_table("//tmp/test-alter-table", schema=schema_after)
 
         for (source_type, bad_destination_type_list) in [
             ("int8", ["uint64", "uint8", "string"]),
@@ -1153,7 +1158,7 @@ class TestLogicalType(YTEnvSetup):
         with raises_yt_error('Computed column "key1" type mismatch: declared type'):
             create(
                 "table",
-                "//test-table",
+                "//tmp/test-table",
                 attributes={
                     "schema": [
                         {"name": "key1", "type": "int32", "expression": "100"},
@@ -1164,7 +1169,7 @@ class TestLogicalType(YTEnvSetup):
         with raises_yt_error('Aggregated column "key1" is forbidden to have logical type'):
             create(
                 "table",
-                "//test-table",
+                "//tmp/test-table",
                 attributes={
                     "schema": [
                         {"name": "key1", "type": "int32", "aggregate": "sum"},
@@ -1720,6 +1725,39 @@ class TestSchemaValidation(YTEnvSetup):
         ]:
             check_not_comparable(t)
 
+    @authors("levysotsky")
+    def test_stable_name(self):
+        skip_if_renaming_disabled(self.Env)
+
+        schema = make_schema([
+            make_column("a", "int64", stable_name="a_stable", sort_order="ascending"),
+            make_column("b", "int64"),
+            make_column("c", "int64", stable_name="c_stable"),
+        ])
+        create("table", "//tmp/t", attributes={"schema": schema})
+        read_schema = get("//tmp/t/@schema")
+        assert read_schema[0]["name"] == "a"
+        assert read_schema[0]["type_v3"] == "int64"
+        assert read_schema[0]["stable_name"] == "a_stable"
+
+        assert read_schema[1]["name"] == "b"
+        assert read_schema[1]["type_v3"] == "int64"
+        assert "stable_name" not in read_schema[1]
+
+        assert read_schema[2]["name"] == "c"
+        assert read_schema[2]["type_v3"] == "int64"
+        assert read_schema[2]["stable_name"] == "c_stable"
+
+        remove("//tmp/t")
+
+        def check_schema(schema):
+            create("table", "//tmp/t", attributes={"schema": schema})
+            remove("//tmp/t")
+
+        with raises_yt_error("empty"):
+            schema = make_schema([make_column("a", "int64", stable_name="")])
+            check_schema(schema)
+
 
 @authors("ermolovd")
 class TestErrorCodes(YTEnvSetup):
@@ -2068,3 +2106,290 @@ class TestSchemaDepthLimit(YTEnvSetup):
             create("table", "//tmp/t3", force=True, attributes={
                 "schema": bad_schema,
             })
+
+
+class TestRenameColumns(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+
+    _TABLE_PATH = "//tmp/test-alter-table"
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_static(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows1 = [{"a": 0, "b": "foo", "c": True}]
+
+        write_table(self._TABLE_PATH, rows1)
+        assert read_table(self._TABLE_PATH) == rows1
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("b_new", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows2 = [{"a": 0, "b_new": "foo", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2
+
+        table_path_with_filter = "<columns=[a;b_new]>" + self._TABLE_PATH
+        rows2_filtered = [{"a": 0, "b_new": "foo"}]
+        assert read_table(table_path_with_filter) == rows2_filtered
+
+        alter_table(self._TABLE_PATH, schema=schema1)
+
+        assert read_table(self._TABLE_PATH) == rows1
+
+        table_path_with_filter = "<columns=[a;c]>" + self._TABLE_PATH
+        rows1_filtered = [{"a": 0, "c": True}]
+        assert read_table(table_path_with_filter) == rows1_filtered
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_sorted_dynamic(self, optimize_for):
+        def sorted_by_a(rows):
+            return sorted(rows, key=lambda row: row["a"])
+
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows1 = [{"a": 0, "b": "blah", "c": False}]
+
+        write_table(self._TABLE_PATH, rows1)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        sync_mount_table(self._TABLE_PATH)
+        assert list(lookup_rows(self._TABLE_PATH, [{"a": 0}])) == rows1
+        assert sorted_by_a(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows1
+
+        insert_rows(self._TABLE_PATH, [{"a": 0, "b": "boo", "c": True}, {"a": 1, "b": "foo", "c": True}])
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c", "bool", stable_name="c"),
+            make_column("b_new", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+        sync_unmount_table(self._TABLE_PATH)
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows2 = [
+            {"a": 0, "b_new": "boo", "c": True},
+            {"a": 1, "b_new": "foo", "c": True},
+        ]
+
+        assert read_table(self._TABLE_PATH) == rows2
+
+        sync_mount_table(self._TABLE_PATH)
+
+        assert list(lookup_rows(self._TABLE_PATH, [{"a": 0}, {"a": 1}])) == rows2
+        assert sorted_by_a(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows2
+        assert sorted_by_a(select_rows("* from [{}] where b_new = \"foo\"".format(self._TABLE_PATH))) == [rows2[1]]
+
+        rows2_filtered = [
+            {"a": 0, "b_new": "boo"},
+            {"a": 1, "b_new": "foo"},
+        ]
+        assert list(lookup_rows(self._TABLE_PATH, [{"a": 0}, {"a": 1}], column_names=["a", "b_new"])) == rows2_filtered
+        assert sorted_by_a(select_rows("a, b_new from [{}]".format(self._TABLE_PATH))) == rows2_filtered
+        assert sorted_by_a(select_rows("a, b_new from [{}] where b_new = \"foo\"".format(self._TABLE_PATH))) == [rows2_filtered[1]]
+
+        insert_rows(self._TABLE_PATH, [{"a": 1, "b_new": "updated", "c": False}])
+
+        sync_unmount_table(self._TABLE_PATH)
+        alter_table(self._TABLE_PATH, schema=schema1)
+
+        rows3 = [
+            {"a": 0, "b": "boo", "c": True},
+            {"a": 1, "b": "updated", "c": False},
+        ]
+
+        assert read_table(self._TABLE_PATH) == rows3
+
+        sync_mount_table(self._TABLE_PATH)
+
+        assert list(lookup_rows(self._TABLE_PATH, [{"a": 0}, {"a": 1}])) == rows3
+        assert sorted_by_a(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows3
+        assert sorted_by_a(select_rows("* from [{}] where b = \"boo\"".format(self._TABLE_PATH))) == [rows3[0]]
+
+        rows3_filtered = [
+            {"a": 0, "b": "boo"},
+            {"a": 1, "b": "updated"},
+        ]
+        assert list(lookup_rows(self._TABLE_PATH, [{"a": 0}, {"a": 1}], column_names=["a", "b"])) == rows3_filtered
+        assert sorted_by_a(select_rows("a,b from [{}]".format(self._TABLE_PATH))) == rows3_filtered
+        assert sorted_by_a(select_rows("a,b from [{}] where b = \"boo\"".format(self._TABLE_PATH))) == [rows3_filtered[0]]
+
+    @staticmethod
+    def _to_ordered_dyntable_rows(rows):
+        res = []
+        for i, row in enumerate(rows):
+            row = deepcopy(row)
+            row.update({
+                "$tablet_index": 0,
+                "$row_index": i,
+            })
+            res.append(row)
+        return res
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_ordered_dynamic(self, optimize_for):
+        schema1 = make_schema([
+            make_column("a", "int64"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows1 = [{"a": 0, "b": "blah", "c": False}]
+
+        write_table(self._TABLE_PATH, rows1)
+        sync_create_cells(1)
+        alter_table(self._TABLE_PATH, dynamic=True)
+
+        sync_mount_table(self._TABLE_PATH)
+        assert list(select_rows("* from [{}]".format(self._TABLE_PATH))) == self._to_ordered_dyntable_rows(rows1)
+
+        insert_rows(self._TABLE_PATH, [{"a": 0, "b": "boo", "c": True}, {"a": 1, "b": "foo", "c": True}])
+
+        schema2 = make_schema([
+            make_column("a", "int64"),
+            make_column("c", "bool", stable_name="c"),
+            make_column("b_new", "string", stable_name="b"),
+        ], strict=True)
+        sync_unmount_table(self._TABLE_PATH)
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows2 = [
+            {"a": 0, "b_new": "blah", "c": False},
+            {"a": 0, "b_new": "boo", "c": True},
+            {"a": 1, "b_new": "foo", "c": True},
+        ]
+
+        assert read_table(self._TABLE_PATH) == rows2
+
+        sync_mount_table(self._TABLE_PATH)
+
+        rows2_ordered_dyntable = self._to_ordered_dyntable_rows(rows2)
+        assert list(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows2_ordered_dyntable
+        assert list(select_rows("* from [{}] where b_new != \"foo\"".format(self._TABLE_PATH))) == rows2_ordered_dyntable[:2]
+
+        insert_rows(self._TABLE_PATH, [{"a": 1, "b_new": "updated", "c": False}])
+
+        sync_unmount_table(self._TABLE_PATH)
+        alter_table(self._TABLE_PATH, schema=schema1)
+
+        rows3 = [
+            {"a": 0, "b": "blah", "c": False},
+            {"a": 0, "b": "boo", "c": True},
+            {"a": 1, "b": "foo", "c": True},
+            {"a": 1, "b": "updated", "c": False},
+        ]
+
+        assert read_table(self._TABLE_PATH) == rows3
+
+        sync_mount_table(self._TABLE_PATH)
+
+        rows3_ordered_dyntable = self._to_ordered_dyntable_rows(rows3)
+        assert list(select_rows("* from [{}]".format(self._TABLE_PATH))) == rows3_ordered_dyntable
+        assert list(select_rows("* from [{}] where b != \"blah\"".format(self._TABLE_PATH))) == rows3_ordered_dyntable[1:]
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_rename_static_several_chunks(self, optimize_for):
+        table_path_with_append = "<append=%true>" + self._TABLE_PATH
+
+        schema1 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ], unique_keys=True, strict=True)
+
+        create("table", self._TABLE_PATH, force=True, attributes={
+            "schema": schema1,
+            "optimize_for": optimize_for,
+        })
+
+        rows1 = [{"a": 0, "b": "foo", "c": True}]
+        write_table(self._TABLE_PATH, rows1)
+        assert read_table(self._TABLE_PATH) == rows1
+
+        schema2 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("b_new", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema2)
+
+        rows2 = [{"a": 0, "b_new": "foo", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2
+
+        write_table(table_path_with_append, [{"a": 1, "b_new": "bar", "c_new": True}])
+
+        rows2_new = rows2 + [{"a": 1, "b_new": "bar", "c_new": True}]
+        assert read_table(self._TABLE_PATH) == rows2_new
+
+        schema3 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("c_new", "bool", stable_name="c"),
+            make_column("d", type_v3=optional_type("int64")),
+            make_column("b_newer", "string", stable_name="b"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema3)
+
+        rows3 = [
+            {"a": 0, "b_newer": "foo", "c_new": True},
+            {"a": 1, "b_newer": "bar", "c_new": True},
+        ]
+        assert read_table(self._TABLE_PATH) == rows3
+
+        write_table(table_path_with_append, [{"a": 22, "b_newer": "booh", "c_new": False, "d": -12}])
+
+        rows3_new = [
+            {"a": 0, "b_newer": "foo", "c_new": True},
+            {"a": 1, "b_newer": "bar", "c_new": True},
+            {"a": 22, "b_newer": "booh", "c_new": False, "d": -12},
+        ]
+        assert read_table(self._TABLE_PATH) == rows3_new
+
+        schema4 = make_schema([
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("b", "string", stable_name="b"),
+            make_column("c", "bool", stable_name="c"),
+            make_column("d_new", type_v3=optional_type("int64"), stable_name="d"),
+        ], unique_keys=True, strict=True)
+
+        alter_table(self._TABLE_PATH, schema=schema4)
+
+        rows4 = [
+            {"a": 0, "b": "foo", "c": True},
+            {"a": 1, "b": "bar", "c": True},
+            {"a": 22, "b": "booh", "c": False, "d_new": -12},
+        ]
+        assert read_table(self._TABLE_PATH) == rows4

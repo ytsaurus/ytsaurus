@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NTableClient {
 
 using namespace NYson;
@@ -61,6 +63,7 @@ public:
                 }
 
                 auto schemafulRow = RowReorderer_.ReorderKey(schemalessRow);
+
                 for (int valueIndex = 0; valueIndex < std::ssize(ReaderSchema_->Columns()); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
                     ValidateDataValue(value);

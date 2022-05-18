@@ -124,8 +124,8 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     for (const auto& column : desiredSchema.Columns()) {
         const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
         if (tabletColumn.GetWireType() != column.GetWireType()) {
-            THROW_ERROR_EXCEPTION("Mismatched type of column %Qv in schema: expected %Qlv, found %Qlv",
-                column.Name(),
+            THROW_ERROR_EXCEPTION("Mismatched type of column %v in schema: expected %Qlv, found %Qlv",
+                column.GetDiagnosticNameString(),
                 tabletColumn.GetWireType(),
                 column.GetWireType());
         }

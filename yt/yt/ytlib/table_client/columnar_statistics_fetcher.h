@@ -49,7 +49,7 @@ public:
 
     TFuture<void> Fetch() override;
 
-    void AddChunk(NChunkClient::TInputChunkPtr chunk, std::vector<TString> columnNames);
+    void AddChunk(NChunkClient::TInputChunkPtr chunk, std::vector<TStableName> columnStableNames);
 
 private:
     TOptions Options_;
@@ -65,7 +65,7 @@ private:
 
     std::vector<int> ChunkColumnFilterIds_;
 
-    TColumnFilterDictionary ColumnFilterDictionary_;
+    TStableColumnNameFilterDictionary ColumnFilterDictionary_;
 
     // Columnar statistics fetcher does not support adding pure chunks as each chunk should be provided with
     // a column list to fetch statistics for.
@@ -79,7 +79,7 @@ private:
 
     TFuture<void> DoFetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes);
 
-    const std::vector<TString>& GetColumnNames(int chunkIndex) const;
+    const std::vector<TStableName>& GetColumnStableNames(int chunkIndex) const;
 
     void OnResponse(
         NNodeTrackerClient::TNodeId nodeId,

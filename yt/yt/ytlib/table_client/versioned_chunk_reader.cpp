@@ -26,6 +26,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 
@@ -194,7 +195,6 @@ public:
         TCurrentTraceContextGuard guard(TraceContext_);
 
         YT_VERIFY(options.MaxRowsPerRead > 0);
-
         std::vector<TVersionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
 
@@ -255,6 +255,7 @@ public:
                     GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
                 }
             }
+
             rows.push_back(row);
             ++rowCount;
             dataWeight += GetDataWeight(row);

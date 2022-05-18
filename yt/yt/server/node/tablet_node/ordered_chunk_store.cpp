@@ -25,6 +25,11 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+
+
+
+#include <yt/yt/client/table_client/name_table.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NYTree;
@@ -250,6 +255,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         chunkReadOptions);
 
     auto chunkState = New<TChunkState>(GetBlockCache());
+    chunkState->TableSchema = readSchema;
 
     auto underlyingReader = CreateSchemafulChunkReader(
         chunkState,

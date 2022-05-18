@@ -953,6 +953,7 @@ message TRspCreateObject
 message TColumnSchema
 {
     required string name = 1;
+    optional string stable_name = 12;
 
     optional int32 type = 2;
     optional int32 logical_type = 3;
