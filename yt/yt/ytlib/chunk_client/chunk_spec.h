@@ -19,11 +19,13 @@ namespace NYT::NChunkClient {
 
 bool IsUnavailable(
     const NProto::TChunkSpec& chunkSpec,
-    bool checkParityParts = false);
+    EChunkAvailabilityPolicy policy);
 bool IsUnavailable(
     const TChunkReplicaList& replicas,
     NErasure::ECodec codecId,
-    bool checkParityParts = false);
+    EChunkAvailabilityPolicy policy);
+
+////////////////////////////////////////////////////////////////////////////////
 
 i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs);
 

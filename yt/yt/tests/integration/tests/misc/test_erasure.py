@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, exists, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
-    sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
+    sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table, sync_control_chunk_replicator,
     get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
 
 from yt_driver_bindings import BufferedStream
@@ -534,6 +534,47 @@ class TestErasure(TestErasureBase):
         wait(lambda: get("#" + chunk_id + "/@part_loss_time") == None) # noqa
 
         assert not exists("//sys/oldest_part_missing_chunks/" + chunk_id)
+
+    @authors("gritukan")
+    def test_chunk_availability_policy(self):
+        create("table", "//tmp/t_out")
+        replicas, content = self._prepare_table("isa_lrc_12_2_2")
+        chunk_id = get_singular_chunk_id("//tmp/table")
+
+        def _test(policy, banned_replicas, should_repair):
+            set_banned_flag(True, banned_replicas)
+
+            def _check_refresh():
+                return chunk_id in get("//sys/data_missing_chunks") or chunk_id in get("//sys/parity_missing_chunks")
+            wait(_check_refresh)
+
+            op = map(
+                in_="//tmp/table",
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "chunk_availability_policy": policy,
+                },
+                track=False,
+            )
+
+            if should_repair:
+                op.track()
+                set_banned_flag(False, banned_replicas)
+            else:
+                op.ensure_running()
+                wait(lambda: get("{}/controller_orchid/unavailable_input_chunks".format(op.get_path())) == [chunk_id])
+                set_banned_flag(False, banned_replicas)
+                op.track()
+
+            assert read_table("//tmp/t_out") == content
+
+        _test("data_parts_available", replicas[:1], False)
+        _test("data_parts_available", replicas[13:], True)
+        _test("all_parts_available", replicas[:1], False)
+        _test("all_parts_available", replicas[13:], False)
+        _test("repairable", replicas[:5], False)
+        _test("repairable", replicas[:3], True)
 
 ##################################################################
 

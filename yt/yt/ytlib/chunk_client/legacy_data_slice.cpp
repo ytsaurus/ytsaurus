@@ -576,10 +576,12 @@ void SetLimitsFromShortenedBoundaryKeys(
     }
 }
 
-std::optional<TChunkId> IsUnavailable(const TLegacyDataSlicePtr& dataSlice, bool checkParityParts)
+std::optional<TChunkId> IsUnavailable(
+    const TLegacyDataSlicePtr& dataSlice,
+    EChunkAvailabilityPolicy policy)
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-        if (IsUnavailable(chunkSlice->GetInputChunk(), checkParityParts)) {
+        if (IsUnavailable(chunkSlice->GetInputChunk(), policy)) {
             return chunkSlice->GetInputChunk()->GetChunkId();
         }
     }

@@ -121,7 +121,10 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
+void CheckUnavailableChunks(
+    EUnavailableChunkStrategy strategy,
+    NChunkClient::EChunkAvailabilityPolicy policy,
+    std::vector<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,7 +41,9 @@ struct TFetchSingleTableReadSpecOptions
     NChunkClient::TGetUserObjectBasicAttributesOptions GetUserObjectBasicAttributesOptions;
     NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig = New<NChunkClient::TFetchChunkSpecConfig>();
     bool FetchParityReplicas = true;
-    EUnavailableChunkStrategy UnavailableChunkStrategy = NTableClient::EUnavailableChunkStrategy::ThrowError;
+    EUnavailableChunkStrategy UnavailableChunkStrategy = EUnavailableChunkStrategy::ThrowError;
+    NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy = NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable;
+
     bool FetchFromTablets = false;
 };
 

@@ -447,35 +447,32 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChunkSpec>* chunkSpecs)
+void CheckUnavailableChunks(
+    EUnavailableChunkStrategy strategy,
+    EChunkAvailabilityPolicy policy,
+    std::vector<TChunkSpec>* chunkSpecs)
 {
     std::vector<TChunkSpec> availableChunkSpecs;
 
+    if (strategy == EUnavailableChunkStrategy::ThrowError) {
+        policy = EChunkAvailabilityPolicy::DataPartsAvailable;
+    }
+
     for (auto& chunkSpec : *chunkSpecs) {
-        if (!IsUnavailable(chunkSpec)) {
+        if (!IsUnavailable(chunkSpec, policy)) {
             availableChunkSpecs.push_back(std::move(chunkSpec));
             continue;
         }
 
-        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto throwUnavailable = [&] {
-            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable,
-                "Chunk %v is unavailable",
-                chunkId);
-        };
-
         switch (strategy) {
             case EUnavailableChunkStrategy::ThrowError:
-                throwUnavailable();
+            case EUnavailableChunkStrategy::Restore: {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ChunkUnavailable,
+                    "Chunk %v is unavailable",
+                    chunkId);
                 break;
-
-            case EUnavailableChunkStrategy::Restore:
-                if (IsErasureChunkId(chunkId)) {
-                    availableChunkSpecs.push_back(std::move(chunkSpec));
-                } else {
-                    throwUnavailable();
-                }
-                break;
+            }
 
             case EUnavailableChunkStrategy::Skip:
                 // Just skip this chunk.

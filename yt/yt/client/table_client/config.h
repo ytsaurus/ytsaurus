@@ -120,6 +120,7 @@ public:
     bool SuppressAccessTracking;
     bool SuppressExpirationTimeoutRenewal;
     EUnavailableChunkStrategy UnavailableChunkStrategy;
+    NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
     std::optional<TDuration> MaxReadDuration;
 
     NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr DynamicStoreReader;

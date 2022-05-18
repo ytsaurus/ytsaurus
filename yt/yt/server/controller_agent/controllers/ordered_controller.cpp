@@ -1374,9 +1374,14 @@ private:
         }
     }
 
-    bool CheckParityReplicas() const override
+    EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override
     {
-        return true;
+        // If repair in remote copy is disabled, all parts are required.
+        if (Spec_->RepairErasureChunks) {
+            return EChunkAvailabilityPolicy::AllPartsAvailable;
+        }
+
+        return Spec_->ChunkAvailabilityPolicy;
     }
 
     EJobType GetJobType() const override

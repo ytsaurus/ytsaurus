@@ -173,7 +173,10 @@ void SetLimitsFromShortenedBoundaryKeys(
     int prefixLength,
     const NTableClient::TRowBufferPtr& rowBuffer);
 
-std::optional<TChunkId> IsUnavailable(const TLegacyDataSlicePtr& dataSlice, bool checkParityParts);
+std::optional<TChunkId> IsUnavailable(
+    const TLegacyDataSlicePtr& dataSlice,
+    EChunkAvailabilityPolicy policy);
+
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2);
 i64 GetCumulativeRowCount(const std::vector<TLegacyDataSlicePtr>& dataSlices);
 i64 GetCumulativeDataWeight(const std::vector<TLegacyDataSlicePtr>& dataSlices);
