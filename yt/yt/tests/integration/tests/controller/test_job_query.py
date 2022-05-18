@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, find_ut_file
 
 from yt_commands import (
-    authors, create, create_table, get, read_table, write_table, write_local_file, map,
+    authors, create, create_table, get, read_table, write_table, alter_table, write_local_file, map,
     assert_statistics, raises_yt_error)
 
 from yt_type_helpers import (
@@ -9,6 +9,8 @@ from yt_type_helpers import (
 )
 
 import yt_error_codes
+
+from yt_helpers import skip_if_renaming_disabled
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -392,3 +394,96 @@ class TestJobQuery(YTEnvSetup):
         map(in_="//tmp/in", out="//tmp/out", command="cat", spec={"input_query": "a"})
 
         assert read_table("//tmp/out") == [{"a": [1, 2, 3]}]
+
+    @authors("levysotsky")
+    def test_query_renamed_schema(self):
+        skip_if_renaming_disabled(self.Env)
+
+        input_table = "//tmp/t_in"
+        input_table_with_append = "<append=%true>" + input_table
+        output_table = "//tmp/t_out"
+
+        schema1 = make_schema([
+            make_column("a", "int64"),
+            make_column("b", "string"),
+            make_column("c", "bool"),
+        ])
+
+        schema2 = make_schema([
+            make_column("a", "int64"),
+            make_column("c_renamed", "bool", stable_name="c"),
+            make_column("b_renamed", "string", stable_name="b"),
+        ])
+
+        create(
+            "table",
+            input_table,
+            attributes={
+                "schema": schema1,
+                "optimize_for": "scan",
+            },
+        )
+        create("table", output_table)
+
+        def _make_rows(inds, renamed=False):
+            b_name, c_name = ("b_renamed", "c_renamed") if renamed else ("b", "c")
+            return [
+                {"a": i, b_name: "foo_{}".format(i), c_name: bool(i % 2)}
+                for i in inds
+            ]
+
+        write_table(input_table, _make_rows(range(10)))
+
+        alter_table(input_table, schema=schema2)
+
+        write_table(input_table_with_append, _make_rows(range(10, 20), renamed=True))
+
+        alter_table(input_table, schema=schema1)
+
+        write_table(input_table_with_append, _make_rows(range(20, 30)))
+
+        def _test(query, expected_rows):
+            map(
+                in_=input_table,
+                out=output_table,
+                command="cat",
+                spec={
+                    "input_query": query,
+                    "max_failed_job_count": 1,
+                },
+            )
+            assert_items_equal(read_table(output_table), expected_rows)
+
+        _test(
+            'a where b in ("foo_9", "foo_12", "foo_23")',
+            [{"a": 9}, {"a": 12}, {"a": 23}],
+        )
+
+        _test(
+            "b where c",
+            [{"b": "foo_{}".format(i)} for i in range(30) if i % 2 == 1],
+        )
+
+        with pytest.raises(YtError):
+            _test(
+                'a where b_renamed in ("foo_9", "foo_12", "foo_23")',
+                [{"a": 9}, {"a": 12}, {"a": 23}],
+            )
+
+        alter_table(input_table, schema=schema2)
+
+        _test(
+            'a where b_renamed in ("foo_9", "foo_12", "foo_23")',
+            [{"a": 9}, {"a": 12}, {"a": 23}],
+        )
+
+        _test(
+            "b_renamed where c_renamed",
+            [{"b_renamed": "foo_{}".format(i)} for i in range(30) if i % 2 == 1],
+        )
+
+        with pytest.raises(YtError):
+            _test(
+                'a where b in ("foo_9", "foo_12", "foo_23")',
+                [{"a": 9}, {"a": 12}, {"a": 23}],
+            )

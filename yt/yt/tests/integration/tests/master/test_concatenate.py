@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, set, remove, concatenate, start_transaction, abort_transaction,
     commit_transaction, lock,
-    read_table, write_table, merge, sort, get_singular_chunk_id, raises_yt_error)
+    read_table, write_table, alter_table,
+    merge, sort, get_singular_chunk_id, raises_yt_error)
 
 from yt_type_helpers import make_schema, normalize_schema, list_type
 
@@ -744,6 +745,46 @@ class TestConcatenate(YTEnvSetup):
         concatenate(['<transaction_id="{}">//tmp/in'.format(custom_tx)], "//tmp/out")
 
         assert read_table("//tmp/out") == [{"foo": "bar"}]
+
+    @authors("levysotsky")
+    def test_concatenate_renamed_columns(self):
+        schema1 = make_schema([{"name": "a", "type": "int64"}])
+        schema2 = make_schema([{"name": "a_new", "stable_name": "a", "type": "int64"}])
+
+        create("table", "//tmp/t1", attributes={"schema": schema1})
+        write_table("//tmp/t1", {"a": 1})
+
+        alter_table("//tmp/t1", schema=schema2)
+
+        write_table("<append=%true>//tmp/t1", {"a_new": 2})
+
+        create("table", "//tmp/t2", attributes={"schema": schema2})
+
+        write_table("//tmp/t2", {"a_new": 3})
+
+        create("table", "//tmp/union")
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+        assert read_table("//tmp/union") == [{"a_new": 1}, {"a_new": 2}, {"a_new": 3}]
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
+        assert read_table("//tmp/union") == [{"a_new": 1}, {"a_new": 2}, {"a_new": 3}] * 2
+
+        schema3 = make_schema([{"name": "a_new", "type": "int64"}])
+        create("table", "//tmp/t3", attributes={"schema": schema3})
+        write_table("//tmp/t3", {"a_new": 3})
+
+        # Mismatched stable names.
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            concatenate(["//tmp/t1", "//tmp/t3"], "//tmp/union")
+
+        schema4 = make_schema([{"name": "a", "type": "int64"}])
+        create("table", "//tmp/t4", attributes={"schema": schema4})
+        write_table("//tmp/t4", {"a": 3})
+
+        # Mismatched names.
+        with raises_yt_error(yt_error_codes.IncompatibleSchemas):
+            concatenate(["//tmp/t1", "//tmp/t4"], "//tmp/union")
 
 
 ##################################################################

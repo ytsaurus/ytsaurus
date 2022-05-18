@@ -1,17 +1,17 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    alter_table, authors, wait, create, ls, get, set, copy,
+    authors, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
     get_singular_chunk_id, get_chunk_replication_factor,
-    create_dynamic_table, get_driver)
+    create_dynamic_table, get_driver, alter_table)
 
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type)
 
-from yt_helpers import skip_if_no_descending
+from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -201,6 +201,96 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"a": 2},
             {"a": 3},
             {"a": 4},
+        ]
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_rename_columns_alter_table(self, merge_mode, sort_order):
+        skip_if_renaming_disabled(self.Env)
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+        if sort_order == "descending" and merge_mode != "sorted":
+            pytest.skip("Descending sort order is interesting only with sorted merge")
+
+        order_slice = slice(None) if sort_order == "ascending" else slice(None, None, -1)
+
+        table1 = "//tmp/t1"
+        table2 = "//tmp/t2"
+        output = "//tmp/tout"
+
+        schema1_original = [{"name": "a", "type": "int64", "sort_order": sort_order}]
+        schema1_new = [{"name": "a_new", "stable_name": "a", "type": "int64", "sort_order": sort_order}]
+        create("table", table1, attributes={"schema": schema1_original})
+
+        schema2 = [{"name": "a2", "type": "int64", "sort_order": sort_order}]
+        create("table", table2, attributes={"schema": schema2})
+
+        def rename(rows, schema):
+            result = []
+            for row in rows:
+                renamed_row = {}
+                for column in schema:
+                    name = column["name"]
+                    stable_name = column.get("stable_name", name)
+                    if stable_name in row:
+                        renamed_row[name] = row[stable_name]
+                result.append(renamed_row)
+            return result
+
+        rows1 = [{"a": 1}, {"a": 2}][order_slice]
+
+        write_table(table1, rows1[:1])
+        alter_table(table1, schema=schema1_new)
+        write_table("<append=%true>" + table1, rename(rows1[1:], schema1_new))
+
+        rows = [{"a2": 3}, {"a2": 4}][order_slice]
+        write_table(table2, rows)
+
+        create("table", output)
+        merge(
+            mode=merge_mode,
+            in_=["<rename_columns={a_new=a3}>" + table1, "<rename_columns={a2=a3}>" + table2],
+            out=output,
+        )
+
+        assert sorted(read_table(output), key=lambda r: r["a3"]) == [
+            {"a3": 1},
+            {"a3": 2},
+            {"a3": 3},
+            {"a3": 4},
+        ]
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_rename_columns_stable_names(self, merge_mode):
+        table1 = "//tmp/t1"
+        table2 = "//tmp/t2"
+        output = "//tmp/tout"
+
+        sort_order = "ascending"
+
+        schema1_original = [{"name": "a1", "stable_name": "a2", "type": "int64", "sort_order": sort_order}]
+        create("table", table1, attributes={"schema": schema1_original})
+        write_table(table1, [{"a1": 1}, {"a1": 2}])
+
+        schema2 = [{"name": "b1", "stable_name": "b2", "type": "int64", "sort_order": sort_order}]
+        create("table", table2, attributes={"schema": schema2})
+        write_table(table2, [{"b1": 3}, {"b1": 4}])
+
+        create("table", output)
+        merge(
+            mode=merge_mode,
+            in_=["<rename_columns={a1=c}>" + table1, "<rename_columns={b1=c}>" + table2],
+            out=output,
+        )
+
+        assert sorted(read_table(output), key=lambda r: r["c"]) == [
+            {"c": 1},
+            {"c": 2},
+            {"c": 3},
+            {"c": 4},
         ]
 
     @authors("panin", "ignat")

@@ -100,10 +100,34 @@ TLockMask MaxMask(TLockMask lhs, TLockMask rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//
+// Strong typedef to avoid mixing stable names and names.
+class TStableName
+{
+public:
+    explicit TStableName(TString stableName = "");
+    const TString& Get() const;
+
+private:
+    TString Name_;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TStableName& stableName, TStringBuf spec);
+
+bool operator == (const TStableName& lhs, const TStableName& rhs);
+bool operator != (const TStableName& lhs, const TStableName& rhs);
+bool operator < (const TStableName& lhs, const TStableName& rhs);
+
+void ToProto(TString* protoStableName, const TStableName& stableName);
+void FromProto(TStableName* stableName, const TString& protoStableName);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TColumnSchema
 {
 public:
     // Keep in sync with hasher below.
+    DEFINE_BYREF_RO_PROPERTY(TStableName, StableName);
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
     DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
@@ -136,6 +160,7 @@ public:
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
+    TColumnSchema& SetStableName(TStableName stableName);
     TColumnSchema& SetName(TString name);
     TColumnSchema& SetLogicalType(TLogicalTypePtr valueType);
     TColumnSchema& SetSortOrder(std::optional<ESortOrder> value);
@@ -146,7 +171,6 @@ public:
     TColumnSchema& SetRequired(bool value);
     TColumnSchema& SetMaxInlineHunkSize(std::optional<i64> value);
 
-    //! Get EValueType that values satisifying this schema usually have.
     EValueType GetWireType() const;
 
     i64 GetMemoryUsage() const;
@@ -158,6 +182,9 @@ public:
     bool IsOfV1Type(ESimpleLogicalValueType type) const;
 
     ESimpleLogicalValueType CastToV1Type() const;
+
+    bool IsRenamed() const;
+    TString GetDiagnosticNameString() const;
 
 private:
     ESimpleLogicalValueType V1Type_;
@@ -180,6 +207,17 @@ void PrintTo(const TColumnSchema& columnSchema, std::ostream* os);
 class TTableSchema final
 {
 public:
+    class TNameMapping {
+    public:
+        TNameMapping(const TTableSchema& schema);
+        TString StableNameToName(const TStableName& stableName) const;
+        TStableName NameToStableName(TStringBuf name) const;
+
+    private:
+        const TTableSchema& Schema_;
+    };
+
+public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict, false);
@@ -197,22 +235,28 @@ public:
         bool uniqueKeys = false,
         ETableSchemaModification schemaModification = ETableSchemaModification::None);
 
+    const TColumnSchema* FindColumnByStableName(const TStableName& stableName) const;
+
+    int GetColumnIndex(const TColumnSchema& column) const;
+
+    int GetColumnIndex(TStringBuf name) const;
+    int GetColumnIndexOrThrow(TStringBuf name) const;
+
+    TNameMapping GetNameMapping() const;
+
     const TColumnSchema* FindColumn(TStringBuf name) const;
     const TColumnSchema& GetColumn(TStringBuf name) const;
     const TColumnSchema& GetColumnOrThrow(TStringBuf name) const;
-
-    int GetColumnIndex(const TColumnSchema& column) const;
-    int GetColumnIndex(TStringBuf name) const;
-    int GetColumnIndexOrThrow(TStringBuf name) const;
+    std::vector<TString> GetColumnNames() const;
 
     TTableSchemaPtr Filter(
         const TColumnFilter& columnFilter,
         bool discardSortOrder = false) const;
     TTableSchemaPtr Filter(
-        const THashSet<TString>& columns,
+        const THashSet<TString>& columnNames,
         bool discardSortOrder = false) const;
     TTableSchemaPtr Filter(
-        const std::optional<std::vector<TString>>& columns,
+        const std::optional<std::vector<TString>>& columnNames,
         bool discardSortOrder = false) const;
 
     bool HasComputedColumns() const;
@@ -221,15 +265,19 @@ public:
     bool HasTimestampColumn() const;
     bool IsSorted() const;
     bool IsUniqueKeys() const;
+    bool HasRenamedColumns() const;
 
+    std::vector<TStableName> GetKeyColumnStableNames() const;
+    TKeyColumns GetKeyColumnNames() const;
     TKeyColumns GetKeyColumns() const;
+
     int GetColumnCount() const;
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
-    std::vector<TString> GetColumnNames() const;
+    std::vector<TStableName> GetColumnStableNames() const;
     const THunkColumnIds& GetHunkColumnIds() const;
 
-    TSortColumns GetSortColumns() const;
+    TSortColumns GetSortColumns(const std::optional<TNameMapping>& nameMapping = std::nullopt) const;
 
     bool HasNontrivialSchemaModification() const;
 
@@ -285,10 +333,12 @@ public:
     //! Returns the schema with UniqueKeys set to |true|.
     TTableSchemaPtr ToUniqueKeys() const;
 
-    //! Returns the schema with all column attributes unset expect Name, Type and Required.
+    //! Returns the schema with all column attributes unset except
+    //! StableName, Name, Type and Required.
     TTableSchemaPtr ToStrippedColumnAttributes() const;
 
-    //! Returns the schema with all column attributes unset expect Name, Type, Required and SortOrder.
+    //! Returns the schema with all column attributes unset except
+    //! StableName, Name, Type, Required and SortOrder.
     TTableSchemaPtr ToSortedStrippedColumnAttributes() const;
 
     //! Returns (possibly reordered) schema sorted by column names.
@@ -325,6 +375,11 @@ private:
     bool HasComputedColumns_ = false;
     bool HasAggregateColumns_ = false;
     THunkColumnIds HunkColumnsIds_;
+
+    // NB: Strings are owned by TColumnSchema, they are immutable
+    // inside TTableSchema.
+    THashMap<TStringBuf, int> StableNameToColumnIndex_;
+    THashMap<TStringBuf, int> NameToColumnIndex_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchema);
@@ -382,6 +437,15 @@ bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rh
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr TStringBuf NonexistentColumnName = "$__YT_NONEXISTENT_COLUMN_NAME__";
+
+std::vector<TStableName> MapNamesToStableNames(
+    const TTableSchema& schema,
+    std::vector<TString> names,
+    const std::optional<TStringBuf>& missingColumnReplacement = std::nullopt);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 
 void ValidateColumnSchema(
@@ -396,6 +460,8 @@ void ValidateTableSchema(
     bool allowUnversionedUpdateColumns = false);
 
 void ValidateNoDescendingSortOrder(const TTableSchema& schema);
+
+void ValidateNoRenamedColumns(const TTableSchema& schema);
 
 void ValidateColumnUniqueness(const TTableSchema& schema);
 
@@ -454,6 +520,12 @@ struct TTableSchemaEquals
 } // namespace NYT::NTableClient
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct THash<NYT::NTableClient::TStableName>
+{
+    size_t operator()(const NYT::NTableClient::TStableName& stableName) const;
+};
 
 template <>
 struct THash<NYT::NTableClient::TColumnSchema>

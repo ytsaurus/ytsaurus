@@ -1026,6 +1026,9 @@ public:
 
     bool EnableColumnarStatisticsEarlyFinish;
 
+    //COMPAT(levysotsky): See YT-16507
+    bool EnableTableColumnRenaming;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 
     static void Register(TRegistrar registrar);
