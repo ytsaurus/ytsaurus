@@ -3515,6 +3515,34 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("ASCII"):
             set("//sys/@cluster_name", "кириллица")
 
+    @authors("h0pless")
+    def test_error_on_transaction_abort(self):
+        set("//tmp/node", 42)
+
+        tx = start_transaction()
+        lock("//tmp/node", mode="snapshot", tx=tx)
+        object_id = get("//tmp/node/@id")
+
+        remove("//tmp/node")
+
+        # Can't access node by path
+        with pytest.raises(YtError, match="Node //tmp has no child with key \"node\""):
+            get("//tmp/node")
+
+        # But it's possible using object_id
+        assert get("#{}".format(object_id)) == 42
+        assert get("#{}".format(object_id), tx=tx) == 42
+
+        abort_transaction(tx)
+
+        # Check that we always receive correct errors
+        with pytest.raises(YtError, match="No such transaction"):
+            get("//tmp/node", tx=tx) == 42
+        with pytest.raises(YtError, match="No such object"):
+            get("#{}".format(object_id))
+        with pytest.raises(YtError, match="No such transaction"):
+            get("#{}".format(object_id), tx=tx)
+
 
 ##################################################################
 

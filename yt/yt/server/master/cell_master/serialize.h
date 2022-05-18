@@ -146,6 +146,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaTransaction)                                           (2011))  // gritukan
     ((Aevum)                                                        (2012))  // gritukan
     ((DedicatedChunkHost)                                           (2013))  // h0pless
+    ((ChangedExceptionTypeInResolve)                                (2014))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////
