@@ -1,4 +1,4 @@
-from yt_yson_bindings import SkiffSchema, load_skiff, dump_skiff, SkiffTableSwitch
+from yt_yson_bindings import SkiffSchema, load_skiff, dump_skiff, SkiffTableSwitch, SkiffOtherColumns, loads, dumps
 
 import copy
 import pytest
@@ -346,3 +346,16 @@ class TestSkiff(object):
             assert next(iter)["x"] == i
             with pytest.raises(StopIteration):
                 next(iter)
+
+
+def test_skiff_other_columns():
+    other_columns = SkiffOtherColumns({"key": 10})
+    assert other_columns["key"] == 10
+    other_columns["key"] = 20
+    assert other_columns["key"] == 20
+    assert len(other_columns) == 1
+    assert loads(dumps(other_columns)) == {"key": 20}
+
+    copied_other_columns = copy.deepcopy(other_columns)
+    assert copied_other_columns["key"] == 20
+    assert len(copied_other_columns) == 1

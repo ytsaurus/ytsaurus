@@ -3,6 +3,8 @@
 #include "helpers.h"
 #include "error.h"
 
+#include "skiff/converter_common.h"
+
 #include <yt/yt/core/misc/finally.h>
 
 #include <util/system/sanitizers.h>
@@ -327,6 +329,9 @@ void Serialize(
         SerializePythonInteger(obj, consumer, context);
     } else if (YsonStringProxyClass && Py_TYPE(obj.ptr()) == reinterpret_cast<PyTypeObject*>(YsonStringProxyClass)) {
         consumer->OnStringScalar(ConvertToStringBuf(obj.getAttr("_bytes")));
+    } else if (Py_TYPE(obj.ptr()) == NPython::TSkiffOtherColumns::type_object()) {
+        Py::PythonClassObject<NPython::TSkiffOtherColumns> skiffOtherColumns(obj);
+        consumer->OnRaw(skiffOtherColumns.getCxxObject()->GetYsonString());
     } else if (obj.isMapping() && obj.hasAttr("items") || IsYsonLazyMap(obj.ptr())) {
         bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
         if (allowBeginEnd) {

@@ -15,6 +15,7 @@
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
 
+
 namespace NYT::NPython {
 
 using namespace NSkiff;
@@ -62,8 +63,12 @@ TString GetRowClassName(Py::Object pySchema)
 TSkiffOtherColumns::TSkiffOtherColumns(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : PythonClass(self, args, kwargs)
 {
-    if (args.size() != 1) {
+    if (args.size() > 1) {
         throw Py::TypeError("TSkiffOtherColumns.__init__ takes exactly 1 argument");
+    }
+    if (args.size() == 0) {
+        // Object is in uninitialized state.
+        return;
     }
     auto arg = args.getItem(0);
     arg.increment_reference_count();
@@ -101,6 +106,12 @@ Py::Object TSkiffOtherColumns::repr()
     return Map_->str();
 }
 
+Py::Object TSkiffOtherColumns::DeepCopy(const Py::Tuple& /*args*/)
+{
+    Py::Callable classType(TSkiffOtherColumns::type());
+    return classType.apply(Py::TupleN(Py::ConvertToPythonString(GetYsonString().AsStringBuf())), Py::Dict());
+}
+
 TStringBuf TSkiffOtherColumns::GetUnparsedBytes() const
 {
     char* buffer;
@@ -112,14 +123,16 @@ TStringBuf TSkiffOtherColumns::GetUnparsedBytes() const
     return TStringBuf(buffer, size);
 }
 
-TStringBuf TSkiffOtherColumns::GetYsonString()
+TYsonStringBuf TSkiffOtherColumns::GetYsonString()
 {
     if (UnparsedBytesObj_) {
-        return GetUnparsedBytes();
+        return TYsonString(GetUnparsedBytes(), EYsonType::Node);
     }
-    Y_VERIFY(Map_);
+    if (!Map_) {
+        throw Py::RuntimeError("TSkiffOtherColumns is unitilialized, GetYsonString should not be called");
+    }
     CachedYsonString_ = ConvertToYsonString(Py::Object(*Map_));
-    return CachedYsonString_.AsStringBuf();
+    return CachedYsonString_;
 }
 
 void TSkiffOtherColumns::InitType()
@@ -135,6 +148,8 @@ void TSkiffOtherColumns::InitType()
     behaviors().supportRepr();
     behaviors().supportCompare();
 
+    PYCXX_ADD_VARARGS_METHOD(__deepcopy__, DeepCopy, "Deepcopy");
+
     behaviors().readyType();
 }
 
@@ -143,6 +158,11 @@ void TSkiffOtherColumns::MaybeMaterializeMap()
     if (Map_) {
         return;
     }
+    if (!UnparsedBytesObj_) {
+        Map_ = Py::Dict();
+        return;
+    }
+    
     TMemoryInput input(GetUnparsedBytes());
     try {
         TYsonPullParser parser(&input, EYsonType::Node);

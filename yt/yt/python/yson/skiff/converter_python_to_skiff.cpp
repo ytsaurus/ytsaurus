@@ -366,7 +366,7 @@ public:
                 writer->WriteYson32(EmptyMapYson);
             } else {
                 Py::PythonClassObject<TSkiffOtherColumns> otherColumns(field.get());
-                writer->WriteYson32(otherColumns.getCxxObject()->GetYsonString());
+                writer->WriteYson32(otherColumns.getCxxObject()->GetYsonString().AsStringBuf());
             }
         }
     }
