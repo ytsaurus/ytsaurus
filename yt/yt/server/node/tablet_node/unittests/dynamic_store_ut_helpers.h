@@ -58,17 +58,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TVersionedOwningRow BuildVersionedRow(
-    const TString& keyYson,
-    const TString& valueYson,
-    const std::vector<TTimestamp>& deleteTimestamps = std::vector<TTimestamp>(),
-    const std::vector<TTimestamp>& extraWriteTimestamps = std::vector<TTimestamp>())
-{
-    return NTableClient::YsonToVersionedRow(keyYson, valueYson, deleteTimestamps, extraWriteTimestamps);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameTablePtr& nameTable)
 {
     if (!row && !yson) {
@@ -139,7 +128,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicStoreTestBase
+class TTabletTestBase
     : public ::testing::Test
 {
 public:
@@ -151,7 +140,7 @@ public:
 
     void SetUp() override
     {
-        BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
+        BIND(&TTabletTestBase::DoSetUp, Unretained(this))
             .AsyncVia(TestQueue_->GetInvoker())
             .Run()
             .Get();
@@ -180,9 +169,9 @@ public:
 
         Tablet_ = std::make_unique<TTablet>(
             NullTabletId,
-            TTableSettings::CreateNew(),
-            0,
-            NullObjectId,
+            TableSettings_,
+            /*mountRevision*/ 0,
+            /*tableId*/ NullObjectId,
             "ut",
             &TabletContext_,
             /*schemaId*/ NullObjectId,
@@ -366,6 +355,7 @@ public:
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
     TTabletContextMock TabletContext_;
+    TTableSettings TableSettings_ = TTableSettings::CreateNew();
 
     const NConcurrency::TActionQueuePtr TestQueue_ = New<NConcurrency::TActionQueue>("Test");
 };
@@ -381,9 +371,23 @@ protected:
 
     void SetupTablet() override
     {
+        std::vector<const NTabletNode::NProto::TAddStoreDescriptor*> addStoreDescriptors;
+        for (const auto& descriptor : AddStoreDescriptors_) {
+            addStoreDescriptors.push_back(&descriptor);
+        }
+
+        NProto::TMountHint mountHint;
+        ToProto(mountHint.mutable_eden_store_ids(), EdenStoreIds_);
+
         auto storeManager = GetStoreManager();
         storeManager->StartEpoch(nullptr);
-        storeManager->Mount({}, {}, true, NProto::TMountHint{});
+        storeManager->Mount(
+            addStoreDescriptors,
+            /*hunkChunkDescriptors*/ {},
+            /*createDynamicStore*/ true,
+            mountHint);
+
+        IsMounted_ = true;
     }
 
     void RotateStores()
@@ -392,9 +396,26 @@ protected:
         storeManager->ScheduleRotation(NLsm::EStoreRotationReason::Periodic);
         storeManager->Rotate(true, NLsm::EStoreRotationReason::Periodic);
     }
+
+    void OnNewChunkStore(
+        NTabletNode::NProto::TAddStoreDescriptor descriptor,
+        bool eden)
+    {
+        YT_VERIFY(!IsMounted_);
+
+        if (eden) {
+            EdenStoreIds_.push_back(FromProto<TChunkId>(descriptor.store_id()));
+        }
+        AddStoreDescriptors_.push_back(std::move(descriptor));
+    }
+
+protected:
+    bool IsMounted_ = false;
+
+    std::vector<NTabletNode::NProto::TAddStoreDescriptor> AddStoreDescriptors_;
+    std::vector<TChunkId> EdenStoreIds_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

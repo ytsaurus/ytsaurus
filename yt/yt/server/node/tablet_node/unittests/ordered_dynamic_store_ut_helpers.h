@@ -44,7 +44,7 @@ inline std::vector<TUnversionedOwningRow> ReadRowsImpl(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedDynamicStoreTestBase
-    : public TDynamicStoreTestBase
+    : public TTabletTestBase
 {
 protected:
     void SetupTablet() override

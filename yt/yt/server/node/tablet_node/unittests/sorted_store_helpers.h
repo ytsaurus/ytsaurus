@@ -140,14 +140,16 @@ DEFINE_REFCOUNTED_TYPE(TMockBackendChunkReadersHolder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TUnversionedOwningRow LookupRowImpl(
+inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
     TTablet* tablet,
-    const TLegacyOwningKey& key,
-    TTimestamp timestamp,
+    const std::vector<TUnversionedRow>& keys,
+    const TReadTimestampRange& timestampRange,
     const std::vector<int>& columnIndexes,
     TTabletSnapshotPtr tabletSnapshot,
     TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
 {
+    YT_VERIFY(!keys.empty());
+
     if (!tabletSnapshot) {
         tabletSnapshot = tablet->BuildSnapshot(nullptr);
     }
@@ -158,7 +160,6 @@ inline TUnversionedOwningRow LookupRowImpl(
         if (!columnIndexes.empty()) {
             ToProto(req.mutable_column_filter()->mutable_indexes(), columnIndexes);
         }
-        std::vector<TUnversionedRow> keys(1, key);
 
         auto writer = CreateWireProtocolWriter();
         writer->WriteMessage(req);
@@ -174,10 +175,8 @@ inline TUnversionedOwningRow LookupRowImpl(
         auto writer = CreateWireProtocolWriter();
         LookupRows(
             tabletSnapshot,
-            TReadTimestampRange{
-                .Timestamp = timestamp,
-            },
-            false,
+            timestampRange,
+            /*useLookupCache*/ false,
             chunkReadOptions,
             reader.get(),
             writer.get());
@@ -188,8 +187,11 @@ inline TUnversionedOwningRow LookupRowImpl(
     {
         auto reader = CreateWireProtocolReader(response);
         auto schemaData = IWireProtocolReader::GetSchemaData(*tablet->GetPhysicalSchema(), TColumnFilter());
-        auto row = reader->ReadSchemafulRow(schemaData, false);
-        return TUnversionedOwningRow(row);
+        std::vector<TUnversionedOwningRow> rows;
+        for (int i = 0; i < std::ssize(keys); ++i) {
+            rows.emplace_back(reader->ReadSchemafulRow(schemaData, false));
+        }
+        return rows;
     }
 }
 

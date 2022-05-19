@@ -13,12 +13,12 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSingleLockSortedDynamicStoreTest
-    : public TSortedDynamicStoreTestBase
+    : public TSortedStoreTestBase
 {
 protected:
     void SetUp() override
     {
-        TSortedDynamicStoreTestBase::SetUp();
+        TSortedStoreTestBase::SetUp();
         CreateDynamicStore();
     }
 
@@ -221,7 +221,7 @@ protected:
 
     TUnversionedOwningRow LookupRow(const TLegacyOwningKey& key, TTimestamp timestamp)
     {
-        return TSortedDynamicStoreTestBase::LookupRow(Store_, key, timestamp);
+        return TSortedStoreTestBase::LookupRow(Store_, key, timestamp);
     }
 
     TSortedDynamicRowWithLock LookupDynamicRow(const TLegacyOwningKey& key)

@@ -183,6 +183,9 @@ TVersionedRow YsonToVersionedRow(
             case ENodeType::String:
                 builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), id));
                 break;
+            case ENodeType::Entity:
+                builder.AddKey(MakeUnversionedSentinelValue(EValueType::Null, id));
+                break;
             default:
                 YT_ABORT();
                 break;
