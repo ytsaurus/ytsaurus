@@ -401,7 +401,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr> CollectTa
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
             }
             req->set_fetch_all_meta_extensions(false);
-            SetTransactionId(req, transactionId);
+            SetTransactionId(req, userObject.ExternalTransactionId);
         },
         Logger);
 

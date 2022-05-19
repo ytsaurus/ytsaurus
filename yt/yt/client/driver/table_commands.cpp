@@ -342,7 +342,10 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         if (Paths[index].GetColumns()) {
             continue;
         }
-        asyncSchemaYsons.push_back(context->GetClient()->GetNode(Paths[index].GetPath() + "/@schema"));
+        TGetNodeOptions options;
+        static_cast<TTransactionalOptions&>(options) = Options;
+        static_cast<TTimeoutOptions&>(options) = Options;
+        asyncSchemaYsons.push_back(context->GetClient()->GetNode(Paths[index].GetPath() + "/@schema", options));
     }
 
     if (!asyncSchemaYsons.empty()) {
@@ -1295,7 +1298,7 @@ TGetTabletErrorsCommand::TGetTabletErrorsCommand()
 void TGetTabletErrorsCommand::DoExecute(ICommandContextPtr context)
 {
     auto client = context->GetClient();
-    auto asyncErrors = client->GetTabletErrors(Path, Options);   
+    auto asyncErrors = client->GetTabletErrors(Path, Options);
     auto errors = WaitFor(asyncErrors)
         .ValueOrThrow();
 
