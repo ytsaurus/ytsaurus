@@ -57,7 +57,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     TCypressNode::Save(context);
 
     using NYT::Save;
-    Save(context, ChunkList_);
+    Save(context, ChunkLists_);
     Save(context, UpdateMode_);
     Save(context, Replication_);
     Save(context, PrimaryMediumIndex_);
@@ -79,7 +79,14 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     TCypressNode::Load(context);
 
     using NYT::Load;
-    Load(context, ChunkList_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::ChunkListType) {
+        Load(context, ChunkLists_);
+    } else {
+        Load(context, ChunkLists_[EChunkListContentType::Main]);
+    }
+
     Load(context, UpdateMode_);
     Load(context, Replication_);
     Load(context, PrimaryMediumIndex_);
@@ -109,17 +116,61 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
 
 TChunkList* TChunkOwnerBase::GetChunkList() const
 {
-    return ChunkList_.Get();
+    return GetChunkList(EChunkListContentType::Main);
 }
 
 void TChunkOwnerBase::SetChunkList(TChunkList* chunkList)
 {
-    ChunkList_.Assign(chunkList);
+    SetChunkList(EChunkListContentType::Main, chunkList);
+}
+
+TChunkList* TChunkOwnerBase::GetHunkChunkList() const
+{
+    return GetChunkList(EChunkListContentType::Hunk);
+}
+
+void TChunkOwnerBase::SetHunkChunkList(TChunkList* chunkList)
+{
+    SetChunkList(EChunkListContentType::Hunk, chunkList);
+}
+
+void TChunkOwnerBase::SetChunkList(EChunkListContentType type, TChunkList* chunkList)
+{
+    ChunkLists_[type].Assign(chunkList);
+}
+
+TChunkLists TChunkOwnerBase::GetChunkLists() const
+{
+    TChunkLists chunkLists;
+    for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+        chunkLists[contentType] = GetChunkList(contentType);
+    }
+
+    return chunkLists;
+}
+
+TChunkList* TChunkOwnerBase::GetChunkList(EChunkListContentType type) const
+{
+    return ChunkLists_[type].Get();
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
 {
-    const auto* chunkList = GetChunkList();
+    return GetSnapshotChunkList(EChunkListContentType::Main);
+}
+
+const TChunkList* TChunkOwnerBase::GetSnapshotHunkChunkList() const
+{
+    return GetSnapshotChunkList(EChunkListContentType::Hunk);
+}
+
+const TChunkList* TChunkOwnerBase::GetSnapshotChunkList(EChunkListContentType type) const
+{
+    const auto* chunkList = GetChunkList(type);
+    if (!chunkList) {
+        return nullptr;
+    }
+
     switch (UpdateMode_) {
         case EUpdateMode::None:
         case EUpdateMode::Overwrite:
@@ -142,6 +193,10 @@ const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
 const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
 {
     const auto* chunkList = GetChunkList();
+    if (!chunkList) {
+        return nullptr;
+    }
+
     switch (UpdateMode_) {
         case EUpdateMode::Append:
             if (GetType() == EObjectType::Journal) {
@@ -231,16 +286,27 @@ TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
 {
     YT_VERIFY(!IsExternal());
 
+    TDataStatistics updateStatistics;
     switch (UpdateMode_) {
         case EUpdateMode::Append:
-            return GetDeltaChunkList()->Statistics().ToDataStatistics();
+            if (auto* chunkList = GetDeltaChunkList()) {
+                updateStatistics = chunkList->Statistics().ToDataStatistics();
+            }
+            break;
 
         case EUpdateMode::Overwrite:
-            return GetSnapshotChunkList()->Statistics().ToDataStatistics();
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (auto* chunkList = GetSnapshotChunkList(contentType)) {
+                    updateStatistics += chunkList->Statistics().ToDataStatistics();
+                }
+            }
+            break;
 
         default:
             YT_ABORT();
     }
+
+    return updateStatistics;
 }
 
 bool TChunkOwnerBase::HasDataWeight() const

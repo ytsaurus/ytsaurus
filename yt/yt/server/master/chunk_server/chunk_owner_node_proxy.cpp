@@ -297,12 +297,12 @@ class TChunkOwnerNodeProxy::TFetchChunkVisitor
 public:
     TFetchChunkVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList,
+        TChunkLists chunkLists,
         TCtxFetchPtr rpcContext,
         TFetchContext&& fetchContext,
         TComparator comparator)
         : Bootstrap_(bootstrap)
-        , ChunkList_(chunkList)
+        , ChunkLists_(std::move(chunkLists))
         , RpcContext_(std::move(rpcContext))
         , FetchContext_(std::move(fetchContext))
         , Comparator_(std::move(comparator))
@@ -330,7 +330,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TChunkList* const ChunkList_;
+    TChunkLists ChunkLists_;
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
     const TComparator Comparator_;
@@ -351,7 +351,7 @@ private:
         TraverseChunkTree(
             std::move(context),
             this,
-            ChunkList_,
+            ChunkLists_,
             FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
             FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
             Comparator_);
@@ -550,6 +550,9 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkListId)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkChunkListId)
+        .SetExternal(isExternal)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkIds)
         .SetExternal(isExternal)
         .SetOpaque(true));
@@ -615,6 +618,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
+    const auto* hunkChunkList = node->GetHunkChunkList();
     auto statistics = node->ComputeTotalStatistics();
     auto isExternal = node->IsExternal();
 
@@ -625,6 +629,14 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             }
             BuildYsonFluently(consumer)
                 .Value(chunkList->GetId());
+            return true;
+
+        case EInternedAttributeKey::HunkChunkListId:
+            if (isExternal) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(GetObjectId(hunkChunkList));
             return true;
 
         case EInternedAttributeKey::ChunkCount:
@@ -759,7 +771,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto* chunkList = node->GetChunkList();
+    auto chunkLists = node->GetChunkLists();
     auto isExternal = node->IsExternal();
 
     switch (key) {
@@ -769,7 +781,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             }
             auto visitor = New<TChunkIdsAttributeVisitor>(
                 Bootstrap_,
-                chunkList);
+                chunkLists);
             return visitor->Run();
         }
 
@@ -779,7 +791,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             }
             return ComputeChunkStatistics(
                 Bootstrap_,
-                chunkList,
+                chunkLists,
                 [] (const TChunk* chunk) { return chunk->GetCompressionCodec(); });
 
         case EInternedAttributeKey::ErasureStatistics:
@@ -788,7 +800,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             }
             return ComputeChunkStatistics(
                 Bootstrap_,
-                chunkList,
+                chunkLists,
                 [] (const TChunk* chunk) { return chunk->GetErasureCodec(); });
 
         case EInternedAttributeKey::MulticellStatistics:
@@ -797,7 +809,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             }
             return ComputeChunkStatistics(
                 Bootstrap_,
-                chunkList,
+                chunkLists,
                 [] (const TChunk* chunk) { return chunk->GetNativeCellTag(); });
 
         case EInternedAttributeKey::ChunkFormatStatistics:
@@ -806,7 +818,7 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
             }
             return ComputeChunkStatistics(
                 Bootstrap_,
-                chunkList,
+                chunkLists,
                 [] (const TChunk* chunk) { return chunk->GetChunkFormat(); });
 
         default:
@@ -920,7 +932,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             const auto& uninternedKey = key.Unintern();
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
             if (!node->IsExternal()) {
-                chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
+                ScheduleRequisitionUpdate();
             }
             return true;
         }
@@ -983,8 +995,7 @@ void TChunkOwnerNodeProxy::OnStorageParametersUpdated()
         return;
     }
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
+    ScheduleRequisitionUpdate();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     tabletManager->OnNodeStorageParametersUpdated(node);
@@ -1095,6 +1106,18 @@ void TChunkOwnerNodeProxy::SetChunkMergerMode(EChunkMergerMode mode)
     }
 }
 
+void TChunkOwnerNodeProxy::ScheduleRequisitionUpdate()
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    for (auto* chunkList : node->GetChunkLists()) {
+        if (chunkList) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
+        }
+    }
+}
+
 TComparator TChunkOwnerNodeProxy::GetComparator() const
 {
     return TComparator();
@@ -1161,7 +1184,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         : EAddressType::InternalRpc;
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto* chunkList = node->GetChunkList();
+    auto chunkLists = node->GetChunkLists();
     const auto& comparator = GetComparator();
     for (const auto& protoRange : request->ranges()) {
         ValidateReadLimit(protoRange.lower_limit());
@@ -1173,7 +1196,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap_,
-        chunkList,
+        std::move(chunkLists),
         context,
         std::move(fetchContext),
         std::move(comparator));
@@ -1263,6 +1286,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 auto* snapshotChunkList = lockedNode->GetChunkList();
                 switch (snapshotChunkList->GetKind()) {
                     case EChunkListKind::Static: {
+                        YT_VERIFY(!lockedNode->GetHunkChunkList());
+
                         auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
                         newChunkList->AddOwningNode(lockedNode);
 
@@ -1310,25 +1335,41 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             }
 
             case EUpdateMode::Overwrite: {
-                auto* oldChunkList = lockedNode->GetChunkList();
-                switch (oldChunkList->GetKind()) {
+                auto* oldMainChunkList = lockedNode->GetChunkList();
+                switch (oldMainChunkList->GetKind()) {
                     case EChunkListKind::Static:
                     case EChunkListKind::SortedDynamicRoot: {
-                        oldChunkList->RemoveOwningNode(lockedNode);
-
-                        auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
-                        newChunkList->AddOwningNode(lockedNode);
-                        lockedNode->SetChunkList(newChunkList);
-
-                        if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                            for (int index = 0; index < std::ssize(oldChunkList->Children()); ++index) {
-                                auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
-                                chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                        auto processChunkList = [&] (EChunkListContentType chunkListType, EChunkListKind appendChunkListKind) {
+                            auto* oldChunkList = lockedNode->GetChunkList(chunkListType);
+                            if (!oldChunkList) {
+                                YT_VERIFY(chunkListType == EChunkListContentType::Hunk && oldMainChunkList->GetKind() == EChunkListKind::Static);
+                                return;
                             }
-                        }
 
-                        context->SetIncrementalResponseInfo("NewChunkListId: %v",
-                            newChunkList->GetId());
+                            auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
+                            newChunkList->AddOwningNode(lockedNode);
+                            lockedNode->SetChunkList(chunkListType, newChunkList);
+
+                            if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+                                for (int index = 0; index < std::ssize(oldMainChunkList->Children()); ++index) {
+                                    auto* appendChunkList = chunkManager->CreateChunkList(appendChunkListKind);
+                                    chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                                }
+                            }
+
+                            oldChunkList->RemoveOwningNode(lockedNode);
+                        };
+                        processChunkList(EChunkListContentType::Main, EChunkListKind::SortedDynamicTablet);
+                        processChunkList(EChunkListContentType::Hunk, EChunkListKind::Hunk);
+
+                        if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+                            context->SetIncrementalResponseInfo("NewChunkListId: %v, NewHunkChunkListId: %v",
+                                lockedNode->GetChunkList()->GetId(),
+                                lockedNode->GetHunkChunkList()->GetId());
+                        } else {
+                            context->SetIncrementalResponseInfo("NewChunkListId: %v",
+                                lockedNode->GetChunkList()->GetId());
+                        }
                         break;
                     }
 
@@ -1337,7 +1378,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                     default:
                         THROW_ERROR_EXCEPTION("Unsupported chunk list kind %Qlv",
-                            oldChunkList->GetKind());
+                            oldMainChunkList->GetKind());
                 }
                 break;
             }

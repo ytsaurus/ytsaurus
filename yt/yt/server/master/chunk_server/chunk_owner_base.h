@@ -56,7 +56,18 @@ public:
     TChunkList* GetChunkList() const;
     void SetChunkList(TChunkList* chunkList);
 
+    TChunkList* GetHunkChunkList() const;
+    void SetHunkChunkList(TChunkList* chunkList);
+
+    TChunkList* GetChunkList(EChunkListContentType type) const;
+    void SetChunkList(EChunkListContentType type, TChunkList* chunkList);
+
+    TChunkLists GetChunkLists() const;
+
     const TChunkList* GetSnapshotChunkList() const;
+    const TChunkList* GetSnapshotHunkChunkList() const;
+    const TChunkList* GetSnapshotChunkList(EChunkListContentType type) const;
+
     const TChunkList* GetDeltaChunkList() const;
 
     NSecurityServer::TSecurityTags GetSecurityTags() const;
@@ -103,7 +114,7 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 
 private:
-    NChunkServer::TChunkListPtr ChunkList_;
+    TEnumIndexedVector<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 

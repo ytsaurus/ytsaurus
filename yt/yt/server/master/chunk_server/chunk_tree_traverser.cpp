@@ -184,17 +184,25 @@ protected:
 
             auto* child = chunkList->Children()[entry.ChildIndex];
 
+            // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
+            if (IsEmpty(child)) {
+                if (IsObjectAlive(child)) {
+                    YT_LOG_TRACE("Child is empty (Index: %v, Id: %v, Kind: %v)",
+                        entry.ChildIndex,
+                        child->GetId(),
+                        child->GetType());
+                } else {
+                    YT_LOG_TRACE("Child is empty (Index: %v)",
+                        entry.ChildIndex);
+                }
+                ++entry.ChildIndex;
+                continue;
+            }
+
             YT_LOG_TRACE("Current child (Index: %v, Id: %v, Kind: %v)",
                 entry.ChildIndex,
                 child->GetId(),
                 child->GetType());
-
-            // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
-            if (IsEmpty(child)) {
-                YT_LOG_TRACE("Child is empty");
-                ++entry.ChildIndex;
-                continue;
-            }
 
             switch (chunkList->GetKind()) {
                 case EChunkListKind::Static:
@@ -213,6 +221,7 @@ protected:
                 case EChunkListKind::SortedDynamicSubtablet:
                 case EChunkListKind::OrderedDynamicTablet:
                 case EChunkListKind::HunkRoot:
+                case EChunkListKind::Hunk:
                     VisitEntryDynamic(&entry);
                     break;
 
@@ -368,7 +377,8 @@ protected:
     TFuture<void> VisitEntryStatic(TStackEntry* entry)
     {
         const auto& chunkList = entry->ChunkList;
-        auto* child = chunkList->Children()[entry->ChildIndex];
+        auto childIndex = entry->ChildIndex;
+        auto* child = chunkList->Children()[childIndex];
         auto childType = child->GetType();
 
         TReadLimit subtreeStartLimit;
@@ -470,6 +480,7 @@ protected:
             auto* childChunkList = child->AsChunkList();
             PushFirstChild(
                 childChunkList,
+                childIndex,
                 rowIndex,
                 {} /*tabletIndex*/,
                 subtreeStartLimit,
@@ -508,7 +519,8 @@ protected:
     {
         const auto& chunkList = entry->ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-        auto* child = chunkList->Children()[entry->ChildIndex];
+        auto childIndex = entry->ChildIndex;
+        auto* child = chunkList->Children()[childIndex];
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
         bool isSorted = chunkList->GetKind() == EChunkListKind::SortedDynamicRoot;
 
@@ -624,7 +636,6 @@ protected:
                     subtreeEndLimit.SetRowIndex(entry->UpperLimit.GetRowIndex());
                 }
             }
-
         }
 
         ++entry->ChildIndex;
@@ -632,6 +643,7 @@ protected:
         auto* childChunkList = child->AsChunkList();
         PushFirstChild(
             childChunkList,
+            childIndex,
             {} /*rowIndex*/,
             tabletIndex,
             subtreeStartLimit,
@@ -641,7 +653,8 @@ protected:
     void VisitEntryDynamic(TStackEntry* entry)
     {
         const auto& chunkList = entry->ChunkList;
-        auto* child = chunkList->Children()[entry->ChildIndex];
+        auto childIndex = entry->ChildIndex;
+        auto* child = chunkList->Children()[childIndex];
         auto childType = child->GetType();
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
 
@@ -871,15 +884,16 @@ protected:
                 auto* childChunkList = child->AsChunkList();
                 auto childChunkListKind = childChunkList->GetKind();
                 if (childChunkListKind != EChunkListKind::SortedDynamicSubtablet &&
-                    childChunkListKind != EChunkListKind::HunkRoot)
+                    childChunkListKind != EChunkListKind::Hunk)
                 {
                     THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
                         childChunkList->GetId(),
                         childChunkListKind);
                 }
+
                 // Don't traverse hunks when bounds are enforced.
-                if (childChunkListKind != EChunkListKind::HunkRoot || !EnforceBounds_) {
-                    PushFirstChild(childChunkList, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
+                if (childChunkListKind != EChunkListKind::Hunk || !EnforceBounds_) {
+                    PushFirstChild(childChunkList, childIndex, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
                 }
                 break;
             }
@@ -893,6 +907,7 @@ protected:
 
     void PushFirstChild(
         TChunkList* chunkList,
+        int entryIndex,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
@@ -910,14 +925,15 @@ protected:
 
             case EChunkListKind::SortedDynamicRoot:
             case EChunkListKind::OrderedDynamicRoot:
+            case EChunkListKind::HunkRoot:
                 PushFirstChildDynamicRoot(chunkList, rowIndex, lowerLimit, upperLimit);
                 break;
 
             case EChunkListKind::SortedDynamicTablet:
             case EChunkListKind::SortedDynamicSubtablet:
             case EChunkListKind::OrderedDynamicTablet:
-            case EChunkListKind::HunkRoot:
-                PushFirstChildDynamic(chunkList, rowIndex, tabletIndex, lowerLimit, upperLimit);
+            case EChunkListKind::Hunk:
+                PushFirstChildDynamic(chunkList, entryIndex, rowIndex, tabletIndex, lowerLimit, upperLimit);
                 break;
 
             default:
@@ -1040,52 +1056,58 @@ protected:
     {
         int childIndex = 0;
 
-        if (EnforceBounds_) {
-            const auto& statistics = chunkList->Statistics();
-            bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
+        // Don't traverse hunks when bounds are enforced.
+        if (EnforceBounds_ && chunkList->GetKind() == EChunkListKind::HunkRoot) {
+            auto error = TError("Attemted to traverse hunk root chunk list %v with bounds enforced",
+                chunkList->GetId());
+            OnFinish(error);
+            return;
+        }
 
-            // Offset.
-            YT_VERIFY(!lowerLimit.GetOffset());
+        const auto& statistics = chunkList->Statistics();
+        bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
 
-            // Tablet index.
-            if (const auto& lowerTabletIndex = lowerLimit.GetTabletIndex()) {
-                YT_VERIFY(isOrdered);
-                childIndex = std::max(
-                    childIndex,
-                    std::min(
-                        *lowerTabletIndex,
-                        static_cast<int>(chunkList->Children().size())));
-            }
+        // Offset.
+        YT_VERIFY(!lowerLimit.GetOffset());
 
-            // Row index.
-            if (lowerLimit.GetRowIndex() || upperLimit.GetRowIndex()) {
-                YT_VERIFY(isOrdered);
-                // Row indices remain tablet-wise, nothing to change here.
-            }
+        // Tablet index.
+        if (const auto& lowerTabletIndex = lowerLimit.GetTabletIndex()) {
+            YT_VERIFY(isOrdered);
+            childIndex = std::max(
+                childIndex,
+                std::min(
+                    *lowerTabletIndex,
+                    static_cast<int>(chunkList->Children().size())));
+        }
 
-            // Chunk index.
-            if (const auto& lowerChunkIndex = lowerLimit.GetChunkIndex()) {
-                childIndex = AdjustStartChildIndex(
-                    childIndex,
-                    chunkList,
-                    ChunkCountMember,
-                    *lowerChunkIndex,
-                    statistics.LogicalChunkCount);
-            }
+        // Row index.
+        if (lowerLimit.GetRowIndex() || upperLimit.GetRowIndex()) {
+            YT_VERIFY(isOrdered);
+            // Row indices remain tablet-wise, nothing to change here.
+        }
 
-            // Key.
-            if (const auto& lowerBound = lowerLimit.KeyBound()) {
-                auto it = std::upper_bound(
-                    chunkList->Children().begin(),
-                    chunkList->Children().end(),
-                    lowerBound,
-                    [&] (const TKeyBound& lowerBound, const TChunkTree* chunkTree) {
-                        // This method should meet following semantics:
-                        // true if requested lower bound is strictly before the pivot key lower bound.
-                        return Comparator_.CompareKeyBounds(lowerBound, chunkTree->AsChunkList()->GetPivotKeyBound()) < 0;
-                    });
-                childIndex = std::max(childIndex, static_cast<int>(std::distance(chunkList->Children().begin(), it) - 1));
-            }
+        // Chunk index.
+        if (const auto& lowerChunkIndex = lowerLimit.GetChunkIndex()) {
+            childIndex = AdjustStartChildIndex(
+                childIndex,
+                chunkList,
+                ChunkCountMember,
+                *lowerChunkIndex,
+                statistics.LogicalChunkCount);
+        }
+
+        // Key.
+        if (const auto& lowerBound = lowerLimit.KeyBound()) {
+            auto it = std::upper_bound(
+                chunkList->Children().begin(),
+                chunkList->Children().end(),
+                lowerBound,
+                [&] (const TKeyBound& lowerBound, const TChunkTree* chunkTree) {
+                    // This method should meet following semantics:
+                    // true if requested lower bound is strictly before the pivot key lower bound.
+                    return Comparator_.CompareKeyBounds(lowerBound, chunkTree->AsChunkList()->GetPivotKeyBound()) < 0;
+                });
+            childIndex = std::max(childIndex, static_cast<int>(std::distance(chunkList->Children().begin(), it) - 1));
         }
 
         PushStack(TStackEntry(
@@ -1099,6 +1121,7 @@ protected:
 
     void PushFirstChildDynamic(
         TChunkList* chunkList,
+        int entryIndex,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
@@ -1153,6 +1176,22 @@ protected:
             // NB: Tablet index lower bound is checked above in tablet root.
 
             // NB: Key is not used here since tablet/subtablet chunk list is never sorted.
+        }
+
+        // Don't traverse hunks when bounds are enforced.
+        if (RootHunkChunkList_ &&
+            !EnforceBounds_ &&
+            (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet ||
+             chunkList->GetKind() == EChunkListKind::SortedDynamicTablet))
+        {
+            auto* hunkChunkList = RootHunkChunkList_->Children()[entryIndex]->AsChunkList();
+            PushStack(TStackEntry(
+                hunkChunkList,
+                chunkIndex,
+                rowIndex,
+                tabletIndex,
+                lowerLimit,
+                upperLimit));
         }
 
         PushStack(TStackEntry(
@@ -1353,6 +1392,8 @@ protected:
     const bool EnforceBounds_;
     const TComparator Comparator_;
 
+    const TEphemeralObjectPtr<TChunkList> RootHunkChunkList_;
+
     const NLogging::TLogger Logger;
 
     const TInstant StartInstant_ = TInstant::Now();
@@ -1370,7 +1411,7 @@ public:
     TChunkTreeTraverser(
         IChunkTraverserContextPtr context,
         IChunkVisitorPtr visitor,
-        TChunkList* chunkList,
+        const TChunkLists& chunkLists,
         bool enforceBounds,
         TComparator comparator,
         TReadLimit lowerLimit,
@@ -1379,14 +1420,16 @@ public:
         , Visitor_(std::move(visitor))
         , EnforceBounds_(enforceBounds)
         , Comparator_(std::move(comparator))
-        , Logger(ChunkServerLogger.WithTag("RootId: %v", chunkList->GetId()))
+        , RootHunkChunkList_(chunkLists[EChunkListContentType::Hunk])
+        , Logger(ChunkServerLogger.WithTag("RootId: %v", chunkLists[EChunkListContentType::Main]->GetId()))
     {
         YT_LOG_DEBUG("Chunk tree traversal started (LowerLimit: %v, UpperLimit: %v, EnforceBounds: %v)",
             lowerLimit,
             upperLimit,
             EnforceBounds_);
 
-        PushFirstChild(chunkList, 0, std::nullopt, lowerLimit, upperLimit);
+        auto* chunkList = chunkLists[EChunkListContentType::Main];
+        PushFirstChild(chunkList, 0, 0, std::nullopt, lowerLimit, upperLimit);
     }
 
     void Run()
@@ -1425,10 +1468,30 @@ void TraverseChunkTree(
     const TReadLimit& upperLimit,
     TComparator comparator)
 {
-    return New<TChunkTreeTraverser>(
+    TChunkLists roots;
+    roots[EChunkListContentType::Main] = root;
+
+    TraverseChunkTree(
         std::move(traverserContext),
         std::move(visitor),
-        root,
+        roots,
+        lowerLimit,
+        upperLimit,
+        std::move(comparator));
+}
+
+void TraverseChunkTree(
+    IChunkTraverserContextPtr traverserContext,
+    IChunkVisitorPtr visitor,
+    const TChunkLists& roots,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
+    TComparator comparator)
+{
+    New<TChunkTreeTraverser>(
+        std::move(traverserContext),
+        std::move(visitor),
+        roots,
         true,
         comparator,
         lowerLimit,
@@ -1440,6 +1503,26 @@ void TraverseChunkTree(
     IChunkTraverserContextPtr traverserContext,
     IChunkVisitorPtr visitor,
     TChunkList* root,
+    const TLegacyReadLimit& legacyLowerLimit,
+    const TLegacyReadLimit& legacyUpperLimit,
+    TComparator comparator)
+{
+    TChunkLists roots;
+    roots[EChunkListContentType::Main] = root;
+
+    TraverseChunkTree(
+        std::move(traverserContext),
+        std::move(visitor),
+        roots,
+        legacyLowerLimit,
+        legacyUpperLimit,
+        std::move(comparator));
+}
+
+void TraverseChunkTree(
+    IChunkTraverserContextPtr traverserContext,
+    IChunkVisitorPtr visitor,
+    const TChunkLists& roots,
     const TLegacyReadLimit& legacyLowerLimit,
     const TLegacyReadLimit& legacyUpperLimit,
     TComparator comparator)
@@ -1456,10 +1539,10 @@ void TraverseChunkTree(
         upperLimit = ReadLimitFromLegacyReadLimitKeyless(legacyUpperLimit);
     }
 
-    return New<TChunkTreeTraverser>(
+    New<TChunkTreeTraverser>(
         std::move(traverserContext),
         std::move(visitor),
-        root,
+        roots,
         true,
         comparator,
         lowerLimit,
@@ -1472,10 +1555,24 @@ void TraverseChunkTree(
     IChunkVisitorPtr visitor,
     TChunkList* root)
 {
-    return New<TChunkTreeTraverser>(
+    TChunkLists roots;
+    roots[EChunkListContentType::Main] = root;
+
+    return TraverseChunkTree(
         std::move(traverserContext),
         std::move(visitor),
-        root,
+        roots);
+}
+
+void TraverseChunkTree(
+    IChunkTraverserContextPtr traverserContext,
+    IChunkVisitorPtr visitor,
+    const TChunkLists& roots)
+{
+    New<TChunkTreeTraverser>(
+        std::move(traverserContext),
+        std::move(visitor),
+        roots,
         false,
         TComparator(),
         TReadLimit(),

@@ -19,7 +19,7 @@ public:
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TChunkList* const ChunkList_;
+    const TChunkLists ChunkLists_;
 
     TPromise<NYson::TYsonString> Promise_ = NewPromise<NYson::TYsonString>();
 
@@ -27,7 +27,7 @@ protected:
 
     TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList);
+        const TChunkLists& chunkLists);
 
     void OnFinish(const TError& error) override;
     virtual void OnSuccess() = 0;
@@ -41,7 +41,7 @@ class TChunkIdsAttributeVisitor
 public:
     TChunkIdsAttributeVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList);
+        const TChunkLists& chunkLists);
 
 private:
     TStringStream Stream_;
@@ -72,13 +72,13 @@ private:
 template <class TKeyExtractor>
 TFuture<NYson::TYsonString> ComputeChunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
+    const TChunkLists& chunkLists,
     TKeyExtractor keyExtractor);
 
 template <class TKeyExtractor, class TPredicate>
 TFuture<NYson::TYsonString> ComputeChunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
+    const TChunkLists& chunkLists,
     TKeyExtractor keyExtractor,
     TPredicate predicate);
 
@@ -86,7 +86,7 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
 
 TFuture<NYson::TYsonString> ComputeHunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList);
+    const TChunkLists& chunkLists);
 
 ////////////////////////////////////////////////////////////////////////////////
 

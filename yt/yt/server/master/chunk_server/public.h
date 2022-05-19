@@ -200,6 +200,12 @@ DEFINE_ENUM(EChunkListKind,
     ((SortedDynamicSubtablet) (5))
     ((JournalRoot)            (6))
     ((HunkRoot)               (7))
+    ((Hunk)                   (8))
+);
+
+DEFINE_ENUM(EChunkListContentType,
+    ((Main)                   (0))
+    ((Hunk)                   (1))
 );
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
@@ -254,6 +260,8 @@ using TOldestPartMissingChunkSet = std::set<TChunk*, TChunkPartLossTimeComparer>
 using TMediumSet = std::bitset<MaxMediumCount>;
 
 constexpr int MediumDefaultPriority = 0;
+
+using TChunkLists = TEnumIndexedVector<EChunkListContentType, TChunkList*>;
 
 using TChunkRequisitionIndex = ui32;
 

@@ -197,6 +197,7 @@
     XX(HistoricUsageConfig, historic_usage_config) \
     XX(Host, host) \
     XX(Hosts, hosts) \
+    XX(HunkChunkListId, hunk_chunk_list_id) \
     XX(HunkChunkRefs, hunk_chunk_refs) \
     XX(HunkChunkReader, hunk_chunk_reader) \
     XX(HunkChunkWriter, hunk_chunk_writer) \

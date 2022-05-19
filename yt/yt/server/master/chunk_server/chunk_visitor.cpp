@@ -14,9 +14,9 @@ using namespace NYson;
 
 TChunkVisitorBase::TChunkVisitorBase(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList)
+    const TChunkLists& chunkLists)
     : Bootstrap_(bootstrap)
-    , ChunkList_(chunkList)
+    , ChunkLists_(chunkLists)
 {
     Bootstrap_->VerifyPersistentStateRead();
 }
@@ -31,7 +31,7 @@ TFuture<TYsonString> TChunkVisitorBase::Run()
     TraverseChunkTree(
         std::move(context),
         this,
-        ChunkList_);
+        ChunkLists_);
 
     return Promise_;
 }
@@ -51,8 +51,8 @@ void TChunkVisitorBase::OnFinish(const TError& error)
 
 TChunkIdsAttributeVisitor::TChunkIdsAttributeVisitor(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList)
-    : TChunkVisitorBase(bootstrap, chunkList)
+    const TChunkLists& chunkLists)
+    : TChunkVisitorBase(bootstrap, chunkLists)
     , Writer_(&Stream_)
 {
     Writer_.OnBeginList();
@@ -185,11 +185,11 @@ private:
 
 TFuture<TYsonString> ComputeHunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList)
+    const TChunkLists& chunkLists)
 {
     auto visitor = New<THunkStatisticsVisitor>(
         bootstrap,
-        chunkList);
+        chunkLists);
     return visitor->Run();
 }
 

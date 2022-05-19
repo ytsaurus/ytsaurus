@@ -690,14 +690,34 @@ bool TTablet::IsActive() const
         State_ == ETabletState::Unfreezing;
 }
 
-TChunkList* TTablet::GetChunkList()
+NChunkServer::TChunkList* TTablet::GetChunkList()
 {
-    return Table_->GetTrunkNode()->GetChunkList()->Children()[Index_]->AsChunkList();
+    return GetChunkList(EChunkListContentType::Main);
 }
 
-const TChunkList* TTablet::GetChunkList() const
+const NChunkServer::TChunkList* TTablet::GetChunkList() const
 {
-    return const_cast<TTablet*>(this)->GetChunkList();
+    return GetChunkList(EChunkListContentType::Main);
+}
+
+NChunkServer::TChunkList* TTablet::GetHunkChunkList()
+{
+    return GetChunkList(EChunkListContentType::Hunk);
+}
+
+const NChunkServer::TChunkList* TTablet::GetHunkChunkList() const
+{
+    return GetChunkList(EChunkListContentType::Hunk);
+}
+
+TChunkList* TTablet::GetChunkList(EChunkListContentType type)
+{
+    return Table_->GetTrunkNode()->GetChunkList(type)->Children()[Index_]->AsChunkList();
+}
+
+const TChunkList* TTablet::GetChunkList(EChunkListContentType type) const
+{
+    return const_cast<TTablet*>(this)->GetChunkList(type);
 }
 
 i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
@@ -707,9 +727,9 @@ i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
     const auto& statistics = GetChunkList()->Statistics();
     switch (mode) {
         case EInMemoryMode::Compressed:
-            return statistics.CompressedDataSize - GetHunkCompressedDataSize();
+            return statistics.CompressedDataSize;
         case EInMemoryMode::Uncompressed:
-            return statistics.UncompressedDataSize - GetHunkUncompressedDataSize();
+            return statistics.UncompressedDataSize;
         case EInMemoryMode::None:
             return 0;
         default:
@@ -729,14 +749,12 @@ i64 TTablet::GetTabletMasterMemoryUsage() const
 
 i64 TTablet::GetHunkUncompressedDataSize() const
 {
-    const auto* hunkChunkList = GetChunkList()->GetHunkRootChild();
-    return hunkChunkList ? hunkChunkList->Statistics().UncompressedDataSize : 0;
+    return GetHunkChunkList()->Statistics().UncompressedDataSize;
 }
 
 i64 TTablet::GetHunkCompressedDataSize() const
 {
-    const auto* hunkChunkList = GetChunkList()->GetHunkRootChild();
-    return hunkChunkList ? hunkChunkList->Statistics().CompressedDataSize : 0;
+    return GetHunkChunkList()->Statistics().CompressedDataSize;
 }
 
 ETabletState TTablet::GetState() const

@@ -1047,7 +1047,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttributeKey key)
 {
     const auto* table = GetThisImpl();
-    auto* chunkList = table->GetChunkList();
+    auto chunkLists = table->GetChunkLists();
     bool isExternal = table->IsExternal();
     bool isQueue = table->IsQueue();
     bool isConsumer = table->IsConsumer();
@@ -1059,7 +1059,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             }
             return ComputeChunkStatistics(
                 Bootstrap_,
-                chunkList,
+                chunkLists,
                 [] (const TChunk* chunk) { return static_cast<ETableChunkFormat>(chunk->GetChunkFormat()); },
                 [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
 
@@ -1085,7 +1085,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                 }
             };
 
-            return ComputeChunkStatistics(Bootstrap_, chunkList, optimizeForExtractor);
+            return ComputeChunkStatistics(Bootstrap_, chunkLists, optimizeForExtractor);
         }
 
         case EInternedAttributeKey::HunkStatistics: {
@@ -1095,7 +1095,7 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             if (!table->IsDynamic()) {
                 break;
             }
-            return ComputeHunkStatistics(Bootstrap_, chunkList);
+            return ComputeHunkStatistics(Bootstrap_, chunkLists);
         }
 
         case EInternedAttributeKey::Schema:

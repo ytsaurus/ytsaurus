@@ -807,8 +807,6 @@ public:
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
     {
         const auto* table = tablet->GetTable();
-        const auto* tabletChunkList = tablet->GetChunkList();
-        const auto& treeStatistics = tabletChunkList->Statistics();
         const auto& nodeStatistics = tablet->NodeStatistics();
 
         TTabletStatistics tabletStatistics;
@@ -819,21 +817,30 @@ public:
         tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
         tabletStatistics.OverlappingStoreCount = nodeStatistics.overlapping_store_count();
         tabletStatistics.DynamicMemoryPoolSize = nodeStatistics.dynamic_memory_pool_size();
-        tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
-        tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
-        tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
-        tabletStatistics.HunkUncompressedDataSize = tablet->GetHunkUncompressedDataSize();
-        tabletStatistics.HunkCompressedDataSize = tablet->GetHunkCompressedDataSize();
-        tabletStatistics.MemorySize = tablet->GetTabletStaticMemorySize();
-        for (const auto& entry : table->Replication()) {
-            tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] = CalculateDiskSpaceUsage(
-                entry.Policy().GetReplicationFactor(),
-                treeStatistics.RegularDiskSpace,
-                treeStatistics.ErasureDiskSpace);
-        }
-        tabletStatistics.ChunkCount = treeStatistics.ChunkCount;
         tabletStatistics.TabletCount = 1;
         tabletStatistics.TabletCountPerMemoryMode[tablet->GetInMemoryMode()] = 1;
+
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            if (const auto* chunkList = tablet->GetChunkList(contentType)) {
+                const auto& treeStatistics = chunkList->Statistics();
+
+                tabletStatistics.UnmergedRowCount += treeStatistics.RowCount;
+                tabletStatistics.UncompressedDataSize += treeStatistics.UncompressedDataSize;
+                tabletStatistics.CompressedDataSize += treeStatistics.CompressedDataSize;
+                for (const auto& entry : table->Replication()) {
+                    tabletStatistics.DiskSpacePerMedium[entry.GetMediumIndex()] += CalculateDiskSpaceUsage(
+                        entry.Policy().GetReplicationFactor(),
+                        treeStatistics.RegularDiskSpace,
+                        treeStatistics.ErasureDiskSpace);
+                }
+                tabletStatistics.ChunkCount += treeStatistics.ChunkCount;
+            }
+        }
+
+        tabletStatistics.MemorySize = tablet->GetTabletStaticMemorySize();
+        tabletStatistics.HunkUncompressedDataSize = tablet->GetHunkUncompressedDataSize();
+        tabletStatistics.HunkCompressedDataSize = tablet->GetHunkCompressedDataSize();
+
         return tabletStatistics;
     }
 
@@ -942,14 +949,15 @@ public:
             tableSettings.MountConfig);
 
         // Check for store duplicates.
-        auto* rootChunkList = table->GetChunkList();
-
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            const auto* tablet = allTablets[index];
-            auto* tabletChunkList = rootChunkList->Children()[index]->AsChunkList();
+            auto* tablet = allTablets[index];
 
             std::vector<TChunkTree*> stores;
-            EnumerateStoresInChunkTree(tabletChunkList, &stores);
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (auto* chunkList = tablet->GetChunkList(contentType)) {
+                    EnumerateStoresInChunkTree(chunkList, &stores);
+                }
+            }
 
             THashSet<TObjectId> storeSet;
             storeSet.reserve(stores.size());
@@ -1415,7 +1423,11 @@ public:
         // Should not throw when table is created.
 
         const auto& tablets = table->Tablets();
-        YT_VERIFY(tablets.size() == table->GetChunkList()->Children().size());
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            if (auto* chunkList = table->GetChunkList(contentType)) {
+                YT_VERIFY(tablets.size() == chunkList->Children().size());
+            }
+        }
 
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
@@ -1561,11 +1573,16 @@ public:
 
         auto updateMode = branchedNode->GetUpdateMode();
         if (updateMode == EUpdateMode::Append) {
-            CopyChunkListIfShared(originatingNode, 0, originatingNode->Tablets().size() - 1);
+            CopyChunkListsIfShared(originatingNode, 0, originatingNode->Tablets().size() - 1);
         }
 
-        auto* originatingChunkList = originatingNode->GetChunkList();
-        auto* branchedChunkList = branchedNode->GetChunkList();
+        TChunkLists originatingChunkLists;
+        TChunkLists branchedChunkLists;
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            originatingChunkLists[contentType] = originatingNode->GetChunkList(contentType);
+            branchedChunkLists[contentType] = branchedNode->GetChunkList(contentType);
+        }
+
         auto* transaction = branchedNode->GetTransaction();
 
         YT_VERIFY(originatingNode->IsPhysicallySorted());
@@ -1579,7 +1596,7 @@ public:
         i64 totalMemorySizeDelta = 0;
 
         // Deaccumulate old tablet statistics.
-        for (int index = 0; index < std::ssize(branchedChunkList->Children()); ++index) {
+        for (int index = 0; index < std::ssize(originatingNode->Tablets()); ++index) {
             auto* tablet = originatingNode->Tablets()[index];
 
             auto tabletStatistics = GetTabletStatistics(tablet);
@@ -1595,36 +1612,55 @@ public:
 
         // Replace root chunk list.
         if (updateMode == EUpdateMode::Overwrite) {
-            originatingChunkList->RemoveOwningNode(originatingNode);
-            branchedChunkList->AddOwningNode(originatingNode);
-            originatingNode->SetChunkList(branchedChunkList);
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                originatingChunkLists[contentType]->RemoveOwningNode(originatingNode);
+                branchedChunkLists[contentType]->AddOwningNode(originatingNode);
+                originatingNode->SetChunkList(contentType, branchedChunkLists[contentType]);
+            }
         }
 
         // Merge tablet chunk lists and accumulate new tablet statistics.
-        for (int index = 0; index < std::ssize(branchedChunkList->Children()); ++index) {
-            auto* appendChunkList = branchedChunkList->Children()[index]->AsChunkList();
-            auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
+        for (int index = 0; index < std::ssize(branchedChunkLists[EChunkListContentType::Main]->Children()); ++index) {
             auto* tablet = originatingNode->Tablets()[index];
-
             if (updateMode == EUpdateMode::Overwrite) {
                 AbandonDynamicStores(tablet);
-                YT_VERIFY(appendChunkList->GetKind() == EChunkListKind::SortedDynamicTablet);
-                appendChunkList->SetPivotKey(tabletChunkList->GetPivotKey());
             }
 
-            if (updateMode == EUpdateMode::Append) {
-                if (!appendChunkList->Children().empty()) {
-                    chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+            std::vector<TChunkTree*> stores;
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (updateMode == EUpdateMode::Append && contentType == EChunkListContentType::Hunk) {
+                    continue;
                 }
-            }
 
-            if (originatingNode->GetInMemoryMode() != EInMemoryMode::None &&
-                tablet->GetState() != ETabletState::Unmounted)
-            {
-                auto& nodeStatistics = tablet->NodeStatistics();
-                nodeStatistics.set_preload_pending_store_count(
-                    nodeStatistics.preload_pending_store_count() +
+                auto* appendChunkList = branchedChunkLists[contentType]->Children()[index]->AsChunkList();
+                auto* tabletChunkList = originatingChunkLists[contentType]->Children()[index]->AsChunkList();
+
+                if (updateMode == EUpdateMode::Overwrite && contentType == EChunkListContentType::Main) {
+                    YT_VERIFY(appendChunkList->GetKind() == EChunkListKind::SortedDynamicTablet);
+                    appendChunkList->SetPivotKey(tabletChunkList->GetPivotKey());
+                }
+
+                if (updateMode == EUpdateMode::Append) {
+                    if (!appendChunkList->Children().empty()) {
+                        chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
+                    }
+                }
+
+                if (originatingNode->GetInMemoryMode() != EInMemoryMode::None &&
+                    tablet->GetState() != ETabletState::Unmounted &&
+                    contentType == EChunkListContentType::Main)
+                {
+                    auto& nodeStatistics = tablet->NodeStatistics();
+                    nodeStatistics.set_preload_pending_store_count(
+                        nodeStatistics.preload_pending_store_count() +
                         ssize(appendChunkList->Children()));
+                }
+
+                if (tablet->GetState() != ETabletState::Unmounted &&
+                    contentType == EChunkListContentType::Main)
+                {
+                    EnumerateStoresInChunkTree(appendChunkList, &stores);
+                }
             }
 
             auto newStatistics = GetTabletStatistics(tablet);
@@ -1653,8 +1689,6 @@ public:
                 transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
             req.set_update_mode(ToProto<int>(updateMode));
 
-            auto stores = EnumerateStoresInChunkTree(appendChunkList);
-
             i64 startingRowIndex = 0;
             for (const auto* store : stores) {
                 auto* descriptor = req.add_stores_to_add();
@@ -1675,7 +1709,10 @@ public:
         // The rest of TChunkOwner::DoMerge later unconditionally replaces statistics of
         // originating node with the ones of branched node. Since dynamic stores are already
         // attached, we have to account them this way.
-        branchedNode->SnapshotStatistics() = originatingNode->GetChunkList()->Statistics().ToDataStatistics();
+        branchedNode->SnapshotStatistics() = {};
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            branchedNode->SnapshotStatistics() += originatingNode->GetChunkList(contentType)->Statistics().ToDataStatistics();
+        }
 
         auto resourceUsageDelta = TTabletResources()
             .SetTabletStaticMemory(totalMemorySizeDelta);
@@ -1685,7 +1722,7 @@ public:
         originatingNode->RemoveDynamicTableLock(transaction->GetId());
 
         if (updateMode == EUpdateMode::Append) {
-            chunkManager->ClearChunkList(branchedChunkList);
+            chunkManager->ClearChunkList(branchedChunkLists[EChunkListContentType::Main]);
         }
     }
 
@@ -1985,8 +2022,10 @@ public:
         }
 
         // Undo the harm done in TChunkOwnerTypeHandler::DoClone.
-        auto* fakeClonedRootChunkList = trunkClonedTable->GetChunkList();
-        fakeClonedRootChunkList->RemoveOwningNode(trunkClonedTable);
+        auto fakeClonedRootChunkLists = trunkClonedTable->GetChunkLists();
+        for (auto* fakeClonedRootChunkList : fakeClonedRootChunkLists) {
+            fakeClonedRootChunkList->RemoveOwningNode(trunkClonedTable);
+        }
 
         const auto& sourceTablets = trunkSourceTable->Tablets();
         YT_VERIFY(!sourceTablets.empty());
@@ -1994,23 +2033,37 @@ public:
         YT_VERIFY(clonedTablets.empty());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* clonedRootChunkList = chunkManager->CreateChunkList(fakeClonedRootChunkList->GetKind());
-        trunkClonedTable->SetChunkList(clonedRootChunkList);
-        clonedRootChunkList->AddOwningNode(trunkClonedTable);
+
+        TChunkLists clonedRootChunkLists;
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            auto* fakeClonedRootChunkList = fakeClonedRootChunkLists[contentType];
+            auto* clonedRootChunkList = chunkManager->CreateChunkList(fakeClonedRootChunkList->GetKind());
+            clonedRootChunkLists[contentType] = clonedRootChunkList;
+
+            trunkClonedTable->SetChunkList(contentType, clonedRootChunkList);
+            clonedRootChunkList->AddOwningNode(trunkClonedTable);
+        }
 
         const auto& backupManager = Bootstrap_->GetBackupManager();
 
         clonedTablets.reserve(sourceTablets.size());
-        auto* sourceRootChunkList = trunkSourceTable->GetChunkList();
-        YT_VERIFY(sourceRootChunkList->Children().size() == sourceTablets.size());
+
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            auto* sourceRootChunkList = trunkSourceTable->GetChunkList(contentType);
+            YT_VERIFY(sourceRootChunkList->Children().size() == sourceTablets.size());
+        }
+
         for (int index = 0; index < static_cast<int>(sourceTablets.size()); ++index) {
             auto* sourceTablet = sourceTablets[index];
 
             auto* clonedTablet = CreateTablet(trunkClonedTable);
             clonedTablet->CopyFrom(*sourceTablet);
 
-            auto* tabletChunkList = sourceRootChunkList->Children()[index];
-            chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                auto* sourceRootChunkList = trunkSourceTable->GetChunkList(contentType);
+                auto* tabletChunkList = sourceRootChunkList->Children()[index];
+                chunkManager->AttachToChunkList(clonedRootChunkLists[contentType], tabletChunkList);
+            }
 
             clonedTablets.push_back(clonedTablet);
             trunkClonedTable->AccountTabletStatistics(GetTabletStatistics(clonedTablet));
@@ -2101,9 +2154,9 @@ public:
             return;
         }
 
-        auto* oldRootChunkList = table->GetChunkList();
+        auto* oldChunkList = table->GetChunkList();
 
-        auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
+        auto chunks = EnumerateChunksInChunkTree(oldChunkList);
 
         // Compute last commit timestamp.
         auto lastCommitTimestamp = MinTimestamp;
@@ -2117,12 +2170,16 @@ public:
         table->SetLastCommitTimestamp(lastCommitTimestamp);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* newRootChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
+        auto* newChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicRoot
             : EChunkListKind::OrderedDynamicRoot);
 
-        table->SetChunkList(newRootChunkList);
-        newRootChunkList->AddOwningNode(table);
+        table->SetChunkList(newChunkList);
+        newChunkList->AddOwningNode(table);
+
+        auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkRoot);
+        table->SetHunkChunkList(newHunkChunkList);
+        newHunkChunkList->AddOwningNode(table);
 
         auto* tablet = CreateTablet(table);
         tablet->SetIndex(0);
@@ -2138,12 +2195,15 @@ public:
         if (table->IsPhysicallySorted()) {
             tabletChunkList->SetPivotKey(EmptyKey());
         }
-        chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
+        chunkManager->AttachToChunkList(newChunkList, tabletChunkList);
 
         std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
         chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
 
-        oldRootChunkList->RemoveOwningNode(table);
+        auto* tabletHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
+        chunkManager->AttachToChunkList(newHunkChunkList, tabletHunkChunkList);
+
+        oldChunkList->RemoveOwningNode(table);
 
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
         securityManager->UpdateMasterMemoryUsage(table);
@@ -2211,20 +2271,26 @@ public:
 
         auto tabletResourceUsage = table->GetTabletResourceUsage();
 
-        auto* oldRootChunkList = table->GetChunkList();
+        auto* oldChunkList = table->GetChunkList();
+        auto* oldHunkChunkList = table->GetHunkChunkList();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto newRootChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+        auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        table->SetChunkList(newRootChunkList);
-        newRootChunkList->AddOwningNode(table);
+        table->SetChunkList(newChunkList);
+        newChunkList->AddOwningNode(table);
 
-        auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
-        chunkManager->AttachToChunkList(newRootChunkList, std::vector<TChunkTree*>{chunks.begin(), chunks.end()});
+        table->SetHunkChunkList(nullptr);
 
-        oldRootChunkList->RemoveOwningNode(table);
+        auto chunks = EnumerateChunksInChunkTree(oldChunkList);
+        chunkManager->AttachToChunkList(newChunkList, std::vector<TChunkTree*>{chunks.begin(), chunks.end()});
+
+        YT_VERIFY(EnumerateChunksInChunkTree(oldHunkChunkList).empty());
+
+        oldChunkList->RemoveOwningNode(table);
+        oldHunkChunkList->RemoveOwningNode(table);
 
         for (auto* tablet : table->Tablets()) {
             tablet->SetTable(nullptr);
@@ -2502,7 +2568,7 @@ public:
         }
 
         auto* table = tablet->GetTable();
-        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex(), needFlatten);
+        CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex(), needFlatten);
 
         auto oldStatistics = GetTabletStatistics(tablet);
         table->DiscountTabletStatistics(oldStatistics);
@@ -2587,7 +2653,7 @@ public:
         }
 
         auto* table = tablet->GetTable();
-        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+        CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
         auto oldStatistics = GetTabletStatistics(tablet);
         table->DiscountTabletStatistics(oldStatistics);
@@ -2679,7 +2745,7 @@ public:
 
         // CopyChunkListIfShared must be done before cutoff chunk index is calculated
         // because it omits trimmed chunks and thus may shift chunk indexes.
-        CopyChunkListIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
+        CopyChunkListsIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
         chunkList = tablet->GetChunkList();
 
         int cutoffChildIndex = 0;
@@ -3796,8 +3862,10 @@ private:
             }
 
             int tabletIndex = tablet->GetIndex();
-            const auto& chunkLists = table->GetChunkList()->Children();
-            YT_VERIFY(allTablets.size() == chunkLists.size());
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                const auto& chunkLists = table->GetChunkList(contentType)->Children();
+                YT_VERIFY(allTablets.size() == chunkLists.size());
+            }
 
             tablet->SetCell(cell);
             YT_VERIFY(cell->Tablets().insert(tablet).second);
@@ -3869,8 +3937,13 @@ private:
 
                 auto* chunkList = tablet->GetChunkList();
                 const auto& chunkListStatistics = chunkList->Statistics();
-                auto chunksOrViews = EnumerateStoresInChunkTree(chunkList);
                 i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
+
+                std::vector<TChunkTree*> chunksOrViews;
+                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    auto* chunkList = tablet->GetChunkList(contentType);
+                    EnumerateStoresInChunkTree(chunkList, &chunksOrViews);
+                }
                 for (const auto* chunkOrView : chunksOrViews) {
                     if (IsHunkChunk(chunkOrView)) {
                         FillHunkChunkDescriptor(chunkOrView->AsChunk(), req.add_hunk_chunks());
@@ -3896,7 +3969,12 @@ private:
                 auto* mountHint = req.mutable_mount_hint();
                 ToProto(mountHint->mutable_eden_store_ids(), tablet->EdenStoreIds());
 
-                req.set_cumulative_data_weight(tablet->GetChunkList()->Statistics().LogicalDataWeight);
+                // TODO(gritukan): Does logica data weight make sense for hunk chunk lists?
+                i64 cumulativeDataWeight = 0;
+                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    cumulativeDataWeight += tablet->GetChunkList(contentType)->Statistics().LogicalDataWeight;
+                }
+                req.set_cumulative_data_weight(cumulativeDataWeight);
 
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
@@ -4223,7 +4301,9 @@ private:
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         auto& tablets = table->MutableTablets();
-        YT_VERIFY(tablets.size() == table->GetChunkList()->Children().size());
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            YT_VERIFY(tablets.size() == table->GetChunkList(contentType)->Children().size());
+        }
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
 
@@ -4348,16 +4428,23 @@ private:
         }
 
         // Copy chunk tree if somebody holds a reference.
-        CopyChunkListIfShared(table, firstTabletIndex, lastTabletIndex);
+        CopyChunkListsIfShared(table, firstTabletIndex, lastTabletIndex);
 
-        auto* oldRootChunkList = table->GetChunkList();
-        const auto& oldTabletChunkLists = oldRootChunkList->Children();
+        TChunkLists oldRootChunkLists;
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            oldRootChunkLists[contentType] = table->GetChunkList(contentType);
+        }
 
-        std::vector<TChunkTree*> newTabletChunkLists;
-        newTabletChunkLists.reserve(newTabletCount);
+        TEnumIndexedVector<EChunkListContentType, std::vector<TChunkTree*>> newTabletChunkLists;
+        for (auto& tabletChunkLists : newTabletChunkLists) {
+            tabletChunkLists.reserve(newTabletCount);
+        }
 
-        auto* newRootChunkList = chunkManager->CreateChunkList(oldRootChunkList->GetKind());
-
+        TChunkLists newRootChunkLists;
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            auto* chunkList = chunkManager->CreateChunkList(oldRootChunkLists[contentType]->GetKind());
+            newRootChunkLists[contentType] = chunkList;
+        }
 
         // Initialize new tablet chunk lists.
         if (table->IsPhysicallySorted()) {
@@ -4370,19 +4457,14 @@ private:
             // properly destroyed.
             std::vector<TChunkView*> temporarilyReferencedChunkViews;
 
-            const auto& tabletChunkTrees = table->GetChunkList()->Children();
-
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto tabletStores = EnumerateStoresInChunkTree(tabletChunkTrees[index]->AsChunkList());
+                auto* mainTabletChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
+                auto tabletStores = EnumerateStoresInChunkTree(mainTabletChunkList);
 
                 const auto& lowerPivot = oldPivotKeys[index - firstTabletIndex];
                 const auto& upperPivot = oldPivotKeys[index - firstTabletIndex + 1];
 
                 for (auto* chunkTree : tabletStores) {
-                    if (IsHunkChunk(chunkTree)) {
-                        continue;
-                    }
-
                     if (chunkTree->GetType() == EObjectType::ChunkView) {
                         auto* chunkView = chunkTree->AsChunkView();
                         auto readRange = chunkView->GetCompleteReadRange();
@@ -4433,9 +4515,12 @@ private:
 
             // Create new tablet chunk lists.
             for (int index = 0; index < newTabletCount; ++index) {
-                auto* tabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
-                tabletChunkList->SetPivotKey(pivotKeys[index]);
-                newTabletChunkLists.push_back(tabletChunkList);
+                auto* mainTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                mainTabletChunkList->SetPivotKey(pivotKeys[index]);
+                newTabletChunkLists[EChunkListContentType::Main].push_back(mainTabletChunkList);
+
+                auto* hunkTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
+                newTabletChunkLists[EChunkListContentType::Hunk].push_back(hunkTabletChunkList);
             }
 
             // Move chunks or views from the resharded tablets to appropriate chunk lists.
@@ -4489,7 +4574,7 @@ private:
                         {
                             // Chunk fits into the tablet.
                             chunkManager->AttachToChunkList(
-                                newTabletChunkLists[relativeIndex]->AsChunkList(),
+                                newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList(),
                                 chunk);
                             if (oldEdenStoreIds.contains(chunk->GetId())) {
                                 newEdenStoreIds[relativeIndex].push_back(chunk->GetId());
@@ -4507,7 +4592,7 @@ private:
                                 chunk,
                                 TChunkViewModifier().WithReadRange(newReadRange));
                             chunkManager->AttachToChunkList(
-                                newTabletChunkLists[relativeIndex]->AsChunkList(),
+                                newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList(),
                                 newChunkView);
                             if (oldEdenStoreIds.contains(chunk->GetId())) {
                                 newEdenStoreIds[relativeIndex].push_back(newChunkView->GetId());
@@ -4533,7 +4618,7 @@ private:
                     YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to merge chunk view ranges");
                 }
 
-                auto* newTabletChunkList = newTabletChunkLists[relativeIndex]->AsChunkList();
+                auto* newTabletChunkList = newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList();
                 chunkManager->AttachToChunkList(newTabletChunkList, mergedChunkViews);
 
                 std::vector<TChunkTree*> hunkChunks;
@@ -4549,8 +4634,7 @@ private:
 
                 if (!newTabletHunkChunks[relativeIndex].empty()) {
                     SortUnique(newTabletHunkChunks[relativeIndex], TObjectIdComparer());
-                    auto* tabletChunkList = newTabletChunkLists[relativeIndex]->AsChunkList();
-                    auto* hunkChunkList = chunkManager->GetOrCreateHunkChunkList(tabletChunkList);
+                    auto* hunkChunkList = newTabletChunkLists[EChunkListContentType::Hunk][relativeIndex]->AsChunkList();
                     chunkManager->AttachToChunkList(hunkChunkList, newTabletHunkChunks[relativeIndex]);
                 }
             }
@@ -4567,43 +4651,58 @@ private:
             auto attachChunksToChunkList = [&] (TChunkList* chunkList, int firstTabletIndex, int lastTabletIndex) {
                 std::vector<TChunk*> chunks;
                 for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                    EnumerateChunksInChunkTree(oldTabletChunkLists[index]->AsChunkList(), &chunks);
+                    auto* mainTabletChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
+                    EnumerateChunksInChunkTree(mainTabletChunkList, &chunks);
                 }
                 for (auto* chunk : chunks) {
                     chunkManager->AttachToChunkList(chunkList, chunk);
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                newTabletChunkLists.push_back(chunkManager->CloneTabletChunkList(oldTabletChunkLists[index]->AsChunkList()));
+                auto* oldChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
+                auto* newChunkList = chunkManager->CloneTabletChunkList(oldChunkList);
+                newTabletChunkLists[EChunkListContentType::Main].push_back(newChunkList);
+
+                auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
+                newTabletChunkLists[EChunkListContentType::Hunk].push_back(newHunkChunkList);
             }
             if (oldTabletCount > newTabletCount) {
-                auto* chunkList = newTabletChunkLists[newTabletCount - 1]->AsChunkList();
+                auto* chunkList = newTabletChunkLists[EChunkListContentType::Main][newTabletCount - 1]->AsChunkList();
                 attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
             } else {
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
-                    newTabletChunkLists.push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
+                    newTabletChunkLists[EChunkListContentType::Main].push_back(chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet));
+                    newTabletChunkLists[EChunkListContentType::Hunk].push_back(chunkManager->CreateChunkList(EChunkListKind::Hunk));
                 }
             }
-            YT_VERIFY(std::ssize(newTabletChunkLists) == newTabletCount);
+
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                YT_VERIFY(std::ssize(newTabletChunkLists[contentType]) == newTabletCount);
+            }
         }
 
         // Update tablet chunk lists.
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            oldTabletChunkLists.data(),
-            oldTabletChunkLists.data() + firstTabletIndex);
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            newTabletChunkLists);
-        chunkManager->AttachToChunkList(
-            newRootChunkList,
-            oldTabletChunkLists.data() + lastTabletIndex + 1,
-            oldTabletChunkLists.data() + oldTabletChunkLists.size());
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            const auto& oldTabletChunkLists = oldRootChunkLists[contentType]->Children();
+            chunkManager->AttachToChunkList(
+                newRootChunkLists[contentType],
+                oldTabletChunkLists.data(),
+                oldTabletChunkLists.data() + firstTabletIndex);
+            chunkManager->AttachToChunkList(
+                newRootChunkLists[contentType],
+                newTabletChunkLists[contentType]);
+            chunkManager->AttachToChunkList(
+                newRootChunkLists[contentType],
+                oldTabletChunkLists.data() + lastTabletIndex + 1,
+                oldTabletChunkLists.data() + oldTabletChunkLists.size());
+        }
 
         // Replace root chunk list.
-        table->SetChunkList(newRootChunkList);
-        newRootChunkList->AddOwningNode(table);
-        oldRootChunkList->RemoveOwningNode(table);
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            table->SetChunkList(contentType, newRootChunkLists[contentType]);
+            newRootChunkLists[contentType]->AddOwningNode(table);
+            oldRootChunkLists[contentType]->RemoveOwningNode(table);
+        }
 
         // Account new tablet statistics.
         for (auto* newTablet : newTablets) {
@@ -4611,7 +4710,10 @@ private:
         }
 
         // TODO(savrus) Looks like this is unnecessary. Need to check.
-        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+        table->SnapshotStatistics() = {};
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
+        }
 
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         UpdateResourceUsage(table, resourceUsageDelta);
@@ -4750,10 +4852,6 @@ private:
         for (const auto& [id, tablet] : Tablets()) {
             auto* table = tablet->GetTable();
             if (!table) {
-                continue;
-            }
-
-            if (!tablet->GetChunkList()->GetHunkRootChild()) {
                 continue;
             }
 
@@ -5653,7 +5751,7 @@ private:
         }
 
         // NB: Dynamic stores can be detached unambiguously since they are direct children of a tablet.
-        CopyChunkListIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex(), /*force*/ false);
+        CopyChunkListsIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex(), /*force*/ false);
 
         DetachChunksFromTablet(
             tablet,
@@ -5663,7 +5761,10 @@ private:
                 : EChunkDetachPolicy::OrderedTabletSuffix);
 
         auto* table = tablet->GetTable();
-        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+        table->SnapshotStatistics() = {};
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
+        }
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
@@ -5790,7 +5891,7 @@ private:
     {
         auto* table = tablet->GetTable();
 
-        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+        CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->AttachToChunkList(tablet->GetChunkList(), dynamicStore);
@@ -5798,7 +5899,11 @@ private:
             tablet->GetId(),
             dynamicStore->GetId());
 
-        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+        table->SnapshotStatistics() = {};
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
+        }
+
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->ScheduleStatisticsUpdate(
             table,
@@ -5821,8 +5926,25 @@ private:
         }
     }
 
+    void CopyChunkListsIfShared(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex,
+        bool force = false)
+    {
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            CopyChunkListIfShared(
+                table,
+                contentType,
+                firstTabletIndex,
+                lastTabletIndex,
+                force);
+        }
+    }
+
     void CopyChunkListIfShared(
         TTableNode* table,
+        EChunkListContentType contentType,
         int firstTabletIndex,
         int lastTabletIndex,
         bool force = false)
@@ -5835,7 +5957,7 @@ private:
 
         int actionCount = 0;
 
-        auto* oldRootChunkList = table->GetChunkList();
+        auto* oldRootChunkList = table->GetChunkList(contentType);
         auto& chunkLists = oldRootChunkList->Children();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
@@ -5868,14 +5990,15 @@ private:
             actionCount += newRootChunkList->Children().size();
 
             // Replace root chunk list.
-            table->SetChunkList(newRootChunkList);
+            table->SetChunkList(contentType, newRootChunkList);
             newRootChunkList->AddOwningNode(table);
             oldRootChunkList->RemoveOwningNode(table);
             if (!checkStatisticsMatch(newRootChunkList->Statistics(), statistics)) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Invalid new root chunk list statistics "
-                    "(TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
+                    "(TableId: %v, ContentType: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
+                    contentType,
                     newRootChunkList->Statistics(),
                     statistics);
             }
@@ -5904,8 +6027,9 @@ private:
             if (!checkStatisticsMatch(oldRootChunkList->Statistics(), statistics)) {
                 YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Invalid old root chunk list statistics "
-                    "(TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
+                    "(TableId: %v, ContentType: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
+                    contentType,
                     oldRootChunkList->Statistics(),
                     statistics);
             }
@@ -6154,26 +6278,34 @@ private:
 
     void AttachChunksToTablet(TTablet* tablet, const std::vector<TChunkTree*>& chunkTrees)
     {
-        auto* tabletChunkList = tablet->GetChunkList();
+        std::vector<TChunkTree*> storeChildren;
+        std::vector<TChunkTree*> hunkChildren;
+        storeChildren.reserve(chunkTrees.size());
+        hunkChildren.reserve(chunkTrees.size());
+        for (auto* child : chunkTrees) {
+            if (IsHunkChunk(child)) {
+                hunkChildren.push_back(child);
+            } else {
+                storeChildren.push_back(child);
+            }
+        }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->AttachToTabletChunkList(tabletChunkList, chunkTrees);
+        chunkManager->AttachToChunkList(tablet->GetChunkList(), storeChildren);
+        chunkManager->AttachToChunkList(tablet->GetHunkChunkList(), hunkChildren);
     }
 
     TChunkList* GetTabletChildParent(TTablet* tablet, TChunkTree* child)
     {
-        auto* tabletChunkList = tablet->GetChunkList();
         if (IsHunkChunk(child)) {
-            auto* hunkRootChunkList = tabletChunkList->GetHunkRootChild();
-            YT_VERIFY(hunkRootChunkList);
-            return hunkRootChunkList;
+            return tablet->GetHunkChunkList();
         } else {
             if (GetParentCount(child) == 1) {
                 auto* parent = GetUniqueParent(child);
                 YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
                 return parent;
             }
-            return tabletChunkList;
+            return tablet->GetChunkList();
         }
     }
 
@@ -6390,8 +6522,8 @@ private:
             static_cast<TTimestamp>(request->retained_timestamp()));
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
-        // Copy chunk tree if somebody holds a reference or if children cannot be detached unambiguously.
-        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex(), flatteningRequired);
+        // Copy chunk trees if somebody holds a reference or if children cannot be detached unambiguously.
+        CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex(), flatteningRequired);
 
         // Save old tablet resource usage.
         auto oldMemorySize = tablet->GetTabletStaticMemorySize();
@@ -6452,7 +6584,10 @@ private:
                     : EChunkDetachPolicy::SortedTablet);
         }
 
-        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+        table->SnapshotStatistics() = {};
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            table->SnapshotStatistics() += table->GetChunkList(contentType)->Statistics().ToDataStatistics();
+        }
 
         // Get new tablet resource usage.
         auto newMemorySize = tablet->GetTabletStaticMemorySize();

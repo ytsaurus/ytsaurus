@@ -18,10 +18,10 @@ class TChunkStatisticsVisitor
 public:
     TChunkStatisticsVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList,
+        TChunkLists chunkLists,
         TKeyExtractor keyExtractor,
         TPredicate predicate)
-        : TChunkVisitorBase(bootstrap, chunkList)
+        : TChunkVisitorBase(bootstrap, chunkLists)
         , KeyExtractor_(std::move(keyExtractor))
         , Predicate_(std::move(predicate))
     { }
@@ -110,12 +110,12 @@ private:
 template <class TKeyExtractor>
 TFuture<NYson::TYsonString> ComputeChunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
+    const TChunkLists& chunkLists,
     TKeyExtractor keyExtractor)
 {
     return ComputeChunkStatistics(
         bootstrap,
-        chunkList,
+        chunkLists,
         std::move(keyExtractor),
         [] (const TChunk* /*chunk*/) { return true; });
 }
@@ -123,13 +123,13 @@ TFuture<NYson::TYsonString> ComputeChunkStatistics(
 template <class TKeyExtractor, class TPredicate>
 TFuture<NYson::TYsonString> ComputeChunkStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
+    const TChunkLists& chunkLists,
     TKeyExtractor keyExtractor,
     TPredicate predicate)
 {
     auto visitor = New<TChunkStatisticsVisitor<TKeyExtractor, TPredicate>>(
         bootstrap,
-        chunkList,
+        chunkLists,
         std::move(keyExtractor),
         std::move(predicate));
     return visitor->Run();

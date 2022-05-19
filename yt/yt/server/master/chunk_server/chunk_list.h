@@ -55,9 +55,6 @@ public:
     //! Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
-    //! The only child of EChunkListKind::HunkRoot kind (if any).
-    DEFINE_BYVAL_RO_PROPERTY(TChunkList*, HunkRootChild);
-
 public:
     explicit TChunkList(TChunkListId id);
 
@@ -104,9 +101,6 @@ public:
     bool HasChildToIndexMapping() const;
 
     NTableClient::TKeyBound GetPivotKeyBound() const;
-
-    void SetHunkRootChild(TChunkList* child);
-    void ResetHunkRootChild(TChunkList* child);
 
 private:
     TIndexedVector<TChunkList*> Parents_;

@@ -406,7 +406,7 @@ void DetachFromChunkList(
         case EChunkDetachPolicy::SortedTablet: {
             YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicTablet ||
                 chunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
-                chunkList->GetKind() == EChunkListKind::HunkRoot);
+                chunkList->GetKind() == EChunkListKind::Hunk);
             // Can handle arbitrary children.
             // Used in sorted tablet compaction.
             YT_VERIFY(chunkList->HasChildToIndexMapping());
@@ -431,10 +431,6 @@ void DetachFromChunkList(
                 chunkList->CumulativeStatistics().PopBack();
                 childToIndex.erase(indexIt);
                 children.pop_back();
-
-                if (IsHunkChunkList(child)) {
-                    chunkList->ResetHunkRootChild(child->AsChunkList());
-                }
             }
             break;
         }
@@ -462,14 +458,8 @@ void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* ne
     auto& children = chunkList->Children();
 
     auto* oldChild = children[childIndex];
-    if (IsHunkChunkList(oldChild)) {
-        chunkList->ResetHunkRootChild(oldChild->AsChunkList());
-    }
 
     children[childIndex] = newChild;
-    if (IsHunkChunk(newChild)) {
-        chunkList->SetHunkRootChild(newChild->AsChunkList());
-    }
 
     ResetChunkTreeParent(chunkList, oldChild);
     SetChunkTreeParent(chunkList, newChild);
@@ -572,10 +562,6 @@ void AppendChunkTreeChild(
 
     statistics->Accumulate(GetChunkTreeStatistics(child));
     chunkList->Children().push_back(child);
-
-    if (IsHunkChunkList(child)) {
-        chunkList->SetHunkRootChild(child->AsChunkList());
-    }
 }
 
 void AccumulateUniqueAncestorsStatistics(
@@ -627,6 +613,7 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 
     std::vector<TChunkTree*> children;
     children.swap(chunkList->Children());
+    chunkList->ChildToIndex().clear();
 
     TChunkTreeStatistics statistics;
     for (auto* child : children) {
@@ -871,18 +858,6 @@ bool IsHunkChunk(const TChunkTree* chunkTree)
     }
     const auto* chunk = chunkTree->AsChunk();
     return chunk->GetChunkType() == EChunkType::Hunk;
-}
-
-bool IsHunkChunkList(const TChunkTree* chunkTree)
-{
-    if (!chunkTree) {
-        return false;
-    }
-    if (chunkTree->GetType() != EObjectType::ChunkList) {
-        return false;
-    }
-    const auto* chunkList = chunkTree->AsChunkList();
-    return chunkList->GetKind() == EChunkListKind::HunkRoot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1275,6 +1275,46 @@ class TestBulkInsert(DynamicTablesBase):
             assert read_table("//tmp/t_output", tx=tx) == rows
             abort_transaction(tx)
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("overwrite", [True, False])
+    def test_bulk_insert_with_hunks(self, overwrite):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table(
+            "//tmp/t_output",
+            enable_dynamic_store_read=False,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
+            ])
+        sync_mount_table("//tmp/t_output")
+
+        rows = [
+            {"key": 1, "value": "1" * 10},
+            {"key": 2, "value": "2" * 10},
+        ]
+        write_table("//tmp/t_input", rows[:1])
+        insert_rows("//tmp/t_output", rows[1:])
+
+        sync_unmount_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        def has_hunk_chunks():
+            chunk_ids = get("//tmp/t_output/@chunk_ids")
+            return any([chunk_id for chunk_id in chunk_ids if get("#{}/@chunk_type".format(chunk_id)) == "hunk"])
+
+        assert has_hunk_chunks()
+
+        if overwrite:
+            map(in_="//tmp/t_input", out="//tmp/t_output", command="cat")
+            assert not has_hunk_chunks()
+            assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[:1])
+        else:
+            map(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command="cat")
+            assert has_hunk_chunks()
+            assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+
+
 ##################################################################
 
 

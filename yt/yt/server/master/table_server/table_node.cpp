@@ -735,6 +735,8 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
         }
     }
 
+    YT_VERIFY(static_cast<bool>(GetHunkChunkList()) == IsDynamic());
+
     // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
     YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
     YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());

@@ -117,9 +117,12 @@ protected:
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
 
         if (!originatingNode->IsExternal()) {
-            auto* chunkList = originatingNode->GetChunkList();
-            branchedNode->SetChunkList(chunkList);
-            chunkList->AddOwningNode(branchedNode);
+            for (auto chunkListType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (auto* chunkList = originatingNode->GetChunkList(chunkListType)) {
+                    branchedNode->SetChunkList(chunkListType, chunkList);
+                    chunkList->AddOwningNode(branchedNode);
+                }
+            }
         }
     }
 
@@ -153,11 +156,14 @@ protected:
     {
         // NB: Don't call TBase::DoMerge.
 
-        YT_VERIFY(originatingNode->GetChunkList() == branchedNode->GetChunkList());
-        auto* chunkList = originatingNode->GetChunkList();
-
         if (!originatingNode->IsExternal()) {
-            chunkList->RemoveOwningNode(branchedNode);
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                YT_VERIFY(originatingNode->GetChunkList(contentType) == branchedNode->GetChunkList(contentType));
+
+                if (auto* chunkList = originatingNode->GetChunkList(contentType)) {
+                    chunkList->RemoveOwningNode(branchedNode);
+                }
+            }
         }
 
         HandleTransactionFinished(branchedNode);
@@ -181,7 +187,9 @@ protected:
     {
         // NB: Don't call TBase::DoUnbranch.
 
-        YT_VERIFY(originatingNode->GetChunkList() == branchedNode->GetChunkList());
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            YT_VERIFY(originatingNode->GetChunkList(contentType) == branchedNode->GetChunkList(contentType));
+        }
 
         HandleTransactionFinished(branchedNode);
     }
