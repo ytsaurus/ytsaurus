@@ -603,12 +603,7 @@ void TContext::SetupInputStream()
 
 void TContext::SetupOutputStream()
 {
-    // NB(psushin): This is an ugly hack for a long-running command with structured output - YT-9713.
-    // Remove once framing is implemented - YT-9838.
-    if (Descriptor_->CommandName != "get_table_columnar_statistics" && (
-        Descriptor_->OutputType == EDataType::Null ||
-        Descriptor_->OutputType == EDataType::Structured))
-    {
+    if (Descriptor_->OutputType == EDataType::Null || Descriptor_->OutputType == EDataType::Structured) {
         MemoryOutput_ = New<TSharedRefOutputStream>();
         DriverRequest_.OutputStream = MemoryOutput_;
     } else {

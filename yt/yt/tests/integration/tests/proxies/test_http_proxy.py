@@ -464,9 +464,8 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             # Attention: missing column selector causes error.
             "paths": [self.SUSPENDING_TABLE],
         }
-        # TODO(achulkov2): Uncomment this once YT-16109 is closed.
-        # with pytest.raises(YtResponseError):
-        #     self._execute_command("GET", "get_table_columnar_statistics", params)
+        with pytest.raises(YtResponseError):
+            self._execute_command("GET", "get_table_columnar_statistics", params)
 
 
 class TestHttpProxyJobShellAudit(HttpProxyTestBase):
