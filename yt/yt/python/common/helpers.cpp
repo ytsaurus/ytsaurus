@@ -29,7 +29,7 @@ TStringBuf ConvertToStringBuf(PyObject* pyString)
     char* stringData;
     Py_ssize_t length;
     if (PyBytes_AsStringAndSize(pyString, &stringData, &length) == -1) {
-        throw Py::Exception();
+        throw Exception();
     }
     return TStringBuf(stringData, length);
 }
@@ -44,7 +44,7 @@ TString ConvertStringObjectToString(const Object& obj)
     Object pyString = obj;
     if (!PyBytes_Check(pyString.ptr())) {
         if (PyUnicode_Check(pyString.ptr())) {
-            pyString = Py::Object(PyUnicode_AsUTF8String(pyString.ptr()), true);
+            pyString = Object(PyUnicode_AsUTF8String(pyString.ptr()), true);
         } else {
             throw RuntimeError("Object '" + Repr(pyString) + "' is not bytes or unicode string");
         }
@@ -55,14 +55,14 @@ TString ConvertStringObjectToString(const Object& obj)
     return TString(stringData, length);
 }
 
-Bytes ConvertToPythonString(const TString& string)
+Bytes ConvertToPythonString(TStringBuf string)
 {
-    return Py::Bytes(string.c_str(), string.length());
+    return Bytes(string.begin(), string.length());
 }
 
 i64 ConvertToLongLong(const Object& obj)
 {
-    return static_cast<i64>(Py::LongLong(obj));
+    return static_cast<i64>(LongLong(obj));
 }
 
 std::optional<Object> FindAttr(const Object& obj, const std::string& fieldName)
@@ -96,7 +96,7 @@ Object CreateIterator(const Object& obj)
 {
     PyObject* iter = PyObject_GetIter(obj.ptr());
     if (!iter) {
-        throw Py::Exception();
+        throw Exception();
     }
     return Object(iter, true);
 }
@@ -108,15 +108,15 @@ TError BuildErrorFromPythonException(bool clear)
     PyObject* errorBacktraceRaw;
     PyErr_Fetch(&errorTypeRaw, &errorValueRaw, &errorBacktraceRaw);
 
-    Py::Object errorType;
+    Object errorType;
     if (errorTypeRaw) {
         errorType = errorTypeRaw;
     }
-    Py::Object errorValue;
+    Object errorValue;
     if (errorValueRaw) {
         errorValue = errorValueRaw;
     }
-    Py::Object errorBacktrace;
+    Object errorBacktrace;
     if (errorBacktraceRaw) {
         errorBacktrace = errorBacktraceRaw;
     }

@@ -26,7 +26,7 @@ bool IsFloat(const Object& obj);
 #ifdef PYCXX_PYTHON_2TO3
 TStringBuf ConvertToStringBuf(PyObject* pyString);
 TStringBuf ConvertToStringBuf(const Bytes& pyString);
-Bytes ConvertToPythonString(const TString& string);
+Bytes ConvertToPythonString(TStringBuf string);
 #endif
 
 TString ConvertStringObjectToString(const Object& obj);

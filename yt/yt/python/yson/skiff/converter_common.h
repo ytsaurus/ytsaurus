@@ -61,9 +61,12 @@ public:
     int mapping_ass_subscript(const Py::Object& key, const Py::Object& value) override;
     Py::Object repr() override;
 
+    Py::Object DeepCopy(const Py::Tuple& args);
+    PYCXX_VARARGS_METHOD_DECL(TSkiffOtherColumns, DeepCopy);
+
     static void InitType();
 
-    TStringBuf GetYsonString();
+    NYson::TYsonStringBuf GetYsonString();
 
 private:
     std::optional<Py::Bytes> UnparsedBytesObj_;
