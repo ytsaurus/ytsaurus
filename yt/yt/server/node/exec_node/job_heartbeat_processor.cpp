@@ -123,6 +123,10 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
             continue;
         }
 
+        const bool sendConfirmedJobToControllerAgent = schedulerJob->GetStored() &&
+            confirmIt == std::cend(JobIdsToConfirm_) &&
+            totalConfirmation;
+
         if (schedulerJob->GetStored() || confirmIt != std::cend(JobIdsToConfirm_)) {
             YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                 jobId,
@@ -151,8 +155,10 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
                 YT_VERIFY(controllerAgentConnector);
 
                 *jobStatus->mutable_result() = schedulerJob->GetResultWithoutExtension();
-                controllerAgentConnector->EnqueueFinishedJob(schedulerJob);
-                shouldSendControllerAgentHeartbeatsOutOfBand = true;
+                if (!sendConfirmedJobToControllerAgent) {
+                    controllerAgentConnector->EnqueueFinishedJob(schedulerJob);
+                    shouldSendControllerAgentHeartbeatsOutOfBand = true;
+                }
                 break;
             }
             default:
