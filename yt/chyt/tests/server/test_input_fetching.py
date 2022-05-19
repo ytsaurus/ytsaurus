@@ -672,7 +672,6 @@ class TestInputFetching(ClickHouseTestBase):
         write_table(table_path, {"a": 42, "b": "x", "c": 3.14})
 
         with Clique(1, config_patch=get_disabled_cache_config()) as clique:
-            # Column 'a' is sorted.
             assert clique.make_query('select * from "//tmp/t1" where a > 41') == [
                 {"a": 42, "b": "x", "c": 3.14},
             ]
@@ -682,7 +681,6 @@ class TestInputFetching(ClickHouseTestBase):
 
             alter_table(table_path, schema=schema2)
 
-            # Column 'a' is sorted.
             assert clique.make_query('select * from "//tmp/t1" where a > 41') == [
                 {"a": 42, "b_new": "x", "c_new": 3.14},
             ]
@@ -692,7 +690,6 @@ class TestInputFetching(ClickHouseTestBase):
 
             write_table(table_path_with_append, {"a": 43, "b_new": "y", "c_new": 3.15})
 
-            # Column 'a' is sorted.
             assert clique.make_query('select * from "//tmp/t1" where a > 42') == [
                 {"a": 43, "b_new": "y", "c_new": 3.15}
             ]
@@ -712,20 +709,18 @@ class TestInputFetching(ClickHouseTestBase):
 
             write_table(table_path_with_append, {"a": 44, "b_newer": "z", "c_new": 3.16, "d": 12})
 
-            # Column 'a' is sorted.
-            assert clique.make_query('select * from "//tmp/t1" where a > 42') == [
+            assert clique.make_query('select * from "//tmp/t1" where a > 42 order by a') == [
                 {"a": 43, "b_newer": "y", "c_new": 3.15, "d": None},
                 {"a": 44, "b_newer": "z", "c_new": 3.16, "d": 12},
             ]
-            assert clique.make_query('select b_newer, d from "//tmp/t1" where a > 42') == [
+            assert clique.make_query('select b_newer, d from "//tmp/t1" where a > 42 order by b_newer') == [
                 {"b_newer": "y", "d": None},
                 {"b_newer": "z", "d": 12},
             ]
 
             alter_table(table_path, schema=schema4)
 
-            # Column 'a' is sorted.
-            assert clique.make_query('select * from "//tmp/t1" where a > 42') == [
+            assert clique.make_query('select * from "//tmp/t1" where a > 42 order by a') == [
                 {"a": 43, "b": "y", "c": 3.15, "d": None},
                 {"a": 44, "b": "z", "c": 3.16, "d": 12},
             ]
@@ -816,24 +811,22 @@ class TestInputFetching(ClickHouseTestBase):
 
             write_table(table_path_with_append, {"a": 40, "b_newer": "z", "c_new": 3.16, "d": 12})
 
-            # Column 'a' is sorted.
-            assert clique.make_query('select * from "//tmp/t1" where a < 42') == [
-                {"a": 41, "b_newer": "y", "c_new": 3.15, "d": None},
+            assert clique.make_query('select * from "//tmp/t1" where a < 42 order by a') == [
                 {"a": 40, "b_newer": "z", "c_new": 3.16, "d": 12},
+                {"a": 41, "b_newer": "y", "c_new": 3.15, "d": None},
             ]
-            assert clique.make_query('select b_newer, d from "//tmp/t1" where a < 42') == [
+            assert clique.make_query('select b_newer, d from "//tmp/t1" where a < 42 order by b_newer') == [
                 {"b_newer": "y", "d": None},
                 {"b_newer": "z", "d": 12},
             ]
 
             alter_table(table_path, schema=schema4)
 
-            # Column 'a' is sorted.
-            assert clique.make_query('select * from "//tmp/t1" where a < 42') == [
-                {"a": 41, "b": "y", "c": 3.15, "d": None},
+            assert clique.make_query('select * from "//tmp/t1" where a < 42 order by a') == [
                 {"a": 40, "b": "z", "c": 3.16, "d": 12},
+                {"a": 41, "b": "y", "c": 3.15, "d": None},
             ]
-            assert clique.make_query('select b, d from "//tmp/t1" where a < 42') == [
+            assert clique.make_query('select b, d from "//tmp/t1" where a < 42 order by b') == [
                 {"b": "y", "d": None},
                 {"b": "z", "d": 12},
             ]
@@ -843,7 +836,6 @@ class TestInputFetching(ClickHouseTestBase):
     def test_renamed_columns_several_tables(self, sort_order):
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
-        order_slice = slice(None) if sort_order == "ascending" else slice(None, None, -1)
 
         create(
             "table",
@@ -873,7 +865,7 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query('select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18') == [
                 {"a": 42, "b": "x", "c_new": 3.14},
-            ][order_slice]
+            ]
 
     @authors("levysotsky")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
