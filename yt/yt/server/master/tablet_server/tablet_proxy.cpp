@@ -109,6 +109,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PivotKey)
             .SetPresent(table->IsPhysicallySorted()));
         descriptors->push_back(EInternedAttributeKey::ChunkListId);
+        descriptors->push_back(EInternedAttributeKey::HunkChunkListId);
         descriptors->push_back(EInternedAttributeKey::InMemoryMode);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CellId)
             .SetPresent(tablet->GetCell()));
@@ -129,6 +130,7 @@ private:
     {
         const auto* tablet = GetThisImpl();
         const auto* chunkList = tablet->GetChunkList();
+        const auto* hunkChunkList = tablet->GetHunkChunkList();
         const auto* table = tablet->GetTable();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -227,7 +229,12 @@ private:
 
             case EInternedAttributeKey::ChunkListId:
                 BuildYsonFluently(consumer)
-                    .Value(tablet->GetChunkList()->GetId());
+                    .Value(chunkList->GetId());
+                return true;
+
+            case EInternedAttributeKey::HunkChunkListId:
+                BuildYsonFluently(consumer)
+                    .Value(hunkChunkList->GetId());
                 return true;
 
             case EInternedAttributeKey::InMemoryMode:

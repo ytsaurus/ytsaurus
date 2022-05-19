@@ -163,13 +163,15 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 {
-    if (auto* chunkList = node->GetChunkList()) {
-        if (!node->IsExternal() && node->IsTrunk()) {
-            const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-            chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
-        }
+    for (auto* chunkList : node->GetChunkLists()) {
+        if (chunkList) {
+            if (node->IsTrunk() && !node->IsExternal()) {
+                const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+                chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
+            }
 
-        chunkList->RemoveOwningNode(node);
+            chunkList->RemoveOwningNode(node);
+        }
     }
 
     TBase::DoDestroy(node);
@@ -184,9 +186,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
     if (!originatingNode->IsExternal()) {
-        auto* chunkList = originatingNode->GetChunkList();
-        branchedNode->SetChunkList(chunkList);
-        branchedNode->GetChunkList()->AddOwningNode(branchedNode);
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            auto* chunkList = originatingNode->GetChunkList(contentType);
+            branchedNode->SetChunkList(contentType, chunkList);
+            if (chunkList) {
+                chunkList->AddOwningNode(branchedNode);
+            }
+        }
     }
 
     branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
@@ -214,11 +220,12 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG_IF(
         TBase::IsMutationLoggingEnabled(),
-        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
+        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v"
         "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %llx)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
+        NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()),
         primaryMedium->GetName(),
         originatingNode->Replication(),
         lockRequest.Mode,
@@ -251,7 +258,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     auto branchedMode = branchedNode->GetUpdateMode();
 
     if (!isExternal) {
-        branchedChunkList->RemoveOwningNode(branchedNode);
+        for (auto* branchedChunkList : branchedNode->GetChunkLists()) {
+            if (branchedChunkList) {
+                branchedChunkList->RemoveOwningNode(branchedNode);
+            }
+        }
     }
 
     // Check if we have anything to do at all.
@@ -289,9 +300,18 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
         if (!isExternal) {
             if (branchedChunkList->GetKind() == EChunkListKind::Static || !originatingNode->IsTrunk()) {
-                originatingChunkList->RemoveOwningNode(originatingNode);
-                branchedChunkList->AddOwningNode(originatingNode);
-                originatingNode->SetChunkList(branchedChunkList);
+                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    auto* originatingChunkList = originatingNode->GetChunkList(contentType);
+                    auto* branchedChunkList = branchedNode->GetChunkList(contentType);
+                    if (!originatingChunkList) {
+                        YT_VERIFY(!branchedChunkList);
+                        continue;
+                    }
+
+                    originatingChunkList->RemoveOwningNode(originatingNode);
+                    branchedChunkList->AddOwningNode(originatingNode);
+                    originatingNode->SetChunkList(contentType, branchedChunkList);
+                }
             } else {
                 YT_VERIFY(branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
                 if (branchedChunkList != originatingChunkList) {
@@ -310,9 +330,16 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 }
             }
 
-            chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
-            if (requisitionUpdateNeeded) {
-                chunkManager->ScheduleChunkRequisitionUpdate(branchedChunkList);
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (auto* originatingChunkList = originatingNode->GetChunkList(contentType)) {
+                    chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
+                }
+
+                if (requisitionUpdateNeeded) {
+                    if (auto* branchedChunkList = branchedNode->GetChunkList(contentType)) {
+                        chunkManager->ScheduleChunkRequisitionUpdate(branchedChunkList);
+                    }
+                }
             }
         }
 
@@ -326,8 +353,10 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
         bool isDynamic = false;
 
-        TChunkTree* deltaTree = nullptr;
-        TChunkList* newOriginatingChunkList = nullptr;
+        TEnumIndexedVector<EChunkListContentType, TChunkTree*> deltaTrees;
+        TChunkLists originatingChunkLists;
+        TChunkLists newOriginatingChunkLists;
+
         if (!isExternal) {
             if (branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                 if (originatingNode->IsTrunk()) {
@@ -349,30 +378,55 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     // For non-trunk node just overwrite originating node with branched node contents.
                     // Could be made more consistent with static tables by using hierarchical chunk lists.
 
+                    YT_VERIFY(originatingNode->GetHunkChunkList() == branchedNode->GetHunkChunkList());
+
                     originatingNode->SetChunkList(branchedChunkList);
                     originatingChunkList->RemoveOwningNode(originatingNode);
                     branchedChunkList->AddOwningNode(originatingNode);
                 }
                 isDynamic = true;
             } else {
-                YT_VERIFY(branchedChunkList->Children().size() == 2);
-                deltaTree = branchedChunkList->Children()[1];
-                newOriginatingChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                YT_VERIFY(branchedChunkList->GetKind() == EChunkListKind::Static);
 
-                originatingChunkList->RemoveOwningNode(originatingNode);
-                newOriginatingChunkList->AddOwningNode(originatingNode);
-                originatingNode->SetChunkList(newOriginatingChunkList);
+                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    auto* originatingChunkList = originatingNode->GetChunkList(contentType);
+                    auto* branchedChunkList = branchedNode->GetChunkList(contentType);
+                    if (!originatingChunkList) {
+                        YT_VERIFY(!branchedChunkList);
+                        continue;
+                    }
+
+                    YT_VERIFY(branchedChunkList->Children().size() == 2);
+                    deltaTrees[contentType] = branchedChunkList->Children()[1];
+
+                    auto* newOriginatingChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
+                    originatingChunkLists[contentType] = originatingChunkList;
+                    newOriginatingChunkLists[contentType] = newOriginatingChunkList;
+
+                    originatingChunkList->RemoveOwningNode(originatingNode);
+                    newOriginatingChunkList->AddOwningNode(originatingNode);
+                    originatingNode->SetChunkList(contentType, newOriginatingChunkList);
+                }
             }
         }
 
         if (originatingMode == NChunkClient::EUpdateMode::Append) {
             YT_VERIFY(!topmostCommit);
             if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
-                chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
-                auto* newDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
-                chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
-                chunkManager->AttachToChunkList(newDeltaChunkList, deltaTree);
+                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    auto* originatingChunkList = originatingChunkLists[contentType];
+                    auto* newOriginatingChunkList = newOriginatingChunkLists[contentType];
+                    if (!originatingChunkList) {
+                        YT_VERIFY(!newOriginatingChunkList);
+                        continue;
+                    }
+
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
+                    auto* newDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, newDeltaChunkList);
+                    chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
+                    chunkManager->AttachToChunkList(newDeltaChunkList, deltaTrees[contentType]);
+                }
             }
 
             originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
@@ -382,11 +436,21 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
                 YT_VERIFY(originatingChunkList->GetKind() == EChunkListKind::Static);
 
-                chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
-                chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
+                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                    auto* originatingChunkList = originatingChunkLists[contentType];
+                    auto* newOriginatingChunkList = newOriginatingChunkLists[contentType];
+                    if (!originatingChunkList) {
+                        YT_VERIFY(!newOriginatingChunkList);
+                        continue;
+                    }
 
-                if (requisitionUpdateNeeded) {
-                    chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
+                    auto* deltaTree = deltaTrees[contentType];
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
+                    chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
+
+                    if (requisitionUpdateNeeded) {
+                        chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
+                    }
                 }
             }
 
@@ -407,11 +471,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
     }
 
-    auto* newOriginatingChunkList = originatingNode->GetChunkList();
-
     if (topmostCommit && !isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
         // Rebalance when the topmost transaction commits.
-        chunkManager->RebalanceChunkTree(newOriginatingChunkList, EChunkTreeBalancerMode::Permissive);
+        chunkManager->RebalanceChunkTree(originatingNode->GetChunkList(), EChunkTreeBalancerMode::Permissive);
         // Don't schedule requisition update for #newOriginatingChunkList here.
         // See balancer implementation for details.
 
@@ -435,19 +497,21 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
         TBase::IsMutationLoggingEnabled(),
         "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, "
         "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
-        "BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedReplication: %v, "
-        "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v, "
-        "BranchedSnapshotStatistics: %v, BranchedDeltaStatistics: %v, "
+        "BranchedHunkChunkListId: %v, BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, "
+        "BranchedReplication: %v, NewOriginatingChunkListId: %v, NewOriginatingHunkChunkListId: %v, "
+        "NewOriginatingUpdateMode: %v, BranchedSnapshotStatistics: %v, BranchedDeltaStatistics: %v, "
         "NewOriginatingSnapshotStatistics: %v, NewOriginatingDeltaStatistics: %v)",
         originatingNode->GetVersionedId(),
         originatingPrimaryMedium->GetName(),
         originatingNode->Replication(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(branchedNode->GetChunkList()),
+        NObjectServer::GetObjectId(branchedNode->GetHunkChunkList()),
         branchedNode->GetUpdateMode(),
         branchedPrimaryMedium->GetName(),
         branchedNode->Replication(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),
+        NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()),
         originatingNode->GetUpdateMode(),
         branchedNode->SnapshotStatistics(),
         branchedNode->DeltaStatistics(),
@@ -477,13 +541,17 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->SetEnableSkynetSharing(sourceNode->GetEnableSkynetSharing());
 
     if (!sourceNode->IsExternal()) {
-        auto* chunkList = sourceNode->GetChunkList();
-        YT_VERIFY(!clonedTrunkNode->GetChunkList());
-        clonedTrunkNode->SetChunkList(chunkList);
-        chunkList->AddOwningNode(clonedTrunkNode);
-        if (clonedTrunkNode->IsTrunk() && sourceNode->GetAccount() != clonedTrunkNode->GetAccount()) {
-            const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
-            chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
+        for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+            auto* chunkList = sourceNode->GetChunkList(contentType);
+            YT_VERIFY(!clonedTrunkNode->GetChunkList(contentType));
+            clonedTrunkNode->SetChunkList(contentType, chunkList);
+            if (chunkList) {
+                chunkList->AddOwningNode(clonedTrunkNode);
+                if (clonedTrunkNode->IsTrunk() && sourceNode->GetAccount() != clonedTrunkNode->GetAccount()) {
+                    const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
+                    chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
+                }
+            }
         }
     }
 }

@@ -147,6 +147,7 @@ DEFINE_ENUM(EMasterReign,
     ((Aevum)                                                        (2012))  // gritukan
     ((DedicatedChunkHost)                                           (2013))  // h0pless
     ((ChangedExceptionTypeInResolve)                                (2014))  // h0pless
+    ((ChunkListType)                                                (2015))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

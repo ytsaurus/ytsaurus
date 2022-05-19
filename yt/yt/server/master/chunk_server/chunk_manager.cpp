@@ -63,6 +63,9 @@
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 
+// COMPAT(gritukan)
+#include <yt/yt/server/master/table_server/table_node.h>
+
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -1408,7 +1411,10 @@ public:
         } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
             newChunkList->SetPivotKey(chunkList->GetPivotKey());
             auto children = EnumerateStoresInChunkTree(chunkList);
-            AttachToTabletChunkList(newChunkList, children);
+            AttachToChunkList(newChunkList, children);
+        } else if (chunkList->GetKind() == EChunkListKind::Hunk) {
+            auto children = EnumerateStoresInChunkTree(chunkList);
+            AttachToChunkList(newChunkList, children);
         } else {
             YT_ABORT();
         }
@@ -1505,39 +1511,6 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(child);
         objectManager->UnrefObject(oldChild);
-    }
-
-    TChunkList* GetOrCreateHunkChunkList(TChunkList* tabletChunkList)
-    {
-        if (!tabletChunkList->GetHunkRootChild()) {
-            auto* hunkRootChunkList = CreateChunkList(EChunkListKind::HunkRoot);
-            AttachToChunkList(tabletChunkList, hunkRootChunkList);
-        }
-        return tabletChunkList->GetHunkRootChild();
-    }
-
-    void AttachToTabletChunkList(
-        TChunkList* tabletChunkList,
-        const std::vector<TChunkTree*>& children)
-    {
-        std::vector<TChunkTree*> storeChildren;
-        std::vector<TChunkTree*> hunkChildren;
-        storeChildren.reserve(children.size());
-        hunkChildren.reserve(children.size());
-        for (auto* child : children) {
-            if (IsHunkChunk(child)) {
-                hunkChildren.push_back(child);
-            } else {
-                storeChildren.push_back(child);
-            }
-        }
-
-        AttachToChunkList(tabletChunkList, storeChildren);
-
-        if (!hunkChildren.empty()) {
-            auto* hunkChunkList = GetOrCreateHunkChunkList(tabletChunkList);
-            AttachToChunkList(hunkChunkList, hunkChildren);
-        }
     }
 
     void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode)
@@ -2372,6 +2345,9 @@ private:
 
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
+
+    // COMPAT(gritukan)
+    bool NeedCreateHunkChunkLists_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -3913,6 +3889,9 @@ private:
 
         // COMPAT(aleksandra-zh)
         NeedClearDestroyedReplicaQueues_ = context.GetVersion() < EMasterReign::FixZombieReplicaRemoval;
+
+        // COMPAT(gritukan)
+        NeedCreateHunkChunkLists_ = context.GetVersion() < EMasterReign::ChunkListType;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -3961,14 +3940,6 @@ private:
             // COMPAT(shakurov)
             if (chunk->GetExpirationTime()) {
                 ExpirationTracker_->ScheduleExpiration(chunk);
-            }
-        }
-
-        for (auto [chunkListId, chunkList] : ChunkListMap_) {
-            if (chunkList->GetKind() == EChunkListKind::HunkRoot) {
-                for (auto* parent : chunkList->Parents()) {
-                    parent->SetHunkRootChild(chunkList);
-                }
             }
         }
 
@@ -4023,6 +3994,70 @@ private:
                 node->ClearDestroyedReplicas();
             }
         }
+
+        if (NeedCreateHunkChunkLists_) {
+            THashMap<TChunkList*, TChunkList*> chunkListToHunkChunkList;
+            THashMap<TChunkList*, TChunkList*> tabletChunkListToHunkChunkList;
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!IsTableType(node->GetType())) {
+                    continue;
+                }
+                auto* table = node->As<NTableServer::TTableNode>();
+                if (!table->IsDynamic() || table->IsExternal()) {
+                    continue;
+                }
+                auto* chunkList = table->GetChunkList();
+                if (!chunkListToHunkChunkList.contains(chunkList)) {
+                    auto* hunkChunkList = CreateChunkList(EChunkListKind::HunkRoot);
+                    EmplaceOrCrash(chunkListToHunkChunkList, chunkList, hunkChunkList);
+
+                    YT_VERIFY(
+                        chunkList->GetKind() == EChunkListKind::SortedDynamicRoot ||
+                        chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot);
+
+                    for (auto* child : chunkList->Children()) {
+                        auto* tabletChunkList = child->AsChunkList();
+                        if (!tabletChunkListToHunkChunkList.contains(tabletChunkList)) {
+                            TChunkList* tabletHunkChunkList = nullptr;
+                            for (auto* child : tabletChunkList->Children()) {
+                                if (IsObjectAlive(child) &&
+                                    child->GetType() == EObjectType::ChunkList &&
+                                    child->AsChunkList()->GetKind() == EChunkListKind::HunkRoot)
+                                {
+                                    YT_VERIFY(!tabletHunkChunkList);
+                                    tabletHunkChunkList = child->AsChunkList();
+                                }
+                            }
+
+                            if (tabletHunkChunkList) {
+                                DetachFromChunkList(
+                                    tabletChunkList,
+                                    tabletHunkChunkList,
+                                    EChunkDetachPolicy::SortedTablet);
+                                tabletHunkChunkList->SetKind(EChunkListKind::Hunk);
+                            } else {
+                                tabletHunkChunkList = CreateChunkList(EChunkListKind::Hunk);
+                            }
+
+                            EmplaceOrCrash(
+                                tabletChunkListToHunkChunkList,
+                                tabletChunkList,
+                                tabletHunkChunkList);
+                        }
+
+                        auto* tabletHunkChunkList = GetOrCrash(tabletChunkListToHunkChunkList, tabletChunkList);
+                        AttachToChunkList(hunkChunkList, tabletHunkChunkList);
+                    }
+                }
+
+                auto* hunkChunkList = GetOrCrash(chunkListToHunkChunkList, chunkList);
+                table->SetHunkChunkList(hunkChunkList);
+                hunkChunkList->AddOwningNode(table);
+            }
+        }
+
         YT_LOG_INFO("Finished initializing chunks");
     }
 
@@ -4082,6 +4117,7 @@ private:
 
         NeedRecomputeApprovedReplicaCount_ = false;
         NeedClearDestroyedReplicaQueues_ = false;
+        NeedCreateHunkChunkLists_ = false;
     }
 
     void SetZeroState() override
@@ -5343,18 +5379,6 @@ void TChunkManager::ReplaceChunkListChild(
     TChunkTree* newChild)
 {
     Impl_->ReplaceChunkListChild(chunkList, childIndex, newChild);
-}
-
-TChunkList* TChunkManager::GetOrCreateHunkChunkList(TChunkList* tabletChunkList)
-{
-    return Impl_->GetOrCreateHunkChunkList(tabletChunkList);
-}
-
-void TChunkManager::AttachToTabletChunkList(
-    TChunkList* tabletChunkList,
-    const std::vector<TChunkTree*>& children)
-{
-    return Impl_->AttachToTabletChunkList(tabletChunkList, children);
 }
 
 TChunkView* TChunkManager::CreateChunkView(

@@ -25,6 +25,8 @@
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
+using namespace NChunkClient;
+using namespace NChunkServer;
 using namespace NCypressClient;
 using namespace NHydra;
 using namespace NObjectServer;
@@ -32,7 +34,6 @@ using namespace NTableServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTabletNode::NProto;
-using namespace NChunkClient;
 
 using NTransactionServer::TTransaction;
 
@@ -601,7 +602,12 @@ private:
                 taskName,
                 tablet->GetId());
             ToProto(currentReq.add_tablet_ids(), tablet->GetId());
-            storeCount += tablet->GetChunkList()->Statistics().ChunkCount;
+
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                if (auto* chunkList = tablet->GetChunkList(contentType)) {
+                    storeCount += chunkList->Statistics().ChunkCount;
+                }
+            }
 
             maybeFlush(false);
         }

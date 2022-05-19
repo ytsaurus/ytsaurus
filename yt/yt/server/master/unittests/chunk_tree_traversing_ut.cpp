@@ -1440,6 +1440,34 @@ TEST_F(TChunkTreeTraversingTest, UnconfirmedChunk)
         "Cannot traverse an object containing an unconfirmed chunk");
 }
 
+TEST_F(TChunkTreeTraversingTest, SortedHunkChunk)
+{
+    auto* mainRoot = CreateChunkList(EChunkListKind::SortedDynamicRoot);
+    auto* mainTablet1 = CreateChunkList(EChunkListKind::SortedDynamicTablet);
+    auto* chunk1 = CreateChunk(1, 1, 1, 1);
+    AttachToChunkList(mainRoot, {mainTablet1});
+    AttachToChunkList(mainTablet1, {chunk1});
+
+    auto* hunkRoot = CreateChunkList(EChunkListKind::HunkRoot);
+    auto* hunkTablet1 = CreateChunkList(EChunkListKind::Hunk);
+    auto* hunkChunk1 = CreateChunk(1, 1, 1, 1, {}, {}, EChunkType::Hunk);
+    AttachToChunkList(hunkRoot, {hunkTablet1});
+    AttachToChunkList(hunkTablet1, {hunkChunk1});
+
+    auto context = GetSyncChunkTraverserContext();
+    auto visitor = New<TTestChunkVisitor>();
+
+    TChunkLists roots = {mainRoot, hunkRoot};
+
+    TraverseChunkTree(context, visitor, roots);
+
+    std::set<TChunkInfo> correctResult{
+        TChunkInfo(chunk1),
+        TChunkInfo(hunkChunk1),
+    };
+    EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTraverseWithKeyColumnCount

@@ -328,6 +328,12 @@ public:
     NChunkServer::TChunkList* GetChunkList();
     const NChunkServer::TChunkList* GetChunkList() const;
 
+    NChunkServer::TChunkList* GetHunkChunkList();
+    const NChunkServer::TChunkList* GetHunkChunkList() const;
+
+    NChunkServer::TChunkList* GetChunkList(NChunkServer::EChunkListContentType type);
+    const NChunkServer::TChunkList* GetChunkList(NChunkServer::EChunkListContentType type) const;
+
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
     i64 GetTabletMasterMemoryUsage() const;

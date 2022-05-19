@@ -243,19 +243,7 @@ void TChunkList::SetKind(EChunkListKind kind)
         return;
     }
 
-    if (Kind_ == EChunkListKind::HunkRoot) {
-        for (auto* parent : Parents_) {
-            parent->ResetHunkRootChild(this);
-        }
-    }
-
     Kind_ = kind;
-
-    if (kind == EChunkListKind::HunkRoot) {
-        for (auto* parent : Parents_) {
-            parent->SetHunkRootChild(this);
-        }
-    }
 
     RecomputeChunkListStatistics(this);
 }
@@ -299,7 +287,8 @@ bool TChunkList::HasModifyableCumulativeStatistics() const
         Kind_ == EChunkListKind::OrderedDynamicRoot ||
         Kind_ == EChunkListKind::SortedDynamicTablet ||
         Kind_ == EChunkListKind::SortedDynamicSubtablet ||
-        Kind_ == EChunkListKind::HunkRoot;
+        Kind_ == EChunkListKind::HunkRoot ||
+        Kind_ == EChunkListKind::Hunk;
 }
 
 bool TChunkList::HasTrimmableCumulativeStatistics() const
@@ -316,21 +305,8 @@ bool TChunkList::HasChildToIndexMapping() const
         Kind_ == EChunkListKind::SortedDynamicSubtablet ||
         Kind_ == EChunkListKind::OrderedDynamicRoot ||
         Kind_ == EChunkListKind::HunkRoot ||
+        Kind_ == EChunkListKind::Hunk ||
         Kind_ == EChunkListKind::JournalRoot;
-}
-
-void TChunkList::SetHunkRootChild(TChunkList* child)
-{
-    YT_VERIFY(!HunkRootChild_);
-    YT_VERIFY(child->GetKind() == EChunkListKind::HunkRoot);
-    HunkRootChild_ = child;
-}
-
-void TChunkList::ResetHunkRootChild(TChunkList* child)
-{
-    YT_VERIFY(HunkRootChild_ == child);
-    YT_VERIFY(child->GetKind() == EChunkListKind::HunkRoot);
-    HunkRootChild_ = nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
