@@ -133,3 +133,21 @@ def tuple_type(element_types):
     struct_fields = [StructField("_{}".format(i + 1), element_type) for i, element_type in enumerate(element_types)]
     return StructType(struct_fields)
 
+
+def variant_over_struct_type(elements):
+    """
+    :param elements: List[Tuple[str, DataType]]
+    :return: StructType
+    """
+    from pyspark.sql.types import StructType, StructField
+    struct_fields = [StructField("_v{}".format(element_name), element_type) for element_name, element_type in elements]
+    return StructType(struct_fields)
+
+
+def variant_over_tuple_type(element_types):
+    """
+    :param element_types: List[DataType]
+    :return: StructType
+    """
+    elements = [("_{}".format(i + 1), element_type) for i, element_type in enumerate(element_types)]
+    return variant_over_struct_type(elements)
