@@ -4,6 +4,7 @@ import net.logstash.log4j.JSONEventLayoutV1
 import org.apache.commons.io.FileUtils
 import org.apache.log4j.spi.{LoggingEvent, RootLogger}
 import org.apache.log4j.{FileAppender, Level}
+import org.scalacheck.Prop.True
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
@@ -227,9 +228,9 @@ class WorkerLogLauncherTest extends FlatSpec with LocalYtClient with Matchers wi
     val tables = YtWrapper.listDir(tablesDir).filter(_ != "meta")
     tables.foreach { t =>
       val enable_dynamic_store_read = yt.getNode(s"/${config.tablesPath}/$t/@enable_dynamic_store_read").join().boolValue()
-      assert(enable_dynamic_store_read)
+      enable_dynamic_store_read shouldBe true
       val expiration = yt.existsNode(s"/${config.tablesPath}/$t/@expiration_time").join()
-      assert(expiration)
+      expiration shouldBe true
     }
   }
 
