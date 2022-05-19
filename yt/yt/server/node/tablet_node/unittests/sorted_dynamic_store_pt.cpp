@@ -14,7 +14,7 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedDynamicStorePerfTest
-    : public TSortedDynamicStoreTestBase
+    : public TSortedStoreTestBase
 {
 public:
     void RunDynamic(
@@ -105,7 +105,7 @@ public:
 private:
     void SetUp() override
     {
-        TSortedDynamicStoreTestBase::SetUp();
+        TSortedStoreTestBase::SetUp();
         CreateDynamicStore();
     }
 

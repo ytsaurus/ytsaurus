@@ -30,40 +30,45 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const NTableClient::TTableSchemaPtr Schema1 = New<TTableSchema>(std::vector{
+    TColumnSchema(TColumnSchema("k", EValueType::Int64).SetSortOrder(NTableClient::ESortOrder::Ascending)),
+    TColumnSchema(TColumnSchema("v", EValueType::Int64)),
+});
+
+const NTableClient::TTableSchemaPtr Schema2 = New<TTableSchema>(std::vector{
+    TColumnSchema(TColumnSchema("k", EValueType::Int64).SetSortOrder(NTableClient::ESortOrder::Ascending)),
+    TColumnSchema(TColumnSchema("k2", EValueType::Int64).SetSortOrder(NTableClient::ESortOrder::Ascending)),
+    TColumnSchema(TColumnSchema("v2", EValueType::Int64)),
+    TColumnSchema(TColumnSchema("v", EValueType::Int64)),
+});
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLookupTest
-    : public ::testing::Test
+    : public TSortedStoreManagerTestBase
 {
 public:
     void SetUp() override
     {
-        Tablet_ = std::make_unique<TTablet>(
-            NullTabletId,
-            TTableSettings::CreateNew(),
-            /*mountRevision*/ 0,
-            /*tableId*/ NullObjectId,
-            "lookup_ut",
-            &TabletContext_,
-            /*schemaId*/ NullObjectId,
-            Schema_,
-            MinKey(),
-            MaxKey(),
-            EAtomicity::Full,
-            ECommitOrdering::Weak,
-            TTableReplicaId(),
-            /*retainedTimestamp*/ NullTimestamp,
-            /*cumulativeDataWeight*/ 0);
-
-        Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
-
-        StoreManager_ = New<TSortedStoreManager>(
-            New<TTabletManagerConfig>(),
-            Tablet_.get(),
-            &TabletContext_);
-
-        Tablet_->SetStoreManager(StoreManager_);
+        // NB: Tablet setup is postponed until stores creation.
+        TableSchema_ = Schema1;
     }
 
-    void AddChunkStore(bool eden, const std::vector<TVersionedOwningRow>& rows)
+    TTableSchemaPtr GetSchema() const override
+    {
+        YT_VERIFY(TableSchema_);
+        return TableSchema_;
+    }
+
+    void SetTableSchema(const TTableSchemaPtr& schema)
+    {
+        TableSchema_ = schema;
+    }
+
+    void AddChunkStore(
+        bool eden,
+        const std::vector<TVersionedOwningRow>& rows,
+        const TTableSchemaPtr& chunkSchema = nullptr)
     {
         NTabletNode::NProto::TAddStoreDescriptor descriptor;
         descriptor.set_store_type(ToProto<int>(EStoreType::SortedChunk));
@@ -74,84 +79,41 @@ public:
             /*hash*/ 0);
         ToProto(descriptor.mutable_store_id(), storeId);
 
-        auto chunkData = ConstructChunkData(rows);
+        auto chunkData = ConstructChunkData(
+            rows,
+            chunkSchema ? chunkSchema : TableSchema_);
 
         ToProto(descriptor.mutable_chunk_meta(), static_cast<NChunkClient::NProto::TChunkMeta>(*chunkData.Meta));
 
-        AddStoreDescriptors_.push_back(std::move(descriptor));
-        if (eden) {
-            EdenStoreIds_.push_back(storeId);
-        }
+        OnNewChunkStore(std::move(descriptor), eden);
 
         TabletContext_.GetBackendChunkReadersHolder()->RegisterBackendChunkReader(storeId, chunkData);
     }
 
-    void AddDynamicStore()
+    void OnChunkStoresAdded()
     {
-        TabletContext_.CreateStore(
-            Tablet_.get(),
-            EStoreType::SortedDynamic,
-            MakeId(
-                EObjectType::SortedDynamicTabletStore,
-                InvalidCellTag,
-                ++DynamicStoreCount_,
-                /*hash*/ 0),
-            /*descriptor*/ nullptr);
-    }
-
-    void InitializeTablet()
-    {
-        std::vector<const NTabletNode::NProto::TAddStoreDescriptor*> addStoreDescriptors;
-        for (const auto& descriptor : AddStoreDescriptors_) {
-            addStoreDescriptors.push_back(&descriptor);
-        }
-
-        NProto::TMountHint mountHint;
-        ToProto(mountHint.mutable_eden_store_ids(), EdenStoreIds_);
-
-        StoreManager_->StartEpoch(nullptr);
-        StoreManager_->Mount(
-            addStoreDescriptors,
-            /*hunkChunkDescriptors*/ {},
-            /*createDynamicStore*/ true,
-            mountHint);
-    }
-
-    TUnversionedOwningRow LookupRow(
-        TLegacyOwningKey key,
-        TTimestamp timestamp = SyncLastCommittedTimestamp)
-    {
-        // TODO(akozhikhov): Pass chunk read options?
-        return LookupRowImpl(
-            Tablet_.get(),
-            key,
-            timestamp,
-            /*columnIndexes*/ {},
-            /*tabletSnapshot*/ nullptr);
+        DoSetUp();
     }
 
     TUnversionedOwningRow BuildRow(TString rowString)
     {
-        return YsonToSchemafulRow(rowString, *Schema_, /*treatMissingAsNull*/ true);
+        return YsonToSchemafulRow(rowString, *TableSchema_, /*treatMissingAsNull*/ false);
+    }
+
+    void ValidateLookup(
+        const std::vector<TUnversionedRow>& keys,
+        const std::vector<TUnversionedOwningRow>& expected)
+    {
+        EXPECT_EQ(expected, LookupRows(keys));
     }
 
 private:
-    const NTableClient::TTableSchemaPtr Schema_ = New<TTableSchema>(std::vector{
-        TColumnSchema(TColumnSchema("k", EValueType::Int64).SetSortOrder(NTableClient::ESortOrder::Ascending)),
-        TColumnSchema(TColumnSchema("v", EValueType::Int64)),
-    });
-
-    TTabletContextMock TabletContext_;
-
-    std::unique_ptr<TTablet> Tablet_;
-    IStoreManagerPtr StoreManager_;
-
-    int DynamicStoreCount_ = 0;
-    std::vector<NTabletNode::NProto::TAddStoreDescriptor> AddStoreDescriptors_;
-    std::vector<TChunkId> EdenStoreIds_;
+    TTableSchemaPtr TableSchema_;
 
 
-    TChunkData ConstructChunkData(const std::vector<TVersionedOwningRow>& rows)
+    TChunkData ConstructChunkData(
+        const std::vector<TVersionedOwningRow>& rows,
+        const TTableSchemaPtr& chunkSchema)
     {
         YT_VERIFY(!rows.empty());
 
@@ -193,11 +155,11 @@ private:
             TLegacyOwningKey(rows.back().BeginKeys(), rows.back().EndKeys()));
         SetProtoExtension(chunkMeta.mutable_extensions(), boundaryKeysExt);
 
-        SetProtoExtension(chunkMeta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
+        SetProtoExtension(chunkMeta.mutable_extensions(), ToProto<TTableSchemaExt>(chunkSchema));
 
         TDataBlockMetaExt dataBlockMetaExt;
 
-        auto blockWriter = TSimpleVersionedBlockWriter(Schema_);
+        auto blockWriter = TSimpleVersionedBlockWriter(chunkSchema);
         for (const auto& row : rows) {
             blockWriter.WriteRow(row);
         }
@@ -230,16 +192,316 @@ TEST_F(TLookupTest, Simple)
         {
             YsonToVersionedRow(
                 "<id=0> 0",
-                "<id=1;ts=100> 1",
-                {},
-                {TTimestamp(100)}),
+                "<id=1;ts=100> 0"),
         });
 
-    InitializeTablet();
+    OnChunkStoresAdded();
+
+    ValidateLookup(
+        {YsonToKey("0")},
+        {BuildRow("k=0;v=0")});
+}
+
+TEST_F(TLookupTest, Empty)
+{
+    OnChunkStoresAdded();
+
+    EXPECT_FALSE(LookupRows({YsonToKey("0")})[0]);
+}
+
+TEST_F(TLookupTest, OverlappingChunks)
+{
+    AddChunkStore(
+        /*eden*/ true,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "<id=1;ts=100> 1"),
+            YsonToVersionedRow(
+                "<id=0> 2",
+                "<id=1;ts=100> 2"),
+        });
+    AddChunkStore(
+        /*eden*/ true,
+        {
+            YsonToVersionedRow(
+                "<id=0> 2",
+                "<id=1;ts=300> 3"),
+            YsonToVersionedRow(
+                "<id=0> 3",
+                "<id=1;ts=100> 4"),
+        });
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "<id=1;ts=200> 5"),
+            YsonToVersionedRow(
+                "<id=0> 2",
+                "<id=1;ts=200> 6"),
+            YsonToVersionedRow(
+                "<id=0> 4",
+                "<id=1;ts=100> 7"),
+        });
+
+    OnChunkStoresAdded();
+
+    ValidateLookup(
+        {YsonToKey("0"), YsonToKey("2"), YsonToKey("3")},
+        {BuildRow("k=0;v=0"), BuildRow("k=2;v=3"), BuildRow("k=3;v=4")});
+    ValidateLookup(
+        {YsonToKey("1"), YsonToKey("4")},
+        {BuildRow("k=1;v=5"), BuildRow("k=4;v=7")});
+}
+
+TEST_F(TLookupTest, RetentionTimestamp)
+{
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        });
+
+    OnChunkStoresAdded();
+
+    EXPECT_FALSE(
+        LookupRows(
+            {YsonToKey("0")},
+            /*timestamp*/ SyncLastCommittedTimestamp,
+            /*retentionTimestamp*/ TTimestamp(200))[0]);
+}
+
+TEST_F(TLookupTest, ColumnFilter)
+{
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        });
+
+    OnChunkStoresAdded();
 
     EXPECT_EQ(
-        ToString(LookupRow(YsonToKey("0"))),
-        ToString(BuildRow("k=0;v=1")));
+        LookupRows(
+            {YsonToKey("0")},
+            SyncLastCommittedTimestamp,
+            std::nullopt,
+            {0}),
+        std::vector<TUnversionedOwningRow>({BuildRow("k=0")}));
+}
+
+TEST_F(TLookupTest, MissingRow)
+{
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+            YsonToVersionedRow(
+                "<id=0> 2",
+                "<id=1;ts=100> 2"),
+        });
+
+    OnChunkStoresAdded();
+
+    auto lookupResult = LookupRows({YsonToKey("0"), YsonToKey("1"), YsonToKey("2")});
+    EXPECT_EQ(BuildRow("k=0;v=0"), lookupResult[0]);
+    EXPECT_FALSE(lookupResult[1]);
+    EXPECT_EQ(BuildRow("k=2;v=2"), lookupResult[2]);
+}
+
+TEST_F(TLookupTest, DeletedRow)
+{
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        });
+    AddChunkStore(
+        /*eden*/ true,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "",
+                {TTimestamp(200)}),
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "",
+                {TTimestamp(200)}),
+        });
+
+    OnChunkStoresAdded();
+
+    EXPECT_FALSE(LookupRows({YsonToKey("0")})[0]);
+    EXPECT_FALSE(LookupRows({YsonToKey("1")})[0]);
+}
+
+TEST_F(TLookupTest, ExplicitTimestamp)
+{
+    AddChunkStore(
+        /*eden*/ true,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "<id=1;ts=100> 1",
+                {TTimestamp(200)}),
+        });
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=200> 1"),
+        });
+
+    OnChunkStoresAdded();
+
+    EXPECT_EQ(
+        LookupRows(
+            {YsonToKey("0"), YsonToKey("1")},
+            TTimestamp(150)),
+        std::vector<TUnversionedOwningRow>({BuildRow("k=0;v=0"), BuildRow("k=1;v=1")}));
+}
+
+TEST_F(TLookupTest, SchemaAlter1)
+{
+    SetTableSchema(Schema2);
+
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        },
+        Schema1);
+
+    OnChunkStoresAdded();
+
+    ValidateLookup(
+        {YsonToKey("0;#")},
+        {BuildRow("k=0;k2=#;v=0;v2=#")});
+}
+
+TEST_F(TLookupTest, SchemaAlter2)
+{
+    SetTableSchema(Schema2);
+
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        },
+        Schema1);
+    AddChunkStore(
+        /*eden*/ true,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0; <id=1> #",
+                "<id=2;ts=200> 1"),
+        });
+
+    OnChunkStoresAdded();
+
+    ValidateLookup(
+        {YsonToKey("0;#")},
+        {BuildRow("k=0;k2=#;v=0;v2=1")});
+}
+
+TEST_F(TLookupTest, DynamicStores)
+{
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "<id=1;ts=100> 1"),
+            YsonToVersionedRow(
+                "<id=0> 2",
+                "<id=1;ts=100> 2"),
+        });
+
+    OnChunkStoresAdded();
+
+    WriteRow(BuildRow("k=1;v=2"));
+    WriteRow(BuildRow("k=2;v=3"));
+
+    RotateStores();
+
+    WriteRow(BuildRow("k=2;v=4"));
+
+    ValidateLookup(
+        {YsonToKey("0"), YsonToKey("1"), YsonToKey("2")},
+        {BuildRow("k=0;v=0"), BuildRow("k=1;v=2"), BuildRow("k=2;v=4")});
+}
+
+TEST_F(TLookupTest, TwoPartitions)
+{
+    AddChunkStore(
+        /*eden*/ true,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        });
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=200> 1"),
+        });
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "<id=1;ts=100> 2"),
+        });
+
+    TableSettings_.MountConfig->MinPartitionDataSize = 1;
+
+    OnChunkStoresAdded();
+
+    EXPECT_EQ(2, std::ssize(Tablet_->PartitionList()));
+
+    ValidateLookup(
+        {YsonToKey("0"), YsonToKey("1")},
+        {BuildRow("k=0;v=1"), BuildRow("k=1;v=2")});
+}
+
+TEST_F(TLookupTest, VersionedLookup)
+{
+    auto row = YsonToVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=100> 0; <id=1;ts=200> 1");
+
+    AddChunkStore(/*eden*/ false, {row});
+
+    OnChunkStoresAdded();
+
+    EXPECT_EQ(
+        ToString(VersionedLookupRow(BuildRow("k=0"))),
+        ToString(row));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

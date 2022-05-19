@@ -17,9 +17,9 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedStoreManagerTestBase
-    : public TStoreManagerTestBase<TSortedDynamicStoreTestBase>
+    : public TStoreManagerTestBase<TSortedStoreTestBase>
 {
-public:
+protected:
     IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
     {
         YT_VERIFY(!StoreManager_);
@@ -142,7 +142,7 @@ public:
         StoreManager_->ConfirmRow(transaction, rowRef);
     }
 
-    using TSortedDynamicStoreTestBase::LookupRow;
+    using TSortedStoreTestBase::LookupRow;
 
     TUnversionedOwningRow LookupRow(
         const TLegacyOwningKey& key,
@@ -150,13 +150,13 @@ public:
         const std::vector<int>& columnIndexes = {},
         TTabletSnapshotPtr tabletSnapshot = nullptr)
     {
-        return LookupRowImpl(
-            Tablet_.get(),
-            key,
+        return LookupRows(
+            {key},
             timestamp,
+            /*retentionTimestamp*/ std::nullopt,
             columnIndexes,
             tabletSnapshot,
-            ChunkReadOptions_);
+            ChunkReadOptions_)[0];
     }
 
     TVersionedOwningRow VersionedLookupRow(
@@ -172,6 +172,29 @@ public:
             ChunkReadOptions_);
     }
 
+    std::vector<TUnversionedOwningRow> LookupRows(
+        const std::vector<TUnversionedRow>& keys,
+        TTimestamp timestamp = SyncLastCommittedTimestamp,
+        std::optional<TTimestamp> retentionTimestamp = std::nullopt,
+        const std::vector<int>& columnIndexes = {},
+        TTabletSnapshotPtr tabletSnapshot = nullptr,
+        NChunkClient::TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
+    {
+        TReadTimestampRange timestampRange{
+            .Timestamp = timestamp,
+        };
+        if (retentionTimestamp) {
+            timestampRange.RetentionTimestamp = *retentionTimestamp;
+        }
+
+        return LookupRowsImpl(
+            Tablet_.get(),
+            keys,
+            timestampRange,
+            columnIndexes,
+            tabletSnapshot,
+            chunkReadOptions);
+    }
 
     TSortedDynamicStorePtr GetActiveStore()
     {
