@@ -15,13 +15,15 @@ from datetime import timedelta
 
 def launch_gateway(memory="512m",
                    java_home=None,
-                   java_opts=None):
+                   java_opts=None,
+                   additional_jars=None):
     spark_home = _find_spark_home()
     java = os.path.join(java_home, "bin", "java") if java_home else "java"
+    additional_jars = additional_jars or []
 
     command = [java, "-Xmx{}".format(memory)]
     command += java_opts or []
-    command += ["-cp", ":".join(_submit_classpath()), "ru.yandex.spark.yt.submit.PythonGatewayServer"]
+    command += ["-cp", ":".join(additional_jars + _submit_classpath()), "ru.yandex.spark.yt.submit.PythonGatewayServer"]
 
     conn_info_dir = tempfile.mkdtemp()
     try:
