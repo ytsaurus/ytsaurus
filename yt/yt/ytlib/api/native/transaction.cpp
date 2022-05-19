@@ -334,9 +334,10 @@ public:
     {
         ValidateTabletTransactionId(GetId());
 
-        YT_LOG_DEBUG("Buffering client row modifications (Count: %v, SequenceNumber: %v)",
+        YT_LOG_DEBUG("Buffering client row modifications (Count: %v, SequenceNumber: %v, SequenceNumberSourceId: %v)",
             modifications.Size(),
-            options.SequenceNumber);
+            options.SequenceNumber,
+            options.SequenceNumberSourceId);
 
         auto guard = Guard(SpinLock_);
 
