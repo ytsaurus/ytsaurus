@@ -426,6 +426,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default();
 
+    registrar.Parameter("check_operation_for_liveness_in_preschedule", &TThis::CheckOperationForLivenessInPreschedule)
+        .Default(true);
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
