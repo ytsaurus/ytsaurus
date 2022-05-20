@@ -126,7 +126,7 @@ TStringBuf TSkiffOtherColumns::GetUnparsedBytes() const
 TYsonStringBuf TSkiffOtherColumns::GetYsonString()
 {
     if (UnparsedBytesObj_) {
-        return TYsonString(GetUnparsedBytes(), EYsonType::Node);
+        return TYsonStringBuf(GetUnparsedBytes(), EYsonType::Node);
     }
     if (!Map_) {
         throw Py::RuntimeError("TSkiffOtherColumns is unitilialized, GetYsonString should not be called");
