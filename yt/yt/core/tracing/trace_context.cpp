@@ -627,6 +627,11 @@ void ReleaseFiberTagStorage(void* storage)
     }
 }
 
+TCpuInstant GetTraceContextTimingCheckpoint()
+{
+    return NTracing::TraceContextTimingCheckpoint;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf

@@ -108,6 +108,10 @@ public:
             options.SamplingFrequency = FromString<int>(it->second);
         }
 
+        if (auto it = params.Find("action_min_exec_time"); it != params.end()) {
+            options.SampleFilters.push_back(GetActionMinExecTimeFilter(TDuration::Parse(it->second)));
+        }
+
         TCpuProfiler profiler{options};
         profiler.Start();
         TDelayedExecutor::WaitForDuration(duration);

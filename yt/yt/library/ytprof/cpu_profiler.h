@@ -29,6 +29,9 @@ class TCpuProfilerOptions
 {
 public:
     int SamplingFrequency = 100;
+
+    using TSampleFilter = std::function<bool()>;
+    std::vector<TSampleFilter> SampleFilters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,6 +62,10 @@ private:
     void AnnotateProfile(NProto::Profile* profile, const std::function<i64(const TString&)>& stringify) override;
     i64 EncodeValue(i64 value) override;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCpuProfilerOptions::TSampleFilter GetActionMinExecTimeFilter(TDuration minExecTime);
 
 ////////////////////////////////////////////////////////////////////////////////
 

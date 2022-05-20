@@ -53,6 +53,11 @@ Y_WEAK std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags
 Y_WEAK void ReleaseFiberTagStorage(void* /* storage */)
 { }
 
+Y_WEAK TCpuInstant GetTraceContextTimingCheckpoint()
+{
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #if not defined(_linux_)
