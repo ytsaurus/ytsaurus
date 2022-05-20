@@ -1084,6 +1084,7 @@ class YTEnvSetup(object):
             "max_unpreemptable_running_job_count": 0,
             "fair_share_starvation_timeout": 1000,
             "enable_conditional_preemption": True,
+            "check_operation_for_liveness_in_preschedule": False,
         }
 
         dynamic_master_config.setdefault("chunk_service", {})

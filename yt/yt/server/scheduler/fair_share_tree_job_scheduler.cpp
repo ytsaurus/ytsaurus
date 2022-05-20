@@ -1653,7 +1653,7 @@ void TScheduleJobsContext::CheckForDeactivation(
         return;
     }
 
-    if (!element->IsAlive()) {
+    if (TreeSnapshot_->TreeConfig()->CheckOperationForLivenessInPreschedule && !element->IsAlive()) {
         OnOperationDeactivated(element, EDeactivationReason::IsNotAlive);
         return;
     }

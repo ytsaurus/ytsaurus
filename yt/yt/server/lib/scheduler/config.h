@@ -361,6 +361,9 @@ public:
     //! Limit to the number of schedulable elements in FIFO pools.
     std::optional<int> MaxSchedulableElementCountInFifoPool;
 
+    //! Check that operation is alive in preschedule phase.
+    bool CheckOperationForLivenessInPreschedule;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
