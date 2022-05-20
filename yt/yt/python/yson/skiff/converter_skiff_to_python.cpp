@@ -376,6 +376,56 @@ TSkiffToPythonConverter CreateListSkiffToPythonConverter(TString description, Py
     return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional);
 }
 
+class TDictSkiffToPythonConverter
+{
+public:
+    explicit TDictSkiffToPythonConverter(TString description, Py::Object pySchema)
+        : Description_(description)
+        , KeyConverter_(CreateSkiffToPythonConverter(
+            description + ".<key>",
+            GetAttr(pySchema, KeyFieldName)))
+        , ValueConverter_(CreateSkiffToPythonConverter(
+            description + ".<value>",
+            GetAttr(pySchema, ValueFieldName)))
+    { }
+
+    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
+    {
+        auto dict = PyObjectPtr(PyDict_New());
+        if (!dict) {
+            THROW_ERROR_EXCEPTION("Failed to create dict for field %Qv",
+                Description_)
+                << Py::BuildErrorFromPythonException(/*clear*/ true);
+        }
+        while (true) {
+            auto tag = parser->ParseVariant8Tag();
+            if (tag == 0) {
+                auto key = KeyConverter_(parser);
+                auto value = ValueConverter_(parser);
+                PyDict_SetItem(dict.get(), key.get(), value.get());
+            } else if (tag == EndOfSequenceTag<ui8>()) {
+                break;
+            } else {
+                THROW_ERROR_EXCEPTION("Expected tag 0 or %v for repeated_variant8, got %v",
+                    EndOfSequenceTag<ui8>(),
+                    tag);
+            }
+        }
+        return dict;
+    }
+
+private:
+    TString Description_;
+    TSkiffToPythonConverter KeyConverter_;
+    TSkiffToPythonConverter ValueConverter_;
+};
+
+TSkiffToPythonConverter CreateDictSkiffToPythonConverter(TString description, Py::Object pySchema, bool forceOptional = false)
+{
+    auto converter = TDictSkiffToPythonConverter(description, pySchema);
+    return MaybeWrapSkiffToPythonConverter(pySchema, std::move(converter), forceOptional);
+}
+
 class TRowSkiffToPythonConverterImpl
 {
 public:
@@ -484,6 +534,7 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");
     static auto OptionalSchemaClass = GetSchemaType("OptionalSchema");
     static auto ListSchemaClass = GetSchemaType("ListSchema");
+    static auto DictSchemaClass = GetSchemaType("DictSchema");
 
     if (PyObject_IsInstance(pySchema.ptr(), PrimitiveSchemaClass.get())) {
         return CreatePrimitiveSkiffToPythonConverter(description, pySchema);
@@ -505,11 +556,15 @@ TSkiffToPythonConverter CreateSkiffToPythonConverter(TString description, Py::Ob
             return CreateStructSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
         } else if (PyObject_IsInstance(pySchema.ptr(), ListSchemaClass.get())) {
             return CreateListSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
+        } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
+            return CreateDictSkiffToPythonConverter(elementDescription, item, /* forceOptional */ true);
         } else {
             return CreateOptionalSkiffToPythonConverter(CreateSkiffToPythonConverter(elementDescription, item));
         }
     } else if (PyObject_IsInstance(pySchema.ptr(), ListSchemaClass.get())) {
         return CreateListSkiffToPythonConverter(description, pySchema);
+    } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
+        return CreateDictSkiffToPythonConverter(description, pySchema);
     } else {
         Y_FAIL();
     }

@@ -336,6 +336,43 @@ private:
     TPythonToSkiffConverter ItemConverter_;
 };
 
+class TDictPythonToSkiffConverter
+{
+public:
+    explicit TDictPythonToSkiffConverter(TString description, Py::Object pySchema)
+        : Description_(description)
+        , KeyConverter_(CreatePythonToSkiffConverter(
+            Description_ + ".<key>",
+            GetAttr(pySchema, KeyFieldName)))
+        , ValueConverter_(CreatePythonToSkiffConverter(
+            Description_ + ".<value>",
+            GetAttr(pySchema, ValueFieldName)))
+    { }
+
+    void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
+    {
+		PyObject *key, *value;
+		Py_ssize_t pos = 0;
+
+		while (PyDict_Next(obj, &pos, &key, &value)) {
+            writer->WriteVariant8Tag(0);
+            KeyConverter_(key, writer);
+            ValueConverter_(value, writer);
+		}
+        if (PyErr_Occurred()) {
+            THROW_ERROR_EXCEPTION("Error occured during iteration over %Qv",
+                Description_)
+                << Py::BuildErrorFromPythonException(/*clear*/ true);
+        }
+        writer->WriteVariant8Tag(EndOfSequenceTag<ui8>());
+    }
+
+private:
+    TString Description_;
+    TPythonToSkiffConverter KeyConverter_;
+    TPythonToSkiffConverter ValueConverter_;
+};
+
 class TRowPythonToSkiffConverter
 {
 public:
@@ -389,6 +426,7 @@ TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py
     static auto PrimitiveSchemaClass = GetSchemaType("PrimitiveSchema");
     static auto OptionalSchemaClass = GetSchemaType("OptionalSchema");
     static auto ListSchemaClass = GetSchemaType("ListSchema");
+    static auto DictSchemaClass = GetSchemaType("DictSchema");
 
     if (PyObject_IsInstance(pySchema.ptr(), StructSchemaClass.get())) {
         return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
@@ -407,6 +445,10 @@ TPythonToSkiffConverter CreatePythonToSkiffConverterImpl(TString description, Py
         return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
             pySchema,
             TListPythonToSkiffConverter(description, pySchema));
+    } else if (PyObject_IsInstance(pySchema.ptr(), DictSchemaClass.get())) {
+        return MaybeWrapPythonToSkiffConverter<IsPySchemaOptional>(
+            pySchema,
+            TDictPythonToSkiffConverter(description, pySchema));
     } else {
         THROW_ERROR_EXCEPTION("It's a bug, please contact yt@. Unknown schema type %Qv",
             Repr(pySchema.type()));

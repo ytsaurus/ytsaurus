@@ -115,6 +115,21 @@ SKIFF_LIST_INT64 = b"".join(
     )
 )
 
+SKIFF_DICT_STRING_INT64 = b"".join(
+    (
+        b"\x00",
+        SKIFF_STRING32_EMPTY,
+        SKIFF_INT64_15,
+        b"\x00",
+        SKIFF_STRING32_ABC,
+        SKIFF_INT64_15,
+        b"\x00",
+        SKIFF_STRING32_BINARY,
+        SKIFF_INT64_MAX,
+        b"\xFF",
+    )
+)
+
 
 def _default_value_eq(actual, expected):
     assert actual == expected
@@ -328,3 +343,8 @@ class TestDumpLoadStructuredSkiff(object):
             OtherColumns(d),
             assert_value_eq=assert_other_columns_eq,
         )
+
+    @authors("ignat")
+    def test_dict(self):
+        check_dump_load(typing.Dict[bytes, int], b"\xFF", {}, expected_type=dict)
+        check_dump_load(typing.Dict[bytes, int], SKIFF_DICT_STRING_INT64, {b"": 15, b"ABC": 15, b"\xFA\xFB\xFC": 2 ** 63 - 1}, expected_type=dict)
