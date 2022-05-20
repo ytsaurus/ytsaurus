@@ -7,6 +7,8 @@
 #include <sys/syscall.h>
 #include <sys/prctl.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 #include <util/system/yield.h>
 
 #include <csignal>
@@ -38,6 +40,11 @@ void TCpuProfiler::AnnotateProfile(NProto::Profile* /* profile */, const std::fu
 i64 TCpuProfiler::EncodeValue(i64 value)
 {
     return value;
+}
+
+TCpuProfilerOptions::TSampleFilter GetActionMinExecTimeFilter(TDuration)
+{
+    return {};
 }
 
 #endif
@@ -156,12 +163,34 @@ void TCpuProfiler::OnSigProf(siginfo_t* info, ucontext_t* ucontext)
 {
     SignalOverruns_ += info->si_overrun;
 
+    for (const auto& filter : Options_.SampleFilters) {
+        if (!filter()) {
+            // This sample is filtered out.
+            return;
+        }
+    }
+
     void* rip = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RIP]);
     void* rsp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RSP]);
     void* rbp = reinterpret_cast<void *>(ucontext->uc_mcontext.gregs[REG_RBP]);
 
     TFramePointerCursor cursor(&Mem_, rip, rsp, rbp);
     RecordSample(&cursor, ProfilePeriod_);
+}
+
+TCpuProfilerOptions::TSampleFilter GetActionMinExecTimeFilter(TDuration minExecTime)
+{
+    auto minCpuDuration = DurationToCpuDuration(minExecTime);
+
+    return [minCpuDuration] () {
+        auto fiberStartTime = GetTraceContextTimingCheckpoint();
+        if (fiberStartTime == 0) {
+            return false;
+        }
+
+        auto delta = GetCpuInstant() - fiberStartTime;
+        return delta > minCpuDuration;
+    };
 }
 
 #endif

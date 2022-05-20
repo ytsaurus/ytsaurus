@@ -1,4 +1,5 @@
 #include <dlfcn.h>
+
 #include <gtest/gtest.h>
 
 #include <library/cpp/testing/common/env.h>
@@ -23,12 +24,15 @@
 #include <util/datetime/base.h>
 #include <util/system/shellcommand.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 namespace NYT::NYTProf {
 namespace {
 
 using namespace NConcurrency;
 using namespace NTracing;
+
+using TSampleFilter = TCpuProfilerOptions::TSampleFilter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,9 +63,14 @@ static Y_NO_INLINE void StaticFunction()
     BurnCpu<0>();
 }
 
-void RunUnderProfiler(const TString& name, std::function<void()> work, bool checkSamples = true)
+void RunUnderProfiler(
+    const TString& name,
+    std::function<void()> work,
+    bool checkSamples = true,
+    const std::vector<TSampleFilter>& filters = {},
+    bool expectEmpty = false)
 {
-    TCpuProfilerOptions options;
+    TCpuProfilerOptions options{.SampleFilters = filters};
 
     options.SamplingFrequency = 100000;
 
@@ -79,7 +88,7 @@ void RunUnderProfiler(const TString& name, std::function<void()> work, bool chec
 
     auto profile = profiler.ReadProfile();
     if (checkSamples) {
-        ASSERT_NE(0, profile.sample_size());
+        ASSERT_EQ(expectEmpty, profile.sampleSize() == 0);
     }
 
     Symbolize(&profile, true);
@@ -281,6 +290,51 @@ TEST_F(TCpuProfilerTest, TraceContext)
 
         actionQueue->Shutdown();
     });
+}
+
+TEST_F(TCpuProfilerTest, SlowActions)
+{
+    static const TString WorkerThreadName = "Heavy";
+    static const auto TraceThreshold = TDuration::MilliSeconds(50);
+
+    const std::vector<TSampleFilter> filters = {
+        GetActionMinExecTimeFilter(TraceThreshold),
+    };
+
+    auto busyWait = [] (TDuration duration) {
+        auto now = TInstant::Now();
+        while (TInstant::Now() < now + duration)
+        { }
+    };
+
+    auto traceContext = NTracing::TTraceContext::NewRoot("Test");
+
+    const bool ExpectEmptyTraces = true;
+
+    auto threadPool = New<TThreadPool>(2, WorkerThreadName);
+
+    // No slow actions.
+    RunUnderProfiler("slow_actions_empty.pb.gz", [&] {
+        NTracing::TTraceContextGuard guard(traceContext);
+        auto future = BIND(busyWait, TraceThreshold / 2)
+            .AsyncVia(threadPool->GetInvoker())
+            .Run();
+        future.Get();
+    },
+    true,
+    filters,
+    ExpectEmptyTraces);
+
+    // Slow actions = non empty traces.
+    RunUnderProfiler("slow_actions.pb.gz", [&] {
+        NTracing::TTraceContextGuard guard(traceContext);
+        auto future = BIND(busyWait, TraceThreshold * 3)
+            .AsyncVia(threadPool->GetInvoker())
+            .Run();
+        future.Get();
+    },
+    true,
+    filters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

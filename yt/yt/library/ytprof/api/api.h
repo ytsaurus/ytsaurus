@@ -6,6 +6,7 @@
 
 #include <yt/yt/library/ytprof/api/atomic_signal_ptr.h>
 
+#include <library/cpp/yt/cpu_clock/public.h>
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
 namespace NYT::NYTProf {
@@ -41,6 +42,7 @@ std::array<TAtomicSignalPtr<TProfilerTag>, MaxActiveTags>* GetCpuProfilerTags();
 void* AcquireFiberTagStorage();
 std::vector<std::pair<TString, std::variant<TString, i64>>> ReadFiberTags(void* storage);
 void ReleaseFiberTagStorage(void* storage);
+TCpuInstant GetTraceContextTimingCheckpoint();
 
 ////////////////////////////////////////////////////////////////////////////////
 
