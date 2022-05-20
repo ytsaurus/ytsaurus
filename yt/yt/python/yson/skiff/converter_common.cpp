@@ -100,6 +100,12 @@ int TSkiffOtherColumns::mapping_ass_subscript(const Py::Object& key, const Py::O
     return 0;
 }
 
+int TSkiffOtherColumns::sequence_contains(const Py::Object& key)
+{
+    MaybeMaterializeMap();
+    return Map_->hasKey(key);
+}
+
 Py::Object TSkiffOtherColumns::repr()
 {
     MaybeMaterializeMap();
@@ -145,6 +151,8 @@ void TSkiffOtherColumns::InitType()
         behaviors().support_mapping_ass_subscript |
         behaviors().support_mapping_subscript |
         behaviors().support_mapping_length);
+    behaviors().supportSequenceType(
+        behaviors().support_sequence_contains);
     behaviors().supportRepr();
     behaviors().supportCompare();
 
@@ -162,7 +170,7 @@ void TSkiffOtherColumns::MaybeMaterializeMap()
         Map_ = Py::Dict();
         return;
     }
-    
+
     TMemoryInput input(GetUnparsedBytes());
     try {
         TYsonPullParser parser(&input, EYsonType::Node);

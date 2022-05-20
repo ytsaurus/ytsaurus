@@ -59,6 +59,7 @@ public:
     int mapping_length() override;
     Py::Object mapping_subscript(const Py::Object& key) override;
     int mapping_ass_subscript(const Py::Object& key, const Py::Object& value) override;
+    int sequence_contains(const Py::Object& key) override;
     Py::Object repr() override;
 
     Py::Object DeepCopy(const Py::Tuple& args);
