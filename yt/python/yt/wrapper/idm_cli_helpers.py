@@ -63,7 +63,7 @@ class Subject(object):
     def from_string(cls, string):
         if string.startswith("idm-group:"):
             try:
-                group_id = int(string[:len("idm-group")])
+                group_id = int(string[len("idm-group:"):])
             except ValueError:
                 logger.error("Invalid IDM group format: %s", string)
                 sys.exit(1)
