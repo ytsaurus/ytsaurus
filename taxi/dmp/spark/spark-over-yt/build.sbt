@@ -74,17 +74,14 @@ lazy val `cluster` = (project in file("spark-cluster"))
       val isSnapshotValue = isSnapshotVersion(versionValue)
 
       val basePath = versionPath(sparkYtClusterPath, versionValue)
-      val legacyBasePath = versionBasePath(sparkYtLegacyBinPath, versionValue)
       val sparkPath = versionPath(sparkYtSparkForkPath, sparkVersionValue)
 
       val sparkLink = Seq(YtPublishLink(s"$sparkPath/spark.tgz", basePath, None, "spark.tgz", isSnapshotValue))
-      val legacyLink = if (!isSnapshotValue) {
-        Seq(YtPublishLink(basePath, legacyBasePath, None, versionValue, isSnapshotValue))
-      } else Nil
+
       val clusterConfigArtifacts = spyt.ClusterConfig.artifacts(streams.value.log, versionValue,
         (Compile / resourceDirectory).value)
 
-      sparkLink ++ legacyLink ++ Seq(
+      sparkLink ++ Seq(
         YtPublishFile(assembly.value, basePath, None, isTtlLimited = isSnapshotValue),
       ) ++ clusterConfigArtifacts
     }
@@ -126,11 +123,8 @@ lazy val `data-source` = (project in file("data-source"))
     publishYtArtifacts ++= {
       val subdir = if (isSnapshot.value) "snapshots" else "releases"
       val publishDir = s"$sparkYtClientPath/$subdir/${version.value}"
-      val link = if (!isSnapshot.value) {
-        Seq(YtPublishLink(publishDir, s"$sparkYtLegacyClientPath/$subdir", None, version.value, isSnapshot.value))
-      } else Nil
 
-      link ++ Seq(
+      Seq(
         YtPublishFile(assembly.value, publishDir, proxy = None, isTtlLimited = isSnapshot.value),
         YtPublishFile(zip.value, publishDir, proxy = None, isTtlLimited = isSnapshot.value)
       )

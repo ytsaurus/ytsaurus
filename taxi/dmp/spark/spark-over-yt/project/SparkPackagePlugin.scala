@@ -136,12 +136,7 @@ object SparkPackagePlugin extends AutoPlugin {
         }
       } else Nil
 
-      val linkBasePath = s"$sparkYtLegacyConfPath/${sparkYtSubdir.value}"
-      val links = if (sparkReleaseLinks.value) {
-        Seq(YtPublishLink(versionConfPath, linkBasePath, None, sparkVersion, sparkIsSnapshot.value))
-      } else Nil
-
-      links ++ configsPublish ++ (launchConfigPublish +: globalConfigPublish)
+      configsPublish ++ (launchConfigPublish +: globalConfigPublish)
     },
     sparkPackage := {
       val log = streams.value.log
