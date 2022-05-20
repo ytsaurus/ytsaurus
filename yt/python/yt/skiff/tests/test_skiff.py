@@ -354,6 +354,10 @@ def test_skiff_other_columns():
     other_columns["key"] = 20
     assert other_columns["key"] == 20
     assert len(other_columns) == 1
+    assert hasattr(other_columns, "__contains__")
+    assert other_columns.__contains__("key")
+    assert "key" in other_columns
+    assert "other_key" not in other_columns
     assert loads(dumps(other_columns)) == {"key": 20}
 
     copied_other_columns = copy.deepcopy(other_columns)
