@@ -76,9 +76,11 @@ void TGetVersionCommand::DoExecute(ICommandContextPtr context)
 
 void TGetSupportedFeaturesCommand::DoExecute(ICommandContextPtr context)
 {
-    TGetClusterMetaOptions options = {
-        .PopulateFeatures = true,
-    };
+    TGetClusterMetaOptions options;
+    options.PopulateFeatures = true;
+    options.ReadFrom = EMasterChannelKind::Cache;
+    options.DisablePerUserCache = true;
+
     auto meta = WaitFor(context->GetClient()->GetClusterMeta(options))
         .ValueOrThrow();
     if (!meta.Features) {
