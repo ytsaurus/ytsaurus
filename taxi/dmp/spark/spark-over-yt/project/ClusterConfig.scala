@@ -47,12 +47,7 @@ object ClusterConfig {
       }
     } else Nil
 
-    val linkBasePath = versionBasePath(sparkYtLegacyConfPath, version)
-    val links = if (!isSnapshot) {
-      Seq(YtPublishLink(versionConfPath, linkBasePath, None, version, isSnapshot))
-    } else Nil
-
-    links ++ configsPublish ++ (launchConfigPublish +: globalConfigPublish)
+    configsPublish ++ (launchConfigPublish +: globalConfigPublish)
   }
 
   private def readSparkDefaults(file: File): Map[String, String] = {
