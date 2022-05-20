@@ -659,7 +659,7 @@ class TestTypedApi(object):
         schema = (
             TableSchema()
             .add_column("x", ti.Int64)
-            .add_column("y", ti.Struct["a" : ti.Utf8, "b" : ti.String])
+            .add_column("y", ti.Struct["a": ti.Utf8, "b": ti.String])
             .add_column("z", ti.Int64)
         )
         yt.create("table", table, attributes={"schema": schema})
@@ -731,10 +731,10 @@ class TestTypedApi(object):
             .add_column(
                 "b",
                 ti.Struct[
-                    "c1" : ti.String,
-                    "b1" : ti.Uint64,
-                    "a1" : ti.Int64,
-                    "e1" : ti.String,
+                    "c1": ti.String,
+                    "b1": ti.Uint64,
+                    "a1": ti.Int64,
+                    "e1": ti.String,
                 ],
             )
             .add_column("c", ti.Uint64)
@@ -806,11 +806,11 @@ class TestTypedApi(object):
             .add_column(
                 "b",
                 ti.Struct[
-                    "d1" : ti.Optional[ti.Utf8],
-                    "c1" : ti.String,
-                    "b1" : ti.Uint64,
-                    "a1" : ti.Optional[ti.Int64],
-                    "e1" : ti.String,
+                    "d1": ti.Optional[ti.Utf8],
+                    "c1": ti.String,
+                    "b1": ti.Uint64,
+                    "a1": ti.Optional[ti.Int64],
+                    "e1": ti.String,
                 ],
             )
             .add_column("c", ti.Optional[ti.Int64])
@@ -1103,3 +1103,30 @@ class TestTypedApi(object):
         assert len(row["list_of_ysons"]) == 2
         assert row["list_of_ysons"][0] == {"my_data": 10}
         assert row["list_of_ysons"][1] == ["item1", yson.loads(b"<attr=10>item2")]
+
+    @authors("ignat")
+    def test_dict(self):
+        @yt_dataclass
+        class RowWithDicts:
+            dict_str_to_int: typing.Optional[typing.Dict[str, int]]
+            dict_int_to_bytes: typing.Optional[typing.Dict[int, bytes]]
+
+        schema = TableSchema.from_row_type(RowWithDicts)
+
+        table = "//tmp/table"
+        yt.create("table", table, attributes={"schema": schema})
+        yt.write_table_structured(
+            table,
+            RowWithDicts,
+            [
+                RowWithDicts(
+                    dict_str_to_int={"a": 10, "b": 20},
+                    dict_int_to_bytes={1: b"\x01", 2: b"\x02"},
+                )
+            ])
+
+        typed_rows = list(yt.read_table_structured(table, RowWithDicts))
+        assert len(typed_rows) == 1
+        row = typed_rows[0]
+        assert row.dict_str_to_int == {"a": 10, "b": 20}
+        assert row.dict_int_to_bytes == {1: b"\x01", 2: b"\x02"}
