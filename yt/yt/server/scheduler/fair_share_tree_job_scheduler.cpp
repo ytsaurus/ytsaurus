@@ -800,7 +800,7 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
         }
 
         const auto& jobInfo = preemptableJobs[currentJobIndex];
-        const auto& [job, _, operationElement] = jobInfo;
+        const auto& [job, preemptionStatus, operationElement] = jobInfo;
 
         if (!IsJobKnown(operationElement, job->GetId())) {
             // Job may have been terminated concurrently with scheduling, e.g. operation aborted by user request. See: YT-16429.
@@ -813,14 +813,24 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
 
         if (jobStartedUsingPreemption) {
             // TODO(eshcherbin): Rethink preemption reason format to allow more variable attributes easily.
-            job->SetPreemptionReason(Format(
-                "Preempted to start job %v of operation %v during preemptive stage with priority %Qlv, "
-                "job was %v and %v preemptable",
+            TStringBuilder preemptionReasonBuilder;
+            preemptionReasonBuilder.AppendFormat(
+                "Preempted to start job %v of operation %v; "
+                "this job had status %Qlv and level %Qlv, and scheduling stage target priority was %Qlv",
                 jobStartedUsingPreemption->GetId(),
                 jobStartedUsingPreemption->GetOperationId(),
-                targetOperationPreemptionPriority,
-                forcefullyPreemptableJobs.contains(job.Get()) ? "forcefully" : "nonforcefully",
-                conditionallyPreemptableJobs.contains(jobInfo) ? "conditionally" : "unconditionally"));
+                preemptionStatus,
+                GetJobPreemptionLevel(jobInfo),
+                targetOperationPreemptionPriority);
+            if (forcefullyPreemptableJobs.contains(job.Get())) {
+                preemptionReasonBuilder.AppendString(
+                    "; this job was forcefully preemptable, because its node was moved to other scheduling segment");
+            }
+            if (conditionallyPreemptableJobs.contains(jobInfo)) {
+                preemptionReasonBuilder.AppendString("; this job was conditionally preemptable");
+            }
+
+            job->SetPreemptionReason(preemptionReasonBuilder.Flush());
 
             job->SetPreemptedFor(TPreemptedFor{
                 .JobId = jobStartedUsingPreemption->GetId(),
