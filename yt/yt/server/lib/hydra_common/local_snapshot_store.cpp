@@ -327,7 +327,7 @@ private:
     std::unique_ptr<TUnbufferedFileOutput> FileOutput_;
     std::unique_ptr<IOutputStream> CodecOutput_;
     std::unique_ptr<TChecksumOutput> ChecksumOutput_;
-    std::unique_ptr<TLengthMeasureOutputStream> LengthMeasureOutput_;
+    std::unique_ptr<TLengthMeasuringOutputStream> LengthMeasureOutput_;
     IOutputStream* FacadeOutput_ = nullptr;
 
     NLogging::TLogger Logger = HydraLogger;
@@ -373,7 +373,7 @@ private:
                     default:
                         YT_ABORT();
                 }
-                LengthMeasureOutput_.reset(new TLengthMeasureOutputStream(CodecOutput_
+                LengthMeasureOutput_.reset(new TLengthMeasuringOutputStream(CodecOutput_
                     ? CodecOutput_.get()
                     : ChecksumOutput_.get()));
                 FacadeOutput_ = LengthMeasureOutput_.get();

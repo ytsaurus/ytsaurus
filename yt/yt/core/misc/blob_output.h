@@ -8,14 +8,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBlobOutputTag
+{ };
+
 class TBlobOutput
     : public IZeroCopyOutput
 {
 public:
-    TBlobOutput();
     explicit TBlobOutput(
-        size_t capacity,
-        bool pageAligned = false);
+        size_t capacity = 0,
+        bool pageAligned = false,
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TBlobOutputTag>());
 
     TBlob& Blob();
     const TBlob& Blob() const;

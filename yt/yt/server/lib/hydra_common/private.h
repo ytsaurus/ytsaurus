@@ -13,8 +13,9 @@ namespace NYT::NHydra {
 struct TRemoteSnapshotParams;
 
 DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
-DECLARE_REFCOUNTED_CLASS(TSyncFileChangelog)
-DECLARE_REFCOUNTED_CLASS(TFileChangelog)
+DECLARE_REFCOUNTED_CLASS(TFileChangelogIndex)
+
+DECLARE_REFCOUNTED_STRUCT(IFileChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 

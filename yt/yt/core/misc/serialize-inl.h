@@ -6,6 +6,7 @@
 
 #include "compact_flat_map.h"
 #include "compact_vector.h"
+#include "collection_helpers.h"
 
 #include <optional>
 #include <variant>
@@ -14,18 +15,23 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TInput>
+size_t ReadRef(TInput& input, TMutableRef ref)
+{
+    auto bytesLoaded = input.Load(ref.Begin(), ref.Size());
+    if (bytesLoaded != ref.Size()) {
+        TCrashOnDeserializationErrorGuard::OnError();
+        THROW_ERROR_EXCEPTION("Premature end-of-stream")
+            << TErrorAttribute("bytes_loaded", ref.Size())
+            << TErrorAttribute("bytes_expected", bytesLoaded);
+    }
+    return bytesLoaded;
+}
+
 template <class TOutput>
 void WriteRef(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
-}
-
-template <class TInput>
-size_t ReadRef(TInput& input, TRef& ref)
-{
-    auto loadBytes = input.Load(ref.Begin(), ref.Size());
-    YT_VERIFY(loadBytes == ref.Size());
-    return loadBytes;
 }
 
 template <class TOutput, class T>
@@ -35,23 +41,17 @@ void WritePod(TOutput& output, const T& obj)
     output.Write(&obj, sizeof(obj));
 }
 
-template <class TInput, class T>
-void ReadPod(TInput& input, T& obj);
-
-template <class TInput, class T>
-void ReadPodOrThrow(TInput& input, T& obj);
-
 template <class TOutput>
 size_t WriteZeroes(TOutput& output, size_t count)
 {
-    size_t written = 0;
-    while (written < count) {
-        size_t toWrite = Min(ZeroBufferSize, count - written);
-        output.Write(ZeroBuffer.data(), toWrite);
-        written += toWrite;
+    size_t bytesWritten = 0;
+    while (bytesWritten < count) {
+        size_t bytesToWrite = Min(ZeroBufferSize, count - bytesWritten);
+        output.Write(ZeroBuffer.data(), bytesToWrite);
+        bytesWritten += bytesToWrite;
     }
-    YT_VERIFY(written == count);
-    return written;
+    YT_VERIFY(bytesWritten == count);
+    return bytesWritten;
 }
 
 template <class TOutput>
@@ -72,9 +72,17 @@ size_t WriteRefPadded(TOutput& output, TRef ref)
 template <class TInput>
 size_t ReadRefPadded(TInput& input, TMutableRef ref)
 {
-    auto loadBytes = input.Load(ref.Begin(), ref.Size());
-    YT_VERIFY(loadBytes == ref.Size());
-    input.Skip(AlignUpSpace(ref.Size(), SerializationAlignment));
+    ReadRef(input, ref);
+
+    auto bytesToSkip = AlignUpSpace(ref.Size(), SerializationAlignment);
+    auto bytesSkipped = input.Skip(bytesToSkip);
+    if (bytesSkipped != bytesToSkip) {
+        TCrashOnDeserializationErrorGuard::OnError();
+        THROW_ERROR_EXCEPTION("Premature end-of-stream")
+            << TErrorAttribute("bytes_skipped", bytesSkipped)
+            << TErrorAttribute("bytes_expected", bytesToSkip);
+    }
+
     return AlignUp(ref.Size(), SerializationAlignment);
 }
 
@@ -93,31 +101,10 @@ size_t WritePodPadded(TOutput& output, const T& obj)
 }
 
 template <class TInput, class T>
-void ReadPodImpl(TInput& input, T& obj, bool safe)
-{
-    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
-    auto loadBytes = input.Load(&obj, sizeof(obj));
-    if (safe) {
-        if (loadBytes != sizeof(obj)) {
-            THROW_ERROR_EXCEPTION("Byte size mismatch while reading POD")
-                << TErrorAttribute("bytes_loaded", loadBytes)
-                << TErrorAttribute("bytes_expected", sizeof(obj));
-        }
-    } else {
-        YT_VERIFY(loadBytes == sizeof(obj));
-    }
-}
-
-template <class TInput, class T>
 void ReadPod(TInput& input, T& obj)
 {
-    ReadPodImpl(input, obj, false);
-}
-
-template <class TInput, class T>
-void ReadPodOrThrow(TInput& input, T& obj)
-{
-    ReadPodImpl(input, obj, true);
+    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    ReadRef(input, TMutableRef::FromPod(obj));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +140,7 @@ template <class T>
 void UnpackRefs(const TSharedRef& packedRef, T* parts);
 
 template <class T>
-void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts);
+void UnpackRefs(const TSharedRef& packedRef, T* parts);
 
 template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts)
@@ -188,19 +175,16 @@ TString MergeRefsToString(const TParts& parts)
 }
 
 template <class T>
-void UnpackRefsImpl(const TSharedRef& packedRef, T* parts, bool safe)
+void UnpackRefs(const TSharedRef& packedRef, T* parts)
 {
     TMemoryInput input(packedRef.Begin(), packedRef.Size());
 
     i32 size;
-    ReadPodImpl(input, size, safe);
-    if (safe) {
-        if (size < 0) {
-            THROW_ERROR_EXCEPTION("Packed ref size is negative")
-                << TErrorAttribute("size", size);
-        }
-    } else {
-        YT_VERIFY(size >= 0);
+    ReadPod(input, size);
+    if (size < 0) {
+        TCrashOnDeserializationErrorGuard::OnError();
+        THROW_ERROR_EXCEPTION("Packed ref size is negative")
+            << TErrorAttribute("size", size);
     }
 
     parts->clear();
@@ -208,22 +192,19 @@ void UnpackRefsImpl(const TSharedRef& packedRef, T* parts, bool safe)
 
     for (int index = 0; index < size; ++index) {
         i64 partSize;
-        ReadPodImpl(input, partSize, safe);
-        if (safe) {
-            if (partSize < 0) {
-                THROW_ERROR_EXCEPTION("A part of a packed ref has negative size")
-                    << TErrorAttribute("index", index)
-                    << TErrorAttribute("size", partSize);
-            }
-            if (packedRef.End() - input.Buf() < partSize) {
-                THROW_ERROR_EXCEPTION("A part of a packed ref is too large")
-                    << TErrorAttribute("index", index)
-                    << TErrorAttribute("size", partSize)
-                    << TErrorAttribute("bytes_left", packedRef.End() - input.Buf());
-            }
-        } else {
-            YT_VERIFY(partSize >= 0);
-            YT_VERIFY(packedRef.End() - input.Buf() >= partSize);
+        ReadPod(input, partSize);
+        if (partSize < 0) {
+            TCrashOnDeserializationErrorGuard::OnError();
+            THROW_ERROR_EXCEPTION("A part of a packed ref has negative size")
+                << TErrorAttribute("index", index)
+                << TErrorAttribute("size", partSize);
+        }
+        if (packedRef.End() - input.Buf() < partSize) {
+            TCrashOnDeserializationErrorGuard::OnError();
+            THROW_ERROR_EXCEPTION("A part of a packed ref is too large")
+                << TErrorAttribute("index", index)
+                << TErrorAttribute("size", partSize)
+                << TErrorAttribute("bytes_left", packedRef.End() - input.Buf());
         }
 
         parts->push_back(packedRef.Slice(input.Buf(), input.Buf() + partSize));
@@ -231,39 +212,17 @@ void UnpackRefsImpl(const TSharedRef& packedRef, T* parts, bool safe)
         input.Skip(partSize);
     }
 
-    if (safe) {
-        if (input.Buf() < packedRef.End()) {
-            THROW_ERROR_EXCEPTION("Packed ref is too large")
-                << TErrorAttribute("extra_bytes", packedRef.End() - input.Buf());
-        }
-    } else {
-        YT_VERIFY(input.Buf() == packedRef.End());
+    if (input.Buf() < packedRef.End()) {
+        TCrashOnDeserializationErrorGuard::OnError();
+        THROW_ERROR_EXCEPTION("Packed ref is too large")
+            << TErrorAttribute("extra_bytes", packedRef.End() - input.Buf());
     }
-}
-
-template <class T>
-void UnpackRefs(const TSharedRef& packedRef, T* parts)
-{
-    UnpackRefsImpl(packedRef, parts, false);
 }
 
 inline std::vector<TSharedRef> UnpackRefs(const TSharedRef& packedRef)
 {
     std::vector<TSharedRef> parts;
-    UnpackRefsImpl(packedRef, &parts, false);
-    return parts;
-}
-
-template <class T>
-void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts)
-{
-    UnpackRefsImpl(packedRef, parts, true);
-}
-
-inline std::vector<TSharedRef> UnpackRefsOrThrow(const TSharedRef& packedRef)
-{
-    std::vector<TSharedRef> parts;
-    UnpackRefsImpl(packedRef, &parts, true);
+    UnpackRefs(packedRef, &parts);
     return parts;
 }
 
@@ -316,7 +275,7 @@ TEntitySerializationKey TEntityStreamSaveContext::RegisterRawEntity(T* entity)
         return it->second;
     }
     auto key = GenerateSerializationKey();
-    YT_VERIFY(RawPtrs_.emplace(entity, key).second);
+    EmplaceOrCrash(RawPtrs_, entity, key);
     return InlineKey;
 }
 
@@ -327,7 +286,7 @@ TEntitySerializationKey TEntityStreamSaveContext::RegisterRefCountedEntity(const
         return it->second;
     }
     auto key = GenerateSerializationKey();
-    YT_VERIFY(RefCountedPtrs_.emplace(entity, key).second);
+    EmplaceOrCrash(RefCountedPtrs_, entity, key);
     return InlineKey;
 }
 
@@ -605,8 +564,7 @@ struct TRangeSerializer
     static void Load(C& context, const TMutableRef& value)
     {
         auto* input = context.GetInput();
-        YT_VERIFY(input->Load(value.Begin(), value.Size()) == value.Size());
-
+        ReadRef(*input, value);
         SERIALIZATION_DUMP_WRITE(context, "raw[%v] %v", value.Size(), DumpRangeToHex(value));
     }
 };
@@ -688,7 +646,7 @@ struct TSharedRefSerializer
         auto mutableValue = TSharedMutableRef::Allocate<TTag>(size, false);
 
         auto* input = context.GetInput();
-        YT_VERIFY(input->Load(mutableValue.Begin(), mutableValue.Size()) == mutableValue.Size());
+        ReadRef(*input, mutableValue);
         value = mutableValue;
 
         SERIALIZATION_DUMP_WRITE(context, "TSharedRef %v", DumpRangeToHex(value));
@@ -1257,7 +1215,12 @@ struct TArraySerializer
     static void Load(C& context, TArray<T,N>& objects)
     {
         size_t size = TSizeSerializer::LoadSuspended(context);
-        YT_VERIFY(size <= N);
+        if (size > N) {
+            TCrashOnDeserializationErrorGuard::OnError();
+            THROW_ERROR_EXCEPTION("Array size is too large: expected <= %v, actual %v",
+                N,
+                size);
+        }
 
         SERIALIZATION_DUMP_WRITE(context, "array[%v]", size);
         SERIALIZATION_DUMP_INDENT(context) {
@@ -1404,7 +1367,7 @@ struct TSetSerializer
                     TItemSerializer::Load(context, key);
                 }
 
-                YT_VERIFY(set.insert(key).second);
+                InsertOrCrash(set, key);
             }
         }
     }
@@ -1488,7 +1451,7 @@ struct TOptionalSetSerializer
                     TItemSerializer::Load(context, key);
                 }
 
-                YT_VERIFY(set->insert(key).second);
+                InsertOrCrash(*set, key);
             }
         }
     }
@@ -1534,7 +1497,7 @@ struct TMapSerializer
                     TValueSerializer::Load(context, value);
                 }
 
-                YT_VERIFY(map.emplace(std::move(key), std::move(value)).second);
+                EmplaceOrCrash(map, std::move(key), std::move(value));
             }
         }
     }

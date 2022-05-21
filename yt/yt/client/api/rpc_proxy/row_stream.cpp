@@ -98,7 +98,7 @@ TSharedRef DeserializeRowStreamBlockEnvelope(
 {
     TSharedRef rowsRef;
     if (statistics) {
-        auto parts = UnpackRefsOrThrow(block);
+        auto parts = UnpackRefs(block);
         if (parts.size() != 2) {
             THROW_ERROR_EXCEPTION(
                 "Error deserializing row stream: expected %v packed refs, got %v",
@@ -115,7 +115,7 @@ TSharedRef DeserializeRowStreamBlockEnvelope(
         rowsRef = block;
     }
 
-    auto parts = UnpackRefsOrThrow(rowsRef);
+    auto parts = UnpackRefs(rowsRef);
     if (parts.size() != 2) {
         THROW_ERROR_EXCEPTION(
             "Error deserializing row stream: expected %v packed refs, got %v",

@@ -330,6 +330,20 @@ public:
         return Underlying_->Allocate(std::move(request), category);
     }
 
+    TFuture<void> Lock(
+        TLockRequest request,
+        EWorkloadCategory category) override
+    {
+        return Underlying_->Lock(std::move(request), category);
+    }
+
+    TFuture<void> Resize(
+        TResizeRequest request,
+        EWorkloadCategory category) override
+    {
+        return Underlying_->Resize(std::move(request), category);
+    }
+
     bool IsSick() const override
     {
         return Underlying_->IsSick();
@@ -389,7 +403,10 @@ IIOEngineWorkloadModelPtr CreateIOModelInterceptor(
     IIOEnginePtr underlying,
     NLogging::TLogger logger)
 {
-    return New<TIOModelInterceptor>(std::move(locationId), std::move(underlying), std::move(logger));
+    return New<TIOModelInterceptor>(
+        std::move(locationId),
+        std::move(underlying),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

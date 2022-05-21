@@ -14,7 +14,7 @@ class TJournalReader
     : public IJournalReader
 {
 public:
-    TJournalReader(
+    explicit TJournalReader(
         TApiServiceProxy::TReqReadJournalPtr request)
         : Request_(std::move(request))
     {
@@ -40,7 +40,7 @@ public:
         return Underlying_->Read().Apply(BIND ([] (const TSharedRef& packedRows) {
             std::vector<TSharedRef> rows;
             if (packedRows) {
-                UnpackRefsOrThrow(packedRows, &rows);
+                UnpackRefs(packedRows, &rows);
             }
             return rows;
         }));

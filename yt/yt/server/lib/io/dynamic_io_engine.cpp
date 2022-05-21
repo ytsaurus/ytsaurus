@@ -42,63 +42,77 @@ public:
         TRefCountedTypeCookie tagCookie,
         TSessionId sessionId) override
     {
-        return Engine()->Read(requests, category, tagCookie, sessionId);
+        return GetEngine()->Read(std::move(requests), category, tagCookie, sessionId);
     }
 
     TFuture<void> Write(
         TWriteRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle,
-        TSessionId sessionId = {}) override
+        EWorkloadCategory category,
+        TSessionId sessionId) override
     {
-        return Engine()->Write(request, category, sessionId);
+        return GetEngine()->Write(std::move(request), category, sessionId);
     }
 
     TFuture<void> FlushFile(
         TFlushFileRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle) override
+        EWorkloadCategory category) override
     {
-        return Engine()->FlushFile(request, category);
+        return GetEngine()->FlushFile(std::move(request), category);
     }
 
     TFuture<void> FlushFileRange(
         TFlushFileRangeRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle,
-        TSessionId sessionId = {}) override
+        EWorkloadCategory category,
+        TSessionId sessionId) override
     {
-        return Engine()->FlushFileRange(request, category, sessionId);
+        return GetEngine()->FlushFileRange(std::move(request), category, sessionId);
     }
 
     TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle) override
+        EWorkloadCategory category) override
     {
-        return Engine()->FlushDirectory(request, category);
+        return GetEngine()->FlushDirectory(std::move(request), category);
     }
 
     TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle) override
+        EWorkloadCategory category) override
     {
-        return Engine()->Open(request, category);
+        return GetEngine()->Open(std::move(request), category);
     }
 
     TFuture<void> Close(
         TCloseRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle) override
+        EWorkloadCategory category) override
     {
-        return Engine()->Close(request, category);
+        return GetEngine()->Close(std::move(request), category);
     }
 
     TFuture<void> Allocate(
         TAllocateRequest request,
-        EWorkloadCategory category = EWorkloadCategory::Idle) override
+        EWorkloadCategory category) override
     {
-        return Engine()->Allocate(request, category);
+        return GetEngine()->Allocate(std::move(request), category);
+    }
+
+    TFuture<void> Lock(
+        TLockRequest request,
+        EWorkloadCategory category) override
+    {
+        return GetEngine()->Lock(std::move(request), category);
+    }
+
+    TFuture<void> Resize(
+        TResizeRequest request,
+        EWorkloadCategory category) override
+    {
+        return GetEngine()->Resize(std::move(request), category);
     }
 
     bool IsSick() const override
     {
-        return Engine()->IsSick();
+        return GetEngine()->IsSick();
     }
 
     void ReconfigureType(EIOEngineType type) override
@@ -108,7 +122,7 @@ public:
 
     void Reconfigure(const NYTree::INodePtr& dynamicIOConfig) override
     {
-        ForAll([dynamicIOConfig] (const IIOEnginePtr& engine) {
+        ForAllEngines([dynamicIOConfig] (const IIOEnginePtr& engine) {
             return engine->Reconfigure(dynamicIOConfig);
         });
     }
@@ -121,7 +135,7 @@ public:
     i64 GetTotalReadBytes() const override
     {
         i64 total = 0;
-        ForAll([&] (const IIOEnginePtr& engine) {
+        ForAllEngines([&] (const IIOEnginePtr& engine) {
             total += engine->GetTotalReadBytes();
         });
         return total;
@@ -130,7 +144,7 @@ public:
     i64 GetTotalWrittenBytes() const override
     {
         i64 total = 0;
-        ForAll([&] (const IIOEnginePtr& engine) {
+        ForAllEngines([&] (const IIOEnginePtr& engine) {
             total += engine->GetTotalWrittenBytes();
         });
         return total;
@@ -139,7 +153,7 @@ public:
 private:
     struct TEngineState final
     {
-        TEngineState(EIOEngineType type)
+        explicit TEngineState(EIOEngineType type)
             : CurrentType(type)
         { }
 
@@ -190,13 +204,13 @@ private:
     TIntrusivePtr<TProxyInvoker> ProxyInvoker_;
     IInvokerPtr AuxPoolInvoker_;
 
-    const IIOEnginePtr& Engine() const
+    const IIOEnginePtr& GetEngine() const
     {
         return State_->Engines[State_->CurrentType.load()];
     }
 
     template <class TFn>
-    void ForAll(const TFn& cb) const
+    void ForAllEngines(const TFn& cb) const
     {
         for (const auto& engine : State_->Engines) {
             if (engine) {

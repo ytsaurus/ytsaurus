@@ -548,6 +548,7 @@ void TCompositeAutomaton::DoLoadSnapshot(
     TBufferedInput bufferedInput(syncReader.get(), SnapshotLoadBufferSize);
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
     auto context = CreateLoadContext(checkpointableInput.get());
+    TCrashOnDeserializationErrorGuard guard;
     callback(*context);
 }
 

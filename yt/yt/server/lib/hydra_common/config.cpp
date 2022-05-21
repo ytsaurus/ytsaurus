@@ -8,10 +8,11 @@ namespace NYT::NHydra {
 
 TFileChangelogConfig::TFileChangelogConfig()
 {
-    RegisterParameter("index_block_size", IndexBlockSize)
-        .GreaterThan(0)
-        .Default(1_MB);
-    RegisterParameter("flush_buffer_size", FlushBufferSize)
+    RegisterParameter("data_flush_size", DataFlushSize)
+        .Alias("flush_buffer_size")
+        .GreaterThanOrEqual(0)
+        .Default(16_MB);
+    RegisterParameter("index_flush_size", IndexFlushSize)
         .GreaterThanOrEqual(0)
         .Default(16_MB);
     RegisterParameter("flush_period", FlushPeriod)
@@ -21,6 +22,9 @@ TFileChangelogConfig::TFileChangelogConfig()
     RegisterParameter("preallocate_size", PreallocateSize)
         .GreaterThan(0)
         .Default();
+    RegisterParameter("recovery_buffer_size", RecoveryBufferSize)
+        .GreaterThan(0)
+        .Default(16_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

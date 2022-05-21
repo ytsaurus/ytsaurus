@@ -1,5 +1,5 @@
 #include "private.h"
-#include "sync_file_changelog.h"
+#include "file_changelog.h"
 #include "file_changelog_dispatcher.h"
 #include "changelog.h"
 #include "config.h"
@@ -38,7 +38,7 @@ IChangelogPtr CreateFileChangelog(
     int id,
     TFileChangelogDispatcherPtr dispatcher,
     TFileChangelogConfigPtr config,
-    TSyncFileChangelogPtr changelog);
+    IFileChangelogPtr changelog);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,8 +46,8 @@ class TFileChangelogQueue
     : public TRefCounted
 {
 public:
-    explicit TFileChangelogQueue(
-        TSyncFileChangelogPtr changelog,
+    TFileChangelogQueue(
+        IFileChangelogPtr changelog,
         const TProfiler& profiler,
         const IInvokerPtr& invoker)
         : Changelog_(std::move(changelog))
@@ -66,7 +66,7 @@ public:
             Changelog_->GetFileName());
     }
 
-    const TSyncFileChangelogPtr& GetChangelog()
+    const IFileChangelogPtr& GetChangelog()
     {
         return Changelog_;
     }
@@ -110,7 +110,7 @@ public:
 
         const auto& config = Changelog_->GetConfig();
 
-        if (ByteSize_.load() >= config->FlushBufferSize) {
+        if (ByteSize_.load() >= config->DataFlushSize) {
             return true;
         }
 
@@ -236,7 +236,7 @@ public:
     }
 
 private:
-    const TSyncFileChangelogPtr Changelog_;
+    const IFileChangelogPtr Changelog_;
     const TProfiler Profiler;
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
@@ -381,9 +381,9 @@ public:
     }
 
 
-    TFileChangelogQueuePtr CreateQueue(TSyncFileChangelogPtr syncChangelog)
+    TFileChangelogQueuePtr CreateQueue(IFileChangelogPtr changelog)
     {
-        return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler, ActionQueue_->GetInvoker());
+        return New<TFileChangelogQueue>(std::move(changelog), Profiler, ActionQueue_->GetInvoker());
     }
 
     void RegisterQueue(const TFileChangelogQueuePtr& queue)
@@ -473,21 +473,24 @@ private:
 
     void DoRegisterQueue(const TFileChangelogQueuePtr& queue)
     {
-        YT_VERIFY(Queues_.insert(queue).second);
+        InsertOrCrash(Queues_, queue);
         ProfileQueues();
+
         YT_LOG_DEBUG("Changelog queue registered (Path: %v)",
             queue->GetChangelog()->GetFileName());
 
-        // See Wakeup.
+        // See wakeup.
         queue->Process();
     }
 
     void DoUnregisterQueue(const TFileChangelogQueuePtr& queue)
     {
         YT_VERIFY(!queue->HasUnflushedRecords());
-        YT_VERIFY(Queues_.erase(queue) == 1);
+
+        EraseOrCrash(Queues_, queue);
         ShrinkHashTable(&Queues_);
         ProfileQueues();
+
         YT_LOG_DEBUG("Changelog queue unregistered (Path: %v)",
             queue->GetChangelog()->GetFileName());
     }
@@ -536,9 +539,9 @@ private:
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config)
     {
-        auto syncChangelog = New<TSyncFileChangelog>(IOEngine_, path, config);
-        syncChangelog->Create(meta);
-        return CreateFileChangelog(id, this, config, syncChangelog);
+        auto changelog = CreateFileChangelog(IOEngine_, path, config);
+        changelog->Create(meta);
+        return CreateFileChangelog(id, this, config, changelog);
     }
 
     IChangelogPtr DoOpenChangelog(
@@ -546,9 +549,9 @@ private:
         const TString& path,
         const TFileChangelogConfigPtr& config)
     {
-        auto syncChangelog = New<TSyncFileChangelog>(IOEngine_, path, config);
-        syncChangelog->Open();
-        return CreateFileChangelog(id, this, config, syncChangelog);
+        auto changelog = CreateFileChangelog(IOEngine_, path, config);
+        changelog->Open();
+        return CreateFileChangelog(id, this, config, changelog);
     }
 
     TFuture<void> DoFlushChangelogs()
@@ -573,7 +576,7 @@ public:
         int id,
         TFileChangelogDispatcherPtr dispatcher,
         TFileChangelogConfigPtr config,
-        TSyncFileChangelogPtr changelog)
+        IFileChangelogPtr changelog)
         : Id_(id)
         , Dispatcher_(std::move(dispatcher))
         , Config_(std::move(config))
@@ -646,7 +649,7 @@ public:
         YT_VERIFY(recordCount <= RecordCount_);
         RecordCount_ = recordCount;
         Truncated_ = true;
-        // NB: Ignoring the result seems fine since TSyncFileChangelog
+        // NB: Ignoring the result seems fine since the changelog
         // will propagate any possible error as the result of all further calls.
         Dispatcher_->ForceFlushQueue(Queue_);
         return Dispatcher_->TruncateQueue(Queue_, recordCount);
@@ -680,7 +683,7 @@ IChangelogPtr CreateFileChangelog(
     int id,
     TFileChangelogDispatcherPtr dispatcher,
     TFileChangelogConfigPtr config,
-    TSyncFileChangelogPtr changelog)
+    IFileChangelogPtr changelog)
 {
     return New<TFileChangelog>(
         id,
