@@ -2079,7 +2079,7 @@ private:
         if (requestTimeout && *requestTimeout > Owner_->Config_->TimeoutBackoffLeadTime) {
             auto backoffDelay = *requestTimeout - Owner_->Config_->TimeoutBackoffLeadTime;
             BackoffAlarmCookie_ = TDelayedExecutor::Submit(
-                BIND(&TObjectService::TExecuteSession::OnBackoffAlarm, MakeStrong(this)),
+                BIND(&TObjectService::TExecuteSession::OnBackoffAlarm, MakeWeak(this)),
                 backoffDelay,
                 TObjectService::GetRpcInvoker());
         }
