@@ -8,18 +8,6 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline bool TIOEngineHandle::IsOpenForDirectIO() const
-{
-     return OpenForDirectIO_;
-}
-
-inline void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)
-{
-    *oMode |= DirectAligned;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TTag>
 TFuture<IIOEngine::TReadResponse> IIOEngine::Read(
     std::vector<TReadRequest> requests,

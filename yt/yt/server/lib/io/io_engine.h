@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/misc/ref.h>
 #include <yt/yt/core/misc/guid.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/client/misc/workload.h>
@@ -37,6 +38,12 @@ private:
 DEFINE_ENUM(EFlushFileMode,
     (All)
     (Data)
+);
+
+DEFINE_ENUM(ELockFileMode,
+    (Shared)
+    (Exclusive)
+    (Unlock)
 );
 
 struct IIOEngine
@@ -104,6 +111,19 @@ struct IIOEngine
         TString Path;
     };
 
+    struct TLockRequest
+    {
+        TIOEngineHandlePtr Handle;
+        ELockFileMode Mode;
+        bool Nonblocking = false;
+    };
+
+    struct TResizeRequest
+    {
+        TIOEngineHandlePtr Handle;
+        i64 Size = -1;
+    };
+
     struct TDefaultReadTag
     { };
 
@@ -137,6 +157,14 @@ struct IIOEngine
 
     virtual TFuture<void> Allocate(
         TAllocateRequest request,
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
+
+    virtual TFuture<void> Lock(
+        TLockRequest request,
+        EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
+
+    virtual TFuture<void> Resize(
+        TResizeRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
 
     virtual bool IsSick() const = 0;

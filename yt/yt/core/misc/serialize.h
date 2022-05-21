@@ -30,20 +30,36 @@ constexpr size_t ZeroBufferSize = 64_KB;
 static_assert(
     ZeroBufferSize >= SerializationAlignment,
     "ZeroBufferSize < SerializationAlignment");
-extern std::array<ui8, ZeroBufferSize> ZeroBuffer;
+extern const std::array<ui8, ZeroBufferSize> ZeroBuffer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! When active, causes the process on crash on a deserialization error is
+//! encountered. (The default is to throw an exception.)
+class TCrashOnDeserializationErrorGuard
+{
+public:
+    TCrashOnDeserializationErrorGuard();
+    ~TCrashOnDeserializationErrorGuard();
+
+    TCrashOnDeserializationErrorGuard(const TCrashOnDeserializationErrorGuard&) = delete;
+    TCrashOnDeserializationErrorGuard(TCrashOnDeserializationErrorGuard&&) = delete;
+
+    static void OnError();
+
+private:
+    static thread_local int CrashOnErrorDepth_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TInput>
-size_t ReadRef(TInput& input, TRef& ref);
+size_t ReadRef(TInput& input, TMutableRef ref);
 template <class TOutput>
 void WriteRef(TOutput& output, TRef ref);
 
-// XXX(babenko): refactor these; consider unifying with padded versions.
 template <class TInput, class T>
 void ReadPod(TInput& input, T& obj);
-template <class TInput, class T>
-void ReadPodOrThrow(TInput& input, T& obj);
 template <class TOutput, class T>
 void WritePod(TOutput& output, const T& obj);
 
@@ -66,10 +82,7 @@ template <class T>
 TSharedRef PackRefs(const T& parts);
 template <class T>
 void UnpackRefs(const TSharedRef& packedRef, T* parts);
-template <class T>
-void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts);
 std::vector<TSharedRef> UnpackRefs(const TSharedRef& packedRef);
-std::vector<TSharedRef> UnpackRefsOrThrow(const TSharedRef& packedRef);
 
 template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts);

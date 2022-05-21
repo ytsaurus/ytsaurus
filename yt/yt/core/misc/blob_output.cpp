@@ -7,19 +7,14 @@ namespace NYT {
 static constexpr size_t InitialBlobOutputCapacity = 16;
 static constexpr double BlobOutputCapacityMultiplier = 1.5;
 
-struct TBlobOutputTag { };
-
-TBlobOutput::TBlobOutput()
-    : Blob_(TBlobOutputTag())
-{ }
-
 TBlobOutput::TBlobOutput(
     size_t capacity,
-    bool pageAligned)
+    bool pageAligned,
+    TRefCountedTypeCookie tagCookie)
     : Blob_(
-        TBlobOutputTag(),
-        /* size */ 0,
-        /* initializeStorage */ true,
+        tagCookie,
+        /*size*/ 0,
+        /*initializeStorage*/ true,
         pageAligned)
 {
     Reserve(capacity);

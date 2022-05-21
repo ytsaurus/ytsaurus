@@ -159,6 +159,21 @@ public:
         return RunRequest(TDuration{});
     }
 
+    TFuture<void> Lock(
+        TLockRequest /*request*/,
+        EWorkloadCategory /*category*/) override
+    {
+        return RunRequest(TDuration{});
+    }
+
+    TFuture<void> Resize(
+        TResizeRequest /*request*/,
+        EWorkloadCategory /*category*/) override
+    {
+        return RunRequest(TDuration{});
+    }
+
+
     bool IsSick() const override
     {
         return false;
@@ -379,7 +394,7 @@ TEST_F(TGentleLoaderTest, TestWriteLimit)
     auto results = Run(5);
     EXPECT_EQ(std::ssize(results), 5);
     // 4 threads with 100 IOPS each should get about 400 IOPS
-    // but because we skip most writes we should get about 650 IOPS. 
+    // but because we skip most writes we should get about 650 IOPS.
     auto lastResult = results.back();
 
     EXPECT_GE(lastResult, 300);

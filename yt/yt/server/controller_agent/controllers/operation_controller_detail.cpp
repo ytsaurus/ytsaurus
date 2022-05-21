@@ -1978,8 +1978,11 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         snapshot.Blocks.size(),
         snapshot.Version);
 
+    // Deserialization errors must be fatal.
+    TCrashOnDeserializationErrorGuard crashOnDeserializationErrorGuard;
+
     // Snapshot loading must be synchronous.
-    TOneShotContextSwitchGuard guard(
+    TOneShotContextSwitchGuard oneShotContextSwitchGuard(
         BIND([this, this_ = MakeStrong(this)] {
             TStringBuilder stackTrace;
             DumpStackTrace([&stackTrace] (TStringBuf str) {
@@ -1987,8 +1990,7 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
             });
             YT_LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
                 stackTrace.Flush());
-        })
-    );
+        }));
 
     TChunkedInputStream input(snapshot.Blocks);
 

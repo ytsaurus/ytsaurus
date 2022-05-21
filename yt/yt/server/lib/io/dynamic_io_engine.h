@@ -1,7 +1,5 @@
 #pragma once
 
-#include "public.h"
-
 #include "io_engine.h"
 
 namespace NYT::NIO {

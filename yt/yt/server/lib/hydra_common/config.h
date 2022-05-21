@@ -18,11 +18,11 @@ class TFileChangelogConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    //! Minimum total index records size between consecutive index records.
-    i64 IndexBlockSize;
+    //! When the number of unflushed data bytes exceeds this value, an automatic data flush is performed.
+    i64 DataFlushSize;
 
-    //! When the number of unflushed bytes exceeds this value, an automatic flush is performed.
-    i64 FlushBufferSize;
+    //! When the number of data bytes written since last index flush exceeds this value, an automatic index flush is performed.
+    i64 IndexFlushSize;
 
     //! Interval between consequent automatic flushes.
     TDuration FlushPeriod;
@@ -35,10 +35,15 @@ public:
     //! (in particular, file size) updates.
     std::optional<i64> PreallocateSize;
 
+    //! Buffer size for reading the tail of data file during recovery.
+    i64 RecoveryBufferSize;
+
     TFileChangelogConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelogDispatcherConfig
     : public virtual NYTree::TYsonSerializable

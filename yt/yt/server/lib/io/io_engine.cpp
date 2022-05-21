@@ -76,6 +76,16 @@ TIOEngineHandle::TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept
     , OpenForDirectIO_(oMode & DirectAligned)
 { }
 
+bool TIOEngineHandle::IsOpenForDirectIO() const
+{
+     return OpenForDirectIO_;
+}
+
+void TIOEngineHandle::MarkOpenForDirectIO(EOpenMode* oMode)
+{
+    *oMode |= DirectAligned;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<TSharedRef> IIOEngine::ReadAll(
@@ -434,6 +444,24 @@ public:
             .Run();
     }
 
+    virtual TFuture<void> Lock(
+        TLockRequest request,
+        EWorkloadCategory category) override
+    {
+        return BIND(&TIOEngineBase::DoLock, MakeStrong(this), std::move(request))
+            .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))
+            .Run();
+    }
+
+    virtual TFuture<void> Resize(
+        TResizeRequest request,
+        EWorkloadCategory category) override
+    {
+        return BIND(&TIOEngineBase::DoResize, MakeStrong(this), std::move(request))
+            .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))
+            .Run();
+    }
+
     bool IsSick() const override
     {
         return Sick_;
@@ -540,6 +568,39 @@ protected:
 #else
         Y_UNUSED(request);
 #endif
+    }
+
+    static int GetLockOp(ELockFileMode mode)
+    {
+        switch (mode) {
+            case ELockFileMode::Shared:
+                return LOCK_SH;
+            case ELockFileMode::Exclusive:
+                return LOCK_EX;
+            case ELockFileMode::Unlock:
+                return LOCK_UN;
+            default:
+                YT_ABORT();
+        }
+    }
+
+    void DoLock(const TLockRequest& request)
+    {
+        NFS::ExpectIOErrors([&] {
+            auto op = GetLockOp(request.Mode) + (request.Nonblocking ? LOCK_NB : 0);
+            if (request.Handle->Flock(op) != 0) {
+                ythrow TFileError();
+            }
+        });
+    }
+
+    void DoResize(const TResizeRequest& request)
+    {
+        NFS::ExpectIOErrors([&] {
+            if (!request.Handle->Resize(request.Size)) {
+                ythrow TFileError();
+            }
+        });
     }
 
     void AddWriteWaitTimeSample(TDuration duration)
@@ -866,6 +927,7 @@ public:
         EWorkloadCategory category,
         TSessionId sessionId) override
     {
+        YT_ASSERT(request.Handle);
         std::vector<TFuture<void>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             futures.push_back(
@@ -978,7 +1040,7 @@ private:
                     reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
 
                     YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-                        "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)", 
+                        "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)",
                         static_cast<FHANDLE>(*request.Handle),
                         reallyRead,
                         sessionId,

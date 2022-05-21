@@ -4138,7 +4138,7 @@ private:
         HandleOutputStreamingRequest(
             context,
             [&] (const TSharedRef& packedRows) {
-                auto rows = UnpackRefsOrThrow(packedRows);
+                auto rows = UnpackRefs(packedRows);
                 WaitFor(journalWriter->Write(rows))
                     .ThrowOnError();
             },

@@ -4,101 +4,101 @@
 
 #include <yt/yt/core/compression/public.h>
 
-#include <yt/yt/core/misc/serialize.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
+#include <util/generic/typetraits.h>
 
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto ChangelogAlignment = NYTAlloc::PageSize;
+constexpr auto ChangelogPageAlignment = 4_KB;
+constexpr auto ChangelogQWordAlignment = 8;
 
 #pragma pack(push, 1)
 
-// COMPAT(babenko)
-struct TChangelogHeader_4
-{
-    //! Used for format validation.
-    static const ui64 ExpectedSignature = 0x3430303044435459ull; // YTCD0004
-
-    //! Indicates that the changelog is not yet sealed.
-    static constexpr i32 NotTruncatedRecordCount = -2;
-
-    ui64 Signature;
-    i32 FirstRecordOffset;
-    i32 MetaSize;
-    i32 TruncatedRecordCount;
-    i32 PaddingSize;
-};
-
-static_assert(sizeof (TChangelogHeader_4) == 24, "Binary size of TChangelogHeader_4 has changed.");
-
 struct TChangelogHeader_5
-    : public TChangelogHeader_4
 {
     //! Used for format validation.
     static constexpr ui64 ExpectedSignature = 0x3530303044435459ull; // YTCD0005
 
+    ui64 Signature;
+    i32 FirstRecordOffset;
+    i32 MetaSize;
+    i32 UnusedMustBeMinus2;
+    i32 PaddingSize;
     TGuid Uuid;
 };
 
-static_assert(sizeof (TChangelogHeader_5) == 40, "Binary size of TChangelogHeader_5 has changed.");
+static_assert(sizeof(TChangelogHeader_5) == 40, "Binary size of TChangelogHeader_5 has changed.");
+static_assert(sizeof(TChangelogHeader_5) % ChangelogQWordAlignment == 0, "TChangelogHeader_5 is not aligned properly.");
 
 using TChangelogHeader = TChangelogHeader_5;
 
+constexpr auto MinChangelogHeaderSize = sizeof(TChangelogHeader_5);
+constexpr auto MaxChangelogHeaderSize = sizeof(TChangelogHeader_5);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangelogRecordHeader_4
-{
-    i32 RecordId;
-    i32 DataSize;
-    TChecksum Checksum;
-    i32 PaddingSize;
-};
-
-static_assert(sizeof(TChangelogRecordHeader_4) == 20, "Binary size of TChangelogRecordHeader_4 has changed.");
-
 struct TChangelogRecordHeader_5
-    : public TChangelogRecordHeader_4
 {
+    i32 RecordIndex;
+    i32 PayloadSize;
+    TChecksum Checksum;
+    i32 PagePaddingSize;
     TGuid ChangelogUuid;
+    ui32 Padding;
 };
 
-static_assert(sizeof(TChangelogRecordHeader_5) == 36, "Binary size of TChangelogRecordHeader_5 has changed.");
+static_assert(sizeof(TChangelogRecordHeader_5) == 40, "Binary size of TChangelogRecordHeader_5 has changed.");
+static_assert(sizeof(TChangelogRecordHeader_5) % ChangelogQWordAlignment == 0, "TChangelogRecordHeader_5 is not aligned properly.");
 
 using TChangelogRecordHeader = TChangelogRecordHeader_5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangelogIndexHeader
+struct TChangelogIndexHeader_5
 {
     //! Used for format validation.
-    static constexpr ui64 ExpectedSignature = 0x3430303049435459ull; // YTCI0004
+    static constexpr ui64 ExpectedSignature = 0x3530303049435459ull; // YTCI0005
 
     ui64 Signature;
-    i32 IndexRecordCount;
-    ui32 Padding;
 };
 
-static_assert(sizeof(TChangelogIndexHeader) == 16, "Binary size of TChangelogIndexHeader has changed.");
-static_assert(sizeof(TChangelogIndexHeader) >= 12, "TChangelogIndexHeader must be >= 12.");
+static_assert(sizeof(TChangelogIndexHeader_5) == 8, "Binary size of TChangelogIndexHeader_5 has changed.");
+
+using TChangelogIndexHeader = TChangelogIndexHeader_5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChangelogIndexRecord
+struct TChangelogIndexSegmentHeader_5
 {
-    i64 FilePosition;
-    i32 RecordId;
+    //! Computed for the whole segment excluding the checksum ifself.
+    ui64 Checksum;
+    //! Number of records in this segment.
+    i32 RecordCount;
     ui32 Padding;
+
+    // Next follow #RecordCount i64-offsets to records within changelog data file.
 };
 
-static_assert(sizeof(TChangelogIndexRecord) == 16, "Binary size of TChangelogIndexRecord has changed.");
-static_assert(ChangelogAlignment % sizeof(TChangelogIndexRecord) == 0);
+static_assert(sizeof(TChangelogIndexSegmentHeader_5) == 16, "Binary size of TChangelogIndexSegmentHeader has changed.");
+
+using TChangelogIndexSegmentHeader = TChangelogIndexSegmentHeader_5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSnapshotHeader
+struct TChangelogIndexRecord_5
+{
+    i64 Offset;
+    i64 Length;
+};
+
+static_assert(sizeof(TChangelogIndexRecord_5) == 16, "Binary size of TChangelogIndexRecord_5 has changed.");
+
+using TChangelogIndexRecord = TChangelogIndexRecord_5;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotHeader_3
 {
     static constexpr ui64 ExpectedSignature = 0x3330303053535459ull; // YTSS0003
 
@@ -112,7 +112,9 @@ struct TSnapshotHeader
     i32 MetaSize;
 };
 
-static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has changed.");
+static_assert(sizeof(TSnapshotHeader_3) == 44, "Binary size of TSnapshotHeader_3 has changed.");
+
+using TSnapshotHeader = TSnapshotHeader_3;
 
 #pragma pack(pop)
 
@@ -120,11 +122,9 @@ static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has
 
 } // namespace NYT::NHydra
 
-Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader_4);
 Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader_5);
-Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader_4);
 Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader_5);
-Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader);
-Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexRecord);
-Y_DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader);
+Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader_5);
+Y_DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexSegmentHeader_5);
+Y_DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader_3);
 
