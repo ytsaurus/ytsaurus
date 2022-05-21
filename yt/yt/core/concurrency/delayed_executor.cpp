@@ -467,7 +467,7 @@ private:
                 TDelayedExecutorEntryPtr entry;
                 while (SubmitQueue_.TryDequeue(&entry)) {
                     if (entry->Canceled) {
-                        return;
+                        continue;
                     }
                     if (entry->Deadline + LateWarningThreshold < now) {
                         StaleCallbacksCounter_.Increment();
@@ -488,7 +488,7 @@ private:
                 TDelayedExecutorEntryPtr entry;
                 while (CancelQueue_.TryDequeue(&entry)) {
                     if (entry->Canceled) {
-                        return;
+                        continue;
                     }
                     entry->Canceled = true;
                     TakeCallback(entry);
