@@ -1436,7 +1436,7 @@ class YTInstance(object):
                     orchid_path = "//sys/scheduler/instances/{0}/orchid".format(instance)
                     try:
                         client.set(orchid_path + "/@retry_backoff_time", 100)
-                        if client.get(orchid_path + "/scheduler/connected"):
+                        if client.get(orchid_path + "/scheduler/service/connected"):
                             active_scheduler_orchid_path = orchid_path
                     except YtResponseError as error:
                         if not error.is_resolve_error():
@@ -1500,7 +1500,7 @@ class YTInstance(object):
                     path = orchid_path + "/controller_agent"
                     try:
                         client.set(orchid_path + "/@retry_backoff_time", 100)
-                        active_agents_count += client.get(path + "/connected")
+                        active_agents_count += client.get(path + "/service/connected")
                     except YtResponseError as error:
                         if not error.is_resolve_error():
                             raise

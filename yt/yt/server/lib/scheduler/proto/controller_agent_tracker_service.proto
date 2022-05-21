@@ -140,8 +140,6 @@ message TScheduleJobRequest
     required string tree_id = 3;
     required TJobResources job_resource_limits = 4;
     optional string pool_path = 8;
-    // COMPAT
-    required TJobResources node_resource_limits = 5;
     required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
     optional TScheduleJobSpec spec = 7;
 }

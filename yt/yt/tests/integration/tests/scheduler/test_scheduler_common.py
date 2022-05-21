@@ -2012,11 +2012,11 @@ class TestConnectToMaster(YTEnvSetup):
         assert alerts[0]["attributes"]["alert_type"] == "scheduler_cannot_connect"
 
         scheduler = ls("//sys/scheduler/instances")[0]
-        assert not get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected")
+        assert not get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/service/connected")
 
         remove("//sys/pool_trees")
         move("//sys/pool_trees_bak", "//sys/pool_trees")
-        wait(lambda: get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected"))
+        wait(lambda: get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/service/connected"))
 
 
 ##################################################################

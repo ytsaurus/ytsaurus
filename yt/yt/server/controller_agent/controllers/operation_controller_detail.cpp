@@ -9053,9 +9053,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
-    // COMPAT(gritukan): Drop it when nodes will be fresh enough.
-    jobSpec->set_write_sparse_core_dumps(true);
-
     jobSpec->set_enable_porto(static_cast<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(jobSpecConfig->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());

@@ -4210,8 +4210,6 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                // Deprecated.
-                .Item("connected").Value(IsConnected())
                 .Item("config").Value(Config_)
                 .Item("config_revision").Value(ConfigRevision_)
                 .Item("operations_cleaner").BeginMap()
