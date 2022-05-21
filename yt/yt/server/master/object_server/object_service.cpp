@@ -2033,7 +2033,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LocalExecutionInterrupted_.store(true);
+        if (!LocalExecutionInterrupted_.exchange(true)) {
+            YT_LOG_DEBUG("Request interrupted (RequestId: %v)", RequestId_);
+        }
     }
 
     void CancelPendingCacheSubrequests()
