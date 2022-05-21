@@ -1253,7 +1253,7 @@ private:
         if (!error.IsOK()) {
             RegisterError(TError(
                 NChunkClient::EErrorCode::ChunkReadSessionSlow,
-                "Read session of chunk %v is slow; may attempting repair",
+                "Read session of chunk %v is slow; may attempt repair",
                 ChunkId_)
                 << error);
             OnSessionFailed(/*fatal*/ false);
