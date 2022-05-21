@@ -1,6 +1,8 @@
 from .conftest import authors
 from .helpers import TEST_DIR
 
+from yt.testlib import yatest_common  # noqa
+
 import yt.wrapper as yt
 
 import yt.wrapper.run_compression_benchmarks as yt_run_compression_benchmarks
@@ -28,6 +30,7 @@ class TestRunCompressionBenchmarks(object):
     }
 
     @authors("egor-gutrov")
+    @pytest.mark.skipif('yatest_common.context.sanitize == "address"')
     def test_run_compression_benchmarks(self):
         table = TEST_DIR + "/compression_table"
         yt.write_table(table, [{"x": i, "y": str(i)} for i in range(self.ROWS_COUNT)])
