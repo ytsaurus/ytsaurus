@@ -1955,9 +1955,6 @@ private:
                     .Item("scheduler_version").Value(SchedulerVersion_)
                     .Item("hostname").Value(GetDefaultAddress(Bootstrap_->GetLocalAddresses()))
                 .EndMap()
-                // COMPAT(ignat)
-                .Item("connected").Value(Connected_)
-                // COMPAT(ignat)
                 .DoIf(Connected_, [&] (TFluentMap fluent) {
                     fluent
                         .Item("incarnation_id").Value(IncarnationId_);

@@ -178,7 +178,7 @@ message TUserJobSpec
 
     optional uint32 network_project_id = 47;
 
-    optional bool write_sparse_core_dumps = 48 [default = false];
+    reserved 48;
 
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
 
