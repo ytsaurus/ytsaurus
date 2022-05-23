@@ -234,6 +234,8 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         }
     }
 
+    ConfigLoadedPromise_.TrySet();
+
     if (AreNodesEqual(matchedConfigNode, AppliedConfigNode_)) {
         return false;
     }
@@ -276,8 +278,6 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         std::swap(AppliedConfig_, newConfig);
         LastConfigChangeTime_ = TInstant::Now();
     }
-
-    ConfigLoadedPromise_.TrySet();
 
     return true;
 }
