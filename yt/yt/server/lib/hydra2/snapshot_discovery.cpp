@@ -38,13 +38,12 @@ public:
 
     TFuture<TRemoteSnapshotParams> Run()
     {
-        BIND(&TDiscoverSnapshotSession::DoRun, MakeStrong(this))
+        return BIND(&TDiscoverSnapshotSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
-        return Promise_;
     }
 
-    void DoRun()
+    TFuture<TRemoteSnapshotParams> DoRun()
     {
         if (ExactId_) {
             YT_LOG_INFO("Running snapshot discovery (SnapshotId: %v)",
@@ -55,6 +54,7 @@ public:
         }
 
         std::vector<TFuture<void>> asyncResults;
+        asyncResults.reserve(CellManager_->GetTotalPeerCount());
         for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
             auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel) {
@@ -75,9 +75,9 @@ public:
                     .AsyncVia(GetCurrentInvoker())));
         }
 
-        AllSucceeded(asyncResults).Subscribe(
+        return AllSucceeded(asyncResults).Apply(
             BIND(&TDiscoverSnapshotSession::OnComplete, MakeStrong(this))
-                .Via(GetCurrentInvoker()));
+                .AsyncVia(GetCurrentInvoker()));
     }
 
 private:
@@ -88,7 +88,6 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TPromise<TRemoteSnapshotParams> Promise_ = NewPromise<TRemoteSnapshotParams>();
     TRemoteSnapshotParams Params_;
 
 
@@ -119,13 +118,11 @@ private:
         }
     }
 
-    void OnComplete(const TError&)
+    TRemoteSnapshotParams OnComplete(const TError&)
     {
         if (ExactId_ && Params_.SnapshotId == InvalidSegmentId) {
-            auto error = TError("Unable to find a download source for snapshot %v",
+            THROW_ERROR_EXCEPTION("Unable to find a download source for snapshot %v",
                 MaxSnapshotId_);
-            Promise_.Set(error);
-            return;
         }
 
         if (Params_.SnapshotId == InvalidSegmentId) {
@@ -136,7 +133,7 @@ private:
                 Params_.SnapshotId);
         }
 
-        Promise_.Set(Params_);
+        return Params_;
     }
 };
 

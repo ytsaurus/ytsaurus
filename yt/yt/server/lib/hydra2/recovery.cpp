@@ -93,7 +93,9 @@ TRecoveryResult TRecovery::DoRun()
     if (TargetState_.SegmentId > currentState.SegmentId) {
         auto snapshotParamsOrError = WaitFor(DiscoverLatestSnapshot(Config_, epochContext->CellManager));
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error computing the latest snapshot id");
-        snapshotId = snapshotParamsOrError.Value().SnapshotId;
+        auto localLatestSnapshotId = WaitFor(SnapshotStore_->GetLatestSnapshotId())
+            .ValueOrThrow();
+        snapshotId = std::max(snapshotParamsOrError.Value().SnapshotId, localLatestSnapshotId);
     }
 
      YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",

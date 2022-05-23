@@ -95,9 +95,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         auto snapshotParamsOrError = WaitFor(
             DiscoverLatestSnapshot(Config_, epochContext->CellManager, targetVersion.SegmentId));
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotParamsOrError, "Error computing the latest snapshot id");
-
-        snapshotId = snapshotParamsOrError.Value().SnapshotId;
-        YT_VERIFY(snapshotId <= targetVersion.SegmentId);
+        auto localLatestSnapshotId = WaitFor(SnapshotStore_->GetLatestSnapshotId())
+            .ValueOrThrow();
+        snapshotId = std::max(snapshotParamsOrError.Value().SnapshotId, localLatestSnapshotId);
     }
 
     YT_LOG_INFO("Recovering from version %v to version %v",
