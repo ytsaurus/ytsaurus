@@ -669,7 +669,7 @@ void TScheduleJobsContext::AnalyzePreemptableJobs(
 
     auto jobInfos = CollectJobsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
     for (const auto& jobInfo : jobInfos) {
-        const auto& [job, _, operationElement] = jobInfo;
+        const auto& [job, preemptionStatus, operationElement] = jobInfo;
 
         bool isJobForcefullyPreemptable = !IsSchedulingSegmentCompatibleWithNode(operationElement);
         if (isJobForcefullyPreemptable) {
@@ -695,6 +695,7 @@ void TScheduleJobsContext::AnalyzePreemptableJobs(
         bool isUnconditionalPreemptionAllowed = isJobForcefullyPreemptable || preemptionBlockingAncestor == nullptr;
         bool isConditionalPreemptionAllowed = treeConfig->EnableConditionalPreemption &&
             !isUnconditionalPreemptionAllowed &&
+            preemptionStatus == EJobPreemptionStatus::Preemptable &&
             preemptionBlockingAncestor != operationElement;
 
         if (isUnconditionalPreemptionAllowed) {
