@@ -1779,6 +1779,16 @@ void TPoolPreemptionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPoolPresetConfig::Register(TRegistrar registrar)
+{
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+
+    registrar.Parameter("allow_regular_jobs_on_ssd_nodes", &TThis::AllowRegularJobsOnSsdNodes)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSchedulableConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("weight", &TThis::Weight)
@@ -2268,13 +2278,6 @@ void TJobCpuMonitorConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_cpu_limit", &TThis::MinCpuLimit)
         .InRange(0, 1)
         .Default(1);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPoolPresetConfig::TPoolPresetConfig()
-{
-    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

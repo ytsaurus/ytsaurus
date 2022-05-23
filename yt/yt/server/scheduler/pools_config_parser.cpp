@@ -164,7 +164,7 @@ void TPoolsConfigParser::ValidatePoolPresetConfig(const TString& presetName, con
     auto presetConfig = New<TPoolPresetConfig>();
 
     try {
-        presetConfig->Load(presetNode, /* validate */ true);
+        presetConfig->Load(presetNode, /*validate*/ true);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Config of preset %Qv failed to load as TPoolPresetConfig",
             presetName)

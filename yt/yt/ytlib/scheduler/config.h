@@ -211,9 +211,25 @@ DEFINE_REFCOUNTED_TYPE(TPoolIntegralGuaranteesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This config contains options allowed in pool preset configs.
+class TPoolPresetConfig
+    : public TPoolPreemptionConfig
+{
+public:
+    bool AllowRegularJobsOnSsdNodes;
+
+    REGISTER_YSON_STRUCT(TPoolPresetConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolPresetConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPoolConfig
     : public TSchedulableConfig
-    , public TPoolPreemptionConfig
+    , public TPoolPresetConfig
 {
 public:
     NVectorHdrf::ESchedulingMode Mode;
@@ -1769,18 +1785,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobCpuMonitorConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// This config contains options allowed in pool preset configs.
-class TPoolPresetConfig
-    : public TPoolPreemptionConfig
-{
-public:
-    TPoolPresetConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolPresetConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

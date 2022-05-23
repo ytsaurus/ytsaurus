@@ -52,6 +52,7 @@ DEFINE_ENUM(EDeactivationReason,
     (RecentScheduleJobFailed)
     (IncompatibleSchedulingSegment)
     (NoAvailableDemand)
+    (RegularJobOnSsdNodeForbidden)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

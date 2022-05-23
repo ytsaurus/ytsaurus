@@ -1566,3 +1566,28 @@ class TestSsdPriorityPreemption(YTEnvSetup):
         wait(lambda: blocking_op.get_job_count("aborted", verbose=True) > 0)
 
         wait(lambda: ssd_preemption_aborted_job_counter.get_delta() > 0.0)
+
+    @authors("eshcherbin")
+    def test_forbid_regular_jobs_on_ssd_nodes(self):
+        update_pool_tree_config_option("default", "ssd_priority_preemption/enable", True)
+
+        create_pool("protected", attributes={"allow_regular_jobs_on_ssd_nodes": False})
+        create_pool("regular")
+
+        protected_op = run_sleeping_vanilla(job_count=4, spec={"pool": "protected"})
+        wait(lambda: get(scheduler_orchid_operation_path(protected_op.id) + "/resource_usage/cpu", default=0.0) == 4.0)
+        wait(lambda: not get(scheduler_orchid_operation_path(protected_op.id) + "/are_regular_jobs_on_ssd_nodes_allowed"))
+
+        regular_op = run_sleeping_vanilla(job_count=4, spec={"pool": "regular"})
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/resource_usage/cpu", default=0.0) == 4.0)
+        wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/are_regular_jobs_on_ssd_nodes_allowed"))
+
+        for _, job in protected_op.get_running_jobs().items():
+            assert TestSsdPriorityPreemption.SSD_NODE_TAG not in get("//sys/cluster_nodes/{}/@tags".format(job["address"]))
+        for _, job in regular_op.get_running_jobs().items():
+            assert TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(job["address"]))
+
+        regular_op.abort(wait_until_finished=True)
+
+        ssd_op = self._run_sleeping_vanilla_with_ssd(job_count=1, spec={"pool": "protected"})
+        wait(lambda: get(scheduler_orchid_operation_path(ssd_op.id) + "/resource_usage/cpu", default=0.0) == 1.0)
