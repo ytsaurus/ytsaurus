@@ -702,10 +702,16 @@ class TSlotManagerDynamicConfig
 public:
     std::optional<bool> DisableJobsOnGpuCheckFailure;
 
+    //! Enables disk usage checks in periodic disk resources update.
+    bool CheckDiskSpaceLimit;
+
     TSlotManagerDynamicConfig()
     {
         RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
             .Default();
+    
+        RegisterParameter("check_disk_space_limit", CheckDiskSpaceLimit)
+            .Default(false);
     }
 };
 
