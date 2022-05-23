@@ -6,6 +6,7 @@
 #include "table_node.h"
 #include "replicated_table_node.h"
 #include "master_table_schema.h"
+#include "mount_config_attributes.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -21,6 +22,7 @@
 
 #include <yt/yt/server/master/tablet_server/backup_manager.h>
 #include <yt/yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -399,6 +401,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::VitalQueueConsumer)
         .SetWritable(true)
         .SetPresent(isConsumer));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountConfig)
+        .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveMountConfig)
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -1037,6 +1043,27 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetIsVitalConsumer());
             return true;
 
+        case EInternedAttributeKey::MountConfig:
+            if (const auto* storage = table->FindMountConfigStorage()) {
+                Serialize(storage, consumer);
+            } else {
+                BuildYsonFluently(consumer)
+                    .BeginMap()
+                    .EndMap();
+            }
+
+            return true;
+
+        case EInternedAttributeKey::EffectiveMountConfig: {
+            const auto* storage = table->FindMountConfigStorage();
+            auto config = storage
+                ? storage->GetEffectiveConfig()
+                : New<TCustomTableMountConfig>();
+            Serialize(config, consumer);
+
+            return true;
+        }
+
         default:
             break;
     }
@@ -1545,6 +1572,16 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::MountConfig: {
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            auto* storage = lockedTable->GetMutableMountConfigStorage();
+            storage->SetSelf(value);
+
+            return true;
+        }
+
         default:
             break;
     }
@@ -1667,6 +1704,17 @@ void TTableNodeProxy::ValidateLockPossible()
 
     const auto* table = GetThisImpl();
     table->ValidateTabletStateFixed("Cannot lock table");
+}
+
+IAttributeDictionary* TTableNodeProxy::GetCustomAttributes()
+{
+    if (!WrappedAttributes_) {
+        WrappedAttributes_ = New<TMountConfigAttributeDictionary>(
+            static_cast<TTableNode*>(Object_),
+            Transaction_,
+            TBase::GetCustomAttributes());
+    }
+    return WrappedAttributes_.Get();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, ReshardAutomatic)

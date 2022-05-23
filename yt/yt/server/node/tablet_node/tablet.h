@@ -158,6 +158,8 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
 struct TTableSettings
 {
     TTableMountConfigPtr MountConfig;
+    NYTree::IMapNodePtr ProvidedMountConfig;
+    NYTree::IMapNodePtr ProvidedExtraMountConfig;
     TTabletStoreReaderConfigPtr StoreReaderConfig;
     TTabletHunkReaderConfigPtr HunkReaderConfig;
     TTabletStoreWriterConfigPtr StoreWriterConfig;

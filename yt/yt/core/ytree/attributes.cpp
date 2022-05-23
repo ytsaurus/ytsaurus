@@ -18,6 +18,13 @@ TYsonString IAttributeDictionary::GetYson(TStringBuf key) const
     return result;
 }
 
+TYsonString IAttributeDictionary::GetYsonAndRemove(const TString& key)
+{
+    auto result = GetYson(key);
+    Remove(key);
+    return result;
+}
+
 void IAttributeDictionary::MergeFrom(const IMapNodePtr& other)
 {
     for (const auto& [key, value] : other->GetChildren()) {

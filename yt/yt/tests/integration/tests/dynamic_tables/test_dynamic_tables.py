@@ -2718,6 +2718,135 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for k, v in list(attributes.items()):
             assert copy_attributes[k] == v
 
+    @authors("ifsmirnov")
+    def test_mount_config_old_attrs_interop(self):
+        create("table", "//tmp/t", attributes={
+            "min_data_ttl": 123,
+            "auto_compaction_period": 456,
+            "mount_config": {
+                "periodic_compaction_mode": "partition",
+            }})
+        assert get("//tmp/t/@min_data_ttl") == 123
+        assert get("//tmp/t/@auto_compaction_period") == 456
+        assert get("//tmp/t/@periodic_compaction_mode") == "partition"
+        assert get("//tmp/t/@user_attributes") == {}
+        assert get("//tmp/t/@user_attribute_keys") == []
+
+        set("//tmp/t/@max_data_ttl", 789)
+        set("//tmp/t/@mount_config/min_compaction_store_count", 2)
+        assert get("//tmp/t/@user_attributes") == {}
+
+        remove("//tmp/t/@mount_config/min_data_ttl")
+        remove("//tmp/t/@periodic_compaction_mode")
+
+        expected = {
+            "auto_compaction_period": 456,
+            "max_data_ttl": 789,
+            "min_compaction_store_count": 2,
+        }
+        assert get("//tmp/t/@mount_config") == expected
+
+        effective_config = get("//tmp/t/@effective_mount_config")
+        assert len(effective_config) > len(expected)
+        for k, v in expected.items():
+            assert effective_config[k] == v
+
+    @authors("ifsmirnov")
+    def test_mount_config_create(self):
+        create("table", "//tmp/t1", attributes={
+            "min_data_ttl": 123,
+            "max_data_ttl": 456,
+        })
+        create("table", "//tmp/t2", attributes={
+            "min_data_ttl": 123,
+            "mount_config": {"max_data_ttl": 456},
+        })
+        create("table", "//tmp/t3", attributes={
+            "mount_config": {
+                "min_data_ttl": 123,
+                "max_data_ttl": 456,
+            },
+        })
+        create("table", "//tmp/t4", attributes={
+            "min_data_ttl": "ignored",
+            "mount_config": {
+                "min_data_ttl": 123,
+                "max_data_ttl": 456,
+            },
+        })
+
+        for table in (1, 2, 3, 4):
+            assert get(f"//tmp/t{table}/@mount_config") == {
+                "min_data_ttl": 123,
+                "max_data_ttl": 456,
+            }
+
+    @authors("ifsmirnov")
+    def test_mount_config_validation(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        set("//tmp/t/@min_compaction_store_count", 10)
+        with raises_yt_error():
+            remount_table("//tmp/t")
+
+        set("//tmp/t/@max_compaction_store_count", 20)
+        remount_table("//tmp/t")
+
+        set("//tmp/t/@enable_lookup_hash_table", True)
+        with raises_yt_error():
+            remount_table("//tmp/t")
+
+        tx = start_transaction(timeout=60000)
+        with raises_yt_error():
+            set("//tmp/t/@mount_config/min_data_ttl", 1, tx=tx)
+        with raises_yt_error():
+            set("//tmp/t/@min_data_ttl", 1, tx=tx)
+
+    @authors("ifsmirnov")
+    def test_mount_config_copy(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@mount_config/min_data_ttl", 123)
+        copy("//tmp/t", "//tmp/copy")
+        assert get("//tmp/copy/@min_data_ttl") == 123
+
+        set("//tmp/copy/@min_compaction_store_count", 2)
+        assert not exists("//tmp/t/@min_compaction_store_count")
+        assert not exists("//tmp/t/@mount_config/min_compaction_store_count")
+
+        set("//tmp/t/@max_compaction_store_count", 5)
+        assert not exists("//tmp/copy/@max_compaction_store_count")
+        assert not exists("//tmp/copy/@mount_config/max_compaction_store_count")
+
+        assert get("//tmp/t/@resource_usage/detailed_master_memory/attributes") > 0
+        assert get("//tmp/copy/@resource_usage/detailed_master_memory/attributes") > 0
+
+    @authors("ifsmirnov")
+    def test_mount_config_orchid(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        set("//tmp/t/@mount_config", {
+            "min_data_ttl": 1,
+            "unrecognized": [2, "foo", {}],
+        })
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        effective = get(f"//sys/tablets/{tablet_id}/orchid/config")
+        provided = get(f"//sys/tablets/{tablet_id}/orchid/provided_config")
+        provided_extra = get(f"//sys/tablets/{tablet_id}/orchid/provided_extra_config")
+
+        assert effective["min_data_ttl"] == 1
+        assert "unrecognized" not in effective
+        assert "max_data_ttl" in effective
+
+        assert provided["min_data_ttl"] == 1
+        assert "unrecognized" not in provided
+        assert "max_data_ttl" not in provided
+
+        assert dict(provided_extra) == {"unrecognized": [2, "foo", {}]}
+
 
 ##################################################################
 
@@ -2899,6 +3028,20 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         insert_rows("//tmp/t", [{"key": "bar", "value": None}], input_format=format)
         rows = select_rows("* from [//tmp/t] where is_null(value)")
         assert rows == [{"key": "bar", "value": None}]
+
+    @authors("ifsmirnov")
+    def test_mount_config_copy_portal(self):
+        if self.ENABLE_TMP_PORTAL:
+            pytest.skip()
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
+        set("//tmp/t/@mount_config/min_data_ttl", 123)
+        copy("//tmp/t", "//tmp/p/t")
+        assert get("//tmp/t/@shard_id") != get("//tmp/p/t/@shard_id")
+        assert get("//tmp/p/t/@mount_config") == {"min_data_ttl": 123}
+        set("//tmp/t/@mount_config/max_data_ttl", 456)
+        assert get("//tmp/p/t/@mount_config") == {"min_data_ttl": 123}
 
 
 class TestDynamicTablesDecommissionStall(DynamicTablesBase):

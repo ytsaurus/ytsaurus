@@ -1,3 +1,4 @@
+#include "mount_config_attributes.h"
 #include "table_manager.h"
 #include "table_node_type_handler_detail.h"
 #include "table_node.h"
@@ -182,6 +183,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto* tabletCellBundle = optionalTabletCellBundleName
         ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, true /*activeLifeStageOnly*/)
         : tabletManager->GetDefaultTabletCellBundle();
+
+    InternalizeMountConfigAttributes(combinedAttributes.Get());
 
     auto nodeHolder = this->DoCreateImpl(
         id,

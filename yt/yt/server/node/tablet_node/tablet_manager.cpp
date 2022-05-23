@@ -3156,6 +3156,8 @@ private:
                     TYsonString(tableSettings.mount_config()),
                     extraMountConfigAttributes,
                     tabletId),
+                .ProvidedMountConfig = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
+                .ProvidedExtraMountConfig = extraMountConfigAttributes,
                 .StoreReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(tableSettings.store_reader_config()), tabletId),
                 .HunkReaderConfig = DeserializeTabletHunkReaderConfig(TYsonString(tableSettings.hunk_reader_config()), tabletId),
                 .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),

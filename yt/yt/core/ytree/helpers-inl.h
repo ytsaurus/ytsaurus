@@ -88,7 +88,7 @@ void IAttributeDictionary::Set(const TString& key, const T& value)
 
 template <class T, class R>
 IYPathServicePtr IYPathService::FromMethod(
-    R (T::*method) () const,
+    R (std::remove_cv_t<T>::*method) () const,
     const TWeakPtr<T>& weak)
 {
     auto boundProducer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
@@ -109,7 +109,7 @@ IYPathServicePtr IYPathService::FromMethod(
 
 template <class T>
 IYPathServicePtr IYPathService::FromMethod(
-    void (T::*producer) (NYson::IYsonConsumer*) const,
+    void (std::remove_cv_t<T>::*producer) (NYson::IYsonConsumer*) const,
     const TWeakPtr<T>& weak)
 {
     auto boundProducer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {

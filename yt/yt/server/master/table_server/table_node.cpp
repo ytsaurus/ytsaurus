@@ -1,6 +1,7 @@
 #include "table_node.h"
 #include "private.h"
 #include "master_table_schema.h"
+#include "mount_config_attributes.h"
 #include "table_collocation.h"
 #include "table_manager.h"
 
@@ -8,6 +9,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
+#include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
@@ -51,6 +53,7 @@ void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
     : TabletBalancerConfig(New<TTabletBalancerConfig>())
+    , MountConfigStorage(New<TMountConfigStorage>())
 { }
 
 void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& context) const
@@ -94,6 +97,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, QueueAgentStage);
     Save(context, TreatAsConsumer);
     Save(context, IsVitalConsumer);
+    Save(context, *MountConfigStorage);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -167,6 +171,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, TreatAsConsumer);
         Load(context, IsVitalConsumer);
     }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BuiltinMountConfig) {
+        Load(context, *MountConfigStorage);
+    }
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
@@ -190,6 +198,7 @@ void TTableNode::TDynamicTableAttributes::CopyFrom(const TDynamicTableAttributes
     #undef XX
 
     TabletBalancerConfig = CloneYsonSerializable(other->TabletBalancerConfig);
+    *MountConfigStorage = *other->MountConfigStorage;
 }
 
 void TTableNode::TDynamicTableAttributes::BeginCopy(TBeginCopyContext* context) const
@@ -201,6 +210,7 @@ void TTableNode::TDynamicTableAttributes::BeginCopy(TBeginCopyContext* context) 
     #undef XX
 
     Save(*context, ConvertToYsonString(TabletBalancerConfig));
+    Save(*context, ConvertToYsonString(MountConfigStorage));
 }
 
 void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
@@ -212,6 +222,7 @@ void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
     #undef XX
 
     TabletBalancerConfig = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+    MountConfigStorage = ConvertTo<TMountConfigStoragePtr>(Load<TYsonString>(*context));
 }
 
 #undef FOR_EACH_COPYABLE_ATTRIBUTE
@@ -300,6 +311,9 @@ TDetailedMasterMemory TTableNode::GetDetailedMasterMemoryUsage() const
 {
     auto result = TChunkOwnerBase::GetDetailedMasterMemoryUsage();
     result[EMasterMemoryType::Tablets] += GetTabletMasterMemoryUsage();
+    if (const auto* storage = FindMountConfigStorage()) {
+        result[EMasterMemoryType::Attributes] += storage->GetMasterMemoryUsage();
+    }
     return result;
 }
 
@@ -740,6 +754,19 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
     // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
     YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsQueueObject());
     YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsConsumerObject());
+}
+
+const TMountConfigStorage* TTableNode::FindMountConfigStorage() const
+{
+    return DynamicTableAttributes_
+        ? DynamicTableAttributes_->MountConfigStorage.Get()
+        : nullptr;
+}
+
+TMountConfigStorage* TTableNode::GetMutableMountConfigStorage()
+{
+    INITIALIZE_EXTRA_PROPERTY_HOLDER(DynamicTableAttributes);
+    return DynamicTableAttributes_->MountConfigStorage.Get();
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTableNode, TTableNode::TDynamicTableAttributes, DynamicTableAttributes);

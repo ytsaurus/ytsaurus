@@ -4,6 +4,7 @@
 #include "balancing_helpers.h"
 #include "config.h"
 #include "cypress_integration.h"
+#include "mount_config_storage.h"
 #include "private.h"
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
@@ -106,6 +107,8 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
+#include <yt/yt/core/ytree/tree_builder.h>
+
 #include <algorithm>
 
 namespace NYT::NTabletServer {
@@ -147,6 +150,8 @@ using namespace NYson;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NTabletNode::EStoreType;
+using NTabletNode::TBuiltinTableMountConfigPtr;
+using NTabletNode::TCustomTableMountConfigPtr;
 using NTabletNode::TTableMountConfigPtr;
 using NTabletNode::DynamicStoreIdPoolSize;
 using NTransactionServer::TTransaction;
@@ -3625,6 +3630,7 @@ private:
     struct TTableSettings
     {
         TTableMountConfigPtr MountConfig;
+        IMapNodePtr MountConfigNode;
         IMapNodePtr ExtraMountConfigAttributes;
         NTabletNode::TTabletStoreReaderConfigPtr StoreReaderConfig;
         NTabletNode::TTabletHunkReaderConfigPtr HunkReaderConfig;
@@ -3645,30 +3651,34 @@ private:
 
         // Parse and prepare mount config.
         try {
-            result.MountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
+            // Handle builtin attributes.
+            auto builtinMountConfig = ConvertTo<TBuiltinTableMountConfigPtr>(tableAttributes);
             if (!table->GetProfilingMode()) {
-                result.MountConfig->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
+                builtinMountConfig->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
             }
-            result.MountConfig->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);
+            builtinMountConfig->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);
+
+            // Extract custom attributes and build combined node.
+            auto combinedConfigNode = ConvertTo<IMapNodePtr>(builtinMountConfig);
+
+            if (const auto* storage = table->FindMountConfigStorage();
+                storage && !storage->IsEmpty())
+            {
+                auto [customConfigNode, unrecognizedCustomConfigNode] = storage->GetRecognizedConfig();
+
+                if (unrecognizedCustomConfigNode->GetChildCount() > 0) {
+                    result.ExtraMountConfigAttributes = unrecognizedCustomConfigNode;
+                }
+
+                combinedConfigNode = PatchNode(combinedConfigNode, customConfigNode)->AsMap();
+            }
+
+            // The next line is important for validation.
+            result.MountConfig = ConvertTo<TTableMountConfigPtr>(combinedConfigNode);
+
+            result.MountConfigNode = combinedConfigNode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
-                << ex;
-        }
-
-        // Prepare extra mount config attributes.
-        try {
-            for (const auto& [key, value] : tableAttributes.ListPairs()) {
-                if (MountConfigKeysFromNodes_.contains(key) && !LocalMountConfigKeys_.contains(key)) {
-                    if (!result.ExtraMountConfigAttributes) {
-                        result.ExtraMountConfigAttributes = CreateEphemeralNodeFactory()->CreateMap();
-                    }
-                    result.ExtraMountConfigAttributes->AddChild(key, ConvertToNode(value));
-                }
-            }
-        } catch (const std::exception& ex) {
-            // NB: No actual parsing happens here so error should not occur.
-            // Handling for the sake of symmetry.
-            THROW_ERROR_EXCEPTION("Error parsing extra table mount configuration")
                 << ex;
         }
 
@@ -3770,7 +3780,7 @@ private:
     static TSerializedTableSettings SerializeTableSettings(const TTableSettings& tableSettings)
     {
         return {
-            .MountConfig = ConvertToYsonString(tableSettings.MountConfig),
+            .MountConfig = ConvertToYsonString(tableSettings.MountConfigNode),
             .ExtraMountConfigAttributes = tableSettings.ExtraMountConfigAttributes
                 ? ConvertToYsonString(tableSettings.ExtraMountConfigAttributes)
                 : TYsonString{},

@@ -113,13 +113,13 @@ struct IYPathService
     //! Creates a YPath service from a class method returning serializable value.
     template <class T, class R>
     static IYPathServicePtr FromMethod(
-        R (T::*method) () const,
+        R (std::remove_cv_t<T>::*method) () const,
         const TWeakPtr<T>& weak);
 
     //! Creates a YPath service from a class producer method.
     template <class T>
     static IYPathServicePtr FromMethod(
-        void (T::*producer) (NYson::IYsonConsumer*) const,
+        void (std::remove_cv_t<T>::*producer) (NYson::IYsonConsumer*) const,
         const TWeakPtr<T>& weak);
 
 

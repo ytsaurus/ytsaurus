@@ -1,6 +1,7 @@
 #include "table_manager.h"
 #include "private.h"
 #include "master_table_schema_proxy.h"
+#include "mount_config_attributes.h"
 #include "replicated_table_node.h"
 #include "schemaful_node.h"
 #include "table_collocation.h"
@@ -20,6 +21,7 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/tablet_server/config.h>
+#include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
@@ -819,6 +821,9 @@ private:
     // COMPAT(achulkov2)
     bool NeedToFillQueueSet_ = false;
 
+    // COMPAT(ifsmirnov)
+    bool NeedToFillMountConfigStorage_ = false;
+
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1101,6 +1106,7 @@ private:
         StatisticsUpdateRequests_.Clear();
         Queues_.clear();
         NeedToFillQueueSet_ = false;
+        NeedToFillMountConfigStorage_ = false;
         Consumers_.clear();
     }
 
@@ -1136,6 +1142,8 @@ private:
         }
 
         NeedToFillQueueSet_ = context.GetVersion() < EMasterReign::QueueList;
+
+        NeedToFillMountConfigStorage_ = context.GetVersion() < EMasterReign::BuiltinMountConfig;
     }
 
     void OnBeforeSnapshotLoaded() override
@@ -1155,12 +1163,55 @@ private:
         InitBuiltins();
 
         if (NeedToFillQueueSet_) {
-            for (auto [nodeId, node]: Bootstrap_->GetCypressManager()->Nodes()) {
+            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
                 if (node->GetType() == EObjectType::Table) {
                     auto* tableNode = node->As<TTableNode>();
                     if (tableNode->IsQueueObject()) {
                         RegisterQueue(tableNode);
                     }
+                }
+            }
+        }
+
+        if (NeedToFillMountConfigStorage_) {
+            for (auto [nodeId, node] : Bootstrap_->GetCypressManager()->Nodes()) {
+                if (!IsTableType(node->GetType())) {
+                    continue;
+                }
+
+                auto* tableNode = node->As<TTableNode>();
+                if (!tableNode->GetAttributes()) {
+                    continue;
+                }
+
+                auto migratedAttributes = ExtractOldStyleMountConfigAttributes(
+                    tableNode->GetMutableAttributes());
+                if (migratedAttributes.empty()) {
+                    continue;
+                }
+
+                bool isBranched = tableNode->GetVersionedId().IsBranched();
+
+                auto trunkTableNode = tableNode->GetTrunkNode();
+                auto* storage = trunkTableNode->GetMutableMountConfigStorage();
+                for (const auto& [key, value] : migratedAttributes) {
+                    if (!value) {
+                        YT_VERIFY(isBranched);
+                        YT_LOG_ALERT("Mount config attribute deleted in transaction (TableId: %v, Key: %v)",
+                            tableNode->GetVersionedId(),
+                            key);
+                        continue;
+                    }
+
+                    if (isBranched) {
+                        YT_LOG_ALERT("Mount config attribute set in transaction, setting it to trunk node "
+                            "(TableId: %v, Key: %v, Value: %v)",
+                            tableNode->GetVersionedId(),
+                            key,
+                            ConvertToYsonString(value, EYsonFormat::Text));
+                    }
+
+                    storage->Set(key, value);
                 }
             }
         }

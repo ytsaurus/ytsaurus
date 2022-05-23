@@ -133,6 +133,7 @@
     XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
+    XX(EffectiveMountConfig, effective_mount_config) \
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableConsistentChunkReplicaPlacement, enable_consistent_chunk_replica_placement) \
@@ -277,6 +278,7 @@
     XX(Mixed, mixed) \
     XX(Mode, mode) \
     XX(ModificationTime, modification_time) \
+    XX(MountConfig, mount_config) \
     XX(MountRevision, mount_revision) \
     XX(Movable, movable) \
     XX(MulticellCount, multicell_count) \
