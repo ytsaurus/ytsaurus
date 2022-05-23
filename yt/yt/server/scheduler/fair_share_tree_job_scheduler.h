@@ -35,6 +35,7 @@ struct TStaticAttributes
 
     // Only for operations.
     TFairShareTreeJobSchedulerOperationSharedStatePtr OperationSharedState;
+    bool AreRegularJobsOnSsdNodesAllowed = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -689,6 +690,7 @@ private:
     void BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap, TJobSchedulerPostUpdateContext* context) const;
     void ManageSchedulingSegments(TFairSharePostUpdateContext* fairSharePostUpdateContext, TManageTreeSchedulingSegmentsContext* manageSegmentsContext) const;
     void CollectKnownSchedulingTagFilters(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
+    void UpdateSsdNodeSchedulingAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
 
     static std::optional<bool> IsAggressivePreemptionAllowed(const TSchedulerElement* element);
 };

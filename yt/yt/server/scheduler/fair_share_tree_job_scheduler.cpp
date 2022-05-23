@@ -1691,6 +1691,14 @@ void TScheduleJobsContext::CheckForDeactivation(
         return;
     }
 
+    if (SsdPriorityPreemptionEnabled_ &&
+        !IsEligibleForSsdPriorityPreemption(element->DiskRequestMedia()) &&
+        !StaticAttributesOf(element).AreRegularJobsOnSsdNodesAllowed)
+    {
+        OnOperationDeactivated(element, EDeactivationReason::RegularJobOnSsdNodeForbidden);
+        return;
+    }
+
     if (element->GetTentative() &&
         element->IsSaturatedInTentativeTree(
             SchedulingContext_->GetNow(),
@@ -2097,6 +2105,16 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         }
     }
 
+    // NB(eshcherbin): We check whether SSD priority preemption is enabled even if there will be no preemptive scheduling stages,
+    // because we also need to prevent scheduling jobs of production critical operations on SSD nodes.
+    auto ssdPriorityPreemptionConfig = treeSnapshot->TreeConfig()->SsdPriorityPreemption;
+    bool isSsdPriorityPreemptionEnabled = ssdPriorityPreemptionConfig->Enable &&
+        schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
+    context.SetSsdPriorityPreemptionEnabled(isSsdPriorityPreemptionEnabled);
+    context.SsdPriorityPreemptionMedia() = treeSnapshot->SchedulingSnapshot()->SsdPriorityPreemptionMedia();
+    context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
+    context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
+
     bool needPackingFallback;
     {
         context.StartStage(&SchedulingStages_[EJobSchedulingStage::NonPreemptive]);
@@ -2131,14 +2149,6 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
 
     context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
     if (scheduleJobsWithPreemption) {
-        auto ssdPriorityPreemptionConfig = treeSnapshot->TreeConfig()->SsdPriorityPreemption;
-        bool shouldAttemptSsdPriorityPreemption = ssdPriorityPreemptionConfig->Enable &&
-            schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
-        context.SetSsdPriorityPreemptionEnabled(shouldAttemptSsdPriorityPreemption);
-        context.SsdPriorityPreemptionMedia() = treeSnapshot->SchedulingSnapshot()->SsdPriorityPreemptionMedia();
-        context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
-        context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
-
         context.CountOperationsByPreemptionPriority();
 
         for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList(&context)) {
@@ -2362,7 +2372,8 @@ void TFairShareTreeJobScheduler::BuildOperationProgress(
             .Do([&] (TFluentMap fluent) {
                 strategyHost->SerializeDiskQuota(operationSharedState->GetTotalDiskQuota(), fluent.GetConsumer());
             })
-        .EndMap();
+        .EndMap()
+        .Item("are_regular_jobs_on_ssd_nodes_allowed").Value(attributes.AreRegularJobsOnSsdNodesAllowed);
 }
 
 void TFairShareTreeJobScheduler::BuildElementYson(
@@ -2432,6 +2443,8 @@ void TFairShareTreeJobScheduler::PostUpdate(
     ManageSchedulingSegments(fairSharePostUpdateContext, &postUpdateContext->ManageSchedulingSegmentsContext);
 
     CollectKnownSchedulingTagFilters(fairSharePostUpdateContext, postUpdateContext);
+
+    UpdateSsdNodeSchedulingAttributes(fairSharePostUpdateContext, postUpdateContext);
 }
 
 TFairShareTreeSchedulingSnapshotPtr TFairShareTreeJobScheduler::CreateSchedulingSnapshot(TJobSchedulerPostUpdateContext* postUpdateContext)
@@ -2952,6 +2965,26 @@ void TFairShareTreeJobScheduler::CollectKnownSchedulingTagFilters(
     for (const auto& [_, poolElement] : fairSharePostUpdateContext->PoolNameToElement) {
         auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(poolElement);
         attributes.SchedulingTagFilterIndex = getTagFilterIndex(poolElement->GetSchedulingTagFilter());
+    }
+}
+
+void TFairShareTreeJobScheduler::UpdateSsdNodeSchedulingAttributes(
+    TFairSharePostUpdateContext* fairSharePostUpdateContext,
+    TJobSchedulerPostUpdateContext* postUpdateContext) const
+{
+    for (const auto& [_, element] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
+        auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
+        const TSchedulerCompositeElement* current = element->GetParent();
+        while (current) {
+            if (current->GetType() == ESchedulerElementType::Pool &&
+                !static_cast<const TSchedulerPoolElement*>(current)->GetConfig()->AllowRegularJobsOnSsdNodes)
+            {
+                attributes.AreRegularJobsOnSsdNodesAllowed = false;
+                break;
+            }
+
+            current = current->GetParent();
+        }
     }
 }
 
