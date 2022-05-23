@@ -29,4 +29,4 @@ TFuture<NHydra::TRemoteSnapshotParams> DiscoverSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra
+} // namespace NYT::NHydra2
