@@ -938,7 +938,7 @@ void TSlotLocation::UpdateDiskResources()
                 }));
 
             const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-            const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;
+            const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
             if (sandboxOptions.DiskSpaceLimit) {
                 i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
                 diskUsage += slotDiskLimit;
