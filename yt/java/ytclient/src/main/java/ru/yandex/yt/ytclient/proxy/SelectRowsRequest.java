@@ -28,6 +28,7 @@ public class SelectRowsRequest
     @Nullable private Boolean allowJoinWithoutIndex;
     @Nullable private String udfRegistryPath;
     @Nullable private String executionPool;
+    @Nullable private Boolean allowFullScan;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -121,6 +122,15 @@ public class SelectRowsRequest
         return Optional.ofNullable(executionPool);
     }
 
+    public Optional<Boolean> getAllowFullScan() {
+        return Optional.ofNullable(allowFullScan);
+    }
+
+    public SelectRowsRequest setAllowFullScan(@Nullable Boolean allowFullScan) {
+        this.allowFullScan = allowFullScan;
+        return this;
+    }
+
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqSelectRows.Builder, ?> builder) {
         builder.body().setQuery(getQuery());
@@ -150,6 +160,9 @@ public class SelectRowsRequest
         }
         if (getExecutionPool().isPresent()) {
             builder.body().setExecutionPool(getExecutionPool().get());
+        }
+        if (getAllowFullScan().isPresent()) {
+            builder.body().setAllowFullScan(getAllowFullScan().get());
         }
     }
 
