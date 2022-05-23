@@ -1,7 +1,9 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
-    ls, exists, get, set, authors, print_debug, build_master_snapshots, create, start_transaction, remove, wait, create_user, make_ace,
-    commit_transaction, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table, select_rows, lookup_rows, sync_create_cells, wait_for_cells)
+    ls, exists, get, set, authors, print_debug, build_master_snapshots, create, start_transaction,
+    remove, wait, create_user, make_ace,
+    commit_transaction, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
+    select_rows, lookup_rows, sync_create_cells, wait_for_cells)
 
 from original_tests.yt.yt.tests.integration.tests.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -142,6 +144,75 @@ def check_hunks():
     wait(lambda: not exists("#{}".format(store_chunk_id)) and not exists("#{}".format(hunk_chunk_id)))
 
 
+def check_mount_config_attributes():
+    create("map_node", "//tmp/mount_config")
+
+    create("table", "//tmp/mount_config/a", attributes={"min_data_ttl": 123})
+    create("table", "//tmp/mount_config/b", attributes={"min_data_ttl": "invalid_string_value"})
+    create("table", "//tmp/mount_config/c", attributes={
+        "min_data_ttl": 123,
+        "max_data_ttl": 456,
+        "enable_dynamic_store_read": True,
+        "foobar": "bazqux",
+    })
+
+    create("table", "//tmp/mount_config/d", attributes={
+        "dynamic": True,
+        "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
+        "min_data_ttl": 789,
+    })
+
+    # Transaction stuff. No one ever sets mount config attributes in transactions, but nevertheless.
+    tx = start_transaction(timeout=60000)
+
+    create("table", "//tmp/mount_config/e", attributes={"min_data_ttl": 4}, tx=tx)
+
+    create("table", "//tmp/mount_config/f", attributes={
+        "min_data_ttl": 123,
+        "max_data_ttl": 456,
+    })
+    set("//tmp/mount_config/f/@max_data_ttl", 321, tx=tx)
+
+    create("table", "//tmp/mount_config/g")
+    set("//tmp/mount_config/g/@max_data_ttl", 555, tx=tx)
+
+    create("table", "//tmp/mount_config/h", attributes={
+        "min_data_ttl": 333,
+        "max_data_ttl": 444,
+    })
+    remove("//tmp/mount_config/h/@min_data_ttl", tx=tx)
+
+    yield
+
+    commit_transaction(tx)
+
+    for key in "abcdefgh":
+        path = "//tmp/mount_config/" + key
+        if key == "c":
+            assert get(path + "/@user_attributes") == {"foobar": "bazqux"}
+            assert get(path + "/@user_attribute_keys") == ["foobar"]
+        else:
+            assert get(path + "/@user_attributes") == {}
+            assert get(path + "/@user_attribute_keys") == []
+
+    assert get("//tmp/mount_config/a/@mount_config") == {"min_data_ttl": 123}
+    assert get("//tmp/mount_config/b/@mount_config") == {"min_data_ttl": "invalid_string_value"}
+    assert get("//tmp/mount_config/c/@mount_config") == {"min_data_ttl": 123, "max_data_ttl": 456}
+    assert get("//tmp/mount_config/d/@mount_config") == {"min_data_ttl": 789}
+
+    assert get("//tmp/mount_config/e/@mount_config") == {"min_data_ttl": 4}
+
+    assert builtins.set(get("//tmp/mount_config/f/@mount_config")) == builtins.set(("min_data_ttl", "max_data_ttl"))
+    assert get("//tmp/mount_config/f/@mount_config/min_data_ttl") == 123
+    # Which of trunk and non-trunk values will have precedence is not specified.
+    assert get("//tmp/mount_config/f/@mount_config/max_data_ttl") in (456, 321)
+
+    assert get("//tmp/mount_config/g/@mount_config") == {"max_data_ttl": 555}
+
+    # Attribute removals in a transaction are ignored.
+    assert get("//tmp/mount_config/h/@mount_config") == {"min_data_ttl": 333, "max_data_ttl": 444}
+
+
 class TestMasterSnapshotsCompatibility(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -186,6 +257,7 @@ class TestMasterSnapshotsCompatibility(YTEnvSetup):
             check_queue_list,
             check_portal_entrance_validation,
             check_hunks,
+            check_mount_config_attributes,
         ] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

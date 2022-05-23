@@ -69,6 +69,8 @@ using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 using NProto::TMountHint;
 
@@ -159,6 +161,7 @@ TTableSettings TTableSettings::CreateNew()
 {
     return {
         .MountConfig = New<TTableMountConfig>(),
+        .ProvidedMountConfig = GetEphemeralNodeFactory()->CreateMap(),
         .StoreReaderConfig = New<TTabletStoreReaderConfig>(),
         .HunkReaderConfig = New<TTabletHunkReaderConfig>(),
         .StoreWriterConfig = New<TTabletStoreWriterConfig>(),
@@ -838,6 +841,13 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             using NYT::Save;
 
             Save(context, *snapshot->Settings.MountConfig);
+            Save(context, ConvertToYsonString(snapshot->Settings.ProvidedMountConfig));
+            if (snapshot->Settings.ProvidedExtraMountConfig) {
+                Save(context, true);
+                Save(context, ConvertToYsonString(snapshot->Settings.ProvidedExtraMountConfig));
+            } else {
+                Save(context, false);
+            }
             Save(context, *snapshot->Settings.StoreReaderConfig);
             Save(context, *snapshot->Settings.HunkReaderConfig);
             Save(context, *snapshot->Settings.StoreWriterConfig);
@@ -866,6 +876,17 @@ void TTablet::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *Settings_.MountConfig);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::MountConfig) {
+        Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        if (Load<bool>(context)) {
+            Settings_.ProvidedExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        } else {
+            Settings_.ProvidedExtraMountConfig = nullptr;
+        }
+    } else {
+        Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Settings_.MountConfig);
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= ETabletReign::Hunks2) {
         Load(context, *Settings_.StoreReaderConfig);
@@ -2142,7 +2163,20 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
-            .Value(options.HunkReaderConfig);
+            .Value(options.HunkReaderConfig)
+        .Item("provided_config")
+            .BeginAttributes()
+                .Item("opaque").Value(true)
+            .EndAttributes()
+            .Value(options.ProvidedMountConfig)
+        .DoIf(static_cast<bool>(options.ProvidedExtraMountConfig), [&] (TFluentMap fluent) {
+            fluent
+                .Item("provided_extra_config")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .Value(options.ProvidedExtraMountConfig);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

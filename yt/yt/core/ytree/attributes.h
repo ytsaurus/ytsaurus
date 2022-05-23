@@ -41,6 +41,9 @@ struct IAttributeDictionary
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
     NYson::TYsonString GetYson(TStringBuf key) const;
 
+    //! Same as #GetYson but removes the value.
+    NYson::TYsonString GetYsonAndRemove(const TString& key);
+
     //! Finds the attribute and deserializes its value.
     //! Throws if no such value is found.
     template <class T>

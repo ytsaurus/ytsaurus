@@ -51,6 +51,8 @@ protected:
     void ValidateStorageParametersUpdate() override;
     void ValidateLockPossible() override;
 
+    NYTree::IAttributeDictionary* GetCustomAttributes() override;
+
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, ReshardAutomatic);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
@@ -60,6 +62,9 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, CheckBackupCheckpoint);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, FinishBackup);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, FinishRestore);
+
+private:
+    TMountConfigAttributeDictionaryPtr WrappedAttributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

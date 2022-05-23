@@ -81,7 +81,6 @@ private:
         std::optional<bool> EnableDynamicStoreRead;
         bool MountedWithEnabledDynamicStoreRead = false;
         NTabletServer::TTabletStatisticsAggregate TabletStatistics;
-        // If ProfilingMode is nullopt, cluster-wise attribute will be used.
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
@@ -94,6 +93,8 @@ private:
         TString QueueAgentStage = NQueueClient::ProductionStage;
         bool TreatAsConsumer = false;
         bool IsVitalConsumer = false;
+        NTabletServer::TMountConfigStoragePtr MountConfigStorage;
+
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -153,6 +154,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsConsumer);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IsVitalConsumer);
+    // DEFINE_BYREF_RO_EXTRA_PROPERTY(DynamicTableAttributes,
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)
@@ -237,6 +239,9 @@ public:
     void RemoveDynamicTableLock(NTransactionClient::TTransactionId transactionId);
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
+
+    const NTabletServer::TMountConfigStorage* FindMountConfigStorage() const;
+    NTabletServer::TMountConfigStorage* GetMutableMountConfigStorage();
 
 private:
     TMasterTableSchema* Schema_ = nullptr;

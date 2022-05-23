@@ -54,7 +54,10 @@ bool TAttributeSet::TryInsert(const TString& key, const NYson::TYsonString& valu
         return false;
     }
     YT_VERIFY(Attributes_.emplace(key, value).second);
-    MasterMemoryUsage_ += key.size() + value.AsStringBuf().size();
+    MasterMemoryUsage_ += key.size();
+    if (value) {
+        MasterMemoryUsage_ += value.AsStringBuf().size();
+    }
     return true;
 }
 
@@ -64,12 +67,15 @@ bool TAttributeSet::Remove(const TString& key)
     if (it == Attributes_.end()) {
         return false;
     }
-    MasterMemoryUsage_ -= static_cast<i64>(it->first.size() + it->second.AsStringBuf().size());
+    MasterMemoryUsage_ -= static_cast<i64>(it->first.size());
+    if (it->second) {
+        MasterMemoryUsage_ -= static_cast<i64>(it->second.AsStringBuf().size());
+    }
     Attributes_.erase(it);
     return true;
 }
 
-NYson::TYsonString TAttributeSet::Find(const TString& key) const {
+NYson::TYsonString TAttributeSet::Find(TStringBuf key) const {
     auto it = Attributes_.find(key);
     if (it == Attributes_.end()) {
         return NYson::TYsonString();

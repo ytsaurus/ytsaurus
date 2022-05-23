@@ -148,6 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((DedicatedChunkHost)                                           (2013))  // h0pless
     ((ChangedExceptionTypeInResolve)                                (2014))  // h0pless
     ((ChunkListType)                                                (2015))  // gritukan
+    ((BuiltinMountConfig)                                           (2016))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

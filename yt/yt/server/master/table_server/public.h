@@ -27,10 +27,11 @@ class TTableNodeTypeHandler;
 class TReplicatedTableNodeTypeHandler;
 
 DECLARE_REFCOUNTED_CLASS(TTableManager)
-DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable);
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions);
-DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig);
+DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable)
+DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
+DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
 
 DEFINE_ENUM(ETableCollocationType,
     ((Replication)  (0))
