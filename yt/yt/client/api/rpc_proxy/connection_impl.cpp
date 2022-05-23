@@ -177,8 +177,9 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
     , LoggingTag_(MakeConnectionLoggingTag(Config_, ConnectionId_))
     , ClusterId_(MakeConnectionClusterId(Config_))
     , Logger(RpcProxyClientLogger.WithRawTag(LoggingTag_))
-    , ChannelFactory_(CreateCachingChannelFactory(
-        NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
+    , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
+    , CachingChannelFactory_(CreateCachingChannelFactory(
+        ChannelFactory_,
         Config_->IdleChannelTtl))
     , ChannelPool_(New<TDynamicChannelPool>(
         Config_->DynamicChannelPool,
@@ -212,7 +213,7 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
 
     if (Config_->ProxyAddresses) {
         auto address = (*Config_->ProxyAddresses)[RandomNumber(Config_->ProxyAddresses->size())];
-        DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
+        DiscoveryChannel_ = CachingChannelFactory_->CreateChannel(address);
     }
 
     if (Config_->ProxyAddresses) {
@@ -239,7 +240,7 @@ IChannelPtr TConnection::CreateChannel(bool sticky)
 
 IChannelPtr TConnection::CreateChannelByAddress(const TString& address)
 {
-    return ChannelFactory_->CreateChannel(address);
+    return CachingChannelFactory_->CreateChannel(address);
 }
 
 TClusterTag TConnection::GetClusterTag() const

@@ -61,6 +61,7 @@ private:
     const TString ClusterId_;
     const NLogging::TLogger Logger;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
+    const NRpc::IChannelFactoryPtr CachingChannelFactory_;
     const NRpc::TDynamicChannelPoolPtr ChannelPool_;
 
     NConcurrency::TActionQueuePtr ActionQueue_;

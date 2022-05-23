@@ -15,6 +15,11 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: The internal mechanism performs different kinds of polling on the provided addresses.
+// This includes sequentially sending Discover requests to potentially all of them.
+// Thus, you should avoid passing an aggressively-caching channel factory to the pool if the amount of peers is large
+// and your system's file descriptor limit is low.
+// In any case, since this itself is a caching-like structure, adding another caching layer is pointless (and even dangerous).
 class TDynamicChannelPool
     : public TRefCounted
 {
