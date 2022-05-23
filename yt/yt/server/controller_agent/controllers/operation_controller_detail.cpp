@@ -1486,8 +1486,7 @@ TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     ETransactionType type,
     const NNative::IClientPtr& client,
-    TTransactionId parentTransactionId,
-    TTransactionId prerequisiteTransactionId)
+    TTransactionId parentTransactionId)
 {
     if (!IsTransactionNeeded(type)) {
         YT_LOG_INFO("Skipping transaction as it is not needed (Type: %v)", type);
@@ -1554,10 +1553,9 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
         SortUnique(replicateToCellTags);
     }
 
-    YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v, ReplicateToCellTags: %v)",
+    YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, ReplicateToCellTags: %v)",
         type,
         parentTransactionId,
-        prerequisiteTransactionId,
         replicateToCellTags);
 
     TTransactionStartOptions options;
@@ -1576,9 +1574,6 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     attributes->Set("operation_type", GetOperationType());
     options.Attributes = std::move(attributes);
     options.ParentId = parentTransactionId;
-     if (prerequisiteTransactionId) {
-        options.PrerequisiteTransactionIds.push_back(prerequisiteTransactionId);
-    }
     options.Timeout = Config->OperationTransactionTimeout;
     options.PingPeriod = Config->OperationTransactionPingPeriod;
     options.ReplicateToMasterCellTags = std::move(replicateToCellTags);
@@ -2015,15 +2010,10 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
         return;
     }
 
-    auto prerequisiteTransactionId = Config->EnablePrerequisitesForStartingCompletionTransactions
-        ? Host->GetIncarnationId()
-        : TTransactionId();
-
     OutputCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::OutputCompletion,
         OutputClient,
-        OutputTransaction->GetId(),
-        prerequisiteTransactionId))
+        OutputTransaction->GetId()))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -2058,9 +2048,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
     if (OutputCompletionTransaction) {
         TTransactionCommitOptions options;
-        if (!Config->EnablePrerequisitesForStartingCompletionTransactions) {
-            options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
-        }
+        options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
         WaitFor(OutputCompletionTransaction->Commit(options))
             .ThrowOnError();
         OutputCompletionTransaction.Reset();
@@ -2075,15 +2063,10 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
         return;
     }
 
-    auto prerequisiteTransactionId = Config->EnablePrerequisitesForStartingCompletionTransactions
-        ? Host->GetIncarnationId()
-        : TTransactionId();
-
     DebugCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::DebugCompletion,
         OutputClient,
-        DebugTransaction->GetId(),
-        prerequisiteTransactionId))
+        DebugTransaction->GetId()))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -2107,9 +2090,7 @@ void TOperationControllerBase::CommitDebugCompletionTransaction()
     }
 
     TTransactionCommitOptions options;
-    if (!Config->EnablePrerequisitesForStartingCompletionTransactions) {
-        options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
-    }
+    options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
     WaitFor(DebugCompletionTransaction->Commit(options))
         .ThrowOnError();
     DebugCompletionTransaction.Reset();
