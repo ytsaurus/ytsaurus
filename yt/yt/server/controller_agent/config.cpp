@@ -886,9 +886,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_bypass_artifact_cache", &TThis::EnableBypassArtifactCache)
         .Default(true);
 
-    registrar.Parameter("enable_prerequisites_for_starting_completion_transactions", &TThis::EnablePrerequisitesForStartingCompletionTransactions)
-        .Default(true);
-
     registrar.Parameter("enable_eager_transaction_replication", &TThis::EnableEagerTransactionReplication)
         .Default(true);
 
