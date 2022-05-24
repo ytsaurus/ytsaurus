@@ -94,6 +94,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "brief_statistics",
     "job_competition_id",
     "has_competitors",
+    "probing_job_competition_id",
     "task_name",
     "pool",
     "pool_tree",
@@ -577,8 +578,8 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
         TNodeDescriptor(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
-        TClientChunkReadOptions{ 
-            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive) 
+        TClientChunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive)
         },
         /*localHostName*/ {},
         GetNullBlockCache(),
@@ -1261,6 +1262,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("has_spec");
     builder.AddSelectExpression("fail_context_size");
     builder.AddSelectExpression("job_competition_id");
+    builder.AddSelectExpression("probing_job_competition_id");
     builder.AddSelectExpression("has_competitors");
     builder.AddSelectExpression("exec_attributes");
     builder.AddSelectExpression("task_name");
