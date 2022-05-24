@@ -301,7 +301,7 @@ public:
     }
 
     // IBootstrapBase implementation.
-    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override
+    const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const override
     {
         return MemoryUsageTracker_;
     }
@@ -679,7 +679,7 @@ private:
 
     IMapNodePtr OrchidRoot_;
 
-    TNodeMemoryTrackerPtr MemoryUsageTracker_;
+    INodeMemoryTrackerPtr MemoryUsageTracker_;
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
@@ -782,7 +782,7 @@ private:
         MasterClient_ = MasterConnection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
 
-        MemoryUsageTracker_ = New<TNodeMemoryTracker>(
+        MemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
             std::vector<std::pair<EMemoryCategory, i64>>{},
             Logger,
@@ -1358,7 +1358,7 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
         }));
 }
 
-const TNodeMemoryTrackerPtr& TBootstrapBase::GetMemoryUsageTracker() const
+const INodeMemoryTrackerPtr& TBootstrapBase::GetMemoryUsageTracker() const
 {
     return Bootstrap_->GetMemoryUsageTracker();
 }

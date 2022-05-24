@@ -1,24 +1,124 @@
-#ifndef MEMORY_USAGE_TRACKER_INL_H_
-#error "Direct inclusion of this file is not allowed, include memory_usage_tracker.h"
-// For the sake of sane code completion.
 #include "memory_usage_tracker.h"
-#endif
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <algorithm>
 
+#include "public.h"
+
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+#include <yt/yt/core/misc/error.h>
+
+#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/profile_manager.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class ECategory, class TPoolTag>
+using ECategory = INodeMemoryTracker::ECategory;
+using TPoolTag = INodeMemoryTracker::TPoolTag;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeMemoryTracker
+    : public INodeMemoryTracker
+{
+public:
+    TNodeMemoryTracker(
+        i64 totalLimit,
+        const std::vector<std::pair<ECategory, i64>>& limits,
+        const NLogging::TLogger& logger,
+        const NProfiling::TProfiler& profiler);
+
+    i64 GetTotalLimit() const override;
+    i64 GetTotalUsed() const override;
+    i64 GetTotalFree() const override;
+    bool IsTotalExceeded() const override;
+
+    i64 GetExplicitLimit(ECategory category) const override;
+    i64 GetLimit(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const override;
+    i64 GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const override;
+    i64 GetFree(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const override;
+    bool IsExceeded(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const override;
+
+    void SetTotalLimit(i64 newLimit) override;
+    void SetCategoryLimit(ECategory category, i64 newLimit) override;
+    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight) override;
+
+    // Always succeeds, may lead to an overcommit.
+    void Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
+    TError TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
+    TError TryChange(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
+    void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
+    i64 UpdateUsage(ECategory category, i64 newUsage) override;
+
+    IMemoryUsageTrackerPtr WithCategory(
+        ECategory category,
+        std::optional<TPoolTag> poolTag = {}) override;
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PoolMapSpinLock_);
+
+    std::atomic<i64> TotalLimit_;
+
+    std::atomic<i64> TotalUsed_ = 0;
+    std::atomic<i64> TotalFree_ = 0;
+
+    struct TCategory
+    {
+        std::atomic<i64> Limit = std::numeric_limits<i64>::max();
+        std::atomic<i64> Used = 0;
+    };
+
+    TEnumIndexedVector<ECategory, TCategory> Categories_;
+
+    struct TPool
+        : public TRefCounted
+        , public TNonCopyable
+    {
+        TPoolTag Tag;
+        std::atomic<i64> Weight = 0;
+        TEnumIndexedVector<ECategory, std::atomic<i64>> Used;
+
+        TPool() = default;
+    };
+
+    THashMap<TPoolTag, TIntrusivePtr<TPool>> Pools_;
+    std::atomic<i64> TotalPoolWeight_ = 0;
+
+    const NLogging::TLogger Logger;
+    const NProfiling::TProfiler Profiler_;
+
+    i64 DoGetLimit(ECategory category) const;
+    i64 DoGetLimit(ECategory category, const TPool* pool) const;
+    i64 DoGetUsed(ECategory category) const;
+    i64 DoGetUsed(ECategory category, const TPool* pool) const;
+    i64 DoGetFree(ECategory category) const;
+    i64 DoGetFree(ECategory category, const TPool* pool) const;
+
+    TError DoTryAcquire(ECategory category, i64 size, TPool* pool);
+    void DoAcquire(ECategory category, i64 size, TPool* pool);
+    void DoRelease(ECategory category, i64 size, TPool* pool);
+
+    TPool* FindPool(const TPoolTag& poolTag);
+    const TPool* FindPool(const TPoolTag& poolTag) const;
+    TPool* GetOrRegisterPool(const TPoolTag& poolTag);
+    TPool* GetOrRegisterPool(const std::optional<TPoolTag>& poolTag);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTypedMemoryTracker
     : public IMemoryUsageTracker
 {
 public:
     TTypedMemoryTracker(
-        TIntrusivePtr<TMemoryUsageTracker<ECategory, TPoolTag>> memoryTracker,
+        INodeMemoryTrackerPtr memoryTracker,
         ECategory category,
         std::optional<TPoolTag> poolTag)
         : MemoryTracker_(std::move(memoryTracker))
@@ -52,15 +152,14 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TMemoryUsageTracker<ECategory, TPoolTag>> MemoryTracker_;
+    const INodeMemoryTrackerPtr MemoryTracker_;
     const ECategory Category_;
     const std::optional<TPoolTag> PoolTag_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class ECategory, class TPoolTag>
-TMemoryUsageTracker<ECategory, TPoolTag>::TMemoryUsageTracker(
+TNodeMemoryTracker::TNodeMemoryTracker(
     i64 totalLimit,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const NLogging::TLogger& logger,
@@ -97,40 +196,34 @@ TMemoryUsageTracker<ECategory, TPoolTag>::TMemoryUsageTracker(
     }
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetTotalLimit() const
+i64 TNodeMemoryTracker::GetTotalLimit() const
 {
     return TotalLimit_.load();
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetTotalUsed() const
+i64 TNodeMemoryTracker::GetTotalUsed() const
 {
     return TotalUsed_.load();
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetTotalFree() const
+i64 TNodeMemoryTracker::GetTotalFree() const
 {
     return std::max(
         GetTotalLimit() - GetTotalUsed(),
         static_cast<i64>(0));
 }
 
-template <class ECategory, class TPoolTag>
-bool TMemoryUsageTracker<ECategory, TPoolTag>::IsTotalExceeded() const
+bool TNodeMemoryTracker::IsTotalExceeded() const
 {
     return GetTotalUsed() > GetTotalLimit();
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetExplicitLimit(ECategory category) const
+i64 TNodeMemoryTracker::GetExplicitLimit(ECategory category) const
 {
     return Categories_[category].Limit.load();
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetLimit(
+i64 TNodeMemoryTracker::GetLimit(
     ECategory category,
     const std::optional<TPoolTag>& poolTag) const
 {
@@ -145,14 +238,12 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetLimit(
     return DoGetLimit(category, pool);
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetLimit(ECategory category) const
+i64 TNodeMemoryTracker::DoGetLimit(ECategory category) const
 {
     return std::min(Categories_[category].Limit.load(), GetTotalLimit());
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetLimit(ECategory category, const TPool* pool) const
+i64 TNodeMemoryTracker::DoGetLimit(ECategory category, const TPool* pool) const
 {
     auto result = DoGetLimit(category);
 
@@ -170,8 +261,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetLimit(ECategory category, con
     return fpResult >= std::numeric_limits<i64>::max() ? std::numeric_limits<i64>::max() : static_cast<i64>(fpResult);
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag) const
+i64 TNodeMemoryTracker::GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag) const
 {
     if (!poolTag) {
         return DoGetUsed(category);
@@ -188,20 +278,17 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetUsed(ECategory category, const 
     return DoGetUsed(category, pool);
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetUsed(ECategory category) const
+i64 TNodeMemoryTracker::DoGetUsed(ECategory category) const
 {
     return Categories_[category].Used.load();
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetUsed(ECategory category, const TPool* pool) const
+i64 TNodeMemoryTracker::DoGetUsed(ECategory category, const TPool* pool) const
 {
     return pool->Used[category].load();
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetFree(ECategory category, const std::optional<TPoolTag>& poolTag) const
+i64 TNodeMemoryTracker::GetFree(ECategory category, const std::optional<TPoolTag>& poolTag) const
 {
     auto freeMemory = std::max(static_cast<i64>(0), DoGetFree(category));
 
@@ -221,24 +308,21 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetFree(ECategory category, const 
     return std::min(freeMemory, poolFreeMemory);
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetFree(ECategory category) const
+i64 TNodeMemoryTracker::DoGetFree(ECategory category) const
 {
     auto limit = DoGetLimit(category);
     auto used = DoGetUsed(category);
     return std::min(limit - used, GetTotalFree());
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::DoGetFree(ECategory category, const TPool* pool) const
+i64 TNodeMemoryTracker::DoGetFree(ECategory category, const TPool* pool) const
 {
     auto limit = DoGetLimit(category, pool);
     auto used = DoGetUsed(category, pool);
     return std::min(limit - used, GetTotalFree());
 }
 
-template <class ECategory, class TPoolTag>
-bool TMemoryUsageTracker<ECategory, TPoolTag>::IsExceeded(ECategory category, const std::optional<TPoolTag>& poolTag) const
+bool TNodeMemoryTracker::IsExceeded(ECategory category, const std::optional<TPoolTag>& poolTag) const
 {
     if (IsTotalExceeded()) {
         return true;
@@ -263,8 +347,7 @@ bool TMemoryUsageTracker<ECategory, TPoolTag>::IsExceeded(ECategory category, co
     return DoGetUsed(category, pool) > DoGetLimit(category, pool);
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::SetTotalLimit(i64 newLimit)
+void TNodeMemoryTracker::SetTotalLimit(i64 newLimit)
 {
     YT_VERIFY(newLimit >= 0);
 
@@ -273,8 +356,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::SetTotalLimit(i64 newLimit)
     TotalLimit_.store(newLimit);
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::SetCategoryLimit(ECategory category, i64 newLimit)
+void TNodeMemoryTracker::SetCategoryLimit(ECategory category, i64 newLimit)
 {
     YT_VERIFY(newLimit >= 0);
 
@@ -283,8 +365,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::SetCategoryLimit(ECategory catego
     Categories_[category].Limit.store(newLimit);
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::SetPoolWeight(const TPoolTag& poolTag, i64 newWeight)
+void TNodeMemoryTracker::SetPoolWeight(const TPoolTag& poolTag, i64 newWeight)
 {
     YT_VERIFY(newWeight >= 0);
 
@@ -295,8 +376,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::SetPoolWeight(const TPoolTag& poo
     pool->Weight = newWeight;
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+void TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     auto guard = Guard(SpinLock_);
 
@@ -334,8 +414,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 s
     }
 }
 
-template <class ECategory, class TPoolTag>
-TError TMemoryUsageTracker<ECategory, TPoolTag>::TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+TError TNodeMemoryTracker::TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     auto guard = Guard(SpinLock_);
 
@@ -344,8 +423,7 @@ TError TMemoryUsageTracker<ECategory, TPoolTag>::TryAcquire(ECategory category, 
     return DoTryAcquire(category, size, pool);
 }
 
-template <class ECategory, class TPoolTag>
-TError TMemoryUsageTracker<ECategory, TPoolTag>::TryChange(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+TError TNodeMemoryTracker::TryChange(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     YT_VERIFY(size >= 0);
 
@@ -362,8 +440,7 @@ TError TMemoryUsageTracker<ECategory, TPoolTag>::TryChange(ECategory category, i
     return {};
 }
 
-template <class ECategory, class TPoolTag>
-TError TMemoryUsageTracker<ECategory, TPoolTag>::DoTryAcquire(ECategory category, i64 size, TPool* pool)
+TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* pool)
 {
     YT_VERIFY(size >= 0);
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
@@ -394,8 +471,7 @@ TError TMemoryUsageTracker<ECategory, TPoolTag>::DoTryAcquire(ECategory category
     return {};
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::DoAcquire(ECategory category, i64 size, TPool* pool)
+void TNodeMemoryTracker::DoAcquire(ECategory category, i64 size, TPool* pool)
 {
     YT_VERIFY(size >= 0);
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
@@ -409,8 +485,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::DoAcquire(ECategory category, i64
     }
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::DoRelease(ECategory category, i64 size, TPool* pool)
+void TNodeMemoryTracker::DoRelease(ECategory category, i64 size, TPool* pool)
 {
     YT_VERIFY(size >= 0);
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
@@ -424,8 +499,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::DoRelease(ECategory category, i64
     }
 }
 
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
+void TNodeMemoryTracker::Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     auto guard = Guard(SpinLock_);
 
@@ -434,8 +508,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Release(ECategory category, i64 s
     DoRelease(category, size, pool);
 }
 
-template <class ECategory, class TPoolTag>
-i64 TMemoryUsageTracker<ECategory, TPoolTag>::UpdateUsage(ECategory category, i64 newUsage)
+i64 TNodeMemoryTracker::UpdateUsage(ECategory category, i64 newUsage)
 {
     auto oldUsage = GetUsed(category);
     if (oldUsage < newUsage) {
@@ -446,20 +519,18 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::UpdateUsage(ECategory category, i6
     return oldUsage;
 }
 
-template <class ECategory, class TPoolTag>
-IMemoryUsageTrackerPtr TMemoryUsageTracker<ECategory, TPoolTag>::WithCategory(
+IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
 {
-    return New<TTypedMemoryTracker<ECategory, TPoolTag>>(
+    return New<TTypedMemoryTracker>(
         this,
         category,
         std::move(poolTag));
 }
 
-template <class ECategory, class TPoolTag>
-typename TMemoryUsageTracker<ECategory, TPoolTag>::TPool*
-TMemoryUsageTracker<ECategory, TPoolTag>::GetOrRegisterPool(const TPoolTag& poolTag)
+typename TNodeMemoryTracker::TPool*
+TNodeMemoryTracker::GetOrRegisterPool(const TPoolTag& poolTag)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -491,16 +562,14 @@ TMemoryUsageTracker<ECategory, TPoolTag>::GetOrRegisterPool(const TPoolTag& pool
     return pool.Get();
 }
 
-template <class ECategory, class TPoolTag>
-typename TMemoryUsageTracker<ECategory, TPoolTag>::TPool*
-TMemoryUsageTracker<ECategory, TPoolTag>::GetOrRegisterPool(const std::optional<TPoolTag>& poolTag)
+typename TNodeMemoryTracker::TPool*
+TNodeMemoryTracker::GetOrRegisterPool(const std::optional<TPoolTag>& poolTag)
 {
     return poolTag ? GetOrRegisterPool(*poolTag) : nullptr;
 }
 
-template <class ECategory, class TPoolTag>
-typename TMemoryUsageTracker<ECategory, TPoolTag>::TPool*
-TMemoryUsageTracker<ECategory, TPoolTag>::FindPool(const TPoolTag& poolTag)
+typename TNodeMemoryTracker::TPool*
+TNodeMemoryTracker::FindPool(const TPoolTag& poolTag)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -508,9 +577,8 @@ TMemoryUsageTracker<ECategory, TPoolTag>::FindPool(const TPoolTag& poolTag)
     return it != Pools_.end() ? it->second.Get() : nullptr;
 }
 
-template <class ECategory, class TPoolTag>
-const typename TMemoryUsageTracker<ECategory, TPoolTag>::TPool*
-TMemoryUsageTracker<ECategory, TPoolTag>::FindPool(const TPoolTag& poolTag) const
+const typename TNodeMemoryTracker::TPool*
+TNodeMemoryTracker::FindPool(const TPoolTag& poolTag) const
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -518,28 +586,39 @@ TMemoryUsageTracker<ECategory, TPoolTag>::FindPool(const TPoolTag& poolTag) cons
     return it != Pools_.end() ? it->second.Get() : nullptr;
 }
 
-template <class ECategory, class TPoolTag>
-Y_FORCE_INLINE void Ref(TMemoryUsageTracker<ECategory, TPoolTag>* obj)
+Y_FORCE_INLINE void Ref(TNodeMemoryTracker* obj)
 {
     obj->Ref();
 }
 
-template <class ECategory, class TPoolTag>
-Y_FORCE_INLINE void Ref(const TMemoryUsageTracker<ECategory, TPoolTag>* obj)
+Y_FORCE_INLINE void Ref(const TNodeMemoryTracker* obj)
 {
     obj->Ref();
 }
 
-template <class ECategory, class TPoolTag>
-Y_FORCE_INLINE void Unref(TMemoryUsageTracker<ECategory, TPoolTag>* obj)
+Y_FORCE_INLINE void Unref(TNodeMemoryTracker* obj)
 {
     obj->Unref();
 }
 
-template <class ECategory, class TPoolTag>
-Y_FORCE_INLINE void Unref(const TMemoryUsageTracker<ECategory, TPoolTag>* obj)
+Y_FORCE_INLINE void Unref(const TNodeMemoryTracker* obj)
 {
     obj->Unref();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeMemoryTrackerPtr CreateNodeMemoryTracker(
+    i64 totalLimit,
+    const std::vector<std::pair<ECategory, i64>>& limits,
+    const NLogging::TLogger& logger,
+    const NProfiling::TProfiler& profiler)
+{
+    return New<TNodeMemoryTracker>(
+        totalLimit,
+        limits,
+        logger,
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -634,7 +634,7 @@ private:
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
-        NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
+        INodeMemoryTrackerPtr GetMemoryUsageTracker() override
         {
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }

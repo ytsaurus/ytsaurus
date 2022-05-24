@@ -36,7 +36,7 @@ public:
     TTransactionManagerPtr GetTransactionManager() override;
     NRpc::IServerPtr GetLocalRpcServer() override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override;
-    NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override;
+    INodeMemoryTrackerPtr GetMemoryUsageTracker() override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override;
     TString GetLocalHostName() override;
 

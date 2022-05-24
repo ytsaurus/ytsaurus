@@ -421,7 +421,7 @@ TStoreBase::~TStoreBase()
 void TStoreBase::Initialize()
 { }
 
-void TStoreBase::SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker)
+void TStoreBase::SetMemoryTracker(INodeMemoryTrackerPtr memoryTracker)
 {
     YT_VERIFY(!MemoryTracker_);
     MemoryTracker_ = std::move(memoryTracker);

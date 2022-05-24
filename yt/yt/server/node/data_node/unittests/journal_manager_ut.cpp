@@ -74,7 +74,7 @@ public:
     TClusterNodeDynamicConfigPtr DynamicConfig = New<TClusterNodeDynamicConfig>();
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager = New<TClusterNodeDynamicConfigManager>(DynamicConfig);
 
-    TNodeMemoryTrackerPtr MemoryTracker = New<TNodeMemoryTracker>(
+    INodeMemoryTrackerPtr MemoryTracker = CreateNodeMemoryTracker(
         1_GB,
         std::vector<std::pair<EMemoryCategory, i64>>{},
         Logger,

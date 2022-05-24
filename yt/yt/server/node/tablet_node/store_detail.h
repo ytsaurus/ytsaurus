@@ -47,7 +47,7 @@ public:
     EStoreState GetStoreState() const override;
     void SetStoreState(EStoreState state) override;
 
-    void SetMemoryTracker(NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
+    void SetMemoryTracker(INodeMemoryTrackerPtr memoryTracker);
     i64 GetDynamicMemoryUsage() const override;
 
     void Initialize() override;
@@ -79,7 +79,7 @@ protected:
 
     const NLogging::TLogger Logger;
 
-    NClusterNode::TNodeMemoryTrackerPtr MemoryTracker_;
+    INodeMemoryTrackerPtr MemoryTracker_;
     TMemoryUsageTrackerGuard DynamicMemoryTrackerGuard_;
 
 

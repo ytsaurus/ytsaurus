@@ -63,7 +63,7 @@ public:
     explicit TChunkMetaManager(
         TDataNodeConfigPtr dataNodeConfig,
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-        NClusterNode::TNodeMemoryTrackerPtr memoryUsageTracker)
+        INodeMemoryTrackerPtr memoryUsageTracker)
         : Config_(dataNodeConfig)
         , ChunkMetaCache_(New<TChunkMetaCache>(
             Config_->ChunkMetaCache,
@@ -243,7 +243,7 @@ private:
 IChunkMetaManagerPtr CreateChunkMetaManager(
     TDataNodeConfigPtr dataNodeConfig,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    NClusterNode::TNodeMemoryTrackerPtr memoryUsageTracker)
+    INodeMemoryTrackerPtr memoryUsageTracker)
 {
     return New<TChunkMetaManager>(
         dataNodeConfig,
