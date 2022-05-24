@@ -219,7 +219,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_aggressive_starvation", &TThis::EnableAggressiveStarvation)
         .Default(false);
 
-    registrar.Parameter("max_unpreemptable_running_job_count", &TThis::MaxUnpreemptableRunningJobCount)
+    registrar.Parameter("max_unpreemptible_running_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
+        .Alias("max_unpreemptable_running_job_count")
         .Default(10);
 
     registrar.Parameter("max_running_operation_count", &TThis::MaxRunningOperationCount)
@@ -269,7 +270,8 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1)
         .Default(1);
 
-    registrar.Parameter("update_preemptable_list_duration_logging_threshold", &TThis::UpdatePreemptableListDurationLoggingThreshold)
+    registrar.Parameter("update_preemptible_list_duration_logging_threshold", &TThis::UpdatePreemptibleListDurationLoggingThreshold)
+        .Alias("update_preemptable_list_duration_logging_threshold")
         .Default(TDuration::MilliSeconds(100));
 
     registrar.Parameter("enable_operations_profiling", &TThis::EnableOperationsProfiling)

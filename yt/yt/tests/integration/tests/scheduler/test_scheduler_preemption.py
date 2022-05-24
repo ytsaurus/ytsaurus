@@ -106,7 +106,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "preemption_satisfaction_threshold": 0.99,
             "fair_share_starvation_tolerance": 0.8,
             "fair_share_starvation_timeout": 1000,
-            "max_unpreemptable_running_job_count": 0,
+            "max_unpreemptible_running_job_count": 0,
             "preemptive_scheduling_backoff": 0,
             "job_graceful_interrupt_timeout": 10000,
         })
@@ -549,7 +549,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_conditional_preemption(self):
         update_scheduler_config("min_spare_job_resources_on_node", {"cpu": 0.5, "user_slots": 1})
 
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 1)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 1)
         set("//sys/pool_trees/default/@config/enable_conditional_preemption", False)
         wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_conditional_preemption"))
 
@@ -630,7 +630,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             time.sleep(0.1)
 
         op2 = run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production", "scheduling_tag_filter": nodes[0]})
-        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/preemptable_job_count") == 1)
+        wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/preemptible_job_count") == 1)
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/resource_usage/cpu", default=None) == 0.0)
 
         time.sleep(1.5)
@@ -663,7 +663,7 @@ class TestRacyPreemption(YTEnvSetup):
         update_pool_tree_config("default", {
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 1.0,
-            "max_unpreemptable_running_job_count": 0,
+            "max_unpreemptible_running_job_count": 0,
             "fair_share_starvation_timeout": 0,
             "preemptive_scheduling_backoff": 0,
         })
@@ -804,7 +804,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         wait(lambda: op2.get_job_count("running") == 1)
         wait(lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/cpu".format(nodes[1])) == 2.0)
 
-        # TODO(ignat): add check that jobs are not preemptable.
+        # TODO(ignat): add check that jobs are not preemptible.
 
         set(
             "//sys/cluster_nodes/{}/@resource_limits_overrides".format(nodes[0]),
@@ -860,7 +860,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_usage/user_slots".format(nodes[1])) == 2
         )
 
-        # TODO(ignat): add check that jobs are not preemptable.
+        # TODO(ignat): add check that jobs are not preemptible.
 
         set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
         wait(
@@ -894,7 +894,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             "aggressive_preemption_satisfaction_threshold": 0.2,
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 0.9,
-            "max_unpreemptable_running_job_count": 0,
+            "max_unpreemptible_running_job_count": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
@@ -969,7 +969,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             spec={
                 "pool": "fake_pool",
                 "locality_timeout": 0,
-                "update_preemptable_jobs_list_logging_period": 1,
+                "update_preemptible_jobs_list_logging_period": 1,
             },
         )
         bad_op.wait_presence_in_scheduler()
@@ -1061,7 +1061,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
             "preemption_check_starvation": False,
             "preemption_check_satisfaction": False,
             "fair_share_starvation_timeout": 100,
-            "max_unpreemptable_running_job_count": 2,
+            "max_unpreemptible_running_job_count": 2,
             "preemptive_scheduling_backoff": 0,
         })
 
@@ -1199,7 +1199,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
             "aggressive_preemption_satisfaction_threshold": 0.2,
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 0.8,
-            "max_unpreemptable_running_job_count": 0,
+            "max_unpreemptible_running_job_count": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
@@ -1369,7 +1369,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
             "aggressive_preemption_satisfaction_threshold": 0.2,
             "preemption_satisfaction_threshold": 1.0,
             "fair_share_starvation_tolerance": 0.9,
-            "max_unpreemptable_running_job_count": 0,
+            "max_unpreemptible_running_job_count": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_aggressive_starvation_timeout": 200,
             "preemptive_scheduling_backoff": 0,
@@ -1382,7 +1382,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
             },
         })
 
-    def _run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes(self):
+    def _run_sleeping_vanilla_with_unpreemptible_jobs_at_ssd_nodes(self):
         # NB: Needed to disable sanity checks.
         update_controller_agent_config("safe_online_node_count", TestSsdPriorityPreemption.NUM_NODES + 1)
         update_scheduler_config("operation_hangup_check_period", 1000000000)
@@ -1428,7 +1428,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption(self):
-        self._run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes()
+        self._run_sleeping_vanilla_with_unpreemptible_jobs_at_ssd_nodes()
 
         op = self._run_sleeping_vanilla_with_ssd(job_count=4)
         wait(lambda: self._get_op_starvation_status(op) == "starving")
@@ -1444,7 +1444,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_regular_ssd_priority_preemption_many_operations(self):
-        update_pool_tree_config_option("default", "max_unpreemptable_running_job_count", 1)
+        update_pool_tree_config_option("default", "max_unpreemptible_running_job_count", 1)
 
         create_pool("first", wait_for_orchid=False)
         create_pool("second")
@@ -1556,7 +1556,7 @@ class TestSsdPriorityPreemption(YTEnvSetup):
     def test_profiling(self):
         update_pool_tree_config_option("default", "ssd_priority_preemption/enable", True)
 
-        blocking_op = self._run_sleeping_vanilla_with_unpreemptable_jobs_at_ssd_nodes()
+        blocking_op = self._run_sleeping_vanilla_with_unpreemptible_jobs_at_ssd_nodes()
 
         ssd_preemption_aborted_job_counter = profiler_factory().at_scheduler().counter(
             "scheduler/pools/preempted_job_resources/cpu",

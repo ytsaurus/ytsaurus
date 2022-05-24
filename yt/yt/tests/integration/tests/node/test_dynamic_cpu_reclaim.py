@@ -60,11 +60,11 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "root"})
         smoothed_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100")
         max_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_max_cpu_usage_x100")
-        preemptable_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptable_cpu_x100")
+        preemptible_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptible_cpu_x100")
 
         run_sleeping_vanilla(spec=SPEC_WITH_CPU_MONITOR)
 
-        wait(lambda: preemptable_cpu_counter.get_delta() > 0)
+        wait(lambda: preemptible_cpu_counter.get_delta() > 0)
         wait(lambda: smoothed_cpu_counter.get_delta() > 0)
         wait(lambda: smoothed_cpu_counter.get_delta() < max_cpu_counter.get_delta())
 
@@ -77,7 +77,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "root"})
         smoothed_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_smoothed_cpu_usage_x100")
         max_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_max_cpu_usage_x100")
-        preemptable_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptable_cpu_x100")
+        preemptible_cpu_counter = profiler.counter("scheduler/pools/metrics/aggregated_preemptible_cpu_x100")
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
         wait_breakpoint()
@@ -87,7 +87,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
         wait(lambda: smoothed_cpu_counter.get_delta() > 0)
         wait(lambda: smoothed_cpu_counter.get_delta() < max_cpu_counter.get_delta())
-        wait(lambda: preemptable_cpu_counter.get_delta() == 0)
+        wait(lambda: preemptible_cpu_counter.get_delta() == 0)
 
 
 class TestDynamicCpuReclaim(YTEnvSetup):
@@ -130,10 +130,10 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         )
         wait(lambda: len(list(op.get_running_jobs())) > 0, sleep_backoff=0.1)
         stats_path = self.wait_and_get_stats_path(list(op.get_running_jobs())[0])
-        wait(lambda: exists(stats_path + "/preemptable_cpu_x100"), sleep_backoff=0.1)
+        wait(lambda: exists(stats_path + "/preemptible_cpu_x100"), sleep_backoff=0.1)
         # Sort is more io bound than CPU bound.
         wait(
-            lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50,
+            lambda: get(stats_path + "/preemptible_cpu_x100")["max"] > 50,
             sleep_backoff=0.1,
         )
 
@@ -148,12 +148,12 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         stats_path = self.wait_and_get_stats_path(job_id)
 
         wait(lambda: get(stats_path + "/smoothed_cpu_usage_x100")["max"] <= 15)
-        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] >= 70)
+        wait(lambda: get(stats_path + "/preemptible_cpu_x100")["max"] >= 70)
 
         release_breakpoint()
 
         wait(lambda: get(stats_path + "/smoothed_cpu_usage_x100")["max"] >= 85)
-        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] <= 30)
+        wait(lambda: get(stats_path + "/preemptible_cpu_x100")["max"] <= 30)
 
     @authors("renadeen")
     def test_new_jobs_are_scheduled_on_reclaimed_cpu(self):
@@ -163,8 +163,8 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         job_id1 = wait_breakpoint("Op1")[0]
 
         stats_path = self.wait_and_get_stats_path(job_id1)
-        wait(lambda: exists(stats_path + "/preemptable_cpu_x100"))
-        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50)
+        wait(lambda: exists(stats_path + "/preemptible_cpu_x100"))
+        wait(lambda: get(stats_path + "/preemptible_cpu_x100")["max"] > 50)
 
         run_test_vanilla(with_breakpoint("BREAKPOINT", "Op2"))
         wait_breakpoint("Op2")
@@ -207,7 +207,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
 
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.1)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.1)

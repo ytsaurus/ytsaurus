@@ -2007,11 +2007,13 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("tentative_tree_eligibility", &TThis::TentativeTreeEligibility)
         .DefaultNew();
-    registrar.Parameter("update_preemptable_jobs_list_logging_period", &TThis::UpdatePreemptableJobsListLoggingPeriod)
+    registrar.Parameter("update_preemptible_jobs_list_logging_period", &TThis::UpdatePreemptibleJobsListLoggingPeriod)
+        .Alias("update_preemptable_jobs_list_logging_period")
         .Default(1000);
     registrar.Parameter("custom_profiling_tag", &TThis::CustomProfilingTag)
         .Default();
-    registrar.Parameter("max_unpreemptable_job_count", &TThis::MaxUnpreemptableRunningJobCount)
+    registrar.Parameter("max_unpreemptible_job_count", &TThis::MaxUnpreemptibleRunningJobCount)
+        .Alias("max_unpreemptable_job_count")
         .Default();
     registrar.Parameter("max_speculative_job_count_per_task", &TThis::MaxSpeculativeJobCountPerTask)
         .Default(10);

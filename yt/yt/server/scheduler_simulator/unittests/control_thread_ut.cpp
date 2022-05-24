@@ -79,7 +79,7 @@ NYTree::INodePtr CreatePoolTreesConfig()
     physicalTreeConfig->PreemptionSatisfactionThreshold = 1.0;
     physicalTreeConfig->AggressivePreemptionSatisfactionThreshold = 0.5;
 
-    physicalTreeConfig->MaxUnpreemptableRunningJobCount = 10;
+    physicalTreeConfig->MaxUnpreemptibleRunningJobCount = 10;
 
     // Intentionally disables profiling since simulator is not ready for profiling.
     physicalTreeConfig->EnableScheduledAndPreemptedResourcesProfiling = false;

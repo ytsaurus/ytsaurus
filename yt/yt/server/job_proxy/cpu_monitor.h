@@ -44,7 +44,7 @@ private:
 
     double AggregatedSmoothedCpuUsage_ = 0;
     double AggregatedMaxCpuUsage_ = 0;
-    double AggregatedPreemptableCpu_ = 0;
+    double AggregatedPreemptibleCpu_ = 0;
 
     const double HardLimit_;
     double SoftLimit_;

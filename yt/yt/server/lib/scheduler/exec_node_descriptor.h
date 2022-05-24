@@ -24,11 +24,11 @@ struct TRunningJobStatistics
 {
     //! In CPU*seconds.
     double TotalCpuTime = 0.0;
-    double PreemptableCpuTime = 0.0;
+    double PreemptibleCpuTime = 0.0;
 
     //! In GPU*seconds.
     double TotalGpuTime = 0.0;
-    double PreemptableGpuTime = 0.0;
+    double PreemptibleGpuTime = 0.0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */);

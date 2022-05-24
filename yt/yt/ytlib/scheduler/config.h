@@ -403,11 +403,11 @@ public:
     // whether a job should (or shouldn't) be launched in a pool tree marked as tentative.
     TTentativeTreeEligibilityConfigPtr TentativeTreeEligibility;
 
-    int UpdatePreemptableJobsListLoggingPeriod;
+    int UpdatePreemptibleJobsListLoggingPeriod;
 
     std::optional<TString> CustomProfilingTag;
 
-    std::optional<int> MaxUnpreemptableRunningJobCount;
+    std::optional<int> MaxUnpreemptibleRunningJobCount;
 
     int MaxSpeculativeJobCountPerTask;
     int MaxProbingJobCountPerTask;

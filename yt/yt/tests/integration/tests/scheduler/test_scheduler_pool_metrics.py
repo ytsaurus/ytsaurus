@@ -213,7 +213,7 @@ class TestPoolMetrics(YTEnvSetup):
             {
                 "preemption_satisfaction_threshold": 0.99,
                 "fair_share_starvation_timeout": 1000,
-                "max_unpreemptable_running_job_count": 0,
+                "max_unpreemptible_running_job_count": 0,
                 "preemptive_scheduling_backoff": 0,
             })
 

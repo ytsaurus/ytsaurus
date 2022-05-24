@@ -27,9 +27,9 @@ struct TScheduleJobsStatistics
     TEnumIndexedVector<EJobSchedulingStage, int> ScheduleJobAttemptCountPerStage;
     int MaxNonPreemptiveSchedulingIndex = -1;
     int ScheduledDuringPreemption = 0;
-    int UnconditionallyPreemptableJobCount = 0;
-    int TotalConditionallyPreemptableJobCount = 0;
-    int MaxConditionallyPreemptableJobCountInPool = 0;
+    int UnconditionallyPreemptibleJobCount = 0;
+    int TotalConditionallyPreemptibleJobCount = 0;
+    int MaxConditionallyPreemptibleJobCountInPool = 0;
     bool ScheduleWithPreemption = false;
     TEnumIndexedVector<EOperationPreemptionPriority, int> OperationCountByPreemptionPriority;
     TJobResources ResourceLimits;
@@ -42,7 +42,7 @@ struct TScheduleJobsStatistics
 
 void Serialize(const TScheduleJobsStatistics& statistics, NYson::IYsonConsumer* consumer);
 
-TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics);
+TString FormatPreemptibleInfoCompact(const TScheduleJobsStatistics& statistics);
 TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statistics);
 TString FormatOperationCountByPreemptionPriorityCompact(const TScheduleJobsStatistics& statistics);
 

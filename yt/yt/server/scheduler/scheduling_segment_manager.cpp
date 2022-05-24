@@ -607,11 +607,11 @@ TNodeMovePenalty TNodeSchedulingSegmentManager::GetMovePenaltyForNode(
     switch (keyResource) {
         case EJobResourceType::Gpu:
             return TNodeMovePenalty{
-                .PriorityPenalty = node.RunningJobStatistics.TotalGpuTime - node.RunningJobStatistics.PreemptableGpuTime,
+                .PriorityPenalty = node.RunningJobStatistics.TotalGpuTime - node.RunningJobStatistics.PreemptibleGpuTime,
                 .RegularPenalty = node.RunningJobStatistics.TotalGpuTime};
         default:
             return TNodeMovePenalty{
-                .PriorityPenalty = node.RunningJobStatistics.TotalCpuTime - node.RunningJobStatistics.PreemptableCpuTime,
+                .PriorityPenalty = node.RunningJobStatistics.TotalCpuTime - node.RunningJobStatistics.PreemptibleCpuTime,
                 .RegularPenalty = node.RunningJobStatistics.TotalCpuTime};
     }
 }

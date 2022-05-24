@@ -76,11 +76,11 @@ void FromProto(TDiskResources* diskResources, const NNodeTrackerClient::NProto::
 
 void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */)
 {
-    builder->AppendFormat("{TotalCpuTime: %v, PreemptableCpuTime: %v, TotalGpuTime: %v, PreemptableGpuTime: %v}",
+    builder->AppendFormat("{TotalCpuTime: %v, PreemptibleCpuTime: %v, TotalGpuTime: %v, PreemptibleGpuTime: %v}",
         statistics.TotalCpuTime,
-        statistics.PreemptableCpuTime,
+        statistics.PreemptibleCpuTime,
         statistics.TotalGpuTime,
-        statistics.PreemptableGpuTime);
+        statistics.PreemptibleGpuTime);
 }
 
 TString ToString(const TRunningJobStatistics& statistics)
@@ -92,9 +92,9 @@ TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistic
 {
     return Format("{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",
         statistics.TotalCpuTime,
-        statistics.PreemptableCpuTime,
+        statistics.PreemptibleCpuTime,
         statistics.TotalGpuTime,
-        statistics.PreemptableGpuTime);
+        statistics.PreemptibleGpuTime);
 }
 
 void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer)
@@ -102,9 +102,9 @@ void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* co
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .Item("total_cpu_time").Value(statistics.TotalCpuTime)
-            .Item("preemptable_cpu_time").Value(statistics.PreemptableCpuTime)
+            .Item("preemptible_cpu_time").Value(statistics.PreemptibleCpuTime)
             .Item("total_gpu_time").Value(statistics.TotalGpuTime)
-            .Item("preemptable_gpu_time").Value(statistics.PreemptableGpuTime)
+            .Item("preemptible_gpu_time").Value(statistics.PreemptibleGpuTime)
         .EndMap();
 }
 

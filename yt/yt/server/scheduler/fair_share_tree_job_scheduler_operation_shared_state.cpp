@@ -13,10 +13,10 @@ static const TString InvalidCustomProfilingTag("invalid");
 
 TFairShareTreeJobSchedulerOperationSharedState::TFairShareTreeJobSchedulerOperationSharedState(
     ISchedulerStrategyHost* strategyHost,
-    int updatePreemptableJobsListLoggingPeriod,
+    int updatePreemptibleJobsListLoggingPeriod,
     const NLogging::TLogger& logger)
     : StrategyHost_(strategyHost)
-    , UpdatePreemptableJobsListLoggingPeriod_(updatePreemptableJobsListLoggingPeriod)
+    , UpdatePreemptibleJobsListLoggingPeriod_(updatePreemptibleJobsListLoggingPeriod)
     , Logger(logger)
 { }
 
@@ -35,12 +35,12 @@ TJobResources TFairShareTreeJobSchedulerOperationSharedState::Disable()
 
     TotalDiskQuota_ = {};
     TotalResourceUsage_ = {};
-    NonpreemptableResourceUsage_ = {};
-    AggressivelyPreemptableResourceUsage_ = {};
+    NonPreemptibleResourceUsage_ = {};
+    AggressivelyPreemptibleResourceUsage_ = {};
     RunningJobCount_ = 0;
-    PreemptableJobs_.clear();
-    AggressivelyPreemptableJobs_.clear();
-    NonpreemptableJobs_.clear();
+    PreemptibleJobs_.clear();
+    AggressivelyPreemptibleJobs_.clear();
+    NonPreemptibleJobs_.clear();
     JobPropertiesMap_.clear();
 
     return resourceUsage;
@@ -119,7 +119,7 @@ bool TFairShareTreeJobSchedulerOperationSharedState::OnJobStarted(
 
     AddJob(jobId, resourceUsage);
     operationElement->CommitHierarchicalResourceUsage(resourceUsage, precommitedResources);
-    UpdatePreemptableJobsList(operationElement);
+    UpdatePreemptibleJobsList(operationElement);
 
     return true;
 }
@@ -130,25 +130,25 @@ void TFairShareTreeJobSchedulerOperationSharedState::OnJobFinished(TSchedulerOpe
 
     if (auto delta = RemoveJob(jobId)) {
         operationElement->IncreaseHierarchicalResourceUsage(-(*delta));
-        UpdatePreemptableJobsList(operationElement);
+        UpdatePreemptibleJobsList(operationElement);
     }
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::UpdatePreemptableJobsList(const TSchedulerOperationElement* element)
+void TFairShareTreeJobSchedulerOperationSharedState::UpdatePreemptibleJobsList(const TSchedulerOperationElement* element)
 {
     TWallTimer timer;
 
     int moveCount = 0;
-    DoUpdatePreemptableJobsList(element, &moveCount);
+    DoUpdatePreemptibleJobsList(element, &moveCount);
 
     auto elapsed = timer.GetElapsedTime();
-    YT_LOG_DEBUG_IF(elapsed > element->TreeConfig()->UpdatePreemptableListDurationLoggingThreshold,
-        "Preemptable list update is too long (Duration: %v, MoveCount: %v)",
+    YT_LOG_DEBUG_IF(elapsed > element->TreeConfig()->UpdatePreemptibleListDurationLoggingThreshold,
+        "Preemptible list update is too long (Duration: %v, MoveCount: %v)",
         elapsed.MilliSeconds(),
         moveCount);
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptableJobsList(const TSchedulerOperationElement* element, int* moveCount)
+void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList(const TSchedulerOperationElement* element, int* moveCount)
 {
     auto getUsageShare = [&] (const TJobResources& resourceUsage) -> TResourceVector {
         return TResourceVector::FromJobResources(resourceUsage, element->GetTotalResourceLimits());
@@ -201,22 +201,22 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptableJobsList
         return resourceUsage;
     };
 
-    auto setPreemptable = [] (TJobProperties* properties) {
-        properties->PreemptionStatus = EJobPreemptionStatus::Preemptable;
+    auto setPreemptible = [] (TJobProperties* properties) {
+        properties->PreemptionStatus = EJobPreemptionStatus::Preemptible;
     };
 
-    auto setAggressivelyPreemptable = [] (TJobProperties* properties) {
-        properties->PreemptionStatus = EJobPreemptionStatus::AggressivelyPreemptable;
+    auto setAggressivelyPreemptible = [] (TJobProperties* properties) {
+        properties->PreemptionStatus = EJobPreemptionStatus::AggressivelyPreemptible;
     };
 
-    auto setNonPreemptable = [] (TJobProperties* properties) {
-        properties->PreemptionStatus = EJobPreemptionStatus::NonPreemptable;
+    auto setNonPreemptible = [] (TJobProperties* properties) {
+        properties->PreemptionStatus = EJobPreemptionStatus::NonPreemptible;
     };
 
     auto guard = WriterGuard(JobPropertiesMapLock_);
 
     bool enableLogging =
-        (UpdatePreemptableJobsListCount_.fetch_add(1) % UpdatePreemptableJobsListLoggingPeriod_) == 0 ||
+        (UpdatePreemptibleJobsListCount_.fetch_add(1) % UpdatePreemptibleJobsListLoggingPeriod_) == 0 ||
             element->AreDetailedLogsEnabled();
 
     auto fairShare = element->GetFairShare();
@@ -224,7 +224,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptableJobsList
     auto aggressivePreemptionSatisfactionThreshold = element->TreeConfig()->AggressivePreemptionSatisfactionThreshold;
 
     YT_LOG_DEBUG_IF(enableLogging,
-        "Update preemptable lists inputs (FairShare: %.6g, TotalResourceLimits: %v, "
+        "Update preemptible lists inputs (FairShare: %.6g, TotalResourceLimits: %v, "
         "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
         fairShare,
         FormatResources(element->GetTotalResourceLimits()),
@@ -232,58 +232,58 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptableJobsList
         aggressivePreemptionSatisfactionThreshold);
 
     // NB: We need 2 iterations since thresholds may change significantly such that we need
-    // to move job from preemptable list to non-preemptable list through aggressively preemptable list.
+    // to move job from preemptible list to non-preemptible list through aggressively preemptible list.
     for (int iteration = 0; iteration < 2; ++iteration) {
         YT_LOG_DEBUG_IF(enableLogging,
-            "Preemptable lists usage bounds before update "
-            "(NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, PreemtableResourceUsage: %v, Iteration: %v)",
-            FormatResources(NonpreemptableResourceUsage_),
-            FormatResources(AggressivelyPreemptableResourceUsage_),
-            FormatResources(TotalResourceUsage_ - NonpreemptableResourceUsage_ - AggressivelyPreemptableResourceUsage_),
+            "Preemptible lists usage bounds before update "
+            "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemtableResourceUsage: %v, Iteration: %v)",
+            FormatResources(NonPreemptibleResourceUsage_),
+            FormatResources(AggressivelyPreemptibleResourceUsage_),
+            FormatResources(TotalResourceUsage_ - NonPreemptibleResourceUsage_ - AggressivelyPreemptibleResourceUsage_),
             iteration);
 
-        auto startNonPreemptableAndAggressivelyPreemptableResourceUsage_ = NonpreemptableResourceUsage_ + AggressivelyPreemptableResourceUsage_;
+        auto startNonPreemptibleAndAggressivelyPreemptibleResourceUsage_ = NonPreemptibleResourceUsage_ + AggressivelyPreemptibleResourceUsage_;
 
-        NonpreemptableResourceUsage_ = balanceLists(
-            &NonpreemptableJobs_,
-            &AggressivelyPreemptableJobs_,
-            NonpreemptableResourceUsage_,
+        NonPreemptibleResourceUsage_ = balanceLists(
+            &NonPreemptibleJobs_,
+            &AggressivelyPreemptibleJobs_,
+            NonPreemptibleResourceUsage_,
             fairShare * aggressivePreemptionSatisfactionThreshold,
-            setAggressivelyPreemptable,
-            setNonPreemptable);
+            setAggressivelyPreemptible,
+            setNonPreemptible);
 
-        auto nonpreemptableAndAggressivelyPreemptableResourceUsage_ = balanceLists(
-            &AggressivelyPreemptableJobs_,
-            &PreemptableJobs_,
-            startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
-            Preemptable_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
-            setPreemptable,
-            setAggressivelyPreemptable);
+        auto nonpreemptibleAndAggressivelyPreemptibleResourceUsage_ = balanceLists(
+            &AggressivelyPreemptibleJobs_,
+            &PreemptibleJobs_,
+            startNonPreemptibleAndAggressivelyPreemptibleResourceUsage_,
+            Preemptible_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
+            setPreemptible,
+            setAggressivelyPreemptible);
 
-        AggressivelyPreemptableResourceUsage_ = nonpreemptableAndAggressivelyPreemptableResourceUsage_ - NonpreemptableResourceUsage_;
+        AggressivelyPreemptibleResourceUsage_ = nonpreemptibleAndAggressivelyPreemptibleResourceUsage_ - NonPreemptibleResourceUsage_;
     }
 
     YT_LOG_DEBUG_IF(enableLogging,
-        "Preemptable lists usage bounds after update "
-        "(NonpreemptableResourceUsage: %v, AggressivelyPreemptableResourceUsage: %v, PreemtableResourceUsage: %v)",
-        FormatResources(NonpreemptableResourceUsage_),
-        FormatResources(AggressivelyPreemptableResourceUsage_),
-        FormatResources(TotalResourceUsage_ - NonpreemptableResourceUsage_ - AggressivelyPreemptableResourceUsage_));
+        "Preemptible lists usage bounds after update "
+        "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemtableResourceUsage: %v)",
+        FormatResources(NonPreemptibleResourceUsage_),
+        FormatResources(AggressivelyPreemptibleResourceUsage_),
+        FormatResources(TotalResourceUsage_ - NonPreemptibleResourceUsage_ - AggressivelyPreemptibleResourceUsage_));
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::SetPreemptable(bool value)
+void TFairShareTreeJobSchedulerOperationSharedState::SetPreemptible(bool value)
 {
-    bool oldValue = Preemptable_;
+    bool oldValue = Preemptible_;
     if (oldValue != value) {
-        YT_LOG_DEBUG("Preemptable status changed (OldValue: %v, NewValue: %v)", oldValue, value);
+        YT_LOG_DEBUG("Preemptible status changed (OldValue: %v, NewValue: %v)", oldValue, value);
 
-        Preemptable_ = value;
+        Preemptible_ = value;
     }
 }
 
-bool TFairShareTreeJobSchedulerOperationSharedState::GetPreemptable() const
+bool TFairShareTreeJobSchedulerOperationSharedState::GetPreemptible() const
 {
-    return Preemptable_;
+    return Preemptible_;
 }
 
 bool TFairShareTreeJobSchedulerOperationSharedState::IsJobKnown(TJobId jobId) const
@@ -298,7 +298,7 @@ EJobPreemptionStatus TFairShareTreeJobSchedulerOperationSharedState::GetJobPreem
     auto guard = ReaderGuard(JobPropertiesMapLock_);
 
     if (!Enabled_) {
-        return EJobPreemptionStatus::NonPreemptable;
+        return EJobPreemptionStatus::NonPreemptible;
     }
 
     return GetJobProperties(jobId)->PreemptionStatus;
@@ -309,18 +309,18 @@ int TFairShareTreeJobSchedulerOperationSharedState::GetRunningJobCount() const
     return RunningJobCount_;
 }
 
-int TFairShareTreeJobSchedulerOperationSharedState::GetPreemptableJobCount() const
+int TFairShareTreeJobSchedulerOperationSharedState::GetPreemptibleJobCount() const
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
 
-    return PreemptableJobs_.size();
+    return PreemptibleJobs_.size();
 }
 
-int TFairShareTreeJobSchedulerOperationSharedState::GetAggressivelyPreemptableJobCount() const
+int TFairShareTreeJobSchedulerOperationSharedState::GetAggressivelyPreemptibleJobCount() const
 {
     auto guard = ReaderGuard(JobPropertiesMapLock_);
 
-    return AggressivelyPreemptableJobs_.size();
+    return AggressivelyPreemptibleJobs_.size();
 }
 
 void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage)
@@ -329,13 +329,13 @@ void TFairShareTreeJobSchedulerOperationSharedState::AddJob(TJobId jobId, const 
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
 
-    PreemptableJobs_.push_back(jobId);
+    PreemptibleJobs_.push_back(jobId);
 
     auto it = JobPropertiesMap_.emplace(
         jobId,
         TJobProperties{
-            .PreemptionStatus = EJobPreemptionStatus::Preemptable,
-            .JobIdListIterator = --PreemptableJobs_.end(),
+            .PreemptionStatus = EJobPreemptionStatus::Preemptible,
+            .JobIdListIterator = --PreemptibleJobs_.end(),
             .ResourceUsage = {}});
     YT_VERIFY(it.second);
 
@@ -359,14 +359,14 @@ std::optional<TJobResources> TFairShareTreeJobSchedulerOperationSharedState::Rem
 
     auto* properties = &it->second;
     switch (properties->PreemptionStatus) {
-        case EJobPreemptionStatus::Preemptable:
-            PreemptableJobs_.erase(properties->JobIdListIterator);
+        case EJobPreemptionStatus::Preemptible:
+            PreemptibleJobs_.erase(properties->JobIdListIterator);
             break;
-        case EJobPreemptionStatus::AggressivelyPreemptable:
-            AggressivelyPreemptableJobs_.erase(properties->JobIdListIterator);
+        case EJobPreemptionStatus::AggressivelyPreemptible:
+            AggressivelyPreemptibleJobs_.erase(properties->JobIdListIterator);
             break;
-        case EJobPreemptionStatus::NonPreemptable:
-            NonpreemptableJobs_.erase(properties->JobIdListIterator);
+        case EJobPreemptionStatus::NonPreemptible:
+            NonPreemptibleJobs_.erase(properties->JobIdListIterator);
             break;
         default:
             YT_ABORT();
@@ -557,14 +557,14 @@ TJobResources TFairShareTreeJobSchedulerOperationSharedState::SetJobResourceUsag
     properties->ResourceUsage = resources;
     TotalResourceUsage_ += delta;
     switch (properties->PreemptionStatus) {
-        case EJobPreemptionStatus::Preemptable:
+        case EJobPreemptionStatus::Preemptible:
             // Do nothing.
             break;
-        case EJobPreemptionStatus::AggressivelyPreemptable:
-            AggressivelyPreemptableResourceUsage_ += delta;
+        case EJobPreemptionStatus::AggressivelyPreemptible:
+            AggressivelyPreemptibleResourceUsage_ += delta;
             break;
-        case EJobPreemptionStatus::NonPreemptable:
-            NonpreemptableResourceUsage_ += delta;
+        case EJobPreemptionStatus::NonPreemptible:
+            NonPreemptibleResourceUsage_ += delta;
             break;
         default:
             YT_ABORT();

@@ -821,7 +821,7 @@ MATCHER_P2(ResourceVectorNear, vec, absError, "") {
 
 // Schedule jobs tests.
 
-TEST_F(TFairShareTreeJobSchedulerTest, TestUpdatePreemptableJobsList)
+TEST_F(TFairShareTreeJobSchedulerTest, TestUpdatePreemptibleJobsList)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -857,13 +857,13 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestUpdatePreemptableJobsList)
     EXPECT_EQ(1.0, MaxComponent(operationElementX->Attributes().FairShare.Total));
 
     for (int i = 0; i < 50; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::NonPreemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElementX.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::NonPreemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElementX.Get(), jobIds[i]));
     }
     for (int i = 50; i < 100; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::AggressivelyPreemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElementX.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::AggressivelyPreemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElementX.Get(), jobIds[i]));
     }
     for (int i = 100; i < 150; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::Preemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElementX.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::Preemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElementX.Get(), jobIds[i]));
     }
 }
 
@@ -973,10 +973,10 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().FairShare.Total);
 
     for (int i = 0; i < 2; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::NonPreemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::NonPreemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
     }
     for (int i = 2; i < 4; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::AggressivelyPreemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::AggressivelyPreemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
     }
 
     TJobResources newResources;
@@ -986,10 +986,10 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
     treeScheduler->ProcessUpdatedJobInTest(operationElement.Get(), jobIds[0], newResources);
 
     for (int i = 0; i < 1; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::NonPreemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::NonPreemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
     }
     for (int i = 1; i < 4; ++i) {
-        EXPECT_EQ(EJobPreemptionStatus::AggressivelyPreemptable, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
+        EXPECT_EQ(EJobPreemptionStatus::AggressivelyPreemptible, treeScheduler->GetJobPreemptionStatusInTest(operationElement.Get(), jobIds[i]));
     }
 }
 
@@ -1026,7 +1026,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
 
     auto donorOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResources));
     auto donorOperationSpec = New<TStrategyOperationSpec>();
-    donorOperationSpec->MaxUnpreemptableRunningJobCount = 0;
+    donorOperationSpec->MaxUnpreemptibleRunningJobCount = 0;
     auto donorOperationElement = CreateTestOperationElement(
         strategyHost.Get(),
         treeScheduler,
@@ -1097,7 +1097,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     context.PrepareForScheduling();
 
     for (int jobIndex = 0; jobIndex < 10; ++jobIndex) {
-        EXPECT_NE(EJobPreemptionStatus::Preemptable, treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), donorJobs[jobIndex]->GetId()));
+        EXPECT_NE(EJobPreemptionStatus::Preemptible, treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), donorJobs[jobIndex]->GetId()));
     }
 
     auto targetOperationPreemptionPriority = EOperationPreemptionPriority::Regular;
@@ -1105,8 +1105,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
         auto preemptionStatus = treeScheduler->GetJobPreemptionStatusInTest(donorOperationElement.Get(), job->GetId());
-        EXPECT_EQ(EJobPreemptionStatus::Preemptable, preemptionStatus);
-        context.ConditionallyPreemptableJobSetMap()[guaranteedPool->GetTreeIndex()].insert(TJobWithPreemptionInfo{
+        EXPECT_EQ(EJobPreemptionStatus::Preemptible, preemptionStatus);
+        context.ConditionallyPreemptibleJobSetMap()[guaranteedPool->GetTreeIndex()].insert(TJobWithPreemptionInfo{
             .Job = job,
             .PreemptionStatus = preemptionStatus,
             .OperationElement = donorOperationElement.Get(),
@@ -1120,7 +1120,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         context.PrepareConditionalUsageDiscounts(rootElement.Get(), &prepareConditionalUsageDiscountsContext);
     }
 
-    auto jobs = context.GetConditionallyPreemptableJobsInPool(guaranteedPool.Get());
+    auto jobs = context.GetConditionallyPreemptibleJobsInPool(guaranteedPool.Get());
     EXPECT_EQ(5, std::ssize(jobs));
     for (int jobIndex = 10; jobIndex < 15; ++jobIndex) {
         const auto& job = donorJobs[jobIndex];
@@ -1131,8 +1131,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         }));
     }
 
-    EXPECT_TRUE(context.GetConditionallyPreemptableJobsInPool(blockingPool.Get()).empty());
-    EXPECT_TRUE(context.GetConditionallyPreemptableJobsInPool(rootElement.Get()).empty());
+    EXPECT_TRUE(context.GetConditionallyPreemptibleJobsInPool(blockingPool.Get()).empty());
+    EXPECT_TRUE(context.GetConditionallyPreemptibleJobsInPool(rootElement.Get()).empty());
 
     TJobResources expectedDiscount;
     expectedDiscount.SetUserSlots(5);
@@ -1142,7 +1142,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     const auto& schedulingContext = scheduleJobsContextWithDependencies.SchedulingContext;
     EXPECT_EQ(expectedDiscount, schedulingContext->GetMaxConditionalUsageDiscount());
     EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(starvingOperation->GetId()));
-    // It's a bit weird that a preemptable job's usage is added to the discount of its operation, but this is how we do it.
+    // It's a bit weird that a preemptible job's usage is added to the discount of its operation, but this is how we do it.
     EXPECT_EQ(expectedDiscount, schedulingContext->GetConditionalDiscountForOperation(donorOperation->GetId()));
     EXPECT_EQ(TJobResources(), schedulingContext->GetConditionalDiscountForOperation(blockingOperation->GetId()));
 }
