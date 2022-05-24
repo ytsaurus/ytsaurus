@@ -319,7 +319,7 @@ struct ITabletContext
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
     virtual TString GetLocalHostName() = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
-    virtual NClusterNode::TNodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
+    virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() = 0;
 };
 

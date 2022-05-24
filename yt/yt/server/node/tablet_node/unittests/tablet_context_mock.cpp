@@ -122,7 +122,7 @@ TNodeDescriptor TTabletContextMock::GetLocalDescriptor()
     return NNodeTrackerClient::NullNodeDescriptor();
 }
 
-TNodeMemoryTrackerPtr TTabletContextMock::GetMemoryUsageTracker()
+INodeMemoryTrackerPtr TTabletContextMock::GetMemoryUsageTracker()
 {
     return nullptr;
 }

@@ -376,7 +376,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const TTabletSnapshotPtr& tabletSnapshot,
     const IChunkStorePtr& store,
     TReadSessionId readSessionId,
-    const NClusterNode::TNodeMemoryTrackerPtr& memoryTracker,
+    const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const TReaderProfilerPtr& readerProfiler)
 {

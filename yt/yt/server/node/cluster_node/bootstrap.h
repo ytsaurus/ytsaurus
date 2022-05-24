@@ -62,7 +62,7 @@ struct IBootstrapBase
     virtual ~IBootstrapBase() = default;
 
     // Resourse management.
-    virtual const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const = 0;
+    virtual const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const = 0;
     virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const = 0;
@@ -213,7 +213,7 @@ public:
 public:
     explicit TBootstrapBase(IBootstrapBase* bootstrap);
 
-    const TNodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
+    const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
 
     const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const override;

@@ -123,7 +123,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkMetaManager)
 IChunkMetaManagerPtr CreateChunkMetaManager(
     TDataNodeConfigPtr dataNodeConfig,
     NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
-    NClusterNode::TNodeMemoryTrackerPtr memoryUsageTracker);
+    INodeMemoryTrackerPtr memoryUsageTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
