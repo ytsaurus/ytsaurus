@@ -16,7 +16,8 @@ class TIOEngineTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<std::tuple<
         EIOEngineType,
-        const char*
+        const char*,
+        bool
     >>
 {
 protected:
@@ -53,8 +54,13 @@ protected:
         auto supportedTypes = GetSupportedIOEngineTypes();
         auto type = GetIOEngineType();
         if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end()) {
-            GTEST_SKIP();
+            GTEST_SKIP() << Format("Skipping Test: IOEngine %v is not supported.", type);
         }
+    }
+
+    bool UseDedicatedAllocations()
+    {
+        return std::get<2>(GetParam());
     }
 };
 
@@ -85,7 +91,7 @@ TEST_P(TIOEngineTest, ReadWrite)
     };
 
     auto read = [&] (i64 offset, i64 size) {
-        auto result = engine->Read({{file, offset, size}})
+        auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
             .Get()
             .ValueOrThrow();
         EXPECT_TRUE(result.OutputBuffers.size() == 1);
@@ -131,9 +137,8 @@ TEST_P(TIOEngineTest, ReadAll)
 
 TEST_P(TIOEngineTest, DirectIO)
 {
-    // TODO(babenko): unaligned direct IO is only supported by uring engine.
     if (GetIOEngineType() != EIOEngineType::Uring) {
-        GTEST_SKIP();
+        GTEST_SKIP() << "Skipping Test: Unaligned direct IO is only supported by uring engine.";
     }
 
     auto engine = CreateIOEngine();
@@ -151,7 +156,7 @@ TEST_P(TIOEngineTest, DirectIO)
         .ValueOrThrow();
 
     auto read = [&] (i64 offset, i64 size) {
-        auto result = engine->Read({{file, offset, size}})
+        auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
             .Get()
             .ValueOrThrow();
         EXPECT_TRUE(result.OutputBuffers.size() == 1);
@@ -170,9 +175,8 @@ TEST_P(TIOEngineTest, DirectIO)
 
 TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
 {
-    // TODO(babenko): unaligned direct IO is only supported by uring engine.
     if (GetIOEngineType() != EIOEngineType::Uring) {
-        GTEST_SKIP();
+        GTEST_SKIP() << "Skipping Test: Unaligned direct IO is only supported by uring engine.";
     }
 
     auto engine = CreateIOEngine();
@@ -193,7 +197,7 @@ TEST_P(TIOEngineTest, ManyConcurrentDirectIOReads)
     constexpr auto N = 100;
 
     for (int i = 0; i < N; ++i) {
-        futures.push_back(engine->Read({{file, 10, 20}}));
+        futures.push_back(engine->Read({{file, 10, 20}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations()));
     }
 
     AllSucceeded(std::move(futures))
@@ -221,7 +225,7 @@ TEST_P(TIOEngineTest, DirectIOAligned)
         for (auto& request : requests) {
             request.Handle = file;
         }
-        auto result = engine->Read(requests)
+        auto result = engine->Read(requests, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
             .Get()
             .ValueOrThrow();
 
@@ -262,16 +266,24 @@ const char CustomConfig[] =
     "    large_unaligned_direct_io_read_size = 16384;"
     "}";
 
+bool AllocatorBehaviourCollocate(false);
+bool AllocatorBehaviourSeparate(true);
+
 INSTANTIATE_TEST_SUITE_P(
     TIOEngineTest,
     TIOEngineTest,
     ::testing::Values(
-        std::make_tuple(EIOEngineType::ThreadPool, DefaultConfig),
-        std::make_tuple(EIOEngineType::ThreadPool, CustomConfig),
-        std::make_tuple(EIOEngineType::FairShareThreadPool, DefaultConfig),
-        std::make_tuple(EIOEngineType::FairShareThreadPool, CustomConfig),
-        std::make_tuple(EIOEngineType::Uring, DefaultConfig),
-        std::make_tuple(EIOEngineType::Uring, CustomConfig)
+        std::make_tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::ThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::ThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+        std::make_tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::FairShareThreadPool, CustomConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::FairShareThreadPool, DefaultConfig, AllocatorBehaviourSeparate),
+
+        std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate)
     )
 );
 

@@ -97,7 +97,8 @@ public:
         std::vector<TReadRequest> /*requests*/,
         EWorkloadCategory /*category*/,
         TRefCountedTypeCookie /*tagCookie*/,
-        TSessionId /*sessionId*/) override
+        TSessionId /*sessionId*/,
+        bool /*useDedicatedAllocations*/) override
     {
         return RunRequest(Config_.ReadLatency, Config_.ReadFailingProbability)
             .Apply(BIND([] {

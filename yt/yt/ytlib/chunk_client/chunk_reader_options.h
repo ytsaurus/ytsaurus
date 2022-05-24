@@ -18,6 +18,7 @@ struct TClientChunkReadOptions
     TReadSessionId ReadSessionId;
     NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Heavy;
     int MultiplexingParallelism = 1;
+    bool UseDedicatedAllocations = false;
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
 

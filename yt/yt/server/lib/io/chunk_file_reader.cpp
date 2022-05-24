@@ -333,13 +333,15 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
     struct TChunkFileReaderBufferTag
     { };
-    return IOEngine_->Read<TChunkFileReaderBufferTag>({{
+    return IOEngine_->Read({{
             dataFile,
             firstBlockInfo.offset(),
             totalSize
         }},
         options.WorkloadDescriptor.Category,
-        options.ReadSessionId)
+        GetRefCountedTypeCookie<TChunkFileReaderBufferTag>(),
+        options.ReadSessionId,
+        options.UseDedicatedAllocations)
         .Apply(BIND(&TChunkFileReader::OnBlocksRead, MakeStrong(this), options, firstBlockIndex, blockCount, blocksExt));
 }
 

@@ -48,6 +48,7 @@ using namespace NYTAlloc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto DefaultPageSize = 4_KB;
+static const bool DontInitializeMemory = false;
 
 #ifdef _linux_
 
@@ -882,7 +883,8 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId) override
+        TSessionId sessionId,
+        bool useDedicatedAllocations) override
     {
         std::vector<TFuture<void>> futures;
         futures.reserve(requests.size());
@@ -893,7 +895,7 @@ public:
         for (const auto& request : requests) {
             paddedBytes += GetPaddedSize(request.Offset, request.Size, DefaultPageSize);
         }
-        auto buffers = AllocateReadBuffers(requests, tagCookie);
+        auto buffers = AllocateReadBuffers(requests, tagCookie, useDedicatedAllocations);
 
         for (int index = 0; index < std::ssize(requests); ++index) {
             for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
@@ -972,7 +974,8 @@ private:
 
     std::vector<TSharedMutableRef> AllocateReadBuffers(
         const std::vector<TReadRequest>& requests,
-        TRefCountedTypeCookie tagCookie)
+        TRefCountedTypeCookie tagCookie,
+        bool useDedicatedAllocations)
     {
         std::vector<TSharedMutableRef> results;
         results.reserve(requests.size());
@@ -983,6 +986,17 @@ private:
                 return request.Handle->IsOpenForDirectIO();
             });
 
+        if (useDedicatedAllocations) {
+            for (const auto& request : requests) {
+                auto buffer = shouldBeAligned
+                    ? TSharedMutableRef::AllocatePageAligned(request.Size, DontInitializeMemory, tagCookie)
+                    : TSharedMutableRef::Allocate(request.Size, DontInitializeMemory, tagCookie);
+                results.push_back(buffer);
+            }
+            return results;
+        }
+
+        // Collocate blocks in single buffer.
         i64 totalSize = 0;
         for (const auto& request : requests) {
             totalSize += shouldBeAligned
@@ -991,8 +1005,8 @@ private:
         }
 
         auto buffer = shouldBeAligned
-            ? TSharedMutableRef::AllocatePageAligned(totalSize, false, tagCookie)
-            : TSharedMutableRef::Allocate(totalSize, false, tagCookie);
+            ? TSharedMutableRef::AllocatePageAligned(totalSize, DontInitializeMemory, tagCookie)
+            : TSharedMutableRef::Allocate(totalSize, DontInitializeMemory, tagCookie);
 
         i64 offset = 0;
         for (const auto& request : requests) {
@@ -1517,10 +1531,17 @@ struct TReadUringRequest
         TMutableRef Buffer;
     };
 
+    explicit TReadUringRequest(bool useDedicatedAllocations)
+    {
+        ReadRequestCombiner = useDedicatedAllocations
+            ? CreateDummyReadRequestCombiner()
+            : CreateReadRequestCombiner();
+    }
+
     std::vector<IIOEngine::TReadRequest> ReadSubrequests;
     TCompactVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
     TCompactVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
-    TReadRequestCombiner ReadRequestCombiner;
+    IReadRequestCombinerPtr ReadRequestCombiner;
 
     i64 PaddedBytes = 0;
     int FinishedSubrequestCount = 0;
@@ -1529,7 +1550,7 @@ struct TReadUringRequest
     void TrySetReadSucceeded()
     {
         IIOEngine::TReadResponse response{
-            .OutputBuffers = std::move(ReadRequestCombiner.ReleaseOutputBuffers()),
+            .OutputBuffers = std::move(ReadRequestCombiner->ReleaseOutputBuffers()),
             .PaddedBytes = PaddedBytes,
             .IORequests = FinishedSubrequestCount,
         };
@@ -1969,7 +1990,7 @@ private:
             auto& subrequestState = request->ReadSubrequestStates[subrequestIndex];
 
             if (cqe->res == 0 && subrequestState.Buffer.Size() > 0) {
-                auto error = request->ReadRequestCombiner.CheckEOF(subrequestState.Buffer);
+                auto error = request->ReadRequestCombiner->CheckEof(subrequestState.Buffer);
                 if (!error.IsOK()) {
                     YT_LOG_TRACE("Read subrequest failed at EOF (Request: %p/%v, Remaining: %v)",
                         request,
@@ -2273,7 +2294,8 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory /*category*/,
         TRefCountedTypeCookie tagCookie,
-        TSessionId) override
+        TSessionId /*sessionId*/,
+        bool useDedicatedAllocations) override
     {
         if (std::ssize(requests) > MaxSubrequestCount) {
             return MakeFuture<TReadResponse>(TError("Too many read requests: %v > %v",
@@ -2281,9 +2303,9 @@ public:
                 MaxSubrequestCount));
         }
 
-        auto uringRequest = std::make_unique<TReadUringRequest>();
+        auto uringRequest = std::make_unique<TReadUringRequest>(useDedicatedAllocations);
 
-        auto [handles, ioRequests] = uringRequest->ReadRequestCombiner.Combine(
+        auto [handles, ioRequests] = uringRequest->ReadRequestCombiner->Combine(
             std::move(requests),
             StaticConfig_->DirectIOPageSize,
             tagCookie);

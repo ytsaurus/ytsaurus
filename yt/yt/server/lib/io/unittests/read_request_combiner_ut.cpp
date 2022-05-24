@@ -9,12 +9,12 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool operator==(const TReadRequestCombiner::TIORequest& lhs, const TReadRequestCombiner::TIORequest& rhs)
+static bool operator==(const IReadRequestCombiner::TIORequest& lhs, const IReadRequestCombiner::TIORequest& rhs)
 {
     return lhs.Offset == rhs.Offset && lhs.Size == rhs.Size;
 }
 
-static bool operator==(const TReadRequestCombiner::TCombineResult& lhs, const TReadRequestCombiner::TCombineResult& rhs)
+static bool operator==(const IReadRequestCombiner::TCombineResult& lhs, const IReadRequestCombiner::TCombineResult& rhs)
 {
     YT_VERIFY(std::get<0>(lhs).size() == std::get<1>(lhs).size());
     YT_VERIFY(std::get<0>(rhs).size() == std::get<1>(rhs).size());
@@ -24,7 +24,7 @@ static bool operator==(const TReadRequestCombiner::TCombineResult& lhs, const TR
         std::get<1>(lhs) == std::get<1>(rhs);
 }
 
-static std::ostream& operator<<(std::ostream& stream, const TReadRequestCombiner::TIORequest& value)
+static std::ostream& operator<<(std::ostream& stream, const IReadRequestCombiner::TIORequest& value)
 {
     return stream << "[request: <null> " << value.Offset << "@" << value.Size << "]";
 }
@@ -59,11 +59,11 @@ protected:
         NFs::Remove(FileName);
     }
 
-    std::tuple<TReadRequestCombiner, TReadRequestCombiner::TCombineResult>
+    std::tuple<IReadRequestCombinerPtr, IReadRequestCombiner::TCombineResult>
     Combine(const std::vector<IIOEngine::TReadRequest>& input)
     {
-        TReadRequestCombiner combiner;
-        auto combineResult = combiner.Combine(
+        auto combiner = CreateReadRequestCombiner();
+        auto combineResult = combiner->Combine(
             input,
             PageSize,
             GetRefCountedTypeCookie<IIOEngine::TDefaultReadTag>());
@@ -76,7 +76,7 @@ protected:
 
     void RunTest(
         const std::vector<IIOEngine::TReadRequest>& input,
-        const TReadRequestCombiner::TCombineResult& output)
+        const IReadRequestCombiner::TCombineResult& output)
     {
         auto [combiner, combineResult] = Combine(input);
 
@@ -86,7 +86,7 @@ protected:
             EXPECT_EQ(std::ssize(request.ResultBuffer), request.Size);
         }
 
-        auto outputBuffers = combiner.ReleaseOutputBuffers();
+        auto outputBuffers = combiner->ReleaseOutputBuffers();
         EXPECT_EQ(outputBuffers.size(), input.size());
 
         for (int index = 0; index < std::ssize(outputBuffers); index++) {
@@ -218,11 +218,11 @@ TEST_F(TReadRequestCombinerTest, CombineEOFOneHandle)
 
     const auto& ioRequests = std::get<1>(combineResult);
 
-    EXPECT_TRUE( combiner.CheckEOF(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
-    EXPECT_TRUE( combiner.CheckEOF(SliceTail(ioRequests[1].ResultBuffer, 3872)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 3872)).IsOK() );
 
-    EXPECT_FALSE( combiner.CheckEOF(SliceTail(ioRequests[1].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner.CheckEOF(SliceTail(ioRequests[0].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[0].ResultBuffer, 4000)).IsOK() );
 }
 
 TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
@@ -236,12 +236,12 @@ TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
 
     const auto& ioRequests = std::get<1>(combineResult);
 
-    EXPECT_TRUE( combiner.CheckEOF(SliceTail(ioRequests[1].ResultBuffer, 1)).IsOK() );
-    EXPECT_FALSE( combiner.CheckEOF(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 1)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
 
-    EXPECT_TRUE( combiner.CheckEOF(SliceTail(ioRequests[3].ResultBuffer, 2000)).IsOK() );
-    EXPECT_FALSE( combiner.CheckEOF(SliceTail(ioRequests[3].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner.CheckEOF(SliceTail(ioRequests[2].ResultBuffer, 4000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[3].ResultBuffer, 2000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[3].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[2].ResultBuffer, 4000)).IsOK() );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
