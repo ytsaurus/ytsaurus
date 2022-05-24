@@ -6,9 +6,10 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadRequestCombiner
+struct IReadRequestCombiner
 {
-public:
+    virtual ~IReadRequestCombiner() = default;
+
     struct TIORequest
     {
         i64 Offset = 0;
@@ -21,18 +22,23 @@ public:
         std::vector<TIOEngineHandlePtr>,
         std::vector<TIORequest>>;
 
-    TCombineResult Combine(
+    virtual TCombineResult Combine(
         std::vector<IIOEngine::TReadRequest> requests,
         i64 pageSize,
-        TRefCountedTypeCookie tagCookie);
+        TRefCountedTypeCookie tagCookie) = 0;
 
-    TError CheckEOF(const TMutableRef& bufferTail);
+    virtual TError CheckEof(const TMutableRef& bufferTail) = 0;
 
-    std::vector<TSharedRef>&& ReleaseOutputBuffers();
-
-private:
-    std::vector<TSharedRef> OutputRefs_;
+    virtual std::vector<TSharedRef>&& ReleaseOutputBuffers() = 0;
 };
+
+using IReadRequestCombinerPtr = std::unique_ptr<IReadRequestCombiner>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReadRequestCombinerPtr CreateReadRequestCombiner();
+
+IReadRequestCombinerPtr CreateDummyReadRequestCombiner();
 
 ////////////////////////////////////////////////////////////////////////////////
 

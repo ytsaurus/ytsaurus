@@ -131,7 +131,8 @@ struct IIOEngine
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId = {}) = 0;
+        TSessionId sessionId = {},
+        bool useDedicatedAllocations = false) = 0;
     virtual TFuture<void> Write(
         TWriteRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle,

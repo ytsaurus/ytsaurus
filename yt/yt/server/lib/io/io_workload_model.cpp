@@ -253,14 +253,16 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId) override
+        TSessionId sessionId,
+        bool useDedicatedAllocations) override
     {
         NProfiling::TWallTimer requestTimer;
         auto future = Underlying_->Read(
             requests,
             category,
             tagCookie,
-            sessionId);
+            sessionId,
+            useDedicatedAllocations);
 
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const NYT::TErrorOr<TReadResponse>&) {
             for (const auto& request : requests) {

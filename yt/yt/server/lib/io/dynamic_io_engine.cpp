@@ -40,9 +40,10 @@ public:
         std::vector<TReadRequest> requests,
         EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId) override
+        TSessionId sessionId,
+        bool useDedicatedAllocations) override
     {
-        return GetEngine()->Read(std::move(requests), category, tagCookie, sessionId);
+        return GetEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
     }
 
     TFuture<void> Write(

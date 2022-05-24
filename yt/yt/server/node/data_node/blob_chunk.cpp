@@ -569,11 +569,6 @@ void TBlobChunkBase::OnBlocksRead(
             auto relativeBlockIndex = entry.BlockIndex - firstBlockIndex;
             auto block = blocks[relativeBlockIndex];
 
-            // NB: Copy block to prevent cache from holding the whole block sequence.
-            if (blocks.size() > 1) {
-                struct TCachedBlobChunkBlockTag { };
-                block.Data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(block.Data);
-            }
             entry.Block = block;
 
             ++usefulBlockCount;
@@ -661,6 +656,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             entry.BlockIndex = blockIndexes[entryIndex];
             entry.EntryIndex = entryIndex;
         }
+        session->Options.UseDedicatedAllocations = true;
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }
