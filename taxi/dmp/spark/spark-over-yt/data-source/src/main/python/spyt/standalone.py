@@ -504,12 +504,15 @@ def stop_spark_cluster(discovery_path, client):
 def abort_spark_operations(spark_discovery, client):
     current_operation_id = SparkDiscovery.getOption(
         spark_discovery.operation(), client=client)
+    error = None
     if current_operation_id is not None and get_operation_state(
             current_operation_id, client=client).is_running():
-        abort_operation(current_operation_id, client=client)
+        error = abort_operation_silently(current_operation_id, client=client)
         for child_id in SparkDiscovery.getOptions(spark_discovery.children_operations(), client):
             if get_operation_state(child_id, client=client).is_running():
-                abort_operation(child_id, client=client)
+                abort_operation_silently(child_id, client=client)
+    if error:
+        raise error
 
 
 def start_spark_cluster(worker_cores, worker_memory, worker_num,
@@ -593,6 +596,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
 
     current_operation_id = SparkDiscovery.getOption(
         spark_discovery.operation(), client=client)
+
     if current_operation_id is not None and get_operation_state(
         current_operation_id, client=client).is_running():
         if abort_existing:
@@ -670,33 +674,52 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     if enable_multi_operation_mode:
         master_args['job_types'] = ['master', 'history']
     master_builder = build_spark_operation_spec(**master_args)
-    op = run_operation(master_builder, sync=False, client=client)
-    _wait_master_start(op, spark_discovery, client)
-    logger.info("Master operation %s", op.id)
 
-    if enable_multi_operation_mode:
-        child_args = args.copy()
-        child_args['job_types'] = ['worker']
-        child_builder = build_spark_operation_spec(**child_args)
-        op_child = run_operation(child_builder, sync=False, client=client)
-        _wait_child_start(op_child, spark_discovery, client)
-        logger.info("Child operation %s", op_child.id)
+    op_child = None
+    op_driver = None
+    op = None
 
-    if dedicated_operation_mode:
-        driver_args = args.copy()
-        driver_args['job_types'] = ['driver']
-        driver_args['worker'] = driver
-        driver_args['driver_op_resources'] = driver.cores
-        driver_args['driver_op_discovery_script'] = 'spark/bin/driver-op-discovery.sh'
-        driver_builder = build_spark_operation_spec(**driver_args)
-        op_driver = run_operation(driver_builder, sync=False, client=client)
-        _wait_child_start(op_driver, spark_discovery, client)
-        logger.info("Driver operation %s", op_driver.id)
+    try:
+        op = run_operation(master_builder, sync=False, client=client)
+        _wait_master_start(op, spark_discovery, client)
+        logger.info("Master operation %s", op.id)
 
-    master_address = SparkDiscovery.get(
-        spark_discovery.master_webui(), client=client)
-    logger.info("Spark Master's Web UI: http://{0}".format(master_address))
-    return op
+        if enable_multi_operation_mode:
+            child_args = args.copy()
+            child_args['job_types'] = ['worker']
+            child_builder = build_spark_operation_spec(**child_args)
+            op_child = run_operation(child_builder, sync=False, client=client)
+            _wait_child_start(op_child, spark_discovery, client)
+            logger.info("Child operation %s", op_child.id)
+
+        if dedicated_operation_mode:
+            driver_args = args.copy()
+            driver_args['job_types'] = ['driver']
+            driver_args['worker'] = driver
+            driver_args['driver_op_resources'] = driver.cores
+            driver_args['driver_op_discovery_script'] = 'spark/bin/driver-op-discovery.sh'
+            driver_builder = build_spark_operation_spec(**driver_args)
+            op_driver = run_operation(driver_builder, sync=False, client=client)
+            _wait_child_start(op_driver, spark_discovery, client)
+            logger.info("Driver operation %s", op_driver.id)
+
+        master_address = SparkDiscovery.get(
+            spark_discovery.master_webui(), client=client)
+        logger.info("Spark Master's Web UI: http://{0}".format(master_address))
+        return op
+    except Exception as err:
+        abort_operation_silently(op_driver, client)
+        abort_operation_silently(op_child, client)
+        abort_operation_silently(op, client)
+
+
+def abort_operation_silently(op_id, client):
+    try:
+        if op_id:
+            abort_operation(op_id, client=client)
+    except Exception as err:
+        logging.error("Failed to abort operation {0}".format(op_id))
+        return err
 
 
 def find_spark_cluster(discovery_path=None, client=None):
