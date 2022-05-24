@@ -320,10 +320,11 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if "spark.workerLog.tablePath" not in config["spark_conf"]:
         config["spark_conf"]["spark.workerLog.tablePath"] = worker_log_location
     if driver_op_discovery_script:
+        script_absolute_path = "{}/{}".format(spark_home, driver_op_discovery_script)
         config["spark_conf"]["spark.worker.resource.driverop.amount"] = str(
             driver_op_resources)
-        config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = driver_op_discovery_script
-        config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = driver_op_discovery_script
+        config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = script_absolute_path
+        config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = script_absolute_path
     if extra_metrics_enabled:
         config["spark_conf"]["spark.ui.prometheus.enabled"] = "true"
 
@@ -686,7 +687,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
         driver_args['job_types'] = ['driver']
         driver_args['worker'] = driver
         driver_args['driver_op_resources'] = driver.cores
-        driver_args['driver_op_discovery_script'] = '/slot/sandbox/tmpfs/spark/bin/driver-op-discovery.sh'
+        driver_args['driver_op_discovery_script'] = 'spark/bin/driver-op-discovery.sh'
         driver_builder = build_spark_operation_spec(**driver_args)
         op_driver = run_operation(driver_builder, sync=False, client=client)
         _wait_child_start(op_driver, spark_discovery, client)
