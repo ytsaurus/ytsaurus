@@ -390,7 +390,7 @@ public:
         , RawSink_(StructuredIORawLogger, config->Enable && config->EnableRaw)
         , AggregateSink_(
             StructuredIOAggregateLogger,
-            config->Enable,
+            config->Enable && config->EnableAggr,
             config->AggregationSizeLimit,
             config->AggregationPeriod,
             /*tagFilter*/ [] (const auto& event) { return TAggregateTagsKey{ .InlineTags = event.AggregatingTags }; },

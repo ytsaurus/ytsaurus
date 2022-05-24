@@ -15,8 +15,11 @@ public:
     //! If set to true, logging of IO events is enabled.
     bool Enable;
 
-    //! If set to true, raw IO events can be logged. Otherwise, only aggregated events are logged.
+    //! If set to true, raw IO events can be logged.
     bool EnableRaw;
+
+    //! If set to true, aggregate IO events can be logged.
+    bool EnableAggr;
 
     //! If set to true, logs aggregated by path are enabled.
     bool EnablePath;

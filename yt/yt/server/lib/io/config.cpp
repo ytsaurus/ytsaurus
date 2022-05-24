@@ -12,6 +12,8 @@ TIOTrackerConfig::TIOTrackerConfig()
         .Default(false);
     RegisterParameter("enable_raw", EnableRaw)
         .Default(false);
+    RegisterParameter("enable_aggr", EnableAggr)
+        .Default(true);
     RegisterParameter("enable_path", EnablePath)
         .Default(false);
     RegisterParameter("queue_size_limit", QueueSizeLimit)
@@ -123,7 +125,7 @@ TGentleLoaderConfig::TGentleLoaderConfig()
 
     RegisterParameter("remove_written_files", RemoveWrittenFiles)
         .Default(true);
-    
+
     RegisterParameter("flush_after_write", FlushAfterWrite)
         .Default(false);
 
