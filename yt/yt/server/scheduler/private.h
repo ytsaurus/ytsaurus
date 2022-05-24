@@ -89,17 +89,17 @@ DEFINE_ENUM(EOperationPreemptionStatus,
 );
 
 DEFINE_ENUM(EJobPreemptionLevel,
-    (SsdNonPreemptable)
-    (SsdAggressivelyPreemptable)
-    (NonPreemptable)
-    (AggressivelyPreemptable)
-    (Preemptable)
+    (SsdNonPreemptible)
+    (SsdAggressivelyPreemptible)
+    (NonPreemptible)
+    (AggressivelyPreemptible)
+    (Preemptible)
 );
 
 DEFINE_ENUM(EJobPreemptionStatus,
-    (NonPreemptable)
-    (AggressivelyPreemptable)
-    (Preemptable)
+    (NonPreemptible)
+    (AggressivelyPreemptible)
+    (Preemptible)
 );
 
 DEFINE_ENUM(EJobSchedulingStage,

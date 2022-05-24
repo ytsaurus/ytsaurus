@@ -653,16 +653,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
         SubmitJobsToStrategy();
 
-        // TODO(eshcherbin): Possible to shorten this message by writing preemptable info
+        // TODO(eshcherbin): Possible to shorten this message by writing preemptible info
         // only when preemptive scheduling has been attempted.
         context->SetIncrementalResponseInfo(
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
-            "PreemptableInfo: %v, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
+            "PreemptibleInfo: %v, SsdPriorityPreemption: {Enabled: %v, Media: %v}, "
             "ScheduleJobAttempts: %v, OperationCountByPreemptionPriority: %v",
             schedulingContext->StartedJobs().size(),
             statistics.ScheduledDuringPreemption,
             schedulingContext->PreemptedJobs().size(),
-            FormatPreemptableInfoCompact(statistics),
+            FormatPreemptibleInfoCompact(statistics),
             statistics.SsdPriorityPreemptionEnabled,
             statistics.SsdPriorityPreemptionMedia,
             FormatScheduleJobAttemptsCompact(statistics),
@@ -1944,9 +1944,9 @@ void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std:
         runningJobStatistics.TotalCpuTime += jobCpuTime;
         runningJobStatistics.TotalGpuTime += jobGpuTime;
 
-        if (GetJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptable) {
-            runningJobStatistics.PreemptableCpuTime += jobCpuTime;
-            runningJobStatistics.PreemptableGpuTime += jobGpuTime;
+        if (GetJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptible) {
+            runningJobStatistics.PreemptibleCpuTime += jobCpuTime;
+            runningJobStatistics.PreemptibleGpuTime += jobGpuTime;
         }
     }
 

@@ -16,7 +16,7 @@ class TFairShareTreeJobSchedulerOperationSharedState
 public:
     TFairShareTreeJobSchedulerOperationSharedState(
         ISchedulerStrategyHost* strategyHost,
-        int updatePreemptableJobsListLoggingPeriod,
+        int updatePreemptibleJobsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
     // Returns resources change.
@@ -32,16 +32,16 @@ public:
         int scheduleJobEpoch,
         bool force = false);
     void OnJobFinished(TSchedulerOperationElement* operationElement, TJobId jobId);
-    void UpdatePreemptableJobsList(const TSchedulerOperationElement* element);
+    void UpdatePreemptibleJobsList(const TSchedulerOperationElement* element);
 
-    bool GetPreemptable() const;
-    void SetPreemptable(bool value);
+    bool GetPreemptible() const;
+    void SetPreemptible(bool value);
 
     bool IsJobKnown(TJobId jobId) const;
 
     int GetRunningJobCount() const;
-    int GetPreemptableJobCount() const;
-    int GetAggressivelyPreemptableJobCount() const;
+    int GetPreemptibleJobCount() const;
+    int GetAggressivelyPreemptibleJobCount() const;
 
     EJobPreemptionStatus GetJobPreemptionStatus(TJobId jobId) const;
     TJobPreemptionStatusMap GetJobPreemptionStatusMap() const;
@@ -81,26 +81,26 @@ private:
 
     // TODO(eshcherbin): Use TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> here and below.
     using TJobIdList = std::list<TJobId>;
-    TJobIdList NonpreemptableJobs_;
-    TJobIdList AggressivelyPreemptableJobs_;
-    TJobIdList PreemptableJobs_;
+    TJobIdList NonPreemptibleJobs_;
+    TJobIdList AggressivelyPreemptibleJobs_;
+    TJobIdList PreemptibleJobs_;
 
-    std::atomic<bool> Preemptable_ = {true};
+    std::atomic<bool> Preemptible_ = {true};
 
     std::atomic<int> RunningJobCount_ = {0};
     TJobResources TotalResourceUsage_;
-    TJobResources NonpreemptableResourceUsage_;
-    TJobResources AggressivelyPreemptableResourceUsage_;
+    TJobResources NonPreemptibleResourceUsage_;
+    TJobResources AggressivelyPreemptibleResourceUsage_;
 
-    std::atomic<int> UpdatePreemptableJobsListCount_ = {0};
-    const int UpdatePreemptableJobsListLoggingPeriod_;
+    std::atomic<int> UpdatePreemptibleJobsListCount_ = {0};
+    const int UpdatePreemptibleJobsListLoggingPeriod_;
 
     // TODO(ignat): make it configurable.
     TDuration UpdateStateShardsBackoff_ = TDuration::Seconds(5);
 
     struct TJobProperties
     {
-        //! Determines whether job belongs to the preemptable, aggressively preemptable or non-preemptable jobs list.
+        //! Determines whether job belongs to the preemptible, aggressively preemptible or non-preemptible jobs list.
         EJobPreemptionStatus PreemptionStatus;
 
         //! Iterator in the per-operation list pointing to this particular job.
@@ -139,7 +139,7 @@ private:
 
     TPackingStatistics HeartbeatStatistics_;
 
-    void DoUpdatePreemptableJobsList(const TSchedulerOperationElement* element, int* moveCount);
+    void DoUpdatePreemptibleJobsList(const TSchedulerOperationElement* element, int* moveCount);
 
     void AddJob(TJobId jobId, const TJobResourcesWithQuota& resourceUsage);
     std::optional<TJobResources> RemoveJob(TJobId jobId);

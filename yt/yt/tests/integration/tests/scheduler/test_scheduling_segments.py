@@ -155,7 +155,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptable_running_job_count": 80,
+            "max_unpreemptible_running_job_count": 80,
         })
 
     @authors("eshcherbin")
@@ -303,7 +303,7 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "default")
 
     @authors("eshcherbin")
-    def test_rebalancing_heuristic_choose_node_with_preemptable_job(self):
+    def test_rebalancing_heuristic_choose_node_with_preemptible_job(self):
         set("//sys/pool_trees/default/@config/cached_job_preemption_statuses_update_period", 1000)
         set("//sys/pool_trees/default/large_gpu/@strong_guarantee_resources", {"gpu": 72})
         set("//sys/pool_trees/default/small_gpu/@strong_guarantee_resources", {"gpu": 8})
@@ -347,7 +347,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
         wait(
             lambda: get(
-                scheduler_orchid_node_path(expected_node) + "/running_job_statistics/preemptable_gpu_time", default=0.0
+                scheduler_orchid_node_path(expected_node) + "/running_job_statistics/preemptible_gpu_time", default=0.0
             )
             > 0.0
         )
@@ -1033,7 +1033,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptable_running_job_count": 80,
+            "max_unpreemptible_running_job_count": 80,
         })
 
     @authors("eshcherbin")
@@ -1748,7 +1748,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptable_running_job_count": 80,
+            "max_unpreemptible_running_job_count": 80,
         })
 
     @authors("eshcherbin")

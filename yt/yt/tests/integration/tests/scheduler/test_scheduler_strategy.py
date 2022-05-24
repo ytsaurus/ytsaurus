@@ -83,7 +83,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def setup_method(self, method):
         super(TestResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", 0)
         time.sleep(0.5)
 
     def _check_running_jobs(self, op, desired_running_jobs):
@@ -470,7 +470,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
         enable_op_detailed_logs(op1)
         enable_op_detailed_logs(op2)
 
-        # Give some time to check that op0 is not preemptable.
+        # Give some time to check that op0 is not preemptible.
         time.sleep(2)
 
         assert op1.get_job_count("running") == 0

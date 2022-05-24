@@ -1081,7 +1081,7 @@ class YTEnvSetup(object):
             "min_child_heap_size": 3,
             # Make default settings suitable for starvation and preemption.
             "preemptive_scheduling_backoff": 500,
-            "max_unpreemptable_running_job_count": 0,
+            "max_unpreemptible_running_job_count": 0,
             "fair_share_starvation_timeout": 1000,
             "enable_conditional_preemption": True,
             "check_operation_for_liveness_in_preschedule": False,

@@ -40,7 +40,7 @@ public:
 void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
-        .Item("unconditionally_preemptable_job_count").Value(statistics.UnconditionallyPreemptableJobCount)
+        .Item("unconditionally_preemptible_job_count").Value(statistics.UnconditionallyPreemptibleJobCount)
         .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
         .Item("controller_schedule_job_timed_out_count").Value(statistics.ControllerScheduleJobTimedOutCount)
         .Item("schedule_job_attempt_count_per_stage").Value(statistics.ScheduleJobAttemptCountPerStage)
@@ -53,13 +53,13 @@ void Serialize(const TScheduleJobsStatistics& statistics, IYsonConsumer* consume
     .EndMap();
 }
 
-TString FormatPreemptableInfoCompact(const TScheduleJobsStatistics& statistics)
+TString FormatPreemptibleInfoCompact(const TScheduleJobsStatistics& statistics)
 {
     return Format("{UJC: %v, UD: %v, TCJC: %v, MCJCPP: %v, MCD: %v}",
-        statistics.UnconditionallyPreemptableJobCount,
+        statistics.UnconditionallyPreemptibleJobCount,
         FormatResources(statistics.UnconditionalResourceUsageDiscount),
-        statistics.TotalConditionallyPreemptableJobCount,
-        statistics.MaxConditionallyPreemptableJobCountInPool,
+        statistics.TotalConditionallyPreemptibleJobCount,
+        statistics.MaxConditionallyPreemptibleJobCountInPool,
         FormatResources(statistics.MaxConditionalResourceUsageDiscount));
 }
 

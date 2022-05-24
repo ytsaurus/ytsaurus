@@ -139,8 +139,11 @@ TJobMetrics TJobMetrics::FromJobStatistics(
         FindNumericValue(statistics, "/job_proxy/aggregated_smoothed_cpu_usage_x100").value_or(0);
     metrics.Values()[EJobMetricName::AggregatedMaxCpuUsageX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_max_cpu_usage_x100").value_or(0);
+    // COMPAT(eshcherbin)
     metrics.Values()[EJobMetricName::AggregatedPreemptableCpuX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_preemptable_cpu_x100").value_or(0);
+    metrics.Values()[EJobMetricName::AggregatedPreemptibleCpuX100] =
+        FindNumericValue(statistics, "/job_proxy/aggregated_preemptible_cpu_x100").value_or(0);
     metrics.Values()[EJobMetricName::AggregatedPreemptedCpuX100] =
         FindNumericValue(statistics, "/job_proxy/aggregated_preempted_cpu_x100").value_or(0);
 

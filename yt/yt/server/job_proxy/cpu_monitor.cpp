@@ -39,13 +39,17 @@ void TCpuMonitor::FillStatistics(TStatistics& statistics) const
 {
     if (SmoothedUsage_) {
         statistics.AddSample("/job_proxy/smoothed_cpu_usage_x100", static_cast<i64>(*SmoothedUsage_ * 100));
+        // COMPAT(eshcherbin)
         statistics.AddSample("/job_proxy/preemptable_cpu_x100", static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
+        statistics.AddSample("/job_proxy/preemptible_cpu_x100", static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
 
         statistics.AddSample("/job_proxy/aggregated_smoothed_cpu_usage_x100", static_cast<i64>(AggregatedSmoothedCpuUsage_ * 100));
         statistics.AddSample("/job_proxy/aggregated_max_cpu_usage_x100", static_cast<i64>(AggregatedMaxCpuUsage_ * 100));
-        const auto preemptableCpu = static_cast<i64>(AggregatedPreemptableCpu_ * 100);
-        statistics.AddSample("/job_proxy/aggregated_preemptable_cpu_x100", preemptableCpu);
-        statistics.AddSample("/job_proxy/aggregated_preempted_cpu_x100", Config_->EnableCpuReclaim ? preemptableCpu : 0);
+        const auto preemptibleCpu = static_cast<i64>(AggregatedPreemptibleCpu_ * 100);
+        // COMPAT(eshcherbin)
+        statistics.AddSample("/job_proxy/aggregated_preemptable_cpu_x100", preemptibleCpu);
+        statistics.AddSample("/job_proxy/aggregated_preemptible_cpu_x100", preemptibleCpu);
+        statistics.AddSample("/job_proxy/aggregated_preempted_cpu_x100", Config_->EnableCpuReclaim ? preemptibleCpu : 0);
     }
 }
 
@@ -155,7 +159,7 @@ void TCpuMonitor::UpdateAggregates()
     }
     double seconds = static_cast<double>(CheckedTimeInterval_->MicroSeconds()) / 1000 / 1000;
     AggregatedSmoothedCpuUsage_ += *SmoothedUsage_ * seconds;
-    AggregatedPreemptableCpu_ += (HardLimit_ - SoftLimit_) * seconds;
+    AggregatedPreemptibleCpu_ += (HardLimit_ - SoftLimit_) * seconds;
     AggregatedMaxCpuUsage_ += HardLimit_ * seconds;
 }
 

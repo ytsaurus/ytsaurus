@@ -2150,7 +2150,7 @@ void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* cont
 
 /// Steps of fair share post update:
 ///
-/// 1. Publish the computed fair share to the shared resource tree and update the operations' preemptable job lists.
+/// 1. Publish the computed fair share to the shared resource tree and update the operations' preemptible job lists.
 ///
 /// 2. Update dynamic attributes based on the calculated fair share (for orchid).
 void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateContext)

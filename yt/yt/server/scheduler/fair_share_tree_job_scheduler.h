@@ -217,7 +217,7 @@ struct TScheduleJobsStage
 struct TJobWithPreemptionInfo
 {
     TJobPtr Job;
-    EJobPreemptionStatus PreemptionStatus = EJobPreemptionStatus::NonPreemptable;
+    EJobPreemptionStatus PreemptionStatus = EJobPreemptionStatus::NonPreemptible;
     TSchedulerOperationElement* OperationElement;
 
     bool operator ==(const TJobWithPreemptionInfo& other) const = default;
@@ -256,7 +256,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<int>, SsdPriorityPreemptionMedia)
 
     // NB(eshcherbin): The following properties are public for testing purposes.
-    DEFINE_BYREF_RW_PROPERTY(TJobWithPreemptionInfoSetMap, ConditionallyPreemptableJobSetMap);
+    DEFINE_BYREF_RW_PROPERTY(TJobWithPreemptionInfoSetMap, ConditionallyPreemptibleJobSetMap);
     DEFINE_BYREF_RO_PROPERTY(TChildHeapMap, ChildHeapMap);
 
 public:
@@ -277,15 +277,15 @@ public:
     void CountOperationsByPreemptionPriority();
     int GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const;
 
-    void AnalyzePreemptableJobs(
+    void AnalyzePreemptibleJobs(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
         EJobPreemptionLevel minJobPreemptionLevel,
-        std::vector<TJobWithPreemptionInfo>* unconditionallyPreemptableJobs,
-        TNonOwningJobSet* forcefullyPreemptableJobs);
+        std::vector<TJobWithPreemptionInfo>* unconditionallyPreemptibleJobs,
+        TNonOwningJobSet* forcefullyPreemptibleJobs);
     void PreemptJobsAfterScheduling(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
-        std::vector<TJobWithPreemptionInfo> preemptableJobs,
-        const TNonOwningJobSet& forcefullyPreemptableJobs,
+        std::vector<TJobWithPreemptionInfo> preemptibleJobs,
+        const TNonOwningJobSet& forcefullyPreemptibleJobs,
         const TJobPtr& jobStartedUsingPreemption);
     void AbortJobsSinceResourcesOvercommit() const;
     void PreemptJob(
@@ -314,7 +314,7 @@ public:
         TJobResources CurrentConditionalDiscount;
     };
     void PrepareConditionalUsageDiscounts(const TSchedulerElement* element, TPrepareConditionalUsageDiscountsContext* context);
-    const TJobWithPreemptionInfoSet& GetConditionallyPreemptableJobsInPool(const TSchedulerCompositeElement* element) const;
+    const TJobWithPreemptionInfoSet& GetConditionallyPreemptibleJobsInPool(const TSchedulerCompositeElement* element) const;
 
     TDynamicAttributes& DynamicAttributesOf(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesOf(const TSchedulerElement* element) const;
@@ -460,7 +460,7 @@ struct TPreemptiveScheduleJobsStage
 {
     TScheduleJobsStage* Stage;
     EOperationPreemptionPriority TargetOperationPreemptionPriority = EOperationPreemptionPriority::None;
-    EJobPreemptionLevel MinJobPreemptionLevel = EJobPreemptionLevel::Preemptable;
+    EJobPreemptionLevel MinJobPreemptionLevel = EJobPreemptionLevel::Preemptible;
     bool ForcePreemptionAttempt = false;
 };
 

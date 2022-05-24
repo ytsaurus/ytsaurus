@@ -221,7 +221,7 @@ public:
     bool EnableAggressiveStarvation;
 
     //! Any operation with less than this number of running jobs cannot be preempted.
-    int MaxUnpreemptableRunningJobCount;
+    int MaxUnpreemptibleRunningJobCount;
 
     //! Limit on number of operations in pool.
     int MaxOperationCountPerPool;
@@ -240,7 +240,7 @@ public:
     double JobCountPreemptionTimeoutCoefficient;
 
     //! Thresholds to partition jobs of operation
-    //! to preemptable, aggressively preemptable and non-preemptable lists.
+    //! to preemptible, aggressively preemptible and non-preemptible lists.
     double PreemptionSatisfactionThreshold;
     double AggressivePreemptionSatisfactionThreshold;
 
@@ -253,9 +253,9 @@ public:
     //! Maximum number of ephemeral pools that can be created by user.
     int MaxEphemeralPoolsPerUser;
 
-    //! If update of preemptable lists of operation takes more than that duration
+    //! If update of preemptible lists of operation takes more than that duration
     //! then this event will be logged.
-    TDuration UpdatePreemptableListDurationLoggingThreshold;
+    TDuration UpdatePreemptibleListDurationLoggingThreshold;
 
     //! Enables profiling strategy attributes for operations.
     bool EnableOperationsProfiling;
