@@ -95,7 +95,8 @@ lazy val `spark-submit` = (project in file("spark-submit"))
     libraryDependencies ++= yandexIceberg.map(_ % Provided) ++ (ThisBuild / spytSparkForkDependency).value ++
       circe.map(_ % Provided) ++ logging.map(_ % Provided),
     assembly / assemblyJarName := s"spark-yt-submit.jar",
-    assembly / assemblyShadeRules ++= clusterShadeRules
+    assembly / assemblyShadeRules ++= clusterShadeRules,
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false)
   )
 
 lazy val `submit-client` = (project in file("submit-client"))
@@ -131,6 +132,7 @@ lazy val `data-source` = (project in file("data-source"))
     },
     assembly / assemblyShadeRules ++= clientShadeRules,
     assembly / test := {},
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
     pythonDeps := {
       val binBasePath = sourceDirectory.value / "main" / "bin"
       ("jars" -> (`spark-submit` / assembly).value) +: binBasePath.listFiles().map(f => "bin" -> f)
@@ -157,14 +159,16 @@ lazy val `file-system` = (project in file("file-system"))
         oldStrategy(x)
     },
     assembly / assemblyShadeRules ++= clusterShadeRules,
-    assembly / test := {}
+    assembly / test := {},
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false)
   )
 
 lazy val `e2e-checker` = (project in file("e2e-checker"))
   .dependsOn(`data-source` % Provided)
   .settings(
     libraryDependencies ++= commonDependencies.value.map(d => if (d.configurations.isEmpty) d % Provided else d),
-    libraryDependencies ++= scaldingArgs
+    libraryDependencies ++= scaldingArgs,
+    assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false)
   )
 
 lazy val `e2e-test` = (project in file("e2e-test"))
