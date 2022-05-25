@@ -205,6 +205,16 @@ void ParseAndEnrichStatistics(
         auto duration = endTime - joblet->StartTime;
         statistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
         statistics->ReplacePathWithSample("/job_proxy/estimated_memory", joblet->EstimatedResourceUsage.GetJobProxyMemory());
+        statistics->ReplacePathWithSample("/job_proxy/cumulative_estimated_memory", joblet->EstimatedResourceUsage.GetJobProxyMemory() * duration.MilliSeconds());
+        if (auto userJobMaxMemoryUsage = FindNumericValue(*statistics, "/user_job/max_memory")) {
+            statistics->ReplacePathWithSample("/user_job/cumulative_max_memory", *userJobMaxMemoryUsage * duration.MilliSeconds());
+        }
+        if (auto userJobMemoryReserve = FindNumericValue(*statistics, "/user_job/memory_reserve")) {
+            statistics->ReplacePathWithSample("/user_job/cumulative_memory_reserve", *userJobMemoryReserve * duration.MilliSeconds());
+        }
+        if (auto jobProxyMaxMemoryUsage = FindNumericValue(*statistics, "/job_proxy/max_memory")) {
+            statistics->ReplacePathWithSample("/job_proxy/cumulative_max_memory", *jobProxyMaxMemoryUsage * duration.MilliSeconds());
+        }
     }
 
     jobSummary->StatisticsYson = ConvertToYsonString(statistics);
