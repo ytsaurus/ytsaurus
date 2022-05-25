@@ -1670,6 +1670,15 @@ private:
             try {
                 auto snapshotElectionPriority = GetSnapshotElectionPriority();
                 auto changelogElectionPriority = GetChangelogElectionPriority();
+                if (snapshotElectionPriority.LastMutationTerm != 0 &&
+                    changelogElectionPriority.LastMutationTerm == 0 &&
+                    changelogElectionPriority.ReachableState > snapshotElectionPriority.ReachableState)
+                {
+                    YT_LOG_ALERT("Nonzero term snapshot is followed by a zero term changelog (SnapshotPriority: %v, ChangelogPriority: %v)",
+                        snapshotElectionPriority,
+                        changelogElectionPriority);
+                    YT_ABORT();
+                }
                 ElectionPriority_ = std::max(snapshotElectionPriority, changelogElectionPriority);
                 break;
             } catch (const std::exception& ex) {
