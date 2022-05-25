@@ -179,7 +179,7 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
 {
     TMemoryInput input(packedRef.Begin(), packedRef.Size());
 
-    i32 size;
+    i32 size = 0;
     ReadPod(input, size);
     if (size < 0) {
         TCrashOnDeserializationErrorGuard::OnError();
@@ -191,7 +191,7 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
     parts->reserve(size);
 
     for (int index = 0; index < size; ++index) {
-        i64 partSize;
+        i64 partSize = 0;
         ReadPod(input, partSize);
         if (partSize < 0) {
             TCrashOnDeserializationErrorGuard::OnError();
