@@ -3,6 +3,7 @@
     "table_path" = "//home/kristevalex/ytprof/testing";
     "services" = [
         {
+            "profile_type" = "cpu";
             "service_type" = "node";
             "period" = 300000000000;
             "probability" = 0.5;
