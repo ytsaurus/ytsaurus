@@ -165,6 +165,22 @@ TEST(TProcTest, DiskStat)
     }
 }
 
+TEST(TProcTest, FileDescriptorCount)
+{
+    auto initialCount = GetFileDescriptorCount();
+    EXPECT_GE(initialCount, 3);
+
+    int newDescriptorCount = 139;
+    std::vector<TFile> files;
+    for (int i = 0; i < newDescriptorCount; ++i) {
+        files.emplace_back("/dev/null", EOpenModeFlag::WrOnly);
+    }
+    EXPECT_EQ(GetFileDescriptorCount(), initialCount + newDescriptorCount);
+
+    files.clear();
+    EXPECT_EQ(GetFileDescriptorCount(), initialCount);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

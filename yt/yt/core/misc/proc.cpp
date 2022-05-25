@@ -24,6 +24,7 @@
 #include <util/system/fs.h>
 #include <util/system/fstat.h>
 #include <util/folder/iterator.h>
+#include <util/folder/filelist.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -982,6 +983,25 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 #else
     Y_UNUSED(exceptFor);
 #endif
+}
+
+int GetFileDescriptorCount()
+{
+    int descriptorCount = 0;
+#ifdef __linux__
+    TFileEntitiesList fileList(TFileEntitiesList::EM_SLINKS);
+    try {
+        fileList.Fill("/proc/self/fd");
+        while (fileList.Next() != nullptr) {
+            ++descriptorCount;
+        }
+        // Don't count opened /proc/self/fd.
+        --descriptorCount;
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error listing /proc/self/fd");
+    }
+#endif
+    return descriptorCount;
 }
 
 void SafeCreateStderrFile(TString fileName)
