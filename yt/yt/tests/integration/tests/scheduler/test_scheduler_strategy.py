@@ -1758,6 +1758,16 @@ class TestEphemeralPools(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool") == "ephemeral_hub$root")
 
+    @authors("renadeen")
+    def test_fifo_pool_cannot_create_ephemeral_subpools(self):
+        create_pool("fifo_pool", attributes={"mode": "fifo"})
+        with pytest.raises(YtError):
+            set("//sys/pools/fifo_pool/@create_ephemeral_subpools", True)
+
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+        with pytest.raises(YtError):
+            set("//sys/pools/ephemeral_hub/@mode", "fifo")
+
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1
