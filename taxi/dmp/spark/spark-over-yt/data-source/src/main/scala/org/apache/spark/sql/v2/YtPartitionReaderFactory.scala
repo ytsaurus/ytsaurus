@@ -20,7 +20,7 @@ import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtFileSystemBase
+import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.logger.{TaskInfo, YtDynTableLoggerConfig}
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
@@ -142,7 +142,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private def createRowBaseReader(split: YtInputSplit)
                                  (implicit yt: CompoundClient): RecordReader[Void, InternalRow] = {
-    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtFileSystemBase]
+    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtTableFileSystem]
     val iter = YtWrapper.readTable(
       split.ytPathWithFiltersDetailed,
       InternalRowDeserializer.getOrCreate(resultSchema),
@@ -183,7 +183,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                      returnBatch: Boolean)
                                     (implicit yt: CompoundClient): YtVectorizedReader = {
 
-    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtFileSystemBase]
+    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtTableFileSystem]
     new YtVectorizedReader(
       split = split,
       batchMaxSize = batchMaxSize,
