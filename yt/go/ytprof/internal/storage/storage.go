@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/pprof/profile"
 
+	"a.yandex-team.ru/library/go/core/log"
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -26,15 +27,34 @@ func errRowNotFound(table interface{}, rowKey interface{}) error {
 	return fmt.Errorf("row with id(%v) not found in table(%v)", rowKey, table)
 }
 
-type (
-	TableStorage struct {
-		tableData     ypath.Path
-		tableMetadata ypath.Path
-		yc            yt.Client
+type TimestampPeriod struct {
+	Start time.Time
+	End   time.Time
+}
 
-		l *logzap.Logger
+type Metaquery struct {
+	Period     TimestampPeriod
+	Query      string
+	QueryLimit int
+}
+
+type TableStorage struct {
+	tableData     ypath.Path
+	tableMetadata ypath.Path
+	yc            yt.Client
+
+	l *logzap.Logger
+}
+
+func (p TimestampPeriod) Timestamps() (tmin schema.Timestamp, tmax schema.Timestamp, err error) {
+	tmin, err = schema.NewTimestamp(p.Start)
+	if err != nil {
+		return
 	}
-)
+
+	tmax, err = schema.NewTimestamp(p.End)
+	return
+}
 
 func NewTableStorage(yc yt.Client, path ypath.Path, l *logzap.Logger) *TableStorage {
 	p := new(TableStorage)
@@ -43,6 +63,21 @@ func NewTableStorage(yc yt.Client, path ypath.Path, l *logzap.Logger) *TableStor
 	p.tableMetadata = path.Child(ytprof.TableMetadata)
 	p.l = l
 	return p
+}
+
+func NewTableStorageMigrate(flagTablePath string, yt yt.Client, l *logzap.Logger) (*TableStorage, error) {
+	tableYTPath := ypath.Path(flagTablePath)
+
+	err := ytprof.MigrateTables(yt, tableYTPath)
+
+	if err != nil {
+		l.Error("migraton failed", log.Error(err), log.String("table_path", tableYTPath.String()))
+		return nil, err
+	}
+
+	storage := NewTableStorage(yt, tableYTPath, l)
+
+	return storage, nil
 }
 
 func GenerateNewUID() ytprof.ProfID {
@@ -120,7 +155,7 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 	return tx.Commit()
 }
 
-func (m *TableStorage) MetadataIdsQuery(minTime schema.Timestamp, maxTime schema.Timestamp, ctx context.Context, queryLimit int) ([]ytprof.ProfID, error) {
+func (m *TableStorage) MetadataIdsQuery(ctx context.Context, minTime schema.Timestamp, maxTime schema.Timestamp, queryLimit int) ([]ytprof.ProfID, error) {
 	r, err := m.yc.SelectRows(ctx, m.queryIDsMetadataPeriod(minTime, maxTime, queryLimit), nil)
 	if err != nil {
 		return nil, err
@@ -142,7 +177,7 @@ func (m *TableStorage) MetadataIdsQuery(minTime schema.Timestamp, maxTime schema
 	return resultIDs, r.Err()
 }
 
-func (m *TableStorage) MetadataQuery(minTime schema.Timestamp, maxTime schema.Timestamp, ctx context.Context, queryLimit int) ([]ytprof.ProfileMetadata, error) {
+func (m *TableStorage) MetadataQuery(ctx context.Context, minTime schema.Timestamp, maxTime schema.Timestamp, queryLimit int) ([]ytprof.ProfileMetadata, error) {
 	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(minTime, maxTime, queryLimit), nil)
 	if err != nil {
 		return nil, err
@@ -164,8 +199,13 @@ func (m *TableStorage) MetadataQuery(minTime schema.Timestamp, maxTime schema.Ti
 	return results, r.Err()
 }
 
-func (m *TableStorage) MetadataQueryExpr(ctx context.Context, minTime schema.Timestamp, maxTime schema.Timestamp, exprText string, queryLimit int) ([]ytprof.ProfileMetadata, error) {
-	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(minTime, maxTime, queryLimit), nil)
+func (m *TableStorage) MetadataQueryExpr(ctx context.Context, metaquery Metaquery) ([]ytprof.ProfileMetadata, error) {
+	tmin, tmax, err := metaquery.Period.Timestamps()
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(tmin, tmax, metaquery.QueryLimit), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +213,7 @@ func (m *TableStorage) MetadataQueryExpr(ctx context.Context, minTime schema.Tim
 
 	results := make([]ytprof.ProfileMetadata, 0)
 
-	expr, err := expressions.NewExpression(exprText)
+	expr, err := expressions.NewExpression(metaquery.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -198,8 +238,13 @@ func (m *TableStorage) MetadataQueryExpr(ctx context.Context, minTime schema.Tim
 	return results, r.Err()
 }
 
-func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, minTime schema.Timestamp, maxTime schema.Timestamp, exprText string, queryLimit int) ([]ytprof.ProfID, error) {
-	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(minTime, maxTime, queryLimit), nil)
+func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, metaquery Metaquery) ([]ytprof.ProfID, error) {
+	tmin, tmax, err := metaquery.Period.Timestamps()
+	if err != nil {
+		return nil, err
+	}
+
+	r, err := m.yc.SelectRows(ctx, m.queryMetadataPeriod(tmin, tmax, metaquery.QueryLimit), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +252,7 @@ func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, minTime schema.
 
 	resultIDs := make([]ytprof.ProfID, 0)
 
-	expr, err := expressions.NewExpression(exprText)
+	expr, err := expressions.NewExpression(metaquery.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +326,7 @@ func (m *TableStorage) FindData(ctx context.Context, profID ytprof.ProfID) (data
 	return
 }
 
-func (m *TableStorage) FindProfile(profID ytprof.ProfID, ctx context.Context) (*profile.Profile, error) {
+func (m *TableStorage) FindProfile(ctx context.Context, profID ytprof.ProfID) (*profile.Profile, error) {
 	data, err := m.FindData(ctx, profID)
 	if err != nil {
 		return nil, err
@@ -289,7 +334,7 @@ func (m *TableStorage) FindProfile(profID ytprof.ProfID, ctx context.Context) (*
 	return profile.ParseData(data.Data)
 }
 
-func (m *TableStorage) FindProfiles(profIDs []ytprof.ProfID, ctx context.Context) ([]*profile.Profile, error) {
+func (m *TableStorage) FindProfiles(ctx context.Context, profIDs []ytprof.ProfID) ([]*profile.Profile, error) {
 	data, err := m.FindAllData(ctx, profIDs)
 	if err != nil {
 		return nil, err
@@ -304,4 +349,55 @@ func (m *TableStorage) FindProfiles(profIDs []ytprof.ProfID, ctx context.Context
 	}
 
 	return resultProfiles, nil
+}
+
+func timeElapsed(t *time.Time) time.Duration {
+	elapsed := time.Since(*t)
+	*t = time.Now()
+	return elapsed
+}
+
+func (m *TableStorage) FindAndMergeQueryExpr(ctx context.Context, metaquery Metaquery) (*profile.Profile, error) {
+	timeCur := time.Now()
+
+	resp, err := m.MetadataIdsQueryExpr(ctx, metaquery)
+	if err != nil {
+		m.l.Error("metaquery failed", log.Error(err))
+		return nil, err
+	}
+
+	m.l.Debug("metaquery succeeded",
+		log.Int("size", len(resp)),
+		log.String("time", timeElapsed(&timeCur).String()))
+
+	profiles, err := m.FindProfiles(ctx, resp)
+	if err != nil {
+		m.l.Error("getting data by IDs failed", log.Error(err))
+		return nil, err
+	}
+
+	m.l.Debug("profiles loaded",
+		log.Int("size", len(profiles)),
+		log.String("time", timeElapsed(&timeCur).String()))
+
+	// removing tid before merge
+
+	for _, profile := range profiles {
+		for _, sample := range profile.Sample {
+			delete(sample.Label, "tid")
+			delete(sample.NumLabel, "tid")
+		}
+	}
+
+	mergedProfile, err := profile.Merge(profiles)
+	if err != nil {
+		m.l.Error("merging profiles failed", log.Error(err))
+		return nil, err
+	}
+
+	m.l.Debug("profiles merged",
+		log.Int("size", len(profiles)),
+		log.String("time", timeElapsed(&timeCur).String()))
+
+	return mergedProfile, nil
 }

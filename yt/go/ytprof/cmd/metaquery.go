@@ -7,16 +7,15 @@ import (
 	"sort"
 	"time"
 
-	"github.com/google/pprof/profile"
 	"github.com/spf13/cobra"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof"
+
+	//"a.yandex-team.ru/yt/go/ytprof/internal/metaquery"
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
@@ -57,24 +56,54 @@ func init() {
 	rootCmd.AddCommand(findMetadataCmd)
 }
 
-func storagePreRun() (*zap.Logger, *storage.TableStorage, error) {
-	l, err := ytlog.New()
+type cmdPeriod struct {
+	start time.Time
+	end   time.Time
+}
+
+func newCmdPeriod(flagTimestampMin string, flagTimestampMax string) (cmdPeriod, error) {
+	var period cmdPeriod
+	var err error
+
+	period.start, err = time.Parse(ytprof.TimeFormat, flagTimestampMin)
 	if err != nil {
-		return nil, nil, err
+		return period, err
 	}
 
-	tableYTPath := ypath.Path(flagTablePath)
+	period.end, err = time.Parse(ytprof.TimeFormat, flagTimestampMax)
 
-	err = ytprof.MigrateTables(YT, tableYTPath)
+	return period, err
+}
 
+func newCmdPeriodLast(flagTimeLast string) (cmdPeriod, error) {
+	var period cmdPeriod
+	var err error
+
+	timeLast, err := time.ParseDuration(flagTimeLast)
 	if err != nil {
-		l.Fatal("migraton failed", log.Error(err), log.String("table_path", tableYTPath.String()))
-		return nil, nil, err
+		return period, err
 	}
 
-	storage := storage.NewTableStorage(YT, tableYTPath, l)
+	period.end = time.Now()
 
-	return l, storage, nil
+	period.start = period.end.Add(-timeLast)
+
+	return period, err
+}
+
+func newCmdPeriodAuto(flagTimeLast string, flagTimestampMin string, flagTimestampMax string) (cmdPeriod, error) {
+	if flagTimeLast == "" {
+		return newCmdPeriod(flagTimestampMin, flagTimestampMax)
+	} else {
+		return newCmdPeriodLast(flagTimeLast)
+	}
+}
+
+func (p cmdPeriod) storagePeriod() storage.TimestampPeriod {
+	return storage.TimestampPeriod{
+		Start: p.start,
+		End:   p.end,
+	}
 }
 
 func displayStats(metadataSlice []ytprof.ProfileMetadata) {
@@ -116,79 +145,40 @@ func displayStats(metadataSlice []ytprof.ProfileMetadata) {
 				fmt.Fprintf(os.Stderr, "\t%d\t - ...\n", totalOfParam)
 				break
 			}
-			fmt.Fprintf(os.Stderr, "\t%d\t - of %v\n", kv.Value, kv.Key)
+			fmt.Fprintf(os.Stderr, "\t%d\t - of %v.\n", kv.Value, kv.Key)
 			totalOfParam -= kv.Value
 		}
 	}
 }
 
-func metaQueryPreRun() (*zap.Logger, *storage.TableStorage, schema.Timestamp, schema.Timestamp, error) {
-	l, storage, err := storagePreRun()
+func getMetaquery(query string, l *zap.Logger) storage.Metaquery {
+	period, err := newCmdPeriodAuto(flagTimeLast, flagTimestampMin, flagTimestampMax)
 	if err != nil {
-		return nil, nil, schema.Timestamp(0), schema.Timestamp(0), err
+		l.Fatal("timestamp parsing failed", log.Error(err))
 	}
 
-	var tmin, tmax time.Time
-
-	if flagTimeLast != "" {
-		timeLast, err := time.ParseDuration(flagTimeLast)
-		if err != nil {
-			l.Fatal("incorect time duration format",
-				log.Error(err),
-				log.String("value", flagTimestampMin))
-			return nil, nil, schema.Timestamp(0), schema.Timestamp(0), err
-		}
-
-		tmax = time.Now()
-
-		tmin = tmax.Add(-timeLast)
-
-	} else {
-		tmin, err = time.Parse(ytprof.TimeFormat, flagTimestampMin)
-		if err != nil {
-			l.Fatal("incorect time format",
-				log.Error(err),
-				log.String("corret", ytprof.TimeFormat),
-				log.String("actual", flagTimestampMin))
-			return nil, nil, schema.Timestamp(0), schema.Timestamp(0), err
-		}
-
-		tmax, err = time.Parse(ytprof.TimeFormat, flagTimestampMax)
-		if err != nil {
-			l.Fatal("incorect time format",
-				log.Error(err),
-				log.String("corret", ytprof.TimeFormat),
-				log.String("actual", flagTimestampMax))
-			return nil, nil, schema.Timestamp(0), schema.Timestamp(0), err
-		}
+	return storage.Metaquery{
+		Query:      flagMetaquery,
+		QueryLimit: flagQueryLimit,
+		Period:     period.storagePeriod(),
 	}
-
-	schemaTimestampMin, err := schema.NewTimestamp(tmin)
-	if err != nil {
-		l.Fatal("cannot generate timestamp", log.Error(err))
-		return nil, nil, schema.Timestamp(0), schema.Timestamp(0), err
-	}
-	schemaTimestampMax, err := schema.NewTimestamp(tmax)
-	if err != nil {
-		l.Fatal("cannot generate timestamp", log.Error(err))
-		return nil, nil, schema.Timestamp(0), schema.Timestamp(0), err
-	}
-
-	return l, storage, schemaTimestampMin, schemaTimestampMax, nil
 }
 
 func findMetadata(cmd *cobra.Command, args []string) error {
-	l, storage, schemaTimestampMin, schemaTimestampMax, err := metaQueryPreRun()
+	l, err := ytlog.New()
 	if err != nil {
 		return err
 	}
 
-	resp, err := storage.MetadataQueryExpr(
-		context.Background(),
-		schema.Timestamp(schemaTimestampMin),
-		schema.Timestamp(schemaTimestampMax),
-		flagMetaquery,
-		flagQueryLimit)
+	s, err := storage.NewTableStorageMigrate(flagTablePath, YT, l)
+	if err != nil {
+		l.Fatal("storage creation failed", log.Error(err))
+		return err
+	}
+
+	metaquery := getMetaquery(flagMetaquery, l)
+
+	resp, err := s.MetadataQueryExpr(context.Background(), metaquery)
 
 	if err != nil {
 		l.Fatal("metaquery failed", log.Error(err))
@@ -214,59 +204,23 @@ func metaqueryWithProfileType(metaquery string, profileType string) string {
 	return "Metadata['ProfileType'] == '" + profileType + "' && (" + metaquery + ")"
 }
 
-func timeElapsed(t *time.Time) time.Duration {
-	elapsed := time.Since(*t)
-	*t = time.Now()
-	return elapsed
-}
-
 func findData(cmd *cobra.Command, args []string) error {
-	l, storage, scemaTimestampMin, scemaTimestampMax, err := metaQueryPreRun()
+	l, err := ytlog.New()
 	if err != nil {
 		return err
 	}
 
-	ctx := context.Background()
-
-	timeCur := time.Now()
-
-	resp, err := storage.MetadataIdsQueryExpr(
-		ctx,
-		schema.Timestamp(scemaTimestampMin),
-		schema.Timestamp(scemaTimestampMax),
-		metaqueryWithProfileType(flagMetaquery, flagProfileType),
-		flagQueryLimit)
+	s, err := storage.NewTableStorageMigrate(flagTablePath, YT, l)
 	if err != nil {
-		l.Fatal("metaquery failed", log.Error(err))
+		l.Fatal("storage creation failed", log.Error(err))
 		return err
 	}
 
-	l.Debug("metaquery succeeded",
-		log.Int("size", len(resp)),
-		log.String("time", timeElapsed(&timeCur).String()))
+	metaquery := getMetaquery(metaqueryWithProfileType(flagMetaquery, flagProfileType), l)
 
-	profiles, err := storage.FindProfiles(resp, ctx)
+	mergedProfile, err := s.FindAndMergeQueryExpr(context.Background(), metaquery)
 	if err != nil {
-		l.Fatal("getting data by IDs failed", log.Error(err))
-		return err
-	}
-
-	l.Debug("profiles loaded",
-		log.Int("size", len(profiles)),
-		log.String("time", timeElapsed(&timeCur).String()))
-
-	// removing tid before merge
-
-	for _, profile := range profiles {
-		for _, sample := range profile.Sample {
-			delete(sample.Label, "tid")
-			delete(sample.NumLabel, "tid")
-		}
-	}
-
-	mergedProfile, err := profile.Merge(profiles)
-	if err != nil {
-		l.Fatal("merging profiles failed", log.Error(err))
+		l.Fatal("metaquery.FindData failed", log.Error(err))
 		return err
 	}
 
@@ -277,17 +231,8 @@ func findData(cmd *cobra.Command, args []string) error {
 	}
 	defer file.Close()
 
-	l.Debug("profiles merged",
-		log.Int("size", len(profiles)),
-		log.String("time", timeElapsed(&timeCur).String()))
-
 	if flagStats {
-		resp, err := storage.MetadataQueryExpr(
-			context.Background(),
-			schema.Timestamp(scemaTimestampMin),
-			schema.Timestamp(scemaTimestampMax),
-			"Metadata['ProfileType'] == '"+flagProfileType+"' && ("+flagMetaquery+")",
-			flagQueryLimit)
+		resp, err := s.MetadataQueryExpr(context.Background(), metaquery)
 
 		if err != nil {
 			l.Fatal("metaquery failed", log.Error(err))
@@ -301,12 +246,10 @@ func findData(cmd *cobra.Command, args []string) error {
 }
 
 func getData(cmd *cobra.Command, args []string) error {
-	l, storage, err := storagePreRun()
+	l, err := ytlog.New()
 	if err != nil {
 		return err
 	}
-
-	ctx := context.Background()
 
 	profileGUID, err := guid.ParseString(flagProfileGUID)
 	if err != nil {
@@ -314,7 +257,13 @@ func getData(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	profile, err := storage.FindProfile(ytprof.ProfIDFromGUID(profileGUID), ctx)
+	s, err := storage.NewTableStorageMigrate(flagTablePath, YT, l)
+	if err != nil {
+		l.Fatal("storage creation failed", log.Error(err))
+		return err
+	}
+
+	profile, err := s.FindProfile(context.Background(), ytprof.ProfIDFromGUID(profileGUID))
 	if err != nil {
 		l.Fatal("get profile query failed", log.Error(err))
 		return err

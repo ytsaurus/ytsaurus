@@ -102,9 +102,9 @@ func TestDataAndMetadataTables(t *testing.T) {
 	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQuery(tlow, thigh, env.Ctx, 10000)
+	resultIDs, err := tsData.MetadataIdsQuery(env.Ctx, tlow, thigh, 10000)
 	require.NoError(t, err)
-	resultData, err := tsData.FindProfiles(resultIDs, env.Ctx)
+	resultData, err := tsData.FindProfiles(env.Ctx, resultIDs)
 	require.NoError(t, err)
 	checkTestProfiles(t, resultData)
 }
@@ -123,14 +123,23 @@ func TestDataExpr(t *testing.T) {
 
 	require.NoError(t, tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3"))
 
-	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	tlow := time.Now().Add(-time.Hour)
 	require.NoError(t, err)
-	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	thigh := time.Now().Add(time.Hour)
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQueryExpr(env.Ctx, tlow, thigh, "Metadata['BinaryVersion'] == 'c2'", 10000)
+	metaquery := storage.Metaquery{
+		Query:      "Metadata['BinaryVersion'] == 'c2'",
+		QueryLimit: 10000,
+		Period: storage.TimestampPeriod{
+			Start: tlow,
+			End:   thigh,
+		},
+	}
+
+	resultIDs, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery)
 	require.NoError(t, err)
-	resultData, err := tsData.FindProfiles(resultIDs, env.Ctx)
+	resultData, err := tsData.FindProfiles(env.Ctx, resultIDs)
 	require.NoError(t, err)
 	require.Equal(t, len(resultData), 2)
 }
@@ -155,7 +164,7 @@ func TestMetadataIdsQuery(t *testing.T) {
 	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQuery(tlow, thigh, env.Ctx, 10000)
+	resultIDs, err := tsData.MetadataIdsQuery(env.Ctx, tlow, thigh, 10000)
 	require.NoError(t, err)
 	require.NotEmpty(t, resultIDs)
 }
@@ -179,7 +188,7 @@ func TestMetadataQuery(t *testing.T) {
 	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	result, err := tsData.MetadataQuery(tlow, thigh, env.Ctx, 10000)
+	result, err := tsData.MetadataQuery(env.Ctx, tlow, thigh, 10000)
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
 }
