@@ -343,6 +343,10 @@ void TResourceTracker::CollectSensorsAggregatedTimings(
         totalUserCpuTime,
         totalSystemCpuTime,
         totalCpuWaitTime);
+
+    int fileDescriptorCount = GetFileDescriptorCount();
+    writer->AddGauge("/open_fds", fileDescriptorCount);
+    YT_LOG_DEBUG("Assessed open file descriptors (Count: %v)", fileDescriptorCount);
 }
 
 double TResourceTracker::GetUserCpu()

@@ -139,6 +139,8 @@ void SetUid(int uid);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
 
+int GetFileDescriptorCount();
+
 //! Return true iff ytserver was started with root permissions (e.g. via sudo or with suid bit).
 bool HasRootPermissions();
 
