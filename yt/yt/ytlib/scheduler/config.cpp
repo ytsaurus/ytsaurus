@@ -1,6 +1,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "job_resources.h"
+#include "yt/yt/core/misc/error.h"
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
@@ -1957,6 +1958,10 @@ void TPoolConfig::Validate(const TString& poolName)
     if (!MeteringTags.empty() && !Abc) {
         THROW_ERROR_EXCEPTION("Metering tags can be specified only for pool with specified abc attribute")
             << TErrorAttribute("pool_name", poolName);
+    }
+
+    if (Mode == ESchedulingMode::Fifo && CreateEphemeralSubpools) {
+        THROW_ERROR_EXCEPTION("Fifo pool cannot create ephemeral subpools");
     }
 }
 
