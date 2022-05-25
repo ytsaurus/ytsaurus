@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package api;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "a.yandex-team.ru/yt/go/ytprof/api";
+
+
+message TimePeriod {
+    google.protobuf.Timestamp PeriodStartTime = 1;
+    google.protobuf.Timestamp PeriodEndTime = 2;
+}
+
+message Path {
+    string Proxy = 1;
+    string TablePath = 2;
+}
+
+message Metaquery {
+    TimePeriod TimePeriod = 1;
+    Path Path = 2;
+    string Query = 3;
+    int32 QueryLimit = 4;
+}
+
+message ListRequest {
+    Metaquery Metaquery = 1;
+}
+
+message ListResponse {
+    string Metadata = 1;
+    string error = 2;
+}
+
+
+service YTProfService {
+    rpc List(ListRequest) returns (ListResponse) {
+        option (google.api.http) = {
+            get: "/ytprof/api/list"
+        };
+    }
+}
