@@ -725,8 +725,7 @@ private:
             return;
         }
 
-        bool expected = false;
-        if (Sick_.compare_exchange_strong(expected, true)) {
+        if (!Sick_.exchange(true)) {
             ++SicknessCounter_;
 
             TDelayedExecutor::Submit(
