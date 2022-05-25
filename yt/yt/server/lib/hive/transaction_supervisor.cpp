@@ -153,6 +153,7 @@ public:
                 true,
                 false,
                 ETransactionCoordinatorCommitMode::Eager,
+                /*maxAllowedCommitTimestamp*/ NullTimestamp,
                 NullMutationId,
                 GetCurrentAuthenticationIdentity(),
                 /*prerequisiteTransactionIds*/ {}));
@@ -675,6 +676,7 @@ private:
             auto clockClusterTag = request->has_clock_cluster_tag()
                 ? request->clock_cluster_tag()
                 : InvalidCellTag;
+            auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
             std::vector<TTransactionId> prerequisiteTransactionIds;
             if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
                 auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -705,7 +707,7 @@ private:
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
                 "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, CoordinatorCommitMode: %v, "
-                "PrerequisiteTransactionIds: %v",
+                "PrerequisiteTransactionIds: %v, MaxAllowedCommitTimestamp: %v",
                 transactionId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
@@ -715,7 +717,8 @@ private:
                 inheritCommitTimestamp,
                 clockClusterTag,
                 coordinatorCommitMode,
-                prerequisiteTransactionIds);
+                prerequisiteTransactionIds,
+                maxAllowedCommitTimestamp);
 
             if (owner->ResponseKeeper_->TryReplyFrom(context, /*subscribeToResponse*/ false)) {
                 return;
@@ -738,6 +741,7 @@ private:
                     generatePrepareTimestamp,
                     inheritCommitTimestamp,
                     coordinatorCommitMode,
+                    maxAllowedCommitTimestamp,
                     context->GetMutationId(),
                     GetCurrentAuthenticationIdentity(),
                     std::move(prerequisiteTransactionIds));
@@ -755,6 +759,7 @@ private:
                         generatePrepareTimestamp,
                         inheritCommitTimestamp,
                         coordinatorCommitMode,
+                        maxAllowedCommitTimestamp,
                         mutationId,
                         identity,
                         std::move(prerequisiteTransactionIds));
@@ -953,6 +958,7 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        TTimestamp maxAllowedCommitTimestamp,
         TMutationId mutationId,
         const TAuthenticationIdentity& identity,
         std::vector<TTransactionId> prerequisiteTransactionIds)
@@ -978,6 +984,7 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
+            maxAllowedCommitTimestamp,
             identity,
             std::move(prerequisiteTransactionIds));
 
@@ -1049,6 +1056,7 @@ private:
         request.set_coordinator_commit_mode(ToProto<int>(commit->GetCoordinatorCommitMode()));
         request.set_prepare_timestamp(prepareTimestamp);
         request.set_prepare_timestamp_cluster_tag(SelfClockClusterTag_);
+        request.set_max_allowed_commit_timestamp(commit->GetMaxAllowedCommitTimestamp());
         WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, request);
@@ -1196,6 +1204,7 @@ private:
                 /* generatePrepareTimestamp */ true,
                 /* inheritCommitTimestamp */ false,
                 ETransactionCoordinatorCommitMode::Eager,
+                /* maxAllowedCommitTimestamp*/ NullTimestamp,
                 identity,
                 /*prerequisiteTransactionIds*/ {});
             commit->CommitTimestamps() = commitTimestamps;
@@ -1220,6 +1229,7 @@ private:
         auto coordindatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
+        auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
@@ -1237,6 +1247,7 @@ private:
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 coordindatorCommitMode,
+                maxAllowedCommitTimestamp,
                 identity);
         } catch (const std::exception& ex) {
             if (auto commit = FindCommit(transactionId)) {
@@ -1585,6 +1596,7 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
         std::vector<TTransactionId> prerequisiteTransactionIds)
     {
@@ -1598,6 +1610,7 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
+            maxAllowedCommitTimestamp,
             std::move(identity),
             std::move(prerequisiteTransactionIds));
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1613,6 +1626,7 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity)
     {
         if (Decommissioned_) {
@@ -1636,6 +1650,7 @@ private:
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 coordinatorCommitMode,
+                maxAllowedCommitTimestamp,
                 std::move(identity));
         }
         commitHolder->SetPersistent(true);
@@ -1854,6 +1869,21 @@ private:
         YT_LOG_DEBUG("Commit timestamps generated (TransactionId: %v, CommitTimestamps: %v)",
             transactionId,
             commitTimestamps);
+
+        if (auto maxAllowedCommitTimestamp = commit->GetMaxAllowedCommitTimestamp()) {
+            for (auto [cellTag, commitTimestamp] : result) {
+                if (commitTimestamp > maxAllowedCommitTimestamp) {
+                    YT_LOG_DEBUG("Generated commit timestamp exceeds max allowed commit timestamp "
+                        "(TransactionId: %v, CellTag: %v, CommitTimestamp: %llx, MaxAllowedCommitTimestamp: %llx)",
+                        transactionId,
+                        cellTag,
+                        commitTimestamp,
+                        maxAllowedCommitTimestamp);
+                    AbortTransaction(transactionId, true);
+                    return;
+                }
+            }
+        }
 
         if (commit->GetDistributed()) {
             NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
@@ -2171,12 +2201,14 @@ private:
             version ==  7 || // savrus: Add tablet cell life stage
             version ==  8 || // babenko: YT-12139: Add prepare only participants
             version ==  9 || // babenko: YT-10869: Authentication identity in commit
-            version == 10;   // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
+            version == 10 || // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
+            version == 11 || // ifsmirnov: YT-15025: MaxAllowedCommitTimestamp
+            false;
     }
 
     int GetCurrentSnapshotVersion() override
     {
-        return 10;
+        return 11;
     }
 
 

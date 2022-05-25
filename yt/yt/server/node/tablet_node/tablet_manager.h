@@ -33,6 +33,10 @@ class TTabletManager
     : public TRefCounted
 {
 public:
+    //! Raised when replication transaction is finished (committed or aborted).
+    DECLARE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
+
+public:
     TTabletManager(
         TTabletManagerConfigPtr config,
         ITabletSlotPtr slot,
@@ -72,7 +76,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletManager)

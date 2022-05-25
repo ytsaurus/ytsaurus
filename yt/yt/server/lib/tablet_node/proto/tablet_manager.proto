@@ -7,6 +7,7 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/tablet_client/proto/heartbeat.proto";
+import "yt/ytlib/tablet_client/proto/backup.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,6 +177,10 @@ message TReqSetBackupCheckpoint
     required NYT.NProto.TGuid tablet_id = 1;
     required uint64 mount_revision = 2;
     required uint64 timestamp = 3;
+    required int32 backup_mode = 4; // EBackupMode
+
+    optional uint32 clock_cluster_tag = 5;
+    repeated NYT.NTabletClient.NProto.TTableReplicaBackupDescriptor replicas = 6;
 }
 
 message TReqReleaseBackupCheckpoint
@@ -190,6 +195,14 @@ message TReqConfirmBackupCheckpointFeasibility
     {
         required NYT.NProto.TGuid tablet_id = 1;
         required uint64 timestamp = 2;
+
+        message TConfirmedReplicaInfo
+        {
+            required NYT.NProto.TGuid replica_id = 1;
+            required NYT.NTabletClient.NProto.TTableReplicaStatistics replica_statistics = 2;
+        }
+
+        repeated TConfirmedReplicaInfo replicas = 3;
     }
 
     message TRejectedTabletInfo

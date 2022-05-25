@@ -503,6 +503,10 @@ struct TTransactionCommitOptions
     //! for an arbitrary period of time in case of replica failure.
     bool GeneratePrepareTimestamp = true;
 
+    //! If non-null then the coordinator will fail the commit if generated commit timestamp
+    //! exceeds |MaxAllowedCommitTimestamp|.
+    NTransactionClient::TTimestamp MaxAllowedCommitTimestamp = NTransactionClient::NullTimestamp;
+
     //! Cell ids of additional 2PC participants.
     //! Used to implement cross-cluster commit via RPC proxy.
     std::vector<NObjectClient::TCellId> AdditionalParticipantCellIds;
@@ -1409,11 +1413,14 @@ struct TTableBackupManifest
 {
     NYTree::TYPath SourcePath;
     NYTree::TYPath DestinationPath;
+    NTabletClient::EOrderedTableBackupMode OrderedMode;
 
     TTableBackupManifest()
     {
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
+        RegisterParameter("ordered_mode", OrderedMode)
+            .Default(NTabletClient::EOrderedTableBackupMode::Exact);
     }
 };
 

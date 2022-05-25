@@ -138,7 +138,6 @@ using namespace NSecurityServer;
 using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTableServer;
-using namespace NTabletClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletNodeTrackerClient::NProto;
@@ -417,8 +416,6 @@ public:
                 << TErrorAttribute("\"preserve_timestamps\"", preserveTimestamps);
         }
 
-        table->ValidateNotBackup("Cannot create table replica from a backup table");
-
         YT_VERIFY(!startReplicationRowIndexes || startReplicationRowIndexes->size() == table->Tablets().size());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -514,6 +511,14 @@ public:
 
         auto* table = replica->GetTable();
         auto state = replica->GetState();
+
+        table->ValidateNotBackup("Cannot alter replica of a backup table");
+
+        if (table->GetAggregatedTabletBackupState() != ETabletBackupState::None) {
+            THROW_ERROR_EXCEPTION("Canont alter replica since its table is being backed up")
+                << TErrorAttribute("table_id", table->GetId())
+                << TErrorAttribute("tablet_backup_state", table->GetAggregatedTabletBackupState());
+        }
 
         if (enabled) {
             if (*enabled) {
@@ -1987,6 +1992,7 @@ public:
 
         auto* trunkSourceTable = sourceTable->GetTrunkNode();
         auto* trunkClonedTable = clonedTable; // sic!
+        bool isBackupAction = mode == ENodeCloneMode::Backup || mode == ENodeCloneMode::Restore;
 
         if (mode == ENodeCloneMode::Backup) {
             trunkClonedTable->SetBackupState(ETableBackupState::BackupCompleted);
@@ -2081,47 +2087,115 @@ public:
         trunkClonedTable->RecomputeTabletMasterMemoryUsage();
 
         if (mode == ENodeCloneMode::Backup) {
-            backupManager->ReleaseBackupCheckpoint(
-                trunkSourceTable,
-                sourceTable->GetTransaction());
-
             trunkClonedTable->SetBackupCheckpointTimestamp(
                 trunkSourceTable->GetBackupCheckpointTimestamp());
             trunkSourceTable->SetBackupCheckpointTimestamp(NullTimestamp);
+
+            trunkClonedTable->SetBackupMode(trunkSourceTable->GetBackupMode());
+            trunkSourceTable->SetBackupMode(EBackupMode::None);
         } else if (mode != ENodeCloneMode::Restore) {
             trunkClonedTable->SetBackupCheckpointTimestamp(
                 trunkSourceTable->GetBackupCheckpointTimestamp());
         }
 
         if (sourceTable->IsReplicated()) {
-            auto* replicatedSourceTable = sourceTable->As<TReplicatedTableNode>();
+            auto* trunkReplicatedSourceTable = trunkSourceTable->As<TReplicatedTableNode>();
             auto* replicatedClonedTable = clonedTable->As<TReplicatedTableNode>();
 
-            YT_VERIFY(mode == ENodeCloneMode::Copy);
+            YT_VERIFY(mode != ENodeCloneMode::Move);
 
-            for (const auto* replica : GetValuesSortedByKey(replicatedSourceTable->Replicas())) {
+            for (const auto* replica : GetValuesSortedByKey(trunkReplicatedSourceTable->Replicas())) {
+                const TTableReplicaBackupDescriptor* replicaBackupDescriptor = nullptr;
+
+                if (isBackupAction) {
+                    const auto& backupDescriptors = trunkReplicatedSourceTable->ReplicaBackupDescriptors();
+                    for (const auto& descriptor : backupDescriptors) {
+                        if (descriptor.ReplicaId == replica->GetId()) {
+                            replicaBackupDescriptor = &descriptor;
+                            break;
+                        }
+                    }
+
+                    if (!replicaBackupDescriptor) {
+                        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                            "Will not clone table replica since it does not participate in backup "
+                            "(TableId: %v, ReplicaId: %v)",
+                            trunkReplicatedSourceTable->GetId(),
+                            replica->GetId());
+                        continue;
+                    }
+                }
+
                 std::vector<i64> committedReplicationRowIndexes;
                 committedReplicationRowIndexes.reserve(sourceTablets.size());
 
                 for (int tabletIndex = 0; tabletIndex < std::ssize(sourceTablets); ++tabletIndex) {
-                    auto* tablet = replicatedSourceTable->Tablets()[tabletIndex];
-                    auto* replicaInfo = tablet->GetReplicaInfo(replica);
+                    auto* tablet = trunkReplicatedSourceTable->Tablets()[tabletIndex];
+                    YT_VERIFY(tablet == sourceTablets[tabletIndex]);
+
+                    TTableReplicaInfo* replicaInfo;
+                    if (mode == ENodeCloneMode::Backup && tablet->GetCell()) {
+                        if (tablet->BackedUpReplicaInfos().contains(replica->GetId())) {
+                            replicaInfo = &GetOrCrash(tablet->BackedUpReplicaInfos(), replica->GetId());
+                        } else {
+                            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                                "Tablet does not contain replica info during backup (TabletId: %v, "
+                                "TableId: %v, ReplicaId: %v)",
+                                tablet->GetId(),
+                                trunkReplicatedSourceTable->GetId(),
+                                replica->GetId());
+                            replicaInfo = tablet->GetReplicaInfo(replica);
+                        }
+                    } else {
+                        replicaInfo = tablet->GetReplicaInfo(replica);
+                    }
+
                     auto replicationRowIndex = replicaInfo->GetCommittedReplicationRowIndex();
                     committedReplicationRowIndexes.push_back(replicationRowIndex);
                 }
 
-                CreateTableReplica(
+                TString newReplicaPath = isBackupAction
+                    ? replicaBackupDescriptor->ReplicaPath
+                    : replica->GetReplicaPath();
+
+                auto* clonedReplica = CreateTableReplica(
                     replicatedClonedTable,
                     replica->GetClusterName(),
-                    replica->GetReplicaPath(),
+                    newReplicaPath,
                     replica->GetMode(),
                     replica->GetPreserveTimestamps(),
                     replica->GetAtomicity(),
                     /*enabled*/ false,
                     replica->GetStartReplicationTimestamp(),
                     committedReplicationRowIndexes);
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Table replica cloned (OriginalReplicaId: %v, ClonedReplicaId: %v, "
+                    "OriginalTableId: %v, ClonedTableId: %v, OriginalReplicaPath: %v, ClonedReplicaPath: %v)",
+                    replica->GetId(),
+                    clonedReplica->GetId(),
+                    sourceTable->GetId(),
+                    clonedTable->GetId(),
+                    replica->GetReplicaPath(),
+                    clonedReplica->GetReplicaPath());
+            }
+
+            if (isBackupAction) {
+                trunkSourceTable->MutableReplicaBackupDescriptors().clear();
+                trunkClonedTable->MutableReplicaBackupDescriptors().clear();
+
+                for (auto& tablet : sourceTablets) {
+                    tablet->BackedUpReplicaInfos().clear();
+                }
             }
         }
+
+        if (mode == ENodeCloneMode::Backup) {
+            backupManager->ReleaseBackupCheckpoint(
+                trunkSourceTable,
+                sourceTable->GetTransaction());
+        }
+
 
         UpdateResourceUsage(
             trunkClonedTable,
@@ -2334,6 +2408,8 @@ public:
             THROW_ERROR_EXCEPTION("Dynamic table is already locked by this transaction")
                 << TErrorAttribute("transaction_id", transaction->GetId());
         }
+
+        table->ValidateNotBackup("Bulk insert into backup tables is not supported");
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         int pendingTabletCount = 0;
@@ -2646,24 +2722,13 @@ public:
 
         YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
-        auto* chunkList = tablet->GetChunkList();
-        for (const auto* child : chunkList->Children()) {
-            YT_VERIFY(child);
-
-            auto type = child->GetType();
-            YT_VERIFY(
-                IsBlobChunkType(type) ||
-                type == EObjectType::ChunkView ||
-                type == EObjectType::OrderedDynamicTabletStore);
-        }
-
         auto* table = tablet->GetTable();
         CopyChunkListsIfShared(table, tablet->GetIndex(), tablet->GetIndex());
+        auto* chunkList = tablet->GetChunkList();
 
         auto oldStatistics = GetTabletStatistics(tablet);
         table->DiscountTabletStatistics(oldStatistics);
 
-        chunkList = tablet->GetChunkList();
         std::vector<TChunkTree*> storesToDetach;
         std::vector<TChunkTree*> storesToAttach;
 
@@ -2692,7 +2757,7 @@ public:
                         chunkView->Modifier());
                     storesToAttach.push_back(wrappedStore);
                 }
-            } else if (store->GetType() == EObjectType::OrderedDynamicTabletStore) {
+            } else if (IsDynamicTabletStoreType(store->GetType())) {
                 auto* dynamicStore = store->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
                 auto* chunk = dynamicStore->GetFlushedChunk();
@@ -2729,107 +2794,36 @@ public:
         }
     }
 
-    TError ApplyCutoffRowIndex(TTablet* tablet)
+    TError ApplyBackupCutoff(TTablet* tablet)
     {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-        auto* chunkList = tablet->GetChunkList();
-        YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
-
-        auto descriptor = tablet->GetBackupCutoffDescriptor();
-
-        if (tablet->GetTrimmedRowCount() > descriptor.CutoffRowIndex) {
-            return TError("Cannot backup ordered tablet %v since it is trimmed "
-                "beyond cutoff row index",
-                tablet->GetId())
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
-                << TErrorAttribute("trimmed_row_count", tablet->GetTrimmedRowCount())
-                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex);
-        }
-
-        // CopyChunkListIfShared must be done before cutoff chunk index is calculated
-        // because it omits trimmed chunks and thus may shift chunk indexes.
-        CopyChunkListsIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
-        chunkList = tablet->GetChunkList();
-
-        int cutoffChildIndex = 0;
-        const auto& children = chunkList->Children();
-        const auto& statistics = chunkList->CumulativeStatistics();
-
-        auto wrapInternalErrorAndLog = [&] (TError innerError) {
-            innerError = innerError
-                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
-                << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex)
-                << TErrorAttribute("next_dynamic_store_id", descriptor.NextDynamicStoreId)
-                << TErrorAttribute("cutoff_child_index", cutoffChildIndex);
-            auto error = TError("Cannot backup ordered tablet due to an internal error")
-                << innerError;
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error, "Failed to perform backup cutoff");
-            return error;
-        };
-
-        bool hitDynamicStore = false;
-
-        while (cutoffChildIndex < ssize(children)) {
-            i64 cumulativeRowCount = statistics.GetPreviousSum(cutoffChildIndex).RowCount;
-            const auto* child = children[cutoffChildIndex];
-
-            if (child && child->GetId() == descriptor.NextDynamicStoreId) {
-                if (cumulativeRowCount > descriptor.CutoffRowIndex) {
-                    auto error = TError("Cumulative row count at the cutoff dynamic store "
-                        "is less than expected")
-                        << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
-                    return wrapInternalErrorAndLog(error);
-                }
-
-                hitDynamicStore = true;
-                break;
-            }
-
-            if (cumulativeRowCount > descriptor.CutoffRowIndex) {
-                auto error = TError("Cumulative row count exceeded cutoff row index")
-                    << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
-                return wrapInternalErrorAndLog(error);
-
-            }
-
-            if (cumulativeRowCount == descriptor.CutoffRowIndex) {
-                break;
-            }
-
-            ++cutoffChildIndex;
-        }
-
-        if (statistics.GetPreviousSum(cutoffChildIndex).RowCount != descriptor.CutoffRowIndex &&
-            !hitDynamicStore)
-        {
-            auto error = TError("Row count at final cutoff child index does not match cutoff row index")
-                << TErrorAttribute("cumulative_row_count", statistics.GetPreviousSum(cutoffChildIndex).RowCount);
-            return wrapInternalErrorAndLog(error);
-        }
-
-        tablet->SetBackupCutoffDescriptor({});
-
-        if (cutoffChildIndex == ssize(chunkList->Children())) {
+        if (!tablet->BackupCutoffDescriptor()) {
             return {};
         }
 
-        auto oldStatistics = GetTabletStatistics(tablet);
-        auto* table = tablet->GetTable();
-        table->DiscountTabletStatistics(oldStatistics);
+        auto backupMode = tablet->GetTable()->GetBackupMode();
 
-        chunkManager->DetachFromChunkList(
-            chunkList,
-            chunkList->Children().data() + cutoffChildIndex,
-            chunkList->Children().data() + ssize(children),
-            EChunkDetachPolicy::OrderedTabletSuffix);
+        TError error;
 
-        auto newStatistics = GetTabletStatistics(tablet);
-        table->AccountTabletStatistics(newStatistics);
+        switch (backupMode) {
+            case EBackupMode::OrderedStrongCommitOrdering:
+            case EBackupMode::OrderedExact:
+            case EBackupMode::OrderedAtLeast:
+            case EBackupMode::OrderedAtMost:
+            case EBackupMode::ReplicatedSorted:
+                error = ApplyRowIndexBackupCutoff(tablet);
+                break;
 
-        return {};
+            case EBackupMode::SortedAsyncReplica:
+                ApplyDynamicStoreListBackupCutoff(tablet);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+
+        tablet->BackupCutoffDescriptor() = std::nullopt;
+
+        return error;
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
@@ -4173,10 +4167,8 @@ private:
         transaction->LockedDynamicTables().clear();
     }
 
-    TError CheckAllDynamicStoresFlushed(const TTablet* tablet)
+    TError CheckAllDynamicStoresFlushed(TTablet* tablet)
     {
-        // TODO(ifsmirnov): use tablet->DynamicStores_ when it is merged.
-
         auto makeError = [&] (const TDynamicStore* dynamicStore) {
             const auto* originalTablet = dynamicStore->GetTablet();
             const TString& originalTablePath = IsObjectAlive(originalTablet) && IsObjectAlive(originalTablet->GetTable())
@@ -4186,36 +4178,180 @@ private:
                 "dynamic store %v in tablet %v is not flushed",
                 dynamicStore->GetId(),
                 tablet->GetId())
-                << TErrorAttribute("original_table_path", originalTablePath);
+                << TErrorAttribute("original_table_path", originalTablePath)
+                << TErrorAttribute("table_id", tablet->GetTable()->GetId());
         };
 
+        auto children = EnumerateStoresInChunkTree(tablet->GetChunkList());
 
-        for (const auto* child : tablet->GetChunkList()->Children()) {
-            // Trimmed ordered tablet child.
-            if (!child) {
-                continue;
-            }
-
-            YT_VERIFY(child->GetType() != EObjectType::ChunkList);
-
+        for (const auto* child : children) {
             if (child->GetType() == EObjectType::ChunkView) {
                 const auto* underlyingTree = child->AsChunkView()->GetUnderlyingTree();
                 if (IsDynamicTabletStoreType(underlyingTree->GetType()) &&
                     !underlyingTree->AsDynamicStore()->IsFlushed())
                 {
-                    return makeError(underlyingTree->AsDynamicStore())
-                        << TErrorAttribute("table_id", tablet->GetTable()->GetId());
+                    return makeError(underlyingTree->AsDynamicStore());
                 }
-            } else if (child->GetType() == EObjectType::OrderedDynamicTabletStore) {
+            } else if (IsDynamicTabletStoreType(child->GetType())) {
                 const auto* dynamicStore = child->AsDynamicStore();
                 if (!dynamicStore->IsFlushed()) {
-                    return makeError(dynamicStore)
-                        << TErrorAttribute("table_id", tablet->GetTable()->GetId());
+                    return makeError(dynamicStore);
                 }
             }
         }
 
         return {};
+    }
+
+    TError ApplyRowIndexBackupCutoff(TTablet* tablet)
+    {
+        auto* chunkList = tablet->GetChunkList();
+        YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
+
+        const auto& descriptor = *tablet->BackupCutoffDescriptor();
+
+        if (tablet->GetTrimmedRowCount() > descriptor.CutoffRowIndex) {
+            return TError("Cannot backup ordered tablet %v since it is trimmed "
+                "beyond cutoff row index",
+                tablet->GetId())
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
+                << TErrorAttribute("trimmed_row_count", tablet->GetTrimmedRowCount())
+                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex);
+        }
+
+        // CopyChunkListsIfShared must be done before cutoff chunk index is calculated
+        // because it omits trimmed chunks and thus may shift chunk indexes.
+        CopyChunkListsIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
+        chunkList = tablet->GetChunkList();
+
+        int cutoffChildIndex = 0;
+        const auto& children = chunkList->Children();
+        const auto& statistics = chunkList->CumulativeStatistics();
+
+        auto wrapInternalErrorAndLog = [&] (TError innerError) {
+            innerError = innerError
+                << TErrorAttribute("table_id", tablet->GetTable()->GetId())
+                << TErrorAttribute("tablet_id", tablet->GetId())
+                << TErrorAttribute("cutoff_row_index", descriptor.CutoffRowIndex)
+                << TErrorAttribute("next_dynamic_store_id", descriptor.NextDynamicStoreId)
+                << TErrorAttribute("cutoff_child_index", cutoffChildIndex);
+            auto error = TError("Cannot backup ordered tablet due to an internal error")
+                << innerError;
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error, "Failed to perform backup cutoff");
+            return error;
+        };
+
+        bool hitDynamicStore = false;
+
+        while (cutoffChildIndex < ssize(children)) {
+            i64 cumulativeRowCount = statistics.GetPreviousSum(cutoffChildIndex).RowCount;
+            const auto* child = children[cutoffChildIndex];
+
+            if (child && child->GetId() == descriptor.NextDynamicStoreId) {
+                if (cumulativeRowCount > descriptor.CutoffRowIndex) {
+                    auto error = TError("Cumulative row count at the cutoff dynamic store "
+                        "is greater than expected")
+                        << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
+                    return wrapInternalErrorAndLog(error);
+                }
+
+                hitDynamicStore = true;
+                break;
+            }
+
+            if (cumulativeRowCount > descriptor.CutoffRowIndex) {
+                auto error = TError("Cumulative row count exceeded cutoff row index")
+                    << TErrorAttribute("cumulative_row_count", cumulativeRowCount);
+                return wrapInternalErrorAndLog(error);
+
+            }
+
+            if (cumulativeRowCount == descriptor.CutoffRowIndex) {
+                break;
+            }
+
+            ++cutoffChildIndex;
+        }
+
+        if (statistics.GetPreviousSum(cutoffChildIndex).RowCount != descriptor.CutoffRowIndex &&
+            !hitDynamicStore)
+        {
+            auto error = TError("Row count at final cutoff child index does not match cutoff row index")
+                << TErrorAttribute("cumulative_row_count", statistics.GetPreviousSum(cutoffChildIndex).RowCount);
+            return wrapInternalErrorAndLog(error);
+        }
+
+        if (cutoffChildIndex == ssize(chunkList->Children())) {
+            return {};
+        }
+
+        auto oldStatistics = GetTabletStatistics(tablet);
+        auto* table = tablet->GetTable();
+        table->DiscountTabletStatistics(oldStatistics);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        std::vector<TChunkTree*> childrenToDetach(
+            chunkList->Children().data() + cutoffChildIndex,
+            chunkList->Children().data() + ssize(children));
+        chunkManager->DetachFromChunkList(
+            chunkList,
+            childrenToDetach,
+            EChunkDetachPolicy::OrderedTabletSuffix);
+
+        auto newStatistics = GetTabletStatistics(tablet);
+        table->AccountTabletStatistics(newStatistics);
+
+        return {};
+    }
+
+    void ApplyDynamicStoreListBackupCutoff(TTablet* tablet)
+    {
+        auto* chunkList = tablet->GetChunkList();
+        YT_VERIFY(chunkList->GetKind() == EChunkListKind::SortedDynamicTablet);
+
+        const auto& descriptor = *tablet->BackupCutoffDescriptor();
+
+        std::vector<TChunkTree*> storesToDetach;
+        // NB: cannot use tablet->DynamicStores() since dynamic stores in the chunk list
+        // in fact belong to the other tablet and are not linked with this one.
+        for (auto* child : EnumerateStoresInChunkTree(tablet->GetChunkList())) {
+            if (child->GetType() != EObjectType::SortedDynamicTabletStore) {
+                continue;
+            }
+            if (!descriptor.DynamicStoreIdsToKeep.contains(child->GetId())) {
+                storesToDetach.push_back(child);
+            }
+        }
+
+        if (storesToDetach.empty()) {
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Detaching unneeded dynamic stores from tablet after backup "
+            "(TabletId: %v, DynamicStoreIds: %v)",
+            tablet->GetId(),
+            MakeFormattableView(
+                storesToDetach,
+                TObjectIdFormatter{}));
+
+        CopyChunkListsIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex());
+        chunkList = tablet->GetChunkList();
+
+
+        auto oldStatistics = GetTabletStatistics(tablet);
+        auto* table = tablet->GetTable();
+        table->DiscountTabletStatistics(oldStatistics);
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->DetachFromChunkList(
+            chunkList,
+            storesToDetach,
+            EChunkDetachPolicy::SortedTablet);
+
+        auto newStatistics = GetTabletStatistics(tablet);
+        table->AccountTabletStatistics(newStatistics);
     }
 
     int DoReshardTable(
@@ -5261,8 +5397,7 @@ private:
                     continue;
                 }
 
-
-                PopulateTableReplicaInfoFromStatistics(replicaInfo, protoReplicaInfo.statistics());
+                replicaInfo->MergeFrom(protoReplicaInfo.statistics());
 
                 replicaInfo->SetHasError(protoReplicaInfo.has_error());
                 replicationErrorCount += protoReplicaInfo.has_error();
@@ -6543,7 +6678,7 @@ private:
         auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
 
-        if (!table->IsSorted() && IsDynamicStoreReadEnabled(table) && updateReason == ETabletStoresUpdateReason::Flush) {
+        if (!table->IsPhysicallySorted() && IsDynamicStoreReadEnabled(table) && updateReason == ETabletStoresUpdateReason::Flush) {
             // NB: Flushing ordered tablet requires putting a certain chunk in place of a certain dynamic store.
 
             const auto& children = tabletChunkList->Children();
@@ -7304,7 +7439,7 @@ private:
 
     bool IsDynamicStoreReadEnabled(const TTableNode* table)
     {
-        if (table->IsPhysicallyLog()) {
+        if (table->IsPhysicallyLog() && !table->IsReplicated()) {
             return false;
         }
 
@@ -7492,7 +7627,7 @@ private:
                         THROW_ERROR_EXCEPTION("Cannot backup table that was recently restored and still "
                             "has some restrictions");
                     }
-                    if (trunkNode->IsPhysicallyLog()) {
+                    if (trunkNode->IsPhysicallyLog() && !trunkNode->IsReplicated()) {
                         THROW_ERROR_EXCEPTION("Cannot backup a table of type %Qlv",
                             trunkNode->GetType());
                     }
@@ -7502,7 +7637,7 @@ private:
                     if (trunkNode->GetBackupState() != ETableBackupState::BackupCompleted) {
                         THROW_ERROR_EXCEPTION("Cannot restore table since it is not a backup table");
                     }
-                    if (trunkNode->IsPhysicallyLog()) {
+                    if (trunkNode->IsPhysicallyLog() && !trunkNode->IsReplicated()) {
                         THROW_ERROR_EXCEPTION("Cannot restore a table of type %Qlv",
                             trunkNode->GetType());
                     }
@@ -7529,16 +7664,12 @@ private:
         descriptor->set_mode(ToProto<int>(replica->GetMode()));
         descriptor->set_preserve_timestamps(replica->GetPreserveTimestamps());
         descriptor->set_atomicity(ToProto<int>(replica->GetAtomicity()));
-        PopulateTableReplicaStatisticsFromInfo(descriptor->mutable_statistics(), info);
+        info.Populate(descriptor->mutable_statistics());
     }
 
-    static void PopulateTableReplicaStatisticsFromInfo(TTableReplicaStatistics* statistics, const TTableReplicaInfo& info)
-    {
-        statistics->set_committed_replication_row_index(info.GetCommittedReplicationRowIndex());
-        statistics->set_current_replication_timestamp(info.GetCurrentReplicationTimestamp());
-    }
-
-    static void PopulateTableReplicaInfoFromStatistics(TTableReplicaInfo* info, const TTableReplicaStatistics& statistics)
+    static void PopulateTableReplicaInfoFromStatistics(
+        TTableReplicaInfo* info,
+        const NTabletClient::NProto::TTableReplicaStatistics& statistics)
     {
         // Updates may be reordered but we can rely on monotonicity here.
         info->SetCommittedReplicationRowIndex(std::max(
@@ -7985,9 +8116,9 @@ TError TTabletManager::PromoteFlushedDynamicStores(TTablet* tablet)
     return Impl_->PromoteFlushedDynamicStores(tablet);
 }
 
-TError TTabletManager::ApplyCutoffRowIndex(TTablet* tablet)
+TError TTabletManager::ApplyBackupCutoff(TTablet* tablet)
 {
-    return Impl_->ApplyCutoffRowIndex(tablet);
+    return Impl_->ApplyBackupCutoff(tablet);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

@@ -5,6 +5,7 @@
 #include "tablet_slot.h"
 #include "tablet_manager.h"
 #include "bootstrap.h"
+#include "tablet_cell_write_manager.h"
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "store_manager.h"
@@ -20,7 +21,13 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/ytlib/tablet_client/backup.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <library/cpp/iterator/functools.h>
 
 namespace NYT::NTabletNode {
 
@@ -29,12 +36,132 @@ using namespace NHydra;
 using namespace NClusterNode;
 using namespace NYTree;
 using namespace NTransactionClient;
+using namespace NApi;
+using namespace NTabletClient;
+using namespace NObjectClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
 
 using NLsm::EStoreRotationReason;
 
+////////////////////////////////////////////////////////////////////////////////
+/**
+
+    Overview
+
+Typical lifetime of a tablet being backed up is as follows (all actions are
+persistent by default and transient if marked with (T)):
+- receive backup checkpoint timestamp from master. At this moment some activities
+  are restricted, e.g. merge_rows_on_flush is disabled until backup finishes;
+- (T) schedule checkpoint feasibility check: that is, validate that checkpoint
+  timestamp has not yet occured;
+- (T) generate timestamp and schedule confirmation mutation;
+- confirm checkpoint timestamp and start waiting for it to come;
+- when checkpoint timestamp has passed (that is noticed by either more recent
+  serialized transaction or by barrier timestamp):
+    - if tablet does not participates in replication from either side, report
+      checkpoint passage to master immediately;
+    - if it does, wait for all replication transactions to finish and report
+      only after that;
+- release checkpoint timestamp upon request from master. All restrictions become
+  void at this moment, the backup is finished.
+
+
+    Cutoffs for different table kinds
+
+Backup is determined by a certain timestamp, so-called checkpoint timestamp.
+Generally we want to have only transactions committed before checkpoint timestamp
+(inclusive) to be included into the backup. This applies to both write and
+replication transactions. Description of how tables of different kinds deal with
+checkpoint timestamp follows.
+
+- Sorted tables: we are waiting for all acceptable transactions to be commited
+    (this is guaranteed by barrier timestamp). Later chunk views with clip
+    timestamp is added by master, so we don't care about committed rows with
+    greater timestamps.
+- Ordered tables, commit_ordering=strong: we are waiting for all acceptable
+    transactions to be serialized and perform store rotation at the moment when
+    last such transaction is serialized. This moment is determined either by
+    barrier timestamp or by trying to serialize a transaction with commit timestamp
+    exceeding barrier timestamp. The position of the rotated store is sent to
+    master (see TRowIndexCutoffDescriptor).
+- Sorted replicated tables: regarding log part, replicated tables are similar
+    to ordered ones. Sync replicas do not require additional care (we require
+    for them to be in sync to start the backup).
+      As for async replicas, only replication transactions committed before
+    checkpoint should be accounted.  We ensure that no replication transaction
+    overlaps checkpoint timestamp with its start and commit timestamps (and
+    if it does, backup is aborted).  When checkpoint timestamp has passed for
+    the log, we additionally wait for all prepared replication transactions,
+    save replication progress and report success only after that.
+      Replication remains disabled until checkpoint is released.
+- Sorted sync replicas: similar to regular sorted table expect for clock source.
+- Sorted async replicas: after checkpoint has passed, we wait for all prepared
+    replication transactions to finish. After that the tablet rotates active
+    store and reports success, sending the list of backupable dynamic stores
+    to the master. Replication is disabled until table is cloned: it guarantees
+    that no sequence of flushes and compactions can construct a chunk with rows
+    committed after the checkpoint.
+
+
+    Stages (denoted with EBackupStage)
+
+None: tablet is not participating in the backup.
+TimestampReceived: tablet has started participating in the backup.
+FeasibilityConfirmed: tablet has confirmed that checkpoint timestamp was received
+  before it happened and is waiting for checkpoint passage.
+AwaitingReplicationFinish: checkpoint timestamp has passed, the tablet is waiting
+  for replication in progress to finish.
+RespondedToMasterSuccess: tablet's active articipation in the backup is finished
+  by passing checkpoint and confirming it.
+RespondedToMasterFailure: tablet's active articipation in the backup is finished
+  by rejecting the checkpoint.
+
+
+    Transitions between stages
+
+All stages and transitions are persistent.
+
+None:
+  -> TimestampReceived: timestamp is received from master, start backup.
+
+TimestampReceived:
+  -> None: backup was cancelled for any reason.
+  -> RespondedToMasterFailure: reject immediately if replicas have unexpected
+      statuses.
+  -> RespondedToMasterFailure: reject in feasibility check if fresh timestamp
+      exceeds checkpoint timestamp.
+  -> RespondedToMasterFailure: reject if transaction with greater timestamp is
+      serialized before feasibility check mutation was commited.
+  -> FeasibilityConfirmed: confirm feasibility check if fresh timestamp is fine.
+
+FeasibilityConfirmed:
+  -> None: backup was cancelled for any reason.
+  -> RespondedToMasterSuccess: backup checkpoint has passed successfully.
+      success or was not ready and reported failure (e.g. in case of lacking spare
+      dynamic store id necessary for store rotation).
+  -> RespondedToMasterFailure: backup checkpoint has passed, tablet was not ready
+      and reported failure (e.g. in case of lacking spare dynamic store id necessary
+      for store rotation).
+  -> AwaitingReplicationFinish: backup checkpoint has passed but some replication
+      transactions are still pending (prepared but not committed). Applicable for
+      replicated tables and async replicas.
+
+AwaitingReplicationFinish:
+  -> None: backup was cancelled for any reason.
+  -> RespondedToMasterSuccess/RespondedToMasterFailure: all replication transactions
+      have finished, tablet reports success (or failure, was it not ready).
+  -> FeasibilityConfirmed: technical transition for sorted async replicas
+      that immediately results in RespondedToMasterSuccess/RespondedToMasterFailure.
+
+RespondedToMasterSuccess:
+  -> None: backup was either finished or cancelled for any reason.
+
+RespondedToMasterFailure:
+  -> None: backup was cancelled.
+
+**/
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBackupManager
@@ -80,6 +207,48 @@ public:
             BIND(&TBackupManager::OnTransactionBarrierHandled, MakeStrong(this)));
         transactionManager->SubscribeBeforeTransactionSerialized(
             BIND(&TBackupManager::OnBeforeTransactionSerialized, MakeStrong(this)));
+
+        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
+        tabletCellWriteManager->SubscribeReplicatorWriteTransactionFinished(
+            BIND(&TBackupManager::OnReplicatorWriteTransactionFinished, MakeStrong(this)));
+
+        const auto& tabletManager = Slot_->GetTabletManager();
+        tabletManager->SubscribeReplicationTransactionFinished(
+            BIND(&TBackupManager::OnReplicationTransactionFinished, MakeStrong(this)));
+    }
+
+    void ValidateReplicationTransactionCommit(
+        TTablet* tablet,
+        TTransaction* transaction) override
+    {
+        auto checkpointTimestamp = tablet->GetBackupCheckpointTimestamp();
+        if (!checkpointTimestamp) {
+            return;
+        }
+
+        bool overlaps = transaction->GetStartTimestamp() <= checkpointTimestamp &&
+            transaction->GetCommitTimestamp() > checkpointTimestamp;
+        if (!overlaps) {
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Replication transaction overlaps backup checkpoint timestamp, aborting backup "
+            "(%v, StartTimestamp: %llx, CheckpointTimestamp: %llx, CommitTimestamp: %llx)",
+            tablet->GetLoggingTag(),
+            transaction->GetStartTimestamp(),
+            checkpointTimestamp,
+            transaction->GetCommitTimestamp());
+
+        auto error = TError("Backup aborted due to overlapping replication transaction")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << TErrorAttribute("table_path", tablet->GetTablePath())
+            << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp())
+            << TErrorAttribute("checkpoint_timestamp", checkpointTimestamp)
+            << TErrorAttribute("commit_timestamp", transaction->GetCommitTimestamp())
+            << TErrorAttribute("transaction_id", transaction->GetId());
+
+        OnBackupFailed(tablet, std::move(error));
     }
 
 private:
@@ -116,6 +285,20 @@ private:
         }
     };
 
+    struct TTabletAwaitingReplicationFinish
+    {
+        int PendingAsyncReplicaCount = 0;
+        NTabletServer::NProto::TReqReportBackupCheckpointPassed Request;
+
+        void Persist(const TStreamPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, PendingAsyncReplicaCount);
+            Persist(context, Request);
+        }
+    };
+
     // Tablets that received checkpoint timestamp and are waiting for it
     // to be persistently confirmed.
     // Transient.
@@ -129,6 +312,11 @@ private:
     //    affecting that tablet is pending serialization.
     // Persistent.
     std::set<TTabletWithCheckpoint> TabletsAwaitingCheckpointPassing_;
+
+    // Tablets that have passed checkpoint but still have have async replicas
+    // with prepared replicated rows.
+    // Persistent.
+    THashMap<TTabletId, TTabletAwaitingReplicationFinish> TabletsAwaitingReplicationFinish_;
 
     bool CheckpointFeasibilityCheckScheduled_ = false;
 
@@ -172,6 +360,7 @@ private:
 
         TabletsAwaitingFeasibilityCheck_.clear();
         TabletsAwaitingCheckpointPassing_.clear();
+        TabletsAwaitingReplicationFinish_.clear();
     }
 
     void Save(TSaveContext& context) const
@@ -179,6 +368,7 @@ private:
         using NYT::Save;
 
         Save(context, TabletsAwaitingCheckpointPassing_);
+        Save(context, TabletsAwaitingReplicationFinish_);
     }
 
     void Load(TLoadContext& context)
@@ -186,6 +376,10 @@ private:
         using NYT::Load;
 
         Load(context, TabletsAwaitingCheckpointPassing_);
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() >= ETabletReign::BackupsReplicated) {
+            Load(context, TabletsAwaitingReplicationFinish_);
+        }
     }
 
     void HydraSetBackupCheckpoint(NProto::TReqSetBackupCheckpoint* request)
@@ -193,6 +387,12 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto timestamp = request->timestamp();
+        auto mode = FromProto<EBackupMode>(request->backup_mode());
+        auto clockClusterTag = request->has_clock_cluster_tag()
+            ? std::make_optional(FromProto<TClusterTag>(request->clock_cluster_tag()))
+            : std::nullopt;
+        auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
+            request->replicas());
 
         const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(tabletId);
@@ -204,14 +404,37 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %llx)",
-            tabletId,
-            timestamp);
-
         tablet->SetBackupCheckpointTimestamp(timestamp);
-
         tablet->CheckedSetBackupStage(EBackupStage::None, EBackupStage::TimestampReceived);
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %llx, BackupMode: %v, "
+            "BackupableReplicaIds: %v)",
+            tabletId,
+            timestamp,
+            mode,
+            MakeFormattableView(replicaDescriptors, [&] (auto* builder, const auto& descriptor) {
+                builder->AppendFormat("%v", descriptor.ReplicaId);
+            }));
+
+        if (tablet->IsReplicated()) {
+            if (auto error = CheckReplicaStatuses(tablet, replicaDescriptors);
+                !error.IsOK())
+            {
+                error = error
+                  << TErrorAttribute("tablet_id", tablet->GetId())
+                  << TErrorAttribute("table_path", tablet->GetTablePath());
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                    "Replica statuses do not allow backup");
+                RejectCheckpoint(tablet, error, EBackupStage::TimestampReceived);
+                return;
+            }
+        }
+
+        auto& backupMetadata = tablet->BackupMetadata();
+        backupMetadata.SetBackupMode(mode);
+        backupMetadata.SetClockClusterTag(clockClusterTag);
+        backupMetadata.ReplicaBackupDescriptors() = std::move(replicaDescriptors);
 
         TabletsAwaitingFeasibilityCheck_.emplace_back(tablet);
         ScheduleCheckpointFeasibilityCheck(Config_->CheckpointFeasibilityCheckBatchPeriod);
@@ -221,14 +444,21 @@ private:
     {
         const auto& tabletManager = Slot_->GetTabletManager();
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
         auto* tablet = tabletManager->FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Backup checkpoint released (TabletId: %v)",
-            tabletId);
+            "Backup checkpoint released (%v, BackupMode: %v, BackupStage: %v)",
+            tablet->GetLoggingTag(),
+            tablet->GetBackupMode(),
+            tablet->GetBackupStage());
         YT_VERIFY(tablet->GetBackupCheckpointTimestamp());
 
         if (tablet->GetBackupStage() == EBackupStage::FeasibilityConfirmed) {
@@ -236,8 +466,14 @@ private:
             EraseOrCrash(TabletsAwaitingCheckpointPassing_, holder);
         }
 
+        if (tablet->GetBackupStage() == EBackupStage::AwaitingReplicationFinish) {
+            if (tablet->GetBackupMode() == EBackupMode::ReplicatedSorted) {
+                EraseOrCrash(TabletsAwaitingReplicationFinish_, tablet->GetId());
+            }
+        }
+
+        tablet->BackupMetadata() = {};
         tablet->SetBackupCheckpointTimestamp(NullTimestamp);
-        tablet->SetBackupStage(EBackupStage::None);
     }
 
     void HydraConfirmBackupCheckpointFeasibility(
@@ -296,14 +532,10 @@ private:
                 tablet->GetId(),
                 tablet->GetBackupCheckpointTimestamp());
 
-            tablet->CheckedSetBackupStage(EBackupStage::TimestampReceived, EBackupStage::RespondedToMaster);
-
-            NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
-            ToProto(req.mutable_tablet_id(), tabletId);
-            req.set_mount_revision(tablet->GetMountRevision());
-            req.set_confirmed(false);
-            req.mutable_error()->CopyFrom(rejectedInfo.error());
-            Slot_->PostMasterMessage(tabletId, req);
+            RejectCheckpoint(
+                tablet,
+                FromProto<TError>(rejectedInfo.error()),
+                EBackupStage::TimestampReceived);
         }
     }
 
@@ -328,7 +560,9 @@ private:
         YT_VERIFY(!HasMutationContext());
 
         try {
-            DoCheckCheckpointFeasibility();
+            while (!TabletsAwaitingFeasibilityCheck_.empty()) {
+                DoCheckCheckpointFeasibility();
+            }
 
             // NB: Reset the flag after the call since DoCheckCheckpointFeasibility may yield
             // and that can lead to another check scheduled while the first one is still in progress.
@@ -341,23 +575,60 @@ private:
         }
     }
 
-    void DoCheckCheckpointFeasibility()
+    std::vector<TTimestamp> GenerateTimestamps(const std::vector<std::optional<TClusterTag>>& clockClusterTags)
     {
-        if (TabletsAwaitingFeasibilityCheck_.empty()) {
-            return;
+        std::vector<TFuture<TTimestamp>> asyncTimestamps;
+        const auto& localConnection = Bootstrap_->GetMasterConnection();
+        const auto& clusterDirectory = localConnection->GetClusterDirectory();
+
+        for (auto clusterTag : clockClusterTags) {
+            NNative::IConnectionPtr connection;
+            if (clusterTag) {
+                connection = MakeStrong(
+                    dynamic_cast<NNative::IConnection*>(
+                        clusterDirectory->GetConnectionOrThrow(*clusterTag).Get()));
+            } else {
+                connection = localConnection;
+            }
+
+            const auto& timestampProvider = connection->GetTimestampProvider();
+            asyncTimestamps.push_back(timestampProvider->GenerateTimestamps());
         }
 
-        const auto& timestampProvider = Bootstrap_
-            ->GetMasterConnection()
-            ->GetTimestampProvider();
-        auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
+        return WaitFor(AllSucceeded(asyncTimestamps))
             .ValueOrThrow();
+    }
+
+    void DoCheckCheckpointFeasibility()
+    {
+        const auto& tabletManager = Slot_->GetTabletManager();
+
+        auto tabletsAwaitingCheck = std::move(TabletsAwaitingFeasibilityCheck_);
+        TabletsAwaitingFeasibilityCheck_.clear();
+
+        std::vector<std::optional<TClusterTag>> clockClusterTags;
+        for (const auto& tabletWithCheckpoint : tabletsAwaitingCheck) {
+            auto* tablet = tabletManager->FindTablet(tabletWithCheckpoint.TabletId);
+            if (!tablet) {
+                continue;
+            }
+            auto clusterTag = tablet->BackupMetadata().GetClockClusterTag();
+            if (std::count(clockClusterTags.begin(), clockClusterTags.end(), clusterTag) == 0) {
+                clockClusterTags.push_back(clusterTag);
+            }
+        }
+
+        auto currentTimestamps = GenerateTimestamps(clockClusterTags);
+
+        auto timestampByClusterTag = [&] (std::optional<TClusterTag> clusterTag) {
+            auto it = std::find(clockClusterTags.begin(), clockClusterTags.end(), clusterTag);
+            YT_VERIFY(it != clockClusterTags.end());
+            return currentTimestamps[it - clockClusterTags.begin()];
+        };
 
         NProto::TReqConfirmBackupCheckpointFeasibility req;
 
-        const auto& tabletManager = Slot_->GetTabletManager();
-
-        for (auto tabletWithCheckpoint : TabletsAwaitingFeasibilityCheck_) {
+        for (auto tabletWithCheckpoint : tabletsAwaitingCheck) {
             auto* tablet = tabletManager->FindTablet(tabletWithCheckpoint.TabletId);
             if (!tablet) {
                 continue;
@@ -371,21 +642,27 @@ private:
                 continue;
             }
 
+            auto clusterTag = tablet->BackupMetadata().GetClockClusterTag();
+            auto currentTimestamp = timestampByClusterTag(clusterTag);
+
             if (tablet->GetBackupCheckpointTimestamp() > currentTimestamp) {
                 YT_LOG_DEBUG("Transiently confirmed backup checkpoint feasibility "
-                    "(TabletId: %v, CheckpointTimestamp: %llx)",
+                    "(TabletId: %v, CheckpointTimestamp: %llx, ClockClusterTag: %v)",
                     tablet->GetId(),
-                    tablet->GetBackupCheckpointTimestamp());
+                    tablet->GetBackupCheckpointTimestamp(),
+                    clusterTag);
 
                 auto* confirmedInfo = req.add_confirmed_tablets();
                 ToProto(confirmedInfo->mutable_tablet_id(), tablet->GetId());
                 confirmedInfo->set_timestamp(tablet->GetBackupCheckpointTimestamp());
             } else {
-                YT_LOG_DEBUG("Transiently rejected checkpoint feasibility "
-                    "(TabletId: %v, CheckpointTimestamp: %llx, CurrentTimestamp: %llx)",
+                YT_LOG_DEBUG("Transiently rejected backup checkpoint feasibility "
+                    "(TabletId: %v, CheckpointTimestamp: %llx, CurrentTimestamp: %llx, "
+                    "ClusterTag: %v)",
                     tablet->GetId(),
                     tablet->GetBackupCheckpointTimestamp(),
-                    currentTimestamp);
+                    currentTimestamp,
+                    clusterTag);
 
                 auto rejectedInfo = req.add_rejected_tablets();
                 ToProto(rejectedInfo->mutable_tablet_id(), tablet->GetId());
@@ -393,19 +670,80 @@ private:
                     << TErrorAttribute("checkpoint_timestamp", tablet->GetBackupCheckpointTimestamp())
                     << TErrorAttribute("current_timestamp", currentTimestamp)
                     << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("cell_id", Slot_->GetCellId());
+                    << TErrorAttribute("cell_id", Slot_->GetCellId())
+                    << TErrorAttribute("clock_cluster_tag", clusterTag);
                 ToProto(rejectedInfo->mutable_error(), error.Sanitize());
             }
         }
-
-        TabletsAwaitingFeasibilityCheck_.clear();
 
         if (req.confirmed_tablets().size() + req.rejected_tablets().size() > 0) {
             Slot_->CommitTabletMutation(req);
         }
     }
 
-    void ReportCheckpointPassage(TTablet* tablet)
+    void OnBackupFailed(TTablet* tablet, TError error)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto stage = tablet->GetBackupStage();
+
+        if (stage == EBackupStage::None || stage == EBackupStage::RespondedToMasterFailure) {
+            return;
+        }
+
+        if (stage == EBackupStage::RespondedToMasterSuccess) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error,
+                "Attempted to abort tablet backup when it has already reported success "
+                "to master (%v)",
+                tablet->GetLoggingTag());
+            return;
+        }
+
+        if (stage == EBackupStage::FeasibilityConfirmed) {
+            TTabletWithCheckpoint holder(tablet);
+            EraseOrCrash(TabletsAwaitingCheckpointPassing_, tablet);
+        }
+
+        if (tablet->GetBackupStage() == EBackupStage::AwaitingReplicationFinish &&
+            tablet->GetBackupMode() == EBackupMode::ReplicatedSorted)
+        {
+            EraseOrCrash(TabletsAwaitingReplicationFinish_, tablet->GetId());
+        }
+
+        RejectCheckpoint(tablet, std::move(error), stage);
+    }
+
+    void RejectCheckpoint(TTablet* tablet, TError error, EBackupStage expectedStage)
+    {
+        NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
+        ToProto(req.mutable_tablet_id(), tablet->GetId());
+        req.set_mount_revision(tablet->GetMountRevision());
+        req.set_confirmed(false);
+        ToProto(req.mutable_error(), error.Sanitize());
+        Slot_->PostMasterMessage(tablet->GetId(), req);
+
+        tablet->CheckedSetBackupStage(expectedStage, EBackupStage::RespondedToMasterFailure);
+        tablet->BackupMetadata().SetLastPassedCheckpointTimestamp(
+            tablet->GetBackupCheckpointTimestamp());
+    }
+
+    static bool NeedsRowIndexCutoff(const TTablet* tablet)
+    {
+        auto backupMode = tablet->GetBackupMode();
+        return backupMode == EBackupMode::ReplicatedSorted ||
+            backupMode == EBackupMode::OrderedStrongCommitOrdering ||
+            backupMode == EBackupMode::OrderedExact ||
+            backupMode == EBackupMode::OrderedAtLeast ||
+            backupMode == EBackupMode::OrderedAtMost;
+    }
+
+    static bool NeedsDynamicStoreListCutoff(const TTablet* tablet)
+    {
+        auto backupMode = tablet->GetBackupMode();
+        return backupMode == EBackupMode::SortedAsyncReplica;
+    }
+
+    void OnCheckpointPassed(TTablet* tablet)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -413,15 +751,22 @@ private:
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         req.set_mount_revision(tablet->GetMountRevision());
 
-        auto respond = [&] {
+        auto respond = [&] (bool success) {
             Slot_->PostMasterMessage(tablet->GetId(), req);
-            tablet->CheckedSetBackupStage(EBackupStage::FeasibilityConfirmed, EBackupStage::RespondedToMaster);
+            tablet->CheckedSetBackupStage(
+                EBackupStage::FeasibilityConfirmed,
+                success
+                    ? EBackupStage::RespondedToMasterSuccess
+                    : EBackupStage::RespondedToMasterFailure);
+            tablet->BackupMetadata().SetLastPassedCheckpointTimestamp(
+                tablet->GetBackupCheckpointTimestamp());
         };
 
-        if (tablet->IsPhysicallyOrdered() && tablet->GetCommitOrdering() == ECommitOrdering::Strong) {
-            auto* cutoffDescriptor = req.mutable_row_index_cutoff_descriptor();
-            cutoffDescriptor->set_cutoff_row_index(tablet->GetTotalRowCount());
+        if (tablet->GetBackupMode() == EBackupMode::SortedAsyncReplica) {
+            YT_VERIFY(tablet->PreparedReplicatorTransactionIds().empty());
+        }
 
+        if (NeedsDynamicStoreListCutoff(tablet) || NeedsRowIndexCutoff(tablet)) {
             // Active store is non-empty, should rotate.
             if (const auto& activeStore = tablet->GetActiveStore();
                 activeStore && activeStore->GetRowCount() > 0)
@@ -438,8 +783,9 @@ private:
                         << TErrorAttribute("tablet_state", tablet->GetState())
                         << TErrorAttribute("cell_id", Slot_->GetCellId());
                     ToProto(req.mutable_error(), error.Sanitize());
+                    req.set_confirmed(false);
 
-                    respond();
+                    respond(false);
                     return;
                 }
 
@@ -453,12 +799,23 @@ private:
                         tablet->GetId())
                         << TErrorAttribute("cell_id", Slot_->GetCellId());
                     ToProto(req.mutable_error(), error.Sanitize());
+                    req.set_confirmed(false);
 
-                    respond();
+                    respond(false);
                     return;
                 }
 
+                auto previousStoreId = activeStore->GetId();
+
                 tablet->GetStoreManager()->Rotate(/*createNewStore*/ true, EStoreRotationReason::None);
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Store rotated to perform backup cutoff (%v, PreviousStoreId: %v, "
+                    "NextStoreId: %v, BackupMode: %v)",
+                    tablet->GetLoggingTag(),
+                    previousStoreId,
+                    tablet->GetActiveStore()->GetId(),
+                    tablet->GetBackupMode());
 
                 const auto& tabletManager = Slot_->GetTabletManager();
                 tabletManager->UpdateTabletSnapshot(tablet);
@@ -471,13 +828,91 @@ private:
                 }
             }
 
-            if (const auto& activeStore = tablet->GetActiveStore()) {
-                ToProto(cutoffDescriptor->mutable_next_dynamic_store_id(), activeStore->GetId());
+            if (NeedsRowIndexCutoff(tablet)) {
+                auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_row_index_descriptor();
+                cutoffDescriptor->set_cutoff_row_index(tablet->GetTotalRowCount());
+
+                TDynamicStoreId nextDynamicStoreId;
+                if (const auto& activeStore = tablet->GetActiveStore()) {
+                    ToProto(cutoffDescriptor->mutable_next_dynamic_store_id(), activeStore->GetId());
+                    nextDynamicStoreId = activeStore->GetId();
+                }
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Backup row index cutoff descriptor generated (%v, RowIndex: %v, NextDynamicStoreId: %v)",
+                    tablet->GetLoggingTag(),
+                    tablet->GetTotalRowCount(),
+                    nextDynamicStoreId);
+            } else if (NeedsDynamicStoreListCutoff(tablet)) {
+                auto* cutoffDescriptor = req.mutable_cutoff_descriptor()->mutable_dynamic_store_list_descriptor();
+                std::vector<TDynamicStoreId> storeIdsToKeep;
+                for (const auto& store : tablet->GetEden()->Stores()) {
+                    if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
+                        storeIdsToKeep.push_back(store->GetId());
+                    }
+                }
+                ToProto(cutoffDescriptor->mutable_dynamic_store_ids_to_keep(), storeIdsToKeep);
+
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Backup dynamic store list cutoff descriptor generated (%v, DynamicStoreIdsToKeep: %v)",
+                    tablet->GetLoggingTag(),
+                    storeIdsToKeep);
+            }
+        }
+
+        if (tablet->GetBackupMode() == EBackupMode::ReplicatedSorted) {
+            int pendingAsyncReplicaCount = 0;
+
+            for (const auto& descriptor : tablet->BackupMetadata().ReplicaBackupDescriptors()) {
+                const auto& replicaInfo = tablet->Replicas()[descriptor.ReplicaId];
+
+                auto* protoReplicaInfo = req.add_replicas();
+                ToProto(protoReplicaInfo ->mutable_replica_id(), descriptor.ReplicaId);
+
+                auto* statistics = protoReplicaInfo ->mutable_replica_statistics();
+                switch (replicaInfo.GetMode()) {
+                    case ETableReplicaMode::Sync:
+                        statistics->set_committed_replication_row_index(tablet->GetTotalRowCount());
+                        break;
+
+                    case ETableReplicaMode::Async:
+                        if (replicaInfo.GetPreparedReplicationTransactionId()) {
+                            ++pendingAsyncReplicaCount;
+                        } else {
+                            YT_ASSERT(replicaInfo.GetCommittedReplicationRowIndex() ==
+                                replicaInfo.GetCurrentReplicationRowIndex());
+                            statistics->set_committed_replication_row_index(
+                                replicaInfo.GetCommittedReplicationRowIndex());
+                        }
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
+            }
+
+            if (pendingAsyncReplicaCount > 0) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Backup checkpoint confirmation is delayed by replication in progress "
+                    "(%v, PendingAsyncReplicaCount: %v)",
+                    tablet->GetLoggingTag(),
+                    pendingAsyncReplicaCount);
+                tablet->CheckedSetBackupStage(
+                    EBackupStage::FeasibilityConfirmed,
+                    EBackupStage::AwaitingReplicationFinish);
+                EmplaceOrCrash(
+                    TabletsAwaitingReplicationFinish_,
+                    tablet->GetId(),
+                    TTabletAwaitingReplicationFinish{
+                        .PendingAsyncReplicaCount = pendingAsyncReplicaCount,
+                        .Request = std::move(req),
+                    });
+                return;
             }
         }
 
         req.set_confirmed(true);
-        respond();
+        respond(true);
     }
 
     void OnTransactionBarrierHandled(TTimestamp barrierTimestamp)
@@ -504,7 +939,21 @@ private:
                 break;
             }
 
-            ReportCheckpointPassage(tablet);
+            if (tablet->GetBackupMode() == EBackupMode::SortedAsyncReplica &&
+                !tablet->PreparedReplicatorTransactionIds().empty())
+            {
+                tablet->CheckedSetBackupStage(
+                    EBackupStage::FeasibilityConfirmed,
+                    EBackupStage::AwaitingReplicationFinish);
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                    "Tablet has passed backup checkpoint but still has replicator writes "
+                    "in progress (%v, PreparedTransactionCount: %v)",
+                    tablet->GetLoggingTag(),
+                    std::ssize(tablet->PreparedReplicatorTransactionIds()));
+                continue;
+            }
+
+            OnCheckpointPassed(tablet);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Reported backup checkpoint passage by barrier timestamp "
@@ -538,7 +987,7 @@ private:
                 auto holder = TTabletWithCheckpoint(tablet);
                 EraseOrCrash(TabletsAwaitingCheckpointPassing_, holder);
 
-                ReportCheckpointPassage(tablet);
+                OnCheckpointPassed(tablet);
 
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Reported backup checkpoint passage due to a transaction "
@@ -557,10 +1006,6 @@ private:
                     checkpointTimestamp,
                     commitTimestamp);
 
-                tablet->CheckedSetBackupStage(
-                    EBackupStage::TimestampReceived,
-                    EBackupStage::RespondedToMaster);
-
                 auto error = TError("Failed to confirm checkpoint timestamp in time "
                     "due to a transaction with later timestamp")
                     << TErrorAttribute("checkpoint_timestamp", checkpointTimestamp)
@@ -568,14 +1013,132 @@ private:
                     << TErrorAttribute("tablet_id", tablet->GetId())
                     << TErrorAttribute("cell_id", Slot_->GetCellId());
 
-                NTabletServer::NProto::TReqReportBackupCheckpointPassed req;
-                ToProto(req.mutable_tablet_id(), tablet->GetId());
-                req.set_mount_revision(tablet->GetMountRevision());
-                req.set_confirmed(false);
-                ToProto(req.mutable_error(), error.Sanitize());
-                Slot_->PostMasterMessage(tablet->GetId(), req);
+                RejectCheckpoint(tablet, error, EBackupStage::TimestampReceived);
             }
         }
+    }
+
+    void OnReplicatorWriteTransactionFinished(TTablet* tablet)
+    {
+        if (!tablet->GetBackupCheckpointTimestamp()) {
+            return;
+        }
+
+        if (tablet->GetBackupStage() != EBackupStage::AwaitingReplicationFinish) {
+            return;
+        }
+
+        if (!tablet->PreparedReplicatorTransactionIds().empty()) {
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "All replicator write transactions finished (%v)",
+            tablet->GetLoggingTag());
+
+        YT_VERIFY(tablet->GetBackupMode() == EBackupMode::SortedAsyncReplica);
+        tablet->CheckedSetBackupStage(
+            EBackupStage::AwaitingReplicationFinish,
+            EBackupStage::FeasibilityConfirmed);
+        OnCheckpointPassed(tablet);
+    }
+
+    void OnReplicationTransactionFinished(
+        TTablet* tablet,
+        const TTableReplicaInfo* replicaInfo)
+    {
+        if (!tablet->GetBackupCheckpointTimestamp()) {
+            return;
+        }
+
+        if (tablet->GetBackupStage() != EBackupStage::AwaitingReplicationFinish) {
+            return;
+        }
+
+        YT_VERIFY(tablet->GetBackupMode() == EBackupMode::ReplicatedSorted);
+        YT_VERIFY(!replicaInfo->GetPreparedReplicationTransactionId());
+
+        auto it = TabletsAwaitingReplicationFinish_.find(tablet->GetId());
+        YT_VERIFY(it != TabletsAwaitingReplicationFinish_.end());
+
+        int replicaIndex = -1;
+        for (const auto& [index, replicaDescriptor] :
+            Enumerate(tablet->BackupMetadata().ReplicaBackupDescriptors()))
+        {
+            if (replicaInfo->GetId() == replicaDescriptor.ReplicaId) {
+                replicaIndex = index;
+                break;
+            }
+        }
+
+        if (replicaIndex == -1) {
+            return;
+        }
+
+        auto& request = it->second.Request;
+        auto* statistics = request
+            .mutable_replicas(replicaIndex)
+            ->mutable_replica_statistics();
+
+        YT_VERIFY(!statistics->has_committed_replication_row_index());
+        YT_ASSERT(replicaInfo->GetCurrentReplicationRowIndex() ==
+            replicaInfo->GetCommittedReplicationRowIndex());
+
+        statistics->set_committed_replication_row_index(
+            replicaInfo->GetCommittedReplicationRowIndex());
+
+        if (--it->second.PendingAsyncReplicaCount == 0) {
+            request.set_confirmed(true);
+            Slot_->PostMasterMessage(tablet->GetId(), request);
+            TabletsAwaitingReplicationFinish_.erase(tablet->GetId());
+
+            tablet->CheckedSetBackupStage(
+                EBackupStage::AwaitingReplicationFinish,
+                EBackupStage::RespondedToMasterSuccess);
+            tablet->BackupMetadata().SetLastPassedCheckpointTimestamp(
+                tablet->GetBackupCheckpointTimestamp());
+        }
+    }
+
+    TError CheckReplicaStatuses(
+        const TTablet* tablet,
+        const std::vector<TTableReplicaBackupDescriptor>& replicaDescriptors)
+    {
+        const auto& replicas = tablet->Replicas();
+        for (const auto& descriptor : replicaDescriptors) {
+            auto it = replicas.find(descriptor.ReplicaId);
+            if (it == replicas.end()) {
+                return TError("Unknown replica %v", descriptor.ReplicaId);
+            }
+
+            const auto& replica = it->second;
+
+            switch (descriptor.Mode) {
+                case ETableReplicaMode::Sync:
+                    if (replica.GetStatus() != ETableReplicaStatus::SyncInSync) {
+                        return TError("Sync replica %v is not in sync",
+                            replica.GetId())
+                            << TErrorAttribute("replica_status", replica.GetStatus());
+                    }
+                    break;
+
+                case ETableReplicaMode::Async:
+                    if (replica.GetStatus() != ETableReplicaStatus::AsyncInSync &&
+                        replica.GetStatus() != ETableReplicaStatus::AsyncCatchingUp)
+                    {
+                        return TError("Async replica %v has synchronous writes in progress",
+                            replica.GetId())
+                            << TErrorAttribute("replica_status", replica.GetStatus());
+
+                    }
+                    break;
+
+                default:
+                    return TError("Unsupported replica mode %Qlv", descriptor.Mode);
+            }
+        }
+
+        return {};
     }
 };
 

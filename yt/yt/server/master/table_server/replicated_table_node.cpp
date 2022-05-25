@@ -41,7 +41,9 @@ const TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas() const
 
 TReplicatedTableNode::TReplicaSet& TReplicatedTableNode::Replicas()
 {
-    YT_ASSERT(IsTrunk());
+    if (!IsTrunk()) {
+        return GetTrunkNode()->As<TReplicatedTableNode>()->Replicas();
+    }
     return Replicas_;
 }
 

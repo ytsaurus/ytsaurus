@@ -1,5 +1,6 @@
 package NYT.NTabletServer.NProto;
 
+import "yt/ytlib/tablet_client/proto/heartbeat.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 
@@ -17,6 +18,11 @@ message TReqFinishRestore
     required NYT.NProto.TGuid transaction_id = 2;
 }
 
+message TReqResetBackupMode
+{
+    required NYT.NProto.TGuid table_id = 1;
+}
+
 //! Denotes a position in an ordered tablet between two dynamic stores.
 //! The position is uniquely identified by each of |cutoff_row_index|
 //! (the first row index after the cutoff) and |next_dynamic_store_id|
@@ -31,6 +37,19 @@ message TRowIndexCutoffDescriptor
     optional NYT.NProto.TGuid next_dynamic_store_id = 2;
 }
 
+message TDynamicStoreListCutoffDescriptor
+{
+    repeated NYT.NProto.TGuid dynamic_store_ids_to_keep = 1;
+}
+
+message TBackupCutoffDescriptor
+{
+    oneof descriptor {
+        TRowIndexCutoffDescriptor row_index_descriptor = 1;
+        TDynamicStoreListCutoffDescriptor dynamic_store_list_descriptor = 2;
+    }
+}
+
 message TReqReportBackupCheckpointPassed
 {
     required NYT.NProto.TGuid tablet_id = 1;
@@ -40,7 +59,18 @@ message TReqReportBackupCheckpointPassed
 
     //! For ordered tables denotes the position that separates
     //! rows committed before and after the checkpoint timestamp.
-    optional TRowIndexCutoffDescriptor row_index_cutoff_descriptor = 5;
+    //!
+    //! For sorted async replicas denotes which dynamic stores
+    //! should be backed up.
+    optional TBackupCutoffDescriptor cutoff_descriptor = 5;
+
+    message TReplicaInfo
+    {
+        required NYT.NProto.TGuid replica_id = 1;
+        required NYT.NTabletClient.NProto.TTableReplicaStatistics replica_statistics = 2;
+    }
+
+    repeated TReplicaInfo replicas = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

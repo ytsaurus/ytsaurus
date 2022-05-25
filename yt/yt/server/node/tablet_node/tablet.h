@@ -20,6 +20,7 @@
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
+#include <yt/yt/ytlib/tablet_client/backup.h>
 
 #include <yt/yt/ytlib/query_client/public.h>
 
@@ -34,6 +35,8 @@
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/small_containers/compact_set.h>
 
 #include <atomic>
 
@@ -141,6 +144,7 @@ struct TRuntimeTabletData
     std::atomic<TTimestamp> LastCommitTimestamp = NullTimestamp;
     std::atomic<TTimestamp> LastWriteTimestamp = NullTimestamp;
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
+    std::atomic<TTimestamp> BackupCheckpointTimestamp = NullTimestamp;
     std::atomic<TInstant> ModificationTime = NProfiling::GetInstant();
     std::atomic<TInstant> AccessTime = TInstant::Zero();
     std::atomic<ETabletWriteMode> WriteMode = ETabletWriteMode::Direct;
@@ -388,6 +392,51 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBackupMetadata
+{
+public:
+    // If non-null then there is a backup task in progress. All store flushes
+    // and compactions should ensure that the most recent version before this
+    // timestamp is preserved (that is, consistent read is possible).
+    // Persistent.
+    DECLARE_BYVAL_RO_PROPERTY(TTimestamp, CheckpointTimestamp);
+
+    // Last backup checkpoint timestamp that was passed by the tablet.
+    // Transactions with earlier start timestamp must not be committed.
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, LastPassedCheckpointTimestamp);
+
+    DEFINE_BYVAL_RW_PROPERTY(NTabletClient::EBackupMode, BackupMode);
+
+    // Represent the stage of checkpoint confirmation process.
+    // NB: Stage transitions may happen at different moments with respect to
+    // checkpoint timestamp. E.g. sometimes it is safe to transition to
+    // FeasibilityConfirmed state after checkpoint timestamp has already happened.
+    // It is safer to check BackupCheckpointTimestamp against NullTimestamp
+    // to see if backup is in progress.
+    DEFINE_BYVAL_RW_PROPERTY(EBackupStage, BackupStage, EBackupStage::None);
+
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NApi::TClusterTag>, ClockClusterTag);
+
+    DEFINE_BYREF_RW_PROPERTY(
+        std::vector<NTabletClient::TTableReplicaBackupDescriptor>,
+        ReplicaBackupDescriptors);
+
+public:
+    void Persist(const TPersistenceContext& context);
+
+private:
+    TTimestamp CheckpointTimestamp_ = NullTimestamp;
+
+    // SetCheckpointTimestamp should be called only via TTablet's methods
+    // since setting it implies other actions, e.g. merge_rows_on_flush
+    // becomes temporarily disabled. Thus private.
+    void SetCheckpointTimestamp(TTimestamp timestamp);
+
+    friend class TTablet;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTablet
     : public TObjectBase
     , public TRefTracked<TTablet>
@@ -467,24 +516,21 @@ public:
     // The number of pending write records issued by replicator.
     DEFINE_BYVAL_RW_PROPERTY(int, PendingReplicatorWriteRecordCount);
 
+    using TTransactionIdSet = TCompactSet<TTransactionId, 4>;
+    // Ids of prepared transactions issued by replicator.
+    DEFINE_BYREF_RW_PROPERTY(TTransactionIdSet, PreparedReplicatorTransactionIds);
+
     DEFINE_BYVAL_RW_PROPERTY(IChaosAgentPtr, ChaosAgent);
     DEFINE_BYVAL_RW_PROPERTY(ITablePullerPtr, TablePuller);
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
     DEFINE_BYREF_RO_PROPERTY(TChaosTabletDataPtr, ChaosData, New<TChaosTabletData>());
 
-    // If non-null then there is a backup task in progress. All store flushes
-    // and compactions should ensure that the most recent version before this
-    // timestamp is preserved (that is, consistent read is possible).
-    // Persistent.
-    DECLARE_BYVAL_RW_PROPERTY(TTimestamp, BackupCheckpointTimestamp);
+    DEFINE_BYREF_RW_PROPERTY(TBackupMetadata, BackupMetadata);
 
-    // Represent the stage of checkpoint confirmation process.
-    // NB: Stage transitions may happen at different moments with respect to
-    // checkpoint timestamp. E.g. sometimes it is safe to transition to
-    // FeasibilityConfirmed state after checkpoint timestamp has already happened.
-    // It is safer to check BackupCheckpointTimestamp against NullTimestamp
-    // to see if backup is in progress.
-    DEFINE_BYVAL_RW_PROPERTY(EBackupStage, BackupStage, EBackupStage::None);
+    // Accessors for frequent fields of backup metadata.
+    DECLARE_BYVAL_RW_PROPERTY(TTimestamp, BackupCheckpointTimestamp);
+    DECLARE_BYVAL_RO_PROPERTY(NTabletClient::EBackupMode, BackupMode);
+    DECLARE_BYVAL_RW_PROPERTY(EBackupStage, BackupStage);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, NonActiveStoresUnmergedRowCount);
 
@@ -684,8 +730,6 @@ private:
     TRowCachePtr RowCache_;
 
     i64 TabletLockCount_ = 0;
-
-    TTimestamp BackupCheckpointTimestamp_ = NullTimestamp;
 
     IPerTabletStructuredLoggerPtr StructuredLogger_;
 

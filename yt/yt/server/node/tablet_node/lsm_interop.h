@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tablet.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/lsm/public.h>
 

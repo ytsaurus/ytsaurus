@@ -27,6 +27,7 @@ message TReqCoordinatorCommitDistributedTransactionPhaseOne
     optional int32 coordinator_commit_mode = 6; // ETransactionCoordinatorCommitMode
     required uint64 prepare_timestamp = 4;
     optional uint32 prepare_timestamp_cluster_tag = 12 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
+    optional uint64 max_allowed_commit_timestamp = 13;
     required string user = 8;
     optional string user_tag = 10;
 }

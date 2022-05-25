@@ -93,7 +93,9 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, TabletCountByBackupState);
     Save(context, AggregatedTabletBackupState);
     Save(context, BackupCheckpointTimestamp);
+    Save(context, BackupMode);
     Save(context, BackupError);
+    Save(context, ReplicaBackupDescriptors);
     Save(context, QueueAgentStage);
     Save(context, TreatAsConsumer);
     Save(context, IsVitalConsumer);
@@ -147,8 +149,16 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, BackupCheckpointTimestamp);
     }
     // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
+        Load(context, BackupMode);
+    }
+    // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupErrors) {
         Load(context, BackupError);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
+        Load(context, ReplicaBackupDescriptors);
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::ChaosDataTransfer &&

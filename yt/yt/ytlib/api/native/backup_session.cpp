@@ -60,10 +60,41 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
     auto sorted = tableInfo.Attributes->Get<bool>("sorted");
     auto dynamic = tableInfo.Attributes->Get<bool>("dynamic");
     auto commitOrdering = tableInfo.Attributes->Get<ECommitOrdering>("commit_ordering");
-    auto upstreamReplicaId = tableInfo.Attributes->Get<TTableReplicaId>("upstream_replica_id");
     auto type = TypeFromId(tableInfo.SourceTableId);
+    bool replicated = type == EObjectType::ReplicatedTable;
+    auto upstreamReplicaId = tableInfo.Attributes->Get<TTableReplicaId>("upstream_replica_id");
+
+    tableInfo.UpstreamReplicaId = upstreamReplicaId;
+    tableInfo.Sorted = sorted;
+    tableInfo.Replicated = replicated;
+    tableInfo.CommitOrdering = commitOrdering;
+    tableInfo.OrderedTableBackupMode = manifest->OrderedMode;
 
     try {
+        if (type == EObjectType::ReplicatedTable) {
+            auto replicas = tableInfo.Attributes->Get<
+                THashMap<TTableReplicaId, INodePtr>>("replicas");
+            for (const auto& [replicaId, attributesString] : replicas) {
+                auto attributes = ConvertToAttributes(attributesString);
+                TTableReplicaInfo replicaInfo{
+                    .Id = replicaId,
+                    .ClusterName = attributes->Get<TString>("cluster_name"),
+                    .Mode = attributes->Get<ETableReplicaMode>("mode"),
+                    .ReplicaPath = attributes->Get<TString>("replica_path"),
+                };
+                tableInfo.Replicas[replicaId] = replicaInfo;
+
+                if (replicaInfo.Mode != ETableReplicaMode::Sync &&
+                    replicaInfo.Mode != ETableReplicaMode::Async)
+                {
+                    THROW_ERROR_EXCEPTION("Replica %v of table %v has unsupported mode %Qlv",
+                        replicaId,
+                        tableInfo.SourcePath,
+                        replicaInfo.Mode);
+                }
+            }
+        }
+
         if (!SourceTableIds_.insert(tableInfo.SourceTableId).second) {
             THROW_ERROR_EXCEPTION("Duplicate table %Qv in backup manifest",
                 tableInfo.SourcePath);
@@ -74,33 +105,35 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
                 tableInfo.SourcePath);
         }
 
-        if (type == EObjectType::ReplicatedTable) {
-            THROW_ERROR_EXCEPTION("Table %Qv is replicated",
-                tableInfo.SourcePath);
-        }
-
         if (type == EObjectType::ReplicationLogTable) {
             THROW_ERROR_EXCEPTION("Table %Qv is a replication log",
                 tableInfo.SourcePath);
         }
 
-        if (upstreamReplicaId) {
-            THROW_ERROR_EXCEPTION("Table %Qv is a replica table",
+        if (type != EObjectType::Table && type != EObjectType::ReplicatedTable) {
+            THROW_ERROR_EXCEPTION("Cannot backup table %Qv of type %Qlv",
+                tableInfo.SourcePath,
+                type);
+        }
+
+        if (!replicated) {
+            if (sorted) {
+                if (commitOrdering != ECommitOrdering::Weak) {
+                    THROW_ERROR_EXCEPTION("Sorted table %Qv has unsupported commit ordering %Qlv",
+                        tableInfo.SourcePath,
+                        commitOrdering);
+                }
+            }
+        }
+
+        if (tableInfo.UpstreamReplicaId && !sorted) {
+            THROW_ERROR_EXCEPTION("Cannot backup ordered replica table %v",
                 tableInfo.SourcePath);
         }
 
-        if (sorted) {
-            if (commitOrdering != ECommitOrdering::Weak) {
-                THROW_ERROR_EXCEPTION("Sorted table %Qv has unsupported commit ordering %Qlv",
-                    tableInfo.SourcePath,
-                    commitOrdering);
-            }
-        } else {
-            if (commitOrdering != ECommitOrdering::Strong) {
-                THROW_ERROR_EXCEPTION("Ordered table %Qv has unsupported commit ordering %Qlv",
-                    tableInfo.SourcePath,
-                    commitOrdering);
-            }
+        if (replicated && !sorted) {
+            THROW_ERROR_EXCEPTION("Cannot backup ordered replicated table %v",
+                tableInfo.SourcePath);
         }
 
         if (CellTagFromId(tableInfo.SourceTableId) !=
@@ -159,18 +192,91 @@ void TClusterBackupSession::LockInputTables()
     }
 }
 
-void TClusterBackupSession::SetCheckpoint()
+void TClusterBackupSession::StartBackup()
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
-        auto req = TTableYPathProxy::SetBackupCheckpoint(FromObjectId(table.SourceTableId));
+        auto req = TTableYPathProxy::StartBackup(FromObjectId(table.SourceTableId));
         req->set_timestamp(Timestamp_);
         SetTransactionId(req, Transaction_->GetId());
+
+        EBackupMode mode;
+
+        if (table.Replicated) {
+            YT_VERIFY(table.Sorted);
+            mode = EBackupMode::ReplicatedSorted;
+        } else if (table.Sorted) {
+            if (table.UpstreamReplica) {
+                switch (table.ReplicaMode) {
+                    case ETableReplicaMode::Sync:
+                        mode = EBackupMode::SortedSyncReplica;
+                        break;
+
+                    case ETableReplicaMode::Async:
+                        mode = EBackupMode::SortedAsyncReplica;
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
+            } else {
+                mode = EBackupMode::Sorted;
+            }
+        } else {
+            if (table.CommitOrdering == ECommitOrdering::Strong) {
+                mode = EBackupMode::OrderedStrongCommitOrdering;
+            } else {
+                switch (table.OrderedTableBackupMode) {
+                    case EOrderedTableBackupMode::Exact:
+                        mode = EBackupMode::OrderedExact;
+                        break;
+
+                    case EOrderedTableBackupMode::AtLeast:
+                        mode = EBackupMode::OrderedAtLeast;
+                        break;
+
+                    case EOrderedTableBackupMode::AtMost:
+                        mode = EBackupMode::OrderedAtMost;
+                        break;
+
+                    default:
+                        YT_ABORT();
+                }
+            }
+        }
+
+        req->set_backup_mode(static_cast<int>(mode));
+
+        if (table.UpstreamReplicaId) {
+            ToProto(req->mutable_upstream_replica_id(), table.UpstreamReplicaId);
+            req->set_clock_cluster_tag(table.ClockClusterTag);
+        }
+
+        ToProto(req->mutable_replicas(), table.BackupableReplicas);
+
         batchReq->AddRequest(req, ToString(table.SourceTableId));
     };
 
-    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
-        const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspSetBackupCheckpoint>(
-            ToString(table->SourceTableId));
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* tableInfo) {
+        const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspStartBackup>(
+            ToString(tableInfo->SourceTableId));
+        ThrowWithClusterNameIfFailed(rsp);
+    };
+
+    ExecuteForAllTables(buildRequest, onResponse, /*write*/ true);
+}
+
+void TClusterBackupSession::StartRestore()
+{
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
+        auto req = TTableYPathProxy::StartRestore(FromObjectId(table.SourceTableId));
+        SetTransactionId(req, Transaction_->GetId());
+        ToProto(req->mutable_replicas(), table.BackupableReplicas);
+        batchReq->AddRequest(req, ToString(table.SourceTableId));
+    };
+
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* tableInfo) {
+        const auto& rsp = batchRsp->template GetResponse<TTableYPathProxy::TRspStartRestore>(
+            ToString(tableInfo->SourceTableId));
         ThrowWithClusterNameIfFailed(rsp);
     };
 
@@ -189,7 +295,7 @@ void TClusterBackupSession::WaitForCheckpoint()
             return;
         }
 
-        auto req = TTableYPathProxy::CheckBackupCheckpoint(FromObjectId(table.SourceTableId));
+        auto req = TTableYPathProxy::CheckBackup(FromObjectId(table.SourceTableId));
         SetTransactionId(req, Transaction_->GetId());
         batchReq->AddRequest(req, ToString(table.SourceTableId));
     };
@@ -199,7 +305,7 @@ void TClusterBackupSession::WaitForCheckpoint()
             return;
         }
 
-        const auto& rspOrError = batchRsp->template GetResponse<TTableYPathProxy::TRspCheckBackupCheckpoint>(
+        const auto& rspOrError = batchRsp->template GetResponse<TTableYPathProxy::TRspCheckBackup>(
             ToString(table->SourceTableId));
         const auto& rsp = rspOrError.ValueOrThrow();
         auto confirmedTabletCount = rsp->confirmed_tablet_count();
@@ -359,11 +465,107 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
     ExecuteForAllTables(buildRequest, onResponse, /*write*/ false, options);
 }
 
+void TClusterBackupSession::FetchClonedReplicaIds()
+{
+    auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
+        if (table.BackupableReplicas.empty()) {
+            return;
+        }
+
+        auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@replicas");
+        SetTransactionId(req, Transaction_->GetId());
+        batchReq->AddRequest(req, ToString(table.DestinationTableId));
+    };
+
+    auto onResponse = [&] (const auto& batchRsp, TTableInfo* table) {
+        if (table->BackupableReplicas.empty()) {
+            return;
+        }
+
+        const auto& rspOrError = batchRsp->template GetResponse<TObjectYPathProxy::TRspGet>(
+            ToString(table->DestinationTableId));
+        const auto& rsp = rspOrError.ValueOrThrow();
+
+        auto clonedReplicas = ConvertTo<THashMap<TTableReplicaId, INodePtr>>(TYsonString(rsp->value()));
+        for (const auto& [clonedReplicaId, attributesString] : clonedReplicas) {
+            auto attributes = ConvertToAttributes(attributesString);
+            auto replicaClusterName = attributes->template Get<TString>("cluster_name");
+            auto replicaPath = attributes->template Get<TString>("replica_path");
+
+            bool foundMatching = false;
+
+            for (auto& [existingReplicaId, existingReplica] : table->Replicas) {
+                if (replicaClusterName == existingReplica.ClusterName &&
+                    replicaPath == existingReplica.ClonedReplicaPath)
+                {
+                    foundMatching = true;
+                    existingReplica.ClonedReplicaId = clonedReplicaId;
+                    break;
+                }
+            }
+
+            if (!foundMatching) {
+                THROW_ERROR_EXCEPTION("Cannot find matching source replica for a cloned replica %v "
+                    "to table %v at cluster %Qv",
+                    clonedReplicaId,
+                    replicaPath,
+                    replicaClusterName)
+                    << TErrorAttribute("cluster_name", ClusterName_);
+            }
+        }
+    };
+
+    TMasterReadOptions options;
+    options.ReadFrom = EMasterChannelKind::Follower;
+    ExecuteForAllTables(buildRequest, onResponse, /*write*/ false, options);
+}
+
+void TClusterBackupSession::UpdateUpstreamReplicaIds()
+{
+    // Alter requests should go to native cell. Backups do not support portals yet,
+    // so we use primary instead.
+    auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+    auto batchReq = proxy->ExecuteBatch();
+
+    for (const auto& table : Tables_) {
+        if (!table.UpstreamReplica) {
+            continue;
+        }
+
+        auto req = TTableYPathProxy::Alter(FromObjectId(table.DestinationTableId));
+        SetTransactionId(req, Transaction_->GetId());
+        ToProto(req->mutable_upstream_replica_id(), table.UpstreamReplica->ClonedReplicaId);
+        batchReq->AddRequest(req);
+    }
+
+    TPrerequisiteOptions prerequisiteOptions;
+    prerequisiteOptions.PrerequisiteTransactionIds.push_back(Transaction_->GetId());
+    SetPrerequisites(batchReq, prerequisiteOptions);
+
+    auto rsp = WaitFor(batchReq->Invoke());
+    ThrowWithClusterNameIfFailed(rsp);
+}
+
 void TClusterBackupSession::CommitTransaction()
 {
     auto rsp = WaitFor(Transaction_->Commit());
     ThrowWithClusterNameIfFailed(rsp);
     Transaction_ = nullptr;
+}
+
+auto TClusterBackupSession::GetTables() -> std::vector<TTableInfo*>
+{
+    std::vector<TTableInfo*> tables;
+    tables.reserve(Tables_.size());
+    for (auto& tableInfo : Tables_) {
+        tables.push_back(&tableInfo);
+    }
+    return tables;
+}
+
+TClusterTag TClusterBackupSession::GetClusterTag() const
+{
+    return Client_->GetNativeConnection()->GetClusterTag();
 }
 
 const TCreateTableBackupOptions& TClusterBackupSession::GetCreateOptions() const
@@ -452,11 +654,11 @@ void TBackupSession::RunCreate()
     YT_LOG_DEBUG("Generated checkpoint timestamp for backup (Timestamp: %llx)",
         Timestamp_);
 
-    InitializeAndLockTables("Create backup");
+    InitializeAndLockTables(EBackupDirection::Backup);
 
-    YT_LOG_DEBUG("Setting backup checkpoints");
+    YT_LOG_DEBUG("Starting table backups");
     for (const auto& [name, session] : ClusterSessions_) {
-        session->SetCheckpoint();
+        session->StartBackup();
     }
 
     YT_LOG_DEBUG("Waiting for backup checkpoints");
@@ -479,12 +681,27 @@ void TBackupSession::RunCreate()
         session->ValidateBackupStates(ETabletBackupState::BackupCompleted);
     }
 
+    YT_LOG_DEBUG("Fetching cloned replica ids");
+    for (const auto& [name, session] : ClusterSessions_) {
+        session->FetchClonedReplicaIds();
+    }
+
+    YT_LOG_DEBUG("Updating upstream replica ids");
+    for (const auto& [name, session] : ClusterSessions_) {
+        session->UpdateUpstreamReplicaIds();
+    }
+
     CommitTransactions();
 }
 
 void TBackupSession::RunRestore()
 {
-    InitializeAndLockTables("Restore backup");
+    InitializeAndLockTables(EBackupDirection::Restore);
+
+    YT_LOG_DEBUG("Starting table restores");
+    for (const auto& [name, session] : ClusterSessions_) {
+        session->StartRestore();
+    }
 
     YT_LOG_DEBUG("Cloning tables in restore mode");
     for (const auto& [name, session] : ClusterSessions_) {
@@ -499,6 +716,16 @@ void TBackupSession::RunRestore()
     YT_LOG_DEBUG("Validating backup states");
     for (const auto& [name, session] : ClusterSessions_) {
         session->ValidateBackupStates(ETabletBackupState::None);
+    }
+
+    YT_LOG_DEBUG("Fetching cloned replica ids");
+    for (const auto& [name, session] : ClusterSessions_) {
+        session->FetchClonedReplicaIds();
+    }
+
+    YT_LOG_DEBUG("Updating upstream replica ids");
+    for (const auto& [name, session] : ClusterSessions_) {
+        session->UpdateUpstreamReplicaIds();
     }
 
     CommitTransactions();
@@ -526,7 +753,7 @@ TClusterBackupSession* TBackupSession::CreateClusterSession(const TString& clust
     return clusterSession;
 }
 
-void TBackupSession::InitializeAndLockTables(TStringBuf transactionTitle)
+void TBackupSession::InitializeAndLockTables(EBackupDirection direction)
 {
     for (const auto& [cluster, tables]: Manifest_->Clusters) {
         auto* clusterSession = CreateClusterSession(cluster);
@@ -535,14 +762,88 @@ void TBackupSession::InitializeAndLockTables(TStringBuf transactionTitle)
         }
     }
 
+    MatchReplicatedTablesWithReplicas();
+
     YT_LOG_DEBUG("Starting backup transactions");
     for (const auto& [name, session] : ClusterSessions_) {
-        session->StartTransaction(transactionTitle);
+        session->StartTransaction(
+            direction == EBackupDirection::Backup ? "Create backup" : "Restore backup");
     }
 
     YT_LOG_DEBUG("Locking tables before backup/restore");
     for (const auto& [name, session] : ClusterSessions_) {
         session->LockInputTables();
+    }
+}
+
+void TBackupSession::MatchReplicatedTablesWithReplicas()
+{
+    struct TTableInfoWithClusterTag
+    {
+        TClusterBackupSession::TTableInfo* TableInfo;
+        TClusterTag ClusterTag;
+    };
+
+    THashMap<TTableReplicaId, TTableInfoWithClusterTag> replicaIdToReplicatedTable;
+
+    for (auto& [clusterName, clusterSession] : ClusterSessions_) {
+        for (auto* tableInfo : clusterSession->GetTables()) {
+            if (TypeFromId(tableInfo->SourceTableId) != EObjectType::ReplicatedTable) {
+                continue;
+            }
+
+            for (const auto& [replicaId, replicaInfo] : tableInfo->Replicas) {
+                replicaIdToReplicatedTable.emplace(
+                    replicaId,
+                    TTableInfoWithClusterTag{
+                        .TableInfo = tableInfo,
+                        .ClusterTag = clusterSession->GetClusterTag(),
+                    });
+            }
+        }
+    }
+
+    for (auto& [clusterName, clusterSession] : ClusterSessions_) {
+        for (auto* tableInfo : clusterSession->GetTables()) {
+            if (!tableInfo->UpstreamReplicaId) {
+                continue;
+            }
+
+            auto it = replicaIdToReplicatedTable.find(tableInfo->UpstreamReplicaId);
+            if (it == replicaIdToReplicatedTable.end()) {
+                THROW_ERROR_EXCEPTION("Replica table %v is backed up without corresponding "
+                    "replicated table",
+                    tableInfo->SourcePath)
+                    << TErrorAttribute("cluster_name", clusterName);
+            }
+
+            auto* replicatedTableInfo = it->second.TableInfo;
+            auto& replicaInfo = replicatedTableInfo->Replicas[tableInfo->UpstreamReplicaId];
+
+            replicatedTableInfo->BackupableReplicas.push_back({
+                .ReplicaId = replicaInfo.Id,
+                .Mode = replicaInfo.Mode,
+                .ReplicaPath = tableInfo->DestinationPath,
+            });
+
+            tableInfo->ClockClusterTag = it->second.ClusterTag;
+            tableInfo->ReplicaMode = replicaInfo.Mode;
+            tableInfo->UpstreamReplica = &replicaInfo;
+
+            replicaInfo.ClonedReplicaPath = tableInfo->DestinationPath;
+        }
+    }
+
+    for (auto& [clusterName, clusterSession] : ClusterSessions_) {
+        for (auto* tableInfo : clusterSession->GetTables()) {
+            if (TypeFromId(tableInfo->SourceTableId) == EObjectType::ReplicatedTable &&
+                tableInfo->BackupableReplicas.empty())
+            {
+                THROW_ERROR_EXCEPTION("No replicas of replicated table %v are backed up",
+                    tableInfo->SourcePath)
+                    << TErrorAttribute("cluster_name", clusterName);
+            }
+        }
     }
 }
 

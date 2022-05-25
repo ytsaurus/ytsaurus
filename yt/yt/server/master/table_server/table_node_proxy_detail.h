@@ -58,8 +58,9 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, LockDynamicTable);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, CheckDynamicTableLock);
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetBackupCheckpoint);
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, CheckBackupCheckpoint);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, StartBackup);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, StartRestore);
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, CheckBackup);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, FinishBackup);
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, FinishRestore);
 

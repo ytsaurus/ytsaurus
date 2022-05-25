@@ -32,8 +32,9 @@ struct TTableYPathProxy
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, LockDynamicTable);
     DEFINE_YPATH_PROXY_METHOD(NProto, CheckDynamicTableLock);
 
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, SetBackupCheckpoint);
-    DEFINE_YPATH_PROXY_METHOD(NProto, CheckBackupCheckpoint);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, StartBackup);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, StartRestore);
+    DEFINE_YPATH_PROXY_METHOD(NProto, CheckBackup);
 
     // Those look like mutating but in fact only schedule mutations.
     DEFINE_YPATH_PROXY_METHOD(NProto, FinishBackup);

@@ -185,7 +185,7 @@ public:
     // Backup stuff. Used internally by TBackupManager.
     void WrapWithBackupChunkViews(TTablet* tablet, NTransactionClient::TTimestamp maxClipTimestamp);
     TError PromoteFlushedDynamicStores(TTablet* tablet);
-    TError ApplyCutoffRowIndex(TTablet* tablet);
+    TError ApplyBackupCutoff(TTablet* tablet);
 
 private:
     template <class TImpl>

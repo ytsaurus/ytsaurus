@@ -507,30 +507,62 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
     Load(context, HasError_);
 }
 
+void TTableReplicaInfo::Populate(
+    NTabletClient::NProto::TTableReplicaStatistics* statistics) const
+{
+    statistics->set_committed_replication_row_index(GetCommittedReplicationRowIndex());
+    statistics->set_current_replication_timestamp(GetCurrentReplicationTimestamp());
+}
+
+void TTableReplicaInfo::MergeFrom(
+    const NTabletClient::NProto::TTableReplicaStatistics& statistics)
+{
+    // Updates may be reordered but we can rely on monotonicity here.
+    SetCommittedReplicationRowIndex(std::max(
+        GetCommittedReplicationRowIndex(),
+        statistics.committed_replication_row_index()));
+    SetCurrentReplicationTimestamp(std::max(
+        GetCurrentReplicationTimestamp(),
+        statistics.current_replication_timestamp()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRowIndexCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
+void TBackupCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
     Persist(context, CutoffRowIndex);
     Persist(context, NextDynamicStoreId);
+
+    if (context.IsSave() || context.GetVersion() >= EMasterReign::BackupReplicated) {
+        Persist(context, DynamicStoreIdsToKeep);
+    }
 };
 
-TString ToString(const TRowIndexCutoffDescriptor& descriptor)
+TString ToString(const TBackupCutoffDescriptor& descriptor)
 {
     return Format(
-        "{%v/%v}",
+        "{%v/%v/%v}",
         descriptor.CutoffRowIndex,
-        descriptor.NextDynamicStoreId);
+        descriptor.NextDynamicStoreId,
+        descriptor.DynamicStoreIdsToKeep);
 }
 
 void FromProto(
-    TRowIndexCutoffDescriptor* descriptor,
-    const NProto::TRowIndexCutoffDescriptor& protoDescriptor)
+    TBackupCutoffDescriptor* descriptor,
+    const NProto::TBackupCutoffDescriptor& protoDescriptor)
 {
-    descriptor->CutoffRowIndex = protoDescriptor.cutoff_row_index();
-    FromProto(&descriptor->NextDynamicStoreId, protoDescriptor.next_dynamic_store_id());
+    if (protoDescriptor.has_row_index_descriptor()) {
+        const auto& rowIndexDescriptor = protoDescriptor.row_index_descriptor();
+        descriptor->CutoffRowIndex = rowIndexDescriptor.cutoff_row_index();
+        FromProto(&descriptor->NextDynamicStoreId, rowIndexDescriptor.next_dynamic_store_id());
+    } else if (protoDescriptor.has_dynamic_store_list_descriptor()) {
+        const auto& dynamicStoreListDescriptor = protoDescriptor.dynamic_store_list_descriptor();
+        FromProto(
+            &descriptor->DynamicStoreIdsToKeep,
+            dynamicStoreListDescriptor.dynamic_store_ids_to_keep());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -578,6 +610,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, EdenStoreIds_);
     Save(context, BackupState_);
     Save(context, BackupCutoffDescriptor_);
+    Save(context, BackedUpReplicaInfos_);
     Save(context, DynamicStores_);
     Save(context, ReplicationProgress_);
 }
@@ -616,6 +649,10 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupOrdered) {
         Load(context, BackupCutoffDescriptor_);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::BackupReplicated) {
+        Load(context, BackedUpReplicaInfos_);
     }
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::RefFromTabletToDynamicStore) {

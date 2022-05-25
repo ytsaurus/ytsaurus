@@ -1,6 +1,7 @@
 #include "tablet_cell_write_manager.h"
 
 #include "automaton.h"
+#include "backup_manager.h"
 #include "tablet.h"
 #include "sorted_store_manager.h"
 #include "transaction_manager.h"
@@ -46,6 +47,8 @@ class TTabletCellWriteManager
     : public ITabletCellWriteManager
     , public TTabletAutomatonPart
 {
+    DEFINE_SIGNAL_OVERRIDE(void(TTablet*), ReplicatorWriteTransactionFinished);
+
 public:
     TTabletCellWriteManager(
         ITabletCellWriteManagerHostPtr host,
@@ -365,6 +368,7 @@ public:
 
                 WriteLogsMemoryTrackerGuard_.IncrementSize(record.GetByteSize());
                 IncrementTabletPendingWriteRecordCount(tablet, replicatorWrite, +1);
+                tablet->PreparedReplicatorTransactionIds().insert(transaction->GetId());
 
                 LockTablet(tablet);
                 transaction->LockedTablets().push_back(tablet);
@@ -934,6 +938,40 @@ private:
             return;
         }
 
+        if (IsReplicatorWrite(transaction)) {
+            for (const auto& record : transaction->ImmediateLocklessWriteLog()) {
+                auto* tablet = Host_->FindTablet(record.TabletId);
+                if (!tablet) {
+                    continue;
+                }
+
+                auto checkpointTimestamp = tablet->GetBackupCheckpointTimestamp();
+                if (!checkpointTimestamp) {
+                    continue;
+                }
+
+                auto backupStage = tablet->GetBackupStage();
+                if (transaction->GetStartTimestamp() <= checkpointTimestamp &&
+                    (backupStage == EBackupStage::AwaitingReplicationFinish ||
+                        backupStage == EBackupStage::RespondedToMasterSuccess))
+                {
+                    // It is obviously possible to receive a transaction with start_ts < checkpoint_ts even
+                    // after tablet has passed backup checkpoint. What is less obvious is that max_allowed_commit_timestamp
+                    // set by replicator cannot save us from such transaction being committed as it may have
+                    // commit_ts < checkpoint_ts: replication transactions and barrier timestamp use different
+                    // clocks, so needed happened-before relation cannot be established. We must reject such
+                    // transaction in any case.
+                    //
+                    // Hopefully, per-tablet barrier timestamps will allow for a cleaner code.
+                    THROW_ERROR_EXCEPTION("Cannot replicate rows into tablet %v since it has already passed "
+                        "backup checkpoint and transaction start timestamp is less than checkpoint timestamp",
+                        tablet->GetId())
+                        << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp())
+                        << TErrorAttribute("checkpoint_timestamp", tablet->GetBackupCheckpointTimestamp());
+                }
+            }
+        }
+
         TCompactFlatMap<TTableReplicaInfo*, int, 8> replicaToRowCount;
         TCompactFlatMap<TTablet*, int, 8> tabletToRowCount;
         for (const auto& writeRecord : transaction->DelayedLocklessWriteLog()) {
@@ -993,6 +1031,14 @@ private:
 
         YT_VERIFY(!transaction->GetRowsPrepared());
         transaction->SetRowsPrepared(true);
+
+        if (IsReplicatorWrite(transaction)) {
+            for (const auto& record : transaction->ImmediateLocklessWriteLog()) {
+                if (auto* tablet = Host_->FindTablet(record.TabletId)) {
+                    tablet->PreparedReplicatorTransactionIds().insert(transaction->GetId());
+                }
+            }
+        }
     }
 
     void OnTransactionCommitted(TTransaction* transaction) noexcept
@@ -1256,6 +1302,19 @@ private:
 
         DropTransactionWriteLog(transaction, &transaction->ImmediateLockedWriteLog());
         DropTransactionWriteLog(transaction, &transaction->ImmediateLocklessWriteLog());
+
+        if (IsReplicatorWrite(transaction)) {
+            for (auto* tablet : locklessTablets) {
+                tablet->PreparedReplicatorTransactionIds().erase(transaction->GetId());
+
+                // May be null in tests.
+                if (const auto& backupManager = Host_->GetBackupManager()) {
+                    backupManager->ValidateReplicationTransactionCommit(tablet, transaction);
+                }
+
+                ReplicatorWriteTransactionFinished_.Fire(tablet);
+            }
+        }
     }
 
     void OnTransactionSerialized(TTransaction* transaction) noexcept
@@ -1439,6 +1498,15 @@ private:
                     tablet->GetId(),
                     oldDelayedLocklessRowCount,
                     newDelayedLocklessRowCount);
+            }
+        }
+
+        if (IsReplicatorWrite(transaction)) {
+            for (const auto& record : transaction->ImmediateLocklessWriteLog()) {
+                if (auto* tablet = Host_->FindTablet(record.TabletId)) {
+                    tablet->PreparedReplicatorTransactionIds().erase(transaction->GetId());
+                    ReplicatorWriteTransactionFinished_.Fire(tablet);
+                }
             }
         }
 

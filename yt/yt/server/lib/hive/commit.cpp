@@ -27,6 +27,7 @@ TCommit::TCommit(
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
+    TTimestamp maxAllowedCommitTimestamp,
     NRpc::TAuthenticationIdentity identity,
     std::vector<TTransactionId> prerequisiteTransactionIds)
     : TransactionId_(transationId)
@@ -38,6 +39,7 @@ TCommit::TCommit(
     , GeneratePrepareTimestamp_(generatePrepareTimestamp)
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorCommitMode_(coordinatorCommitMode)
+    , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
     , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
 { }
@@ -75,6 +77,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
     Save(context, CoordinatorCommitMode_);
+    Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
 }
@@ -110,6 +113,10 @@ void TCommit::Load(TLoadContext& context)
         Load(context, CoordinatorCommitMode_);
     } else {
         CoordinatorCommitMode_ = NApi::ETransactionCoordinatorCommitMode::Eager;
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= 11) {
+        Load(context, MaxAllowedCommitTimestamp_);
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= 6) {

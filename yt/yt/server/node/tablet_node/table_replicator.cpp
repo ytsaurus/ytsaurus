@@ -53,6 +53,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/utilex/random.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -228,6 +230,7 @@ private:
             auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
             auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
             auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
+            auto backupCheckpointTimestamp = tabletRuntimeData->BackupCheckpointTimestamp.load();
             if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
                 // Some log rows are prepared for replication, hence replication cannot proceed.
                 // Seeing this is not typical since we're waiting for the replication commit to complete (see below).
@@ -280,12 +283,18 @@ private:
                 localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                     .ValueOrThrow();
 
+                if (backupCheckpointTimestamp && localTransaction->GetStartTimestamp() >= backupCheckpointTimestamp) {
+                    YT_LOG_DEBUG("Skipping table replication iteration since tablet has passed backup checkpoint");
+                    return;
+                }
+
                 auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
                 TAlienTransactionStartOptions transactionStartOptions;
                 if (!isVersioned) {
                     transactionStartOptions.Atomicity = replicaRuntimeData->Atomicity;
                 }
+                transactionStartOptions.StartTimestamp = localTransaction->GetStartTimestamp();
 
                 alienTransaction = WaitFor(StartAlienTransaction(localTransaction, alienClient, transactionStartOptions))
                     .ValueOrThrow();
@@ -387,6 +396,9 @@ private:
                 commitOptions.Force2PC = true;
                 commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
                 commitOptions.GeneratePrepareTimestamp = !replicaRuntimeData->PreserveTimestamps;
+                if (backupCheckpointTimestamp) {
+                    commitOptions.MaxAllowedCommitTimestamp = backupCheckpointTimestamp;
+                }
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
 

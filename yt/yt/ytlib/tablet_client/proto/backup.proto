@@ -1,0 +1,14 @@
+package NYT.NTabletClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TTableReplicaBackupDescriptor
+{
+    required NYT.NProto.TGuid replica_id = 1;
+    required int32 replica_mode = 2; // ETableReplicaMode
+    required string replica_path = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

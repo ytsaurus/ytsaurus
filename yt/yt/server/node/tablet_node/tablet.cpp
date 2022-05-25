@@ -484,6 +484,30 @@ void TTableReplicaInfo::RecomputeReplicaStatus()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBackupMetadata::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, CheckpointTimestamp_);
+    Persist(context, LastPassedCheckpointTimestamp_);
+    Persist(context, BackupMode_);
+    Persist(context, BackupStage_);
+    Persist(context, ClockClusterTag_);
+    Persist(context, ReplicaBackupDescriptors_);
+}
+
+void TBackupMetadata::SetCheckpointTimestamp(TTimestamp timestamp)
+{
+    CheckpointTimestamp_ = timestamp;
+}
+
+TTimestamp TBackupMetadata::GetCheckpointTimestamp() const
+{
+    return CheckpointTimestamp_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTablet::TTablet(
     TTabletId tabletId,
     ITabletContext* context)
@@ -667,8 +691,7 @@ void TTablet::Save(TSaveContext& context) const
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Load());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
-    Save(context, BackupCheckpointTimestamp_);
-    Save(context, BackupStage_);
+    Save(context, BackupMetadata_);
     Save(context, LastDiscardStoresRevision_);
 }
 
@@ -803,9 +826,11 @@ void TTablet::Load(TLoadContext& context)
     }
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::BackupsSorted) {
-        Load(context, BackupCheckpointTimestamp_);
-        Load(context, BackupStage_);
+    if (context.GetVersion() >= ETabletReign::BackupsReplicated) {
+        Load(context, BackupMetadata_);
+    } else if (context.GetVersion() >= ETabletReign::BackupsSorted) {
+        BackupMetadata_.SetCheckpointTimestamp(Load<TTimestamp>(context));
+        BackupMetadata_.SetBackupStage(Load<EBackupStage>(context));
     }
 
     // COMPAT(ifsmirnov)
@@ -2007,15 +2032,31 @@ TConsistentReplicaPlacementHash TTablet::GetConsistentChunkReplicaPlacementHash(
 
 void TTablet::SetBackupCheckpointTimestamp(TTimestamp timestamp)
 {
-    BackupCheckpointTimestamp_ = timestamp;
+    BackupMetadata().SetCheckpointTimestamp(timestamp);
     if (const auto& activeStore = GetActiveStore()) {
         activeStore->SetBackupCheckpointTimestamp(timestamp);
     }
+    RuntimeData()->BackupCheckpointTimestamp.store(timestamp);
 }
 
 TTimestamp TTablet::GetBackupCheckpointTimestamp() const
 {
-    return BackupCheckpointTimestamp_;
+    return BackupMetadata().GetCheckpointTimestamp();
+}
+
+EBackupMode TTablet::GetBackupMode() const
+{
+    return BackupMetadata().GetBackupMode();
+}
+
+void TTablet::SetBackupStage(EBackupStage stage)
+{
+    BackupMetadata().SetBackupStage(stage);
+}
+
+EBackupStage TTablet::GetBackupStage() const
+{
+    return BackupMetadata().GetBackupStage();
 }
 
 void TTablet::ThrottleTabletStoresUpdate(
@@ -2091,6 +2132,10 @@ void TTablet::RecomputeCommittedReplicationRowIndices()
 
 void TTablet::CheckedSetBackupStage(EBackupStage previous, EBackupStage next)
 {
+    YT_LOG_DEBUG("Tablet backup stage changed (%v, BackupStage: %v -> %v)",
+        GetLoggingTag(),
+        previous,
+        next);
     YT_VERIFY(GetBackupStage() == previous);
     SetBackupStage(next);
 }

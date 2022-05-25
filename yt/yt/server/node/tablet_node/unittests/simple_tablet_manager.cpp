@@ -183,6 +183,12 @@ bool TSimpleTabletManager::ValidateAndDiscardRowRef(const TSortedDynamicRowRef& 
 void TSimpleTabletManager::AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/)
 { }
 
+const IBackupManagerPtr& TSimpleTabletManager::GetBackupManager() const
+{
+    const static IBackupManagerPtr NullBackupManager = nullptr;
+    return NullBackupManager;
+}
+
 TCellId TSimpleTabletManager::GetCellId() const
 {
     return NullCellId;

@@ -3,16 +3,23 @@ from yt_commands import (
     remove, sync_mount_table, sync_flush_table, sync_freeze_table, sync_unmount_table,
     create_table_backup, restore_table_backup, raises_yt_error, update_nodes_dynamic_config,
     wait, start_transaction, commit_transaction, print_debug, lookup_rows,
-    generate_timestamp, set, sync_compact_table, read_table, merge, create)
+    generate_timestamp, set, sync_compact_table, read_table, merge, create,
+    get_driver, sync_enable_table_replica, create_table_replica, sync_disable_table_replica,
+    sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica)
 
 import yt_error_codes
 
 from test_dynamic_tables import DynamicTablesBase
+from test_replicated_dynamic_tables import TestReplicatedDynamicTablesBase
 
 from yt.environment.helpers import assert_items_equal
+from yt.test_helpers import are_items_equal
 from yt.common import YtResponseError
 import yt.yson as yson
 from time import time, sleep
+from collections import Counter
+from random import sample, randint
+import builtins
 
 import pytest
 
@@ -88,7 +95,7 @@ class TestBackups(DynamicTablesBase):
         wait(lambda: _get_backup_stage() == "feasibility_confirmed")
         response.wait()
         assert response.is_ok()
-        assert _get_backup_stage() == "none"
+        wait(lambda: _get_backup_stage() == "none")
 
         assert get("//tmp/bak/@tablet_backup_state") == "backup_completed"
         assert get("//tmp/bak/@backup_state") == "backup_completed"
@@ -112,7 +119,7 @@ class TestBackups(DynamicTablesBase):
             }
         })
 
-        with raises_yt_error(yt_error_codes.BackupCheckpoinRejected):
+        with raises_yt_error(yt_error_codes.BackupCheckpointRejected):
             create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=0)
 
     def _insert_into_multiple_tables(self, tables, rows):
@@ -122,7 +129,6 @@ class TestBackups(DynamicTablesBase):
         for table in tables:
             insert_rows(table, rows, transaction_id=tx, verbose=False)
         commit_transaction(tx, verbose=False)
-        generate_timestamp()
 
     def test_backup_multiple_tables(self):
         table_count = 3
@@ -405,9 +411,452 @@ class TestBackups(DynamicTablesBase):
         with raises_yt_error():
             create_table_backup(["//tmp/t", "//tmp/bak"])
 
+    def test_ordered_at_least(self):
+        tablet_count = 10
+        sync_create_cells(tablet_count)
+        schema = [
+            {"name": "$timestamp", "type": "uint64"},
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"},
+        ]
+        self._create_ordered_table("//tmp/t", tablet_count=tablet_count, schema=schema)
+        sync_mount_table("//tmp/t")
+
+        for i in range(10):
+            indexes = sorted(sample(range(tablet_count), randint(1, tablet_count)))
+            insert_rows("//tmp/t", [{"key": i, "value": str(i), "$tablet_index": j} for j in indexes])
+
+        response = create_table_backup(
+            ["//tmp/t", "//tmp/bak", {"ordered_mode": "at_least"}],
+            checkpoint_timestamp_delay=2000,
+            return_response=True)
+
+        write_responses = []
+        cur_time = time()
+        for i in range(10, 10000):
+            if time() - cur_time > 4:
+                break
+            indexes = sorted(sample(range(tablet_count), randint(1, tablet_count)))
+            write_responses.append(insert_rows(
+                "//tmp/t",
+                [{"key": i, "value": str(i), "$tablet_index": j} for j in indexes],
+                return_response=True))
+
+        for rsp in write_responses:
+            rsp.wait()
+            if not rsp.is_ok():
+                raise YtResponseError(rsp.error())
+
+        response.wait()
+        if not response.is_ok():
+            raise YtResponseError(response.error())
+
+        checkpoint_ts = get("//tmp/bak/@backup_checkpoint_timestamp")
+        required = [[] for i in range(tablet_count)]
+        for row in select_rows("* from[//tmp/t]", verbose=False):
+            if row["$timestamp"] <= checkpoint_ts:
+                required[row["$tablet_index"]].append(row["key"])
+
+        sync_freeze_table("//tmp/t")
+        restore_table_backup(["//tmp/bak", "//tmp/res"])
+        sync_mount_table("//tmp/res")
+
+        actual = [[] for i in range(tablet_count)]
+        rows = select_rows("* from [//tmp/res]", verbose=False)
+        for row in rows:
+            actual[row["$tablet_index"]].append(row["key"])
+
+        for r, a in zip(required, actual):
+            r = builtins.set(r)
+            a = builtins.set(a)
+            if not r.issubset(a):
+                print_debug(r)
+                print_debug(a)
+                assert r.issubset(a)
+
+    @pytest.mark.parametrize("empty", [True, False])
+    @pytest.mark.parametrize("frozen", [True, False])
+    def test_unmounted(self, empty, frozen):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/ordered")
+        self._create_sorted_table("//tmp/sorted")
+
+        if not empty:
+            for table in "//tmp/ordered", "//tmp/sorted":
+                sync_mount_table(table)
+                insert_rows(table, [{"key": 1}])
+                sync_unmount_table(table)
+
+        if frozen:
+            for table in "//tmp/ordered", "//tmp/sorted":
+                sync_mount_table(table, freeze=True)
+
+        create_table_backup(
+            ["//tmp/sorted", "//tmp/sorted_bak"],
+            ["//tmp/ordered", "//tmp/ordered_bak", {"ordered_mode": "at_least"}])
+        restore_table_backup(
+            ["//tmp/sorted_bak", "//tmp/sorted_res"],
+            ["//tmp/ordered_bak", "//tmp/ordered_res"])
+
+        for table in "//tmp/ordered_res", "//tmp/sorted_res":
+            sync_mount_table(table)
+            assert len(list(read_table(table))) == (0 if empty else 1)
+            assert len(list(select_rows("* from [{}]".format(table)))) == (0 if empty else 1)
+
+##################################################################
+
+
+@authors("ifsmirnov")
+class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
+    def _create_tables(self, replica_modes, mount=True):
+        self._create_replicated_table("//tmp/t", mount=mount)
+        for i, mode in enumerate(replica_modes):
+            replica_path = "//tmp/r" + str(i + 1)
+            replica_id = create_table_replica(
+                "//tmp/t",
+                self.REPLICA_CLUSTER_NAME,
+                replica_path,
+                mode=mode)
+            self._create_replica_table(replica_path, replica_id, mount=mount)
+            sync_enable_table_replica(replica_id)
+
+    def _make_backup_manifest(self, table_count_or_list):
+        if type(table_count_or_list) is int:
+            table_list = range(1, table_count_or_list + 1)
+        else:
+            table_list = table_count_or_list
+        return {
+            "primary": [("//tmp/t", "//tmp/bak")],
+            self.REPLICA_CLUSTER_NAME: [
+                ("//tmp/r" + str(i), "//tmp/bak" + str(i))
+                for i in table_list
+            ]
+        }
+
+    def _make_restore_manifest(self, table_count_or_list):
+        if type(table_count_or_list) is int:
+            table_list = range(1, table_count_or_list + 1)
+        else:
+            table_list = table_count_or_list
+        return {
+            "primary": [("//tmp/bak", "//tmp/res")],
+            self.REPLICA_CLUSTER_NAME: [
+                ("//tmp/bak" + str(i), "//tmp/res" + str(i))
+                for i in table_list
+            ]
+        }
+
+    def _get_replica_info(self, tablet_info, replica_id):
+        for replica_info in tablet_info["replica_infos"]:
+            if replica_info["replica_id"] == replica_id:
+                return replica_info
+        assert False
+
+    @pytest.mark.parametrize("driver_cluster", ["primary", "remote_0"])
+    def test_replicated_tables_backup(self, driver_cluster):
+        self._create_cells()
+        self._create_tables(["sync", "async"])
+
+        for i in range(10):
+            insert_rows("//tmp/t", [{"key": i, "value1": str(i)}])
+
+        response = create_table_backup(
+            self._make_backup_manifest(2),
+            return_response=True,
+            checkpoint_timestamp_delay=3000,
+            driver=get_driver(cluster=driver_cluster))
+
+        cur_time = time()
+        for i in range(10, 50000):
+            if time() - cur_time > 6:
+                break
+            insert_rows("//tmp/t", [{"key": i, "value1": str(i)}])
+
+        response.wait()
+
+        if not response.is_ok():
+            raise YtResponseError(response.error())
+
+        assert get("//tmp/bak/@type") == "replicated_table"
+        assert get("//tmp/bak/@backup_state") == "backup_completed"
+        replicas = get("//tmp/bak/@replicas")
+
+        assert get("//tmp/bak1/@backup_state", driver=self.replica_driver) == "backup_completed"
+        replica_id = get("//tmp/bak1/@upstream_replica_id", driver=self.replica_driver)
+        assert replicas[replica_id]["replica_path"] == "//tmp/bak1"
+        assert replicas[replica_id]["mode"] == "sync"
+        assert replicas[replica_id]["state"] == "disabled"
+
+        assert get("//tmp/bak2/@backup_state", driver=self.replica_driver) == "backup_completed"
+        replica_id = get("//tmp/bak2/@upstream_replica_id", driver=self.replica_driver)
+        assert replicas[replica_id]["replica_path"] == "//tmp/bak2"
+        assert replicas[replica_id]["mode"] == "async"
+        assert replicas[replica_id]["state"] == "disabled"
+
+        sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/r1", driver=self.replica_driver)
+        sync_flush_table("//tmp/r2", driver=self.replica_driver)
+
+        restore_table_backup(
+            self._make_restore_manifest(2),
+            driver=get_driver(cluster=driver_cluster))
+
+        assert get("//tmp/res/@type") == "replicated_table"
+        assert get("//tmp/res/@backup_state") == "restored_with_restrictions"
+        replicas = get("//tmp/res/@replicas")
+
+        assert get("//tmp/res1/@backup_state", driver=self.replica_driver) == "restored_with_restrictions"
+        replica_id = get("//tmp/res1/@upstream_replica_id", driver=self.replica_driver)
+        assert replicas[replica_id]["replica_path"] == "//tmp/res1"
+        assert replicas[replica_id]["mode"] == "sync"
+        assert replicas[replica_id]["state"] == "disabled"
+        sync_enable_table_replica(replica_id)
+
+        assert get("//tmp/res2/@backup_state", driver=self.replica_driver) == "restored_with_restrictions"
+        replica_id = get("//tmp/res2/@upstream_replica_id", driver=self.replica_driver)
+        assert replicas[replica_id]["replica_path"] == "//tmp/res2"
+        assert replicas[replica_id]["mode"] == "async"
+        assert replicas[replica_id]["state"] == "disabled"
+        sync_enable_table_replica(replica_id)
+        async_replica_id = replica_id
+
+        sync_mount_table("//tmp/res")
+        sync_mount_table("//tmp/res1", driver=self.replica_driver)
+        sync_mount_table("//tmp/res2", driver=self.replica_driver)
+
+        row_count = get("//tmp/res/@tablets/0/flushed_row_count")
+        sync_rows = list(select_rows(
+            "* from [//tmp/res1] order by key limit 10000",
+            driver=self.replica_driver))
+        wait(lambda: get(
+            "#{}/@tablets/0/current_replication_row_index".format(async_replica_id)) == row_count)
+
+        async_rows = list(select_rows(
+            "* from [//tmp/res2] order by key limit 10000",
+            driver=self.replica_driver))
+
+        assert sync_rows == async_rows
+        assert list(select_rows("* from [//tmp/res] order by key limit 10000")) == sync_rows
+
+    def test_cannot_modify_backup_table_replicas(self):
+        self._create_cells()
+        self._create_tables(["sync"])
+        create_table_backup(
+            self._make_backup_manifest(1),
+            checkpoint_timestamp_delay=1000)
+
+        with raises_yt_error():
+            create_table_replica("//tmp/bak", self.REPLICA_CLUSTER_NAME, "//tmp/aaa")
+
+        replica_id = get("//tmp/bak1/@upstream_replica_id", driver=self.replica_driver)
+        with raises_yt_error():
+            alter_table_replica(replica_id, mode="async")
+
+    def test_cannot_modify_replica_during_backup(self):
+        self._create_cells()
+        self._create_tables(["sync"])
+        replica_id = get("//tmp/r1/@upstream_replica_id", driver=self.replica_driver)
+        response = create_table_backup(
+            self._make_backup_manifest(1),
+            checkpoint_timestamp_delay=5000,
+            return_response=True)
+        wait(lambda: get("//tmp/t/@tablet_backup_state") == "checkpoint_requested")
+
+        with raises_yt_error():
+            alter_table_replica(replica_id, mode="async")
+
+        with raises_yt_error():
+            remove("#" + replica_id)
+
+        response.wait()
+        if not response.is_ok():
+            raise YtResponseError(response.error())
+
+        alter_table_replica(replica_id, mode="async")
+
+    def test_disabled_replica(self):
+        self._create_cells()
+        self._create_tables(["async"])
+        replica_id = get("//tmp/r1/@upstream_replica_id", driver=self.replica_driver)
+        set("//tmp/t/@replication_throttler", {"limit": 2000})
+        remount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "A" * 1000, "value2": i * 100} for i in range(15)]
+        for row in rows:
+            insert_rows("//tmp/t", [row], require_sync_replica=False)
+
+        def _get_replica_row_count(table):
+            return len(list(select_rows(f"* from [{table}]", driver=self.replica_driver)))
+
+        wait(lambda: _get_replica_row_count("//tmp/r1") >= 5)
+        sync_disable_table_replica(replica_id)
+
+        create_table_backup(self._make_backup_manifest(1))
+        sync_flush_table("//tmp/t")
+        sync_flush_table("//tmp/r1", driver=self.replica_driver)
+
+        restore_table_backup(self._make_restore_manifest(1))
+        sync_mount_table("//tmp/res")
+        sync_mount_table("//tmp/res1", driver=self.replica_driver)
+
+        written_row_count = _get_replica_row_count("//tmp/res1")
+        tablet_info = get_tablet_infos("//tmp/res", [0])["tablets"][0]
+        replica_info = tablet_info["replica_infos"][0]
+        replicated_row_count = replica_info["current_replication_row_index"]
+        assert written_row_count == replicated_row_count
+
+        assert get("//tmp/res/@replication_throttler/limit") == 2000
+        set("//tmp/res/@replication_throttler/limit", 10000)
+        remount_table("//tmp/res")
+
+        cloned_replica_id = get("//tmp/res1/@upstream_replica_id", driver=self.replica_driver)
+        sync_enable_table_replica(replica_id)
+        sleep(1)
+        assert get("#" + cloned_replica_id + "/@state") == "disabled"
+        assert _get_replica_row_count("//tmp/res1") == written_row_count
+
+        sync_enable_table_replica(cloned_replica_id)
+        wait(lambda: are_items_equal(
+            rows,
+            list(select_rows("* from [//tmp/res1]", driver=self.replica_driver))))
+
+    def test_lagging_async_replica(self):
+        self._create_cells(5)
+        self._create_tables(["async", "async"], mount=False)
+
+        def _make_pivots(n, c):
+            keys = sorted(sample(range(c), n - 1))
+            pivots = [[]] + [[x] for x in keys]
+            print_debug(pivots)
+            return pivots
+
+        tablet_count = 10
+        key_count = 500
+        reshard_table("//tmp/t", _make_pivots(tablet_count, key_count))
+        reshard_table("//tmp/r1", _make_pivots(tablet_count, key_count), driver=self.replica_driver)
+        reshard_table("//tmp/r2", _make_pivots(tablet_count, key_count), driver=self.replica_driver)
+        sync_mount_table("//tmp/r1", driver=self.replica_driver)
+        sync_mount_table("//tmp/r2", driver=self.replica_driver)
+
+        for i in range(tablet_count):
+            set("//tmp/t/@replication_throttler", {"limit": randint(1000, 20000)})
+            sync_mount_table("//tmp/t", first_tablet_index=i, last_tablet_index=i)
+
+        def _write_rows_async(table, rows):
+            print_debug("Inserting {} rows ({} .. {})".format(
+                len(rows), rows[0], rows[-1]))
+            responses = []
+            for row in rows:
+                responses.append(insert_rows(
+                    table,
+                    [row],
+                    require_sync_replica=False,
+                    verbose=False,
+                    return_response=True))
+            for response in responses:
+                response.wait()
+                assert response.is_ok()
+
+        rows = [{"key": i, "value1": "A" * 1000, "value2": i * 100} for i in range(0, key_count, 2)]
+        rows += [{"key": i, "value1": "A" * 1000, "value2": i * 100} for i in range(1, key_count, 2)]
+        bad_rows = [{"key": i, "value1": "bad", "value2": -1} for i in range(key_count)]
+        _write_rows_async("//tmp/t", rows[:key_count//2])
+
+        create_table_backup(self._make_backup_manifest(2), checkpoint_timestamp_delay=1000)
+
+        _write_rows_async("//tmp/t", bad_rows)
+        remove("//tmp/t/@replication_throttler")
+        remount_table("//tmp/t")
+        wait(lambda: are_items_equal(
+            bad_rows,
+            list(select_rows("* from [//tmp/r1]", driver=self.replica_driver, verbose=False))))
+        wait(lambda: are_items_equal(
+            bad_rows,
+            list(select_rows("* from [//tmp/r2]", driver=self.replica_driver, verbose=False))))
+        sync_freeze_table("//tmp/t")
+        sync_freeze_table("//tmp/r1", driver=self.replica_driver)
+        sync_freeze_table("//tmp/r2", driver=self.replica_driver)
+
+        restore_table_backup(self._make_restore_manifest(2))
+
+        set("//tmp/res/@replication_throttler", {"limit": 0})
+        sync_mount_table("//tmp/res")
+        sync_mount_table("//tmp/res1", driver=self.replica_driver)
+        sync_mount_table("//tmp/res2", driver=self.replica_driver)
+        tablet_infos = get_tablet_infos("//tmp/res", list(range(tablet_count)))["tablets"]
+
+        # For each replica, check that replicated row count equals written row count.
+        for table in ("//tmp/res1", "//tmp/res2"):
+            replica_id = get(table + "/@upstream_replica_id", driver=self.replica_driver)
+            written_row_count = get(table + "/@chunk_row_count", driver=self.replica_driver)
+            written_row_count = len(list(select_rows(
+                f"key from [{table}] order by key limit 10000",
+                driver=self.replica_driver)))
+            replicated_row_count = 0
+            for tablet_info in tablet_infos:
+                replica_info = self._get_replica_info(tablet_info, replica_id)
+                replicated_row_count += replica_info["current_replication_row_index"]
+            assert replicated_row_count == written_row_count
+
+        for r in get("//tmp/res/@replicas"):
+            sync_enable_table_replica(r)
+        set("//tmp/res/@replication_throttler", {"limit": 250000})
+
+        def _check(expected):
+            tablet_infos = get_tablet_infos("//tmp/res", list(range(tablet_count)))["tablets"]
+            total_replicated_row_count = Counter()
+            for tablet_info in tablet_infos:
+                for replica_info in tablet_info["replica_infos"]:
+                    total_replicated_row_count[replica_info["replica_id"]] +=\
+                        replica_info["current_replication_row_index"]
+            return all(x == expected for x in total_replicated_row_count.values())
+        set("//tmp/res/@replication_throttler", {"limit": 200000})
+        remount_table("//tmp/res")
+        wait(lambda: _check(key_count//2))
+
+        _write_rows_async("//tmp/res", rows[key_count//2:])
+        wait(lambda: _check(key_count))
+
+        sync_alter_table_replica_mode(
+            get("//tmp/res1/@upstream_replica_id", driver=self.replica_driver),
+            mode="sync")
+
+        assert_items_equal(list(select_rows("* from [//tmp/res]", verbose=False)), rows)
+
+    def test_catching_up_sync_replica_fails(self):
+        self._create_cells()
+        self._create_tables(["async", "sync"])
+        set("//tmp/t/@replication_throttler", {"limit": 500})
+        remount_table("//tmp/t")
+        for i in range(15):
+            insert_rows(
+                "//tmp/t",
+                [{"key": i, "value1": "A" * 1000}],
+                require_sync_replica=False)
+
+        replica_id = get("//tmp/r1/@upstream_replica_id", driver=self.replica_driver)
+        sync_alter_table_replica_mode(replica_id, "sync")
+
+        tablet_info = get_tablet_infos("//tmp/t", [0])["tablets"][0]
+        replica_info = self._get_replica_info(tablet_info, replica_id)
+        assert replica_info["mode"] == "sync"
+        assert replica_info["current_replication_row_index"] < tablet_info["total_row_count"]
+
+        # Replica 1 of sync mode is not in sync and cannot be backed up.
+        with raises_yt_error(yt_error_codes.BackupCheckpointRejected):
+            create_table_backup(self._make_backup_manifest([1]))
+
+        # But it should not prevent us from backing up only replica 2.
+        create_table_backup(self._make_backup_manifest([2]))
+
 ##################################################################
 
 
 @authors("ifsmirnov")
 class TestBackupsMulticell(TestBackups):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+@authors("ifsmirnov")
+class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
     NUM_SECONDARY_MASTER_CELLS = 2

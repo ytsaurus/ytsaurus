@@ -47,6 +47,7 @@ DEFINE_ENUM(ETabletReign,
     ((CumulativeDataWeight)               (100500)) // achulkov2
     ((CommitSignature)                    (100501)) // gritukan
     ((MountConfig)                        (100502)) // ifsmirnov
+    ((BackupsReplicated)                  (100503)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,6 +43,7 @@
 
 #include <yt/yt/ytlib/table_client/schema.h>
 
+#include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -1220,7 +1221,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::EnableDynamicStoreRead: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
-            if (lockedTable->IsPhysicallyLog()) {
+            if (lockedTable->IsPhysicallyLog() && !lockedTable->IsReplicated()) {
                 THROW_ERROR_EXCEPTION("Dynamic store read is not supported for table type %Qlv",
                     lockedTable->GetType());
             }
@@ -1451,6 +1452,10 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
+            if (lockedTable->IsPhysicallyLog() && !lockedTable->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Dynamic store read is not supported for table type %Qlv",
+                    lockedTable->GetType());
+            }
             if (lockedTable->IsDynamic()) {
                 lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
             }
@@ -1669,8 +1674,9 @@ bool TTableNodeProxy::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Alter);
     DISPATCH_YPATH_SERVICE_METHOD(LockDynamicTable);
     DISPATCH_YPATH_SERVICE_METHOD(CheckDynamicTableLock);
-    DISPATCH_YPATH_SERVICE_METHOD(SetBackupCheckpoint);
-    DISPATCH_YPATH_SERVICE_METHOD(CheckBackupCheckpoint);
+    DISPATCH_YPATH_SERVICE_METHOD(StartBackup);
+    DISPATCH_YPATH_SERVICE_METHOD(StartRestore);
+    DISPATCH_YPATH_SERVICE_METHOD(CheckBackup);
     DISPATCH_YPATH_SERVICE_METHOD(FinishBackup);
     DISPATCH_YPATH_SERVICE_METHOD(FinishRestore);
     return TBase::DoInvoke(context);
@@ -1871,8 +1877,6 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         if (options.UpstreamReplicaId) {
-            ValidateNoTransaction();
-
             if (!dynamic) {
                 THROW_ERROR_EXCEPTION("Upstream replica can only be set for dynamic tables");
             }
@@ -2020,33 +2024,69 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckDynamicTableLock)
     context->Reply();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, SetBackupCheckpoint)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartBackup)
 {
     DeclareMutating();
     ValidateTransaction();
 
     auto timestamp = request->timestamp();
+    auto backupMode = FromProto<EBackupMode>(request->backup_mode());
 
-    context->SetRequestInfo("Timestamp: %llx",
-        timestamp);
+    auto upstreamReplicaId = request->has_upstream_replica_id()
+        ? FromProto<TTableReplicaId>(request->upstream_replica_id())
+        : TTableReplicaId{};
+    auto clockClusterTag = request->has_clock_cluster_tag()
+        ? std::make_optional(FromProto<TClusterTag>(request->clock_cluster_tag()))
+        : std::nullopt;
+
+    auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
+        request->replicas());
+
+    context->SetRequestInfo("Timestamp: %llx, BackupMode: %v, ClockClusterTag: %v",
+        timestamp,
+        backupMode,
+        clockClusterTag);
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
-    backupManager->SetBackupCheckpoint(
+    backupManager->StartBackup(
         GetThisImpl()->GetTrunkNode(),
         timestamp,
-        GetTransaction());
+        GetTransaction(),
+        backupMode,
+        upstreamReplicaId,
+        clockClusterTag,
+        std::move(replicaDescriptors));
 
     context->Reply();
 }
 
-DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckBackupCheckpoint)
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, StartRestore)
+{
+    DeclareMutating();
+    ValidateTransaction();
+
+    auto replicaDescriptors = FromProto<std::vector<TTableReplicaBackupDescriptor>>(
+        request->replicas());
+
+    context->SetRequestInfo();
+
+    const auto& backupManager = Bootstrap_->GetBackupManager();
+    backupManager->StartRestore(
+        GetThisImpl()->GetTrunkNode(),
+        GetTransaction(),
+        std::move(replicaDescriptors));
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, CheckBackup)
 {
     ValidateTransaction();
 
     context->SetRequestInfo();
 
     const auto& backupManager = Bootstrap_->GetBackupManager();
-    backupManager->CheckBackupCheckpoint(
+    backupManager->CheckBackup(
         GetThisImpl()->GetTrunkNode(),
         response);
 
