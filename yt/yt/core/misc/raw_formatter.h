@@ -170,6 +170,11 @@ public:
         Cursor_ = Begin_;
     }
 
+    TStringBuf GetBuffer() const
+    {
+        return {Begin_, Cursor_};
+    }
+
 private:
     char* const Begin_;
     char* Cursor_;

@@ -60,7 +60,7 @@ protected:
     const TLoggingCategory Category = {
         .Name = "category"
     };
-    const int DateLength = ToString("2014-04-24 23:41:09,804").length();
+    const int DateLength = ToString("2014-04-24 23:41:09,804000").length();
 
     IMapNodePtr DeserializeStructured(const TString& source, ELogFormat format)
     {

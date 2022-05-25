@@ -80,28 +80,24 @@ TLogEvent GetSkippedLogStructuredEvent(i64 count, TStringBuf skippedBy)
 
 } // namespace
 
+////////////////////////////////////////////////////////////////////////////////
 
-TCachingDateFormatter::TCachingDateFormatter()
+void TCachingDateFormatter::Format(TBaseFormatter* buffer, TInstant dateTime, bool printMicroseconds)
 {
-    Update(GetCpuInstant());
-}
-
-const char* TCachingDateFormatter::Format(TCpuInstant instant)
-{
-    if (instant <= Liveline_ || instant >= Deadline_) {
-        Update(instant);
+    auto currentSecond = dateTime.Seconds();
+    if (CachedSecond_ != currentSecond) {
+        Cached_.Reset();
+        FormatDateTime(&Cached_, dateTime);
+        CachedSecond_ = currentSecond;
     }
-    return Cached_.GetData();
-}
 
-void TCachingDateFormatter::Update(TCpuInstant instant)
-{
-    Cached_.Reset();
-    FormatDateTime(&Cached_, CpuInstantToInstant(instant));
-    Cached_.AppendChar('\0');
-    auto period = DurationToCpuDuration(TDuration::MicroSeconds(500));
-    Deadline_ = instant + period;
-    Liveline_ = instant - period;
+    buffer->AppendString(Cached_.GetBuffer());
+    buffer->AppendChar(',');
+    if (printMicroseconds) {
+        FormatMicroseconds(buffer, dateTime);
+    } else {
+        FormatMilliseconds(buffer, dateTime);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +105,7 @@ void TCachingDateFormatter::Update(TCpuInstant instant)
 TPlainTextLogFormatter::TPlainTextLogFormatter(
     bool enableSystemMessages,
     bool enableSourceLocation)
-    : Buffer_(std::make_unique<TMessageBuffer>())
+    : Buffer_(std::make_unique<TRawFormatter<MessageBufferSize>>())
     , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
     , EnableSystemMessages_(enableSystemMessages)
     , EnableSourceLocation_(enableSourceLocation)
@@ -124,7 +120,7 @@ i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TL
     auto* buffer = Buffer_.get();
     buffer->Reset();
 
-    buffer->AppendString(CachingDateFormatter_->Format(event.Instant));
+    CachingDateFormatter_->Format(buffer, CpuInstantToInstant(event.Instant), true);
 
     buffer->AppendChar('\t');
 
@@ -231,13 +227,16 @@ i64 TStructuredLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEve
             YT_ABORT();
     }
 
+    TRawFormatter<DateTimeBufferSize> dateTimeBuffer;
+    CachingDateFormatter_->Format(&dateTimeBuffer, CpuInstantToInstant(event.Instant));
+
     BuildYsonFluently(consumer.get())
         .BeginMap()
             .DoFor(CommonFields_, [] (auto fluent, auto item) {
                 fluent.Item(item.first).Value(item.second);
             })
             .Items(event.StructuredMessage)
-            .Item("instant").Value(ToString(CachingDateFormatter_->Format(event.Instant)))
+            .Item("instant").Value(dateTimeBuffer.GetBuffer())
             .Item("level").Value(FormatEnum(event.Level))
             .Item("category").Value(event.Category->Name)
         .EndMap();
