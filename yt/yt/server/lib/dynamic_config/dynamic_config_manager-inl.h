@@ -168,10 +168,11 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         return false;
     }
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(configOrError,
-        EErrorCode::FailedToFetchDynamicConfig,
-        "Failed to fetch dynamic config from Cypress (DynamicConfigName: %v)",
-        Options_.Name);
+    if (!configOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to fetch dynamic config from Cypress")
+            << TErrorAttribute("config_name", Options_.Name)
+            << configOrError;
+    }
 
     auto configNode = NYTree::ConvertTo<NYTree::IMapNodePtr>(configOrError.Value());
 
