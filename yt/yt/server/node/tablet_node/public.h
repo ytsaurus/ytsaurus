@@ -35,10 +35,12 @@ DEFINE_ENUM(ETabletWriteMode,
 )
 
 DEFINE_ENUM(EBackupStage,
-    (None)
-    (TimestampReceived)
-    (FeasibilityConfirmed)
-    (RespondedToMaster)
+    ((None)                           (0))
+    ((TimestampReceived)              (1))
+    ((FeasibilityConfirmed)           (2))
+    ((AwaitingReplicationFinish)      (3))
+    ((RespondedToMasterSuccess)       (4))
+    ((RespondedToMasterFailure)       (5))
 )
 
 using TTabletDistributedThrottlersVector = TEnumIndexedVector<

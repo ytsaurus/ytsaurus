@@ -17,9 +17,27 @@ using TCreateOrRestoreTableBackupOptions = std::variant<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EBackupDirection,
+    (Backup)
+    (Restore)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClusterBackupSession
 {
 public:
+    struct TTableReplicaInfo
+    {
+        NTabletClient::TTableReplicaId Id;
+        TString ClusterName;
+        NTabletClient::ETableReplicaMode Mode;
+        TString ReplicaPath;
+        // Path to the corresponding backed up or restored table.
+        TString ClonedReplicaPath;
+        NTabletClient::TTableReplicaId ClonedReplicaId;
+    };
+
     struct TTableInfo
     {
         NYPath::TYPath SourcePath;
@@ -27,8 +45,23 @@ public:
         NObjectClient::TCellTag ExternalCellTag;
         NYTree::IAttributeDictionaryPtr Attributes;
 
+        bool Sorted = false;
+        bool Replicated = false;
+        NTransactionClient::ECommitOrdering CommitOrdering{};
+        NTabletClient::EOrderedTableBackupMode OrderedTableBackupMode;
+
         NYPath::TYPath DestinationPath;
         NTableClient::TTableId DestinationTableId;
+
+        // Specific for replica tables.
+        NTabletClient::TTableReplicaId UpstreamReplicaId;
+        const TTableReplicaInfo* UpstreamReplica = nullptr;
+        TClusterTag ClockClusterTag = TClusterTag{};
+        NTabletClient::ETableReplicaMode ReplicaMode;
+
+        // Specific for replicated tables.
+        THashMap<NTabletClient::TTableReplicaId, TTableReplicaInfo> Replicas;
+        std::vector<NTabletClient::TTableReplicaBackupDescriptor> BackupableReplicas;
     };
 
 public:
@@ -47,7 +80,9 @@ public:
 
     void LockInputTables();
 
-    void SetCheckpoint();
+    void StartBackup();
+
+    void StartRestore();
 
     void WaitForCheckpoint();
 
@@ -59,7 +94,15 @@ public:
 
     void ValidateBackupStates(NTabletClient::ETabletBackupState expectedState);
 
+    void FetchClonedReplicaIds();
+
+    void UpdateUpstreamReplicaIds();
+
     void CommitTransaction();
+
+    std::vector<TTableInfo*> GetTables();
+
+    TClusterTag GetClusterTag() const;
 
 private:
     const TString ClusterName_;
@@ -80,7 +123,8 @@ private:
             const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& req,
             const TTableInfo& table)>;
     using TOnResponse = std::function<
-        void(const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& rsp,
+        void(
+            const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& rsp,
             TTableInfo* table)>;
 
     const TCreateTableBackupOptions& GetCreateOptions() const;
@@ -123,7 +167,9 @@ private:
 
     TClusterBackupSession* CreateClusterSession(const TString& clusterName);
 
-    void InitializeAndLockTables(TStringBuf transactionTitle);
+    void InitializeAndLockTables(EBackupDirection direction);
+
+    void MatchReplicatedTablesWithReplicas();
 
     void CommitTransactions();
 };

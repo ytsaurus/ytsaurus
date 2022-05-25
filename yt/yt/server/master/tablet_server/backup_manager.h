@@ -8,6 +8,10 @@
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 
+#include <yt/yt/ytlib/tablet_client/backup.h>
+
+#include <yt/yt/client/api/public.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,18 +21,29 @@ struct IBackupManager
 {
     virtual void Initialize() = 0;
 
-    virtual void SetBackupCheckpoint(
+    virtual void StartBackup(
         NTableServer::TTableNode* table,
         NTransactionClient::TTimestamp timestamp,
-        NTransactionServer::TTransaction* transaction) = 0;
+        NTransactionServer::TTransaction* transaction,
+        NTabletClient::EBackupMode backupMode,
+        TTableReplicaId upstreamReplicaId,
+        std::optional<NApi::TClusterTag> clockClusterTag,
+        std::vector<NTabletClient::TTableReplicaBackupDescriptor>
+            replicaBackupDescriptors) = 0;
+
+    virtual void StartRestore(
+        NTableServer::TTableNode* table,
+        NTransactionServer::TTransaction* transaction,
+        std::vector<NTabletClient::TTableReplicaBackupDescriptor>
+            replicaBackupDescriptors) = 0;
 
     virtual void ReleaseBackupCheckpoint(
         NTableServer::TTableNode* table,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    virtual void CheckBackupCheckpoint(
+    virtual void CheckBackup(
         NTableServer::TTableNode* table,
-        NTableClient::NProto::TRspCheckBackupCheckpoint* response) = 0;
+        NTableClient::NProto::TRspCheckBackup* response) = 0;
 
     virtual TFuture<void> FinishBackup(NTableServer::TTableNode* table) = 0;
 

@@ -48,6 +48,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, GeneratePrepareTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
+    DEFINE_BYVAL_RW_PROPERTY(TTimestamp, MaxAllowedCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYREF_RW_PROPERTY(NHiveClient::TTimestampMap, CommitTimestamps);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState, ECommitState::Start);
@@ -69,6 +70,7 @@ public:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
         std::vector<TTransactionId> prerequisiteTransactionIds = {});
 

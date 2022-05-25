@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -24,6 +25,7 @@
 
 namespace NYT::NTabletServer {
 
+using namespace NApi;
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -31,6 +33,7 @@ using namespace NCypressClient;
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NTableServer;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTabletNode::NProto;
@@ -61,6 +64,7 @@ public:
 
         RegisterMethod(BIND(&TBackupManager::HydraFinishBackup, Unretained(this)));
         RegisterMethod(BIND(&TBackupManager::HydraFinishRestore, Unretained(this)));
+        RegisterMethod(BIND(&TBackupManager::HydraResetBackupMode, Unretained(this)));
         RegisterMethod(BIND(&TBackupManager::HydraOnBackupCheckpointPassed, Unretained(this)));
     }
 
@@ -73,16 +77,26 @@ public:
             BIND(&TBackupManager::OnTransactionCommitted, MakeWeak(this)));
     }
 
-    void SetBackupCheckpoint(
+    void StartBackup(
         TTableNode* table,
         TTimestamp timestamp,
-        TTransaction* transaction) override
+        TTransaction* transaction,
+        EBackupMode backupMode,
+        TTableReplicaId upstreamReplicaId,
+        std::optional<TClusterTag> clockClusterTag,
+        std::vector<TTableReplicaBackupDescriptor> replicaBackupDescriptors) override
     {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %llx)",
+            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %llx, "
+            "BackupMode: %v, ClockClusterTag: %v, BackupableReplicaIds: %v)",
             table->GetId(),
             transaction->GetId(),
-            timestamp);
+            timestamp,
+            backupMode,
+            clockClusterTag,
+            MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
+                builder->AppendFormat("%v", descriptor.ReplicaId);
+            }));
 
         if (timestamp == NullTimestamp) {
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
@@ -127,7 +141,34 @@ public:
             }
         }
 
+        // NB: This validation should not fail given that native client
+        // is consistent with master.
+        ValidateBackupMode(table, backupMode);
+
+        if (table->GetUpstreamReplicaId() != upstreamReplicaId) {
+            THROW_ERROR_EXCEPTION("Invalid upstream replica id: expected %v, got %v",
+                upstreamReplicaId,
+                table->GetUpstreamReplicaId());
+        }
+
+        if (table->GetUpstreamReplicaId() && !clockClusterTag) {
+            THROW_ERROR_EXCEPTION("Clock cluster tag must be specified for a replica table")
+                << TErrorAttribute("table_id", table->GetId());
+        }
+
+        if (!table->GetUpstreamReplicaId() && clockClusterTag) {
+            THROW_ERROR_EXCEPTION("Clock cluster tag can be specified only for replica tables")
+                << TErrorAttribute("table_id", table->GetId())
+                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
+        }
+
+        if (table->IsReplicated()) {
+            ValidateReplicasAssociation(table, replicaBackupDescriptors, /*validateModes*/ true);
+        }
+
         table->SetBackupCheckpointTimestamp(timestamp);
+        table->SetBackupMode(backupMode);
+        table->MutableReplicaBackupDescriptors() = replicaBackupDescriptors;
 
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
             if (auto* cell = tablet->GetCell()) {
@@ -139,6 +180,13 @@ public:
                 ToProto(req.mutable_tablet_id(), tablet->GetId());
                 req.set_mount_revision(tablet->GetMountRevision());
                 req.set_timestamp(timestamp);
+                req.set_backup_mode(ToProto<int>(backupMode));
+
+                if (clockClusterTag) {
+                    req.set_clock_cluster_tag(*clockClusterTag);
+                }
+
+                ToProto(req.mutable_replicas(), replicaBackupDescriptors);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
                 auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -154,11 +202,34 @@ public:
         UpdateAggregatedBackupState(table);
     }
 
+    virtual void StartRestore(
+        TTableNode* table,
+        TTransaction* transaction,
+        std::vector<TTableReplicaBackupDescriptor> replicaBackupDescriptors) override
+    {
+        YT_LOG_DEBUG("Starting restore from backup (TableId: %v, TransactionId: %v, "
+            "BackupableReplicaIds: %v)",
+            table->GetId(),
+            transaction->GetId(),
+            MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
+                builder->AppendFormat("%v", descriptor.ReplicaId);
+            }));
+
+        if (table->IsReplicated()) {
+            ValidateReplicasAssociation(table, replicaBackupDescriptors, /*validateModes*/ false);
+        }
+
+        table->MutableReplicaBackupDescriptors() = replicaBackupDescriptors;
+    }
+
     void ReleaseBackupCheckpoint(
-        NTableServer::TTableNode* table,
-        NTransactionServer::TTransaction* transaction) override
+        TTableNode* table,
+        TTransaction* transaction) override
     {
         for (auto* tablet : table->GetTrunkNode()->Tablets()) {
+            tablet->BackupCutoffDescriptor() = std::nullopt;
+            tablet->BackedUpReplicaInfos().clear();
+
             if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested &&
                 tablet->GetBackupState() != ETabletBackupState::CheckpointConfirmed &&
                 tablet->GetBackupState() != ETabletBackupState::CheckpointRejected)
@@ -191,7 +262,6 @@ public:
             }
 
             tablet->SetBackupState(ETabletBackupState::None);
-            tablet->SetBackupCutoffDescriptor({});
         }
 
         if (!transaction->TablesWithBackupCheckpoints().contains(table)) {
@@ -207,9 +277,9 @@ public:
         UpdateAggregatedBackupState(table);
     }
 
-    void CheckBackupCheckpoint(
+    void CheckBackup(
         TTableNode* table,
-        NTableClient::NProto::TRspCheckBackupCheckpoint* response) override
+        NTableClient::NProto::TRspCheckBackup* response) override
     {
         const auto& tabletCountByState = table->TabletCountByBackupState();
         int pendingCount = tabletCountByState[ETabletBackupState::CheckpointRequested];
@@ -400,35 +470,56 @@ private:
             } else {
                 table = tablet->GetTable();
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v)",
+                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %llx, BackupMode: %v)",
                     table->GetId(),
                     transactionId,
-                    table->GetBackupCheckpointTimestamp());
+                    table->GetBackupCheckpointTimestamp(),
+                    table->GetBackupMode());
             }
 
             if (tablet->GetBackupState() != ETabletBackupState::BackupStarted) {
                 YT_LOG_WARNING_IF(IsMutationLoggingEnabled(),
                     "Attempted to finish backup of the tablet in invalid state "
-                    "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
+                    "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v, BackupMode: %v)",
                     table->GetId(),
                     tabletId,
                     tablet->GetBackupState(),
-                    transactionId);
+                    transactionId,
+                    table->GetBackupMode());
                 continue;
             }
 
-            if (table->IsPhysicallySorted()) {
-                tabletManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
-            } else {
-                auto error = tabletManager->ApplyCutoffRowIndex(tablet);
+            switch (table->GetBackupMode()) {
+                case EBackupMode::Sorted:
+                case EBackupMode::SortedSyncReplica:
+                    tabletManager->WrapWithBackupChunkViews(tablet, table->GetBackupCheckpointTimestamp());
+                    break;
 
-                if (!error.IsOK()) {
-                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
-                        "Failed to apply cutoff row index to tablet (TabletId: %v)",
-                        tablet->GetId());
-                    RegisterBackupError(table, error.Sanitize());
-                    tablet->SetBackupState(ETabletBackupState::BackupFailed);
+                case EBackupMode::SortedAsyncReplica: {
+                    auto error = tabletManager->ApplyBackupCutoff(tablet);
+                    YT_VERIFY(error.IsOK());
+                    break;
                 }
+
+                case EBackupMode::OrderedStrongCommitOrdering:
+                case EBackupMode::OrderedExact:
+                case EBackupMode::OrderedAtLeast:
+                case EBackupMode::OrderedAtMost:
+                case EBackupMode::ReplicatedSorted: {
+                    auto error = tabletManager->ApplyBackupCutoff(tablet);
+
+                    if (!error.IsOK()) {
+                        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                            "Failed to apply cutoff row index to tablet (TabletId: %v)",
+                            tablet->GetId());
+                        RegisterBackupError(table, error.Sanitize());
+                        tablet->SetBackupState(ETabletBackupState::BackupFailed);
+                    }
+                    break;
+                }
+
+                default:
+                    YT_ABORT();
             }
 
             tablet->CheckedSetBackupState(
@@ -494,6 +585,11 @@ private:
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::None);
             } else {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                    "Failed to restore the tablet from backup (TableId: %v, TabletId: %v, TransactionId: %v)",
+                    table->GetId(),
+                    tablet->GetId(),
+                    transactionId);
                 tablet->CheckedSetBackupState(
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::RestoreFailed);
@@ -502,6 +598,23 @@ private:
         }
 
         UpdateAggregatedBackupState(table);
+    }
+
+    void HydraResetBackupMode(NProto::TReqResetBackupMode* request)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+        auto tableId = FromProto<TTableId>(request->table_id());
+        auto* node = cypressManager->FindNode(TVersionedNodeId(tableId, /*transactionId*/{}));
+        if (!node) {
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Table backup mode reset (TableId: %v)",
+            tableId);
+        auto* tableNode = node->As<TTableNode>();
+        tableNode->SetBackupMode(EBackupMode::None);
     }
 
     void HydraOnBackupCheckpointPassed(NProto::TReqReportBackupCheckpointPassed* response)
@@ -519,7 +632,8 @@ private:
         }
 
         if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested) {
-            YT_LOG_DEBUG("Backup checkpoint passage reported to a tablet in "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Backup checkpoint passage reported to a tablet in "
                 "wrong backup state, ignored (TabletId: %v, BackupState: %v)",
                 tablet->GetId(),
                 tablet->GetBackupState());
@@ -527,22 +641,43 @@ private:
         }
 
         if (response->confirmed()) {
-            if (response->has_row_index_cutoff_descriptor()) {
-                tablet->SetBackupCutoffDescriptor(FromProto<TRowIndexCutoffDescriptor>(
-                    response->row_index_cutoff_descriptor()));
+            if (response->has_cutoff_descriptor()) {
+                tablet->BackupCutoffDescriptor() = FromProto<TBackupCutoffDescriptor>(
+                    response->cutoff_descriptor());
             }
 
-            YT_LOG_DEBUG("Backup checkpoint confirmed by the tablet cell "
-                "(TableId: %v, TabletId: %v, RowIndexCutoffDescriptor: %v)",
+            std::vector<TString> replicaLogStrings;
+
+            if (tablet->GetTable()->IsReplicated()) {
+                for (const auto& protoReplicaInfo : response->replicas()) {
+                    auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
+                    auto& replicaInfo = EmplaceOrCrash(
+                        tablet->BackedUpReplicaInfos(),
+                        replicaId,
+                        TTableReplicaInfo{})
+                        ->second;
+                    replicaInfo.MergeFrom(protoReplicaInfo.replica_statistics());
+                    replicaLogStrings.push_back(Format("%v: %v/%llx",
+                        replicaId,
+                        replicaInfo.GetCommittedReplicationRowIndex(),
+                        replicaInfo.GetCurrentReplicationTimestamp()));
+                }
+            }
+
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Backup checkpoint confirmed by the tablet cell "
+                "(TableId: %v, TabletId: %v, CutoffDescriptor: %v, Replicas: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId(),
-                tablet->GetBackupCutoffDescriptor());
+                tablet->BackupCutoffDescriptor(),
+                replicaLogStrings);
             tablet->CheckedSetBackupState(
                 ETabletBackupState::CheckpointRequested,
                 ETabletBackupState::CheckpointConfirmed);
         } else {
             auto error = FromProto<TError>(response->error());
-            YT_LOG_DEBUG(error, "Backup checkpoint rejected by the tablet cell "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error,
+                "Backup checkpoint rejected by the tablet cell "
                 "(TableId: %v, TabletId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId());
@@ -575,6 +710,18 @@ private:
         TRequest currentReq;
         int storeCount = 0;
 
+        auto commitMutation = [=] (auto mutation) {
+            // TODO(aleksandra-zh, gritukan): Mutation commit from non-automaton thread
+            // should not be a problem for new Hydra.
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            return BIND([=, mutation = std::move(mutation)] {
+                return CreateMutation(hydraManager, mutation)
+                    ->CommitAndLog(Logger);
+            })
+                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
+                .Run();
+        };
+
         auto maybeFlush = [&] (bool force) {
             if (storeCount < MaxStoresPerBackupMutation && !force) {
                 return;
@@ -582,17 +729,7 @@ private:
 
             ToProto(currentReq.mutable_transaction_id(), transaction->GetId());
 
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            // TODO(aleksandra-zh, gritukan): Mutation commit from non-automaton thread
-            // should not be a problem for new Hydra.
-            auto asyncResult = BIND([=, mutation = std::move(currentReq)] {
-                return CreateMutation(hydraManager, mutation)
-                    ->CommitAndLog(Logger);
-            })
-                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
-                .Run();
-            asyncCommitResults.push_back(std::move(asyncResult));
-
+            asyncCommitResults.push_back(commitMutation(std::move(currentReq)));
             storeCount = 0;
             currentReq = {};
         };
@@ -613,6 +750,12 @@ private:
         }
 
         maybeFlush(true);
+
+        if constexpr (std::is_same_v<TRequest, NProto::TReqFinishBackup>) {
+            NProto::TReqResetBackupMode req;
+            ToProto(req.mutable_table_id(), table->GetId());
+            asyncCommitResults.push_back(commitMutation(std::move(req)));
+        }
 
         return AllSucceeded(asyncCommitResults).AsVoid();
     }
@@ -693,6 +836,135 @@ private:
 
         // Should be already sanitized.
         table->MutableBackupError() = error;
+    }
+
+    void ValidateBackupMode(TTableNode* table, EBackupMode mode)
+    {
+        if (mode == EBackupMode::ReplicatedSorted) {
+            if (!table->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Can backup only replicated tables in mode %Qlv", mode);
+
+            }
+        } else {
+            if (table->IsReplicated()) {
+                THROW_ERROR_EXCEPTION("Cannot backup replicated table in mode %Qlv", mode);
+            }
+        }
+
+        auto validateUpstreamReplica = [&] {
+            if (!table->GetUpstreamReplicaId()) {
+                THROW_ERROR_EXCEPTION("Cannot backup replica table in mode %Qlv", mode);
+            }
+        };
+
+        auto validateNoUpstreamReplica = [&] {
+            if (table->GetUpstreamReplicaId()) {
+                THROW_ERROR_EXCEPTION("Can backup only replica tables in mode %Qlv", mode);
+            }
+        };
+
+        auto validateSorted = [&] {
+            if (!table->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Cannot backup ordered table in mode %Qlv", mode);
+            }
+        };
+
+        auto validateOrdered = [&] {
+            if (table->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Cannot backup sorted table in mode %Qlv", mode);
+            }
+        };
+
+        switch (mode) {
+            case EBackupMode::Sorted:
+                validateSorted();
+                validateNoUpstreamReplica();
+                break;
+
+            case EBackupMode::SortedSyncReplica:
+            case EBackupMode::SortedAsyncReplica:
+                validateSorted();
+                validateUpstreamReplica();
+                break;
+
+            case EBackupMode::OrderedStrongCommitOrdering:
+                validateOrdered();
+                validateNoUpstreamReplica();
+                if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
+                    THROW_ERROR_EXCEPTION("Cannot backup table with commit ordering %Qlv "
+                        "in mode %Qlv",
+                        table->GetCommitOrdering(),
+                        mode);
+                }
+                break;
+
+            case EBackupMode::OrderedAtLeast:
+                validateOrdered();
+                validateNoUpstreamReplica();
+                if (table->GetCommitOrdering() != ECommitOrdering::Weak) {
+                    THROW_ERROR_EXCEPTION("Cannot backup table with commit ordering %Qlv "
+                        "in mode %Qlv",
+                        table->GetCommitOrdering(),
+                        mode);
+                }
+                break;
+
+            case EBackupMode::OrderedExact:
+            case EBackupMode::OrderedAtMost:
+                THROW_ERROR_EXCEPTION("Backup mode %Qlv is not supported", mode);
+
+            case EBackupMode::ReplicatedSorted:
+                validateSorted();
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Invalid backup mode %Qlv", mode);
+        }
+    }
+
+    void ValidateReplicasAssociation(
+        TTableNode* table,
+        const std::vector<TTableReplicaBackupDescriptor>& replicaBackupDescriptors,
+        bool validateModes)
+    {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        for (const auto& descriptor : replicaBackupDescriptors) {
+            const auto* replica = tabletManager->FindTableReplica(descriptor.ReplicaId);
+            if (!replica || replica->GetTable() != table) {
+                THROW_ERROR_EXCEPTION("Table replica %v does not belong to the table")
+                    << TErrorAttribute("table_id", table->GetId());
+            }
+            if (!validateModes) {
+                continue;
+            }
+
+            if (replica->GetMode() != descriptor.Mode) {
+                THROW_ERROR_EXCEPTION("Table replica %v has unexpected mode: "
+                    "expected %Qlv, actual %Qlv",
+                    replica->GetId(),
+                    descriptor.Mode,
+                    replica->GetMode())
+                    << TErrorAttribute("table_id", table->GetId());
+            }
+
+            if (replica->GetState() != ETableReplicaState::Enabled &&
+                replica->GetState() != ETableReplicaState::Disabled)
+            {
+                THROW_ERROR_EXCEPTION("Table replica %v is in transient state %Qlv",
+                    replica->GetId(),
+                    replica->GetState())
+                    << TErrorAttribute("table_id", table->GetId());
+            }
+
+            if (replica->GetState() == ETableReplicaState::Disabled &&
+                replica->GetMode() == ETableReplicaMode::Sync)
+            {
+                THROW_ERROR_EXCEPTION("Sync replica %v is disabled; it must be enabled "
+                    "or switched to async mode to be backed up",
+                    replica->GetId())
+                    << TErrorAttribute("table_id", table->GetId());
+            }
+        }
     }
 };
 

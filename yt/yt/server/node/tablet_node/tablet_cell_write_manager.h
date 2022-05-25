@@ -41,6 +41,8 @@ struct ITabletCellWriteManagerHost
     virtual bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& rowRef) = 0;
 
     virtual void AdvanceReplicatedTrimmedRowCount(TTablet* tablet, TTransaction* transaction) = 0;
+
+    virtual const IBackupManagerPtr& GetBackupManager() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManagerHost);
@@ -70,6 +72,8 @@ struct ITabletCellWriteManager
         TFuture<void>* commitResult) = 0;
 
     virtual void Clear() = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(TTablet*), ReplicatorWriteTransactionFinished);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManager);

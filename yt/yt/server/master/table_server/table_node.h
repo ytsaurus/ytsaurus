@@ -89,7 +89,9 @@ private:
         TEnumIndexedVector<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
         NTabletClient::ETabletBackupState AggregatedTabletBackupState = NTabletClient::ETabletBackupState::None;
         NTransactionClient::TTimestamp BackupCheckpointTimestamp = NTransactionClient::NullTimestamp;
+        NTabletClient::EBackupMode BackupMode = NTabletClient::EBackupMode::None;
         TError BackupError;
+        std::vector<NTabletClient::TTableReplicaBackupDescriptor> ReplicaBackupDescriptors;
         TString QueueAgentStage = NQueueClient::ProductionStage;
         bool TreatAsConsumer = false;
         bool IsVitalConsumer = false;
@@ -150,7 +152,9 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, AggregatedTabletBackupState);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupCheckpointTimestamp);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupMode);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupError);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, ReplicaBackupDescriptors);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsConsumer);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IsVitalConsumer);

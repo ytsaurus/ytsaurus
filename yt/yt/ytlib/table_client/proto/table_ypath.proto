@@ -4,6 +4,7 @@ import "yt/ytlib/hive/proto/cell_directory.proto";
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt/ytlib/tablet_client/proto/backup.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,6 +175,35 @@ message TRspCheckDynamicTableLock
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqStartBackup
+{
+    required uint64 timestamp = 1;
+    required int32 backup_mode = 2; // EBackupMode
+
+    // Replica tables only.
+    optional NYT.NProto.TGuid upstream_replica_id = 3;
+    optional uint32 clock_cluster_tag = 4;
+
+    // Replicated tables only.
+    repeated NYT.NTabletClient.NProto.TTableReplicaBackupDescriptor replicas = 5;
+}
+
+message TRspStartBackup
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartRestore
+{
+    // Replicated tables only.
+    repeated NYT.NTabletClient.NProto.TTableReplicaBackupDescriptor replicas = 1;
+}
+
+message TRspStartRestore
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqFinishBackup
 { }
 
@@ -190,20 +220,10 @@ message TRspFinishRestore
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqSetBackupCheckpoint
-{
-    required uint64 timestamp = 1;
-}
-
-message TRspSetBackupCheckpoint
+message TReqCheckBackup
 { }
 
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCheckBackupCheckpoint
-{ }
-
-message TRspCheckBackupCheckpoint
+message TRspCheckBackup
 {
     required int32 pending_tablet_count = 1;
     required int32 confirmed_tablet_count = 2;

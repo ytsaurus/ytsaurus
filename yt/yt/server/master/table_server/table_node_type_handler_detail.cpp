@@ -297,6 +297,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SetHunkErasureCodec(originatingNode->GetHunkErasureCodec());
     branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
     branchedNode->SetProfilingTag(originatingNode->GetProfilingTag());
+    branchedNode->SetUpstreamReplicaId(originatingNode->GetUpstreamReplicaId());
 
     // Save current retained and unflushed timestamps in locked node.
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
@@ -322,6 +323,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     originatingNode->MergeHunkErasureCodec(branchedNode);
     originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
     originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
+    originatingNode->SetUpstreamReplicaId(branchedNode->GetUpstreamReplicaId());
 
     TBase::DoMerge(originatingNode, branchedNode);
 

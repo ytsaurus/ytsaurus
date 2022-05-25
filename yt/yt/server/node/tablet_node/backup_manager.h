@@ -10,6 +10,8 @@ struct IBackupManager
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
+
+    virtual void ValidateReplicationTransactionCommit(TTablet* tablet, TTransaction* transaction) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBackupManager)

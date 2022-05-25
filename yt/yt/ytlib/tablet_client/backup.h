@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/tablet_client/proto/backup.pb.h>
+
 namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,41 @@ DEFINE_ENUM(ETabletBackupState,
     // Only applied to aggregate state.
     ((Mixed)                       (9))
 )
+
+//! Describes the backup mode of a certain table.
+DEFINE_ENUM(EBackupMode,
+    // Sentinel, not used.
+    ((None)                           (0))
+
+    ((Sorted)                         (1))
+    ((OrderedStrongCommitOrdering)    (2))
+    ((OrderedExact)                   (3))
+    ((OrderedAtLeast)                 (4))
+    ((OrderedAtMost)                  (5))
+    ((SortedSyncReplica)              (6))
+    ((SortedAsyncReplica)             (7))
+    ((ReplicatedSorted)               (8))
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableReplicaBackupDescriptor
+{
+    TTableReplicaId ReplicaId;
+    ETableReplicaMode Mode = ETableReplicaMode::Sync;
+    TString ReplicaPath;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void ToProto(
+    NProto::TTableReplicaBackupDescriptor* protoDescriptor,
+    const TTableReplicaBackupDescriptor& descriptor);
+
+void FromProto(
+    TTableReplicaBackupDescriptor* descriptor,
+    const NProto::TTableReplicaBackupDescriptor& protoDescriptor);
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

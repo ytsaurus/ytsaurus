@@ -149,6 +149,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChangedExceptionTypeInResolve)                                (2014))  // h0pless
     ((ChunkListType)                                                (2015))  // gritukan
     ((BuiltinMountConfig)                                           (2016))  // ifsmirnov
+    ((BackupReplicated)                                             (2017))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

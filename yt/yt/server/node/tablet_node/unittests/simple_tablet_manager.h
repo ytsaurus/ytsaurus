@@ -55,6 +55,7 @@ public:
     bool ValidateRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
     bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
     void AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/) override;
+    const IBackupManagerPtr& GetBackupManager() const override;
     TCellId GetCellId() const override;
 
     TTablet* GetTablet();

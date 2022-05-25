@@ -145,6 +145,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA_SORTED, mount=True, **attributes):
         attributes.update(self._get_table_attributes(schema))
         attributes["enable_replication_logging"] = True
+        attributes.setdefault("enable_dynamic_store_read", True)
         id = create("replicated_table", path, attributes=attributes)
         if mount:
             sync_mount_table(path)
@@ -159,13 +160,15 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
         if replica_id:
             attributes["upstream_replica_id"] = replica_id
         attributes.update(kwargs)
+        attributes.setdefault("enable_dynamic_store_read", True)
         create("table", path, attributes=attributes, driver=replica_driver)
         if mount:
             sync_mount_table(path, driver=replica_driver)
 
-    def _create_cells(self):
-        sync_create_cells(1)
-        sync_create_cells(1, driver=self.replica_driver)
+    def _create_cells(self, cell_count=1):
+        primary_cells = sync_create_cells(cell_count)
+        replica_cells = sync_create_cells(cell_count, driver=self.replica_driver)
+        return [primary_cells, replica_cells]
 
     def _check_replication_is_banned(self, rows, dummy, replica_driver):
         rows[0]["value2"] = dummy["counter"]
@@ -1731,7 +1734,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [{"key": 1, "value1": "test1", "value2": yson.YsonEntity()}]
         )
-        wait(lambda: get("//tmp/t/@chunk_count") == 1)
+        # 2 dynamic stores.
+        wait(lambda: get("//tmp/t/@chunk_count") == 1 + 2)
 
         sync_unmount_table("//tmp/t")
 
@@ -2434,7 +2438,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         # Remove one replica to advance replicated trimmed row count.
         remove("#{}".format(replica_id1))
-        wait(lambda: get("//tmp/t/@chunk_count") == 0)
+        # 2 dynamic stores.
+        wait(lambda: get("//tmp/t/@chunk_count") == 0 + 2)
         assert get_tablet_infos("//tmp/t", [0])["tablets"][0]["trimmed_row_count"] == 1
 
         sync_unmount_table("//tmp/t")

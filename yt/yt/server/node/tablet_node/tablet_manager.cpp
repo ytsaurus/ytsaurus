@@ -143,6 +143,9 @@ class TTabletManager::TImpl
     , public ITabletCellWriteManagerHost
 {
 public:
+    DEFINE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
+
+public:
     explicit TImpl(
         TTabletManagerConfigPtr config,
         ITabletSlotPtr slot,
@@ -2283,6 +2286,34 @@ private:
                 replicaInfo->GetPreparedReplicationTransactionId());
         }
 
+        if (auto checkpointTimestamp = tablet->GetBackupCheckpointTimestamp()) {
+            if (transaction->GetStartTimestamp() >= checkpointTimestamp) {
+                THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v since tablet %v participates in backup",
+                    replicaId,
+                    tabletId)
+                    << TErrorAttribute("checkpoint_timestamp", checkpointTimestamp)
+                    << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp());
+            }
+        }
+
+        if (auto lastPassedCheckpointTimestamp = tablet->BackupMetadata().GetLastPassedCheckpointTimestamp()) {
+            if (transaction->GetStartTimestamp() <= lastPassedCheckpointTimestamp) {
+                THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v since tablet %v has passed "
+                    "backup checkpoint exceeding transaction start timestamp",
+                    replicaId,
+                    tabletId)
+                    << TErrorAttribute("last_passed_checkpoint_timestamp", lastPassedCheckpointTimestamp)
+                    << TErrorAttribute("start_timestamp", transaction->GetStartTimestamp());
+            }
+        }
+
+        if (tablet->GetBackupStage() == EBackupStage::AwaitingReplicationFinish) {
+            THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v since tablet %v is in backup stage %Qlv",
+                replicaId,
+                tabletId,
+                tablet->GetBackupStage());
+        }
+
         auto newReplicationRowIndex = request->new_replication_row_index();
         auto newReplicationTimestamp = request->new_replication_timestamp();
 
@@ -2346,6 +2377,8 @@ private:
             return;
         }
 
+        BackupManager_->ValidateReplicationTransactionCommit(tablet, transaction);
+
         // COMPAT(babenko)
         if (request->has_prev_replication_row_index()) {
             YT_VERIFY(replicaInfo->GetCurrentReplicationRowIndex() == request->prev_replication_row_index());
@@ -2406,6 +2439,8 @@ private:
             prevTrimmedRowCount,
             tablet->GetTrimmedRowCount(),
             tablet->GetTotalRowCount());
+
+        ReplicationTransactionFinished_.Fire(tablet, replicaInfo);
     }
 
     void HydraAbortReplicateRows(
@@ -2442,6 +2477,8 @@ private:
             tablet->GetTotalRowCount(),
             replicaInfo->GetCurrentReplicationTimestamp(),
             request->new_replication_timestamp());
+
+        ReplicationTransactionFinished_.Fire(tablet, replicaInfo);
     }
 
     void HydraDecommissionTabletCell(TReqDecommissionTabletCellOnNode* /*request*/)
@@ -3627,6 +3664,11 @@ private:
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
 
+    const IBackupManagerPtr& GetBackupManager() const override
+    {
+        return BackupManager_;
+    }
+
 
     void OnStoresUpdateCommitSemaphoreAcquired(
         TTablet* tablet,
@@ -3751,6 +3793,8 @@ bool TTabletManager::AllocateDynamicStoreIfNeeded(TTablet* tablet)
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
+
+DELEGATE_SIGNAL(TTabletManager, void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

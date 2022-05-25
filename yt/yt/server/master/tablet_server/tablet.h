@@ -242,23 +242,30 @@ public:
 public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void Populate(NTabletClient::NProto::TTableReplicaStatistics* statistics) const;
+    void MergeFrom(const NTabletClient::NProto::TTableReplicaStatistics& statistics);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowIndexCutoffDescriptor
+struct TBackupCutoffDescriptor
 {
+    // Ordered tables.
     i64 CutoffRowIndex = 0;
     TStoreId NextDynamicStoreId;
+
+    // Sorted tables.
+    THashSet<NTabletClient::TDynamicStoreId> DynamicStoreIdsToKeep;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
-TString ToString(const TRowIndexCutoffDescriptor& descriptor);
+TString ToString(const TBackupCutoffDescriptor& descriptor);
 
 void FromProto(
-    TRowIndexCutoffDescriptor* descriptor,
-    const NProto::TRowIndexCutoffDescriptor& protoDescriptor);
+    TBackupCutoffDescriptor* descriptor,
+    const NProto::TBackupCutoffDescriptor& protoDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -299,7 +306,10 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);
     DECLARE_BYVAL_RW_PROPERTY(ETabletBackupState, BackupState);
     DECLARE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
-    DEFINE_BYVAL_RW_PROPERTY(TRowIndexCutoffDescriptor, BackupCutoffDescriptor);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TBackupCutoffDescriptor>, BackupCutoffDescriptor);
+
+    using TIdIndexedReplicaMap = THashMap<TTableReplicaId, TTableReplicaInfo>;
+    DEFINE_BYREF_RW_PROPERTY(TIdIndexedReplicaMap, BackedUpReplicaInfos);
 
     DEFINE_BYREF_RW_PROPERTY(NChaosClient::TReplicationProgress, ReplicationProgress);
 

@@ -76,6 +76,8 @@ public:
                 startReplicationRowIndexes->size());
         }
 
+        table->ValidateNotBackup("Cannot create table replica from a backup table");
+
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();

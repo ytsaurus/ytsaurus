@@ -953,7 +953,10 @@ def balance_tablet_cells(bundle, tables=None, **kwargs):
 
 def _parse_backup_manifest(*args):
     def _make_table_manifest(x):
-        return {"source_path": x[0], "destination_path": x[1]}
+        res = {"source_path": x[0], "destination_path": x[1]}
+        if len(x) > 2:
+            res.update(x[2])
+        return res
 
     if type(args[0]) in (list, tuple):
         return {
@@ -966,7 +969,7 @@ def _parse_backup_manifest(*args):
             "clusters": {
                 cluster: list(builtins.map(_make_table_manifest, tables))
                 for cluster, tables
-                in list(iteritems(args))
+                in list(iteritems(args[0]))
             }
         }
 
@@ -1887,6 +1890,8 @@ def create_table_replica(table_path, cluster_name, replica_path, **kwargs):
     kwargs["attributes"]["table_path"] = table_path
     kwargs["attributes"]["cluster_name"] = cluster_name
     kwargs["attributes"]["replica_path"] = replica_path
+    if "mode" in kwargs:
+        kwargs["attributes"]["mode"] = kwargs.pop("mode")
     return execute_command("create", kwargs, parse_yson=True)
 
 

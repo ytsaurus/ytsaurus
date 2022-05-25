@@ -920,6 +920,7 @@ private:
             req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
             req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
             req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
+            req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
             req->set_clock_cluster_tag(ClockClusterTag_);
             ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);

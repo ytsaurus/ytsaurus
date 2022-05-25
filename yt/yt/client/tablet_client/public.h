@@ -79,12 +79,19 @@ YT_DEFINE_ERROR_ENUM(
     ((WriteRetryIsImpossible)                 (1731))
     ((SyncReplicaNotInSync)                   (1732))
     ((BackupCheckpointRejected)               (1733))
+    ((BackupInProgress)                       (1734))
 );
 
 DEFINE_ENUM(EInMemoryMode,
     ((None)        (0))
     ((Compressed)  (1))
     ((Uncompressed)(2))
+);
+
+DEFINE_ENUM(EOrderedTableBackupMode,
+    ((Exact)       (0))
+    ((AtLeast)     (1))
+    ((AtMost)      (2))
 );
 
 using TTabletCellId = NHydra::TCellId;
