@@ -984,6 +984,8 @@ public:
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
 
+    bool IgnoreMemoryReserveFactorLessThanOne;
+
     bool IncludeMemoryMappedFiles;
 
     bool UseYamrDescriptors;
