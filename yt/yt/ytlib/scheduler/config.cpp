@@ -761,6 +761,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(0.05)
         .GreaterThan(0.)
         .LessThanOrEqual(1.);
+    registrar.Parameter("ignore_memory_reserve_factor_less_than_one", &TThis::IgnoreMemoryReserveFactorLessThanOne)
+        .Default(false);
     registrar.Parameter("include_memory_mapped_files", &TThis::IncludeMemoryMappedFiles)
         .Default(true);
     registrar.Parameter("use_yamr_descriptors", &TThis::UseYamrDescriptors)
@@ -890,7 +892,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
             }
         }
 
-        if (spec->MemoryReserveFactor) {
+        if (spec->MemoryReserveFactor && 
+            (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
+        {
             spec->UserJobMemoryDigestLowerBound = spec->UserJobMemoryDigestDefaultValue = *spec->MemoryReserveFactor;
         }
 
