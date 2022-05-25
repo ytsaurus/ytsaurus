@@ -10,13 +10,15 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int DateTimeBufferSize = 64;
 constexpr int MessageBufferSize = 64_KB;
 constexpr int MessageBufferWatermarkSize = 256;
-using TMessageBuffer = TRawFormatter<MessageBufferSize>;
 
-void FormatMessage(TMessageBuffer* out, TStringBuf message);
-void FormatDateTime(TMessageBuffer* out, TInstant dateTime);
-void FormatLevel(TMessageBuffer* out, ELogLevel level);
+void FormatMessage(TBaseFormatter* out, TStringBuf message);
+void FormatDateTime(TBaseFormatter* out, TInstant dateTime);
+void FormatMilliseconds(TBaseFormatter* out, TInstant dateTime);
+void FormatMicroseconds(TBaseFormatter* out, TInstant dateTime);
+void FormatLevel(TBaseFormatter* out, ELogLevel level);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,25 +14,25 @@ namespace NYT::NLogging {
 namespace {
 
 // Ultra-fast specialized versions of AppendNumber.
-void AppendDigit(TMessageBuffer* out, int value)
+void AppendDigit(TBaseFormatter* out, int value)
 {
     out->AppendChar('0' + value);
 }
 
-void AppendNumber2(TMessageBuffer* out, int value)
+void AppendNumber2(TBaseFormatter* out, int value)
 {
     AppendDigit(out, value / 10);
     AppendDigit(out, value % 10);
 }
 
-void AppendNumber3(TMessageBuffer* out, int value)
+void AppendNumber3(TBaseFormatter* out, int value)
 {
     AppendDigit(out, value / 100);
     AppendDigit(out, (value / 10) % 10);
     AppendDigit(out, value % 10);
 }
 
-void AppendNumber4(TMessageBuffer* out, int value)
+void AppendNumber4(TBaseFormatter* out, int value)
 {
     AppendDigit(out, value / 1000);
     AppendDigit(out, (value / 100) % 10);
@@ -40,9 +40,19 @@ void AppendNumber4(TMessageBuffer* out, int value)
     AppendDigit(out, value % 10);
 }
 
+void AppendNumber6(TBaseFormatter* out, int value)
+{
+    AppendDigit(out, value / 100000);
+    AppendDigit(out, (value / 10000) % 10);
+    AppendDigit(out, (value / 1000) % 10);
+    AppendDigit(out, (value / 100) % 10);
+    AppendDigit(out, (value / 10) % 10);
+    AppendDigit(out, value % 10);
+}
+
 } // namespace
 
-void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
+void FormatDateTime(TBaseFormatter* out, TInstant dateTime)
 {
     tm localTime;
     dateTime.LocalTime(&localTime);
@@ -57,17 +67,25 @@ void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
     AppendNumber2(out, localTime.tm_min);
     out->AppendChar(':');
     AppendNumber2(out, localTime.tm_sec);
-    out->AppendChar(',');
+}
+
+void FormatMilliseconds(TBaseFormatter* out, TInstant dateTime)
+{
     AppendNumber3(out, dateTime.MilliSecondsOfSecond());
 }
 
-void FormatLevel(TMessageBuffer* out, ELogLevel level)
+void FormatMicroseconds(TBaseFormatter* out, TInstant dateTime)
+{
+    AppendNumber6(out, dateTime.MicroSecondsOfSecond());
+}
+
+void FormatLevel(TBaseFormatter* out, ELogLevel level)
 {
     static char chars[] = "?TDIWEAF?";
     out->AppendChar(chars[static_cast<int>(level)]);
 }
 
-void FormatMessage(TMessageBuffer* out, TStringBuf message)
+void FormatMessage(TBaseFormatter* out, TStringBuf message)
 {
     auto current = message.begin();
 

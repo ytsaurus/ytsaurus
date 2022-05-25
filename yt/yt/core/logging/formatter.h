@@ -12,16 +12,11 @@ namespace NYT::NLogging {
 class TCachingDateFormatter
 {
 public:
-    TCachingDateFormatter();
-
-    const char* Format(NProfiling::TCpuInstant instant);
+    void Format(TBaseFormatter* buffer, TInstant dateTime, bool printMicroseconds = false);
 
 private:
-    void Update(NProfiling::TCpuInstant instant);
-
-    TMessageBuffer Cached_;
-    NProfiling::TCpuInstant Deadline_ = 0;
-    NProfiling::TCpuInstant Liveline_ = 0;
+    ui64 CachedSecond_ = 0;
+    TRawFormatter<DateTimeBufferSize> Cached_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +46,7 @@ public:
     void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
-    const std::unique_ptr<TMessageBuffer> Buffer_;
+    const std::unique_ptr<TRawFormatter<MessageBufferSize>> Buffer_;
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const bool EnableSystemMessages_;
     const bool EnableSourceLocation_;
