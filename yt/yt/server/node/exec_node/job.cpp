@@ -887,7 +887,8 @@ std::optional<TString> TJob::GetStderr()
     // Cleanup is not atomic, so in case of job proxy failure we might see job in cleanup phase and running state.
     if (JobPhase_ == EJobPhase::Cleanup) {
         if (auto error = FromProto<TError>(JobResultWithoutExtension_->error());
-            error.FindMatching(NExecNode::EErrorCode::JobProxyFailed))
+            error.FindMatching(NExecNode::EErrorCode::JobProxyFailed) ||
+            error.FindMatching(NExecNode::EErrorCode::JobProxyPreparationTimeout))
         {
             return nullptr;
         }
