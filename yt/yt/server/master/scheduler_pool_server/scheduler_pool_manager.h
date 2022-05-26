@@ -8,43 +8,39 @@ namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerPoolManager
-    : public TRefCounted
+struct ISchedulerPoolManager
+    : public virtual TRefCounted
 {
 public:
-    explicit TSchedulerPoolManager(NCellMaster::TBootstrap* bootstrap);
+    virtual void Initialize() = 0;
 
-    ~TSchedulerPoolManager();
+    virtual TSchedulerPool* CreateSchedulerPool() = 0;
 
-    void Initialize();
+    virtual TSchedulerPool* FindSchedulerPoolByName(const TString& treeName, const TString& name) const = 0;
+    virtual TSchedulerPoolTree* FindPoolTreeObjectByName(const TString& treeName) const = 0;
+    virtual TSchedulerPool* FindPoolTreeOrSchedulerPoolOrThrow(const TString& treeName, const TString& name) const = 0;
 
-    TSchedulerPool* CreateSchedulerPool();
+    virtual const THashMap<TString, TSchedulerPoolTree*>& GetPoolTrees() const = 0;
 
-    TSchedulerPool* FindSchedulerPoolByName(const TString& treeName, const TString& name) const;
-    TSchedulerPoolTree* FindPoolTreeObjectByName(const TString& treeName) const;
-    TSchedulerPool* FindPoolTreeOrSchedulerPoolOrThrow(const TString& treeName, const TString& name) const;
-
-    const THashMap<TString, TSchedulerPoolTree*>& GetPoolTrees() const;
-
-    const THashSet<NYTree::TInternedAttributeKey>& GetKnownPoolAttributes();
-    const THashSet<NYTree::TInternedAttributeKey>& GetKnownPoolTreeAttributes();
-    bool IsUserManagedAttribute(NYTree::TInternedAttributeKey key);
+    virtual const THashSet<NYTree::TInternedAttributeKey>& GetKnownPoolAttributes() = 0;
+    virtual const THashSet<NYTree::TInternedAttributeKey>& GetKnownPoolTreeAttributes() = 0;
+    virtual bool IsUserManagedAttribute(NYTree::TInternedAttributeKey key) = 0;
 
     // Pool tree name is obtained from root object.
     // It has complexity linear in the object's depth since we have to traverse all parents all the way to the root.
-    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept;
+    virtual std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept = 0;
 
-    void TransferPoolResources(TSchedulerPool* srcPool, TSchedulerPool* dstPool, const TPoolResourcesPtr& resourceDelta);
-
-private:
-    class TImpl;
-    class TSchedulerPoolTypeHandler;
-    class TSchedulerPoolTreeTypeHandler;
-
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void TransferPoolResources(
+        TSchedulerPool* srcPool,
+        TSchedulerPool* dstPool,
+        const TPoolResourcesPtr& resourceDelta) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchedulerPoolManager)
+DEFINE_REFCOUNTED_TYPE(ISchedulerPoolManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchedulerPoolManagerPtr CreateSchedulerPoolManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

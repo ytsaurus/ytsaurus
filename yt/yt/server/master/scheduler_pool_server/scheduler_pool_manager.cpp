@@ -1,6 +1,7 @@
+#include "scheduler_pool_manager.h"
+
 #include "pool_resources.h"
 #include "private.h"
-#include "scheduler_pool_manager.h"
 #include "config.h"
 #include "scheduler_pool.h"
 #include "scheduler_pool_proxy.h"
@@ -40,31 +41,32 @@ static const NLogging::TLogger& Logger = SchedulerPoolServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerPoolManager::TImpl
-    : public TMasterAutomatonPart
+class TSchedulerPoolManager
+    : public ISchedulerPoolManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(TBootstrap* bootstrap)
+    explicit TSchedulerPoolManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SchedulerPoolManager)
     {
         RegisterLoader(
             "SchedulerPoolManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TSchedulerPoolManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "SchedulerPoolManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TSchedulerPoolManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "SchedulerPoolManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TSchedulerPoolManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "SchedulerPoolManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TSchedulerPoolManager::SaveValues, Unretained(this)));
     }
 
-    void Initialize();
+    void Initialize() override;
 
     TSchedulerPoolTree* CreatePoolTree(TString treeName)
     {
@@ -88,6 +90,11 @@ public:
         RegisterPoolTreeObject(std::move(treeName), poolTree);
 
         return poolTree;
+    }
+
+    TSchedulerPool* CreateSchedulerPool() override
+    {
+        return CreateSchedulerPoolObject(/*isRoot*/ false);
     }
 
     TSchedulerPool* CreateSchedulerPoolObject(bool isRoot)
@@ -128,7 +135,7 @@ public:
         YT_VERIFY(PoolTrees_.erase(treeName) == 1);
     }
 
-    TSchedulerPool* FindSchedulerPoolByName(const TString& treeName, const TString& name) const
+    TSchedulerPool* FindSchedulerPoolByName(const TString& treeName, const TString& name) const override
     {
         auto poolsMapIt = PoolTreeToPoolsMap_.find(treeName);
         if (poolsMapIt == PoolTreeToPoolsMap_.end()) {
@@ -139,10 +146,16 @@ public:
         return it != poolsMap.end() ? it->second : nullptr;
     }
 
-    TSchedulerPoolTree* FindPoolTreeObjectByName(const TString& treeName) const
+    TSchedulerPoolTree* FindPoolTreeObjectByName(const TString& treeName) const override
     {
         auto it = PoolTrees_.find(treeName);
         return it != PoolTrees_.end() ? it->second : nullptr;
+    }
+
+    TSchedulerPool* FindPoolTreeOrSchedulerPoolOrThrow(const TString& treeName, const TString& name) const override
+    {
+        // TODO(renadeen, gritukan): Is it intended?
+        return FindSchedulerPoolOrRootPoolOrThrow(treeName, name);
     }
 
     TSchedulerPool* FindSchedulerPoolOrRootPoolOrThrow(const TString& treeName, const TString& name) const
@@ -185,17 +198,17 @@ public:
         YT_VERIFY(it->second.erase(name) == 1);
     }
 
-    const THashMap<TString, TSchedulerPoolTree*>& GetPoolTrees() const
+    const THashMap<TString, TSchedulerPoolTree*>& GetPoolTrees() const override
     {
         return PoolTrees_;
     }
 
-    const THashSet<TInternedAttributeKey>& GetKnownPoolAttributes()
+    const THashSet<TInternedAttributeKey>& GetKnownPoolAttributes() override
     {
         return GetKnownAttributes<TPoolConfig>(KnownPoolAttributes_);
     }
 
-    const THashSet<TInternedAttributeKey>& GetKnownPoolTreeAttributes()
+    const THashSet<TInternedAttributeKey>& GetKnownPoolTreeAttributes() override
     {
         return GetKnownAttributes<TFairShareStrategyTreeConfig>(KnownPoolTreeAttributes_);
     }
@@ -216,7 +229,7 @@ public:
         return knownAttributesCache;
     }
 
-    bool IsUserManagedAttribute(TInternedAttributeKey key)
+    bool IsUserManagedAttribute(TInternedAttributeKey key) override
     {
         switch (key) {
             case EInternedAttributeKey::Weight:
@@ -238,7 +251,7 @@ public:
         }
     }
 
-    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept
+    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept override
     {
         while (auto* parent = schedulerPool->GetParent()) {
             schedulerPool = parent;
@@ -248,7 +261,7 @@ public:
             return {};
         }
 
-        return std::optional(schedulerPool->GetMaybePoolTree()->GetTreeName());
+        return schedulerPool->GetMaybePoolTree()->GetTreeName();
     }
 
     const TDynamicSchedulerPoolManagerConfigPtr& GetDynamicConfig() const
@@ -256,7 +269,10 @@ public:
         return Bootstrap_->GetConfigManager()->GetConfig()->SchedulerPoolManager;
     }
 
-    void TransferPoolResources(TSchedulerPool* srcPool, TSchedulerPool* dstPool, const TPoolResourcesPtr& resourceDelta)
+    void TransferPoolResources(
+        TSchedulerPool* srcPool,
+        TSchedulerPool* dstPool,
+        const TPoolResourcesPtr& resourceDelta) override
     {
         YT_VERIFY(srcPool);
         YT_VERIFY(dstPool);
@@ -470,11 +486,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerPoolManager::TSchedulerPoolTypeHandler
+class TSchedulerPoolTypeHandler
     : public NObjectServer::TNonversionedMapObjectTypeHandlerBase<TSchedulerPool>
 {
 public:
-    explicit TSchedulerPoolTypeHandler(TSchedulerPoolManager::TImpl* owner)
+    explicit TSchedulerPoolTypeHandler(TSchedulerPoolManager* owner)
         : TBase(owner->Bootstrap_, &owner->SchedulerPoolMap_)
         , Owner_(owner)
     { }
@@ -572,16 +588,18 @@ protected:
     }
 
 private:
-    TSchedulerPoolManager::TImpl* Owner_;
+    TSchedulerPoolManager* Owner_;
 
     using TBase = TNonversionedMapObjectTypeHandlerBase<TSchedulerPool>;
 };
 
-class TSchedulerPoolManager::TSchedulerPoolTreeTypeHandler
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerPoolTreeTypeHandler
     : public TObjectTypeHandlerWithMapBase<TSchedulerPoolTree>
 {
 public:
-    explicit TSchedulerPoolTreeTypeHandler(TSchedulerPoolManager::TImpl* owner)
+    explicit TSchedulerPoolTreeTypeHandler(TSchedulerPoolManager* owner)
         : TBase(owner->Bootstrap_, &owner->SchedulerPoolTreeMap_)
         , Owner_(owner)
     { }
@@ -635,7 +653,7 @@ protected:
     }
 
 private:
-    TSchedulerPoolManager::TImpl* Owner_;
+    TSchedulerPoolManager* Owner_;
 
     void ValidatePoolTreeCreationPermission()
     {
@@ -647,7 +665,9 @@ private:
     using TBase = TObjectTypeHandlerWithMapBase<TSchedulerPoolTree>;
 };
 
-void TSchedulerPoolManager::TImpl::Initialize()
+////////////////////////////////////////////////////////////////////////////////
+
+void TSchedulerPoolManager::Initialize()
 {
     Bootstrap_->GetObjectManager()->RegisterHandler(New<TSchedulerPoolTypeHandler>(this));
     Bootstrap_->GetObjectManager()->RegisterHandler(New<TSchedulerPoolTreeTypeHandler>(this));
@@ -655,66 +675,9 @@ void TSchedulerPoolManager::TImpl::Initialize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerPoolManager::TSchedulerPoolManager(TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TSchedulerPoolManager::~TSchedulerPoolManager()
-{ }
-
-void TSchedulerPoolManager::Initialize()
+ISchedulerPoolManagerPtr CreateSchedulerPoolManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
-}
-
-const THashMap<TString, TSchedulerPoolTree*>& TSchedulerPoolManager::GetPoolTrees() const
-{
-    return Impl_->GetPoolTrees();
-}
-
-TSchedulerPool* TSchedulerPoolManager::FindSchedulerPoolByName(const TString& treeName, const TString& name) const
-{
-    return Impl_->FindSchedulerPoolByName(treeName, name);
-}
-
-TSchedulerPoolTree* TSchedulerPoolManager::FindPoolTreeObjectByName(const TString& treeName) const
-{
-    return Impl_->FindPoolTreeObjectByName(treeName);
-}
-
-TSchedulerPool* TSchedulerPoolManager::FindPoolTreeOrSchedulerPoolOrThrow(const TString& treeName, const TString& name) const
-{
-    return Impl_->FindSchedulerPoolOrRootPoolOrThrow(treeName, name);
-}
-
-std::optional<TString> TSchedulerPoolManager::GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept
-{
-    return Impl_->GetMaybePoolTreeName(schedulerPool);
-}
-
-TSchedulerPool* TSchedulerPoolManager::CreateSchedulerPool()
-{
-    return Impl_->CreateSchedulerPoolObject(/* isRoot */ false);
-}
-
-const THashSet<TInternedAttributeKey>& TSchedulerPoolManager::GetKnownPoolAttributes()
-{
-    return Impl_->GetKnownPoolAttributes();
-}
-
-const THashSet<TInternedAttributeKey>& TSchedulerPoolManager::GetKnownPoolTreeAttributes()
-{
-    return Impl_->GetKnownPoolTreeAttributes();
-}
-
-bool TSchedulerPoolManager::IsUserManagedAttribute(NYTree::TInternedAttributeKey key)
-{
-    return Impl_->IsUserManagedAttribute(key);
-}
-
-void TSchedulerPoolManager::TransferPoolResources(TSchedulerPool* srcPool, TSchedulerPool* dstPool, const TPoolResourcesPtr& resourceDelta)
-{
-    Impl_->TransferPoolResources(srcPool, dstPool, resourceDelta);
+    return New<TSchedulerPoolManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
