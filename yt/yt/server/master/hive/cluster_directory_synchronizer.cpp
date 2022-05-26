@@ -91,7 +91,7 @@ public:
 private:
     NCellMaster::TBootstrap* Bootstrap_;
     const TPeriodicExecutorPtr SyncExecutor_;
-    const NObjectServer::TObjectManagerPtr ObjectManager_;
+    const NObjectServer::IObjectManagerPtr ObjectManager_;
     const NCellMaster::IMulticellManagerPtr MulticellManager_;
     const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;

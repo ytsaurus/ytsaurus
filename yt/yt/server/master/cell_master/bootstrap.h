@@ -116,9 +116,9 @@ public:
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
-    const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
+    const NObjectServer::IObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
-    const NObjectServer::TRequestProfilingManagerPtr& GetRequestProfilingManager() const;
+    const NObjectServer::IRequestProfilingManagerPtr& GetRequestProfilingManager() const;
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
@@ -186,10 +186,10 @@ protected:
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
     IWorldInitializerPtr WorldInitializer_;
-    NObjectServer::TObjectManagerPtr ObjectManager_;
+    NObjectServer::IObjectManagerPtr ObjectManager_;
     NObjectServer::IObjectServicePtr ObjectService_;
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;
-    NObjectServer::TRequestProfilingManagerPtr RequestProfilingManager_;
+    NObjectServer::IRequestProfilingManagerPtr RequestProfilingManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;

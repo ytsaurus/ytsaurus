@@ -24,22 +24,17 @@ DEFINE_REFCOUNTED_TYPE(TRequestProfilingCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRequestProfilingManager
+struct IRequestProfilingManager
     : public TRefCounted
 {
-public:
-    TRequestProfilingManager();
-
-    ~TRequestProfilingManager();
-
-    TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method);
-
-private:
-    class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
+    virtual TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRequestProfilingManager)
+DEFINE_REFCOUNTED_TYPE(IRequestProfilingManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IRequestProfilingManagerPtr CreateRequestProfilingManager();
 
 ////////////////////////////////////////////////////////////////////////////////
 

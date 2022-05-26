@@ -509,7 +509,7 @@ NObjectServer::TObject* TNonversionedMapObjectProxyBase<TObject>::ResolvePathToN
     const TYPath& path) const
 {
     // XXX(kiselyovp) Using this crutch because it's easier than fixing
-    // TObjectManager::ResolvePathToObject() for map objects.
+    // IObjectManager::ResolvePathToObject() for map objects.
     const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
     auto rootService = objectManager->GetRootService();
     auto req = NObjectClient::TObjectYPathProxy::GetBasicAttributes(path);

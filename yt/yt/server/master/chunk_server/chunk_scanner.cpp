@@ -11,7 +11,7 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkScanner::TChunkScanner(
-    TObjectManagerPtr objectManager,
+    IObjectManagerPtr objectManager,
     EChunkScanKind kind,
     bool journal)
     : ObjectManager_(std::move(objectManager))

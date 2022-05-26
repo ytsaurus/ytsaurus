@@ -27,172 +27,163 @@ namespace NYT::NObjectServer {
  *  \note
  *  Thread affinity: single-threaded
  */
-class TObjectManager
-    : public TRefCounted
+struct IObjectManager
+    : public virtual TRefCounted
 {
-public:
-    explicit TObjectManager(NCellMaster::TBootstrap* bootstrap);
-
-    TObjectManager(
-        TTestingTag,
-        NCellMaster::TBootstrap* bootstrap);
-
-    ~TObjectManager();
-
-    void Initialize();
+    virtual void Initialize() = 0;
 
     //! Registers a new type handler.
-    void RegisterHandler(IObjectTypeHandlerPtr handler);
+    virtual void RegisterHandler(IObjectTypeHandlerPtr handler) = 0;
 
     //! Returns the handler for a given type or |nullptr| if the type is unknown.
-    const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const;
+    virtual const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const = 0;
 
     //! Returns the handler for a given type.
-    const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const;
+    virtual const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const = 0;
 
     //! Returns the handler for a given object.
-    const IObjectTypeHandlerPtr& GetHandler(const TObject* object) const;
+    virtual const IObjectTypeHandlerPtr& GetHandler(const TObject* object) const = 0;
 
     //! Returns the set of registered object types, excluding schemas.
-    const std::set<EObjectType>& GetRegisteredTypes() const;
+    virtual const std::set<EObjectType>& GetRegisteredTypes() const = 0;
 
     //! If |hintId| is |NullObjectId| then creates a new unique object id.
     //! Otherwise returns |hintId| (but checks its type).
-    TObjectId GenerateId(EObjectType type, TObjectId hintId = NullObjectId);
+    virtual TObjectId GenerateId(EObjectType type, TObjectId hintId = NullObjectId) = 0;
 
     //! Adds a reference.
     //! Returns the strong reference counter.
-    int RefObject(TObject* object);
+    virtual int RefObject(TObject* object) = 0;
 
     //! Removes #count references.
     //! Returns the strong reference counter.
-    int UnrefObject(TObject* object, int count = 1);
+    virtual int UnrefObject(TObject* object, int count = 1) = 0;
 
     //! Increments the object ephemeral reference counter thus temporarily preventing it from being destroyed.
     //! Returns the ephemeral reference counter.
-    int EphemeralRefObject(TObject* object);
+    virtual int EphemeralRefObject(TObject* object) = 0;
 
     //! Decrements the object ephemeral reference counter thus making it eligible for destruction.
     /*
      * \note Thread affinity: Automaton or LocalRead
      */
-    void EphemeralUnrefObject(TObject* object);
+    virtual void EphemeralUnrefObject(TObject* object) = 0;
 
     //! Decrements the object ephemeral reference counter thus making it eligible for destruction.
     /*
      * \note Thread affinity: any
      */
-    void EphemeralUnrefObject(TObject* object, TEpoch epoch);
+    virtual void EphemeralUnrefObject(TObject* object, TEpoch epoch) = 0;
 
     //! Increments the object weak reference counter thus temporarily preventing it from being destroyed.
     //! Returns the weak reference counter.
-    int WeakRefObject(TObject* object);
+    virtual int WeakRefObject(TObject* object) = 0;
 
     //! Decrements the object weak reference counter thus making it eligible for destruction.
     //! Returns the weak reference counter.
-    int WeakUnrefObject(TObject* object);
+    virtual int WeakUnrefObject(TObject* object) = 0;
 
     //! Finds object by id, returns |nullptr| if nothing is found.
-    TObject* FindObject(TObjectId id);
+    virtual TObject* FindObject(TObjectId id) = 0;
 
     //! Finds object by type and attributes, returns |nullptr| if nothing is found and
     //! |std::nullopt| if the functionality is not supported for the type.
-    std::optional<TObject*> FindObjectByAttributes(
+    virtual std::optional<TObject*> FindObjectByAttributes(
         EObjectType type,
-        const NYTree::IAttributeDictionary* attributes);
+        const NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Finds object by id, fails if nothing is found.
-    TObject* GetObject(TObjectId id);
+    virtual TObject* GetObject(TObjectId id) = 0;
 
     //! Finds object by id, throws if nothing is found.
-    TObject* GetObjectOrThrow(TObjectId id);
+    virtual TObject* GetObjectOrThrow(TObjectId id) = 0;
 
     //! Finds weak ghost object by id, fails if nothing is found.
-    TObject* GetWeakGhostObject(TObjectId id);
+    virtual TObject* GetWeakGhostObject(TObjectId id) = 0;
 
     //! For object types requiring two-phase removal, initiates the removal protocol.
     //! For others, checks for the local reference counter and if it's 1, drops the last reference.
-    void RemoveObject(TObject* object);
+    virtual void RemoveObject(TObject* object) = 0;
 
     //! Creates a cross-cell proxy for the object with the given #id.
-    NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id);
+    virtual NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id) = 0;
 
     //! Creates a cross-cell proxy to forward the request to a given master cell.
-    NYTree::IYPathServicePtr CreateRemoteProxy(TCellTag cellTag);
+    virtual NYTree::IYPathServicePtr CreateRemoteProxy(TCellTag cellTag) = 0;
 
     //! Returns a proxy for the object with the given versioned id.
-    IObjectProxyPtr GetProxy(
+    virtual IObjectProxyPtr GetProxy(
         TObject* object,
-        NTransactionServer::TTransaction* transaction = nullptr);
+        NTransactionServer::TTransaction* transaction = nullptr) = 0;
 
     //! Called when a versioned object is branched.
-    void BranchAttributes(
+    virtual void BranchAttributes(
         const TObject* originatingObject,
-        TObject* branchedObject);
+        TObject* branchedObject) = 0;
 
     //! Called when a versioned object is merged during transaction commit.
-    void MergeAttributes(
+    virtual void MergeAttributes(
         TObject* originatingObject,
-        const TObject* branchedObject);
+        const TObject* branchedObject) = 0;
 
     //! Fills the attributes of a given unversioned object.
-    void FillAttributes(
+    virtual void FillAttributes(
         TObject* object,
-        const NYTree::IAttributeDictionary& attributes);
+        const NYTree::IAttributeDictionary& attributes) = 0;
 
     //! Returns a YPath service that routes all incoming requests.
-    NYTree::IYPathServicePtr GetRootService();
+    virtual NYTree::IYPathServicePtr GetRootService() = 0;
 
     //! Returns "master" object for handling requests sent via TMasterYPathProxy.
-    TObject* GetMasterObject();
+    virtual TObject* GetMasterObject() = 0;
 
     //! Returns a proxy for master object.
     /*!
      *  \see GetMasterObject
      */
-    IObjectProxyPtr GetMasterProxy();
+    virtual IObjectProxyPtr GetMasterProxy() = 0;
 
     //! Finds a schema object for a given type, returns |nullptr| if nothing is found.
-    TObject* FindSchema(EObjectType type);
+    virtual TObject* FindSchema(EObjectType type) = 0;
 
     //! Finds a schema object for a given type, fails if nothing is found.
-    TObject* GetSchema(EObjectType type);
+    virtual TObject* GetSchema(EObjectType type) = 0;
 
     //! Returns a proxy for schema object.
     /*!
      *  \see GetSchema
      */
-    IObjectProxyPtr GetSchemaProxy(EObjectType type);
+    virtual IObjectProxyPtr GetSchemaProxy(EObjectType type) = 0;
 
     //! Creates a mutation that executes a request represented by #context.
     /*!
      *  Thread affinity: any
      */
-    std::unique_ptr<NHydra::TMutation> CreateExecuteMutation(
+    virtual std::unique_ptr<NHydra::TMutation> CreateExecuteMutation(
         const NRpc::IServiceContextPtr& context,
-        const NRpc::TAuthenticationIdentity& identity);
+        const NRpc::TAuthenticationIdentity& identity) = 0;
 
     //! Creates a mutation that destroys given objects.
     /*!
      *  Thread affinity: any
      */
-    std::unique_ptr<NHydra::TMutation> CreateDestroyObjectsMutation(
-        const NProto::TReqDestroyObjects& request);
+    virtual std::unique_ptr<NHydra::TMutation> CreateDestroyObjectsMutation(
+        const NProto::TReqDestroyObjects& request) = 0;
 
     //! Returns a future that gets set when the GC queues becomes empty.
-    TFuture<void> GCCollect();
+    virtual TFuture<void> GCCollect() = 0;
 
-    TObject* CreateObject(
+    virtual TObject* CreateObject(
         TObjectId hintId,
         EObjectType type,
-        NYTree::IAttributeDictionary* attributes);
+        NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Returns true iff the object is in it's "active" life stage, i.e. it has
     //! been fully created and isn't being destroyed at the moment.
-    bool IsObjectLifeStageValid(const TObject* object) const;
+    virtual bool IsObjectLifeStageValid(const TObject* object) const = 0;
 
     //! Same as above, but throws if the object isn't in its "active" life stage.
-    void ValidateObjectLifeStage(const TObject* object) const;
+    virtual void ValidateObjectLifeStage(const TObject* object) const = 0;
 
     struct TResolvePathOptions
     {
@@ -201,40 +192,43 @@ public:
     };
 
     //! Handles paths to versioned and most unversioned objects.
-    TObject* ResolvePathToObject(
+    virtual TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction,
-        const TResolvePathOptions& options);
+        const TResolvePathOptions& options) = 0;
 
     //! Validates prerequisites, throws on failure.
-    void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
+    virtual void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
 
     //! Forwards an object request to a given cell.
-    TFuture<TSharedRefArray> ForwardObjectRequest(
+    virtual TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind);
+        NHydra::EPeerKind peerKind) = 0;
 
     //! Posts a creation request to the secondary master.
-    void ReplicateObjectCreationToSecondaryMaster(
+    virtual void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
-        TCellTag cellTag);
+        TCellTag cellTag) = 0;
 
     //! Posts an attribute update request to the secondary master.
-    void ReplicateObjectAttributesToSecondaryMaster(
+    virtual void ReplicateObjectAttributesToSecondaryMaster(
         TObject* object,
-        TCellTag cellTag);
+        TCellTag cellTag) = 0;
 
-    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
+    virtual NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(
+        EObjectType type,
+        const TString& method) = 0;
 
-    const TGarbageCollectorPtr& GetGarbageCollector() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual const TGarbageCollectorPtr& GetGarbageCollector() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TObjectManager)
+DEFINE_REFCOUNTED_TYPE(IObjectManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IObjectManagerPtr CreateObjectManager(NCellMaster::TBootstrap* bootstrap);
+IObjectManagerPtr CreateObjectManager(TTestingTag, NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

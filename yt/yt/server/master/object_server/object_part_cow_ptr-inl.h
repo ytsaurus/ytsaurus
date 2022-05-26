@@ -31,14 +31,14 @@ inline const TObjectPart& TObjectPartCoWPtr<TObjectPart>::Get() const
 
 template <class TObjectPart>
 TObjectPart& TObjectPartCoWPtr<TObjectPart>::MutableGet(
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     MaybeCopyOnWrite(objectManager);
     return *ObjectPart_;
 }
 
 template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::TObjectManagerPtr& objectManager)
+void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::IObjectManagerPtr& objectManager)
 {
     if (ObjectPart_ == rhs.ObjectPart_) {
         return;
@@ -53,7 +53,7 @@ void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs, const 
 }
 
 template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::Reset(const NObjectServer::TObjectManagerPtr& objectManager)
+void TObjectPartCoWPtr<TObjectPart>::Reset(const NObjectServer::IObjectManagerPtr& objectManager)
 {
     if (ObjectPart_) {
         ObjectPart_->Unref();
@@ -121,7 +121,7 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
 }
 
 template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite(const NObjectServer::TObjectManagerPtr& objectManager)
+void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite(const NObjectServer::IObjectManagerPtr& objectManager)
 {
     if (!ObjectPart_) {
         ResetToDefaultConstructed();

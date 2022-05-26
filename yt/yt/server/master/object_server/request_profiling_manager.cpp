@@ -22,10 +22,11 @@ TRequestProfilingCounters::TRequestProfilingCounters(const TProfiler& profiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRequestProfilingManager::TImpl
+class TRequestProfilingManager
+    : public IRequestProfilingManager
 {
 public:
-    TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method)
+    TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method) override
     {
         auto key = std::make_tuple(user, method);
         return *KeyToCounters_.FindOrInsert(key, [&] {
@@ -46,18 +47,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestProfilingManager::TRequestProfilingManager()
-    : Impl_(std::make_unique<TImpl>())
-{ }
-
-TRequestProfilingManager::~TRequestProfilingManager()
-{ }
-
-TRequestProfilingCountersPtr TRequestProfilingManager::GetCounters(
-    const TString& user,
-    const TString& method)
+IRequestProfilingManagerPtr CreateRequestProfilingManager()
 {
-    return Impl_->GetCounters(user, method);
+    return New<TRequestProfilingManager>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

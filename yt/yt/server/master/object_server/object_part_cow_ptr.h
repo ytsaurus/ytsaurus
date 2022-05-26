@@ -51,14 +51,14 @@ public:
     explicit operator bool() const;
 
     const TObjectPart& Get() const;
-    TObjectPart& MutableGet(const NObjectServer::TObjectManagerPtr& objectManager);
+    TObjectPart& MutableGet(const NObjectServer::IObjectManagerPtr& objectManager);
 
-    void Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::TObjectManagerPtr& objectManager);
+    void Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::IObjectManagerPtr& objectManager);
 
     //! Unrefs the part and calls TObjectPart::Destroy if refcounter becomes zero.
     //! Must be called when the object of which this is a part of is destroyed.
     //! NB: Either Reset or Clear must be called before the destructor.
-    void Reset(const NObjectServer::TObjectManagerPtr& objectManager);
+    void Reset(const NObjectServer::IObjectManagerPtr& objectManager);
 
     //! Unrefs the part and calls TObjectPart::Clear if refcounter becomes zero.
     //! NB: Either Reset or Clear must be called before the destructor.
@@ -75,7 +75,7 @@ private:
 
     static TObjectPart DefaultObjectPart;
 
-    void MaybeCopyOnWrite(const NObjectServer::TObjectManagerPtr& objectManager);
+    void MaybeCopyOnWrite(const NObjectServer::IObjectManagerPtr& objectManager);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
