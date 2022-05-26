@@ -92,7 +92,7 @@ private:
     NCellMaster::TBootstrap* Bootstrap_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const NObjectServer::TObjectManagerPtr ObjectManager_;
-    const NCellMaster::TMulticellManagerPtr MulticellManager_;
+    const NCellMaster::IMulticellManagerPtr MulticellManager_;
     const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     TAtomicObject<TClusterDirectorySynchronizerConfigPtr> Config_;

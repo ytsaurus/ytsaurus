@@ -216,7 +216,7 @@ TString ToString(const TMasterMemoryLimits& limits)
 void SerializeMasterMemoryLimits(
     const TMasterMemoryLimits& limits,
     NYson::IYsonConsumer* consumer,
-    const TMulticellManagerPtr& multicellManager)
+    const IMulticellManagerPtr& multicellManager)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -235,7 +235,7 @@ void SerializeMasterMemoryLimits(
 void SerializeViolatedMasterMemoryLimits(
     const TMasterMemoryLimits& violatedLimits,
     NYson::IYsonConsumer* consumer,
-    const NCellMaster::TMulticellManagerPtr& multicellManager)
+    const NCellMaster::IMulticellManagerPtr& multicellManager)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -254,7 +254,7 @@ void SerializeViolatedMasterMemoryLimits(
 void SerializeViolatedMasterMemoryLimitsInBooleanFormat(
     const TMasterMemoryLimits& violatedLimits,
     NYson::IYsonConsumer* consumer,
-    const NCellMaster::TMulticellManagerPtr& multicellManager)
+    const NCellMaster::IMulticellManagerPtr& multicellManager)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -273,7 +273,7 @@ void SerializeViolatedMasterMemoryLimitsInBooleanFormat(
 void DeserializeMasterMemoryLimits(
     TMasterMemoryLimits& limits,
     NYTree::INodePtr node,
-    const TMulticellManagerPtr& multicellManager)
+    const IMulticellManagerPtr& multicellManager)
 {
     TMasterMemoryLimits result;
 

@@ -21,70 +21,63 @@ class TLeaderFallbackException
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THydraFacade
+struct IHydraFacade
     : public TRefCounted
 {
 public:
-    THydraFacade(TTestingTag);
-
-    THydraFacade(
-        TCellMasterConfigPtr config,
-        TBootstrap* bootstrap);
-
-    ~THydraFacade();
-
-    void Initialize();
-    void LoadSnapshot(
+    virtual void Initialize() = 0;
+    virtual void LoadSnapshot(
         NHydra::ISnapshotReaderPtr reader,
         bool dump,
         bool enableTotalWriteCountReport,
-        const TSerializationDumperConfigPtr& dumpConfig);
+        const TSerializationDumperConfigPtr& dumpConfig) = 0;
 
-    const TMasterAutomatonPtr& GetAutomaton() const;
-    const NElection::IElectionManagerPtr& GetElectionManager() const;
-    const NHydra::IHydraManagerPtr& GetHydraManager() const;
-    const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
+    virtual const TMasterAutomatonPtr& GetAutomaton() const = 0;
+    virtual const NElection::IElectionManagerPtr& GetElectionManager() const = 0;
+    virtual const NHydra::IHydraManagerPtr& GetHydraManager() const = 0;
+    virtual const NRpc::TResponseKeeperPtr& GetResponseKeeper() const = 0;
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const;
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const;
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const;
+    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
+    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
+    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
 
-    IInvokerPtr GetTransactionTrackerInvoker() const;
+    virtual IInvokerPtr GetTransactionTrackerInvoker() const = 0;
 
-    void BlockAutomaton();
-    void UnblockAutomaton();
+    virtual void BlockAutomaton() = 0;
+    virtual void UnblockAutomaton() = 0;
 
-    bool IsAutomatonLocked() const;
+    virtual bool IsAutomatonLocked() const = 0;
 
-    void VerifyPersistentStateRead() const;
+    virtual void VerifyPersistentStateRead() const = 0;
 
     //! Throws TLeaderFallbackException at followers.
-    void RequireLeader() const;
+    virtual void RequireLeader() const = 0;
 
-    void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig);
+    virtual void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig) = 0;
 
-    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const;
+    virtual IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const = 0;
 
-    const NObjectServer::TEpochContextPtr& GetEpochContext() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual const NObjectServer::TEpochContextPtr& GetEpochContext() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(THydraFacade)
+DEFINE_REFCOUNTED_TYPE(IHydraFacade)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IHydraFacadePtr CreateHydraFacade(TBootstrap* bootstrap);
+IHydraFacadePtr CreateHydraFacade(TTestingTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAutomatonBlockGuard
 {
 public:
-    TAutomatonBlockGuard(THydraFacadePtr hydraFacade);
+    TAutomatonBlockGuard(IHydraFacadePtr hydraFacade);
 
     ~TAutomatonBlockGuard();
 
 private:
-    const THydraFacadePtr HydraFacade_;
+    const IHydraFacadePtr HydraFacade_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

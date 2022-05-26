@@ -309,7 +309,7 @@ public:
     /*!
      *  It's ok to call this even if !IsExportedToCell(cellIndex).
      *
-     *  \see #TMulticellManager::GetRegisteredMasterCellIndex
+     *  \see #IMulticellManager::GetRegisteredMasterCellIndex
      */
     TChunkExportData GetExportData(int cellIndex) const;
 
@@ -342,7 +342,7 @@ private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
 
-    //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
+    //! Per-cell data, indexed by cell index; cf. IMulticellManager::GetRegisteredMasterCellIndex.
     std::unique_ptr<TChunkExportDataList> ExportDataList_;
 
     TChunkRequisitionIndex AggregatedRequisitionIndex_;

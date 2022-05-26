@@ -93,8 +93,8 @@ public:
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
-    const TConfigManagerPtr& GetConfigManager() const;
-    const TMulticellManagerPtr& GetMulticellManager() const;
+    const IConfigManagerPtr& GetConfigManager() const;
+    const IMulticellManagerPtr& GetMulticellManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
@@ -111,9 +111,9 @@ public:
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
     const NCypressServer::TPortalManagerPtr& GetPortalManager() const;
-    const THydraFacadePtr& GetHydraFacade() const;
+    const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
-    const TWorldInitializerPtr& GetWorldInitializer() const;
+    const IWorldInitializerPtr& GetWorldInitializer() const;
     const NObjectServer::TObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
     const NObjectServer::TRequestProfilingManagerPtr& GetRequestProfilingManager() const;
@@ -160,8 +160,8 @@ protected:
     NObjectClient::TCellTagList SecondaryCellTags_;
 
     IAlertManagerPtr AlertManager_;
-    TConfigManagerPtr ConfigManager_;
-    TMulticellManagerPtr MulticellManager_;
+    IConfigManagerPtr ConfigManager_;
+    IMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
@@ -181,9 +181,9 @@ protected:
     NHiveServer::ITransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::TCypressManagerPtr CypressManager_;
     NCypressServer::TPortalManagerPtr PortalManager_;
-    THydraFacadePtr HydraFacade_;
+    IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
-    TWorldInitializerPtr WorldInitializer_;
+    IWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
     NObjectServer::IObjectServicePtr ObjectService_;
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;

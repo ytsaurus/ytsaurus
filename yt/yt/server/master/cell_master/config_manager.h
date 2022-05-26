@@ -10,26 +10,23 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigManager
-    : public TRefCounted
+struct IConfigManager
+    : public virtual TRefCounted
 {
 public:
-    explicit TConfigManager(NCellMaster::TBootstrap* bootstrap);
-    ~TConfigManager();
+    virtual void Initialize() = 0;
 
-    void Initialize();
+    virtual const TDynamicClusterConfigPtr& GetConfig() const = 0;
+    virtual void SetConfig(NYTree::INodePtr configNode) = 0;
 
-    const TDynamicClusterConfigPtr& GetConfig() const;
-    void SetConfig(NYTree::INodePtr configNode);
-
-    DECLARE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    DECLARE_INTERFACE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
 };
 
-DEFINE_REFCOUNTED_TYPE(TConfigManager)
+DEFINE_REFCOUNTED_TYPE(IConfigManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IConfigManagerPtr CreateConfigManager(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

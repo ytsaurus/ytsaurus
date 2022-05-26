@@ -65,96 +65,90 @@ struct TCrossCellMessage
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMulticellManager
-    : public TRefCounted
+struct IMulticellManager
+    : public virtual TRefCounted
 {
 public:
-    TMulticellManager(
-        TMulticellManagerConfigPtr config,
-        TBootstrap* bootstrap);
+    virtual void Initialize() = 0;
 
-    ~TMulticellManager();
+    virtual bool IsPrimaryMaster() const = 0;
+    virtual bool IsSecondaryMaster() const = 0;
+    virtual bool IsMulticell() const = 0;
 
-    void Initialize();
+    virtual NObjectClient::TCellId GetCellId() const = 0;
+    virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
+    virtual NObjectClient::TCellTag GetCellTag() const = 0;
 
-    bool IsPrimaryMaster() const;
-    bool IsSecondaryMaster() const;
-    bool IsMulticell() const;
+    virtual NObjectClient::TCellId GetPrimaryCellId() const = 0;
+    virtual NObjectClient::TCellTag GetPrimaryCellTag() const = 0;
 
-    NObjectClient::TCellId GetCellId() const;
-    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
-    NObjectClient::TCellTag GetCellTag() const;
+    virtual const NObjectClient::TCellTagList& GetSecondaryCellTags() const = 0;
 
-    NObjectClient::TCellId GetPrimaryCellId() const;
-    NObjectClient::TCellTag GetPrimaryCellTag() const;
+    virtual int GetCellCount() const = 0;
+    virtual int GetSecondaryCellCount() const = 0;
 
-    const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
-
-    int GetCellCount() const;
-    int GetSecondaryCellCount() const;
-
-    void PostToMaster(
+    virtual void PostToMaster(
         const TCrossCellMessage& message,
         NObjectClient::TCellTag cellTag,
-        bool reliable = true);
-    void PostToMasters(
+        bool reliable = true) = 0;
+    virtual void PostToMasters(
         const TCrossCellMessage& message,
         const NObjectClient::TCellTagList& cellTags,
-        bool reliable = true);
-    void PostToPrimaryMaster(
+        bool reliable = true) = 0;
+    virtual void PostToPrimaryMaster(
         const TCrossCellMessage& message,
-        bool reliable = true);
-    void PostToSecondaryMasters(
+        bool reliable = true) = 0;
+    virtual void PostToSecondaryMasters(
         const TCrossCellMessage& message,
-        bool reliable = true);
+        bool reliable = true) = 0;
 
     //! For primary masters, always returns |true|.
     //! For secondary masters, returns |true| if the local secondary cell is registered at the primary cell.
-    bool IsLocalMasterCellRegistered();
+    virtual bool IsLocalMasterCellRegistered() = 0;
 
     //! Returns |true| if there is a registered master cell with a given cell tag.
-    bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag);
+    virtual bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns the set of roles the cell is configured for.
     /*!
      *  \note Thread affinity: any
      */
-    EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag);
+    virtual EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns the set of cells configured for a given role.
     /*!
      *  \note Thread affinity: any
      */
-    NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRole cellRole);
+    virtual NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) = 0;
 
     //! Returns the number of cells configured for a given role.
     /*!
      *  \note Thread affinity: any
      */
-    int GetRoleMasterCellCount(EMasterCellRole cellRole);
+    virtual int GetRoleMasterCellCount(EMasterCellRole cellRole) = 0;
 
     //! Returns master cell name (cell tag is default cell name).
     //! Decimal representation of cell tag is the default.
     /*!
      *  \note Thread affinity: any
      */
-    TString GetMasterCellName(NObjectClient::TCellTag cellTag);
+    virtual TString GetMasterCellName(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns master cell tag or std::nullopt, if there is no cell with given name.
     /*!
      *  \note Thread affinity: any
      */
-    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName);
+    virtual std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) = 0;
 
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
     /*!`
      *  For secondary masters, the primary master is always the first element.
      */
-    const NObjectClient::TCellTagList& GetRegisteredMasterCellTags();
+    virtual const NObjectClient::TCellTagList& GetRegisteredMasterCellTags() = 0;
 
     //! Returns a stable index of a given (registered) master cell (other than the local one).
-    int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag);
+    virtual int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag) = 0;
 
     //! Picks a random (but deterministically chosen) secondary master cell to
     //! host an external chunk-owning node.
@@ -167,22 +161,22 @@ public:
      *
      *  If no secondary cells are registered then #InvalidCellTag is returned.
      */
-    NObjectClient::TCellTag PickSecondaryChunkHostCell(double bias);
+    virtual NObjectClient::TCellTag PickSecondaryChunkHostCell(double bias) = 0;
 
     //! Returns the total cluster statistics by summing counters for all cells (including primary).
-    const NProto::TCellStatistics& GetClusterStatistics();
+    virtual const NProto::TCellStatistics& GetClusterStatistics() = 0;
 
     //! Returns the channel to be used for communicating with another master.
     //! This channel has a properly configured timeout.
     //! Throws on error.
-    NRpc::IChannelPtr GetMasterChannelOrThrow(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
+    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind) = 0;
 
     //! Same as #GetMasterChannelOrThrow but returns |nullptr| if no channel is currently known.
-    NRpc::IChannelPtr FindMasterChannel(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
+    virtual NRpc::IChannelPtr FindMasterChannel(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind) = 0;
 
     //! Returns the mailbox used for communicating with the primary master cell.
     //! May return null if the cell is not connected yet.
-    NHiveServer::TMailbox* FindPrimaryMasterMailbox();
+    virtual NHiveServer::TMailbox* FindPrimaryMasterMailbox() = 0;
 
 
     //! Synchronizes with the upstream.
@@ -201,18 +195,18 @@ public:
      *
      *  \note Thread affinity: any
      */
-    TFuture<void> SyncWithUpstream();
+    virtual TFuture<void> SyncWithUpstream() = 0;
 
-    DECLARE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
-    DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
-    DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
+    DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
+    DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMulticellManager)
+DEFINE_REFCOUNTED_TYPE(IMulticellManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMulticellManagerPtr CreateMulticellManager(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

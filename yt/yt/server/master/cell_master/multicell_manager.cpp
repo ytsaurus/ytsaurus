@@ -1,4 +1,5 @@
 #include "multicell_manager.h"
+
 #include "config.h"
 #include "config_manager.h"
 #include "bootstrap.h"
@@ -72,77 +73,75 @@ DEFINE_ENUM(EPrimaryRegisterState,
     (Registered)
 );
 
-class TMulticellManager::TImpl
-    : public TMasterAutomatonPart
+class TMulticellManager
+    : public IMulticellManager
+    , public TMasterAutomatonPart
 {
 public:
-    TImpl(
-        TMulticellManagerConfigPtr config,
+    TMulticellManager(
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellManager)
-        , Config_(config)
+        , Config_(Bootstrap_->GetConfig()->MulticellManager)
         , UpstreamSyncBatcher_(New<TAsyncBatcher<void>>(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::DoSyncWithUpstream, MakeWeak(this)),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TMulticellManager::DoSyncWithUpstream, MakeWeak(this)),
             Config_->UpstreamSyncDelay))
     {
-        YT_VERIFY(Config_);
-
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartSecondaryMasterRegistration, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSetCellStatistics, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSetMulticellStatistics, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraStartSecondaryMasterRegistration, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetCellStatistics, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraSetMulticellStatistics, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TMulticellManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "MulticellManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TMulticellManager::SaveValues, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
-        Bootstrap_->GetAlertManager()->RegisterAlertSource(BIND(&TImpl::GetAlerts, MakeStrong(this)));
+        configManager->SubscribeConfigChanged(BIND(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->GetAlertManager()->RegisterAlertSource(BIND(&TMulticellManager::GetAlerts, MakeStrong(this)));
     }
 
 
-    bool IsPrimaryMaster() const
+    bool IsPrimaryMaster() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsPrimaryMaster();
     }
 
-    bool IsSecondaryMaster() const
+    bool IsSecondaryMaster() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsSecondaryMaster();
     }
 
-    bool IsMulticell() const
+    bool IsMulticell() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsMulticell();
     }
 
-    TCellId GetCellId() const
+    TCellId GetCellId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCellId();
     }
 
-    TCellId GetCellId(TCellTag cellTag) const
+    TCellId GetCellId(TCellTag cellTag) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -151,42 +150,42 @@ public:
             : ReplaceCellTagInId(GetPrimaryCellId(), cellTag);
     }
 
-    TCellTag GetCellTag() const
+    TCellTag GetCellTag() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCellTag();
     }
 
-    TCellId GetPrimaryCellId() const
+    TCellId GetPrimaryCellId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetPrimaryCellId();
     }
 
-    TCellTag GetPrimaryCellTag() const
+    TCellTag GetPrimaryCellTag() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetPrimaryCellTag();
     }
 
-    const TCellTagList& GetSecondaryCellTags() const
+    const TCellTagList& GetSecondaryCellTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetSecondaryCellTags();
     }
 
-    int GetCellCount() const
+    int GetCellCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return GetSecondaryCellCount() + 1;
     }
 
-    int GetSecondaryCellCount() const
+    int GetSecondaryCellCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -197,7 +196,7 @@ public:
     void PostToMaster(
         const TCrossCellMessage& message,
         TCellTag cellTag,
-        bool reliable)
+        bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -208,7 +207,7 @@ public:
     void PostToMasters(
         const TCrossCellMessage& message,
         const TCellTagList& cellTags,
-        bool reliable)
+        bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -222,7 +221,7 @@ public:
 
     void PostToPrimaryMaster(
         const TCrossCellMessage& message,
-        bool reliable)
+        bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
@@ -232,7 +231,7 @@ public:
 
     void PostToSecondaryMasters(
         const TCrossCellMessage& message,
-        bool reliable)
+        bool reliable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
@@ -243,7 +242,7 @@ public:
     }
 
 
-    bool IsLocalMasterCellRegistered()
+    bool IsLocalMasterCellRegistered() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -258,14 +257,14 @@ public:
         return false;
     }
 
-    bool IsRegisteredSecondaryMaster(TCellTag cellTag)
+    bool IsRegisteredMasterCell(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return FindMasterEntry(cellTag) != nullptr;
     }
 
-    EMasterCellRoles GetMasterCellRoles(TCellTag cellTag)
+    EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -275,7 +274,7 @@ public:
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
-    TCellTagList GetRoleMasterCells(EMasterCellRole cellRole)
+    TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -284,7 +283,7 @@ public:
         return RoleMasterCells_[cellRole];
     }
 
-    int GetRoleMasterCellCount(EMasterCellRole cellRole)
+    int GetRoleMasterCellCount(EMasterCellRole cellRole) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -293,7 +292,7 @@ public:
         return RoleMasterCellCounts_[cellRole].load();
     }
 
-    TString GetMasterCellName(NObjectClient::TCellTag cellTag)
+    TString GetMasterCellName(NObjectClient::TCellTag cellTag) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -302,7 +301,7 @@ public:
         return GetOrCrash(MasterCellNameMap_, cellTag);
     }
 
-    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName)
+    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -312,14 +311,14 @@ public:
         return it == NameMasterCellMap_.end() ? std::nullopt : std::make_optional(it->second);
     }
 
-    const TCellTagList& GetRegisteredMasterCellTags()
+    const TCellTagList& GetRegisteredMasterCellTags() override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return RegisteredMasterCellTags_;
     }
 
-    int GetRegisteredMasterCellIndex(TCellTag cellTag)
+    int GetRegisteredMasterCellIndex(TCellTag cellTag) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -327,7 +326,7 @@ public:
     }
 
 
-    TCellTag PickSecondaryChunkHostCell(double bias)
+    TCellTag PickSecondaryChunkHostCell(double bias) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -390,14 +389,14 @@ public:
             : hiCandidates[(random - totalLoWeight) / weightPerHi];
     }
 
-    const NProto::TCellStatistics& GetClusterStatistics()
+    const NProto::TCellStatistics& GetClusterStatistics() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return ClusterCellStatisics_;
     }
 
-    IChannelPtr GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind)
+    IChannelPtr GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -409,7 +408,7 @@ public:
         return channel;
     }
 
-    IChannelPtr FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
+    IChannelPtr FindMasterChannel(TCellTag cellTag, EPeerKind peerKind) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -443,14 +442,14 @@ public:
         return channel;
     }
 
-    TMailbox* FindPrimaryMasterMailbox()
+    TMailbox* FindPrimaryMasterMailbox() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return PrimaryMasterMailbox_;
     }
 
-    TFuture<void> SyncWithUpstream()
+    TFuture<void> SyncWithUpstream() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -465,9 +464,9 @@ public:
     }
 
 
-    DEFINE_SIGNAL(void(TCellTag), ValidateSecondaryMasterRegistration);
-    DEFINE_SIGNAL(void(TCellTag), ReplicateKeysToSecondaryMaster);
-    DEFINE_SIGNAL(void(TCellTag), ReplicateValuesToSecondaryMaster);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ValidateSecondaryMasterRegistration);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateKeysToSecondaryMaster);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateValuesToSecondaryMaster);
 
 private:
     const TMulticellManagerConfigPtr Config_;
@@ -612,16 +611,15 @@ private:
 
         CellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::MulticellGossip),
-            BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)));
+            BIND(&TMulticellManager::OnCellStatisticsGossip, MakeWeak(this)));
         CellStatisticsGossipExecutor_->Start();
 
         if (IsSecondaryMaster()) {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-                BIND(&TImpl::OnStartSecondaryMasterRegistration, MakeWeak(this)),
+                BIND(&TMulticellManager::OnStartSecondaryMasterRegistration, MakeWeak(this)),
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
-
         }
     }
 
@@ -1090,7 +1088,7 @@ private:
         return result;
     }
 
-    static TFuture<void> DoSyncWithUpstream(const TWeakPtr<TImpl>& weakThis)
+    static TFuture<void> DoSyncWithUpstream(const TWeakPtr<TMulticellManager>& weakThis)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1122,7 +1120,7 @@ private:
         // NB: Many subscribers are typically waiting for the upstream sync to complete.
         // Make sure the promise is set in a large thread pool.
         return AllSucceeded(std::move(asyncResults)).Apply(
-            BIND(&TImpl::OnUpstreamSyncReached, MakeStrong(this), timer)
+            BIND(&TMulticellManager::OnUpstreamSyncReached, MakeStrong(this), timer)
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
@@ -1329,187 +1327,14 @@ private:
     }
 };
 
-/*static*/ const TCellTagList TMulticellManager::TImpl::EmptyCellTagList = {};
+/*static*/ const TCellTagList TMulticellManager::EmptyCellTagList = {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMulticellManager::TMulticellManager(
-    TMulticellManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-TMulticellManager::~TMulticellManager()
-{ }
-
-void TMulticellManager::Initialize()
+IMulticellManagerPtr CreateMulticellManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TMulticellManager>(bootstrap);
 }
-
-bool TMulticellManager::IsPrimaryMaster() const
-{
-    return Impl_->IsPrimaryMaster();
-}
-
-bool TMulticellManager::IsSecondaryMaster() const
-{
-    return Impl_->IsSecondaryMaster();
-}
-
-bool TMulticellManager::IsMulticell() const
-{
-    return Impl_->IsMulticell();
-}
-
-TCellId TMulticellManager::GetCellId() const
-{
-    return Impl_->GetCellId();
-}
-
-TCellId TMulticellManager::GetCellId(TCellTag cellTag) const
-{
-    return Impl_->GetCellId(cellTag);
-}
-
-TCellTag TMulticellManager::GetCellTag() const
-{
-    return Impl_->GetCellTag();
-}
-
-TCellId TMulticellManager::GetPrimaryCellId() const
-{
-    return Impl_->GetPrimaryCellId();
-}
-
-TCellTag TMulticellManager::GetPrimaryCellTag() const
-{
-    return Impl_->GetPrimaryCellTag();
-}
-
-const TCellTagList& TMulticellManager::GetSecondaryCellTags() const
-{
-    return Impl_->GetSecondaryCellTags();
-}
-
-int TMulticellManager::GetCellCount() const
-{
-    return Impl_->GetCellCount();
-}
-
-int TMulticellManager::GetSecondaryCellCount() const
-{
-    return Impl_->GetSecondaryCellCount();
-}
-
-void TMulticellManager::PostToMaster(
-    const TCrossCellMessage& message,
-    TCellTag cellTag,
-    bool reliable)
-{
-    Impl_->PostToMaster(message, cellTag, reliable);
-}
-
-void TMulticellManager::PostToMasters(
-    const TCrossCellMessage& message,
-    const TCellTagList& cellTags,
-    bool reliable)
-{
-    Impl_->PostToMasters(message, cellTags, reliable);
-}
-
-void TMulticellManager::PostToPrimaryMaster(
-    const TCrossCellMessage& message,
-    bool reliable)
-{
-    return Impl_->PostToPrimaryMaster(message, reliable);
-}
-
-void TMulticellManager::PostToSecondaryMasters(
-    const TCrossCellMessage& message,
-    bool reliable)
-{
-    Impl_->PostToSecondaryMasters(message, reliable);
-}
-
-bool TMulticellManager::IsLocalMasterCellRegistered()
-{
-    return Impl_->IsLocalMasterCellRegistered();
-}
-
-bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
-{
-    return Impl_->IsRegisteredSecondaryMaster(cellTag);
-}
-
-EMasterCellRoles TMulticellManager::GetMasterCellRoles(TCellTag cellTag)
-{
-    return Impl_->GetMasterCellRoles(cellTag);
-}
-
-TCellTagList TMulticellManager::GetRoleMasterCells(EMasterCellRole cellRole)
-{
-    return Impl_->GetRoleMasterCells(cellRole);
-}
-
-int TMulticellManager::GetRoleMasterCellCount(EMasterCellRole cellRole)
-{
-    return Impl_->GetRoleMasterCellCount(cellRole);
-}
-
-TString TMulticellManager::GetMasterCellName(NObjectClient::TCellTag cellTag)
-{
-    return Impl_->GetMasterCellName(cellTag);
-}
-
-std::optional<NObjectClient::TCellTag> TMulticellManager::FindMasterCellTagByName(const TString& cellName)
-{
-    return Impl_->FindMasterCellTagByName(cellName);
-}
-
-const TCellTagList& TMulticellManager::GetRegisteredMasterCellTags()
-{
-    return Impl_->GetRegisteredMasterCellTags();
-}
-
-int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
-{
-    return Impl_->GetRegisteredMasterCellIndex(cellTag);
-}
-
-TCellTag TMulticellManager::PickSecondaryChunkHostCell(double bias)
-{
-    return Impl_->PickSecondaryChunkHostCell(bias);
-}
-
-const NProto::TCellStatistics& TMulticellManager::GetClusterStatistics()
-{
-    return Impl_->GetClusterStatistics();
-}
-
-IChannelPtr TMulticellManager::GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind)
-{
-    return Impl_->GetMasterChannelOrThrow(cellTag, peerKind);
-}
-
-IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
-{
-    return Impl_->FindMasterChannel(cellTag, peerKind);
-}
-
-TMailbox* TMulticellManager::FindPrimaryMasterMailbox()
-{
-    return Impl_->FindPrimaryMasterMailbox();
-}
-
-TFuture<void> TMulticellManager::SyncWithUpstream()
-{
-    return Impl_->SyncWithUpstream();
-}
-
-DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ValidateSecondaryMasterRegistration, *Impl_);
-DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ReplicateKeysToSecondaryMaster, *Impl_);
-DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ReplicateValuesToSecondaryMaster, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

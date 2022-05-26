@@ -1,16 +1,12 @@
+#include "config_manager.h"
+
 #include "alert_manager.h"
 #include "automaton.h"
 #include "bootstrap.h"
-#include "config_manager.h"
 #include "hydra_facade.h"
 #include "multicell_manager.h"
 #include "serialize.h"
 #include "config.h"
-
-// COMPAT(gritukan)
-#include "serialize.h"
-
-#include <yt/yt/server/master/tablet_server/config.h>
 
 #include <yt/yt/core/misc/serialize.h>
 
@@ -25,53 +21,54 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfigManager::TImpl
-    : public TMasterAutomatonPart
+class TConfigManager
+    : public IConfigManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TConfigManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ConfigManager)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
             "ConfigManager",
-            BIND(&TImpl::Load, Unretained(this)));
+            BIND(&TConfigManager::Load, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ConfigManager",
-            BIND(&TImpl::Save, Unretained(this)));
+            BIND(&TConfigManager::Save, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND(&TConfigManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
 
             Bootstrap_->GetAlertManager()->RegisterAlertSource(
-                BIND(&TImpl::GetAlerts, MakeStrong(this)));
+                BIND(&TConfigManager::GetAlerts, MakeStrong(this)));
         }
 
         // NB: Config Manager initialization in performed after all automaton parts registration in Hydra,
         // so config changed signal will be fired after other {LeaderRecoveryComplete,FollowerRecoveryComplete,LeaderActive}
         // subscribers. This property is crucial for many automaton parts.
-        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TConfigManager::TImpl::FireConfigChanged, MakeWeak(this)));
-        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TConfigManager::TImpl::FireConfigChanged, MakeWeak(this)));
-        HydraManager_->SubscribeLeaderActive(BIND(&TConfigManager::TImpl::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeLeaderActive(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));
     }
 
-    const TDynamicClusterConfigPtr& GetConfig() const
+    const TDynamicClusterConfigPtr& GetConfig() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return Config_;
     }
 
-    void SetConfig(INodePtr configNode)
+    void SetConfig(INodePtr configNode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -89,7 +86,7 @@ public:
         ConfigChanged_.Fire(oldConfig);
     }
 
-    DEFINE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(TDynamicClusterConfigPtr), ConfigChanged);
 
 private:
     TDynamicClusterConfigPtr Config_ = New<TDynamicClusterConfig>();
@@ -180,29 +177,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TConfigManager::TConfigManager(
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TConfigManager::~TConfigManager() = default;
-
-void TConfigManager::Initialize()
+IConfigManagerPtr CreateConfigManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TConfigManager>(bootstrap);
 }
-
-const TDynamicClusterConfigPtr& TConfigManager::GetConfig() const
-{
-    return Impl_->GetConfig();
-}
-
-void TConfigManager::SetConfig(INodePtr configNode)
-{
-    Impl_->SetConfig(std::move(configNode));
-}
-
-DELEGATE_SIGNAL(TConfigManager, void(TDynamicClusterConfigPtr), ConfigChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

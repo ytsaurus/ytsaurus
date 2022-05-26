@@ -25,7 +25,7 @@ public:
     TClusterResourceLimits();
 
     static TClusterResourceLimits Infinite();
-    static TClusterResourceLimits Zero(const NCellMaster::TMulticellManagerPtr& multicellManager);
+    static TClusterResourceLimits Zero(const NCellMaster::IMulticellManagerPtr& multicellManager);
 
     TClusterResourceLimits&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;

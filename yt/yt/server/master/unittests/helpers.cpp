@@ -22,7 +22,7 @@ using namespace NObjectServer;
 
 TBootstrapMock::TBootstrapMock()
 {
-    HydraFacade_ = New<THydraFacade>(TTestingTag());
+    HydraFacade_ = CreateHydraFacade(TTestingTag());
     ObjectManager_ = New<NObjectServer::TObjectManager>(TTestingTag(), this);
 }
 
