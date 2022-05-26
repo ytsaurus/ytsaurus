@@ -281,9 +281,6 @@ class TTabletHunkReaderConfig
     , public NTableClient::TBatchHunkReaderConfig
 {
 public:
-    // COMPAT(babenko)
-    bool UseNewChunkFragmentReader;
-
     REGISTER_YSON_STRUCT(TTabletHunkReaderConfig);
 
     static void Register(TRegistrar registrar);

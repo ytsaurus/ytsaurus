@@ -92,8 +92,6 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("probe_peer_count", &TThis::ProbePeerCount)
         .Default(3)
         .GreaterThan(0);
-    registrar.Parameter("seeds_timeout", &TThis::SeedsTimeout)
-        .Default(TDuration::Seconds(3));
     registrar.Parameter("retry_count", &TThis::RetryCount)
         .Default(20);
     registrar.Parameter("fail_on_no_seeds", &TThis::FailOnNoSeeds)

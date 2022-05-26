@@ -148,8 +148,6 @@ TMediumDirectorySynchronizerConfig::TMediumDirectorySynchronizerConfig()
 
 void TChunkFragmentReaderConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("chunk_replica_locator_expiration_timeout", &TThis::ChunkReplicaLocatorExpirationTimeout)
-        .Default(TDuration::Minutes(30));
     registrar.Parameter("peer_info_expiration_timeout", &TThis::PeerInfoExpirationTimeout)
         .Default(TDuration::Minutes(30));
 

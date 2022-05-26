@@ -50,7 +50,6 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
-#include <yt/yt/ytlib/chunk_client/new_chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -478,10 +477,7 @@ public:
 
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
-        auto creator = tablet->GetSettings().HunkReaderConfig->UseNewChunkFragmentReader
-            ? &NChunkClient::CreateNewChunkFragmentReader
-            : &NChunkClient::CreateChunkFragmentReader;
-        return creator(
+        return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetHintManager(),
