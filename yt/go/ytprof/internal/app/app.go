@@ -30,8 +30,8 @@ type App struct {
 }
 
 type Config struct {
-	HTTPEndpoint string
-	Proxy        string
+	HTTPEndpoint string `json:"http_endpoint" yaml:"http_endpoint"`
+	Proxy        string `json:"proxy" yaml:"proxy"`
 }
 
 func NewApp(l *zap.Logger, config Config) *App {
