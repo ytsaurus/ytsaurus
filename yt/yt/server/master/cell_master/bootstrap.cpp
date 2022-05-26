@@ -407,7 +407,7 @@ const IRequestProfilingManagerPtr& TBootstrap::GetRequestProfilingManager() cons
     return RequestProfilingManager_;
 }
 
-const TChunkManagerPtr& TBootstrap::GetChunkManager() const
+const IChunkManagerPtr& TBootstrap::GetChunkManager() const
 {
     return ChunkManager_;
 }
@@ -759,7 +759,7 @@ void TBootstrap::DoInitialize()
 
     PortalManager_ =  New<TPortalManager>(this);
 
-    ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
+    ChunkManager_ = CreateChunkManager(this);
 
     JournalManager_ = CreateJournalManager(this);
 

@@ -1,4 +1,5 @@
 #include "chunk_manager.h"
+
 #include "private.h"
 #include "chunk.h"
 #include "chunk_autotomizer.h"
@@ -341,15 +342,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TImpl
-    : public TMasterAutomatonPart
+class TChunkManager
+    : public IChunkManager
+    , public TMasterAutomatonPart
 {
 public:
-    TImpl(
-        TChunkManagerConfigPtr config,
-        TBootstrap* bootstrap)
+    explicit TChunkManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ChunkManager)
-        , Config_(config)
+        , Config_(Bootstrap_->GetConfig()->ChunkManager)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
         , ConsistentChunkPlacement_(New<TConsistentChunkPlacement>(
             Bootstrap_,
@@ -358,30 +358,30 @@ public:
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
     {
-        RegisterMethod(BIND(&TImpl::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateChunkRequisition, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRegisterChunkEndorsements, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnstageExpiredChunks, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraRegisterChunkEndorsements, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraExportChunks, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraImportChunks, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraExecuteBatch, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraUnstageExpiredChunks, Unretained(this)));
+        RegisterMethod(BIND(&TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TChunkManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "ChunkManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TChunkManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "ChunkManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TChunkManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ChunkManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TChunkManager::SaveValues, Unretained(this)));
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
@@ -392,7 +392,7 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateChunkTypeHandler(Bootstrap_, EObjectType::Chunk));
@@ -418,31 +418,31 @@ public:
         objectManager->RegisterHandler(CreateMediumTypeHandler(Bootstrap_));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeRackChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TImpl::OnNodeDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeDecommissionChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND(&TImpl::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisposed(BIND(&TChunkManager::OnNodeDisposed, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRackChanged(BIND(&TChunkManager::OnNodeRackChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDataCenterChanged(BIND(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisableWriteSessionsChanged(BIND(&TChunkManager::OnNodeDisableWriteSessionsChanged, MakeWeak(this)));
 
-        nodeTracker->SubscribeDataCenterCreated(BIND(&TImpl::OnDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterChanged, MakeWeak(this)));
-        nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterCreated(BIND(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterRenamed(BIND(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
+        nodeTracker->SubscribeDataCenterDestroyed(BIND(&TChunkManager::OnDataCenterChanged, MakeWeak(this)));
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        dataNodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullDataNodeHeartbeat, MakeWeak(this)));
-        dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
+        dataNodeTracker->SubscribeFullHeartbeat(BIND(&TChunkManager::OnFullDataNodeHeartbeat, MakeWeak(this)));
+        dataNodeTracker->SubscribeIncrementalHeartbeat(BIND(&TChunkManager::OnIncrementalDataNodeHeartbeat, MakeWeak(this)));
 
         const auto& alertManager = Bootstrap_->GetAlertManager();
-        alertManager->RegisterAlertSource(BIND(&TImpl::GetAlerts, MakeStrong(this)));
+        alertManager->RegisterAlertSource(BIND(&TChunkManager::GetAlerts, MakeStrong(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TChunkManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareCreateChunk, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TChunkManager::HydraPrepareCreateChunk, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
                 NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NHiveServer::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
@@ -475,12 +475,12 @@ public:
         RedistributeConsistentReplicaPlacementTokensExecutor_ =
             New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::DataNodeTracker),
-                BIND(&TImpl::OnRedistributeConsistentReplicaPlacementTokens, MakeWeak(this)));
+                BIND(&TChunkManager::OnRedistributeConsistentReplicaPlacementTokens, MakeWeak(this)));
         RedistributeConsistentReplicaPlacementTokensExecutor_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            BIND(&TChunkManager::OnProfiling, MakeWeak(this)),
             TDynamicChunkManagerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
 
@@ -489,15 +489,15 @@ public:
     }
 
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr GetOrchidService() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeStrong(this)))
+        return IYPathService::FromProducer(BIND(&TChunkManager::BuildOrchidYson, MakeStrong(this)))
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
     }
 
-    const TJobRegistryPtr& GetJobRegistry() const
+    const TJobRegistryPtr& GetJobRegistry() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -505,81 +505,81 @@ public:
     }
 
 
-    const IChunkAutotomizerPtr& GetChunkAutotomizer() const
+    const IChunkAutotomizerPtr& GetChunkAutotomizer() const override
     {
         return ChunkAutotomizer_;
     }
 
 
-    std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request)
+    std::unique_ptr<TMutation> CreateUpdateChunkRequisitionMutation(const NProto::TReqUpdateChunkRequisition& request) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraUpdateChunkRequisition,
+            &TChunkManager::HydraUpdateChunkRequisition,
             this);
     }
 
     std::unique_ptr<TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
-        const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request)
+        const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraConfirmChunkListsRequisitionTraverseFinished,
+            &TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished,
             this);
     }
 
     std::unique_ptr<TMutation> CreateRegisterChunkEndorsementsMutation(
-        const NProto::TReqRegisterChunkEndorsements& request)
+        const NProto::TReqRegisterChunkEndorsements& request) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraRegisterChunkEndorsements,
+            &TChunkManager::HydraRegisterChunkEndorsements,
             this);
     }
 
-    std::unique_ptr<TMutation> CreateExportChunksMutation(TCtxExportChunksPtr context)
+    std::unique_ptr<TMutation> CreateExportChunksMutation(TCtxExportChunksPtr context) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
-            &TImpl::HydraExportChunks,
+            &TChunkManager::HydraExportChunks,
             this);
     }
 
-    std::unique_ptr<TMutation> CreateImportChunksMutation(TCtxImportChunksPtr context)
+    std::unique_ptr<TMutation> CreateImportChunksMutation(TCtxImportChunksPtr context) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
-            &TImpl::HydraImportChunks,
+            &TChunkManager::HydraImportChunks,
             this);
     }
 
-    std::unique_ptr<TMutation> CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+    std::unique_ptr<TMutation> CreateExecuteBatchMutation(TCtxExecuteBatchPtr context) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             std::move(context),
-            &TImpl::HydraExecuteBatch,
+            &TChunkManager::HydraExecuteBatch,
             this);
     }
 
     std::unique_ptr<TMutation> CreateExecuteBatchMutation(
         TReqExecuteBatch* request,
-        TRspExecuteBatch* response)
+        TRspExecuteBatch* response) override
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             response,
-            &TImpl::HydraExecuteBatch,
+            &TChunkManager::HydraExecuteBatch,
             this);
     }
 
-    TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(const TReqExecuteBatch& request)
+    TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(const TReqExecuteBatch& request) override
     {
         auto preparedRequest = New<TPreparedExecuteBatchRequest>();
         preparedRequest->MutationRequest = request;
@@ -632,7 +632,7 @@ public:
 
     void PrepareExecuteBatchResponse(
         TPreparedExecuteBatchRequestPtr request,
-        TRspExecuteBatch* response)
+        TRspExecuteBatch* response) override
     {
         *response = request->MutationResponse;
 
@@ -664,7 +664,7 @@ public:
             request->IsCreateChunkSubrequestSequoia);
     }
 
-    TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request)
+    TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) override
     {
         int createChunkSubrequestCount = request->SequoiaRequest.CreateChunkSubrequests.size();
 
@@ -692,7 +692,7 @@ public:
         int minCount,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const std::optional<TString>& preferredHostName)
+        const std::optional<TString>& preferredHostName) override
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -711,7 +711,7 @@ public:
         int replicaIndex,
         int desiredCount,
         int minCount,
-        std::optional<int> replicationFactorOverride)
+        std::optional<int> replicationFactorOverride) override
     {
         return ChunkPlacement_->AllocateWriteTargets(
             medium,
@@ -868,7 +868,7 @@ public:
         UpdateAccountResourceUsage(chunk, delta, forcedRequisition);
     }
 
-    void SealChunk(TChunk* chunk, const TChunkSealInfo& info)
+    void SealChunk(TChunk* chunk, const TChunkSealInfo& info) override
     {
         if (!chunk->IsJournal()) {
             THROW_ERROR_EXCEPTION("Chunk %v is not a journal chunk",
@@ -943,7 +943,7 @@ public:
         bool overlayed,
         TConsistentReplicaPlacementHash consistentReplicaPlacementHash,
         i64 replicaLagLimit,
-        TChunkId hintId = NullChunkId)
+        TChunkId hintId) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -1012,7 +1012,7 @@ public:
         return chunk;
     }
 
-    TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request)
+    TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request) override
     {
         return GuardedCreateChunk(request)
             .Apply(BIND([] (const TErrorOr<TCreateChunkResponse>& responseOrError) {
@@ -1084,7 +1084,7 @@ public:
             /*response*/ nullptr);
     }
 
-    void DestroyChunk(TChunk* chunk)
+    void DestroyChunk(TChunk* chunk) override
     {
         if (chunk->IsForeign()) {
             YT_VERIFY(ForeignChunks_.erase(chunk) == 1);
@@ -1192,7 +1192,7 @@ public:
         }
     }
 
-    void UnstageChunk(TChunk* chunk)
+    void UnstageChunk(TChunk* chunk) override
     {
         if (chunk->IsStaged() && chunk->IsDiskSizeFinal()) {
             UpdateTransactionResourceUsage(chunk, -1);
@@ -1201,14 +1201,14 @@ public:
         UnstageChunkTree(chunk);
     }
 
-    void ExportChunk(TChunk* chunk, TCellTag destinationCellTag)
+    void ExportChunk(TChunk* chunk, TCellTag destinationCellTag) override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
         chunk->Export(cellIndex, GetChunkRequisitionRegistry());
     }
 
-    void UnexportChunk(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter)
+    void UnexportChunk(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
@@ -1257,7 +1257,7 @@ public:
     }
 
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier)
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) override
     {
         switch (underlyingTree->GetType()) {
             case EObjectType::Chunk:
@@ -1303,7 +1303,7 @@ public:
         }
     }
 
-    void DestroyChunkView(TChunkView* chunkView)
+    void DestroyChunkView(TChunkView* chunkView) override
     {
         YT_VERIFY(!chunkView->GetStagingTransaction());
 
@@ -1318,7 +1318,7 @@ public:
         ++ChunkViewsDestroyed_;
     }
 
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange)
+    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) override
     {
         auto modifier = TChunkViewModifier(chunkView->Modifier())
             .WithReadRange(readRange);
@@ -1326,7 +1326,7 @@ public:
     }
 
 
-    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet)
+    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet) override
     {
         auto* dynamicStore = DoCreateDynamicStore(storeId, tablet);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store created (StoreId: %v, TabletId: %v)",
@@ -1335,7 +1335,7 @@ public:
         return dynamicStore;
     }
 
-    void DestroyDynamicStore(TDynamicStore* dynamicStore)
+    void DestroyDynamicStore(TDynamicStore* dynamicStore) override
     {
         YT_VERIFY(!dynamicStore->GetStagingTransaction());
 
@@ -1346,7 +1346,7 @@ public:
     }
 
 
-    TChunkList* CreateChunkList(EChunkListKind kind)
+    TChunkList* CreateChunkList(EChunkListKind kind) override
     {
         auto* chunkList = DoCreateChunkList(kind);
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list created (Id: %v, Kind: %v)",
@@ -1355,7 +1355,7 @@ public:
         return chunkList;
     }
 
-    void DestroyChunkList(TChunkList* chunkList)
+    void DestroyChunkList(TChunkList* chunkList) override
     {
         // Release account.
         UnstageChunkList(chunkList, false);
@@ -1372,7 +1372,7 @@ public:
         ++ChunkListsDestroyed_;
     }
 
-    void ClearChunkList(TChunkList* chunkList)
+    void ClearChunkList(TChunkList* chunkList) override
     {
         // TODO(babenko): currently we only support clearing a chunklist with no parents.
         YT_VERIFY(chunkList->Parents().Empty());
@@ -1392,7 +1392,7 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
     }
 
-    TChunkList* CloneTabletChunkList(TChunkList* chunkList)
+    TChunkList* CloneTabletChunkList(TChunkList* chunkList) override
     {
         auto* newChunkList = CreateChunkList(chunkList->GetKind());
 
@@ -1425,7 +1425,7 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd)
+        TChunkTree* const* childrenEnd) override
     {
         NChunkServer::AttachToChunkList(chunkList, childrenBegin, childrenEnd);
 
@@ -1438,7 +1438,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children)
+        const std::vector<TChunkTree*>& children) override
     {
         AttachToChunkList(
             chunkList,
@@ -1448,7 +1448,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree* child)
+        TChunkTree* child) override
     {
         AttachToChunkList(
             chunkList,
@@ -1460,7 +1460,7 @@ public:
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd,
-        EChunkDetachPolicy policy)
+        EChunkDetachPolicy policy) override
     {
         NChunkServer::DetachFromChunkList(chunkList, childrenBegin, childrenEnd, policy);
 
@@ -1474,7 +1474,7 @@ public:
     void DetachFromChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children,
-        EChunkDetachPolicy policy)
+        EChunkDetachPolicy policy) override
     {
         DetachFromChunkList(
             chunkList,
@@ -1486,7 +1486,7 @@ public:
     void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* child,
-        EChunkDetachPolicy policy)
+        EChunkDetachPolicy policy) override
     {
         DetachFromChunkList(
             chunkList,
@@ -1498,7 +1498,7 @@ public:
     void ReplaceChunkListChild(
         TChunkList* chunkList,
         int childIndex,
-        TChunkTree* child)
+        TChunkTree* child) override
     {
         auto* oldChild = chunkList->Children()[childIndex];
 
@@ -1513,7 +1513,7 @@ public:
         objectManager->UnrefObject(oldChild);
     }
 
-    void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode)
+    void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode) override
     {
         if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList, settingsMode)) {
             return;
@@ -1560,7 +1560,7 @@ public:
         objectManager->RefObject(account);
     }
 
-    void UnstageChunkList(TChunkList* chunkList, bool recursive)
+    void UnstageChunkList(TChunkList* chunkList, bool recursive) override
     {
         UnstageChunkTree(chunkList);
 
@@ -1606,7 +1606,7 @@ public:
     }
 
 
-    TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes)
+    TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes) override
     {
         auto* chunk = chunkWithIndexes.GetPtr();
         auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
@@ -1628,7 +1628,7 @@ public:
         return result;
     }
 
-    void TouchChunk(TChunk* chunk)
+    void TouchChunk(TChunk* chunk) override
     {
         if (chunk->IsErasure() && ChunkReplicator_) {
             ChunkReplicator_->TouchChunk(chunk);
@@ -1636,7 +1636,7 @@ public:
     }
 
 
-    void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context)
+    void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context) override
     {
         YT_VERIFY(IsLeader());
 
@@ -1843,55 +1843,59 @@ public:
         }
     }
 
-    TJobId GenerateJobId() const
+    TJobId GenerateJobId() const override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         return MakeRandomId(EObjectType::MasterJob, multicellManager->GetCellTag());
     }
 
 
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, OverreplicatedChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnderreplicatedChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(TOldestPartMissingChunkSet, OldestPartMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousVitalChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, QuorumMissingChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TChunk*>, InconsistentlyPlacedChunks);
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ForeignChunks);
+    const THashSet<TChunk*>& LostVitalChunks() const override;
+    const THashSet<TChunk*>& LostChunks() const  override;
+    const THashSet<TChunk*>& OverreplicatedChunks() const override;
+    const THashSet<TChunk*>& UnderreplicatedChunks() const override;
+    const THashSet<TChunk*>& DataMissingChunks() const override;
+    const THashSet<TChunk*>& ParityMissingChunks() const override;
+    const TOldestPartMissingChunkSet& OldestPartMissingChunks() const override;
+    const THashSet<TChunk*>& PrecariousChunks() const override;
+    const THashSet<TChunk*>& PrecariousVitalChunks() const override;
+    const THashSet<TChunk*>& QuorumMissingChunks() const override;
+    const THashSet<TChunk*>& UnsafelyPlacedChunks() const override;
+    const THashSet<TChunk*>& InconsistentlyPlacedChunks() const override;
 
-    int GetTotalReplicaCount()
+    const THashSet<TChunk*>& ForeignChunks() const override
+    {
+        return ForeignChunks_;
+    }
+
+    int GetTotalReplicaCount() override
     {
         return TotalReplicaCount_;
     }
 
 
-    bool IsChunkReplicatorEnabled()
+    bool IsChunkReplicatorEnabled() override
     {
         return ChunkReplicator_ && ChunkReplicator_->IsReplicatorEnabled();
     }
 
-    bool IsChunkRefreshEnabled()
+    bool IsChunkRefreshEnabled() override
     {
         return ChunkReplicator_ && ChunkReplicator_->IsRefreshEnabled();
     }
 
-    bool IsChunkRequisitionUpdateEnabled()
+    bool IsChunkRequisitionUpdateEnabled() override
     {
         return ChunkReplicator_ && ChunkReplicator_->IsRequisitionUpdateEnabled();
     }
 
-    bool IsChunkSealerEnabled()
+    bool IsChunkSealerEnabled() override
     {
         return ChunkSealer_ && ChunkSealer_->IsEnabled();
     }
 
 
-    void ScheduleChunkRefresh(TChunk* chunk)
+    void ScheduleChunkRefresh(TChunk* chunk) override
     {
         if (ChunkReplicator_) {
             ChunkReplicator_->ScheduleChunkRefresh(chunk);
@@ -1914,7 +1918,7 @@ public:
         }
     }
 
-    void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
+    void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree) override
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
@@ -1966,26 +1970,26 @@ public:
         }
     }
 
-    void ScheduleChunkSeal(TChunk* chunk)
+    void ScheduleChunkSeal(TChunk* chunk) override
     {
         if (ChunkSealer_) {
             ChunkSealer_->ScheduleSeal(chunk);
         }
     }
 
-    void ScheduleChunkMerge(TChunkOwnerBase* node)
+    void ScheduleChunkMerge(TChunkOwnerBase* node) override
     {
         YT_VERIFY(HasMutationContext());
 
         ChunkMerger_->ScheduleMerge(node);
     }
 
-    bool IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const
+    bool IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const override
     {
         return ChunkMerger_->IsNodeBeingMerged(nodeId);
     }
 
-    TChunk* GetChunkOrThrow(TChunkId id)
+    TChunk* GetChunkOrThrow(TChunkId id) override
     {
         auto* chunk = FindChunk(id);
         if (!IsObjectAlive(chunk)) {
@@ -1997,7 +2001,7 @@ public:
         return chunk;
     }
 
-    TChunkView* GetChunkViewOrThrow(TChunkViewId id)
+    TChunkView* GetChunkViewOrThrow(TChunkViewId id) override
     {
         auto* chunkView = FindChunkView(id);
         if (!IsObjectAlive(chunkView)) {
@@ -2009,7 +2013,7 @@ public:
         return chunkView;
     }
 
-    TDynamicStore* GetDynamicStoreOrThrow(TDynamicStoreId id)
+    TDynamicStore* GetDynamicStoreOrThrow(TDynamicStoreId id) override
     {
         auto* dynamicStore = FindDynamicStore(id);
         if (!IsObjectAlive(dynamicStore)) {
@@ -2021,7 +2025,7 @@ public:
         return dynamicStore;
     }
 
-    TChunkList* GetChunkListOrThrow(TChunkListId id)
+    TChunkList* GetChunkListOrThrow(TChunkListId id) override
     {
         auto* chunkList = FindChunkList(id);
         if (!IsObjectAlive(chunkList)) {
@@ -2038,7 +2042,7 @@ public:
         std::optional<bool> transient,
         std::optional<bool> cache,
         std::optional<int> priority,
-        TObjectId hintId)
+        TObjectId hintId) override
     {
         ValidateMediumName(name);
 
@@ -2066,12 +2070,12 @@ public:
             priority);
     }
 
-    void DestroyMedium(TMedium* medium)
+    void DestroyMedium(TMedium* medium) override
     {
         UnregisterMedium(medium);
     }
 
-    void RenameMedium(TMedium* medium, const TString& newName)
+    void RenameMedium(TMedium* medium, const TString& newName) override
     {
         if (medium->GetName() == newName) {
             return;
@@ -2094,7 +2098,7 @@ public:
         medium->SetName(newName);
     }
 
-    void SetMediumPriority(TMedium* medium, int priority)
+    void SetMediumPriority(TMedium* medium, int priority) override
     {
         if (medium->GetPriority() == priority) {
             return;
@@ -2105,7 +2109,7 @@ public:
         medium->SetPriority(priority);
     }
 
-    void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig)
+    void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig) override
     {
         auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
 
@@ -2115,7 +2119,7 @@ public:
         }
     }
 
-    void ScheduleGlobalChunkRefresh()
+    void ScheduleGlobalChunkRefresh() override
     {
         if (ChunkReplicator_) {
             ChunkReplicator_->ScheduleGlobalChunkRefresh(
@@ -2126,13 +2130,13 @@ public:
         }
     }
 
-    TMedium* FindMediumByName(const TString& name) const
+    TMedium* FindMediumByName(const TString& name) const override
     {
         auto it = NameToMediumMap_.find(name);
         return it == NameToMediumMap_.end() ? nullptr : it->second;
     }
 
-    TMedium* GetMediumByNameOrThrow(const TString& name) const
+    TMedium* GetMediumByNameOrThrow(const TString& name) const override
     {
         auto* medium = FindMediumByName(name);
         if (!IsObjectAlive(medium)) {
@@ -2144,7 +2148,7 @@ public:
         return medium;
     }
 
-    TMedium* GetMediumOrThrow(TMediumId id) const
+    TMedium* GetMediumOrThrow(TMediumId id) const override
     {
         auto* medium = FindMedium(id);
         if (!IsObjectAlive(medium)) {
@@ -2156,14 +2160,14 @@ public:
         return medium;
     }
 
-    TMedium* FindMediumByIndex(int index) const
+    TMedium* FindMediumByIndex(int index) const override
     {
         return index >= 0 && index < MaxMediumCount
             ? IndexToMediumMap_[index]
             : nullptr;
     }
 
-    TMedium* GetMediumByIndexOrThrow(int index) const
+    TMedium* GetMediumByIndexOrThrow(int index) const override
     {
         auto* medium = FindMediumByIndex(index);
         if (!IsObjectAlive(medium)) {
@@ -2175,14 +2179,14 @@ public:
         return medium;
     }
 
-    TMedium* GetMediumByIndex(int index) const
+    TMedium* GetMediumByIndex(int index) const override
     {
         auto* medium = FindMediumByIndex(index);
         YT_VERIFY(medium);
         return medium;
     }
 
-    TChunkTree* FindChunkTree(TChunkTreeId id)
+    TChunkTree* FindChunkTree(TChunkTreeId id) override
     {
         auto type = TypeFromId(id);
         switch (type) {
@@ -2203,14 +2207,14 @@ public:
         }
     }
 
-    TChunkTree* GetChunkTree(TChunkTreeId id)
+    TChunkTree* GetChunkTree(TChunkTreeId id) override
     {
         auto* chunkTree = FindChunkTree(id);
         YT_VERIFY(chunkTree);
         return chunkTree;
     }
 
-    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id)
+    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id) override
     {
         auto* chunkTree = FindChunkTree(id);
         if (!IsObjectAlive(chunkTree)) {
@@ -2223,13 +2227,13 @@ public:
     }
 
 
-    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk)
+    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk) override
     {
         return ChunkReplicator_->ComputeChunkStatuses(chunk);
     }
 
 
-    TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(TChunk* chunk)
+    TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(TChunk* chunk) override
     {
         return GetChunkQuorumInfo(
             chunk->GetId(),
@@ -2246,7 +2250,7 @@ public:
         NErasure::ECodec codecId,
         int readQuorum,
         i64 replicaLagLimit,
-        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors)
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) override
     {
         return ComputeQuorumInfo(
             chunkId,
@@ -2259,7 +2263,7 @@ public:
             Bootstrap_->GetNodeChannelFactory());
     }
 
-    TChunkRequisitionRegistry* GetChunkRequisitionRegistry()
+    TChunkRequisitionRegistry* GetChunkRequisitionRegistry() override
     {
         return &ChunkRequisitionRegistry_;
     }
@@ -2269,7 +2273,7 @@ public:
         return &ChunkRequisitionRegistry_;
     }
 
-    TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const
+    TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const override
     {
         YT_ASSERT(!chunk->IsForeign());
         YT_ASSERT(chunk->HasConsistentReplicaPlacementHash());
@@ -2299,33 +2303,33 @@ public:
         return result;
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
-    DECLARE_ENTITY_MAP_ACCESSORS(DynamicStore, TDynamicStore);
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
-    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Chunk, TChunk);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
+    DECLARE_ENTITY_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium)
 
-    TEntityMap<TChunk>& MutableChunks()
+    TEntityMap<TChunk>& MutableChunks() override
     {
         return ChunkMap_;
     }
 
-    TEntityMap<TChunkList>& MutableChunkLists()
+    TEntityMap<TChunkList>& MutableChunkLists() override
     {
         return ChunkListMap_;
     }
 
-    TEntityMap<TChunkView>& MutableChunkViews()
+    TEntityMap<TChunkView>& MutableChunkViews() override
     {
         return ChunkViewMap_;
     }
 
-    TEntityMap<TDynamicStore>& MutableDynamicStores()
+    TEntityMap<TDynamicStore>& MutableDynamicStores() override
     {
         return DynamicStoreMap_;
     }
 
-    TEntityMap<TMedium>& MutableMedia()
+    TEntityMap<TMedium>& MutableMedia() override
     {
         return MediumMap_;
     }
@@ -2407,6 +2411,8 @@ private:
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
     NHydra::TEntityMap<TDynamicStore> DynamicStoreMap_;
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
+
+    THashSet<TChunk*> ForeignChunks_;
 
     NHydra::TEntityMap<TMedium> MediumMap_;
     THashMap<TString, TMedium*> NameToMediumMap_;
@@ -3007,7 +3013,7 @@ private:
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            &TImpl::HydraRedistributeConsistentReplicaPlacementTokens,
+            &TChunkManager::HydraRedistributeConsistentReplicaPlacementTokens,
             this);
         mutation->Commit();
     }
@@ -3533,37 +3539,37 @@ private:
         executeSubrequests(
             request->mutable_create_chunk_subrequests(),
             response ? response->mutable_create_chunk_subresponses() : nullptr,
-            &TImpl::ExecuteCreateChunkSubrequest,
+            &TChunkManager::ExecuteCreateChunkSubrequest,
             "Error creating chunk");
 
         executeSubrequests(
             request->mutable_confirm_chunk_subrequests(),
             response ? response->mutable_confirm_chunk_subresponses() : nullptr,
-            &TImpl::ExecuteConfirmChunkSubrequest,
+            &TChunkManager::ExecuteConfirmChunkSubrequest,
             "Error confirming chunk");
 
         executeSubrequests(
             request->mutable_seal_chunk_subrequests(),
             response ? response->mutable_seal_chunk_subresponses() : nullptr,
-            &TImpl::ExecuteSealChunkSubrequest,
+            &TChunkManager::ExecuteSealChunkSubrequest,
             "Error sealing chunk");
 
         executeSubrequests(
             request->mutable_create_chunk_lists_subrequests(),
             response ? response->mutable_create_chunk_lists_subresponses() : nullptr,
-            &TImpl::ExecuteCreateChunkListsSubrequest,
+            &TChunkManager::ExecuteCreateChunkListsSubrequest,
             "Error creating chunk lists");
 
         executeSubrequests(
             request->mutable_unstage_chunk_tree_subrequests(),
             response ? response->mutable_unstage_chunk_tree_subresponses() : nullptr,
-            &TImpl::ExecuteUnstageChunkTreeSubrequest,
+            &TChunkManager::ExecuteUnstageChunkTreeSubrequest,
             "Error unstaging chunk tree");
 
         executeSubrequests(
             request->mutable_attach_chunk_trees_subrequests(),
             response ? response->mutable_attach_chunk_trees_subresponses() : nullptr,
-            &TImpl::ExecuteAttachChunkTreesSubrequest,
+            &TChunkManager::ExecuteAttachChunkTreesSubrequest,
             "Error attaching chunk trees");
     }
 
@@ -5118,587 +5124,31 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkView, TChunkView, ChunkViewMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, DynamicStore, TDynamicStore, DynamicStoreMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, ChunkListMap_)
-DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager::TImpl, Medium, Media, TMedium, MediumMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, ChunkMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, ChunkViewMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, DynamicStoreMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, ChunkListMap_)
+DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, MediumMap_)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, LostChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, LostVitalChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, OverreplicatedChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, DataMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, ParityMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, TOldestPartMissingChunkSet, OldestPartMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, PrecariousChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, PrecariousVitalChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, QuorumMissingChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, InconsistentlyPlacedChunks, *ChunkReplicator_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostVitalChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, OverreplicatedChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnderreplicatedChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, DataMissingChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ParityMissingChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, TOldestPartMissingChunkSet, OldestPartMissingChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousVitalChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, QuorumMissingChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnsafelyPlacedChunks, *ChunkReplicator_)
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, InconsistentlyPlacedChunks, *ChunkReplicator_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkManager::TChunkManager(
-    TChunkManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-TChunkManager::~TChunkManager() = default;
-
-void TChunkManager::Initialize()
+IChunkManagerPtr CreateChunkManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TChunkManager>(bootstrap);
 }
-
-TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
-{
-    return Impl_->GetChunkOrThrow(id);
-}
-
-TChunkView* TChunkManager::GetChunkViewOrThrow(TChunkViewId id)
-{
-    return Impl_->GetChunkViewOrThrow(id);
-}
-
-TDynamicStore* TChunkManager::GetDynamicStoreOrThrow(TDynamicStoreId id)
-{
-    return Impl_->GetDynamicStoreOrThrow(id);
-}
-
-TChunkList* TChunkManager::GetChunkListOrThrow(TChunkListId id)
-{
-    return Impl_->GetChunkListOrThrow(id);
-}
-
-TChunkTree* TChunkManager::FindChunkTree(TChunkTreeId id)
-{
-    return Impl_->FindChunkTree(id);
-}
-
-TChunkTree* TChunkManager::GetChunkTree(TChunkTreeId id)
-{
-    return Impl_->GetChunkTree(id);
-}
-
-TChunkTree* TChunkManager::GetChunkTreeOrThrow(TChunkTreeId id)
-{
-    return Impl_->GetChunkTreeOrThrow(id);
-}
-
-TNodeList TChunkManager::AllocateWriteTargets(
-    TMedium* medium,
-    TChunk* chunk,
-    int desiredCount,
-    int minCount,
-    std::optional<int> replicationFactorOverride,
-    const TNodeList* forbiddenNodes,
-    const std::optional<TString>& preferredHostName)
-{
-    return Impl_->AllocateWriteTargets(
-        medium,
-        chunk,
-        desiredCount,
-        minCount,
-        replicationFactorOverride,
-        forbiddenNodes,
-        preferredHostName);
-}
-
-TNodeList TChunkManager::AllocateWriteTargets(
-    TMedium* medium,
-    TChunk* chunk,
-    int replicaIndex,
-    int desiredCount,
-    int minCount,
-    std::optional<int> replicationFactorOverride)
-{
-    return Impl_->AllocateWriteTargets(
-        medium,
-        chunk,
-        replicaIndex,
-        desiredCount,
-        minCount,
-        replicationFactorOverride);
-}
-
-NYTree::IYPathServicePtr TChunkManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
-const TJobRegistryPtr& TChunkManager::GetJobRegistry() const
-{
-    return Impl_->GetJobRegistry();
-}
-
-std::unique_ptr<TMutation> TChunkManager::CreateUpdateChunkRequisitionMutation(
-    const NProto::TReqUpdateChunkRequisition& request)
-{
-    return Impl_->CreateUpdateChunkRequisitionMutation(request);
-}
-
-std::unique_ptr<NHydra::TMutation> TChunkManager::CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
-    const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request)
-{
-    return Impl_->CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request);
-}
-
-std::unique_ptr<NHydra::TMutation> TChunkManager::CreateRegisterChunkEndorsementsMutation(
-    const NProto::TReqRegisterChunkEndorsements& request)
-{
-    return Impl_->CreateRegisterChunkEndorsementsMutation(request);
-}
-
-std::unique_ptr<TMutation> TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
-{
-    return Impl_->CreateExportChunksMutation(std::move(context));
-}
-
-std::unique_ptr<TMutation> TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr context)
-{
-    return Impl_->CreateImportChunksMutation(std::move(context));
-}
-
-std::unique_ptr<TMutation> TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
-{
-    return Impl_->CreateExecuteBatchMutation(std::move(context));
-}
-
-std::unique_ptr<TMutation> TChunkManager::CreateExecuteBatchMutation(
-    TReqExecuteBatch* request,
-    TRspExecuteBatch* response)
-{
-    return Impl_->CreateExecuteBatchMutation(request, response);
-}
-
-TChunkManager::TPreparedExecuteBatchRequestPtr TChunkManager::PrepareExecuteBatchRequest(
-    const TReqExecuteBatch& request)
-{
-    return Impl_->PrepareExecuteBatchRequest(request);
-}
-
-void TChunkManager::PrepareExecuteBatchResponse(
-    TChunkManager::TPreparedExecuteBatchRequestPtr request,
-    TRspExecuteBatch* response)
-{
-    Impl_->PrepareExecuteBatchResponse(request, response);
-}
-
-TFuture<void> TChunkManager::ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request)
-{
-    return Impl_->ExecuteBatchSequoia(request);
-}
-
-TFuture<TChunkManager::TCreateChunkResponse> TChunkManager::CreateChunk(const TCreateChunkRequest& request)
-{
-    return Impl_->CreateChunk(request);
-}
-
-TChunkList* TChunkManager::CreateChunkList(EChunkListKind kind)
-{
-    return Impl_->CreateChunkList(kind);
-}
-
-TChunkList* TChunkManager::CloneTabletChunkList(TChunkList* chunkList)
-{
-    return Impl_->CloneTabletChunkList(chunkList);
-}
-
-void TChunkManager::UnstageChunk(TChunk* chunk)
-{
-    Impl_->UnstageChunk(chunk);
-}
-
-void TChunkManager::UnstageChunkList(TChunkList* chunkList, bool recursive)
-{
-    Impl_->UnstageChunkList(chunkList, recursive);
-}
-
-TNodePtrWithIndexesList TChunkManager::LocateChunk(TChunkPtrWithIndexes chunkWithIndexes)
-{
-    return Impl_->LocateChunk(chunkWithIndexes);
-}
-
-void TChunkManager::TouchChunk(TChunk* chunk)
-{
-    Impl_->TouchChunk(chunk);
-}
-
-void TChunkManager::AttachToChunkList(
-    TChunkList* chunkList,
-    TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd)
-{
-    Impl_->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
-}
-
-void TChunkManager::AttachToChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children)
-{
-    Impl_->AttachToChunkList(chunkList, children);
-}
-
-void TChunkManager::AttachToChunkList(
-    TChunkList* chunkList,
-    TChunkTree* child)
-{
-    Impl_->AttachToChunkList(chunkList, child);
-}
-
-void TChunkManager::DetachFromChunkList(
-    TChunkList* chunkList,
-    TChunkTree* const* childrenBegin,
-    TChunkTree* const* childrenEnd,
-    EChunkDetachPolicy policy)
-{
-    Impl_->DetachFromChunkList(chunkList, childrenBegin, childrenEnd, policy);
-}
-
-void TChunkManager::DetachFromChunkList(
-    TChunkList* chunkList,
-    const std::vector<TChunkTree*>& children,
-    EChunkDetachPolicy policy)
-{
-    Impl_->DetachFromChunkList(chunkList, children, policy);
-}
-
-void TChunkManager::DetachFromChunkList(
-    TChunkList* chunkList,
-    TChunkTree* child,
-    EChunkDetachPolicy policy)
-{
-    Impl_->DetachFromChunkList(chunkList, child, policy);
-}
-
-void TChunkManager::ReplaceChunkListChild(
-    TChunkList* chunkList,
-    int childIndex,
-    TChunkTree* newChild)
-{
-    Impl_->ReplaceChunkListChild(chunkList, childIndex, newChild);
-}
-
-TChunkView* TChunkManager::CreateChunkView(
-    TChunkTree* underlyingTree,
-    TChunkViewModifier modifier)
-{
-    return Impl_->CreateChunkView(underlyingTree, std::move(modifier));
-}
-
-TChunk* TChunkManager::CreateChunk(
-    TTransaction* transaction,
-    TChunkList* chunkList,
-    NObjectClient::EObjectType chunkType,
-    TAccount* account,
-    int replicationFactor,
-    NErasure::ECodec erasureCodecId,
-    TMedium* medium,
-    int readQuorum,
-    int writeQuorum,
-    bool movable,
-    bool vital,
-    bool overlayed,
-    TConsistentReplicaPlacementHash consistentReplicaPlacementHash,
-    i64 replicaLagLimit)
-{
-    return Impl_->CreateChunk(
-        transaction,
-        chunkList,
-        chunkType,
-        account,
-        replicationFactor,
-        erasureCodecId,
-        medium,
-        readQuorum,
-        writeQuorum,
-        movable,
-        vital,
-        overlayed,
-        consistentReplicaPlacementHash,
-        replicaLagLimit);
-}
-
-TChunkView* TChunkManager::CloneChunkView(
-    TChunkView* chunkView,
-    NChunkClient::TLegacyReadRange readRange)
-{
-    return Impl_->CloneChunkView(chunkView, std::move(readRange));
-}
-
-TDynamicStore* TChunkManager::CreateDynamicStore(TDynamicStoreId storeId, TTablet* tablet)
-{
-    return Impl_->CreateDynamicStore(storeId, tablet);
-}
-
-void TChunkManager::RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode)
-{
-    Impl_->RebalanceChunkTree(chunkList, settingsMode);
-}
-
-void TChunkManager::ClearChunkList(TChunkList* chunkList)
-{
-    Impl_->ClearChunkList(chunkList);
-}
-
-void TChunkManager::ProcessJobHeartbeat(
-    TNode* node,
-    const TCtxJobHeartbeatPtr& context)
-{
-    Impl_->ProcessJobHeartbeat(node, context);
-}
-
-TJobId TChunkManager::GenerateJobId() const
-{
-    return Impl_->GenerateJobId();
-}
-
-void TChunkManager::SealChunk(TChunk* chunk, const TChunkSealInfo& info)
-{
-    Impl_->SealChunk(chunk, info);
-}
-
-const IChunkAutotomizerPtr& TChunkManager::GetChunkAutotomizer() const
-{
-    return Impl_->GetChunkAutotomizer();
-}
-
-bool TChunkManager::IsChunkReplicatorEnabled()
-{
-    return Impl_->IsChunkReplicatorEnabled();
-}
-
-bool TChunkManager::IsChunkRefreshEnabled()
-{
-    return Impl_->IsChunkRefreshEnabled();
-}
-
-bool TChunkManager::IsChunkRequisitionUpdateEnabled()
-{
-    return Impl_->IsChunkRequisitionUpdateEnabled();
-}
-
-bool TChunkManager::IsChunkSealerEnabled()
-{
-    return Impl_->IsChunkSealerEnabled();
-}
-
-void TChunkManager::ScheduleChunkRefresh(TChunk* chunk)
-{
-    Impl_->ScheduleChunkRefresh(chunk);
-}
-
-void TChunkManager::ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree)
-{
-    Impl_->ScheduleChunkRequisitionUpdate(chunkTree);
-}
-
-void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
-{
-    Impl_->ScheduleChunkSeal(chunk);
-}
-
-void TChunkManager::ScheduleChunkMerge(TChunkOwnerBase* node)
-{
-    Impl_->ScheduleChunkMerge(node);
-}
-
-bool TChunkManager::IsNodeBeingMerged(NCypressServer::TNodeId nodeId) const
-{
-    return Impl_->IsNodeBeingMerged(nodeId);
-}
-
-int TChunkManager::GetTotalReplicaCount()
-{
-    return Impl_->GetTotalReplicaCount();
-}
-
-void TChunkManager::ScheduleGlobalChunkRefresh()
-{
-    Impl_->ScheduleGlobalChunkRefresh();
-}
-
-TMediumMap<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)
-{
-    return Impl_->ComputeChunkStatuses(chunk);
-}
-
-TFuture<TChunkQuorumInfo> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
-{
-    return Impl_->GetChunkQuorumInfo(chunk);
-}
-
-TFuture<TChunkQuorumInfo> TChunkManager::GetChunkQuorumInfo(
-    TChunkId chunkId,
-    bool overlayed,
-    NErasure::ECodec codecId,
-    int readQuorum,
-    i64 replicaLagLimit,
-    const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors)
-{
-    return Impl_->GetChunkQuorumInfo(
-        chunkId,
-        overlayed,
-        codecId,
-        readQuorum,
-        replicaLagLimit,
-        replicaDescriptors);
-}
-
-TMedium* TChunkManager::GetMediumOrThrow(TMediumId id) const
-{
-    return Impl_->GetMediumOrThrow(id);
-}
-
-TMedium* TChunkManager::FindMediumByIndex(int index) const
-{
-    return Impl_->FindMediumByIndex(index);
-}
-
-TMedium* TChunkManager::GetMediumByIndex(int index) const
-{
-    return Impl_->GetMediumByIndex(index);
-}
-
-TMedium* TChunkManager::GetMediumByIndexOrThrow(int index) const
-{
-    return Impl_->GetMediumByIndexOrThrow(index);
-}
-
-void TChunkManager::RenameMedium(TMedium* medium, const TString& newName)
-{
-    Impl_->RenameMedium(medium, newName);
-}
-
-void TChunkManager::SetMediumPriority(TMedium* medium, int newPriority)
-{
-    Impl_->SetMediumPriority(medium, newPriority);
-}
-
-void TChunkManager::SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig)
-{
-    Impl_->SetMediumConfig(medium, newConfig);
-}
-
-TMedium* TChunkManager::FindMediumByName(const TString& name) const
-{
-    return Impl_->FindMediumByName(name);
-}
-
-TMedium* TChunkManager::GetMediumByNameOrThrow(const TString& name) const
-{
-    return Impl_->GetMediumByNameOrThrow(name);
-}
-
-TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
-{
-    return Impl_->GetChunkRequisitionRegistry();
-}
-
-TNodePtrWithIndexesList TChunkManager::GetConsistentChunkReplicas(TChunk* chunk) const
-{
-    return Impl_->GetConsistentChunkReplicas(chunk);
-}
-
-TEntityMap<TChunk>& TChunkManager::MutableChunks()
-{
-    return Impl_->MutableChunks();
-}
-
-void TChunkManager::DestroyChunk(TChunk* chunk)
-{
-    Impl_->DestroyChunk(chunk);
-}
-
-void TChunkManager::ExportChunk(TChunk* chunk, TCellTag destinationCellTag)
-{
-    Impl_->ExportChunk(chunk, destinationCellTag);
-}
-
-void TChunkManager::UnexportChunk(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter)
-{
-    Impl_->UnexportChunk(chunk, destinationCellTag, importRefCounter);
-}
-
-TEntityMap<TChunkList>& TChunkManager::MutableChunkLists()
-{
-    return Impl_->MutableChunkLists();
-}
-
-void TChunkManager::DestroyChunkList(TChunkList* chunkList)
-{
-    Impl_->DestroyChunkList(chunkList);
-}
-
-TEntityMap<TChunkView>& TChunkManager::MutableChunkViews()
-{
-    return Impl_->MutableChunkViews();
-}
-
-void TChunkManager::DestroyChunkView(TChunkView* chunkView)
-{
-    Impl_->DestroyChunkView(chunkView);
-}
-
-TEntityMap<TDynamicStore>& TChunkManager::MutableDynamicStores()
-{
-    return Impl_->MutableDynamicStores();
-}
-
-void TChunkManager::DestroyDynamicStore(TDynamicStore* dynamicStore)
-{
-    Impl_->DestroyDynamicStore(dynamicStore);
-}
-
-TEntityMap<TMedium>& TChunkManager::MutableMedia()
-{
-    return Impl_->MutableMedia();
-}
-
-TMedium* TChunkManager::CreateMedium(
-    const TString& name,
-    std::optional<bool> transient,
-    std::optional<bool> cache,
-    std::optional<int> priority,
-    TObjectId hintId)
-{
-    return Impl_->CreateMedium(
-        name,
-        transient,
-        cache,
-        priority,
-        hintId);
-}
-
-void TChunkManager::DestroyMedium(TMedium* medium)
-{
-    Impl_->DestroyMedium(medium);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, *Impl_)
-
-DELEGATE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, *Impl_)
-
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, LostVitalChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, OverreplicatedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnderreplicatedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, DataMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ParityMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, TOldestPartMissingChunkSet, OldestPartMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, PrecariousVitalChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, QuorumMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, UnsafelyPlacedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, InconsistentlyPlacedChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, THashSet<TChunk*>, ForeignChunks, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

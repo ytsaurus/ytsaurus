@@ -258,11 +258,11 @@ public:
     TSerializableChunkReplication() = default;
     TSerializableChunkReplication(
         const TChunkReplication& replication,
-        const TChunkManagerPtr& chunkManager);
+        const IChunkManagerPtr& chunkManager);
 
     void ToChunkReplication(
         TChunkReplication* replication,
-        const TChunkManagerPtr& chunkManager);
+        const IChunkManagerPtr& chunkManager);
 
     void Serialize(NYson::IYsonConsumer* consumer) const;
     void Deserialize(NYTree::INodePtr node);
@@ -283,7 +283,7 @@ void Deserialize(TSerializableChunkReplication& serializer, NYTree::INodePtr nod
 
 //! If primaryMediumIndex is null, eschews primary medium-related validation.
 void ValidateChunkReplication(
-    const TChunkManagerPtr& chunkManager,
+    const IChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
     std::optional<int> primaryMediumIndex);
 
@@ -446,7 +446,7 @@ class TSerializableChunkRequisition
 {
 public:
     TSerializableChunkRequisition() = default;
-    TSerializableChunkRequisition(const TChunkRequisition& requisition, const TChunkManagerPtr& chunkManager);
+    TSerializableChunkRequisition(const TChunkRequisition& requisition, const IChunkManagerPtr& chunkManager);
 
     void Serialize(NYson::IYsonConsumer* consumer) const;
     void Deserialize(NYTree::INodePtr node);
@@ -541,7 +541,7 @@ public:
         TChunkRequisitionIndex index,
         const NObjectServer::IObjectManagerPtr& objectManager);
 
-    void Serialize(NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager) const;
+    void Serialize(NYson::IYsonConsumer* consumer, const IChunkManagerPtr& chunkManager) const;
 
 private:
     struct TIndexedItem
@@ -579,12 +579,12 @@ private:
 class TSerializableChunkRequisitionRegistry
 {
 public:
-    explicit TSerializableChunkRequisitionRegistry(const TChunkManagerPtr& chunkManager);
+    explicit TSerializableChunkRequisitionRegistry(const IChunkManagerPtr& chunkManager);
 
     void Serialize(NYson::IYsonConsumer* consumer) const;
 
 private:
-    const TChunkManagerPtr ChunkManager_;
+    const IChunkManagerPtr ChunkManager_;
 };
 
 void Serialize(const TSerializableChunkRequisitionRegistry& serializer, NYson::IYsonConsumer* consumer);

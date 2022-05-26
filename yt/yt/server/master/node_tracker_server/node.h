@@ -174,7 +174,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDataNodeStatistics, DataNodeStatistics);
     void SetDataNodeStatistics(
         NNodeTrackerClient::NProto::TDataNodeStatistics&& statistics,
-        const NChunkServer::TChunkManagerPtr& chunkManager);
+        const NChunkServer::IChunkManagerPtr& chunkManager);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     void ValidateNotBanned();
@@ -315,7 +315,7 @@ public:
         const NObjectClient::TCellTagList& secondaryCellTags);
 
     //! Recomputes node IO weights from statistics.
-    void RecomputeIOWeights(const NChunkServer::TChunkManagerPtr& chunkManager);
+    void RecomputeIOWeights(const NChunkServer::IChunkManagerPtr& chunkManager);
 
     //! Gets the local state by dereferencing local state pointer.
     ENodeState GetLocalState() const;

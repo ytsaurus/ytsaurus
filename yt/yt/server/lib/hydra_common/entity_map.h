@@ -183,6 +183,9 @@ private:
 #define DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
 
+#define DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(entityName, entityNamePlural, entityType) \
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType)
+
 #define DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType) \
     entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
     entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const; \
@@ -193,14 +196,14 @@ private:
     virtual entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const override; \
     virtual const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityNamePlural() const override;
 
-#define DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(entityName, entityNamePlural, entityType) \
-    DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityNamePlural, entityType)
-
 #define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
     DECLARE_ENTITY_MAP_ACCESSORS_IMPL(entityName, entityName ## s, entityType)
 
 #define DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(entityName, entityType) \
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE_IMPL(entityName, entityName ## s, entityType)
+
+#define DECLARE_ENTITY_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(entityName, entityNamePlural, entityType) \
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE_IMPL(entityName, entityNamePlural, entityType)
 
 #define DEFINE_ENTITY_MAP_ACCESSORS_IMPL(declaringType, entityName, entityNamePlural, entityType, map) \
     entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) const \

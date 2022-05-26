@@ -1197,7 +1197,7 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chunkWithIndexes)
 
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
         auto* protoItem = protoMediumDirectory->add_items();

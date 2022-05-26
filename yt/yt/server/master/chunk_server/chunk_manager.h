@@ -10,9 +10,9 @@
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
-
 #include <yt/yt/server/master/object_server/public.h>
+
+#include <yt/yt/server/lib/hydra_common/entity_map.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
@@ -29,54 +29,47 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager
-    : public TRefCounted
+struct IChunkManager
+    : public virtual TRefCounted
 {
-public:
-    TChunkManager(
-        TChunkManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+    virtual void Initialize() = 0;
 
-    ~TChunkManager();
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    void Initialize();
+    virtual const TJobRegistryPtr& GetJobRegistry() const = 0;
 
-    NYTree::IYPathServicePtr GetOrchidService();
-
-    const TJobRegistryPtr& GetJobRegistry() const;
-
-    std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
-        const NProto::TReqUpdateChunkRequisition& request);
-    std::unique_ptr<NHydra::TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
-        const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request);
-    std::unique_ptr<NHydra::TMutation> CreateRegisterChunkEndorsementsMutation(
-        const NProto::TReqRegisterChunkEndorsements& request);
+    virtual std::unique_ptr<NHydra::TMutation> CreateUpdateChunkRequisitionMutation(
+        const NProto::TReqUpdateChunkRequisition& request) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateConfirmChunkListsRequisitionTraverseFinishedMutation(
+        const NProto::TReqConfirmChunkListsRequisitionTraverseFinished& request) = 0;
+    virtual std::unique_ptr<NHydra::TMutation> CreateRegisterChunkEndorsementsMutation(
+        const NProto::TReqRegisterChunkEndorsements& request) = 0;
 
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
         NChunkClient::NProto::TRspExportChunks>;
     using TCtxExportChunksPtr = TIntrusivePtr<TCtxExportChunks>;
-    std::unique_ptr<NHydra::TMutation> CreateExportChunksMutation(
-        TCtxExportChunksPtr context);
+    virtual std::unique_ptr<NHydra::TMutation> CreateExportChunksMutation(
+        TCtxExportChunksPtr context) = 0;
 
     using TCtxImportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqImportChunks,
         NChunkClient::NProto::TRspImportChunks>;
     using TCtxImportChunksPtr = TIntrusivePtr<TCtxImportChunks>;
-    std::unique_ptr<NHydra::TMutation> CreateImportChunksMutation(
-        TCtxImportChunksPtr context);
+    virtual std::unique_ptr<NHydra::TMutation> CreateImportChunksMutation(
+        TCtxImportChunksPtr context) = 0;
 
     using TCtxExecuteBatch = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExecuteBatch,
         NChunkClient::NProto::TRspExecuteBatch>;
     using TCtxExecuteBatchPtr = TIntrusivePtr<TCtxExecuteBatch>;
 
-    std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
-        TCtxExecuteBatchPtr context);
+    virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
+        TCtxExecuteBatchPtr context) = 0;
 
-    std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
+    virtual std::unique_ptr<NHydra::TMutation> CreateExecuteBatchMutation(
         NChunkClient::NProto::TReqExecuteBatch* request,
-        NChunkClient::NProto::TRspExecuteBatch* response);
+        NChunkClient::NProto::TRspExecuteBatch* response) = 0;
 
     using TCreateChunkRequest = NChunkClient::NProto::TReqExecuteBatch::TCreateChunkSubrequest;
     using TCreateChunkResponse = NChunkClient::NProto::TRspExecuteBatch::TCreateChunkSubresponse;
@@ -106,101 +99,101 @@ public:
     };
     using TPreparedExecuteBatchRequestPtr = TIntrusivePtr<TPreparedExecuteBatchRequest>;
 
-    TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(
-        const NChunkClient::NProto::TReqExecuteBatch& request);
+    virtual TPreparedExecuteBatchRequestPtr PrepareExecuteBatchRequest(
+        const NChunkClient::NProto::TReqExecuteBatch& request) = 0;
 
-    void PrepareExecuteBatchResponse(
+    virtual void PrepareExecuteBatchResponse(
         TPreparedExecuteBatchRequestPtr request,
-        NChunkClient::NProto::TRspExecuteBatch* response);
+        NChunkClient::NProto::TRspExecuteBatch* response) = 0;
 
-    TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request);
+    virtual TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) = 0;
 
-    TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request);
+    virtual TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request) = 0;
 
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
         NJobTrackerClient::NProto::TRspHeartbeat>;
     using TCtxJobHeartbeatPtr = TIntrusivePtr<TCtxJobHeartbeat>;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
-    TChunk* GetChunkOrThrow(TChunkId id);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
+    virtual TChunk* GetChunkOrThrow(TChunkId id) = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
-    TChunkView* GetChunkViewOrThrow(TChunkViewId id);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
+    virtual TChunkView* GetChunkViewOrThrow(TChunkViewId id) = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(DynamicStore, TDynamicStore);
-    TDynamicStore* GetDynamicStoreOrThrow(TDynamicStoreId id);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(DynamicStore, TDynamicStore);
+    virtual TDynamicStore* GetDynamicStoreOrThrow(TDynamicStoreId id) = 0;
 
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
-    TChunkList* GetChunkListOrThrow(TChunkListId id);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
+    virtual TChunkList* GetChunkListOrThrow(TChunkListId id) = 0;
 
-    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
+    DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 
-    TChunkTree* FindChunkTree(TChunkTreeId id);
-    TChunkTree* GetChunkTree(TChunkTreeId id);
-    TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id);
+    virtual TChunkTree* FindChunkTree(TChunkTreeId id) = 0;
+    virtual TChunkTree* GetChunkTree(TChunkTreeId id) = 0;
+    virtual TChunkTree* GetChunkTreeOrThrow(TChunkTreeId id) = 0;
 
     //! This function returns a list of nodes where the replicas can be allocated
     //! or an empty list if the search has not succeeded.
-    TNodeList AllocateWriteTargets(
+    virtual TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
         int desiredCount,
         int minCount,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
-        const std::optional<TString>& preferredHostName);
+        const std::optional<TString>& preferredHostName) = 0;
 
-    TNodeList AllocateWriteTargets(
+    virtual TNodeList AllocateWriteTargets(
         TMedium* medium,
         TChunk* chunk,
         int replicaIndex,
         int desiredCount,
         int minCount,
-        std::optional<int> replicationFactorOverride);
+        std::optional<int> replicationFactorOverride) = 0;
 
-    TChunkList* CreateChunkList(EChunkListKind kind);
+    virtual TChunkList* CreateChunkList(EChunkListKind kind) = 0;
 
     //! For ordered tablets, copies all chunks taking trimmed chunks into account
     //! and updates cumulative statistics accordingly. If all chunks were trimmed
     //! then a nullptr chunk is appended to a cloned chunk list.
     //!
     //! For sorted tablets, cloned chunk list is flattened.
-    TChunkList* CloneTabletChunkList(TChunkList* chunkList);
+    virtual TChunkList* CloneTabletChunkList(TChunkList* chunkList) = 0;
 
-    void AttachToChunkList(
+    virtual void AttachToChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
-        TChunkTree* const* childrenEnd);
-    void AttachToChunkList(
+        TChunkTree* const* childrenEnd) = 0;
+    virtual void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTree*>& children);
-    void AttachToChunkList(
+        const std::vector<TChunkTree*>& children) = 0;
+    virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTree* child);
+        TChunkTree* child) = 0;
 
-    void DetachFromChunkList(
+    virtual void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* const* childrenBegin,
         TChunkTree* const* childrenEnd,
-        EChunkDetachPolicy policy);
-    void DetachFromChunkList(
+        EChunkDetachPolicy policy) = 0;
+    virtual void DetachFromChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTree*>& children,
-        EChunkDetachPolicy policy);
-    void DetachFromChunkList(
+        EChunkDetachPolicy policy) = 0;
+    virtual void DetachFromChunkList(
         TChunkList* chunkList,
         TChunkTree* child,
-        EChunkDetachPolicy policy);
-    void ReplaceChunkListChild(
+        EChunkDetachPolicy policy) = 0;
+    virtual void ReplaceChunkListChild(
         TChunkList* chunkList,
         int childIndex,
-        TChunkTree* newChild);
+        TChunkTree* newChild) = 0;
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier);
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange);
+    virtual TChunkView* CreateChunkView(TChunkTree* underlyingTree, TChunkViewModifier modifier) = 0;
+    virtual TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange) = 0;
 
-    TChunk* CreateChunk(
+    virtual TChunk* CreateChunk(
         NTransactionServer::TTransaction* transaction,
         TChunkList* chunkList,
         NObjectClient::EObjectType chunkType,
@@ -214,103 +207,104 @@ public:
         bool vital,
         bool overlayed = false,
         NChunkClient::TConsistentReplicaPlacementHash consistentReplicaPlacementHash = NChunkClient::NullConsistentReplicaPlacementHash,
-        i64 replicaLagLimit = 0);
+        i64 replicaLagLimit = 0,
+        TChunkId hintId = NullChunkId) = 0;
 
-    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, NTabletServer::TTablet* tablet);
+    virtual TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, NTabletServer::TTablet* tablet) = 0;
 
-    void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode);
+    virtual void RebalanceChunkTree(TChunkList* chunkList, EChunkTreeBalancerMode settingsMode) = 0;
 
-    void UnstageChunk(TChunk* chunk);
-    void UnstageChunkList(TChunkList* chunkList, bool recursive);
+    virtual void UnstageChunk(TChunk* chunk) = 0;
+    virtual void UnstageChunkList(TChunkList* chunkList, bool recursive) = 0;
 
-    TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes);
-    void TouchChunk(TChunk* chunk);
+    virtual TNodePtrWithIndexesList LocateChunk(TChunkPtrWithIndexes chunkWithIndexes) = 0;
+    virtual void TouchChunk(TChunk* chunk) = 0;
 
-    void ClearChunkList(TChunkList* chunkList);
+    virtual void ClearChunkList(TChunkList* chunkList) = 0;
 
-    void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context);
+    virtual void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context) = 0;
 
-    TJobId GenerateJobId() const;
+    virtual TJobId GenerateJobId() const = 0;
 
-    void SealChunk(TChunk* chunk, const NChunkClient::NProto::TChunkSealInfo& info);
+    virtual void SealChunk(TChunk* chunk, const NChunkClient::NProto::TChunkSealInfo& info) = 0;
 
-    const IChunkAutotomizerPtr& GetChunkAutotomizer() const;
+    virtual const IChunkAutotomizerPtr& GetChunkAutotomizer() const = 0;
 
-    bool IsChunkReplicatorEnabled();
-    bool IsChunkRefreshEnabled();
-    bool IsChunkRequisitionUpdateEnabled();
-    bool IsChunkSealerEnabled();
+    virtual bool IsChunkReplicatorEnabled() = 0;
+    virtual bool IsChunkRefreshEnabled() = 0;
+    virtual bool IsChunkRequisitionUpdateEnabled() = 0;
+    virtual bool IsChunkSealerEnabled() = 0;
 
-    void ScheduleChunkRefresh(TChunk* chunk);
-    void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree);
-    void ScheduleChunkSeal(TChunk* chunk);
-    void ScheduleChunkMerge(TChunkOwnerBase* node);
-    bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const;
-    TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
+    virtual void ScheduleChunkRefresh(TChunk* chunk) = 0;
+    virtual void ScheduleChunkRequisitionUpdate(TChunkTree* chunkTree) = 0;
+    virtual void ScheduleChunkSeal(TChunk* chunk) = 0;
+    virtual void ScheduleChunkMerge(TChunkOwnerBase* node) = 0;
+    virtual bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const = 0;
+    virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() = 0;
 
-    const THashSet<TChunk*>& LostVitalChunks() const;
-    const THashSet<TChunk*>& LostChunks() const;
-    const THashSet<TChunk*>& OverreplicatedChunks() const;
-    const THashSet<TChunk*>& UnderreplicatedChunks() const;
-    const THashSet<TChunk*>& DataMissingChunks() const;
-    const THashSet<TChunk*>& ParityMissingChunks() const;
-    const TOldestPartMissingChunkSet& OldestPartMissingChunks() const;
-    const THashSet<TChunk*>& PrecariousChunks() const;
-    const THashSet<TChunk*>& PrecariousVitalChunks() const;
-    const THashSet<TChunk*>& QuorumMissingChunks() const;
-    const THashSet<TChunk*>& UnsafelyPlacedChunks() const;
-    const THashSet<TChunk*>& InconsistentlyPlacedChunks() const;
-    const THashSet<TChunk*>& ForeignChunks() const;
+    virtual const THashSet<TChunk*>& LostVitalChunks() const = 0;
+    virtual const THashSet<TChunk*>& LostChunks() const = 0;
+    virtual const THashSet<TChunk*>& OverreplicatedChunks() const = 0;
+    virtual const THashSet<TChunk*>& UnderreplicatedChunks() const = 0;
+    virtual const THashSet<TChunk*>& DataMissingChunks() const = 0;
+    virtual const THashSet<TChunk*>& ParityMissingChunks() const = 0;
+    virtual const TOldestPartMissingChunkSet& OldestPartMissingChunks() const = 0;
+    virtual const THashSet<TChunk*>& PrecariousChunks() const = 0;
+    virtual const THashSet<TChunk*>& PrecariousVitalChunks() const = 0;
+    virtual const THashSet<TChunk*>& QuorumMissingChunks() const = 0;
+    virtual const THashSet<TChunk*>& UnsafelyPlacedChunks() const = 0;
+    virtual const THashSet<TChunk*>& InconsistentlyPlacedChunks() const = 0;
+    virtual const THashSet<TChunk*>& ForeignChunks() const = 0;
 
     //! Returns the total number of all chunk replicas.
-    int GetTotalReplicaCount();
+    virtual int GetTotalReplicaCount() = 0;
 
-    void ScheduleGlobalChunkRefresh();
+    virtual void ScheduleGlobalChunkRefresh() = 0;
 
-    TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
+    virtual TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk) = 0;
 
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.
-    TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
-        NChunkServer::TChunk* chunk);
-    TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+        NChunkServer::TChunk* chunk) = 0;
+    virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
         TChunkId chunkId,
         bool overlayed,
         NErasure::ECodec codecId,
         int readQuorum,
         i64 replicaLagLimit,
-        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors);
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors) = 0;
 
     //! Returns the medium with a given id (throws if none).
-    TMedium* GetMediumOrThrow(TMediumId id) const;
+    virtual TMedium* GetMediumOrThrow(TMediumId id) const = 0;
 
     //! Returns the medium with a given index (|nullptr| if none).
-    TMedium* FindMediumByIndex(int index) const;
+    virtual TMedium* FindMediumByIndex(int index) const = 0;
 
     //! Returns the medium with a given index (fails if none).
-    TMedium* GetMediumByIndex(int index) const;
+    virtual TMedium* GetMediumByIndex(int index) const = 0;
 
     //! Returns the medium with a given index (throws if none).
-    TMedium* GetMediumByIndexOrThrow(int index) const;
+    virtual TMedium* GetMediumByIndexOrThrow(int index) const = 0;
 
     //! Renames an existing medium. Throws on name conflict.
-    void RenameMedium(TMedium* medium, const TString& newName);
+    virtual void RenameMedium(TMedium* medium, const TString& newName) = 0;
 
     //! Validates and changes medium priority.
-    void SetMediumPriority(TMedium* medium, int priority);
+    virtual void SetMediumPriority(TMedium* medium, int priority) = 0;
 
     //! Changes medium config. Triggers global chunk refresh if necessary.
-    void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig);
+    virtual void SetMediumConfig(TMedium* medium, TMediumConfigPtr newConfig) = 0;
 
     //! Returns the medium with a given name (|nullptr| if none).
-    TMedium* FindMediumByName(const TString& name) const;
+    virtual TMedium* FindMediumByName(const TString& name) const = 0;
 
     //! Returns the medium with a given name (throws if none).
-    TMedium* GetMediumByNameOrThrow(const TString& name) const;
+    virtual TMedium* GetMediumByNameOrThrow(const TString& name) const = 0;
 
     //! Returns chunk replicas "ideal" from CRP point of view.
     //! This reflects the target chunk placement, not the actual one.
-    TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const;
+    virtual TNodePtrWithIndexesList GetConsistentChunkReplicas(TChunk* chunk) const = 0;
 
 private:
     friend class TChunkTypeHandler;
@@ -319,34 +313,35 @@ private:
     friend class TDynamicStoreTypeHandler;
     friend class TMediumTypeHandler;
 
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual NHydra::TEntityMap<TChunk>& MutableChunks() = 0;
+    virtual void DestroyChunk(TChunk* chunk) = 0;
+    virtual void ExportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag) = 0;
+    virtual void UnexportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag, int importRefCounter) = 0;
 
-    NHydra::TEntityMap<TChunk>& MutableChunks();
-    void DestroyChunk(TChunk* chunk);
-    void ExportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag);
-    void UnexportChunk(TChunk* chunk, NObjectClient::TCellTag destinationCellTag, int importRefCounter);
+    virtual NHydra::TEntityMap<TChunkList>& MutableChunkLists() = 0;
+    virtual void DestroyChunkList(TChunkList* chunkList) = 0;
 
-    NHydra::TEntityMap<TChunkList>& MutableChunkLists();
-    void DestroyChunkList(TChunkList* chunkList);
+    virtual NHydra::TEntityMap<TChunkView>& MutableChunkViews() = 0;
+    virtual void DestroyChunkView(TChunkView* chunkView) = 0;
 
-    NHydra::TEntityMap<TChunkView>& MutableChunkViews();
-    void DestroyChunkView(TChunkView* chunkView);
+    virtual NHydra::TEntityMap<TDynamicStore>& MutableDynamicStores() = 0;
+    virtual void DestroyDynamicStore(TDynamicStore* dynamicStore) = 0;
 
-    NHydra::TEntityMap<TDynamicStore>& MutableDynamicStores();
-    void DestroyDynamicStore(TDynamicStore* dynamicStore);
-
-    NHydra::TEntityMap<TMedium>& MutableMedia();
-    TMedium* CreateMedium(
+    virtual NHydra::TEntityMap<TMedium>& MutableMedia() = 0;
+    virtual TMedium* CreateMedium(
         const TString& name,
         std::optional<bool> transient,
         std::optional<bool> cache,
         std::optional<int> priority,
-        NObjectClient::TObjectId hintId);
-    void DestroyMedium(TMedium* medium);
+        NObjectClient::TObjectId hintId) = 0;
+    virtual void DestroyMedium(TMedium* medium) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkManager)
+DEFINE_REFCOUNTED_TYPE(IChunkManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkManagerPtr CreateChunkManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
