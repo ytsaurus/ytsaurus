@@ -6,22 +6,22 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSystemLogConfig::TSystemLogConfig()
+void TSystemLogConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("engine", Engine)
+    registrar.Parameter("engine", &TThis::Engine)
         .Default("ENGINE = Buffer('{database}', '{underlying_table_name}', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
-    RegisterParameter("flush_interval_milliseconds", FlushIntervalMilliseconds)
+    registrar.Parameter("flush_interval_milliseconds", &TThis::FlushIntervalMilliseconds)
         .Default(100);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserConfig::TUserConfig()
+void TUserConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("profiles", Profiles)
+    registrar.Parameter("profiles", &TThis::Profiles)
         .Default();
 
-    RegisterParameter("quotas", Quotas)
+    registrar.Parameter("quotas", &TThis::Quotas)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
                 .Item("default").BeginMap()
@@ -36,7 +36,7 @@ TUserConfig::TUserConfig()
                 .EndMap()
             .EndMap()->AsMap());
 
-    RegisterParameter("user_template", UserTemplate)
+    registrar.Parameter("user_template", &TThis::UserTemplate)
         .Default(NYTree::BuildYsonNodeFluently()
             .BeginMap()
                 .Item("networks").BeginMap()
@@ -47,118 +47,118 @@ TUserConfig::TUserConfig()
                 .Item("quota").Value("default")
             .EndMap()->AsMap());
 
-    RegisterParameter("users", Users)
+    registrar.Parameter("users", &TThis::Users)
         .Default(NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDictionarySourceYtConfig::TDictionarySourceYtConfig()
+void TDictionarySourceYtConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("path", Path);
+    registrar.Parameter("path", &TThis::Path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDictionarySourceConfig::TDictionarySourceConfig()
+void TDictionarySourceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("yt", Yt)
-        .Default(nullptr);
+    registrar.Parameter("yt", &TThis::Yt)
+        .DefaultCtor([] () { return nullptr; });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDictionaryConfig::TDictionaryConfig()
+void TDictionaryConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("name", Name);
-    RegisterParameter("source", Source);
-    RegisterParameter("layout", Layout);
-    RegisterParameter("structure", Structure);
-    RegisterParameter("lifetime", Lifetime);
+    registrar.Parameter("name", &TThis::Name);
+    registrar.Parameter("source", &TThis::Source);
+    registrar.Parameter("layout", &TThis::Layout);
+    registrar.Parameter("structure", &TThis::Structure);
+    registrar.Parameter("lifetime", &TThis::Lifetime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseConfig::TClickHouseConfig()
+void TClickHouseConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("users", Users)
+    registrar.Parameter("users", &TThis::Users)
         .DefaultNew();
 
-    RegisterParameter("data_path", DataPath)
+    registrar.Parameter("data_path", &TThis::DataPath)
         .Default("./data");
 
-    RegisterParameter("log_level", LogLevel)
+    registrar.Parameter("log_level", &TThis::LogLevel)
         .Default("trace");
 
-    RegisterParameter("dictionaries", Dictionaries)
+    registrar.Parameter("dictionaries", &TThis::Dictionaries)
         .Default();
 
-    RegisterParameter("path_to_regions_hierarchy_file", PathToRegionsHierarchyFile)
+    registrar.Parameter("path_to_regions_hierarchy_file", &TThis::PathToRegionsHierarchyFile)
         .Default();
 
-    RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
+    registrar.Parameter("path_to_regions_name_files", &TThis::PathToRegionsNameFiles)
         .Default();
 
-    RegisterParameter("timezone", Timezone)
+    registrar.Parameter("timezone", &TThis::Timezone)
         .Default("Europe/Moscow");
 
-    RegisterParameter("query_log", QueryLog)
+    registrar.Parameter("query_log", &TThis::QueryLog)
         .DefaultNew();
 
-    RegisterParameter("query_thread_log", QueryLog)
+    registrar.Parameter("query_thread_log", &TThis::QueryLog)
         .DefaultNew();
 
-    RegisterParameter("part_log", QueryLog)
+    registrar.Parameter("part_log", &TThis::QueryLog)
         .DefaultNew();
 
-    RegisterParameter("max_concurrent_queries", MaxConcurrentQueries)
+    registrar.Parameter("max_concurrent_queries", &TThis::MaxConcurrentQueries)
         .Default(0);
 
-    RegisterParameter("max_connections", MaxConnections)
+    registrar.Parameter("max_connections", &TThis::MaxConnections)
         .Default(1024);
 
-    RegisterParameter("keep_alive_timeout", KeepAliveTimeout)
+    registrar.Parameter("keep_alive_timeout", &TThis::KeepAliveTimeout)
         .Default(10);
 
-    RegisterParameter("tcp_port", TcpPort)
+    registrar.Parameter("tcp_port", &TThis::TcpPort)
         .Default(0);
-    RegisterParameter("http_port", HttpPort)
+    registrar.Parameter("http_port", &TThis::HttpPort)
         .Default(0);
 
-    RegisterParameter("settings", Settings)
+    registrar.Parameter("settings", &TThis::Settings)
         .Optional()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
-    RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage)
+    registrar.Parameter("max_server_memory_usage", &TThis::MaxServerMemoryUsage)
         .Default();
 
-    RegisterPreprocessor([&] {
-        Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
-        Settings["max_threads"] = NYTree::ConvertToNode(32);
-        Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
-        Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
-        Settings["log_queries"] = NYTree::ConvertToNode(1);
-        Settings["optimize_move_to_prewhere"] = NYTree::ConvertToNode(0);
+    registrar.Preprocessor([] (TThis* config) {
+        config->Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
+        config->Settings["max_threads"] = NYTree::ConvertToNode(32);
+        config->Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
+        config->Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
+        config->Settings["log_queries"] = NYTree::ConvertToNode(1);
+        config->Settings["optimize_move_to_prewhere"] = NYTree::ConvertToNode(0);
         // CH hedged requests use their own poller implementation over epoll, which is kind of
         // broken around our 2.04 branch (it imposes busy loop in polling thread).
-        Settings["use_hedged_requests"] = NYTree::ConvertToNode(0);
+        config->Settings["use_hedged_requests"] = NYTree::ConvertToNode(0);
     });
 
-    RegisterPostprocessor([&] {
-        auto& userDefaultProfile = Users->Profiles["default"];
-        for (auto& [key, value] : Settings) {
+    registrar.Postprocessor([] (TThis* config) {
+        auto& userDefaultProfile = config->Users->Profiles["default"];
+        for (auto& [key, value] : config->Settings) {
             userDefaultProfile[key] = value;
         }
 
-        Settings = userDefaultProfile;
+        config->Settings = userDefaultProfile;
 
         // See DB::Context::setPath.
-        if (DataPath.empty() || DataPath.back() != '/') {
-            DataPath.push_back('/');
+        if (config->DataPath.empty() || config->DataPath.back() != '/') {
+            config->DataPath.push_back('/');
         }
     });
 
-    SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
+    registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
