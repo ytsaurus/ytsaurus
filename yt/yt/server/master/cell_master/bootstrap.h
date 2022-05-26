@@ -121,7 +121,7 @@ public:
     const NObjectServer::IRequestProfilingManagerPtr& GetRequestProfilingManager() const;
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::IJournalManagerPtr& GetJournalManager() const;
-    const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
+    const NSecurityServer::ISecurityManagerPtr& GetSecurityManager() const;
     const NSchedulerPoolServer::ISchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
     const NTableServer::TTableManagerPtr& GetTableManager() const;
@@ -192,7 +192,7 @@ protected:
     NObjectServer::IRequestProfilingManagerPtr RequestProfilingManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
     NJournalServer::IJournalManagerPtr JournalManager_;
-    NSecurityServer::TSecurityManagerPtr SecurityManager_;
+    NSecurityServer::ISecurityManagerPtr SecurityManager_;
     NCellServer::ITamedCellManagerPtr TamedCellManager_;
     NCellServer::ICellHydraJanitorPtr CellHydraJanitor_;
     NTableServer::TTableManagerPtr TableManager_;

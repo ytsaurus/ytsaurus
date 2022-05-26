@@ -430,7 +430,7 @@ private:
     friend void FromProto(
         TChunkRequisition* requisition,
         const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequsition,
-        const NSecurityServer::TSecurityManagerPtr& securityManager);
+        const NSecurityServer::ISecurityManagerPtr& securityManager);
 };
 
 void ToProto(

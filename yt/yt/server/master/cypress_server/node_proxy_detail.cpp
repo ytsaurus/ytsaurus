@@ -119,7 +119,7 @@ bool HasTrivialAcd(const TCypressNode* node)
 bool CheckItemReadPermissions(
     TCypressNode* parent,
     TCypressNode* child,
-    const TSecurityManagerPtr& securityManager)
+    const ISecurityManagerPtr& securityManager)
 {
     // Fast path.
     if ((!parent || HasTrivialAcd(parent)) && HasTrivialAcd(child)) {
@@ -915,7 +915,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     public:
         TVisitor(
             TCypressManagerPtr cypressManager,
-            TSecurityManagerPtr securityManager,
+            ISecurityManagerPtr securityManager,
             TTransaction* transaction,
             std::optional<std::vector<TString>> attributeKeys)
             : CypressManager_(std::move(cypressManager))
@@ -936,7 +936,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
 
     private:
         const TCypressManagerPtr CypressManager_;
-        const TSecurityManagerPtr SecurityManager_;
+        const ISecurityManagerPtr SecurityManager_;
         TTransaction* const Transaction_;
         const std::optional<std::vector<TString>> AttributeKeys_;
 

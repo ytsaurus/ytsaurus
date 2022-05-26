@@ -46,11 +46,8 @@
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
-//#include <yt/yt/server/master/transaction_server/boomerang_tracker.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
-
-//#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -109,8 +106,12 @@ bool IsPermissionValidationSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSecurityManager;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
-    TSecurityManagerPtr securityManager,
+    ISecurityManagerPtr securityManager,
     TUser* user,
     const TString& userTag)
 {
@@ -130,7 +131,7 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
 }
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
-    TSecurityManagerPtr securityManager,
+    ISecurityManagerPtr securityManager,
     NRpc::TAuthenticationIdentity identity)
 {
     User_ = securityManager->GetUserByNameOrThrow(identity.User, true /*activeLifeStageOnly*/);
@@ -143,7 +144,7 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
 }
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
-    TSecurityManagerPtr securityManager)
+    ISecurityManagerPtr securityManager)
     : TAuthenticatedUserGuard(
         std::move(securityManager),
         NRpc::GetCurrentAuthenticationIdentity())
@@ -163,11 +164,11 @@ TUser* TAuthenticatedUserGuard::GetUser() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TAccountTypeHandler
+class TAccountTypeHandler
     : public TNonversionedMapObjectTypeHandlerBase<TAccount>
 {
 public:
-    explicit TAccountTypeHandler(TImpl* owner);
+    explicit TAccountTypeHandler(TSecurityManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -206,7 +207,7 @@ protected:
 private:
     using TBase = TNonversionedMapObjectTypeHandlerBase<TAccount>;
 
-    TImpl* const Owner_;
+    TSecurityManager* const Owner_;
 
     std::optional<int> GetDepthLimit() const override
     {
@@ -222,11 +223,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TAccountResourceUsageLeaseTypeHandler
+class TAccountResourceUsageLeaseTypeHandler
     : public TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>
 {
 public:
-    explicit TAccountResourceUsageLeaseTypeHandler(TImpl* owner);
+    explicit TAccountResourceUsageLeaseTypeHandler(TSecurityManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -247,7 +248,7 @@ public:
 private:
     using TBase = TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>;
 
-    TImpl* const Owner_;
+    TSecurityManager* const Owner_;
 
     IObjectProxyPtr DoGetProxy(
         TAccountResourceUsageLease* accountResourceUsageLease,
@@ -261,11 +262,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TUserTypeHandler
+class TUserTypeHandler
     : public TObjectTypeHandlerWithMapBase<TUser>
 {
 public:
-    explicit TUserTypeHandler(TImpl* owner);
+    explicit TUserTypeHandler(TSecurityManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -297,7 +298,7 @@ public:
         const NYTree::IAttributeDictionary* attributes) override;
 
 private:
-    TImpl* const Owner_;
+    TSecurityManager* const Owner_;
 
     TAccessControlDescriptor* DoFindAcd(TUser* user) override
     {
@@ -310,11 +311,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TGroupTypeHandler
+class TGroupTypeHandler
     : public TObjectTypeHandlerWithMapBase<TGroup>
 {
 public:
-    explicit TGroupTypeHandler(TImpl* owner);
+    explicit TGroupTypeHandler(TSecurityManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -339,7 +340,7 @@ public:
         const NYTree::IAttributeDictionary* attributes) override;
 
 private:
-    TImpl* const Owner_;
+    TSecurityManager* const Owner_;
 
     TCellTagList DoGetReplicationCellTags(const TGroup* /*group*/) override
     {
@@ -357,11 +358,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TNetworkProjectTypeHandler
+class TNetworkProjectTypeHandler
     : public TObjectTypeHandlerWithMapBase<TNetworkProject>
 {
 public:
-    explicit TNetworkProjectTypeHandler(TImpl* owner);
+    explicit TNetworkProjectTypeHandler(TSecurityManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -385,7 +386,7 @@ public:
     }
 
 private:
-    TImpl* const Owner_;
+    TSecurityManager* const Owner_;
 
     IObjectProxyPtr DoGetProxy(TNetworkProject* networkProject, TTransaction* transaction) override;
     void DoZombifyObject(TNetworkProject* networkProject) override;
@@ -393,11 +394,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TProxyRoleTypeHandler
+class TProxyRoleTypeHandler
     : public TObjectTypeHandlerWithMapBase<TProxyRole>
 {
 public:
-    explicit TProxyRoleTypeHandler(TImpl* owner);
+    explicit TProxyRoleTypeHandler(TSecurityManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -421,7 +422,7 @@ public:
     }
 
 private:
-    TImpl* const Owner_;
+    TSecurityManager* const Owner_;
 
     IObjectProxyPtr DoGetProxy(TProxyRole* proxyRoles, TTransaction* transaction) override;
     void DoZombifyObject(TProxyRole* proxyRole) override;
@@ -429,31 +430,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager::TImpl
-    : public TMasterAutomatonPart
+class TSecurityManager
+    : public ISecurityManager
+    , public TMasterAutomatonPart
 {
 public:
-    TImpl(
-        const TSecurityManagerConfigPtr& config,
-        NCellMaster::TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::SecurityManager)
-        , RequestTracker_(New<TRequestTracker>(config->UserThrottler, bootstrap))
+    explicit TSecurityManager(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SecurityManager)
+        , RequestTracker_(New<TRequestTracker>(Bootstrap_->GetConfig()->SecurityManager->UserThrottler, bootstrap))
     {
         RegisterLoader(
             "SecurityManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TSecurityManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "SecurityManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TSecurityManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "SecurityManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TSecurityManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "SecurityManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TSecurityManager::SaveValues, Unretained(this)));
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
 
@@ -484,22 +484,22 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
+        RegisterMethod(BIND(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
+        RegisterMethod(BIND(&TSecurityManager::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TSecurityManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(
-            &TImpl::OnTransactionFinished,
+            &TSecurityManager::OnTransactionFinished,
             MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(
-            &TImpl::OnTransactionFinished,
+            &TSecurityManager::OnTransactionFinished,
             MakeStrong(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -513,21 +513,21 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND(&TSecurityManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+                BIND(&TSecurityManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
-    DECLARE_ENTITY_MAP_ACCESSORS(AccountResourceUsageLease, TAccountResourceUsageLease);
-    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
-    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
-    DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Account, TAccount)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(AccountResourceUsageLease, TAccountResourceUsageLease)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(User, TUser)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Group, TGroup)
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(NetworkProject, TNetworkProject)
 
 
-    TAccount* CreateAccount(TObjectId hintId = NullObjectId)
+    TAccount* CreateAccount(TObjectId hintId = NullObjectId) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Account, hintId);
@@ -537,7 +537,7 @@ public:
     void DestroyAccount(TAccount* /*account*/)
     { }
 
-    TAccount* GetAccountOrThrow(TAccountId id)
+    TAccount* GetAccountOrThrow(TAccountId id) override
     {
         auto* account = FindAccount(id);
         if (!IsObjectAlive(account)) {
@@ -567,7 +567,7 @@ public:
         return IsObjectAlive(account) ? account : nullptr;
     }
 
-    TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly)
+    TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly) override
     {
         auto* account = DoFindAccountByName(name);
         if (!account) {
@@ -584,7 +584,7 @@ public:
         }
     }
 
-    TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+    TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly) override
     {
         auto* account = DoFindAccountByName(name);
         if (!account) {
@@ -613,27 +613,27 @@ public:
         YT_VERIFY(AccountNameMap_.erase(name) == 1);
     }
 
-    TAccount* GetRootAccount()
+    TAccount* GetRootAccount() override
     {
         return GetBuiltin(RootAccount_);
     }
 
-    TAccount* GetSysAccount()
+    TAccount* GetSysAccount() override
     {
         return GetBuiltin(SysAccount_);
     }
 
-    TAccount* GetTmpAccount()
+    TAccount* GetTmpAccount() override
     {
         return GetBuiltin(TmpAccount_);
     }
 
-    TAccount* GetIntermediateAccount()
+    TAccount* GetIntermediateAccount() override
     {
         return GetBuiltin(IntermediateAccount_);
     }
 
-    TAccount* GetChunkWiseAccountingMigrationAccount()
+    TAccount* GetChunkWiseAccountingMigrationAccount() override
     {
         return GetBuiltin(ChunkWiseAccountingMigrationAccount_);
     }
@@ -762,13 +762,16 @@ public:
         }
     }
 
-    void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits)
+    void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits) override
     {
         ValidateResourceLimits(account, resourceLimits);
         account->ClusterResourceLimits() = resourceLimits;
     }
 
-    void TransferAccountResources(TAccount* srcAccount, TAccount* dstAccount, const TClusterResourceLimits& resourceDelta)
+    void TransferAccountResources(
+        TAccount* srcAccount,
+        TAccount* dstAccount,
+        const TClusterResourceLimits& resourceDelta) override
     {
         YT_VERIFY(srcAccount);
         YT_VERIFY(dstAccount);
@@ -825,7 +828,7 @@ public:
         }
     }
 
-    void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
+    void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta) override
     {
         YT_VERIFY(chunk->IsNative());
 
@@ -851,7 +854,7 @@ public:
 
     void UpdateAccountResourceUsageLease(
         TAccountResourceUsageLease* accountResourceUsageLease,
-        const TClusterResources& resources)
+        const TClusterResources& resources) override
     {
         auto* account = accountResourceUsageLease->GetAccount();
         auto* transaction = accountResourceUsageLease->GetTransaction();
@@ -887,7 +890,7 @@ public:
     void UpdateTransactionResourceUsage(
         const TChunk* chunk,
         const TChunkRequisition& requisition,
-        i64 delta)
+        i64 delta) override
     {
         YT_ASSERT(chunk->IsStaged());
         YT_ASSERT(chunk->IsDiskSizeFinal());
@@ -928,7 +931,7 @@ public:
         }
     }
 
-    void UpdateMasterMemoryUsage(TCypressNode* node, bool accountChanged = false)
+    void UpdateMasterMemoryUsage(TCypressNode* node, bool accountChanged = false) override
     {
         auto* account = node->GetAccount();
         if (!account) {
@@ -954,7 +957,7 @@ public:
         }
     }
 
-    void ResetMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
+    void ResetMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account) override
     {
         YT_VERIFY(IsObjectAlive(account));
 
@@ -977,7 +980,7 @@ public:
         }
     }
 
-    void UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
+    void UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account) override
     {
         if (!schema) {
             return;
@@ -1023,13 +1026,18 @@ public:
         return currentDetailedMasterMemoryUsage;
     }
 
-    void ResetTransactionAccountResourceUsage(TTransaction* transaction)
+    void ResetTransactionAccountResourceUsage(TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
             objectManager->UnrefObject(account);
         }
         transaction->AccountResourceUsage().clear();
+    }
+
+    void RecomputeTransactionAccountResourceUsage(TTransaction* transaction) override
+    {
+        RecomputeTransactionResourceUsage(transaction);
     }
 
     void RecomputeTransactionResourceUsage(TTransaction* transaction)
@@ -1056,7 +1064,7 @@ public:
     void SetAccount(
         TCypressNode* node,
         TAccount* newAccount,
-        TTransaction* transaction) noexcept
+        TTransaction* transaction) noexcept override
     {
         YT_VERIFY(node);
         YT_VERIFY(newAccount);
@@ -1091,7 +1099,7 @@ public:
         UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
     }
 
-    void ResetAccount(TCypressNode* node)
+    void ResetAccount(TCypressNode* node) override
     {
         auto* account = node->GetAccount();
         if (!account) {
@@ -1149,7 +1157,7 @@ public:
         UpdateTabletResourceUsage(newAccount, resources, newCommitted);
     }
 
-    void UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta)
+    void UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta) override
     {
         UpdateTabletResourceUsage(node->GetAccount(), resourceUsageDelta, node->IsTrunk());
     }
@@ -1282,7 +1290,7 @@ public:
         return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
-    TUser* FindUserByName(const TString& name, bool activeLifeStageOnly)
+    TUser* FindUserByName(const TString& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
         if (!user) {
@@ -1299,7 +1307,7 @@ public:
         }
     }
 
-    TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly)
+    TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly) override
     {
         auto* subjectByAlias = FindSubjectByAlias(name, activeLifeStageOnly);
         if (subjectByAlias && subjectByAlias->IsUser()) {
@@ -1308,7 +1316,7 @@ public:
         return FindUserByName(name, activeLifeStageOnly);
     }
 
-    TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+    TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
 
@@ -1327,7 +1335,7 @@ public:
         return user;
     }
 
-    TUser* GetUserOrThrow(TUserId id)
+    TUser* GetUserOrThrow(TUserId id) override
     {
         auto* user = FindUser(id);
         if (!IsObjectAlive(user)) {
@@ -1340,17 +1348,17 @@ public:
     }
 
 
-    TUser* GetRootUser()
+    TUser* GetRootUser() override
     {
         return GetBuiltin(RootUser_);
     }
 
-    TUser* GetGuestUser()
+    TUser* GetGuestUser() override
     {
         return GetBuiltin(GuestUser_);
     }
 
-    TUser* GetOwnerUser()
+    TUser* GetOwnerUser() override
     {
         return GetBuiltin(OwnerUser_);
     }
@@ -1408,7 +1416,7 @@ public:
         return DoFindGroupByName(name);
     }
 
-    TGroup* FindGroupByNameOrAlias(const TString& name)
+    TGroup* FindGroupByNameOrAlias(const TString& name) override
     {
         auto* subjectByAlias = DoFindSubjectByAlias(name);
         if (subjectByAlias && subjectByAlias->IsGroup()) {
@@ -1417,23 +1425,23 @@ public:
         return DoFindGroupByName(name);
     }
 
-    TGroup* GetEveryoneGroup()
+    TGroup* GetEveryoneGroup() override
     {
         return GetBuiltin(EveryoneGroup_);
     }
 
-    TGroup* GetUsersGroup()
+    TGroup* GetUsersGroup() override
     {
         return GetBuiltin(UsersGroup_);
     }
 
-    TGroup* GetSuperusersGroup()
+    TGroup* GetSuperusersGroup() override
     {
         return GetBuiltin(SuperusersGroup_);
     }
 
 
-    TSubject* FindSubject(TSubjectId id)
+    TSubject* FindSubject(TSubjectId id) override
     {
         auto* user = FindUser(id);
         if (IsObjectAlive(user)) {
@@ -1446,7 +1454,7 @@ public:
         return nullptr;
     }
 
-    TSubject* GetSubjectOrThrow(TSubjectId id)
+    TSubject* GetSubjectOrThrow(TSubjectId id) override
     {
         auto* subject = FindSubject(id);
         if (!IsObjectAlive(subject)) {
@@ -1511,7 +1519,7 @@ public:
         }
     }
 
-    TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly)
+    TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly) override
     {
         auto* user = FindUserByName(name, activeLifeStageOnly);
         if (user) {
@@ -1531,7 +1539,7 @@ public:
         return nullptr;
     }
 
-    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly)
+    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly) override
     {
         auto validateLifeStage = [&] (TSubject* subject) {
             if (activeLifeStageOnly) {
@@ -1563,13 +1571,13 @@ public:
             name);
     }
 
-    TNetworkProject* FindNetworkProjectByName(const TString& name)
+    TNetworkProject* FindNetworkProjectByName(const TString& name) override
     {
         auto it = NetworkProjectNameMap_.find(name);
         return it == NetworkProjectNameMap_.end() ? nullptr : it->second;
     }
 
-    void RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName)
+    void RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName) override
     {
         if (FindNetworkProjectByName(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -1634,12 +1642,12 @@ public:
             .Item("proxy_kind").Value(proxyKind);
     }
 
-    const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const
+    const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const override
     {
         return ProxyRoleNameMaps_[proxyKind];
     }
 
-    void AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
+    void AddMember(TGroup* group, TSubject* member, bool ignoreExisting) override
     {
         ValidateMembershipUpdate(group, member);
 
@@ -1675,7 +1683,7 @@ public:
             .Item("member_name").Value(member->GetName());
     }
 
-    void RemoveMember(TGroup* group, TSubject* member, bool force)
+    void RemoveMember(TGroup* group, TSubject* member, bool force) override
     {
         ValidateMembershipUpdate(group, member);
 
@@ -1702,7 +1710,7 @@ public:
             .Item("member_name").Value(member->GetName());
     }
 
-    void RenameSubject(TSubject* subject, const TString& newName)
+    void RenameSubject(TSubject* subject, const TString& newName) override
     {
         ValidateSubjectName(newName);
 
@@ -1730,7 +1738,7 @@ public:
         subject->SetName(newName);
     }
 
-    TAccessControlDescriptor* FindAcd(TObject* object)
+    TAccessControlDescriptor* FindAcd(TObject* object) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
@@ -1744,14 +1752,14 @@ public:
         return handler->ListAcds(object);
     }
 
-    TAccessControlDescriptor* GetAcd(TObject* object)
+    TAccessControlDescriptor* GetAcd(TObject* object) override
     {
         auto* acd = FindAcd(object);
         YT_VERIFY(acd);
         return acd;
     }
 
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) override
     {
         TAccessControlList result;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1780,17 +1788,17 @@ public:
     }
 
 
-    void SetAuthenticatedUser(TUser* user)
+    void SetAuthenticatedUser(TUser* user) override
     {
         *AuthenticatedUser_ = user;
     }
 
-    void ResetAuthenticatedUser()
+    void ResetAuthenticatedUser() override
     {
         *AuthenticatedUser_ = nullptr;
     }
 
-    TUser* GetAuthenticatedUser()
+    TUser* GetAuthenticatedUser() override
     {
         TUser* result = nullptr;
 
@@ -1802,7 +1810,7 @@ public:
     }
 
 
-    bool IsSafeMode()
+    bool IsSafeMode() override
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode;
     }
@@ -1811,7 +1819,7 @@ public:
         TObject* object,
         TUser* user,
         EPermission permission,
-        TPermissionCheckOptions options = {})
+        TPermissionCheckOptions options = {}) override
     {
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Checking permission for a versioned foreign object (ObjectId: %v)",
@@ -1893,7 +1901,7 @@ public:
         TUser* user,
         EPermission permission,
         const TAccessControlList& acl,
-        TPermissionCheckOptions options = {})
+        TPermissionCheckOptions options = {}) override
     {
         TPermissionChecker checker(
             this,
@@ -1915,7 +1923,7 @@ public:
         return checker.GetResponse();
     }
 
-    bool IsSuperuser(const TUser* user) const
+    bool IsSuperuser(const TUser* user) const override
     {
         // NB: This is also useful for migration when "superusers" is initially created.
         if (user == RootUser_) {
@@ -1933,7 +1941,7 @@ public:
         TObject* object,
         TUser* user,
         EPermission permission,
-        TPermissionCheckOptions options = {})
+        TPermissionCheckOptions options = {}) override
     {
         if (IsPermissionValidationSuppressed()) {
             return;
@@ -1958,7 +1966,7 @@ public:
     void ValidatePermission(
         TObject* object,
         EPermission permission,
-        TPermissionCheckOptions options = {})
+        TPermissionCheckOptions options = {}) override
     {
         ValidatePermission(
             object,
@@ -1971,7 +1979,7 @@ public:
         const TPermissionCheckTarget& target,
         TUser* user,
         EPermission permission,
-        const TPermissionCheckResult& result)
+        const TPermissionCheckResult& result) override
     {
         if (result.Action != ESecurityAction::Deny) {
             return;
@@ -2044,7 +2052,7 @@ public:
     void ValidateResourceUsageIncrease(
         TAccount* account,
         const TClusterResources& delta,
-        bool allowRootAccount)
+        bool allowRootAccount) override
     {
         if (IsPermissionValidationSuppressed()) {
             return;
@@ -2177,7 +2185,7 @@ public:
         }
     }
 
-    void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount)
+    void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount) override
     {
         const auto& childUsage = childAccount->ClusterStatistics().ResourceUsage;
         const auto& childLimits = childAccount->ClusterResourceLimits();
@@ -2208,7 +2216,7 @@ public:
 
     void SetAccountAllowChildrenLimitOvercommit(
         TAccount* account,
-        bool overcommitAllowed)
+        bool overcommitAllowed) override
     {
         if (!overcommitAllowed && account->GetAllowChildrenLimitOvercommit() &&
             IsAccountOvercommitted(account, account->ClusterResourceLimits()))
@@ -2233,7 +2241,7 @@ public:
     }
 
 
-    void SetUserBanned(TUser* user, bool banned)
+    void SetUserBanned(TUser* user, bool banned) override
     {
         if (banned && user == RootUser_) {
             THROW_ERROR_EXCEPTION("User %Qv cannot be banned",
@@ -2250,7 +2258,7 @@ public:
         }
     }
 
-    TError CheckUserAccess(TUser* user)
+    TError CheckUserAccess(TUser* user) override
     {
         if (user->GetBanned()) {
             return TError(
@@ -2270,7 +2278,7 @@ public:
     }
 
 
-    void ChargeUser(TUser* user, const TUserWorkload& workload)
+    void ChargeUser(TUser* user, const TUserWorkload& workload) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -2281,44 +2289,44 @@ public:
         UserCharged_.Fire(user, workload);
     }
 
-    TFuture<void> ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType)
+    TFuture<void> ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType) override
     {
         return RequestTracker_->ThrottleUserRequest(user, requestCount, workloadType);
     }
 
-    void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
+    void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type) override
     {
         RequestTracker_->SetUserRequestRateLimit(user, limit, type);
     }
 
-    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
+    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config) override
     {
         RequestTracker_->SetUserRequestLimits(user, std::move(config));
     }
 
-    void SetUserRequestQueueSizeLimit(TUser* user, int limit)
+    void SetUserRequestQueueSizeLimit(TUser* user, int limit) override
     {
         RequestTracker_->SetUserRequestQueueSizeLimit(user, limit);
     }
 
 
-    bool TryIncreaseRequestQueueSize(TUser* user)
+    bool TryIncreaseRequestQueueSize(TUser* user) override
     {
         return RequestTracker_->TryIncreaseRequestQueueSize(user);
     }
 
-    void DecreaseRequestQueueSize(TUser* user)
+    void DecreaseRequestQueueSize(TUser* user) override
     {
         RequestTracker_->DecreaseRequestQueueSize(user);
     }
 
 
-    const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const
+    const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const override
     {
         return SecurityTagsRegistry_;
     }
 
-    void SetSubjectAliases(TSubject* subject, const std::vector<TString>& newAliases)
+    void SetSubjectAliases(TSubject* subject, const std::vector<TString>& newAliases) override
     {
         THashSet<TString> uniqAliases;
         for (const auto& newAlias : newAliases) {
@@ -2344,7 +2352,7 @@ public:
         }
     }
 
-    TProfilerTagPtr GetUserCpuProfilerTag(TUser* user)
+    TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2355,7 +2363,7 @@ public:
             .first;
     }
 
-    DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
+    DEFINE_SIGNAL_OVERRIDE(void(TUser*, const TUserWorkload&), UserCharged);
 
 private:
     friend class TAccountTypeHandler;
@@ -3468,17 +3476,17 @@ private:
 
         AccountStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityGossip),
-            BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)));
+            BIND(&TSecurityManager::OnAccountStatisticsGossip, MakeWeak(this)));
         AccountStatisticsGossipExecutor_->Start();
 
         MembershipClosureRecomputeExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnRecomputeMembershipClosure, MakeWeak(this)));
+            BIND(&TSecurityManager::OnRecomputeMembershipClosure, MakeWeak(this)));
         MembershipClosureRecomputeExecutor_->Start();
 
         AccountMasterMemoryUsageUpdateExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
-            BIND(&TImpl::CommitAccountMasterMemoryUsage, MakeWeak(this)));
+            BIND(&TSecurityManager::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
     }
 
@@ -3857,11 +3865,11 @@ private:
     {
     public:
         TPermissionChecker(
-            TImpl* impl,
+            TSecurityManager* impl,
             TUser* user,
             EPermission permission,
             const TPermissionCheckOptions& options)
-            : Impl_(impl)
+            : SecurityManager_(impl)
             , User_(user)
             , FullRead_(CheckPermissionMatch(permission, EPermission::FullRead))
             , Permission_(FullRead_
@@ -3930,7 +3938,7 @@ private:
             }
 
             for (auto* subject : ace.Subjects) {
-                auto* adjustedSubject = subject == Impl_->GetOwnerUser() && owner
+                auto* adjustedSubject = subject == SecurityManager_->GetOwnerUser() && owner
                     ? owner
                     : subject;
                 if (!adjustedSubject) {
@@ -4011,7 +4019,7 @@ private:
         }
 
     private:
-        TImpl* const Impl_;
+        TSecurityManager* const SecurityManager_;
         TUser* const User_;
         const bool FullRead_;
         const EPermission Permission_;
@@ -4026,9 +4034,9 @@ private:
         ESecurityAction FastCheckPermission()
         {
             // "replicator", though being superuser, can only read in safe mode.
-            if (User_ == Impl_->ReplicatorUser_ &&
+            if (User_ == SecurityManager_->ReplicatorUser_ &&
                 Permission_ != EPermission::Read &&
-                Impl_->IsSafeMode())
+                SecurityManager_->IsSafeMode())
             {
                 return ESecurityAction::Deny;
             }
@@ -4039,13 +4047,13 @@ private:
             }
 
             // "root" and "superusers" need no authorization.
-            if (Impl_->IsSuperuser(User_)) {
+            if (SecurityManager_->IsSuperuser(User_)) {
                 return ESecurityAction::Allow;
             }
 
             // Non-reads are forbidden in safe mode.
             if (Permission_ != EPermission::Read &&
-                Impl_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+                SecurityManager_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
             {
                 return ESecurityAction::Deny;
             }
@@ -4234,21 +4242,21 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, AccountResourceUsageLease, TAccountResourceUsageLease, AccountResourceUsageLeaseMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, NetworkProject, TNetworkProject, NetworkProjectMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, AccountMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, AccountResourceUsageLease, TAccountResourceUsageLease, AccountResourceUsageLeaseMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, UserMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, GroupMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, NetworkProjectMap_)
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
+TAccountTypeHandler::TAccountTypeHandler(TSecurityManager* owner)
     : TNonversionedMapObjectTypeHandlerBase<TAccount>(owner->Bootstrap_, &owner->AccountMap_)
     , Owner_(owner)
 { }
 
-TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
+TObject* TAccountTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -4261,7 +4269,7 @@ TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
     return account;
 }
 
-std::optional<TObject*> TSecurityManager::TAccountTypeHandler::FindObjectByAttributes(
+std::optional<TObject*> TAccountTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<TString>("name");
@@ -4271,46 +4279,47 @@ std::optional<TObject*> TSecurityManager::TAccountTypeHandler::FindObjectByAttri
     return parent->FindChild(name);
 }
 
-TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> TSecurityManager::TAccountTypeHandler::GetMapObjectProxy(
+TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> TAccountTypeHandler::GetMapObjectProxy(
     TAccount* account)
 {
     return CreateAccountProxy(Owner_->Bootstrap_, &Metadata_, account);
 }
 
-void TSecurityManager::TAccountTypeHandler::DoZombifyObject(TAccount* account)
+void TAccountTypeHandler::DoZombifyObject(TAccount* account)
 {
     TNonversionedMapObjectTypeHandlerBase<TAccount>::DoZombifyObject(account);
     Owner_->DestroyAccount(account);
 }
 
-void TSecurityManager::TAccountTypeHandler::RegisterName(const TString& name, TAccount* account) noexcept
+void TAccountTypeHandler::RegisterName(const TString& name, TAccount* account) noexcept
 {
     Owner_->RegisterAccountName(name, account);
 }
 
-void TSecurityManager::TAccountTypeHandler::UnregisterName(const TString& name, TAccount* /* account */) noexcept
+void TAccountTypeHandler::UnregisterName(const TString& name, TAccount* /* account */) noexcept
 {
     Owner_->UnregisterAccountName(name);
 }
 
-TString TSecurityManager::TAccountTypeHandler::GetRootPath(const TAccount* rootAccount) const
+TString TAccountTypeHandler::GetRootPath(const TAccount* rootAccount) const
 {
     YT_VERIFY(rootAccount == Owner_->GetRootAccount());
     return RootAccountCypressPath;
 }
 
-std::optional<int> TSecurityManager::TAccountTypeHandler::GetSubtreeSizeLimit() const {
+std::optional<int> TAccountTypeHandler::GetSubtreeSizeLimit() const
+{
     return Owner_->GetDynamicConfig()->MaxAccountSubtreeSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TAccountResourceUsageLeaseTypeHandler::TAccountResourceUsageLeaseTypeHandler(TImpl* owner)
+TAccountResourceUsageLeaseTypeHandler::TAccountResourceUsageLeaseTypeHandler(TSecurityManager* owner)
     : TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>(owner->Bootstrap_, &owner->AccountResourceUsageLeaseMap_)
     , Owner_(owner)
 { }
 
-TObject* TSecurityManager::TAccountResourceUsageLeaseTypeHandler::CreateObject(
+TObject* TAccountResourceUsageLeaseTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -4320,7 +4329,7 @@ TObject* TSecurityManager::TAccountResourceUsageLeaseTypeHandler::CreateObject(
     return Owner_->CreateAccountResourceUsageLease(accountName, transactionId, hintId);
 }
 
-void TSecurityManager::TAccountResourceUsageLeaseTypeHandler::DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease)
+void TAccountResourceUsageLeaseTypeHandler::DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease)
 {
     TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>::DoZombifyObject(accountResourceUsageLease);
     Owner_->DestroyAccountResourceUsageLease(accountResourceUsageLease);
@@ -4328,12 +4337,12 @@ void TSecurityManager::TAccountResourceUsageLeaseTypeHandler::DoZombifyObject(TA
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
+TUserTypeHandler::TUserTypeHandler(TSecurityManager* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->UserMap_)
     , Owner_(owner)
 { }
 
-TObject* TSecurityManager::TUserTypeHandler::CreateObject(
+TObject* TUserTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -4342,7 +4351,7 @@ TObject* TSecurityManager::TUserTypeHandler::CreateObject(
     return Owner_->CreateUser(name, hintId);
 }
 
-std::optional<TObject*> TSecurityManager::TUserTypeHandler::FindObjectByAttributes(
+std::optional<TObject*> TUserTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<TString>("name");
@@ -4350,14 +4359,14 @@ std::optional<TObject*> TSecurityManager::TUserTypeHandler::FindObjectByAttribut
     return Owner_->FindUserByNameOrAlias(name, /* activeLifeStageOnly */ true);
 }
 
-IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
+IObjectProxyPtr TUserTypeHandler::DoGetProxy(
     TUser* user,
     TTransaction* /*transaction*/)
 {
     return CreateUserProxy(Owner_->Bootstrap_, &Metadata_, user);
 }
 
-void TSecurityManager::TUserTypeHandler::DoZombifyObject(TUser* user)
+void TUserTypeHandler::DoZombifyObject(TUser* user)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(user);
     Owner_->DestroyUser(user);
@@ -4365,12 +4374,12 @@ void TSecurityManager::TUserTypeHandler::DoZombifyObject(TUser* user)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
+TGroupTypeHandler::TGroupTypeHandler(TSecurityManager* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->GroupMap_)
     , Owner_(owner)
 { }
 
-TObject* TSecurityManager::TGroupTypeHandler::CreateObject(
+TObject* TGroupTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -4379,20 +4388,20 @@ TObject* TSecurityManager::TGroupTypeHandler::CreateObject(
     return Owner_->CreateGroup(name, hintId);
 }
 
-IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
+IObjectProxyPtr TGroupTypeHandler::DoGetProxy(
     TGroup* group,
     TTransaction* /*transaction*/)
 {
     return CreateGroupProxy(Owner_->Bootstrap_, &Metadata_, group);
 }
 
-void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
+void TGroupTypeHandler::DoZombifyObject(TGroup* group)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(group);
     Owner_->DestroyGroup(group);
 }
 
-std::optional<TObject*> TSecurityManager::TGroupTypeHandler::FindObjectByAttributes(
+std::optional<TObject*> TGroupTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<TString>("name");
@@ -4402,12 +4411,12 @@ std::optional<TObject*> TSecurityManager::TGroupTypeHandler::FindObjectByAttribu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TNetworkProjectTypeHandler::TNetworkProjectTypeHandler(TImpl* owner)
+TNetworkProjectTypeHandler::TNetworkProjectTypeHandler(TSecurityManager* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NetworkProjectMap_)
     , Owner_(owner)
 { }
 
-TObject* TSecurityManager::TNetworkProjectTypeHandler::CreateObject(
+TObject* TNetworkProjectTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -4416,14 +4425,14 @@ TObject* TSecurityManager::TNetworkProjectTypeHandler::CreateObject(
     return Owner_->CreateNetworkProject(name, hintId);
 }
 
-IObjectProxyPtr TSecurityManager::TNetworkProjectTypeHandler::DoGetProxy(
+IObjectProxyPtr TNetworkProjectTypeHandler::DoGetProxy(
     TNetworkProject* networkProject,
     TTransaction* /*transaction*/)
 {
     return CreateNetworkProjectProxy(Owner_->Bootstrap_, &Metadata_, networkProject);
 }
 
-void TSecurityManager::TNetworkProjectTypeHandler::DoZombifyObject(TNetworkProject* networkProject)
+void TNetworkProjectTypeHandler::DoZombifyObject(TNetworkProject* networkProject)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(networkProject);
     Owner_->DestroyNetworkProject(networkProject);
@@ -4431,12 +4440,12 @@ void TSecurityManager::TNetworkProjectTypeHandler::DoZombifyObject(TNetworkProje
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TProxyRoleTypeHandler::TProxyRoleTypeHandler(TImpl* owner)
+TProxyRoleTypeHandler::TProxyRoleTypeHandler(TSecurityManager* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ProxyRoleMap_)
     , Owner_(owner)
 { }
 
-TObject* TSecurityManager::TProxyRoleTypeHandler::CreateObject(
+TObject* TProxyRoleTypeHandler::CreateObject(
     TObjectId hintId,
     IAttributeDictionary* attributes)
 {
@@ -4446,14 +4455,14 @@ TObject* TSecurityManager::TProxyRoleTypeHandler::CreateObject(
     return Owner_->CreateProxyRole(name, proxyKind, hintId);
 }
 
-IObjectProxyPtr TSecurityManager::TProxyRoleTypeHandler::DoGetProxy(
+IObjectProxyPtr TProxyRoleTypeHandler::DoGetProxy(
     TProxyRole* proxyRole,
     TTransaction* /* transaction */)
 {
     return CreateProxyRoleProxy(Owner_->Bootstrap_, &Metadata_, proxyRole);
 }
 
-void TSecurityManager::TProxyRoleTypeHandler::DoZombifyObject(TProxyRole* proxyRole)
+void TProxyRoleTypeHandler::DoZombifyObject(TProxyRole* proxyRole)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(proxyRole);
     Owner_->DestroyProxyRole(proxyRole);
@@ -4461,437 +4470,10 @@ void TSecurityManager::TProxyRoleTypeHandler::DoZombifyObject(TProxyRole* proxyR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(
-    const TSecurityManagerConfigPtr& config,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(
-        config,
-        bootstrap))
-{ }
-
-TSecurityManager::~TSecurityManager() = default;
-
-void TSecurityManager::Initialize()
+ISecurityManagerPtr CreateSecurityManager(TBootstrap* bootstrap)
 {
-    return Impl_->Initialize();
+    return New<TSecurityManager>(bootstrap);
 }
-
-TAccount* TSecurityManager::CreateAccount(TObjectId hintId)
-{
-    return Impl_->CreateAccount(hintId);
-}
-
-TAccount* TSecurityManager::GetAccountOrThrow(TAccountId id)
-{
-    return Impl_->GetAccountOrThrow(id);
-}
-
-TAccount* TSecurityManager::FindAccountByName(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->FindAccountByName(name, activeLifeStageOnly);
-}
-
-TAccount* TSecurityManager::GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->GetAccountByNameOrThrow(name, activeLifeStageOnly);
-}
-
-TAccount* TSecurityManager::GetRootAccount()
-{
-    return Impl_->GetRootAccount();
-}
-
-TAccount* TSecurityManager::GetSysAccount()
-{
-    return Impl_->GetSysAccount();
-}
-
-TAccount* TSecurityManager::GetTmpAccount()
-{
-    return Impl_->GetTmpAccount();
-}
-
-TAccount* TSecurityManager::GetIntermediateAccount()
-{
-    return Impl_->GetIntermediateAccount();
-}
-
-TAccount* TSecurityManager::GetChunkWiseAccountingMigrationAccount()
-{
-    return Impl_->GetChunkWiseAccountingMigrationAccount();
-}
-
-void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits)
-{
-    Impl_->TrySetResourceLimits(account, resourceLimits);
-}
-
-void TSecurityManager::TransferAccountResources(
-    TAccount* srcAccount,
-    TAccount* dstAccount,
-    const TClusterResourceLimits& resourceDelta)
-{
-    Impl_->TransferAccountResources(srcAccount, dstAccount, resourceDelta);
-}
-
-void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
-{
-    Impl_->UpdateResourceUsage(chunk, requisition, delta);
-}
-
-void TSecurityManager::UpdateAccountResourceUsageLease(
-    TAccountResourceUsageLease* accountResourceUsageLease,
-    const TClusterResources& resources)
-{
-    Impl_->UpdateAccountResourceUsageLease(accountResourceUsageLease, resources);
-}
-
-void TSecurityManager::UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta)
-{
-    Impl_->UpdateTabletResourceUsage(node, resourceUsageDelta);
-}
-
-void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
-{
-    Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
-}
-
-void TSecurityManager::UpdateMasterMemoryUsage(TCypressNode* node)
-{
-    Impl_->UpdateMasterMemoryUsage(node);
-}
-
-void TSecurityManager::UpdateMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
-{
-    Impl_->UpdateMasterMemoryUsage(schema, account);
-}
-
-void TSecurityManager::ResetMasterMemoryUsage(TMasterTableSchema* schema, TAccount* account)
-{
-    Impl_->ResetMasterMemoryUsage(schema, account);
-}
-
-void TSecurityManager::ResetTransactionAccountResourceUsage(TTransaction* transaction)
-{
-    Impl_->ResetTransactionAccountResourceUsage(transaction);
-}
-
-void TSecurityManager::RecomputeTransactionAccountResourceUsage(TTransaction* transaction)
-{
-    Impl_->RecomputeTransactionResourceUsage(transaction);
-}
-
-void TSecurityManager::SetAccount(
-    TCypressNode* node,
-    TAccount* newAccount,
-    TTransaction* transaction) noexcept
-{
-    Impl_->SetAccount(node, newAccount, transaction);
-}
-
-void TSecurityManager::ResetAccount(TCypressNode* node)
-{
-    Impl_->ResetAccount(node);
-}
-
-TUser* TSecurityManager::FindUserByName(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->FindUserByName(name, activeLifeStageOnly);
-}
-
-TUser* TSecurityManager::FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->FindUserByNameOrAlias(name, activeLifeStageOnly);
-}
-
-TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->GetUserByNameOrThrow(name, activeLifeStageOnly);
-}
-
-TUser* TSecurityManager::GetUserOrThrow(TUserId id)
-{
-    return Impl_->GetUserOrThrow(id);
-}
-
-TUser* TSecurityManager::GetRootUser()
-{
-    return Impl_->GetRootUser();
-}
-
-TUser* TSecurityManager::GetGuestUser()
-{
-    return Impl_->GetGuestUser();
-}
-
-TUser* TSecurityManager::GetOwnerUser()
-{
-    return Impl_->GetOwnerUser();
-}
-
-TGroup* TSecurityManager::FindGroupByNameOrAlias(const TString& name)
-{
-    return Impl_->FindGroupByNameOrAlias(name);
-}
-
-TGroup* TSecurityManager::GetEveryoneGroup()
-{
-    return Impl_->GetEveryoneGroup();
-}
-
-TGroup* TSecurityManager::GetUsersGroup()
-{
-    return Impl_->GetUsersGroup();
-}
-
-TGroup* TSecurityManager::GetSuperusersGroup()
-{
-    return Impl_->GetSuperusersGroup();
-}
-
-TSubject* TSecurityManager::FindSubject(TSubjectId id)
-{
-    return Impl_->FindSubject(id);
-}
-
-TSubject* TSecurityManager::GetSubjectOrThrow(TSubjectId id)
-{
-    return Impl_->GetSubjectOrThrow(id);
-}
-
-TSubject* TSecurityManager::FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->FindSubjectByNameOrAlias(name, activeLifeStageOnly);
-}
-
-TSubject* TSecurityManager::GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly)
-{
-    return Impl_->GetSubjectByNameOrAliasOrThrow(name, activeLifeStageOnly);
-}
-
-TNetworkProject* TSecurityManager::FindNetworkProjectByName(const TString& name)
-{
-    return Impl_->FindNetworkProjectByName(name);
-}
-
-void TSecurityManager::RenameNetworkProject(NYT::NSecurityServer::TNetworkProject* networkProject, const TString& newName)
-{
-    Impl_->RenameNetworkProject(networkProject, newName);
-}
-
-const THashMap<TString, TProxyRole*>& TSecurityManager::GetProxyRolesWithProxyKind(EProxyKind proxyKind) const
-{
-    return Impl_->GetProxyRolesWithProxyKind(proxyKind);
-}
-
-void TSecurityManager::AddMember(TGroup* group, TSubject* member, bool ignoreExisting)
-{
-    Impl_->AddMember(group, member, ignoreExisting);
-}
-
-void TSecurityManager::RemoveMember(TGroup* group, TSubject* member, bool ignoreMissing)
-{
-    Impl_->RemoveMember(group, member, ignoreMissing);
-}
-
-void TSecurityManager::RenameSubject(TSubject* subject, const TString& newName)
-{
-    Impl_->RenameSubject(subject, newName);
-}
-
-TAccessControlDescriptor* TSecurityManager::FindAcd(TObject* object)
-{
-    return Impl_->FindAcd(object);
-}
-
-TAccessControlDescriptor* TSecurityManager::GetAcd(TObject* object)
-{
-    return Impl_->GetAcd(object);
-}
-
-TAccessControlList TSecurityManager::GetEffectiveAcl(TObject* object)
-{
-    return Impl_->GetEffectiveAcl(object);
-}
-
-void TSecurityManager::SetAuthenticatedUser(TUser* user)
-{
-    Impl_->SetAuthenticatedUser(user);
-}
-
-void TSecurityManager::ResetAuthenticatedUser()
-{
-    Impl_->ResetAuthenticatedUser();
-}
-
-TUser* TSecurityManager::GetAuthenticatedUser()
-{
-    return Impl_->GetAuthenticatedUser();
-}
-
-bool TSecurityManager::IsSafeMode()
-{
-    return Impl_->IsSafeMode();
-}
-
-TPermissionCheckResponse TSecurityManager::CheckPermission(
-    TObject* object,
-    TUser* user,
-    EPermission permission,
-    TPermissionCheckOptions options)
-{
-    return Impl_->CheckPermission(
-        object,
-        user,
-        permission,
-        std::move(options));
-}
-
-TPermissionCheckResponse TSecurityManager::CheckPermission(
-    TUser* user,
-    EPermission permission,
-    const TAccessControlList& acl,
-    TPermissionCheckOptions options)
-{
-    return Impl_->CheckPermission(
-        user,
-        permission,
-        acl,
-        std::move(options));
-}
-
-bool TSecurityManager::IsSuperuser(const TUser* user) const
-{
-    return Impl_->IsSuperuser(user);
-}
-
-void TSecurityManager::ValidatePermission(
-    TObject* object,
-    TUser* user,
-    EPermission permission,
-    TPermissionCheckOptions options)
-{
-    Impl_->ValidatePermission(
-        object,
-        user,
-        permission,
-        std::move(options));
-}
-
-void TSecurityManager::ValidatePermission(
-    TObject* object,
-    EPermission permission,
-    TPermissionCheckOptions options)
-{
-    Impl_->ValidatePermission(
-        object,
-        permission,
-        std::move(options));
-}
-
-void TSecurityManager::LogAndThrowAuthorizationError(
-    const TPermissionCheckTarget& target,
-    TUser* user,
-    EPermission permission,
-    const TPermissionCheckResult& result)
-{
-    Impl_->LogAndThrowAuthorizationError(
-        target,
-        user,
-        permission,
-        result);
-}
-
-void TSecurityManager::ValidateResourceUsageIncrease(
-    TAccount* account,
-    const TClusterResources& delta,
-    bool allowRootAccount)
-{
-    Impl_->ValidateResourceUsageIncrease(
-        account,
-        delta,
-        allowRootAccount);
-}
-
-void TSecurityManager::ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount)
-{
-    Impl_->ValidateAttachChildAccount(parentAccount, childAccount);
-}
-
-void TSecurityManager::SetAccountAllowChildrenLimitOvercommit(
-    TAccount* account,
-    bool overcommitAllowed)
-{
-    Impl_->SetAccountAllowChildrenLimitOvercommit(account, overcommitAllowed);
-}
-
-void TSecurityManager::SetUserBanned(TUser* user, bool banned)
-{
-    Impl_->SetUserBanned(user, banned);
-}
-
-TError TSecurityManager::CheckUserAccess(TUser* user)
-{
-    return Impl_->CheckUserAccess(user);
-}
-
-void TSecurityManager::ChargeUser(TUser* user, const TUserWorkload& workload)
-{
-    return Impl_->ChargeUser(user, workload);
-}
-
-TFuture<void> TSecurityManager::ThrottleUser(TUser* user, int requestCount, EUserWorkloadType workloadType)
-{
-    return Impl_->ThrottleUser(user, requestCount, workloadType);
-}
-
-void TSecurityManager::SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type)
-{
-    Impl_->SetUserRequestRateLimit(user, limit, type);
-}
-
-void TSecurityManager::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config)
-{
-    Impl_->SetUserRequestLimits(user, std::move(config));
-}
-
-void TSecurityManager::SetUserRequestQueueSizeLimit(TUser* user, int limit)
-{
-    Impl_->SetUserRequestQueueSizeLimit(user, limit);
-}
-
-bool TSecurityManager::TryIncreaseRequestQueueSize(TUser* user)
-{
-    return Impl_->TryIncreaseRequestQueueSize(user);
-}
-
-void TSecurityManager::DecreaseRequestQueueSize(TUser* user)
-{
-    Impl_->DecreaseRequestQueueSize(user);
-}
-
-const TSecurityTagsRegistryPtr& TSecurityManager::GetSecurityTagsRegistry() const
-{
-    return Impl_->GetSecurityTagsRegistry();
-}
-
-void TSecurityManager::SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases)
-{
-    Impl_->SetSubjectAliases(subject, aliases);
-}
-
-TProfilerTagPtr TSecurityManager::GetUserCpuProfilerTag(TUser* user)
-{
-    return Impl_->GetUserCpuProfilerTag(user);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, AccountResourceUsageLease, TAccountResourceUsageLease, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, *Impl_)
-
-DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

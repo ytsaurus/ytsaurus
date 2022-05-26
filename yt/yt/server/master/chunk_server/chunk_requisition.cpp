@@ -315,7 +315,7 @@ void ToProto(NProto::TReqUpdateChunkRequisition::TChunkRequisition* protoRequisi
 void FromProto(
     TChunkRequisition* requisition,
     const NProto::TReqUpdateChunkRequisition::TChunkRequisition& protoRequisition,
-    const NSecurityServer::TSecurityManagerPtr& securityManager)
+    const NSecurityServer::ISecurityManagerPtr& securityManager)
 {
     requisition->SetVital(protoRequisition.vital());
 

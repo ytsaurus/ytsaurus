@@ -76,29 +76,29 @@ struct TPermissionCheckResponse
 
 //! A simple RAII guard for setting the current authenticated user.
 /*!
- *  \see #TSecurityManager::SetAuthenticatedUser
- *  \see #TSecurityManager::ResetAuthenticatedUser
+ *  \see #ISecurityManager::SetAuthenticatedUser
+ *  \see #ISecurityManager::ResetAuthenticatedUser
  */
 class TAuthenticatedUserGuard
     : public TNonCopyable
 {
 public:
     TAuthenticatedUserGuard(
-        TSecurityManagerPtr securityManager,
+        ISecurityManagerPtr securityManager,
         TUser* user,
         const TString& userTag = {});
     TAuthenticatedUserGuard(
-        TSecurityManagerPtr securityManager,
+        ISecurityManagerPtr securityManager,
         NRpc::TAuthenticationIdentity identity);
     explicit TAuthenticatedUserGuard(
-        TSecurityManagerPtr securityManager);
+        ISecurityManagerPtr securityManager);
     ~TAuthenticatedUserGuard();
 
     TUser* GetUser() const;
 
 private:
     TUser* User_ = nullptr;
-    TSecurityManagerPtr SecurityManager_;
+    ISecurityManagerPtr SecurityManager_;
     NRpc::TAuthenticationIdentity AuthenticationIdentity_;
     NRpc::TCurrentAuthenticationIdentityGuard AuthenticationIdentityGuard_;
     NYTProf::TCpuProfilerTagGuard CpuProfilerTagGuard_;
@@ -115,47 +115,42 @@ struct TUserWorkload
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManager
-    : public TRefCounted
+struct ISecurityManager
+    : public virtual TRefCounted
 {
 public:
-    TSecurityManager(
-        const TSecurityManagerConfigPtr& config,
-        NCellMaster::TBootstrap* bootstrap);
-    ~TSecurityManager() override;
+    virtual void Initialize() = 0;
 
-    void Initialize();
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
-    DECLARE_ENTITY_MAP_ACCESSORS(AccountResourceUsageLease, TAccountResourceUsageLease);
-    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
-    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
-    DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Account, TAccount);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(AccountResourceUsageLease, TAccountResourceUsageLease);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(User, TUser);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Group, TGroup);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
 
     //! Creates an account.
-    TAccount* CreateAccount(NCypressClient::TObjectId hintId = NCypressClient::NullObjectId);
+    virtual TAccount* CreateAccount(NCypressClient::TObjectId hintId = NCypressClient::NullObjectId) = 0;
 
     //! Returns account with a id (throws if none).
-    TAccount* GetAccountOrThrow(TAccountId id);
+    virtual TAccount* GetAccountOrThrow(TAccountId id) = 0;
 
     //! Returns account with a given name (|nullptr| if none).
-    TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly);
+    virtual TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly) = 0;
 
     //! Returns account with a given name (throws if none).
-    TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly);
+    virtual TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly) = 0;
 
 
     //! Returns "root" built-in account.
-    TAccount* GetRootAccount();
+    virtual TAccount* GetRootAccount() = 0;
 
     //! Returns "sys" built-in account.
-    TAccount* GetSysAccount();
+    virtual TAccount* GetSysAccount() = 0;
 
     //! Returns "tmp" built-in account.
-    TAccount* GetTmpAccount();
+    virtual TAccount* GetTmpAccount() = 0;
 
     //! Returns "intermediate" built-in account.
-    TAccount* GetIntermediateAccount();
+    virtual TAccount* GetIntermediateAccount() = 0;
 
     //! Return "chunk_wise_accounting_migration" built-in account ID.
     /*!
@@ -164,11 +159,11 @@ public:
      *
      *  The account will be deprecated shortly after the migration.
      */
-    TAccount* GetChunkWiseAccountingMigrationAccount();
+    virtual TAccount* GetChunkWiseAccountingMigrationAccount() = 0;
 
     //! Sets |resourceLimits| as |account|'s cluster resource limits.
     //! Throws if that would violate the invariants.
-    void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits);
+    virtual void TrySetResourceLimits(TAccount* account, const TClusterResourceLimits& resourceLimits) = 0;
 
     //! Subtracts |resourceDelta| from |srcAccount| and all its ancestors up to (but not including)
     //! LCA(|srcAccount|, |dstAccount|), then adds it to |dstAccount| and all its ancestors up to
@@ -177,148 +172,150 @@ public:
      * Throws if transferring resources would violate the invariants or if authenticated user lacks
      * the write permission for any of the modified accounts.
      */
-    void TransferAccountResources(
+    virtual void TransferAccountResources(
         TAccount* srcAccount,
         TAccount* dstAccount,
-        const TClusterResourceLimits& resourceDelta);
+        const TClusterResourceLimits& resourceDelta) = 0;
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
-    void UpdateResourceUsage(
+    virtual void UpdateResourceUsage(
         const NChunkServer::TChunk* chunk,
         const NChunkServer::TChunkRequisition& requisition,
-        i64 delta);
+        i64 delta) = 0;
 
     //! Updates resources of account resource usage lease.
-    void UpdateAccountResourceUsageLease(
+    virtual void UpdateAccountResourceUsageLease(
         TAccountResourceUsageLease* accountResourceUsageLease,
-        const TClusterResources& resources);
+        const TClusterResources& resources) = 0;
 
     //! Updates tablet-related resource usage. Only table count and static
     //! memory are used; everything else in #resourceUsageDelta must be zero.
-    void UpdateTabletResourceUsage(
+    virtual void UpdateTabletResourceUsage(
         NCypressServer::TCypressNode* node,
-        const TClusterResources& resourceUsageDelta);
+        const TClusterResources& resourceUsageDelta) = 0;
 
     //! Adds the #chunk to the resource usage of its staging transaction.
-    void UpdateTransactionResourceUsage(
+    virtual void UpdateTransactionResourceUsage(
         const NChunkServer::TChunk* chunk,
         const NChunkServer::TChunkRequisition& requisition,
-        i64 delta);
+        i64 delta) = 0;
 
-    void UpdateMasterMemoryUsage(NCypressServer::TCypressNode* node);
+    virtual void UpdateMasterMemoryUsage(
+        NCypressServer::TCypressNode* node,
+        bool accountChanged = false) = 0;
 
-    void UpdateMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account);
-    void ResetMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account);
+    virtual void UpdateMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account) = 0;
+    virtual void ResetMasterMemoryUsage(NTableServer::TMasterTableSchema* schema, TAccount* account) = 0;
 
     //! Clears the transaction per-account usage statistics releasing the references to accounts.
-    void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
+    virtual void ResetTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction) = 0;
 
     //! Recomputes the transaction per-account usage statistics from scratch.
-    void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
+    virtual void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction) = 0;
 
 
     //! Assigns node to a given account, updates the total resource usage.
-    void SetAccount(
+    virtual void SetAccount(
         NCypressServer::TCypressNode* node,
         TAccount* newAccount,
-        NTransactionServer::TTransaction* transaction) noexcept;
+        NTransactionServer::TTransaction* transaction) noexcept = 0;
 
     //! Removes account association (if any) from the node.
-    void ResetAccount(NCypressServer::TCypressNode* node);
+    virtual void ResetAccount(NCypressServer::TCypressNode* node) = 0;
 
 
     //! Returns user with a given name (|nullptr| if none).
-    TUser* FindUserByName(const TString& name, bool activeLifeStageOnly);
+    virtual TUser* FindUserByName(const TString& name, bool activeLifeStageOnly) = 0;
 
     //! Returns user with a given name or alias (|nullptr| if none).
-    TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly);
+    virtual TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly) = 0;
 
     //! Returns user with a given name (throws if none).
-    TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly);
+    virtual TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly) = 0;
 
     //! Finds user by id, throws if nothing is found.
-    TUser* GetUserOrThrow(TUserId id);
+    virtual TUser* GetUserOrThrow(TUserId id) = 0;
 
     //! Returns "root" built-in user.
-    TUser* GetRootUser();
+    virtual TUser* GetRootUser() = 0;
 
     //! Returns "guest" built-in user.
-    TUser* GetGuestUser();
+    virtual TUser* GetGuestUser() = 0;
 
     //! Returns "owner" built-in user.
-    TUser* GetOwnerUser();
+    virtual TUser* GetOwnerUser() = 0;
 
 
     //! Returns group with a given name or alias (|nullptr| if none).
-    TGroup* FindGroupByNameOrAlias(const TString& name);
+    virtual TGroup* FindGroupByNameOrAlias(const TString& name) = 0;
 
     //! Returns "everyone" built-in group.
-    TGroup* GetEveryoneGroup();
+    virtual TGroup* GetEveryoneGroup() = 0;
 
     //! Returns "users" built-in group.
-    TGroup* GetUsersGroup();
+    virtual TGroup* GetUsersGroup() = 0;
 
     //! Returns "superusers" built-in group.
-    TGroup* GetSuperusersGroup();
+    virtual TGroup* GetSuperusersGroup() = 0;
 
 
     //! Returns subject with a given id (|nullptr| if none).
-    TSubject* FindSubject(TSubjectId id);
+    virtual TSubject* FindSubject(TSubjectId id) = 0;
 
     //! Finds subject by id, throws if nothing is found.
-    TSubject* GetSubjectOrThrow(TSubjectId id);
+    virtual TSubject* GetSubjectOrThrow(TSubjectId id) = 0;
 
     //! Returns subject (a user or a group) with a given name or alias (|nullptr| if none).
-    TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly);
+    virtual TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly) = 0;
 
     //! Returns subject (a user or a group) with a given name or alias (throws if none).
-    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly);
+    virtual TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly) = 0;
 
     //! Adds a new member into the group. Throws on failure.
-    void AddMember(TGroup* group, TSubject* member, bool ignoreExisting);
+    virtual void AddMember(TGroup* group, TSubject* member, bool ignoreExisting) = 0;
 
     //! Removes an existing member from the group. Throws on failure.
-    void RemoveMember(TGroup* group, TSubject* member, bool ignoreMissing);
+    virtual void RemoveMember(TGroup* group, TSubject* member, bool ignoreMissing) = 0;
 
 
     //! Updates the name of the subject.
-    void RenameSubject(TSubject* subject, const TString& newName);
+    virtual void RenameSubject(TSubject* subject, const TString& newName) = 0;
 
 
     //! Returns network project with a given name (|nullptr| if none).
-    TNetworkProject* FindNetworkProjectByName(const TString& name);
+    virtual TNetworkProject* FindNetworkProjectByName(const TString& name) = 0;
 
     //! Updates the name of the network project.
-    void RenameNetworkProject(TNetworkProject* networkProject, const TString& newName);
+    virtual void RenameNetworkProject(TNetworkProject* networkProject, const TString& newName) = 0;
 
 
     //! Returns a map from proxy role name to proxy role for proxy roles
     //! with a given proxy kind.
-    const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const;
+    virtual const THashMap<TString, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const = 0;
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
-    TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object);
+    virtual TAccessControlDescriptor* FindAcd(NObjectServer::TObject* object) = 0;
 
     //! Returns the object ACD. Fails if no ACD exists.
-    TAccessControlDescriptor* GetAcd(NObjectServer::TObject* object);
+    virtual TAccessControlDescriptor* GetAcd(NObjectServer::TObject* object) = 0;
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.
     //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
-    TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object);
+    virtual TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object) = 0;
 
     //! Sets the authenticated user.
-    void SetAuthenticatedUser(TUser* user);
+    virtual void SetAuthenticatedUser(TUser* user) = 0;
 
     //! Returns the current user; root if none is set.
-    TUser* GetAuthenticatedUser();
+    virtual TUser* GetAuthenticatedUser() = 0;
 
     //! Resets the authenticated user.
-    virtual void ResetAuthenticatedUser();
+    virtual void ResetAuthenticatedUser() = 0;
 
 
     //! Returns |true| if safe mode is active.
-    bool IsSafeMode();
+    virtual bool IsSafeMode() = 0;
 
 
     //! Checks if #object ACL allows access with #permission.
@@ -326,64 +323,64 @@ public:
      *  NB: All permission checked are suppressed (== always succeed)
      *  when invoked from a Hive mutation (unless this is a boomerang one).
      */
-    TPermissionCheckResponse CheckPermission(
+    virtual TPermissionCheckResponse CheckPermission(
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
-        TPermissionCheckOptions options = {});
+        TPermissionCheckOptions options = {}) = 0;
 
     //! Checks if given ACL allows access with #permission.
-    TPermissionCheckResponse CheckPermission(
+    virtual TPermissionCheckResponse CheckPermission(
         TUser* user,
         EPermission permission,
         const TAccessControlList& acl,
-        TPermissionCheckOptions options = {});
+        TPermissionCheckOptions options = {}) = 0;
 
     //! Checks if given user is a member of superusers group.
-    bool IsSuperuser(const TUser* user) const;
+    virtual bool IsSuperuser(const TUser* user) const = 0;
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
-    void ValidatePermission(
+    virtual void ValidatePermission(
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
-        TPermissionCheckOptions options = {});
+        TPermissionCheckOptions options = {}) = 0;
 
     //! Another overload that uses the current user.
-    void ValidatePermission(
+    virtual void ValidatePermission(
         NObjectServer::TObject* object,
         EPermission permission,
-        TPermissionCheckOptions options = {});
+        TPermissionCheckOptions options = {}) = 0;
 
     //! If #result is denying then logs a record into a security log and throw an exception.
-    void LogAndThrowAuthorizationError(
+    virtual void LogAndThrowAuthorizationError(
         const TPermissionCheckTarget& target,
         TUser* user,
         EPermission permission,
-        const TPermissionCheckResult& result);
+        const TPermissionCheckResult& result) = 0;
 
 
     //! Throws if account limit is exceeded for some resource type with positive delta.
     /*!
      *  If NHive::IsHiveMutation returns |true| then this check is suppressed.
      */
-    void ValidateResourceUsageIncrease(
+    virtual void ValidateResourceUsageIncrease(
         TAccount* account,
         const TClusterResources& delta,
-        bool allowRootAccount = false);
+        bool allowRootAccount = false) = 0;
 
     //! Throws if making #childAccount a child of #parentAccount would violate the invariants.
-    void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount);
+    virtual void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount) = 0;
 
     //! Sets the 'AllowChildrenLimitOvercommit' flag for the specified account.
     //! Throws if setting the flag would violate the invariants.
-    void SetAccountAllowChildrenLimitOvercommit(TAccount* account, bool overcommitAllowed);
+    virtual void SetAccountAllowChildrenLimitOvercommit(TAccount* account, bool overcommitAllowed) = 0;
 
     //! Sets or resets banned flag for a given user.
-    void SetUserBanned(TUser* user, bool banned);
+    virtual void SetUserBanned(TUser* user, bool banned) = 0;
 
     //! Checks if request handling is possible from a given user.
-    TError CheckUserAccess(TUser* user);
+    virtual TError CheckUserAccess(TUser* user) = 0;
 
     //! Called when some time has been spent processing user requests.
     /*
@@ -396,60 +393,52 @@ public:
      *
      * Also raises UserCharged signal.
      */
-    void ChargeUser(
+    virtual void ChargeUser(
         TUser* user,
-        const TUserWorkload& workload);
+        const TUserWorkload& workload) = 0;
 
     //! Enforces request rate limits.
-    TFuture<void> ThrottleUser(
+    virtual TFuture<void> ThrottleUser(
         TUser* user,
         int requestCount,
-        EUserWorkloadType workloadType);
+        EUserWorkloadType workloadType) = 0;
 
     //! Updates the user request rate limit.
-    void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type);
+    virtual void SetUserRequestRateLimit(TUser* user, int limit, EUserWorkloadType type) = 0;
 
     //! Updates the user request queue size limit.
-    void SetUserRequestQueueSizeLimit(TUser* user, int limit);
+    virtual void SetUserRequestQueueSizeLimit(TUser* user, int limit) = 0;
 
     //! Updates the user request limit options.
-    void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config);
+    virtual void SetUserRequestLimits(TUser* user, TUserRequestLimitsConfigPtr config) = 0;
 
     //! Attempts to increase the queue size for a given #user and validates the limit.
     //! Returns |true| on success.
-    bool TryIncreaseRequestQueueSize(TUser* user);
+    virtual bool TryIncreaseRequestQueueSize(TUser* user) = 0;
 
     //! Unconditionally decreases the queue size for a given #user.
-    void DecreaseRequestQueueSize(TUser* user);
+    virtual void DecreaseRequestQueueSize(TUser* user) = 0;
 
 
     //! Returns the interned security tags registry.
-    const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const;
+    virtual const TSecurityTagsRegistryPtr& GetSecurityTagsRegistry() const = 0;
 
 
     //! Raised each time #ChargeUser is called.
-    DECLARE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
+    DECLARE_INTERFACE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
     //! Set list of aliases for subject. Throws on failure.
-    void SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases);
+    virtual void SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases) = 0;
 
     //! Returns CPU profiler tag for a specific user.
-    NYTProf::TProfilerTagPtr GetUserCpuProfilerTag(TUser* user);
-
-private:
-    class TImpl;
-    class TAccountTypeHandler;
-    class TAccountResourceUsageLeaseTypeHandler;
-    class TUserTypeHandler;
-    class TGroupTypeHandler;
-    class TNetworkProjectTypeHandler;
-    class TProxyRoleTypeHandler;
-
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual NYTProf::TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TSecurityManager)
+DEFINE_REFCOUNTED_TYPE(ISecurityManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISecurityManagerPtr CreateSecurityManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

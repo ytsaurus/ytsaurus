@@ -59,6 +59,7 @@ template <class T>
 using TAccountChunkMergerNodeTraversalsPtr = NObjectServer::TObjectPtr<T, TAccountChunkMergerNodeTraversalsPtrContext>;
 
 DECLARE_REFCOUNTED_STRUCT(ISecurityManager)
+
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserQueueSizeLimitsOptions)
 DECLARE_REFCOUNTED_CLASS(TUserRequestLimitsConfig)
@@ -104,7 +105,6 @@ constexpr int AccountTreeDepthLimit = 10;
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicSecurityManagerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 DECLARE_REFCOUNTED_CLASS(TRequestTracker)
 
 DEFINE_ENUM(EAccessControlEvent,

@@ -101,7 +101,7 @@ void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
 void Deserialize(
     TAccessControlList& acl,
     const INodePtr& node,
-    const TSecurityManagerPtr& securityManager,
+    const ISecurityManagerPtr& securityManager,
     std::vector<TString>* missingSubjects)
 {
     auto serializableAcl = ConvertTo<TSerializableAccessControlList>(node);

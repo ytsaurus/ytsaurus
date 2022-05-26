@@ -39,7 +39,7 @@ public:
         TCypressManagerPtr cypressManager,
         TTransactionManagerPtr transactionManager,
         IObjectManagerPtr objectManager,
-        TSecurityManagerPtr securityManager,
+        ISecurityManagerPtr securityManager,
         IInvokerPtr invoker,
         ICypressNodeVisitorPtr visitor,
         TCypressNode* trunkRootNode,
@@ -69,7 +69,7 @@ private:
     const TCypressManagerPtr CypressManager_;
     const TTransactionManagerPtr TransactionManager_;
     const IObjectManagerPtr ObjectManager_;
-    const TSecurityManagerPtr SecurityManager_;
+    const ISecurityManagerPtr SecurityManager_;
     const IInvokerPtr Invoker_;
     const ICypressNodeVisitorPtr Visitor_;
     const TEphemeralObjectPtr<TTransaction> Transaction_;
@@ -194,7 +194,7 @@ void TraverseCypress(
     TCypressManagerPtr cypressManager,
     TTransactionManagerPtr transactionManager,
     IObjectManagerPtr objectManager,
-    TSecurityManagerPtr securityManager,
+    ISecurityManagerPtr securityManager,
     IInvokerPtr invoker,
     TCypressNode* trunkRootNode,
     TTransaction* transaction,
