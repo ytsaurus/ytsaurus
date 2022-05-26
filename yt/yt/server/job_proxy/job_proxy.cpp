@@ -334,11 +334,12 @@ static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
 
     for (auto& dataSource : dataSourceDirectory->DataSources()) {
         if (!dataSource.Schema()) {
-            continue;
+            dataSource.Schema() = New<NTableClient::TTableSchema>();
+        } else {
+            dataSource.Schema() = SetStableNames(
+                dataSource.Schema(),
+                dataSource.ColumnRenameDescriptors());
         }
-        dataSource.Schema() = SetStableNames(
-            dataSource.Schema(),
-            dataSource.ColumnRenameDescriptors());
     }
 
     NChunkClient::NProto::TDataSourceDirectoryExt newExt;
