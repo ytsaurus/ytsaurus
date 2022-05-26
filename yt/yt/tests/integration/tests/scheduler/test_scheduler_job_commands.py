@@ -27,7 +27,7 @@ class TestJobProber(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "node_shard_count": 1
+            "node_shard_count": 1,
         }
     }
 
@@ -371,6 +371,15 @@ class TestJobProber(YTEnvSetup):
             return True
 
         wait(check)
+
+
+class TestJobProbeWithInterruptionsHandledByScheduler(TestJobProber):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_shard_count": 1,
+            "handle_interruption_on_node": False,
+        }
+    }
 
 
 ##################################################################

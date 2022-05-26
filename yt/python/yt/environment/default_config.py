@@ -182,6 +182,8 @@ def get_scheduler_config():
             heartbeat_timeout = 10000;
             enable_response_keeper = %true;
         };
+        handle_interruption_on_node = %true;
+        check_nodes_with_unsupported_interruption_period = 1000;
     };
 }
 """)

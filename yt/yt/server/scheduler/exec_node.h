@@ -125,6 +125,8 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, InfinibandCluster);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, SupportsInterruptionLogic, false);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

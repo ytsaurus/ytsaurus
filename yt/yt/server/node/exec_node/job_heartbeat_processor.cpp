@@ -193,6 +193,8 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
     }
 
+    request->set_supports_interruption_logic(true);
+
     if (shouldSendControllerAgentHeartbeatsOutOfBand) {
         Bootstrap_
             ->GetExecNodeBootstrap()

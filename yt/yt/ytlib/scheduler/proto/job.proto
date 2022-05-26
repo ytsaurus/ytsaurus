@@ -344,6 +344,8 @@ message TSchedulerJobSpecExt
     optional NYT.NYTree.NProto.TAttributeDictionary io_tags = 32;
 
     optional NYT.NProto.TGuid probing_job_competition_id = 33;
+
+    optional bool interruptible = 34;
 }
 
 message TSchedulerJobResultExt

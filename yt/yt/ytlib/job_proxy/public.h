@@ -16,6 +16,8 @@ YT_DEFINE_ERROR_ENUM(
     ((UserJobProducedCoreFiles)  (1206))
     ((ShallowMergeFailed)        (1207))
     ((JobNotRunning)             (1208))
+    ((InterruptionUnsupported)   (1209))
+    ((InterruptionTimeout)       (1210))
 );
 
 DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper)

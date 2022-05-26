@@ -110,6 +110,7 @@ DEFINE_ENUM(EAbortReason,
     ((ProbingRunLost)                  ( 32))
     ((ProbingToUnsuccessfulJob)        ( 33))
     ((JobProxyFailed)                  ( 34))
+    ((InterruptionTimeout)             ( 35))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

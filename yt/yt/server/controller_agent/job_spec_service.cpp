@@ -58,6 +58,7 @@ private:
         controllerAgent->ValidateConnected();
 
         std::vector<TJobSpecRequest> jobSpecRequests;
+        jobSpecRequests.reserve(request->requests_size());
         for (const auto& jobSpecRequest : request->requests()) {
             jobSpecRequests.emplace_back(TJobSpecRequest{
                 FromProto<TOperationId>(jobSpecRequest.operation_id()),
@@ -80,7 +81,7 @@ private:
                     const auto& subresponse = results[index];
                     auto* protoSubresponse = response->add_responses();
                     if (subresponse.IsOK() && subresponse.Value()) {
-                        jobSpecs.push_back(subresponse.Value());
+                        jobSpecs.push_back(std::move(subresponse.Value()));
                     } else {
                         jobSpecs.emplace_back();
                         auto error = !subresponse.IsOK()
