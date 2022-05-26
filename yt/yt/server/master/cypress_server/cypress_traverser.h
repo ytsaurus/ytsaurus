@@ -29,7 +29,7 @@ struct ICypressNodeVisitor
 DEFINE_REFCOUNTED_TYPE(ICypressNodeVisitor)
 
 void TraverseCypress(
-    TCypressManagerPtr cypressManager,
+    ICypressManagerPtr cypressManager,
     NTransactionServer::TTransactionManagerPtr transactionManager,
     NObjectServer::IObjectManagerPtr objectManager,
     NSecurityServer::ISecurityManagerPtr securityManager,

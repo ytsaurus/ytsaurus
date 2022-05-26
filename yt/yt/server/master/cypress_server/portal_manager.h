@@ -12,36 +12,32 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortalManager
-    : public TRefCounted
+struct IPortalManager
+    : public virtual TRefCounted
 {
 public:
-    explicit TPortalManager(NCellMaster::TBootstrap* bootstrap);
+    virtual void Initialize() = 0;
 
-    void Initialize();
-
-    ~TPortalManager();
-
-    void RegisterEntranceNode(
+    virtual void RegisterEntranceNode(
         TPortalEntranceNode* node,
         const NYTree::IAttributeDictionary& inheritedAttributes,
-        const NYTree::IAttributeDictionary& explicitAttributes);
-    void DestroyEntranceNode(TPortalEntranceNode* trunkNode);
+        const NYTree::IAttributeDictionary& explicitAttributes) = 0;
+    virtual void DestroyEntranceNode(TPortalEntranceNode* trunkNode) = 0;
 
-    void DestroyExitNode(TPortalExitNode* trunkNode);
+    virtual void DestroyExitNode(TPortalExitNode* trunkNode) = 0;
 
     using TEntranceNodeMap = THashMap<TNodeId, TPortalEntranceNode*>;
-    DECLARE_BYREF_RO_PROPERTY(TEntranceNodeMap, EntranceNodes);
+    virtual const TEntranceNodeMap& GetEntranceNodes() = 0;
 
     using TExitNodeMap = THashMap<TNodeId, TPortalExitNode*>;
-    DECLARE_BYREF_RO_PROPERTY(TExitNodeMap, ExitNodes);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual const TExitNodeMap& GetExitNodes() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPortalManager)
+DEFINE_REFCOUNTED_TYPE(IPortalManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IPortalManagerPtr CreatePortalManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

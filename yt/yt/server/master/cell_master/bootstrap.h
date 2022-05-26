@@ -111,8 +111,8 @@ public:
     const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
     const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
-    const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
-    const NCypressServer::TPortalManagerPtr& GetPortalManager() const;
+    const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
+    const NCypressServer::IPortalManagerPtr& GetPortalManager() const;
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
@@ -181,8 +181,8 @@ protected:
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     NHiveServer::ITransactionSupervisorPtr TransactionSupervisor_;
-    NCypressServer::TCypressManagerPtr CypressManager_;
-    NCypressServer::TPortalManagerPtr PortalManager_;
+    NCypressServer::ICypressManagerPtr CypressManager_;
+    NCypressServer::IPortalManagerPtr PortalManager_;
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
     IWorldInitializerPtr WorldInitializer_;
