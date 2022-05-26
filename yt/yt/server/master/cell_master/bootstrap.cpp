@@ -840,7 +840,7 @@ void TBootstrap::DoInitialize()
     // Cf. TConfigManager::Initialize.
     ConfigManager_->Initialize();
 
-    CellDirectorySynchronizer_ = New<NHiveServer::TCellDirectorySynchronizer>(
+    CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
         Config_->CellDirectorySynchronizer,
         CellDirectory_,
         TamedCellManager_,
