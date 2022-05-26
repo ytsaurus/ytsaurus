@@ -17,37 +17,34 @@ namespace NYT::NTableServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TTableManager
-    : public TRefCounted
+struct ITableManager
+    : public virtual TRefCounted
 {
 public:
-    explicit TTableManager(NCellMaster::TBootstrap* bootstrap);
-    ~TTableManager() override;
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
+    DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
 
-    DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
-    DECLARE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
+    virtual void Initialize() = 0;
 
-    void Initialize();
-
-    void ScheduleStatisticsUpdate(
+    virtual void ScheduleStatisticsUpdate(
         NChunkServer::TChunkOwnerBase* chunkOwner,
         bool updateDataStatistics = true,
         bool updateTabletStatistics = true,
-        bool useNativeContentRevisionCas = false);
+        bool useNativeContentRevisionCas = false) = 0;
 
-    void SendStatisticsUpdate(
+    virtual void SendStatisticsUpdate(
         NChunkServer::TChunkOwnerBase* chunkOwner,
-        bool useNativeContentRevisionCas = false);
+        bool useNativeContentRevisionCas = false) = 0;
 
     //! Looks up a table by id. Throws if no such table exists.
-    TTableNode* GetTableNodeOrThrow(TTableId id);
+    virtual TTableNode* GetTableNodeOrThrow(TTableId id) = 0;
 
     //! Looks up a master table schema by id. Throws if no such schema exists.
-    TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id);
+    virtual TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id) = 0;
 
     //! Looks up a table schema. Returns an existing schema object or nullptr if
     //! no such schema exists. This is the means of schema deduplication.
-    TMasterTableSchema* FindMasterTableSchema(const NTableClient::TTableSchema& schema) const;
+    virtual TMasterTableSchema* FindMasterTableSchema(const NTableClient::TTableSchema& schema) const = 0;
 
     //! Looks up a schema or creates one if no such schema exists.
     /*!
@@ -56,68 +53,64 @@ public:
      *
      *  NB: This is the means of schema deduplication.
      */
-    TMasterTableSchema* GetOrCreateMasterTableSchema(
+    virtual TMasterTableSchema* GetOrCreateMasterTableSchema(
         const NTableClient::TTableSchema& schema,
-        ISchemafulNode* schemaHolder);
+        ISchemafulNode* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a transaction instead
     //! of a table.
-    TMasterTableSchema* GetOrCreateMasterTableSchema(
+    virtual TMasterTableSchema* GetOrCreateMasterTableSchema(
         const NTableClient::TTableSchema& schema,
-        NTransactionServer::TTransaction* schemaHolder);
+        NTransactionServer::TTransaction* schemaHolder) = 0;
 
     //! Creates a new schema object with a specified ID.
     //! The object will be free-floating and will have zero refcounter.
     // COMPAT(shakurov)
-    TMasterTableSchema* CreateMasterTableSchemaUnsafely(
+    virtual TMasterTableSchema* CreateMasterTableSchemaUnsafely(
         TMasterTableSchemaId schemaId,
-        const NTableClient::TTableSchema& schema);
+        const NTableClient::TTableSchema& schema) = 0;
 
     // For loading from snapshot.
-    TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
+    virtual TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
         TMasterTableSchema* schema,
-        NTableClient::TTableSchema tableSchema);
+        NTableClient::TTableSchema tableSchema) = 0;
 
-    TMasterTableSchema* GetEmptyMasterTableSchema();
+    virtual TMasterTableSchema* GetEmptyMasterTableSchema() = 0;
 
     // COMPAT(shakurov)
-    TMasterTableSchema* GetOrCreateEmptyMasterTableSchema();
+    virtual TMasterTableSchema* GetOrCreateEmptyMasterTableSchema() = 0;
 
-    void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema);
-    void ResetTableSchema(ISchemafulNode* table);
+    virtual void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema) = 0;
+    virtual void ResetTableSchema(ISchemafulNode* table) = 0;
 
     //! Table collocation management.
-    TTableCollocation* CreateTableCollocation(
+    virtual TTableCollocation* CreateTableCollocation(
         NObjectClient::TObjectId hintId,
         ETableCollocationType type,
-        THashSet<TTableNode*> collocatedTables);
-    void ZombifyTableCollocation(TTableCollocation* collocation);
-    void AddTableToCollocation(TTableNode* table, TTableCollocation* collocation);
-    void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation);
-    TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const;
+        THashSet<TTableNode*> collocatedTables) = 0;
+    virtual void ZombifyTableCollocation(TTableCollocation* collocation) = 0;
+    virtual void AddTableToCollocation(TTableNode* table, TTableCollocation* collocation) = 0;
+    virtual void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation) = 0;
+    virtual TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const = 0;
 
     // Queue agent object management.
 
-    const THashSet<TTableNode*>& GetQueues() const;
-    void RegisterQueue(TTableNode* node);
-    void UnregisterQueue(TTableNode* node);
+    virtual const THashSet<TTableNode*>& GetQueues() const = 0;
+    virtual void RegisterQueue(TTableNode* node) = 0;
+    virtual void UnregisterQueue(TTableNode* node) = 0;
 
-    const THashSet<TTableNode*>& GetConsumers() const;
-    void RegisterConsumer(TTableNode* node);
-    void UnregisterConsumer(TTableNode* node);
+    virtual const THashSet<TTableNode*>& GetConsumers() const = 0;
+    virtual void RegisterConsumer(TTableNode* node) = 0;
+    virtual void UnregisterConsumer(TTableNode* node) = 0;
 
-    TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const;
-
-private:
-    class TImpl;
-    class TMasterTableSchemaTypeHandler;
-
-    const TIntrusivePtr<TImpl> Impl_;
-
-    friend class TMasterTableSchema;
+    virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableManager)
+DEFINE_REFCOUNTED_TYPE(ITableManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITableManagerPtr CreateTableManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

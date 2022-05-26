@@ -40,7 +40,6 @@
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
-
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NConcurrency;
@@ -64,11 +63,14 @@ static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableManager::TMasterTableSchemaTypeHandler
+class TTableManager;
+
+////////////////////////////////////////////////////////////////////////////////
+class TMasterTableSchemaTypeHandler
     : public TObjectTypeHandlerWithMapBase<TMasterTableSchema>
 {
 public:
-    explicit TMasterTableSchemaTypeHandler(TImpl* owner);
+    explicit TMasterTableSchemaTypeHandler(TTableManager* owner);
 
     ETypeFlags GetFlags() const override
     {
@@ -86,7 +88,7 @@ public:
         IAttributeDictionary* attributes) override;
 
 private:
-    TImpl* const Owner_;
+    TTableManager* const Owner_;
 
     IObjectProxyPtr DoGetProxy(TMasterTableSchema* user, TTransaction* transaction) override;
 
@@ -95,12 +97,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableManager::TImpl
-    : public TMasterAutomatonPart
+class TTableManager
+    : public ITableManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TableManager)
+    explicit TTableManager(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TableManager)
         , StatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
             TableServerLogger,
@@ -108,24 +111,24 @@ public:
     {
         RegisterLoader(
             "TableManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TTableManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TableManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TTableManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TableManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TTableManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TableManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TTableManager::SaveValues, Unretained(this)));
 
         // COMPAT(shakurov, gritukan)
-        RegisterMethod(BIND(&TImpl::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
-        RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
-        RegisterMethod(BIND(&TImpl::HydraNotifyContentRevisionCasFailed, Unretained(this)));
+        RegisterMethod(BIND(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
+        RegisterMethod(BIND(&TTableManager::HydraUpdateTableStatistics, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqUpdateTableStatistics"});
+        RegisterMethod(BIND(&TTableManager::HydraNotifyContentRevisionCasFailed, Unretained(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
@@ -135,10 +138,10 @@ public:
         EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TTableManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 
@@ -146,7 +149,7 @@ public:
         TChunkOwnerBase* chunkOwner,
         bool updateDataStatistics,
         bool updateTabletStatistics,
-        bool useNativeContentRevisionCas)
+        bool useNativeContentRevisionCas) override
     {
         YT_ASSERT(!updateTabletStatistics || IsTableType(chunkOwner->GetType()));
 
@@ -169,7 +172,7 @@ public:
 
     void SendStatisticsUpdate(
         TChunkOwnerBase* chunkOwner,
-        bool useNativeContentRevisionCas)
+        bool useNativeContentRevisionCas) override
     {
         if (chunkOwner->IsNative()) {
             return;
@@ -202,11 +205,11 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(MasterTableSchema, TMasterTableSchema);
-    DECLARE_ENTITY_MAP_ACCESSORS(TableCollocation, TTableCollocation);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(MasterTableSchema, TMasterTableSchema);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TableCollocation, TTableCollocation);
 
 
-    TTableNode* GetTableNodeOrThrow(TTableId id)
+    TTableNode* GetTableNodeOrThrow(TTableId id) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(id);
@@ -225,14 +228,14 @@ public:
         return object->As<TTableNode>();
     }
 
-    TMasterTableSchema* GetEmptyMasterTableSchema()
+    TMasterTableSchema* GetEmptyMasterTableSchema() override
     {
         YT_VERIFY(EmptyMasterTableSchema_);
         return EmptyMasterTableSchema_;
     }
 
     // COMPAT(shakurov)
-    TMasterTableSchema* GetOrCreateEmptyMasterTableSchema()
+    TMasterTableSchema* GetOrCreateEmptyMasterTableSchema() override
     {
         // Right now this may be called during compat-loading table nodes, which
         // precedes initialization of builtins by OnAfterSnapshotLoaded.
@@ -240,7 +243,7 @@ public:
         return GetEmptyMasterTableSchema();
     }
 
-    void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema)
+    void SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema) override
     {
         if (!schema) {
             // During cross-shard copying of an opaque table, it is materialized
@@ -268,7 +271,7 @@ public:
         securityManager->UpdateMasterMemoryUsage(schema, tableAccount);
     }
 
-    void ResetTableSchema(ISchemafulNode* table)
+    void ResetTableSchema(ISchemafulNode* table) override
     {
         auto* oldSchema = table->GetSchema();
         if (!oldSchema) {
@@ -286,7 +289,7 @@ public:
         objectManager->UnrefObject(oldSchema);
     }
 
-    TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id)
+    TMasterTableSchema* GetMasterTableSchemaOrThrow(TMasterTableSchemaId id) override
     {
         auto* schema = FindMasterTableSchema(id);
         if (!IsObjectAlive(schema)) {
@@ -299,7 +302,7 @@ public:
         return schema;
     }
 
-    TMasterTableSchema* FindMasterTableSchema(const TTableSchema& tableSchema) const
+    TMasterTableSchema* FindMasterTableSchema(const TTableSchema& tableSchema) const override
     {
         auto it = TableSchemaToObjectMap_.find(tableSchema);
         return it != TableSchemaToObjectMap_.end()
@@ -307,7 +310,7 @@ public:
             : nullptr;
     }
 
-    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, ISchemafulNode* schemaHolder)
+    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, ISchemafulNode* schemaHolder) override
     {
         auto* schema = DoGetOrCreateMasterTableSchema(tableSchema);
         SetTableSchema(schemaHolder, schema);
@@ -315,7 +318,7 @@ public:
         return schema;
     }
 
-    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, TTransaction* schemaHolder)
+    TMasterTableSchema* GetOrCreateMasterTableSchema(const TTableSchema& tableSchema, TTransaction* schemaHolder) override
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
 
@@ -340,7 +343,7 @@ public:
 
     TMasterTableSchema* CreateMasterTableSchemaUnsafely(
         TMasterTableSchemaId tableSchemaId,
-        const TTableSchema& tableSchema)
+        const TTableSchema& tableSchema) override
     {
         // During compat-migration, Create...Unsafely should only be called once per unique schema.
         YT_VERIFY(!FindMasterTableSchema(tableSchema));
@@ -397,7 +400,7 @@ public:
 
     TMasterTableSchema::TTableSchemaToObjectMapIterator RegisterSchema(
         TMasterTableSchema* schema,
-        TTableSchema tableSchema)
+        TTableSchema tableSchema) override
     {
         YT_VERIFY(IsObjectAlive(schema));
         auto sharedTableSchema = New<TTableSchema>(std::move(tableSchema));
@@ -409,7 +412,7 @@ public:
     TTableCollocation* CreateTableCollocation(
         TObjectId hintId,
         ETableCollocationType type,
-        THashSet<TTableNode*> collocatedTables)
+        THashSet<TTableNode*> collocatedTables) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -497,7 +500,7 @@ public:
         return collocation;
     }
 
-    void ZombifyTableCollocation(TTableCollocation* collocation)
+    void ZombifyTableCollocation(TTableCollocation* collocation) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -522,7 +525,7 @@ public:
 
     void AddTableToCollocation(
         TTableNode* table,
-        TTableCollocation* collocation)
+        TTableCollocation* collocation) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -599,7 +602,7 @@ public:
             collocation->Tables().size());
     }
 
-    void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation)
+    void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -639,7 +642,7 @@ public:
         }
     }
 
-    TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const
+    TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const override
     {
         auto* collocation = FindTableCollocation(id);
         if (!IsObjectAlive(collocation)) {
@@ -652,14 +655,14 @@ public:
         return collocation;
     }
 
-    const THashSet<TTableNode*>& GetQueues() const
+    const THashSet<TTableNode*>& GetQueues() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return Queues_;
     }
 
-    void RegisterQueue(TTableNode* node)
+    void RegisterQueue(TTableNode* node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -673,7 +676,7 @@ public:
         }
     }
 
-    void UnregisterQueue(TTableNode* node)
+    void UnregisterQueue(TTableNode* node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -687,14 +690,14 @@ public:
         }
     }
 
-    const THashSet<TTableNode*>& GetConsumers() const
+    const THashSet<TTableNode*>& GetConsumers() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return Consumers_;
     }
 
-    void RegisterConsumer(TTableNode* node)
+    void RegisterConsumer(TTableNode* node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -708,7 +711,7 @@ public:
         }
     }
 
-    void UnregisterConsumer(TTableNode* node)
+    void UnregisterConsumer(TTableNode* node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
@@ -722,7 +725,7 @@ public:
         }
     }
 
-    TFuture<TYsonString> GetQueueAgentObjectRevisionsAsync() const
+    TFuture<TYsonString> GetQueueAgentObjectRevisionsAsync() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -880,7 +883,7 @@ private:
         if (multicellManager->IsSecondaryMaster()) {
             StatisticsGossipExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-                BIND(&TImpl::OnStatisticsGossip, MakeWeak(this)),
+                BIND(&TTableManager::OnStatisticsGossip, MakeWeak(this)),
                 gossipConfig->TableStatisticsGossipPeriod);
             StatisticsGossipExecutor_->Start();
         }
@@ -1233,36 +1236,36 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTableManager::TImpl, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TTableManager::TImpl, TableCollocation, TTableCollocation, TableCollocationMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, TableCollocation, TTableCollocation, TableCollocationMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TTableSchema TTableManager::TImpl::EmptyTableSchema;
-const NYson::TYsonString TTableManager::TImpl::EmptyYsonTableSchema = BuildYsonStringFluently().Value(EmptyTableSchema);
+const TTableSchema TTableManager::EmptyTableSchema;
+const NYson::TYsonString TTableManager::EmptyYsonTableSchema = BuildYsonStringFluently().Value(EmptyTableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableManager::TMasterTableSchemaTypeHandler::TMasterTableSchemaTypeHandler(TImpl* owner)
+TMasterTableSchemaTypeHandler::TMasterTableSchemaTypeHandler(TTableManager* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->MasterTableSchemaMap_)
     , Owner_(owner)
 { }
 
-TObject* TTableManager::TMasterTableSchemaTypeHandler::CreateObject(
+TObject* TMasterTableSchemaTypeHandler::CreateObject(
     TObjectId /*hintId*/,
     IAttributeDictionary* /*attributes*/)
 {
     THROW_ERROR_EXCEPTION("%Qv objects cannot be created manually", EObjectType::MasterTableSchema);
 }
 
-IObjectProxyPtr TTableManager::TMasterTableSchemaTypeHandler::DoGetProxy(
+IObjectProxyPtr TMasterTableSchemaTypeHandler::DoGetProxy(
     TMasterTableSchema* schema,
     TTransaction* /*transaction*/)
 {
     return CreateMasterTableSchemaProxy(Owner_->Bootstrap_, &Metadata_, schema);
 }
 
-void TTableManager::TMasterTableSchemaTypeHandler::DoZombifyObject(TMasterTableSchema* schema)
+void TMasterTableSchemaTypeHandler::DoZombifyObject(TMasterTableSchema* schema)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(schema);
     Owner_->ZombifyMasterTableSchema(schema);
@@ -1270,167 +1273,10 @@ void TTableManager::TMasterTableSchemaTypeHandler::DoZombifyObject(TMasterTableS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableManager::TTableManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTableManager::~TTableManager() = default;
-
-void TTableManager::Initialize()
+ITableManagerPtr CreateTableManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TTableManager>(bootstrap);
 }
-
-void TTableManager::ScheduleStatisticsUpdate(
-    TChunkOwnerBase* chunkOwner,
-    bool updateDataStatistics,
-    bool updateTabletStatistics,
-    bool useNativeContentRevisionCas)
-{
-    Impl_->ScheduleStatisticsUpdate(
-        chunkOwner,
-        updateDataStatistics,
-        updateTabletStatistics,
-        useNativeContentRevisionCas);
-}
-
-void TTableManager::SendStatisticsUpdate(
-    TChunkOwnerBase* chunkOwner,
-    bool useNativeContentRevisionCas)
-{
-    Impl_->SendStatisticsUpdate(chunkOwner, useNativeContentRevisionCas);
-}
-
-TTableNode* TTableManager::GetTableNodeOrThrow(TTableId id)
-{
-    return Impl_->GetTableNodeOrThrow(id);
-}
-
-TMasterTableSchema* TTableManager::GetMasterTableSchemaOrThrow(TMasterTableSchemaId id)
-{
-    return Impl_->GetMasterTableSchemaOrThrow(id);
-}
-
-TMasterTableSchema* TTableManager::FindMasterTableSchema(const TTableSchema& tableSchema) const
-{
-    return Impl_->FindMasterTableSchema(tableSchema);
-}
-
-TMasterTableSchema* TTableManager::GetOrCreateMasterTableSchema(
-    const TTableSchema& schema,
-    ISchemafulNode* schemaHolder)
-{
-    return Impl_->GetOrCreateMasterTableSchema(schema, schemaHolder);
-}
-
-TMasterTableSchema* TTableManager::GetOrCreateMasterTableSchema(
-    const TTableSchema& schema,
-    TTransaction* schemaHolder)
-{
-    return Impl_->GetOrCreateMasterTableSchema(schema, schemaHolder);
-}
-
-TMasterTableSchema* TTableManager::CreateMasterTableSchemaUnsafely(
-    TMasterTableSchemaId schemaId,
-    const TTableSchema& schema)
-{
-    return Impl_->CreateMasterTableSchemaUnsafely(schemaId, schema);
-}
-
-TMasterTableSchema* TTableManager::GetEmptyMasterTableSchema()
-{
-    return Impl_->GetEmptyMasterTableSchema();
-}
-
-TMasterTableSchema* TTableManager::GetOrCreateEmptyMasterTableSchema()
-{
-    return Impl_->GetOrCreateEmptyMasterTableSchema();
-}
-
-TMasterTableSchema::TTableSchemaToObjectMapIterator TTableManager::RegisterSchema(
-    TMasterTableSchema* schema,
-    TTableSchema tableSchema)
-{
-    return Impl_->RegisterSchema(schema, std::move(tableSchema));
-}
-
-void TTableManager::SetTableSchema(ISchemafulNode* table, TMasterTableSchema* schema)
-{
-    return Impl_->SetTableSchema(table, schema);
-}
-
-void TTableManager::ResetTableSchema(ISchemafulNode* table)
-{
-    return Impl_->ResetTableSchema(table);
-}
-
-TTableCollocation* TTableManager::CreateTableCollocation(
-    TObjectId hintId,
-    ETableCollocationType type,
-    THashSet<TTableNode*> collocatedTables)
-{
-    return Impl_->CreateTableCollocation(hintId, type, std::move(collocatedTables));
-}
-
-void TTableManager::ZombifyTableCollocation(TTableCollocation* collocation)
-{
-    Impl_->ZombifyTableCollocation(collocation);
-}
-
-void TTableManager::AddTableToCollocation(
-    TTableNode* table,
-    TTableCollocation* collocation)
-{
-    Impl_->AddTableToCollocation(table, collocation);
-}
-
-void TTableManager::RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation)
-{
-    Impl_->RemoveTableFromCollocation(table, collocation);
-}
-
-TTableCollocation* TTableManager::GetTableCollocationOrThrow(TTableCollocationId id) const
-{
-    return Impl_->GetTableCollocationOrThrow(id);
-}
-
-const THashSet<TTableNode*>& TTableManager::GetQueues() const
-{
-    return Impl_->GetQueues();
-}
-
-void TTableManager::RegisterQueue(TTableNode* node)
-{
-    Impl_->RegisterQueue(node);
-}
-
-void TTableManager::UnregisterQueue(TTableNode* node)
-{
-    Impl_->UnregisterQueue(node);
-}
-
-const THashSet<TTableNode*>& TTableManager::GetConsumers() const
-{
-    return Impl_->GetConsumers();
-}
-
-void TTableManager::RegisterConsumer(TTableNode* node)
-{
-    Impl_->RegisterConsumer(node);
-}
-
-void TTableManager::UnregisterConsumer(TTableNode* node)
-{
-    Impl_->UnregisterConsumer(node);
-}
-
-TFuture<NYson::TYsonString> TTableManager::GetQueueAgentObjectRevisionsAsync() const
-{
-    return Impl_->GetQueueAgentObjectRevisionsAsync();
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TTableManager, TableCollocation, TTableCollocation, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
