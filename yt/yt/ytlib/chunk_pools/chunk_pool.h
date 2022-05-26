@@ -4,11 +4,9 @@
 #include "chunk_stripe.h"
 #include "chunk_stripe_key.h"
 
-#include <yt/yt/server/lib/chunk_pools/public.h>
-
-#include <yt/yt/server/lib/controller_agent/public.h>
-
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/core/actions/signal.h>
 
