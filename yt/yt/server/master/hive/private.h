@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/lib/hive/private.h>
 
 namespace NYT::NHiveServer {

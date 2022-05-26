@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/journal_server/public.h>
 
+#include <yt/yt/server/master/hive/public.h>
+
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/master/object_server/public.h>
@@ -202,7 +204,7 @@ protected:
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
     NHiveServer::THiveManagerPtr HiveManager_;
     NHiveClient::ICellDirectoryPtr CellDirectory_;
-    NHiveServer::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    NHiveServer::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     ICoreDumperPtr CoreDumper_;
     NConcurrency::TActionQueuePtr DiscoveryQueue_;

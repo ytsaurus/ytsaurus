@@ -1,4 +1,5 @@
 #include "cell_directory_synchronizer.h"
+
 #include "private.h"
 
 #include <yt/yt/server/lib/hive/config.h>
@@ -34,11 +35,11 @@ static const auto& Logger = HiveServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizer::TImpl
-    : public TRefCounted
+class TCellDirectorySynchronizer
+    : public ICellDirectorySynchronizer
 {
 public:
-    TImpl(
+    TCellDirectorySynchronizer(
         TCellDirectorySynchronizerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
         ITamedCellManagerPtr cellManager,
@@ -50,16 +51,16 @@ public:
         , HydraManager_(std::move(hydraManager))
         , SyncExecutor_(New<TPeriodicExecutor>(
             std::move(automatonInvoker),
-            BIND(&TImpl::OnSync, MakeWeak(this)),
+            BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
 
-    void Start()
+    void Start() override
     {
         SyncExecutor_->Start();
     }
 
-    void Stop()
+    void Stop() override
     {
         SyncExecutor_->Stop();
     }
@@ -117,32 +118,23 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellDirectorySynchronizer::TCellDirectorySynchronizer(
+ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
     TCellDirectorySynchronizerConfigPtr config,
-    ICellDirectoryPtr cellDirectory,
-    ITamedCellManagerPtr cellManager,
-    IHydraManagerPtr hydraManager,
+    NHiveClient::ICellDirectoryPtr cellDirectory,
+    NCellServer::ITamedCellManagerPtr cellManager,
+    NHydra::IHydraManagerPtr hydraManager,
     IInvokerPtr automatonInvoker)
-    : Impl_(New<TImpl>(
+{
+    return New<TCellDirectorySynchronizer>(
         std::move(config),
         std::move(cellDirectory),
         std::move(cellManager),
         std::move(hydraManager),
-        std::move(automatonInvoker)))
-{ }
-
-TCellDirectorySynchronizer::~TCellDirectorySynchronizer() = default;
-
-void TCellDirectorySynchronizer::Start()
-{
-    Impl_->Start();
-}
-
-void TCellDirectorySynchronizer::Stop()
-{
-    Impl_->Stop();
+        std::move(automatonInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

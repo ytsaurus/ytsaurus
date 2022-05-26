@@ -14,28 +14,23 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizer
+struct ICellDirectorySynchronizer
     : public TRefCounted
 {
-public:
-    TCellDirectorySynchronizer(
-        TCellDirectorySynchronizerConfigPtr config,
-        NHiveClient::ICellDirectoryPtr cellDirectory,
-        NCellServer::ITamedCellManagerPtr cellManager,
-        NHydra::IHydraManagerPtr hydraManager,
-        IInvokerPtr automatonInvoker);
-    ~TCellDirectorySynchronizer();
-
-    void Start();
-    void Stop();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizer)
+DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellDirectorySynchronizerPtr CreateCellDirectorySynchronizer(
+    TCellDirectorySynchronizerConfigPtr config,
+    NHiveClient::ICellDirectoryPtr cellDirectory,
+    NCellServer::ITamedCellManagerPtr cellManager,
+    NHydra::IHydraManagerPtr hydraManager,
+    IInvokerPtr automatonInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
