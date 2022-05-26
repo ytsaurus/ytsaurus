@@ -35,7 +35,8 @@ def get_clique_spec_builder(instance_count,
                             stderr_file=None,
                             max_instance_count=None,
                             spec=None,
-                            client=None):
+                            client=None,
+                            ytserver_readiness_timeout=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
     :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
@@ -125,7 +126,8 @@ def get_clique_spec_builder(instance_count,
     if stderr_file:
         args += ["--stderr-file", stderr_file]
 
-    args += ["--readiness-timeout", "40"]
+    if ytserver_readiness_timeout is not None:
+        args += ["--readiness-timeout", str(ytserver_readiness_timeout)]
 
     trampoline_command = " ".join(args)
 
