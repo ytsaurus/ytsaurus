@@ -1631,7 +1631,7 @@ private:
     const TString UserName_;
     const IInvokerPtr Invoker_;
 
-    static const IInvokerPtr CreateInvoker(const THydraFacadePtr& hydraFacade, EAutomatonThreadQueue threadQueue)
+    static const IInvokerPtr CreateInvoker(const IHydraFacadePtr& hydraFacade, EAutomatonThreadQueue threadQueue)
     {
         return hydraFacade->IsAutomatonLocked()
             ? hydraFacade->CreateEpochInvoker(GetCurrentInvoker())

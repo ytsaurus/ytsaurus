@@ -1,4 +1,5 @@
 #include "world_initializer.h"
+
 #include "private.h"
 #include "config.h"
 #include "hydra_facade.h"
@@ -64,39 +65,33 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWorldInitializer::TImpl
-    : public TRefCounted
+class TWorldInitializer
+    : public IWorldInitializer
 {
 public:
-    TImpl(
-        TCellMasterConfigPtr config,
-        TBootstrap* bootstrap)
-        : Config_(config)
+    TWorldInitializer(TBootstrap* bootstrap)
+        : Config_(bootstrap->GetConfig())
         , Bootstrap_(bootstrap)
     {
-        YT_VERIFY(Config_);
-        YT_VERIFY(Bootstrap_);
-
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        hydraManager->SubscribeLeaderActive(BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
+        hydraManager->SubscribeLeaderActive(BIND(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
     }
 
-
-    bool IsInitialized()
+    bool IsInitialized() override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* rootNode = cypressManager->GetRootNode();
         return !rootNode->KeyToChild().empty();
     }
 
-    void ValidateInitialized()
+    void ValidateInitialized() override
     {
         if (!IsInitialized()) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
         }
     }
 
-    bool HasProvisionLock()
+    bool HasProvisionLock() override
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -135,7 +130,7 @@ private:
         YT_LOG_DEBUG("Schedule world initialization (Delay: %v)",
             delay);
         TDelayedExecutor::Submit(
-            BIND(&TImpl::Initialize, MakeStrong(this))
+            BIND(&TWorldInitializer::Initialize, MakeStrong(this))
                 .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
             delay);
     }
@@ -150,7 +145,7 @@ private:
         YT_LOG_DEBUG("Schedule annotations update (Delay: %v)",
             delay);
         TDelayedExecutor::Submit(
-            BIND(&TImpl::UpdateAnnotations, MakeStrong(this))
+            BIND(&TWorldInitializer::UpdateAnnotations, MakeStrong(this))
                 .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
             delay);
     }
@@ -923,27 +918,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWorldInitializer::TWorldInitializer(
-    TCellMasterConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-TWorldInitializer::~TWorldInitializer() = default;
-
-bool TWorldInitializer::IsInitialized()
+IWorldInitializerPtr CreateWorldInitializer(TBootstrap* bootstrap)
 {
-    return Impl_->IsInitialized();
-}
-
-void TWorldInitializer::ValidateInitialized()
-{
-    Impl_->ValidateInitialized();
-}
-
-bool TWorldInitializer::HasProvisionLock()
-{
-    return Impl_->HasProvisionLock();
+    return New<TWorldInitializer>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

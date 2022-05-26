@@ -103,7 +103,7 @@ void TClusterResourceLimits::SetMasterMemory(TMasterMemoryLimits masterMemoryLim
     return resources;
 }
 
-/*static*/ TClusterResourceLimits TClusterResourceLimits::Zero(const TMulticellManagerPtr& multicellManager)
+/*static*/ TClusterResourceLimits TClusterResourceLimits::Zero(const IMulticellManagerPtr& multicellManager)
 {
     auto resources = TClusterResourceLimits();
     for (auto cellTag : multicellManager->GetSecondaryCellTags()) {

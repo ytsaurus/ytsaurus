@@ -2,42 +2,30 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hydra_common/mutation.h>
-
-#include <yt/yt/ytlib/election/public.h>
-
-#include <yt/yt/core/rpc/public.h>
-
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWorldInitializer
+struct IWorldInitializer
     : public TRefCounted
 {
 public:
-    TWorldInitializer(
-        TCellMasterConfigPtr config,
-        TBootstrap* bootstrap);
-    ~TWorldInitializer();
-
     //! Returns |true| if the cluster is initialized.
-    bool IsInitialized();
+    virtual bool IsInitialized() = 0;
 
     //! Checks if the cluster is initialized. Throws if not.
-    void ValidateInitialized();
+    virtual void ValidateInitialized() = 0;
 
     //! Returns |true| if provision lock is active.
     //! May only be called on the primary cell.
-    bool HasProvisionLock();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-
+    virtual bool HasProvisionLock() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TWorldInitializer)
+DEFINE_REFCOUNTED_TYPE(IWorldInitializer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IWorldInitializerPtr CreateWorldInitializer(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

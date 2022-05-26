@@ -72,23 +72,18 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THydraFacade::TImpl
-    : public TRefCounted
+class THydraFacade
+    : public IHydraFacade
 {
 public:
-    TImpl(TTestingTag)
+    THydraFacade(TTestingTag)
         : Bootstrap_(nullptr)
     { }
 
-    TImpl(
-        TCellMasterConfigPtr config,
-        TBootstrap* bootstrap)
-        : Config_(config)
+    THydraFacade(TBootstrap* bootstrap)
+        : Config_(bootstrap->GetConfig())
         , Bootstrap_(bootstrap)
     {
-        YT_VERIFY(Config_);
-        YT_VERIFY(Bootstrap_);
-
         AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>(
             "Automaton",
             GetAutomatonThreadBuckets());
@@ -152,11 +147,11 @@ public:
                 hydraManagerDynamicOptions);
         }
 
-        HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStartLeading(BIND(&THydraFacade::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopLeading(BIND(&THydraFacade::OnStopEpoch, MakeWeak(this)));
 
-        HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStartFollowing(BIND(&THydraFacade::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopFollowing(BIND(&THydraFacade::OnStopEpoch, MakeWeak(this)));
 
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);
@@ -179,7 +174,7 @@ public:
             GetHydraIOInvoker());
     }
 
-    void Initialize()
+    void Initialize() override
     {
         ElectionManager_->Initialize();
 
@@ -192,7 +187,7 @@ public:
         ISnapshotReaderPtr reader,
         bool dump,
         bool enableTotalWriteCountReport,
-        const TSerializationDumperConfigPtr& dumpConfig)
+        const TSerializationDumperConfigPtr& dumpConfig) override
     {
         WaitFor(reader->Open())
             .ThrowOnError();
@@ -206,53 +201,53 @@ public:
         HydraManager_->ValidateSnapshot(reader);
     }
 
-    const TMasterAutomatonPtr& GetAutomaton() const
+    const TMasterAutomatonPtr& GetAutomaton() const override
     {
         return Automaton_;
     }
 
-    const IElectionManagerPtr& GetElectionManager() const
+    const IElectionManagerPtr& GetElectionManager() const override
     {
         return ElectionManager_;
     }
 
-    const IHydraManagerPtr& GetHydraManager() const
+    const IHydraManagerPtr& GetHydraManager() const override
     {
         return HydraManager_;
     }
 
-    const TResponseKeeperPtr& GetResponseKeeper() const
+    const TResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
     }
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const override
     {
         return AutomatonQueue_->GetInvoker(queue);
     }
 
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const override
     {
         return EpochInvokers_[queue];
     }
 
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const override
     {
         return GuardedInvokers_[queue];
     }
 
 
-    IInvokerPtr GetTransactionTrackerInvoker() const
+    IInvokerPtr GetTransactionTrackerInvoker() const override
     {
         return TransactionTrackerQueue_->GetInvoker();
     }
 
-    const NObjectServer::TEpochContextPtr& GetEpochContext() const
+    const NObjectServer::TEpochContextPtr& GetEpochContext() const override
     {
         return EpochContext_;
     }
 
-    void BlockAutomaton()
+    void BlockAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -262,7 +257,7 @@ public:
         YT_LOG_TRACE("Automaton thread blocked");
     }
 
-    void UnblockAutomaton()
+    void UnblockAutomaton() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -272,14 +267,14 @@ public:
         YT_LOG_TRACE("Automaton thread unblocked");
     }
 
-    bool IsAutomatonLocked() const
+    bool IsAutomatonLocked() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return AutomatonBlocked_;
     }
 
-    void VerifyPersistentStateRead() const
+    void VerifyPersistentStateRead() const override
     {
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         if (IsAutomatonLocked()) {
@@ -292,8 +287,7 @@ public:
 #endif
     }
 
-
-    void RequireLeader() const
+    void RequireLeader() const override
     {
         if (!HydraManager_->IsLeader()) {
             if (HasMutationContext()) {
@@ -307,12 +301,12 @@ public:
         }
     }
 
-    void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
+    void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig) override
     {
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
     }
 
-    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const
+    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const override
     {
         VerifyPersistentStateRead();
 
@@ -384,116 +378,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THydraFacade::THydraFacade(TTestingTag tag)
-    : Impl_(New<TImpl>(tag))
-{ }
-
-THydraFacade::THydraFacade(
-    TCellMasterConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
-{ }
-
-THydraFacade::~THydraFacade()
-{ }
-
-void THydraFacade::Initialize()
+IHydraFacadePtr CreateHydraFacade(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<THydraFacade>(bootstrap);
 }
 
-void THydraFacade::LoadSnapshot(
-    ISnapshotReaderPtr reader,
-    bool dump,
-    bool enableTotalWriteCountReport,
-    const TSerializationDumperConfigPtr& dumpConfig)
+IHydraFacadePtr CreateHydraFacade(TTestingTag tag)
 {
-    Impl_->LoadSnapshot(reader, dump, enableTotalWriteCountReport, dumpConfig);
-}
-
-const TMasterAutomatonPtr& THydraFacade::GetAutomaton() const
-{
-    return Impl_->GetAutomaton();
-}
-
-const IElectionManagerPtr& THydraFacade::GetElectionManager() const
-{
-    return Impl_->GetElectionManager();
-}
-
-const IHydraManagerPtr& THydraFacade::GetHydraManager() const
-{
-    return Impl_->GetHydraManager();
-}
-
-const TResponseKeeperPtr& THydraFacade::GetResponseKeeper() const
-{
-    return Impl_->GetResponseKeeper();
-}
-
-IInvokerPtr THydraFacade::GetAutomatonInvoker(EAutomatonThreadQueue queue) const
-{
-    return Impl_->GetAutomatonInvoker(queue);
-}
-
-IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
-{
-    return Impl_->GetEpochAutomatonInvoker(queue);
-}
-
-IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
-{
-    return Impl_->GetGuardedAutomatonInvoker(queue);
-}
-
-IInvokerPtr THydraFacade::GetTransactionTrackerInvoker() const
-{
-    return Impl_->GetTransactionTrackerInvoker();
-}
-
-void THydraFacade::BlockAutomaton()
-{
-    Impl_->BlockAutomaton();
-}
-
-void THydraFacade::UnblockAutomaton()
-{
-    Impl_->UnblockAutomaton();
-}
-
-bool THydraFacade::IsAutomatonLocked() const
-{
-    return Impl_->IsAutomatonLocked();
-}
-
-void THydraFacade::VerifyPersistentStateRead() const
-{
-    Impl_->VerifyPersistentStateRead();
-}
-
-void THydraFacade::RequireLeader() const
-{
-    Impl_->RequireLeader();
-}
-
-void THydraFacade::Reconfigure(const TDynamicCellMasterConfigPtr& newConfig)
-{
-    Impl_->Reconfigure(newConfig);
-}
-
-IInvokerPtr THydraFacade::CreateEpochInvoker(IInvokerPtr underlyingInvoker) const
-{
-    return Impl_->CreateEpochInvoker(std::move(underlyingInvoker));
-}
-
-const NObjectServer::TEpochContextPtr& THydraFacade::GetEpochContext() const
-{
-    return Impl_->GetEpochContext();
+    return New<THydraFacade>(tag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutomatonBlockGuard::TAutomatonBlockGuard(THydraFacadePtr hydraFacade)
+TAutomatonBlockGuard::TAutomatonBlockGuard(IHydraFacadePtr hydraFacade)
     : HydraFacade_(std::move(hydraFacade))
 {
     HydraFacade_->BlockAutomaton();
@@ -507,4 +404,3 @@ TAutomatonBlockGuard::~TAutomatonBlockGuard()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellMaster
-

@@ -84,9 +84,9 @@ public:
     TSerializableUserRequestLimitsOptions();
     TSerializableUserRequestLimitsOptions(
         const TUserRequestLimitsOptionsPtr& options,
-        const NCellMaster::TMulticellManagerPtr& multicellManager);
+        const NCellMaster::IMulticellManagerPtr& multicellManager);
 
-    TUserRequestLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+    TUserRequestLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
 
 private:
     std::optional<int> Default_;
@@ -104,9 +104,9 @@ public:
     TSerializableUserQueueSizeLimitsOptions();
     TSerializableUserQueueSizeLimitsOptions(
         const TUserQueueSizeLimitsOptionsPtr& options,
-        const NCellMaster::TMulticellManagerPtr& multicellManager);
+        const NCellMaster::IMulticellManagerPtr& multicellManager);
 
-    TUserQueueSizeLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+    TUserQueueSizeLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
 
 private:
     int Default_;
@@ -124,9 +124,9 @@ public:
     TSerializableUserRequestLimitsConfig();
     TSerializableUserRequestLimitsConfig(
         const TUserRequestLimitsConfigPtr& config,
-        const NCellMaster::TMulticellManagerPtr& multicellManager);
+        const NCellMaster::IMulticellManagerPtr& multicellManager);
 
-    TUserRequestLimitsConfigPtr ToConfigOrThrow(const NCellMaster::TMulticellManagerPtr& multicellManager) const;
+    TUserRequestLimitsConfigPtr ToConfigOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
 
 private:
     TSerializableUserRequestLimitsOptionsPtr ReadRequestRateLimits_;

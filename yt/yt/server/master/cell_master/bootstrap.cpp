@@ -287,12 +287,12 @@ const IAlertManagerPtr& TBootstrap::GetAlertManager() const
     return AlertManager_;
 }
 
-const TConfigManagerPtr& TBootstrap::GetConfigManager() const
+const IConfigManagerPtr& TBootstrap::GetConfigManager() const
 {
     return ConfigManager_;
 }
 
-const TMulticellManagerPtr& TBootstrap::GetMulticellManager() const
+const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;
 }
@@ -377,7 +377,7 @@ const TPortalManagerPtr& TBootstrap::GetPortalManager() const
     return PortalManager_;
 }
 
-const THydraFacadePtr& TBootstrap::GetHydraFacade() const
+const IHydraFacadePtr& TBootstrap::GetHydraFacade() const
 {
     return HydraFacade_;
 }
@@ -387,7 +387,7 @@ const IEpochHistoryManagerPtr& TBootstrap::GetEpochHistoryManager() const
     return EpochHistoryManager_;
 }
 
-const TWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
+const IWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
 {
     return WorldInitializer_;
 }
@@ -693,18 +693,18 @@ void TBootstrap::DoInitialize()
     auto snapshotStore = CreateLocalSnapshotStore(Config_->Snapshots);
     SnapshotStore_ = snapshotStore;
 
-    HydraFacade_ = New<THydraFacade>(Config_, this);
+    HydraFacade_ = CreateHydraFacade(this);
 
     AlertManager_ = CreateAlertManager(this);
 
-    ConfigManager_ = New<TConfigManager>(this);
+    ConfigManager_ = CreateConfigManager(this);
     ConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
 
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
-    MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
+    MulticellManager_ = CreateMulticellManager(this);
 
-    WorldInitializer_ = New<TWorldInitializer>(Config_, this);
+    WorldInitializer_ = CreateWorldInitializer(this);
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,

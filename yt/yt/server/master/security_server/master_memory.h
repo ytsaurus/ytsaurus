@@ -48,22 +48,22 @@ TString ToString(const TMasterMemoryLimits& limits);
 void SerializeMasterMemoryLimits(
     const TMasterMemoryLimits& limits,
     NYson::IYsonConsumer* consumer,
-    const NCellMaster::TMulticellManagerPtr& multicellManager);
+    const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 void DeserializeMasterMemoryLimits(
     TMasterMemoryLimits& limits,
     NYTree::INodePtr node,
-    const NCellMaster::TMulticellManagerPtr& multicellManager);
+    const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 void SerializeViolatedMasterMemoryLimits(
     const TMasterMemoryLimits& violatedLimits,
     NYson::IYsonConsumer* consumer,
-    const NCellMaster::TMulticellManagerPtr& multicellManager);
+    const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 void SerializeViolatedMasterMemoryLimitsInBooleanFormat(
     const TMasterMemoryLimits& violatedLimits,
     NYson::IYsonConsumer* consumer,
-    const NCellMaster::TMulticellManagerPtr& multicellManager);
+    const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

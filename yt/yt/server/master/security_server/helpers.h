@@ -18,10 +18,10 @@ namespace NYT::NSecurityServer {
 void ValidateDiskSpace(i64 diskSpace);
 
 template <class T>
-THashMap<TString, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCellTag, T>& map, const NCellMaster::TMulticellManagerPtr& multicellManager);
+THashMap<TString, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCellTag, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 template <class T>
-THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::TMulticellManagerPtr& multicellManager);
+THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
