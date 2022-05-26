@@ -714,7 +714,7 @@ void TLeaderCommitter::OnSnapshotsComplete()
         successCount);
 
     // TODO(aleksandra-zh): remove when we stop building snapshots on all peers.
-    if (successCount < CellManager_->GetQuorumPeerCount()) {
+    if (Config_->AlertOnSnapshotFailure && successCount == 0) {
         YT_LOG_ALERT("Not enough successfull snapshots built (SnapshotId: %v, SuccessCount: %v)",
             LastSnapshotInfo_->SnapshotId,
             successCount);

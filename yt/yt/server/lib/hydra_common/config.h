@@ -361,6 +361,9 @@ public:
     //! there is a gap between the last changelog and changelog being acquired.
     int MaxChangelogsToCreateDuringAcquisition;
 
+    //! Alert if no successful snapshots are built.
+    bool AlertOnSnapshotFailure;
+
     TDistributedHydraManagerConfig();
 };
 
