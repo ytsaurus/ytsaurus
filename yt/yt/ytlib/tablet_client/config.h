@@ -34,7 +34,6 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! These options can be changed in runtime.
-
 class TDynamicTabletCellOptions
     : public NYTree::TYsonSerializable
 {

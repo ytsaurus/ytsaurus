@@ -27,7 +27,7 @@ TDynamicTabletCellOptions::TDynamicTabletCellOptions()
         .Optional();
     RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
         .InRange(0.0, 1.0)
-        .Default(0.8);
+        .Default(0.7);
     RegisterParameter("dynamic_memory_pool_weight", DynamicMemoryPoolWeight)
         .InRange(1, MaxDynamicMemoryPoolWeight)
         .Default(1);
@@ -37,7 +37,7 @@ TDynamicTabletCellOptions::TDynamicTabletCellOptions()
         .Optional()
         .DontSerializeDefault();
     RegisterParameter("max_backing_store_memory_ratio", MaxBackingStoreMemoryRatio)
-        .Default();
+        .Default(0.15);
     RegisterParameter("increase_upload_replication_factor", IncreaseUploadReplicationFactor)
         .Default(false);
 
