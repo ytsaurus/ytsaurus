@@ -427,7 +427,7 @@ const ISchedulerPoolManagerPtr& TBootstrap::GetSchedulerPoolManager() const
     return SchedulerPoolManager_;
 }
 
-const TTableManagerPtr& TBootstrap::GetTableManager() const
+const ITableManagerPtr& TBootstrap::GetTableManager() const
 {
     return TableManager_;
 }
@@ -767,7 +767,7 @@ void TBootstrap::DoInitialize()
 
     CellHydraJanitor_ = CreateCellHydraJanitor(this);
 
-    TableManager_ = New<TTableManager>(this);
+    TableManager_ = CreateTableManager(this);
 
     TabletManager_ = New<TTabletManager>(this);
 

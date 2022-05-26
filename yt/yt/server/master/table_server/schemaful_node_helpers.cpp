@@ -23,7 +23,7 @@ std::pair<const TTableSchema*, TTableSchemaPtr> ProcessSchemafulNodeAttributes(
     bool dynamic,
     bool chaos,
     const TDynamicClusterConfigPtr& dynamicConfig,
-    const TTableManagerPtr& tableManager)
+    const ITableManagerPtr& tableManager)
 {
     auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
     auto schemaId = combinedAttributes->FindAndRemove<TObjectId>("schema_id");

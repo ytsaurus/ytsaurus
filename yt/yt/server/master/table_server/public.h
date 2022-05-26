@@ -26,7 +26,8 @@ class TTableNodeTypeHandlerBase;
 class TTableNodeTypeHandler;
 class TReplicatedTableNodeTypeHandler;
 
-DECLARE_REFCOUNTED_CLASS(TTableManager)
+DECLARE_REFCOUNTED_STRUCT(ITableManager)
+
 DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable)
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)

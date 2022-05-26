@@ -17,7 +17,7 @@ std::pair<const NTableClient::TTableSchema*, NTableClient::TTableSchemaPtr> Proc
     bool dynamic,
     bool chaos,
     const NCellMaster::TDynamicClusterConfigPtr& dynamicConfig,
-    const TTableManagerPtr& tableManager);
+    const ITableManagerPtr& tableManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

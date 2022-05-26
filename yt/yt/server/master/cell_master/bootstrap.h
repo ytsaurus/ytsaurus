@@ -124,7 +124,7 @@ public:
     const NSecurityServer::ISecurityManagerPtr& GetSecurityManager() const;
     const NSchedulerPoolServer::ISchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
-    const NTableServer::TTableManagerPtr& GetTableManager() const;
+    const NTableServer::ITableManagerPtr& GetTableManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
@@ -195,7 +195,7 @@ protected:
     NSecurityServer::ISecurityManagerPtr SecurityManager_;
     NCellServer::ITamedCellManagerPtr TamedCellManager_;
     NCellServer::ICellHydraJanitorPtr CellHydraJanitor_;
-    NTableServer::TTableManagerPtr TableManager_;
+    NTableServer::ITableManagerPtr TableManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NTabletServer::IBackupManagerPtr BackupManager_;
     NSchedulerPoolServer::ISchedulerPoolManagerPtr SchedulerPoolManager_;
