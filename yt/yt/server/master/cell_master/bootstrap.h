@@ -192,7 +192,7 @@ protected:
     NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NCellServer::ITamedCellManagerPtr TamedCellManager_;
-    NCellServer::TCellHydraJanitorPtr CellHydraJanitor_;
+    NCellServer::ICellHydraJanitorPtr CellHydraJanitor_;
     NTableServer::TTableManagerPtr TableManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NTabletServer::IBackupManagerPtr BackupManager_;

@@ -147,8 +147,8 @@ public:
 public:
     explicit TTamedCellManager(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TamedCellManager)
-        , CellTracker_(New<TCellTracker>(Bootstrap_))
-        , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
+        , CellTracker_(CreateCellTracker(Bootstrap_))
+        , BundleNodeTracker_(CreateBundleNodeTracker(Bootstrap_))
         , CellBundleMap_(TEntityMapTypeTraits<TCellBundle>(Bootstrap_))
         , CellMap_(TEntityMapTypeTraits<TCellBase>(Bootstrap_))
     {
@@ -773,7 +773,7 @@ public:
            : nullptr;
     }
 
-    const TBundleNodeTrackerPtr& GetBundleNodeTracker() override
+    const IBundleNodeTrackerPtr& GetBundleNodeTracker() override
     {
         return BundleNodeTracker_;
     }
@@ -1128,8 +1128,8 @@ private:
         TBootstrap* const Bootstrap_;
     };
 
-    const TCellTrackerPtr CellTracker_;
-    const TBundleNodeTrackerPtr BundleNodeTracker_;
+    const ICellTrackerPtr CellTracker_;
+    const IBundleNodeTrackerPtr BundleNodeTracker_;
 
     TEntityMap<TCellBundle, TEntityMapTypeTraits<TCellBundle>> CellBundleMap_;
     TEntityMap<TCellBase, TEntityMapTypeTraits<TCellBase>> CellMap_;

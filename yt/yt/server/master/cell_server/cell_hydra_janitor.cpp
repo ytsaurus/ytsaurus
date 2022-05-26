@@ -1,4 +1,5 @@
 #include "cell_hydra_janitor.h"
+
 #include "tamed_cell_manager.h"
 #include "private.h"
 
@@ -40,22 +41,22 @@ static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellHydraJanitor::TImpl
-    : public TRefCounted
+class TCellHydraJanitor
+    : public ICellHydraJanitor
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
     void Initialize()
     {
         Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
-            BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+            BIND(&TCellHydraJanitor::OnDynamicConfigChanged, MakeWeak(this)));
         Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeLeaderActive(
-            BIND(&TImpl::OnLeaderActive, MakeWeak(this)));
+            BIND(&TCellHydraJanitor::OnLeaderActive, MakeWeak(this)));
         Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeStopLeading(
-            BIND(&TImpl::OnStopLeading, MakeWeak(this)));
+            BIND(&TCellHydraJanitor::OnStopLeading, MakeWeak(this)));
     }
 
 private:
@@ -77,7 +78,7 @@ private:
 
         PeriodicExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
-            BIND(&TImpl::OnCleanup, MakeWeak(this)));
+            BIND(&TCellHydraJanitor::OnCleanup, MakeWeak(this)));
         PeriodicExecutor_->Start();
     }
 
@@ -250,16 +251,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellHydraJanitor::TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TCellHydraJanitor::~TCellHydraJanitor()
-{ }
-
-void TCellHydraJanitor::Initialize()
+ICellHydraJanitorPtr CreateCellHydraJanitor(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TCellHydraJanitor>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

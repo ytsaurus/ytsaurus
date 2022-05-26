@@ -15,23 +15,18 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellTracker
+struct ICellTracker
     : public TRefCounted
 {
-public:
-    explicit TCellTracker(NCellMaster::TBootstrap* bootstrap);
-
-    ~TCellTracker();
-
-    void Start();
-    void Stop();
-
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellTracker)
+DEFINE_REFCOUNTED_TYPE(ICellTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellTrackerPtr CreateCellTracker(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

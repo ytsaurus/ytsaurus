@@ -35,14 +35,14 @@ static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellTracker::TImpl
-    : public TRefCounted
+class TCellTracker
+    : public ICellTracker
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap);
+    explicit TCellTracker(NCellMaster::TBootstrap* bootstrap);
 
-    void Start();
-    void Stop();
+    void Start() override;
+    void Stop() override;
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -62,17 +62,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellTracker::TImpl::TImpl(NCellMaster::TBootstrap* bootstrap)
+TCellTracker::TCellTracker(NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND(&TCellTracker::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
-void TCellTracker::TImpl::Start()
+void TCellTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -83,12 +83,12 @@ void TCellTracker::TImpl::Start()
     YT_VERIFY(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletTracker),
-        BIND(&TCellTracker::TImpl::ScanCells, MakeWeak(this)),
+        BIND(&TCellTracker::ScanCells, MakeWeak(this)),
         GetDynamicConfig()->CellScanPeriod);
     PeriodicExecutor_->Start();
 }
 
-void TCellTracker::TImpl::Stop()
+void TCellTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -100,19 +100,19 @@ void TCellTracker::TImpl::Stop()
     CellTrackerImpl_.Reset();
 }
 
-void TCellTracker::TImpl::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+void TCellTracker::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     if (PeriodicExecutor_) {
         PeriodicExecutor_->SetPeriod(GetDynamicConfig()->CellScanPeriod);
     }
 }
 
-const NTabletServer::TDynamicTabletManagerConfigPtr& TCellTracker::TImpl::GetDynamicConfig()
+const NTabletServer::TDynamicTabletManagerConfigPtr& TCellTracker::GetDynamicConfig()
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
 
-bool TCellTracker::TImpl::IsEnabled()
+bool TCellTracker::IsEnabled()
 {
     // This method also logs state changes.
 
@@ -139,7 +139,7 @@ bool TCellTracker::TImpl::IsEnabled()
     return true;
 }
 
-void TCellTracker::TImpl::ScanCells()
+void TCellTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -154,21 +154,9 @@ void TCellTracker::TImpl::ScanCells()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellTracker::TCellTracker(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TCellTracker::~TCellTracker()
-{ }
-
-void TCellTracker::Start()
+ICellTrackerPtr CreateCellTracker(NCellMaster::TBootstrap* bootstrap)
 {
-    Impl_->Start();
-}
-
-void TCellTracker::Stop()
-{
-    Impl_->Stop();
+    return New<TCellTracker>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

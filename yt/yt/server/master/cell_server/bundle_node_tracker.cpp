@@ -23,34 +23,34 @@ const auto static& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBundleNodeTracker::TImpl
-    : public TRefCounted
+class TBundleNodeTracker
+    : public IBundleNodeTracker
 {
 public:
-    explicit TImpl(TBootstrap* bootstrap)
+    explicit TBundleNodeTracker(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeOnline(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeBanChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeTagsChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeOnline(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisposed(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeBanChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeTagsChanged(BIND(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        cellManager->SubscribeAreaCreated(BIND(&TImpl::OnAreaCreated, MakeWeak(this)));
-        cellManager->SubscribeAreaDestroyed(BIND(&TImpl::OnAreaRemoved, MakeWeak(this)));
-        cellManager->SubscribeAreaNodeTagFilterChanged(BIND(&TImpl::OnAreaChanged, MakeWeak(this)));
-        cellManager->SubscribeAfterSnapshotLoaded(BIND(&TImpl::OnAfterSnapshotLoaded, MakeWeak(this)));
+        cellManager->SubscribeAreaCreated(BIND(&TBundleNodeTracker::OnAreaCreated, MakeWeak(this)));
+        cellManager->SubscribeAreaDestroyed(BIND(&TBundleNodeTracker::OnAreaRemoved, MakeWeak(this)));
+        cellManager->SubscribeAreaNodeTagFilterChanged(BIND(&TBundleNodeTracker::OnAreaChanged, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND(&TBundleNodeTracker::OnAfterSnapshotLoaded, MakeWeak(this)));
     }
 
-    virtual void OnAfterSnapshotLoaded()
+    void OnAfterSnapshotLoaded()
     {
         Clear();
 
@@ -67,7 +67,7 @@ public:
         }
     }
 
-    const TNodeSet& GetAreaNodes(const TArea* area) const
+    const TNodeSet& GetAreaNodes(const TArea* area) const override
     {
         if (auto it = NodeMap_.find(area)) {
             return it->second;
@@ -76,12 +76,12 @@ public:
         }
     }
 
-    void Clear()
+    void Clear() override
     {
         NodeMap_.clear();
     }
 
-    DEFINE_SIGNAL(void(const TArea* area), AreaNodesChanged);
+    DEFINE_SIGNAL_OVERRIDE(void(const TArea* area), AreaNodesChanged);
 
 private:
     TBootstrap* const Bootstrap_;
@@ -193,33 +193,14 @@ private:
     }
 };
 
-const TBundleNodeTracker::TNodeSet  TBundleNodeTracker::TImpl::EmptyNodeSet;
+const IBundleNodeTracker::TNodeSet TBundleNodeTracker::EmptyNodeSet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBundleNodeTracker::TBundleNodeTracker(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TBundleNodeTracker::~TBundleNodeTracker()
-{ }
-
-void TBundleNodeTracker::Initialize()
+IBundleNodeTrackerPtr CreateBundleNodeTracker(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TBundleNodeTracker>(bootstrap);
 }
-
-void TBundleNodeTracker::Clear()
-{
-    Impl_->Clear();
-}
-
-const TBundleNodeTracker::TNodeSet& TBundleNodeTracker::GetAreaNodes(const TArea* area) const
-{
-    return Impl_->GetAreaNodes(area);
-}
-
-DELEGATE_SIGNAL(TBundleNodeTracker, void(const TArea*), AreaNodesChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
