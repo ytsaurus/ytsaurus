@@ -375,7 +375,7 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     FromProto(&statistics->TabletCountPerMemoryMode, protoStatistics.tablet_count_per_memory_mode());
 }
 
-TString ToString(const TTabletStatistics& tabletStatistics, const TChunkManagerPtr& chunkManager)
+TString ToString(const TTabletStatistics& tabletStatistics, const IChunkManagerPtr& chunkManager)
 {
     TStringStream output;
     TYsonWriter writer(&output, EYsonFormat::Text);
@@ -393,7 +393,7 @@ TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase()
 
 TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
     const TTabletCellStatisticsBase& statistics,
-    const NChunkServer::TChunkManagerPtr& chunkManager)
+    const NChunkServer::IChunkManagerPtr& chunkManager)
     : TTabletCellStatisticsBase(statistics)
 {
     InitParameters();
@@ -453,7 +453,7 @@ TSerializableTabletCellStatistics::TSerializableTabletCellStatistics()
 
 TSerializableTabletCellStatistics::TSerializableTabletCellStatistics(
     const TTabletCellStatistics& statistics,
-    const NChunkServer::TChunkManagerPtr& chunkManager)
+    const NChunkServer::IChunkManagerPtr& chunkManager)
     : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
 { }
 
@@ -464,7 +464,7 @@ TSerializableTabletStatistics::TSerializableTabletStatistics()
 
 TSerializableTabletStatistics::TSerializableTabletStatistics(
     const TTabletStatistics& statistics,
-    const NChunkServer::TChunkManagerPtr& chunkManager)
+    const NChunkServer::IChunkManagerPtr& chunkManager)
     : TSerializableTabletCellStatisticsBase(statistics, chunkManager)
     , TSerializableTabletStatisticsBase(statistics)
 { }

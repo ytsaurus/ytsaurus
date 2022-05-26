@@ -119,7 +119,7 @@ public:
     const NObjectServer::IObjectManagerPtr& GetObjectManager() const;
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
     const NObjectServer::IRequestProfilingManagerPtr& GetRequestProfilingManager() const;
-    const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
+    const NChunkServer::IChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::IJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::ISecurityManagerPtr& GetSecurityManager() const;
     const NSchedulerPoolServer::ISchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
@@ -128,7 +128,7 @@ public:
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
     const NTabletServer::IBackupManagerPtr& GetBackupManager() const;
     const NChaosServer::IChaosManagerPtr& GetChaosManager() const;
-    const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const; 
+    const NSequoiaServer::ISequoiaManagerPtr& GetSequoiaManager() const;
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
@@ -190,7 +190,7 @@ protected:
     NObjectServer::IObjectServicePtr ObjectService_;
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;
     NObjectServer::IRequestProfilingManagerPtr RequestProfilingManager_;
-    NChunkServer::TChunkManagerPtr ChunkManager_;
+    NChunkServer::IChunkManagerPtr ChunkManager_;
     NJournalServer::IJournalManagerPtr JournalManager_;
     NSecurityServer::ISecurityManagerPtr SecurityManager_;
     NCellServer::ITamedCellManagerPtr TamedCellManager_;

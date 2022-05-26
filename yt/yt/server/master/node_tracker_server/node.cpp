@@ -362,7 +362,7 @@ void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCell
     ComputeAggregatedState();
 }
 
-void TNode::RecomputeIOWeights(const TChunkManagerPtr& chunkManager)
+void TNode::RecomputeIOWeights(const IChunkManagerPtr& chunkManager)
 {
     IOWeights_.clear();
     for (const auto& statistics : DataNodeStatistics_.media()) {
@@ -938,7 +938,7 @@ void TNode::SetVisitMark(int mediumIndex, ui64 mark)
 
 void TNode::SetDataNodeStatistics(
     NNodeTrackerClient::NProto::TDataNodeStatistics&& statistics,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     DataNodeStatistics_.Swap(&statistics);
     ComputeFillFactorsAndTotalSpace();

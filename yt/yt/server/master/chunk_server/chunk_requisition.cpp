@@ -176,7 +176,7 @@ TString ToString(const TChunkReplication& replication)
 
 TSerializableChunkReplication::TSerializableChunkReplication(
     const TChunkReplication& replication,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     for (auto entry : replication) {
         if (entry.Policy()) {
@@ -189,7 +189,7 @@ TSerializableChunkReplication::TSerializableChunkReplication(
 
 void TSerializableChunkReplication::ToChunkReplication(
     TChunkReplication* replication,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     replication->ClearEntries();
 
@@ -226,7 +226,7 @@ void Deserialize(TSerializableChunkReplication& serializer, INodePtr node)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateChunkReplication(
-    const TChunkManagerPtr& chunkManager,
+    const IChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
     std::optional<int> primaryMediumIndex)
 {
@@ -517,7 +517,7 @@ TString ToString(const TChunkRequisition& requisition)
 
 TSerializableChunkRequisition::TSerializableChunkRequisition(
     const TChunkRequisition& requisition,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     Entries_.reserve(requisition.GetEntryCount());
     for (const auto& entry : requisition) {
@@ -788,7 +788,7 @@ void TChunkRequisitionRegistry::Unref(
 
 void TChunkRequisitionRegistry::Serialize(
     NYson::IYsonConsumer* consumer,
-    const TChunkManagerPtr& chunkManager) const
+    const IChunkManagerPtr& chunkManager) const
 {
     using TSortedIndexItem = std::pair<TChunkRequisitionIndex, TIndexedItem>;
 
@@ -820,7 +820,7 @@ void TChunkRequisitionRegistry::Serialize(
 ////////////////////////////////////////////////////////////////////////////////
 
 TSerializableChunkRequisitionRegistry::TSerializableChunkRequisitionRegistry(
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
     : ChunkManager_(chunkManager)
 { }
 

@@ -139,7 +139,7 @@ NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithIndexes chun
 
 void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
-    const TChunkManagerPtr& chunkManager);
+    const IChunkManagerPtr& chunkManager);
 
 void SerializeMediumOverrides(
     TNode* node,

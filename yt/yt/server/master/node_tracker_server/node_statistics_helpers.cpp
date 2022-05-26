@@ -30,7 +30,7 @@ void static BuildIOStatisticsYson(
 void Serialize(
     const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics,
     TFluentMap fluent,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     auto mediumIndex = statistics.medium_index();
     const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -53,7 +53,7 @@ void Serialize(
 void Serialize(
     const NNodeTrackerClient::NProto::TSlotLocationStatistics& statistics,
     TFluentMap fluent,
-    const TChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager)
 {
     auto mediumIndex = statistics.medium_index();
     const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);

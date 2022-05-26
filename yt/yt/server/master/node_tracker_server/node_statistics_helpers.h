@@ -15,12 +15,12 @@ namespace NYT::NNodeTrackerServer {
 void Serialize(
     const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics,
     NYTree::TFluentMap fluent,
-    const NChunkServer::TChunkManagerPtr& chunkManager);
+    const NChunkServer::IChunkManagerPtr& chunkManager);
 
 void Serialize(
     const NNodeTrackerClient::NProto::TSlotLocationStatistics& statistics,
     NYTree::TFluentMap fluent,
-    const NChunkServer::TChunkManagerPtr& chunkManager);
+    const NChunkServer::IChunkManagerPtr& chunkManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

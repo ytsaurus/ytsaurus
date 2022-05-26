@@ -129,7 +129,7 @@ bool operator != (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
 void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);
 
-TString ToString(const TTabletStatistics& statistics, const NChunkServer::TChunkManagerPtr& chunkManager);
+TString ToString(const TTabletStatistics& statistics, const NChunkServer::IChunkManagerPtr& chunkManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -143,7 +143,7 @@ public:
 
     TSerializableTabletCellStatisticsBase(
         const TTabletCellStatisticsBase& statistics,
-        const NChunkServer::TChunkManagerPtr& chunkManager);
+        const NChunkServer::IChunkManagerPtr& chunkManager);
 
 private:
     i64 DiskSpace_ = 0;
@@ -173,7 +173,7 @@ public:
 
     TSerializableTabletCellStatistics(
         const TTabletCellStatistics& statistics,
-        const NChunkServer::TChunkManagerPtr& chunkManager);
+        const NChunkServer::IChunkManagerPtr& chunkManager);
 };
 
 class TSerializableTabletStatistics
@@ -185,7 +185,7 @@ public:
 
     TSerializableTabletStatistics(
         const TTabletStatistics& statistics,
-        const NChunkServer::TChunkManagerPtr& chunkManager);
+        const NChunkServer::IChunkManagerPtr& chunkManager);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
