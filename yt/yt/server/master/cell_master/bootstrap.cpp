@@ -412,7 +412,7 @@ const TChunkManagerPtr& TBootstrap::GetChunkManager() const
     return ChunkManager_;
 }
 
-const TJournalManagerPtr& TBootstrap::GetJournalManager() const
+const IJournalManagerPtr& TBootstrap::GetJournalManager() const
 {
     return JournalManager_;
 }
@@ -761,7 +761,7 @@ void TBootstrap::DoInitialize()
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
 
-    JournalManager_ = New<NJournalServer::TJournalManager>(this);
+    JournalManager_ = CreateJournalManager(this);
 
     TamedCellManager_ = CreateTamedCellManager(this);
 
