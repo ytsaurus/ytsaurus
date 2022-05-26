@@ -1568,6 +1568,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     AddTagToBaggage(ioTags, EAggregateIOTag::PoolTree, joblet->TreeId);
     ToProto(schedulerJobSpecExt->mutable_io_tags(), *ioTags);
 
+    schedulerJobSpecExt->set_interruptible(IsJobInterruptible());
+
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 

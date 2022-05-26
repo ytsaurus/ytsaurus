@@ -697,6 +697,15 @@ class TestRacyPreemption(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 1.0)
 
 
+class TestRacyPreemptionWithInterruptionHandledByScheduler(TestRacyPreemption):
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "schedule_job_time_limit": 20000,
+            "handle_interruption_on_node": False,
+        },
+    }
+
 ##################################################################
 
 

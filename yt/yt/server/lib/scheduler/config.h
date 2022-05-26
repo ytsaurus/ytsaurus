@@ -860,8 +860,12 @@ public:
 
     bool EnableHeavyRuntimeParameters;
 
+    bool HandleInterruptionOnNode;
+
     TDuration ScheduleJobEntryRemovalTimeout;
     TDuration ScheduleJobEntryCheckPeriod;
+
+    TDuration CheckNodesWithUnsupportedInterruptionPeriod;
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
 

@@ -955,11 +955,17 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_heavy_runtime_parameters", &TThis::EnableHeavyRuntimeParameters)
         .Default(false);
+    
+    registrar.Parameter("handle_interruption_on_node", &TThis::HandleInterruptionOnNode)
+        .Default(false);
 
     registrar.Parameter("schedule_job_entry_removal_timeout", &TThis::ScheduleJobEntryRemovalTimeout)
         .Default(TDuration::Minutes(2));
 
     registrar.Parameter("schedule_job_entry_check_period", &TThis::ScheduleJobEntryCheckPeriod)
+        .Default(TDuration::Minutes(1));
+    
+    registrar.Parameter("check_nodes_with_unsupported_interruption_period", &TThis::CheckNodesWithUnsupportedInterruptionPeriod)
         .Default(TDuration::Minutes(1));
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {

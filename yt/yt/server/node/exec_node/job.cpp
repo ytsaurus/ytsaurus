@@ -136,6 +136,9 @@ TJob::TJob(
     , JobTestingOptions_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_testing_options()
         ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(SchedulerJobSpecExt_->testing_options()))
         : New<TJobTestingOptions>())
+    , Interruptible_(SchedulerJobSpecExt_->has_interruptible() 
+        ? std::make_optional<bool>(SchedulerJobSpecExt_->interruptible())
+        : std::nullopt)
     , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
     , Logger(ExecNodeLogger.WithTag("JobId: %v, OperationId: %v, JobType: %v",
         Id_,
@@ -998,9 +1001,40 @@ void TJob::ReportProfile()
     }
 }
 
-void TJob::Interrupt()
+void TJob::Interrupt(TDuration timeout, std::optional<TString> preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    // COMPAT(pogorelov): IsInterruptible returns nullopt in case when node is newer than scheduler and CA.
+    // That meens that this check is performed by scheduler.
+    bool shouldAbort = IsInterruptible().has_value() && !*IsInterruptible();
+    if (shouldAbort) {
+        auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Abort uninterruptible job")
+            << TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
+
+        if (preemptionReason) {
+            error = error
+                << TErrorAttribute("preemption_reason", *preemptionReason)
+                << TErrorAttribute("abort_reason", EAbortReason::Preemption);
+        }
+
+        Abort(error);
+        return;
+    }
+
+    if (InterruptionTimeoutCookie_) {
+        YT_LOG_DEBUG("Job interruption is already requested, ignore");
+        return;
+    }
+
+    YT_LOG_DEBUG("Job interruption requested (Timeout: %v)", timeout);
+
+    if (timeout) {
+        InterruptionTimeoutCookie_ = TDelayedExecutor::Submit(
+            BIND(&TJob::OnJobInterruptionTimeout, MakeWeak(this)),
+            timeout,
+            Bootstrap_->GetJobInvoker());
+    }
 
     if (JobPhase_ < EJobPhase::Running) {
         Abort(TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet"));
@@ -1068,6 +1102,20 @@ bool TJob::IsJobProxyCompleted() const noexcept
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return JobProxyCompleted_;
+}
+
+std::optional<bool> TJob::IsInterruptible() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Interruptible_;
+}
+
+void TJob::OnJobInterruptionTimeout()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    Abort(TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out"));
 }
 
 const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetControllerAgentConnector() const noexcept
@@ -1613,6 +1661,7 @@ void TJob::GuardedAction(std::function<void()> action)
         TForbidContextSwitchGuard contextSwitchGuard;
         action();
     } catch (const std::exception& ex) {
+        // TODO(pogorelov): This method is called not only in preparation states, do something with log message.
         YT_LOG_WARNING(ex, "Error preparing scheduler job");
 
         DoSetResult(ex);
@@ -1633,6 +1682,8 @@ void TJob::Cleanup()
 
     FinishTime_ = TInstant::Now();
     SetJobPhase(EJobPhase::Cleanup);
+
+    TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
 
     if (Slot_) {
         try {
@@ -2227,6 +2278,10 @@ std::optional<EAbortReason> TJob::GetAbortReason()
         return EAbortReason::ShallowMergeFailed;
     }
 
+    if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionTimeout)) {
+        return EAbortReason::InterruptionTimeout;
+    }
+
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
@@ -2722,6 +2777,18 @@ void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, co
 {
     FillJobStatus(jobStatus, schedulerJob);
     jobStatus->set_job_execution_completed(schedulerJob->IsJobProxyCompleted());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<bool> IsSchedulerJobInterruptible(const NJobAgent::IJob& job)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(NObjectClient::TypeFromId(job.GetId()) == NCypressClient::EObjectType::SchedulerJob);
+    auto& schedulerJob = static_cast<const TJob&>(job);
+
+    return schedulerJob.IsInterruptible();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

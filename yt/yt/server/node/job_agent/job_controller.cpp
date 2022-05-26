@@ -258,7 +258,7 @@ private:
     /*!
      *  If the job is running, aborts it.
      */
-    void AbortJob(const IJobPtr& job, const TJobToAbort& abortAttributes);
+    void AbortJob(const IJobPtr& job, TJobToAbort&& abortAttributes);
 
     void FailJob(const IJobPtr& job);
 
@@ -266,7 +266,7 @@ private:
     /*!
      *  If the job is running, interrupts it.
      */
-    void InterruptJob(const IJobPtr& job);
+    void InterruptJob(const IJobPtr& job, TDuration timeout, std::optional<TString> preemptionReason);
 
     //! Removes the job from the map.
     /*!
@@ -785,7 +785,7 @@ void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
                     try {
                         YT_LOG_DEBUG("All scheduler jobs are disabled; trying to interrupt (JobId: %v)",
                             jobId);
-                        job->Interrupt();
+                        job->Interrupt(/*timeout*/ TDuration{}, /*preemptionReason*/ std::nullopt);
                     } catch (const std::exception& ex) {
                         YT_LOG_WARNING(ex, "Failed to interrupt scheduler job (JobId: %v)",
                             jobId);
@@ -1032,7 +1032,7 @@ void TJobController::TImpl::ScheduleStart()
     StartScheduled_ = true;
 }
 
-void TJobController::TImpl::AbortJob(const IJobPtr& job, const TJobToAbort& abortAttributes)
+void TJobController::TImpl::AbortJob(const IJobPtr& job, TJobToAbort&& abortAttributes)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1046,7 +1046,7 @@ void TJobController::TImpl::AbortJob(const IJobPtr& job, const TJobToAbort& abor
         error = error << TErrorAttribute("abort_reason", *abortAttributes.AbortReason);
     }
     if (abortAttributes.PreemptionReason) {
-        error = error << TErrorAttribute("preemption_reason", *abortAttributes.PreemptionReason);
+        error = error << TErrorAttribute("preemption_reason", std::move(*abortAttributes.PreemptionReason));
     }
 
     job->Abort(error);
@@ -1066,7 +1066,7 @@ void TJobController::TImpl::FailJob(const IJobPtr& job)
     }
 }
 
-void TJobController::TImpl::InterruptJob(const IJobPtr& job)
+void TJobController::TImpl::InterruptJob(const IJobPtr& job, TDuration timeout, std::optional<TString> preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1075,7 +1075,7 @@ void TJobController::TImpl::InterruptJob(const IJobPtr& job)
         job->GetId());
 
     try {
-        job->Interrupt();
+        job->Interrupt(timeout, std::move(preemptionReason));
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to interrupt job (JobId: %v)", job->GetId());
     }
@@ -1338,28 +1338,51 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
         }
     }
 
-    {
-        auto doAbortJob = [&] (const TJobToAbort& jobToAbort) {
-            if (auto job = FindJob(jobToAbort.JobId)) {
-                AbortJob(job, jobToAbort);
-            } else {
-                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
-                    jobToAbort.JobId,
-                    jobToAbort.AbortReason,
-                    jobToAbort.PreemptionReason);
-            }
-        };
+    YT_VERIFY(response->jobs_to_interrupt_size() == 0 || response->old_jobs_to_interrupt_size() == 0);
 
-        for (const auto& protoJobToAbort : response->jobs_to_abort()) {
-            doAbortJob(FromProto<TJobToAbort>(protoJobToAbort));
+    for (const auto& jobToInterrupt : response->jobs_to_interrupt()) {
+        auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
+        auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
+
+        // TODO(pogorelov): Move handling jobs_to_interrupt and jobs_to_fail in exec node.
+        YT_VERIFY(NObjectClient::TypeFromId(jobId) == NCypressClient::EObjectType::SchedulerJob);
+
+        const auto& job = FindJob(jobId);
+
+        YT_VERIFY(NExecNode::IsSchedulerJobInterruptible(*job).has_value());
+
+        if (job) {
+            std::optional<TString> preemptionReason;
+            if (jobToInterrupt.has_preemption_reason()) {
+                preemptionReason = jobToInterrupt.preemption_reason();
+            }
+            InterruptJob(job, timeout, std::move(preemptionReason));
+        } else {
+            YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
+                jobId);
         }
     }
 
-    for (const auto& protoJobId : response->jobs_to_interrupt()) {
+    for (const auto& protoJobToAbort : response->jobs_to_abort()) {
+        auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
+        
+        if (auto job = FindJob(jobToAbort.JobId)) {
+            AbortJob(job, std::move(jobToAbort));
+        } else {
+            YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
+                jobToAbort.JobId,
+                jobToAbort.AbortReason,
+                jobToAbort.PreemptionReason);
+        }
+    }
+
+    //COMPAT(pogorelov)
+    for (const auto& protoJobId : response->old_jobs_to_interrupt()) {
         auto jobId = FromProto<TJobId>(protoJobId);
+
         auto job = FindJob(jobId);
         if (job) {
-            InterruptJob(job);
+            InterruptJob(job, /*timeout*/ TDuration{}, /*preemptionReason*/ std::nullopt);
         } else {
             YT_LOG_WARNING("Requested to interrupt a non-existing job (JobId: %v)",
                 jobId);

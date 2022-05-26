@@ -22,6 +22,8 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
     optional int32 job_reporter_write_failures_count = 9;
     optional bool job_reporter_queue_is_too_large = 10;
+    reserved 11;
+    optional bool supports_interruption_logic = 12 [default = false];
 }
 
 message TControllerAgentDescriptor
@@ -53,10 +55,17 @@ message TJobToRemove
     required TReleaseJobFlags release_job_flags = 6;
 }
 
-message TJobsToConfirm
+message TJobToConfirm
 {
     required TControllerAgentDescriptor controller_agent_descriptor = 1;
     required NYT.NProto.TGuid job_id = 2;
+}
+
+message TJobToInterrupt
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required int64 timeout = 2;
+    optional string preemption_reason = 3;
 }
 
 message TRspHeartbeat
@@ -66,11 +75,12 @@ message TRspHeartbeat
     repeated TJobToAbort jobs_to_abort = 15;
     repeated TJobToRemove jobs_to_remove = 3;
     repeated NYT.NProto.TGuid jobs_to_store = 4;
-    repeated NYT.NProto.TGuid jobs_to_interrupt = 5;
+    repeated TJobToInterrupt jobs_to_interrupt = 17;
+    repeated NYT.NProto.TGuid old_jobs_to_interrupt = 5;
     repeated NYT.NProto.TGuid jobs_to_fail = 6;
     // Ids of jobs that should be included in the next heartbeat even if they are stored.
     reserved 7;
-    repeated TJobsToConfirm jobs_to_confirm = 16;
+    repeated TJobToConfirm jobs_to_confirm = 16;
     optional bool scheduling_skipped = 8;
     optional int32 operation_archive_version = 11;
 

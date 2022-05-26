@@ -171,7 +171,7 @@ public:
 
     void ReportProfile() override;
 
-    void Interrupt() override;
+    void Interrupt(TDuration timeout, std::optional<TString> preemptionReason) override;
 
     void Fail() override;
 
@@ -182,6 +182,10 @@ public:
     void OnJobProxyCompleted() noexcept;
 
     bool IsJobProxyCompleted() const noexcept;
+
+    std::optional<bool> IsInterruptible() const noexcept;
+
+    void OnJobInterruptionTimeout();
 
     const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& GetControllerAgentConnector() const noexcept;
 
@@ -206,6 +210,7 @@ private:
     const NScheduler::NProto::TUserJobSpec* const UserJobSpec_;
     const NJobProxy::TJobTestingOptionsPtr JobTestingOptions_;
 
+    const std::optional<bool> Interruptible_;
     const bool AbortJobIfAccountLimitExceeded_;
 
     const NLogging::TLogger Logger;
@@ -222,6 +227,8 @@ private:
     std::optional<TString> FailContext_;
     std::optional<NJobAgent::TJobProfile> Profile_;
     NCoreDump::TCoreInfos CoreInfos_;
+
+    NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
     TInstant StatisticsLastSendTime_ = TInstant::Now();

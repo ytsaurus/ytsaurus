@@ -99,8 +99,12 @@ class TJob
     //! The purpose of the job interruption.
     DEFINE_BYVAL_RW_PROPERTY(EInterruptReason, InterruptReason, EInterruptReason::None);
 
+    // COMPAT(pogorelov)
     //! Deadline for job to be interrupted.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, InterruptDeadline, 0);
+
+    //! Timeout for job to be interrupted (considering by node).
+    DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuDuration, InterruptionTimeout, 0);
 
     //! Deadline for running job.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningJobUpdateDeadline, 0);

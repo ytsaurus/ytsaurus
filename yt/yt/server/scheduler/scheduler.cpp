@@ -327,6 +327,12 @@ public:
             Config_->SchedulingSegmentsManagePeriod);
         SchedulingSegmentsManagerExecutor_->Start();
 
+        CheckNodesWithUnsupportedInterruptionExecutor_ = New<TPeriodicExecutor>(
+            GetBackgroundInvoker(),
+            BIND(&TImpl::CheckNodesWithUnsupportedInterruption, MakeWeak(this)),
+            Config_->CheckNodesWithUnsupportedInterruptionPeriod);
+        CheckNodesWithUnsupportedInterruptionExecutor_->Start();
+
         MeteringRecordCountCounter_ = SchedulerProfiler
             .Counter("/metering/record_count");
         MeteringUsageQuantityCounter_ = SchedulerProfiler
@@ -2086,6 +2092,7 @@ private:
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
     TPeriodicExecutorPtr SchedulingSegmentsManagerExecutor_;
+    TPeriodicExecutorPtr CheckNodesWithUnsupportedInterruptionExecutor_;
 
     TString ServiceAddress_;
 
@@ -2891,6 +2898,7 @@ private:
             StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
+            CheckNodesWithUnsupportedInterruptionExecutor_->SetPeriod(Config_->CheckNodesWithUnsupportedInterruptionPeriod);
 
             if (OrphanedOperationQueueScanPeriodExecutor_) {
                 OrphanedOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
@@ -4555,6 +4563,92 @@ private:
         PersistOperationSchedulingSegmentModules();
 
         ManageNodeSchedulingSegments();
+    }
+
+    void CheckNodesWithUnsupportedInterruption()
+    {
+        VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
+
+        if (!IsConnected()) {
+            return;
+        }
+
+        auto setAlert = [&] (const std::vector<TString>& nodeSample, int nodeCount) {
+            YT_VERIFY(
+                WaitFor(
+                    BIND(
+                        &TImpl::SetNodesWithUnsupportedInterruptionAlert,
+                        MakeWeak(this),
+                        ConstRef(nodeSample),
+                        nodeCount)
+                            .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity))
+                            .Run())
+                    .IsOK());
+        };
+
+        if (!Config_->HandleInterruptionOnNode) {
+            YT_LOG_DEBUG("Handling interruption on nodes is disabled, skip nodes with unsupported interruption scanning");
+            setAlert({}, 0);
+            return;
+        }
+
+        std::vector<TFuture<std::vector<TString>>> nodeShardFutures;
+        nodeShardFutures.reserve(std::size(NodeShards_));
+        for (const auto& nodeShard : NodeShards_) {
+            nodeShardFutures.push_back(BIND(&TNodeShard::GetNodesWithUnsupportedInterruption, nodeShard)
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
+        }
+
+        auto nodesWithUnsupportedInterruptionByShard = WaitFor(AllSucceeded(nodeShardFutures))
+            .ValueOrThrow();
+
+        int nodeWithUnsupportedInterruptionCount = 0;
+        for (const auto& nodes : nodesWithUnsupportedInterruptionByShard) {
+            nodeWithUnsupportedInterruptionCount += std::ssize(nodes);
+        }
+
+        constexpr int nodeSampleMaxSize = 15;
+        std::vector<TString> nodesWithUnsupportedInterruption;
+        nodesWithUnsupportedInterruption.reserve(nodeSampleMaxSize);
+        for (auto& nodes : nodesWithUnsupportedInterruptionByShard) {
+            int nodeToAddCount = std::min(nodeSampleMaxSize - std::ssize(nodesWithUnsupportedInterruption), std::ssize(nodes));
+            nodesWithUnsupportedInterruption.insert(
+                std::end(nodesWithUnsupportedInterruption),
+                std::make_move_iterator(std::begin(nodes)),
+                std::make_move_iterator(std::begin(nodes) + nodeToAddCount));
+            
+            if (std::ssize(nodesWithUnsupportedInterruption) == nodeSampleMaxSize) {
+                break;
+            }
+        }
+
+        if (std::empty(nodesWithUnsupportedInterruption)) {
+            YT_LOG_DEBUG("All nodes support interruptions");
+        } else {
+            YT_LOG_DEBUG(
+                "Found nodes that don't support interruptions (TotalCount: %v, NodeSample: %v)",
+                nodeWithUnsupportedInterruptionCount,
+                nodesWithUnsupportedInterruption);
+        }
+
+        setAlert(nodesWithUnsupportedInterruption, nodeWithUnsupportedInterruptionCount);
+    }
+
+    void SetNodesWithUnsupportedInterruptionAlert(
+        const std::vector<TString>& nodeSample,
+        int nodeCount)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        
+        TError error;
+        if (!std::empty(nodeSample)) {
+            error = TError("Found nodes that don't support interruption handling")
+                << TErrorAttribute("node_addresses_sample", nodeSample)
+                << TErrorAttribute("node_count", nodeCount);
+        }
+
+        SetSchedulerAlert(ESchedulerAlertType::FoundNodesWithUnsupportedInterruption, error);
     }
 
     // TODO(eshcherbin): Think about storing module in runtime parameters only.

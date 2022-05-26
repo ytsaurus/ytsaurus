@@ -209,6 +209,8 @@ public:
     bool IsOperationRegistered(TOperationId operationId) const noexcept;
     bool AreNewJobsForbiddenForOperation(TOperationId operationId) const noexcept;
 
+    std::vector<TString> GetNodesWithUnsupportedInterruption() const;
+
 private:
     const int Id_;
     TSchedulerConfigPtr Config_;
@@ -408,8 +410,15 @@ private:
 
     void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
-    void PreemptJob(const TJobPtr& job, std::optional<NProfiling::TCpuDuration> interruptTimeout);
+    void ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout);
+    void PreemptJob(const TJobPtr& job, NProfiling::TCpuDuration interruptTimeout);
     NJobTrackerClient::TJobToAbort BuildPreemptedJobAbortAttributes(const TJobPtr& job) const;
+
+    void SendPreemptedJobToNode(
+        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        const TJobPtr& job,
+        TDuration interruptTimeout,
+        bool isJobInterruptible) const;
 
     void DoInterruptJob(
         const TJobPtr& job,

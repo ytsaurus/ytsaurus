@@ -1,6 +1,7 @@
 #include "job_prober_service.h"
 
 #include "bootstrap.h"
+#include "job_detail.h"
 #include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_controller.h>
@@ -153,7 +154,24 @@ private:
             jobId);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        job->Interrupt();
+
+        if (NObjectClient::TypeFromId(jobId) != NCypressClient::EObjectType::SchedulerJob) {
+            THROW_ERROR_EXCEPTION("Cannot interrupt job %v because it is not a scheduler job",
+                jobId);
+        }
+
+        // COMPAT(pogorelov)
+        bool interruptible = static_cast<TJob&>(*job).IsInterruptible().value_or(true);
+        if (!interruptible) {
+            THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
+                "because it does not support interruption or \"interruption_signal\" is not set",
+                jobId,
+                job->GetType());
+        }
+
+        auto timeout = FromProto<TDuration>(request->timeout());
+
+        job->Interrupt(timeout, std::nullopt);
 
         context->Reply();
     }
