@@ -64,6 +64,12 @@ using NJobTrackerClient::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCompletedJobSummary;
+
+DECLARE_REFCOUNTED_CLASS(TProgressCounter)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EScheduleJobFailReason,
     ((Unknown)                       ( 0))
     ((OperationNotRunning)           ( 1))

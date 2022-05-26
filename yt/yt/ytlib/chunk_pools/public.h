@@ -6,6 +6,8 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
+
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
