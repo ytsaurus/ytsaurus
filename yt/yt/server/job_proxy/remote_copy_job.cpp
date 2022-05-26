@@ -744,7 +744,7 @@ private:
             Host_->GetTrafficMeter(),
             Host_->GetOutBandwidthThrottler());
 
-        auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
+        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
 
         std::vector<i64> blockSizes;
         for (const auto& block : blocksExt.blocks()) {

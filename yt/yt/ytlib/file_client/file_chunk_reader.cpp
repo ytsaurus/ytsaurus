@@ -284,7 +284,7 @@ private:
             }
         } else {
             // Old chunk.
-            auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
+            auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
             blockCount = blocksExt.blocks_size();
 
             blockSequence.reserve(blockCount);

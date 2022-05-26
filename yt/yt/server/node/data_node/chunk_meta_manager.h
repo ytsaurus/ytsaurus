@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/io/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -49,17 +51,14 @@ class TCachedBlocksExt
     : public TAsyncCacheValueBase<TChunkId, TCachedBlocksExt>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TRefCountedBlocksExtPtr, BlocksExt);
+    DEFINE_BYVAL_RO_PROPERTY(NIO::TBlocksExtPtr, BlocksExt);
 
 public:
     TCachedBlocksExt(
         TChunkId chunkId,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt);
+        NIO::TBlocksExtPtr blocksExt);
 
     i64 GetWeight() const;
-
-private:
-    const i64 Weight_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlocksExt)
@@ -99,12 +98,12 @@ struct IChunkMetaManager
     virtual void RemoveCachedMeta(TChunkId chunkId) = 0;
 
     //! Looks for blocks ext in the cache.
-    virtual NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) = 0;
+    virtual NIO::TBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) = 0;
 
     //! Puts blocks ext into the cache.
     virtual void PutCachedBlocksExt(
         TChunkId chunkId,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt) = 0;
+        NIO::TBlocksExtPtr blocksExt) = 0;
 
     //! Starts an asynchronous blocks ext load.
     virtual TCachedBlocksExtCookie BeginInsertCachedBlocksExt(TChunkId chunkId) = 0;
@@ -112,7 +111,7 @@ struct IChunkMetaManager
     //! Completes an asynchronous blocks ext load.
     virtual void EndInsertCachedBlocksExt(
         TCachedBlocksExtCookie&& cookie,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt) = 0;
+        NIO::TBlocksExtPtr blocksExt) = 0;
 
     //! Forcefully evicts cached blocks ext from the cache, if any.
     virtual void RemoveCachedBlocksExt(TChunkId chunkId) = 0;

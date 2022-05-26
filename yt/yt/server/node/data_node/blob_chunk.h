@@ -53,7 +53,7 @@ public:
 
     void SyncRemove(bool force) override;
 
-    NChunkClient::TRefCountedBlocksExtPtr FindCachedBlocksExt();
+    NIO::TBlocksExtPtr FindCachedBlocksExt();
 
 protected:
     TBlobChunkBase(
@@ -95,7 +95,7 @@ private:
     NChunkClient::NProto::TChunkInfo Info_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, BlocksExtLock_);
-    TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
+    TWeakPtr<NIO::TBlocksExt> WeakBlocksExt_;
 
     // Protected by LifetimeLock_.
     TWeakPtr<NIO::TChunkFileReader> CachedWeakReader_;
@@ -113,7 +113,7 @@ private:
         TCachedChunkMetaCookie cookie);
     void OnBlocksExtLoaded(
         const TReadBlockSetSessionPtr& session,
-        const NChunkClient::TRefCountedBlocksExtPtr& blocksExt);
+        const NIO::TBlocksExtPtr& blocksExt);
 
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,

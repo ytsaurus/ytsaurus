@@ -831,7 +831,7 @@ private:
         switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
-                auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+                auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta.extensions());
                 return blocksExt.blocks_size();
             }
 

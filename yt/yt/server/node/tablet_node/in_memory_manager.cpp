@@ -485,7 +485,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     TDuration decompressionTime;
 
     if (erasureCodecId == NErasure::ECodec::None) {
-        auto blocksExt = GetProtoExtension<TBlocksExt>(meta->extensions());
+        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
         YT_VERIFY(blockCount <= blocksExt.blocks_size());
         for (int i = startBlockIndex; i < endBlockIndex; ++i) {
             preallocatedMemory += blocksExt.blocks(i).size();

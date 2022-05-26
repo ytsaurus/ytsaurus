@@ -14,14 +14,35 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBlockInfo
+{
+    i64 Offset = 0;
+    i64 Size = 0;
+    ui64 Checksum = 0;
+};
+
+struct TBlocksExt final
+{
+    TBlocksExt() = default;
+
+    explicit TBlocksExt(const NChunkClient::NProto::TBlocksExt& message);
+
+    std::vector<TBlockInfo> Blocks;
+    bool SyncOnClose = false;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlocksExt);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IBlocksExtCache
 {
     virtual ~IBlocksExtCache() = default;
 
-    virtual NChunkClient::TRefCountedBlocksExtPtr Find() = 0;
+    virtual TBlocksExtPtr Find() = 0;
     virtual void Put(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        const NChunkClient::TRefCountedBlocksExtPtr& blocksExt) = 0;
+        const TBlocksExtPtr& blocksExt) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,19 +125,19 @@ private:
     TFuture<void> ChunkFragmentReadsPreparedFuture_;
     std::atomic<bool> ChunkFragmentReadsPrepared_ = false;
     // Permanently caches blocks extension for readers with PrepareToReadChunkFragments invoked.
-    NChunkClient::TRefCountedBlocksExtPtr BlocksExt_;
+    NIO::TBlocksExtPtr BlocksExt_;
 
     TFuture<std::vector<NChunkClient::TBlock>> DoReadBlocks(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        NChunkClient::TRefCountedBlocksExtPtr blocksExt = nullptr,
+        NIO::TBlocksExtPtr blocksExt = nullptr,
         TIOEngineHandlePtr dataFile = nullptr);
     std::vector<NChunkClient::TBlock> OnBlocksRead(
         const NChunkClient::TClientChunkReadOptions& options,
         int firstBlockIndex,
         int blockCount,
-        const NChunkClient::TRefCountedBlocksExtPtr& blocksExt,
+        const NIO::TBlocksExtPtr& blocksExt,
         const IIOEngine::TReadResponse& readResponse);
     TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoReadMeta(
         const NChunkClient::TClientChunkReadOptions& options,
@@ -131,7 +152,7 @@ private:
 
     void DumpBrokenBlock(
         int blockIndex,
-        const NChunkClient::NProto::TBlockInfo& blockInfo,
+        const NIO::TBlockInfo& blockInfo,
         TRef block) const;
     void DumpBrokenMeta(TRef block) const;
 };

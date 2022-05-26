@@ -61,7 +61,7 @@ TBlobChunkBase::TBlobChunkBase(
     if (meta) {
         Context_->ChunkMetaManager->PutCachedMeta(Id_, meta);
 
-        auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
+        auto blocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
         Context_->ChunkMetaManager->PutCachedBlocksExt(Id_, blocksExt);
 
         WeakBlocksExt_ = blocksExt;
@@ -121,7 +121,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
        .AsyncVia(Context_->StorageHeavyInvoker));
 }
 
-TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
+NIO::TBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -283,7 +283,7 @@ void TBlobChunkBase::DoReadMeta(
 
 void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
-    const TRefCountedBlocksExtPtr& blocksExt)
+    const NIO::TBlocksExtPtr& blocksExt)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -296,9 +296,9 @@ void TBlobChunkBase::OnBlocksExtLoaded(
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
-        const auto& blockInfo = blocksExt->blocks(entry.BlockIndex);
-        entry.BeginOffset = blockInfo.offset();
-        entry.EndOffset = blockInfo.offset() + blockInfo.size();
+        const auto& blockInfo = blocksExt->Blocks[entry.BlockIndex];
+        entry.BeginOffset = blockInfo.Offset;
+        entry.EndOffset = blockInfo.Offset + blockInfo.Size;
 
         YT_LOG_TRACE("Block entry (EntryIndex: %v, BlockIndex: %v, Cached: %v, BeginOffset: %v, EndOffset: %v)",
             entryIndex,
@@ -334,7 +334,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }
 
         diskFetchNeeded = true;
-        pendingDataSize += blockInfo.size();
+        pendingDataSize += blockInfo.Size;
         pendingBlockCount += 1;
 
         if (pendingDataSize >= config->MaxBytesPerRead ||
@@ -621,7 +621,7 @@ bool TBlobChunkBase::ShouldSyncOnClose()
         return true;
     }
 
-    return blocksExt->sync_on_close();
+    return blocksExt->SyncOnClose;
 }
 
 bool TBlobChunkBase::IsReadable()
@@ -705,7 +705,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             ReadMeta(options)
                 .Subscribe(BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
                     if (result.IsOK()) {
-                        auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(result.Value()->extensions()));
+                        auto blocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(result.Value()->extensions()));
                         {
                             auto guard = WriterGuard(BlocksExtLock_);
                             WeakBlocksExt_ = blocksExt;

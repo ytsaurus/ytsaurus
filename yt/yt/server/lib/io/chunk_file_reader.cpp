@@ -189,7 +189,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
 
                 return DoReadMeta(options, std::nullopt)
                     .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
-                        BlocksExt_ = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
+                        BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                         if (BlocksExtCache_) {
                             BlocksExtCache_->Put(meta, BlocksExt_);
                         }
@@ -207,31 +207,31 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     YT_ASSERT(ChunkFragmentReadsPrepared_.load());
 
     if (fragmentDescriptor.BlockIndex < 0 ||
-        fragmentDescriptor.BlockIndex >= BlocksExt_->blocks_size())
+        fragmentDescriptor.BlockIndex >= std::ssize(BlocksExt_->Blocks))
     {
         THROW_ERROR_EXCEPTION("Invalid block index in fragment descriptor %v: expected in range [0,%v)",
             fragmentDescriptor,
-            BlocksExt_->blocks_size());
+            BlocksExt_->Blocks.size());
     }
 
     if (fragmentDescriptor.Length < 0) {
         THROW_ERROR_EXCEPTION("Invalid length in fragment descriptor %v",
             fragmentDescriptor,
-            BlocksExt_->blocks_size());
+            BlocksExt_->Blocks.size());
     }
 
-    const auto& blockInfo = BlocksExt_->blocks(fragmentDescriptor.BlockIndex);
+    const auto& blockInfo = BlocksExt_->Blocks[fragmentDescriptor.BlockIndex];
     if (fragmentDescriptor.BlockOffset < 0 ||
-        fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > blockInfo.size())
+        fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > blockInfo.Size)
     {
         THROW_ERROR_EXCEPTION("Invalid block offset in fragment descriptor %v for block of size %v",
             fragmentDescriptor,
-            blockInfo.size());
+            blockInfo.Size);
     }
 
     return IIOEngine::TReadRequest{
         .Handle = DataFile_,
-        .Offset = blockInfo.offset() + fragmentDescriptor.BlockOffset,
+        .Offset = blockInfo.Offset + fragmentDescriptor.BlockOffset,
         .Size = fragmentDescriptor.Length
     };
 }
@@ -240,40 +240,40 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    const TRefCountedBlocksExtPtr& blocksExt,
+    const NIO::TBlocksExtPtr& blocksExt,
     const IIOEngine::TReadResponse& readResponse)
 {
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& buffer = readResponse.OutputBuffers[0];
 
     options.ChunkReaderStatistics->DataBytesReadFromDisk += buffer.Size();
-    const auto& firstBlockInfo = blocksExt->blocks(firstBlockIndex);
+    const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
 
     std::vector<TBlock> blocks;
     blocks.reserve(blockCount);
 
     for (int localIndex = 0; localIndex < blockCount; ++localIndex) {
         int blockIndex = firstBlockIndex + localIndex;
-        const auto& blockInfo = blocksExt->blocks(blockIndex);
+        const auto& blockInfo = blocksExt->Blocks[blockIndex];
         auto block = buffer.Slice(
-            blockInfo.offset() - firstBlockInfo.offset(),
-            blockInfo.offset() - firstBlockInfo.offset() + blockInfo.size());
+            blockInfo.Offset - firstBlockInfo.Offset,
+            blockInfo.Offset - firstBlockInfo.Offset + blockInfo.Size);
         if (ValidateBlockChecksums_) {
             auto checksum = GetChecksum(block);
-            if (checksum != blockInfo.checksum()) {
+            if (checksum != blockInfo.Checksum) {
                 DumpBrokenBlock(blockIndex, blockInfo, block);
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
                     "Incorrect checksum of block %v in chunk data file %v: expected %v, actual %v",
                     blockIndex,
                     FileName_,
-                    blockInfo.checksum(),
+                    blockInfo.Checksum,
                     checksum)
                     << TErrorAttribute("first_block_index", firstBlockIndex)
                     << TErrorAttribute("block_count", blockCount);
             }
         }
-        blocks.push_back(TBlock(block, blockInfo.checksum()));
+        blocks.push_back(TBlock(block, blockInfo.Checksum));
         blocks.back().BlockOrigin = EBlockOrigin::Disk;
     }
 
@@ -284,7 +284,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     const TClientChunkReadOptions& options,
     int firstBlockIndex,
     int blockCount,
-    TRefCountedBlocksExtPtr blocksExt,
+    NIO::TBlocksExtPtr blocksExt,
     TIOEngineHandlePtr dataFile)
 {
     if (!blocksExt && BlocksExtCache_) {
@@ -294,7 +294,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
     if (!blocksExt) {
         return DoReadMeta(options, std::nullopt)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
-                auto loadedBlocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(meta->extensions()));
+                auto loadedBlocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
                     BlocksExtCache_->Put(meta, loadedBlocksExt);
                 }
@@ -315,7 +315,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
         dataFile = optionalDataFileOrError->Value();
     }
 
-    int chunkBlockCount = blocksExt->blocks_size();
+    int chunkBlockCount = std::ssize(blocksExt->Blocks);
     if (firstBlockIndex + blockCount > chunkBlockCount) {
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::BlockOutOfRange,
             "Requested to read blocks [%v,%v] from chunk %v while only %v blocks exist",
@@ -327,15 +327,15 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
     // Read all blocks within a single request.
     int lastBlockIndex = firstBlockIndex + blockCount - 1;
-    const auto& firstBlockInfo = blocksExt->blocks(firstBlockIndex);
-    const auto& lastBlockInfo = blocksExt->blocks(lastBlockIndex);
-    i64 totalSize = lastBlockInfo.offset() + lastBlockInfo.size() - firstBlockInfo.offset();
+    const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
+    const auto& lastBlockInfo = blocksExt->Blocks[lastBlockIndex];
+    i64 totalSize = lastBlockInfo.Offset + lastBlockInfo.Size - firstBlockInfo.Offset;
 
     struct TChunkFileReaderBufferTag
     { };
     return IOEngine_->Read({{
             dataFile,
-            firstBlockInfo.offset(),
+            firstBlockInfo.Offset,
             totalSize
         }},
         options.WorkloadDescriptor.Category,
@@ -468,19 +468,35 @@ void TChunkFileReader::DumpBrokenMeta(TRef block) const
 
 void TChunkFileReader::DumpBrokenBlock(
     int blockIndex,
-    const TBlockInfo& blockInfo,
+    const NIO::TBlockInfo& blockInfo,
     TRef block) const
 {
     auto fileName = Format("%v.broken.%v.%v.%v.%v",
         FileName_,
         blockIndex,
-        blockInfo.offset(),
-        blockInfo.size(),
-        blockInfo.checksum());
+        blockInfo.Offset,
+        blockInfo.Size,
+        blockInfo.Checksum);
 
     TFile file(fileName, CreateAlways | WrOnly);
     file.Write(block.Begin(), block.Size());
     file.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBlocksExt::TBlocksExt(const NChunkClient::NProto::TBlocksExt& message)
+{
+    Blocks.reserve(message.blocks_size());
+    for (const auto& blokInfo : message.blocks()) {
+        Blocks.push_back(TBlockInfo{
+            .Offset = blokInfo.offset(),
+            .Size = blokInfo.size(),
+            .Checksum = blokInfo.checksum(),
+        });
+    }
+
+    SyncOnClose = message.sync_on_close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

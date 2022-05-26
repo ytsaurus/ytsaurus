@@ -7,6 +7,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
@@ -43,15 +45,14 @@ i64 TCachedChunkMeta::GetWeight() const
 
 TCachedBlocksExt::TCachedBlocksExt(
     TChunkId chunkId,
-    TRefCountedBlocksExtPtr blocksExt)
+    NIO::TBlocksExtPtr blocksExt)
     : TAsyncCacheValueBase(chunkId)
     , BlocksExt_(std::move(blocksExt))
-    , Weight_(BlocksExt_->SpaceUsedLong())
 { }
 
 i64 TCachedBlocksExt::GetWeight() const
 {
-    return Weight_;
+    return BlocksExt_->Blocks.size() * sizeof(NIO::TBlockInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,13 +134,13 @@ public:
     }
 
 
-    TRefCountedBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) override
+    NIO::TBlocksExtPtr FindCachedBlocksExt(TChunkId chunkId) override
     {
         auto cachedBlocksExt = BlocksExtCache_->Find(chunkId);
         return cachedBlocksExt ? cachedBlocksExt->GetBlocksExt() : nullptr;
     }
 
-    void PutCachedBlocksExt(TChunkId chunkId, TRefCountedBlocksExtPtr blocksExt) override
+    void PutCachedBlocksExt(TChunkId chunkId, NIO::TBlocksExtPtr blocksExt) override
     {
         auto cookie = BeginInsertCachedBlocksExt(chunkId);
         if (cookie.IsActive()) {
@@ -157,7 +158,7 @@ public:
 
     void EndInsertCachedBlocksExt(
         TCachedBlocksExtCookie&& cookie,
-        TRefCountedBlocksExtPtr blocksExt) override
+        NIO::TBlocksExtPtr blocksExt) override
     {
         auto chunkId = cookie.GetKey();
         auto cachedBlocksExt = New<TCachedBlocksExt>(
