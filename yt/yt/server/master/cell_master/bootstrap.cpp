@@ -422,7 +422,7 @@ const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
     return SecurityManager_;
 }
 
-const TSchedulerPoolManagerPtr& TBootstrap::GetSchedulerPoolManager() const
+const ISchedulerPoolManagerPtr& TBootstrap::GetSchedulerPoolManager() const
 {
     return SchedulerPoolManager_;
 }
@@ -779,7 +779,7 @@ void TBootstrap::DoInitialize()
 
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
-    SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
+    SchedulerPoolManager_ = CreateSchedulerPoolManager(this);
 
     ObjectService_ = CreateObjectService(Config_->ObjectService, this);
 

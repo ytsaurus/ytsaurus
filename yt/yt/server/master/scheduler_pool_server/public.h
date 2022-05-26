@@ -13,7 +13,7 @@ using TSchedulerPoolId = NObjectClient::TObjectId;
 DECLARE_ENTITY_TYPE(TSchedulerPool, TSchedulerPoolId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TSchedulerPoolTree, TSchedulerPoolId, NObjectClient::TDirectObjectIdHash)
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerPoolManager)
+DECLARE_REFCOUNTED_STRUCT(ISchedulerPoolManager)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicSchedulerPoolManagerConfig)
 

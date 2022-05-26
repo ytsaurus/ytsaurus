@@ -122,7 +122,7 @@ public:
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
     const NJournalServer::IJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
-    const NSchedulerPoolServer::TSchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
+    const NSchedulerPoolServer::ISchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
     const NTableServer::TTableManagerPtr& GetTableManager() const;
     const NTabletServer::TTabletManagerPtr& GetTabletManager() const;
@@ -198,7 +198,7 @@ protected:
     NTableServer::TTableManagerPtr TableManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NTabletServer::IBackupManagerPtr BackupManager_;
-    NSchedulerPoolServer::TSchedulerPoolManagerPtr SchedulerPoolManager_;
+    NSchedulerPoolServer::ISchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
