@@ -150,6 +150,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkListType)                                                (2015))  // gritukan
     ((BuiltinMountConfig)                                           (2016))  // ifsmirnov
     ((BackupReplicated)                                             (2017))  // ifsmirnov
+    ((DefaultMaxBackingStoreMemoryRatio)                            (2018))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

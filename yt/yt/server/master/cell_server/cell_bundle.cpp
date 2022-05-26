@@ -71,8 +71,49 @@ void TCellBundle::Load(TLoadContext& context)
     Load(context, Name_);
     Load(context, Acd_);
     Load(context, *Options_);
-    Load(context, *DynamicOptions_);
+
+    bool needBumpConfigVersion = false;
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::DefaultMaxBackingStoreMemoryRatio) {
+        DynamicOptions_->MaxBackingStoreMemoryRatio = std::nullopt;
+
+        auto node = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        // Postprocess might fail if current forced rotation memory ratio is > 0.85.
+        DynamicOptions_->Load(node, /*postprocess*/ false, /*setDefaults*/ false);
+
+        bool isDefault = true;
+
+        if (node->FindChild("max_backing_store_memory_ratio")) {
+            isDefault = false;
+        }
+
+        if (auto child = node->FindChild("forced_rotation_memory_ratio")) {
+            if (child->GetType() != ENodeType::Double ||
+                std::fabsl(child->AsDouble()->GetValue() - 0.8) > 1e-6)
+            {
+                isDefault = false;
+            }
+        }
+
+        if (isDefault) {
+            DynamicOptions_->ForcedRotationMemoryRatio = 0.7;
+            DynamicOptions_->MaxBackingStoreMemoryRatio = 0.15;
+            needBumpConfigVersion = true;
+        }
+
+        DynamicOptions_->Postprocess();
+    } else {
+        Load(context, *DynamicOptions_);
+    }
+
     Load(context, DynamicConfigVersion_);
+
+    // COMPAT(ifsmirnov)
+    if (needBumpConfigVersion) {
+        ++DynamicConfigVersion_;
+    }
+
     Load(context, *CellBalancerConfig_);
     Load(context, Health_);
 
