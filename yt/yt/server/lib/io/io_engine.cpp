@@ -589,7 +589,7 @@ protected:
     {
         NFS::ExpectIOErrors([&] {
             auto op = GetLockOp(request.Mode) + (request.Nonblocking ? LOCK_NB : 0);
-            if (request.Handle->Flock(op) != 0) {
+            if (HandleEintr(::flock, *request.Handle, op) != 0) {
                 ythrow TFileError();
             }
         });
