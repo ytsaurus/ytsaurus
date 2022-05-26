@@ -192,7 +192,8 @@ DB::Pipe CreateRemoteSource(
     auto queryHeader = New<TSecondaryQueryHeader>();
     queryHeader->QueryId = remoteQueryId;
     queryHeader->ParentQueryId = queryContext->QueryId;
-    queryHeader->SpanContext = traceContext->GetSpanContext();
+    queryHeader->SpanContext = New<TSerializableSpanContext>();
+    static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
     queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
 
