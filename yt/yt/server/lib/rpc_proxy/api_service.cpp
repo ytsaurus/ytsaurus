@@ -737,7 +737,24 @@ private:
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
 
-    NConcurrency::TSyncMap<std::optional<TYPath>, TDetailedProfilingCountersPtr> DetailedProfilingCountersMap_;
+    struct TDetailedProfilingCountersKey
+    {
+        std::optional<TString> UserTag;
+        std::optional<TYPath> TablePath;
+
+        operator size_t() const
+        {
+            return MultiHash(
+                UserTag,
+                TablePath);
+        }
+    };
+
+    using TDetailedProfilingCountersMap = NConcurrency::TSyncMap<
+        TDetailedProfilingCountersKey,
+        TDetailedProfilingCountersPtr
+    >;
+    TDetailedProfilingCountersMap DetailedProfilingCountersMap_;
 
     std::atomic<i64> NextSequenceNumberSourceId_ = 0;
 
@@ -990,17 +1007,22 @@ private:
     }
 
 
-    TDetailedProfilingCountersPtr GetOrCreateDetailedProfilingCounters(const std::optional<TYPath>& path)
+    TDetailedProfilingCountersPtr GetOrCreateDetailedProfilingCounters(
+        const TDetailedProfilingCountersKey& key)
     {
         return *DetailedProfilingCountersMap_.FindOrInsert(
-            path,
+            key,
             [&] {
                 auto profiler = Profiler_
                     .WithPrefix("/detailed_table_statistics")
                     .WithSparse();
-                if (path) {
+                if (key.TablePath) {
                     profiler = profiler
-                        .WithTag("table_path", *path);
+                        .WithTag("table_path", *key.TablePath);
+                }
+                if (key.UserTag) {
+                    profiler = profiler
+                        .WithTag("user", *key.UserTag);
                 }
                 return New<TDetailedProfilingCounters>(std::move(profiler));
             })
@@ -2997,17 +3019,21 @@ private:
 
     void ProcessLookupRowsDetailedProfilingInfo(
         TWallTimer timer,
+        const TString& userTag,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         TDetailedProfilingCountersPtr counters;
         if (detailedProfilingInfo->EnableDetailedTableProfiling) {
-            counters = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            counters = GetOrCreateDetailedProfilingCounters({
+                .UserTag = userTag,
+                .TablePath = detailedProfilingInfo->TablePath,
+            });
             counters->LookupDurationTimer().Record(timer.GetElapsedTime());
             counters->LookupMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
         } else if (!detailedProfilingInfo->RetryReasons.empty() ||
             detailedProfilingInfo->WastedSubrequestCount > 0)
         {
-            counters = GetOrCreateDetailedProfilingCounters(std::nullopt);
+            counters = GetOrCreateDetailedProfilingCounters({});
         }
 
         if (detailedProfilingInfo->WastedSubrequestCount > 0) {
@@ -3021,15 +3047,19 @@ private:
 
     void ProcessSelectRowsDetailedProfilingInfo(
         TWallTimer timer,
+        const TString& userTag,
         const TDetailedProfilingInfoPtr& detailedProfilingInfo)
     {
         TDetailedProfilingCountersPtr counters;
         if (detailedProfilingInfo->EnableDetailedTableProfiling) {
-            counters = GetOrCreateDetailedProfilingCounters(detailedProfilingInfo->TablePath);
+            counters = GetOrCreateDetailedProfilingCounters({
+                .UserTag = userTag,
+                .TablePath = detailedProfilingInfo->TablePath,
+            });
             counters->SelectDurationTimer().Record(timer.GetElapsedTime());
             counters->SelectMountCacheWaitTimer().Record(detailedProfilingInfo->MountCacheWaitTime);
         } else if (!detailedProfilingInfo->RetryReasons.empty()) {
-            counters = GetOrCreateDetailedProfilingCounters(std::nullopt);
+            counters = GetOrCreateDetailedProfilingCounters({});
         }
 
         for (const auto& reason : detailedProfilingInfo->RetryReasons) {
@@ -3097,7 +3127,10 @@ private:
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
-                ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
+                ProcessLookupRowsDetailedProfilingInfo(
+                    timer,
+                    context->GetAuthenticationIdentity().UserTag,
+                    detailedProfilingInfo);
 
                 context->SetResponseInfo("RowCount: %v, DetailedTableProfilingEnabled: %v",
                     rowset->GetRows().Size(),
@@ -3159,7 +3192,10 @@ private:
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
 
-                ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
+                ProcessLookupRowsDetailedProfilingInfo(
+                    timer,
+                    context->GetAuthenticationIdentity().UserTag,
+                    detailedProfilingInfo);
 
                 context->SetResponseInfo("RowCount: %v, EnableDetailedTableProfiling: %v",
                     rowset->GetRows().Size(),
@@ -3269,7 +3305,10 @@ private:
                 }
 
                 for (const auto& detailedProfilingInfo : profilingInfos) {
-                    ProcessLookupRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
+                    ProcessLookupRowsDetailedProfilingInfo(
+                        timer,
+                        context->GetAuthenticationIdentity().UserTag,
+                        detailedProfilingInfo);
                 }
 
                 context->SetResponseInfo("RowCounts: %v",
@@ -3362,7 +3401,10 @@ private:
                 response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
                 ToProto(response->mutable_statistics(), result.Statistics);
 
-                ProcessSelectRowsDetailedProfilingInfo(timer, detailedProfilingInfo);
+                ProcessSelectRowsDetailedProfilingInfo(
+                    timer,
+                    context->GetAuthenticationIdentity().UserTag,
+                    detailedProfilingInfo);
 
                 context->SetResponseInfo("RowCount: %v",
                     result.Rowset->GetRows().Size());

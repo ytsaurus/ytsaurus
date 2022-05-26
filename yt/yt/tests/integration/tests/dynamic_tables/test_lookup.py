@@ -1095,7 +1095,7 @@ class TestLookupRpcProxy(TestLookup):
 
         proxy_lookup_duration_histogram = profiler_factory().at_rpc_proxy(rpc_proxy).histogram(
             name="rpc_proxy/detailed_table_statistics/lookup_duration",
-            fixed_tags={"table_path": "//tmp/t"})
+            fixed_tags={"table_path": "//tmp/t", "user": "root"})
 
         def check():
             def _check(lookup_duration_histogram):
