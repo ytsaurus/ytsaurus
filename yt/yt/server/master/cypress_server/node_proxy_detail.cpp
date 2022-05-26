@@ -914,7 +914,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     {
     public:
         TVisitor(
-            TCypressManagerPtr cypressManager,
+            ICypressManagerPtr cypressManager,
             ISecurityManagerPtr securityManager,
             TTransaction* transaction,
             std::optional<std::vector<TString>> attributeKeys)
@@ -935,7 +935,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         }
 
     private:
-        const TCypressManagerPtr CypressManager_;
+        const ICypressManagerPtr CypressManager_;
         const ISecurityManagerPtr SecurityManager_;
         TTransaction* const Transaction_;
         const std::optional<std::vector<TString>> AttributeKeys_;

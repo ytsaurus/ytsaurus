@@ -1,4 +1,5 @@
 #include "portal_manager.h"
+
 #include "cypress_manager.h"
 #include "helpers.h"
 #include "portal_entrance_node.h"
@@ -51,49 +52,50 @@ static const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPortalManager::TImpl
-    : public NCellMaster::TMasterAutomatonPart
+class TPortalManager
+    : public IPortalManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TPortalManager(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::PortalManager)
     {
         RegisterLoader(
             "PortalManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TPortalManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "PortalManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TPortalManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "PortalManager.Keys",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TPortalManager::SaveValues, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "PortalManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TPortalManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraCreatePortalExit, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemovePortalEntrance, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemovePortalExit, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSynchronizePortalExit, Unretained(this)));
+        RegisterMethod(BIND(&TPortalManager::HydraCreatePortalExit, Unretained(this)));
+        RegisterMethod(BIND(&TPortalManager::HydraRemovePortalEntrance, Unretained(this)));
+        RegisterMethod(BIND(&TPortalManager::HydraRemovePortalExit, Unretained(this)));
+        RegisterMethod(BIND(&TPortalManager::HydraSynchronizePortalExit, Unretained(this)));
 
         SynchronizePortalExitsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::PortalManager),
-            BIND(&TImpl::OnSynchronizePortalExits, MakeWeak(this)));
+            BIND(&TPortalManager::OnSynchronizePortalExits, MakeWeak(this)));
         SynchronizePortalExitsExecutor_->Start();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TPortalManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         transactionManager->RegisterTransactionActionHandlers(
-            MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraCopySynchronizablePortalAttributes, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(BIND(&TPortalManager::HydraCopySynchronizablePortalAttributes, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(MakeEmptyTransactionActionHandler<
                 TTransaction,
                 TReqCopySynchronizablePortalAttributes,
@@ -180,7 +182,7 @@ public:
     void RegisterEntranceNode(
         TPortalEntranceNode* node,
         const IAttributeDictionary& inheritedAttributes,
-        const IAttributeDictionary& explicitAttributes)
+        const IAttributeDictionary& explicitAttributes) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -228,7 +230,7 @@ public:
             path);
     }
 
-    void DestroyEntranceNode(TPortalEntranceNode* trunkNode)
+    void DestroyEntranceNode(TPortalEntranceNode* trunkNode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNode->IsTrunk());
@@ -246,7 +248,7 @@ public:
             trunkNode->GetId());
     }
 
-    void DestroyExitNode(TPortalExitNode* trunkNode)
+    void DestroyExitNode(TPortalExitNode* trunkNode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNode->IsTrunk());
@@ -264,14 +266,23 @@ public:
             trunkNode->GetId());
     }
 
-    DEFINE_BYREF_RO_PROPERTY(TEntranceNodeMap, EntranceNodes);
-    DEFINE_BYREF_RO_PROPERTY(TExitNodeMap, ExitNodes);
+    const TEntranceNodeMap& GetEntranceNodes() override
+    {
+        return EntranceNodes_;
+    }
+
+    const TExitNodeMap& GetExitNodes() override
+    {
+        return ExitNodes_;
+    }
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     NConcurrency::TPeriodicExecutorPtr SynchronizePortalExitsExecutor_;
 
+    TEntranceNodeMap EntranceNodes_;
+    TExitNodeMap ExitNodes_;
 
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
     { }
@@ -644,41 +655,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPortalManager::TPortalManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-void TPortalManager::Initialize()
+IPortalManagerPtr CreatePortalManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TPortalManager>(bootstrap);
 }
-
-TPortalManager::~TPortalManager()
-{ }
-
-void TPortalManager::RegisterEntranceNode(
-    TPortalEntranceNode* node,
-    const IAttributeDictionary& inheritedAttributes,
-    const IAttributeDictionary& explicitAttributes)
-{
-    Impl_->RegisterEntranceNode(
-        node,
-        inheritedAttributes,
-        explicitAttributes);
-}
-
-void TPortalManager::DestroyEntranceNode(TPortalEntranceNode* trunkNode)
-{
-    Impl_->DestroyEntranceNode(trunkNode);
-}
-
-void TPortalManager::DestroyExitNode(TPortalExitNode* trunkNode)
-{
-    Impl_->DestroyExitNode(trunkNode);
-}
-
-DELEGATE_BYREF_RO_PROPERTY(TPortalManager, TPortalManager::TEntranceNodeMap, EntranceNodes, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TPortalManager, TPortalManager::TExitNodeMap, ExitNodes, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

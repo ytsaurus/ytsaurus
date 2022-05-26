@@ -92,13 +92,17 @@ static const INodeTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TNodeFactory
+class TCypressManager;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNodeFactory
     : public TTransactionalNodeFactoryBase
     , public ICypressNodeFactory
 {
 public:
     TNodeFactory(
-        NCellMaster::TBootstrap* bootstrap,
+        TBootstrap* bootstrap,
         TCypressShard* shard,
         TTransaction* transaction,
         TAccount* account,
@@ -684,12 +688,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TNodeTypeHandler
+class TNodeTypeHandler
     : public TObjectTypeHandlerBase<TCypressNode>
 {
 public:
     TNodeTypeHandler(
-        TImpl* owner,
+        TCypressManager* owner,
         INodeTypeHandlerPtr underlyingHandler);
 
     ETypeFlags GetFlags() const override
@@ -721,7 +725,7 @@ public:
     }
 
 private:
-    TImpl* const Owner_;
+    TCypressManager* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
 
 
@@ -776,11 +780,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TLockTypeHandler
+class TLockTypeHandler
     : public TObjectTypeHandlerWithMapBase<TLock>
 {
 public:
-    explicit TLockTypeHandler(TImpl* owner);
+    explicit TLockTypeHandler(TCypressManager* owner);
 
     EObjectType GetType() const override
     {
@@ -803,7 +807,7 @@ class TResourceUsageVisitor
 {
 public:
     TResourceUsageVisitor(
-        NCellMaster::TBootstrap* bootstrap,
+        TBootstrap* bootstrap,
         TCypressNode* trunkRootNode,
         TTransaction* rootNodeTransaction)
         : Bootstrap_(bootstrap)
@@ -830,7 +834,7 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     TCypressNode* const TrunkRootNode_;
     TTransaction* const RootNodeTransaction_;
 
@@ -890,17 +894,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManager::TImpl
-    : public NCellMaster::TMasterAutomatonPart
+class TCypressManager
+    : public ICypressManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::CypressManager)
+    explicit TCypressManager(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::CypressManager)
         , AccessTracker_(New<TAccessTracker>(bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
-            BIND(&TImpl::DoComputeRecursiveResourceUsage, MakeStrong(this)),
+            BIND(&TCypressManager::DoComputeRecursiveResourceUsage, MakeStrong(this)),
             std::nullopt,
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::RecursiveResourceUsageCache)))
     {
@@ -929,37 +934,37 @@ public:
 
         RegisterLoader(
             "CypressManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TCypressManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "CypressManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TCypressManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "CypressManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TCypressManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "CypressManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TCypressManager::SaveValues, Unretained(this)));
 
-        RegisterMethod(BIND(&TImpl::HydraUpdateAccessStatistics, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraTouchNodes, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraCreateForeignNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraCloneForeignNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemoveExpiredNodes, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraLockForeignNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnlockForeignNode, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraTouchNodes, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraCreateForeignNode, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraCloneForeignNode, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraRemoveExpiredNodes, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraLockForeignNode, Unretained(this)));
+        RegisterMethod(BIND(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionCommitted(BIND(
-            &TImpl::OnTransactionCommitted,
+            &TCypressManager::OnTransactionCommitted,
             MakeStrong(this)));
         transactionManager->SubscribeTransactionAborted(BIND(
-            &TImpl::OnTransactionAborted,
+            &TCypressManager::OnTransactionAborted,
             MakeStrong(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -967,11 +972,11 @@ public:
         objectManager->RegisterHandler(CreateShardTypeHandler(Bootstrap_, &ShardMap_));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND(&TCypressManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 
-    void RegisterHandler(INodeTypeHandlerPtr handler)
+    void RegisterHandler(INodeTypeHandlerPtr handler) override
     {
         // No thread affinity is given here.
         // This will be called during init-time only.
@@ -986,7 +991,7 @@ public:
         objectManager->RegisterHandler(New<TNodeTypeHandler>(this, handler));
     }
 
-    const INodeTypeHandlerPtr& FindHandler(EObjectType type)
+    const INodeTypeHandlerPtr& FindHandler(EObjectType type) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -997,7 +1002,7 @@ public:
         return TypeToHandler_[type];
     }
 
-    const INodeTypeHandlerPtr& GetHandler(EObjectType type)
+    const INodeTypeHandlerPtr& GetHandler(EObjectType type) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1006,7 +1011,7 @@ public:
         return handler;
     }
 
-    const INodeTypeHandlerPtr& GetHandler(const TCypressNode* node)
+    const INodeTypeHandlerPtr& GetHandler(const TCypressNode* node) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1014,7 +1019,7 @@ public:
     }
 
 
-    TCypressShard* CreateShard(TCypressShardId shardId)
+    TCypressShard* CreateShard(TCypressShardId shardId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1024,7 +1029,7 @@ public:
         return shard;
     }
 
-    void SetShard(TCypressNode* node, TCypressShard* shard)
+    void SetShard(TCypressNode* node, TCypressShard* shard) override
     {
         YT_ASSERT(node->IsTrunk());
         YT_ASSERT(!node->GetShard());
@@ -1039,7 +1044,7 @@ public:
         objectManager->RefObject(shard);
     }
 
-    void ResetShard(TCypressNode* node)
+    void ResetShard(TCypressNode* node) override
     {
         YT_ASSERT(node->IsTrunk());
 
@@ -1065,7 +1070,7 @@ public:
     void UpdateShardNodeCount(
         TCypressShard* shard,
         TAccount* account,
-        int delta)
+        int delta) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto it = shard->AccountStatistics().find(account);
@@ -1088,7 +1093,7 @@ public:
         TAccount* account,
         const TNodeFactoryOptions& options,
         TCypressNode* serviceTrunkNode,
-        TYPath unresolvedPathSuffix)
+        TYPath unresolvedPathSuffix) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1105,7 +1110,7 @@ public:
     TCypressNode* CreateNode(
         const INodeTypeHandlerPtr& handler,
         TNodeId hintId,
-        const TCreateNodeContext& context)
+        const TCreateNodeContext& context) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(handler);
@@ -1132,7 +1137,7 @@ public:
 
     TCypressNode* InstantiateNode(
         TNodeId id,
-        TCellTag externalCellTag)
+        TCellTag externalCellTag) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1147,7 +1152,7 @@ public:
     TCypressNode* CloneNode(
         TCypressNode* sourceNode,
         ICypressNodeFactory* factory,
-        ENodeCloneMode mode)
+        ENodeCloneMode mode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(sourceNode);
@@ -1172,7 +1177,7 @@ public:
     TCypressNode* EndCopyNode(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId)
+        TNodeId sourceNodeId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(context);
@@ -1190,7 +1195,7 @@ public:
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId)
+        TNodeId sourceNodeId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(context);
@@ -1214,14 +1219,14 @@ public:
     }
 
 
-    TMapNode* GetRootNode() const
+    TMapNode* GetRootNode() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return RootNode_;
     }
 
-    TCypressNode* GetNodeOrThrow(TVersionedNodeId id)
+    TCypressNode* GetNodeOrThrow(TVersionedNodeId id) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1236,7 +1241,10 @@ public:
         return node;
     }
 
-    TYPath GetNodePath(TCypressNode* trunkNode, TTransaction* transaction, EPathRootType* pathRootType = nullptr)
+    TYPath GetNodePath(
+        TCypressNode* trunkNode,
+        TTransaction* transaction,
+        EPathRootType* pathRootType = nullptr) override
     {
         auto fallbackToId = [&] {
             if (pathRootType) {
@@ -1311,12 +1319,12 @@ public:
         return builder.Flush();
     }
 
-    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy, EPathRootType* pathRootType = nullptr)
+    TYPath GetNodePath(const ICypressNodeProxy* nodeProxy, EPathRootType* pathRootType = nullptr) override
     {
         return GetNodePath(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction(), pathRootType);
     }
 
-    TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
+    TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->ResolvePathToObject(
@@ -1331,7 +1339,7 @@ public:
         return object->As<TCypressNode>();
     }
 
-    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
+    ICypressNodeProxyPtr ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction) override
     {
         auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
         return GetNodeProxy(trunkNode, transaction);
@@ -1340,7 +1348,7 @@ public:
 
     TCypressNode* FindNode(
         TCypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction)
+        TTransaction* transaction) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1357,7 +1365,7 @@ public:
 
     TCypressNode* GetVersionedNode(
         TCypressNode* trunkNode,
-        TTransaction* transaction)
+        TTransaction* transaction) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1375,7 +1383,7 @@ public:
 
     ICypressNodeProxyPtr GetNodeProxy(
         TCypressNode* trunkNode,
-        TTransaction* transaction)
+        TTransaction* transaction) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1391,7 +1399,7 @@ public:
         TTransaction* transaction,
         const TLockRequest& request,
         bool recursive = false,
-        bool dontLockForeign = false)
+        bool dontLockForeign = false) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -1442,6 +1450,17 @@ public:
 
             DoUnlockNode(trunkChild, transaction, explicitOnly);
         });
+    }
+
+    void UnlockNode(
+        TCypressNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        UnlockNode(
+            trunkNode,
+            transaction,
+            /*recursive*/ false,
+            /*explicitOnly*/ true);
     }
 
     void DoUnlockNode(
@@ -1784,7 +1803,7 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
-        bool waitable)
+        bool waitable) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -1825,14 +1844,14 @@ public:
 
     void SetModified(
         TCypressNode* node,
-        EModificationType modificationType)
+        EModificationType modificationType) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AccessTracker_->SetModified(node, modificationType);
     }
 
-    void SetAccessed(TCypressNode* trunkNode)
+    void SetAccessed(TCypressNode* trunkNode) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1843,7 +1862,7 @@ public:
         }
     }
 
-    void SetTouched(TCypressNode* trunkNode)
+    void SetTouched(TCypressNode* trunkNode) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -1858,7 +1877,7 @@ public:
         }
     }
 
-    void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time)
+    void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1873,7 +1892,7 @@ public:
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
-    void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> timeout)
+    void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> timeout) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1899,7 +1918,7 @@ public:
     TSubtreeNodes ListSubtreeNodes(
         TCypressNode* trunkNode,
         TTransaction* transaction,
-        bool includeRoot)
+        bool includeRoot) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -1911,7 +1930,7 @@ public:
 
     void AbortSubtreeTransactions(
         TCypressNode* trunkNode,
-        TTransaction* transaction)
+        TTransaction* transaction) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -1954,7 +1973,7 @@ public:
         }
     }
 
-    void AbortSubtreeTransactions(INodePtr node)
+    void AbortSubtreeTransactions(INodePtr node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1963,7 +1982,7 @@ public:
     }
 
 
-    bool IsOrphaned(TCypressNode* trunkNode)
+    bool IsOrphaned(TCypressNode* trunkNode) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
@@ -1983,7 +2002,7 @@ public:
 
     TCypressNodeList GetNodeOriginators(
         TTransaction* transaction,
-        TCypressNode* trunkNode)
+        TCypressNode* trunkNode) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -2007,7 +2026,7 @@ public:
 
     TCypressNodeList GetNodeReverseOriginators(
         TTransaction* transaction,
-        TCypressNode* trunkNode)
+        TCypressNode* trunkNode) override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -2018,15 +2037,20 @@ public:
         return result;
     }
 
-    DEFINE_BYREF_RO_PROPERTY(TResolveCachePtr, ResolveCache);
+    const TResolveCachePtr& GetResolveCache() const override
+    {
+        return ResolveCache_;
+    }
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
-    DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
-    DECLARE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TCypressNode);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Lock, TLock);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Shard, TCypressShard);
 
-    DEFINE_SIGNAL(void(TCypressNode*), NodeCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TCypressNode*), NodeCreated);
 
-    TFuture<TYsonString> ComputeRecursiveResourceUsage(TCypressNode* trunkNode, TTransaction* transaction)
+    TFuture<TYsonString> ComputeRecursiveResourceUsage(
+        TCypressNode* trunkNode,
+        TTransaction* transaction) override
     {
         return RecursiveResourceUsageCache_->Get(TVersionedNodeId(
             trunkNode->GetId(),
@@ -2040,17 +2064,18 @@ private:
     class TNodeMapTraits
     {
     public:
-        explicit TNodeMapTraits(TImpl* owner);
+        explicit TNodeMapTraits(TCypressManager* owner);
 
         std::unique_ptr<TCypressNode> Create(TVersionedNodeId id) const;
 
     private:
-        TImpl* const Owner_;
-
+        TCypressManager* const Owner_;
     };
 
     const TAccessTrackerPtr AccessTracker_;
     const TExpirationTrackerPtr ExpirationTracker_;
+
+    TResolveCachePtr ResolveCache_;
 
     NHydra::TEntityMap<TCypressNode, TNodeMapTraits> NodeMap_;
     NHydra::TEntityMap<TLock> LockMap_;
@@ -3793,17 +3818,17 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNode, NodeMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Lock, TLock, LockMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Shard, TCypressShard, ShardMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, NodeMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, LockMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager, Shard, TCypressShard, ShardMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TImpl::TNodeMapTraits::TNodeMapTraits(TImpl* owner)
+TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* owner)
     : Owner_(owner)
 { }
 
-std::unique_ptr<TCypressNode> TCypressManager::TImpl::TNodeMapTraits::Create(TVersionedNodeId id) const
+std::unique_ptr<TCypressNode> TCypressManager::TNodeMapTraits::Create(TVersionedNodeId id) const
 {
     auto type = TypeFromId(id.ObjectId);
     const auto& handler = Owner_->GetHandler(type);
@@ -3814,25 +3839,25 @@ std::unique_ptr<TCypressNode> TCypressManager::TImpl::TNodeMapTraits::Create(TVe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
-    TImpl* owner,
+TNodeTypeHandler::TNodeTypeHandler(
+    TCypressManager* owner,
     INodeTypeHandlerPtr underlyingHandler)
     : TObjectTypeHandlerBase(owner->Bootstrap_)
     , Owner_(owner)
     , UnderlyingHandler_(underlyingHandler)
 { }
 
-void TCypressManager::TNodeTypeHandler::DoDestroyObject(TCypressNode* node) noexcept
+void TNodeTypeHandler::DoDestroyObject(TCypressNode* node) noexcept
 {
     Owner_->DestroyNode(node);
 }
 
-void TCypressManager::TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
+void TNodeTypeHandler::DoRecreateObjectAsGhost(TCypressNode* node) noexcept
 {
     Owner_->RecreateNodeAsGhost(node);
 }
 
-TString TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNode* node)
+TString TNodeTypeHandler::DoGetName(const TCypressNode* node)
 {
     auto path = Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
     return Format("node %v", path);
@@ -3840,285 +3865,16 @@ TString TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNode* node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TLockTypeHandler::TLockTypeHandler(TImpl* owner)
+TLockTypeHandler::TLockTypeHandler(TCypressManager* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->LockMap_)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TCypressManager(TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TCypressManager::~TCypressManager()
-{ }
-
-void TCypressManager::Initialize()
+ICypressManagerPtr CreateCypressManager(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TCypressManager>(bootstrap);
 }
-
-void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
-{
-    Impl_->RegisterHandler(std::move(handler));
-}
-
-const INodeTypeHandlerPtr& TCypressManager::FindHandler(EObjectType type)
-{
-    return Impl_->FindHandler(type);
-}
-
-const INodeTypeHandlerPtr& TCypressManager::GetHandler(EObjectType type)
-{
-    return Impl_->GetHandler(type);
-}
-
-const INodeTypeHandlerPtr& TCypressManager::GetHandler(const TCypressNode* node)
-{
-    return Impl_->GetHandler(node);
-}
-
-TCypressShard* TCypressManager::CreateShard(TCypressShardId shardId)
-{
-    return Impl_->CreateShard(shardId);
-}
-
-void TCypressManager::SetShard(TCypressNode* node, TCypressShard* shard)
-{
-    Impl_->SetShard(node, shard);
-}
-
-void TCypressManager::ResetShard(TCypressNode* node)
-{
-    Impl_->ResetShard(node);
-}
-
-void TCypressManager::UpdateShardNodeCount(
-    TCypressShard* shard,
-    TAccount* account,
-    int delta)
-{
-    Impl_->UpdateShardNodeCount(shard, account, delta);
-}
-
-std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
-    TCypressShard* shard,
-    TTransaction* transaction,
-    TAccount* account,
-    const TNodeFactoryOptions& options,
-    TCypressNode* serviceTrunkNode,
-    TYPath unresolvedPathSuffix)
-{
-    return Impl_->CreateNodeFactory(
-        shard,
-        transaction,
-        account,
-        options,
-        serviceTrunkNode,
-        std::move(unresolvedPathSuffix));
-}
-
-TCypressNode* TCypressManager::CreateNode(
-    const INodeTypeHandlerPtr& handler,
-    TNodeId hintId,
-    const TCreateNodeContext& context)
-{
-    return Impl_->CreateNode(
-        handler,
-        hintId,
-        context);
-}
-
-TCypressNode* TCypressManager::InstantiateNode(
-    TNodeId id,
-    TCellTag externalCellTag)
-{
-    return Impl_->InstantiateNode(id, externalCellTag);
-}
-
-TCypressNode* TCypressManager::CloneNode(
-    TCypressNode* sourceNode,
-    ICypressNodeFactory* factory,
-    ENodeCloneMode mode)
-{
-    return Impl_->CloneNode(sourceNode, factory, mode);
-}
-
-TCypressNode* TCypressManager::EndCopyNode(
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    TNodeId sourceNodeId)
-{
-    return Impl_->EndCopyNode(context, factory, sourceNodeId);
-}
-
-void TCypressManager::EndCopyNodeInplace(
-    TCypressNode* trunkNode,
-    TEndCopyContext* context,
-    ICypressNodeFactory* factory,
-    TNodeId sourceNodeId)
-{
-    return Impl_->EndCopyNodeInplace(trunkNode, context, factory, sourceNodeId);
-}
-
-TMapNode* TCypressManager::GetRootNode() const
-{
-    return Impl_->GetRootNode();
-}
-
-TCypressNode* TCypressManager::GetNodeOrThrow(TVersionedNodeId id)
-{
-    return Impl_->GetNodeOrThrow(id);
-}
-
-TYPath TCypressManager::GetNodePath(TCypressNode* trunkNode, TTransaction* transaction, EPathRootType* pathRootType)
-{
-    return Impl_->GetNodePath(trunkNode, transaction, pathRootType);
-}
-
-TYPath TCypressManager::GetNodePath(const ICypressNodeProxy* nodeProxy, EPathRootType* pathRootType)
-{
-    return Impl_->GetNodePath(nodeProxy, pathRootType);
-}
-
-TCypressNode* TCypressManager::ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
-{
-    return Impl_->ResolvePathToTrunkNode(path, transaction);
-}
-
-ICypressNodeProxyPtr TCypressManager::ResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction)
-{
-    return Impl_->ResolvePathToNodeProxy(path, transaction);
-}
-
-TCypressNode* TCypressManager::FindNode(
-    TCypressNode* trunkNode,
-    TTransaction* transaction)
-{
-    return Impl_->FindNode(trunkNode, transaction);
-}
-
-TCypressNode* TCypressManager::GetVersionedNode(
-    TCypressNode* trunkNode,
-    TTransaction* transaction)
-{
-    return Impl_->GetVersionedNode(trunkNode, transaction);
-}
-
-ICypressNodeProxyPtr TCypressManager::GetNodeProxy(
-    TCypressNode* trunkNode,
-    TTransaction* transaction)
-{
-    return Impl_->GetNodeProxy(trunkNode, transaction);
-}
-
-TCypressNode* TCypressManager::LockNode(
-    TCypressNode* trunkNode,
-    TTransaction* transaction,
-    const TLockRequest& request,
-    bool recursive,
-    bool dontLockForeign)
-{
-    return Impl_->LockNode(trunkNode, transaction, request, recursive, dontLockForeign);
-}
-
-TCypressManager::TCreateLockResult TCypressManager::CreateLock(
-    TCypressNode* trunkNode,
-    TTransaction* transaction,
-    const TLockRequest& request,
-    bool waitable)
-{
-    return Impl_->CreateLock(trunkNode, transaction, request, waitable);
-}
-
-void TCypressManager::UnlockNode(
-    TCypressNode* trunkNode,
-    NTransactionServer::TTransaction* transaction)
-{
-    return Impl_->UnlockNode(trunkNode, transaction, false /*recursive*/, true /*explicitOnly*/);
-}
-
-void TCypressManager::SetModified(
-    TCypressNode* node,
-    EModificationType modificationType)
-{
-    Impl_->SetModified(node, modificationType);
-}
-
-void TCypressManager::SetAccessed(TCypressNode* trunkNode)
-{
-    Impl_->SetAccessed(trunkNode);
-}
-
-void TCypressManager::SetTouched(TCypressNode* trunkNode)
-{
-    Impl_->SetTouched(trunkNode);
-}
-
-void TCypressManager::SetExpirationTime(TCypressNode* trunkNode, std::optional<TInstant> time)
-{
-    Impl_->SetExpirationTime(trunkNode, time);
-}
-
-void TCypressManager::SetExpirationTimeout(TCypressNode* trunkNode, std::optional<TDuration> timeout)
-{
-    Impl_->SetExpirationTimeout(trunkNode, timeout);
-}
-
-TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
-    TCypressNode* trunkNode,
-    TTransaction* transaction,
-    bool includeRoot)
-{
-    return Impl_->ListSubtreeNodes(trunkNode, transaction, includeRoot);
-}
-
-void TCypressManager::AbortSubtreeTransactions(
-    TCypressNode* trunkNode,
-    TTransaction* transaction)
-{
-    Impl_->AbortSubtreeTransactions(trunkNode, transaction);
-}
-
-void TCypressManager::AbortSubtreeTransactions(INodePtr node)
-{
-    Impl_->AbortSubtreeTransactions(std::move(node));
-}
-
-bool TCypressManager::IsOrphaned(TCypressNode* trunkNode)
-{
-    return Impl_->IsOrphaned(trunkNode);
-}
-
-TCypressNodeList TCypressManager::GetNodeOriginators(
-    TTransaction* transaction,
-    TCypressNode* trunkNode)
-{
-    return Impl_->GetNodeOriginators(transaction, trunkNode);
-}
-
-TCypressNodeList TCypressManager::GetNodeReverseOriginators(
-    TTransaction* transaction,
-    TCypressNode* trunkNode)
-{
-    return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
-}
-
-const TResolveCachePtr& TCypressManager::GetResolveCache()
-{
-    return Impl_->ResolveCache();
-}
-
-TFuture<TYsonString> TCypressManager::ComputeRecursiveResourceUsage(TCypressNode* trunkNode, TTransaction* transaction)
-{
-    return Impl_->ComputeRecursiveResourceUsage(trunkNode, transaction);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Shard, TCypressShard, *Impl_)
-
-DELEGATE_SIGNAL(TCypressManager, void(TCypressNode*), NodeCreated, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

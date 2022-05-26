@@ -89,7 +89,7 @@ public:
         : TVirtualPortalNodeMapBase(
             bootstrap,
             owningNode,
-            &bootstrap->GetPortalManager()->EntranceNodes())
+            &bootstrap->GetPortalManager()->GetEntranceNodes())
     { }
 };
 
@@ -118,7 +118,7 @@ public:
         : TVirtualPortalNodeMapBase(
             bootstrap,
             owningNode,
-            &bootstrap->GetPortalManager()->ExitNodes())
+            &bootstrap->GetPortalManager()->GetExitNodes())
     { }
 };
 

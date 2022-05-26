@@ -367,12 +367,12 @@ const ITimestampProviderPtr& TBootstrap::GetTimestampProvider() const
     return TimestampProvider_;
 }
 
-const TCypressManagerPtr& TBootstrap::GetCypressManager() const
+const ICypressManagerPtr& TBootstrap::GetCypressManager() const
 {
     return CypressManager_;
 }
 
-const TPortalManagerPtr& TBootstrap::GetPortalManager() const
+const IPortalManagerPtr& TBootstrap::GetPortalManager() const
 {
     return PortalManager_;
 }
@@ -755,9 +755,9 @@ void TBootstrap::DoInitialize()
 
     TabletNodeTracker_ = CreateTabletNodeTracker(this);
 
-    CypressManager_ = New<TCypressManager>(this);
+    CypressManager_ = CreateCypressManager(this);
 
-    PortalManager_ =  New<TPortalManager>(this);
+    PortalManager_ =  CreatePortalManager(this);
 
     ChunkManager_ = CreateChunkManager(this);
 
