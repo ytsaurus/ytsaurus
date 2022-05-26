@@ -23,6 +23,7 @@
 
 namespace NYT::NJournalServer {
 
+using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -36,17 +37,18 @@ static const auto& Logger = JournalServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalManager::TImpl
-    : public NCellMaster::TMasterAutomatonPart
+class TJournalManager
+    : public IJournalManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
-        : NCellMaster::TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::JournalManager)
+    explicit TJournalManager(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::JournalManager)
     { }
 
     void UpdateStatistics(
         TJournalNode* trunkNode,
-        const TDataStatistics* statistics)
+        const TDataStatistics* statistics) override
     {
         YT_VERIFY(trunkNode->IsTrunk());
 
@@ -59,7 +61,7 @@ public:
 
     void SealJournal(
         TJournalNode* trunkNode,
-        const TDataStatistics* statistics)
+        const TDataStatistics* statistics) override
     {
         YT_VERIFY(trunkNode->IsTrunk());
 
@@ -90,7 +92,7 @@ public:
 
     void TruncateJournal(
         TJournalNode* trunkNode,
-        i64 desiredRowCount)
+        i64 desiredRowCount) override
     {
         YT_VERIFY(trunkNode->IsTrunk());
         if (!trunkNode->GetSealed()) {
@@ -210,31 +212,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalManager::TJournalManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TJournalManager::~TJournalManager() = default;
-
-void TJournalManager::UpdateStatistics(
-    TJournalNode* trunkNode,
-    const TDataStatistics* statistics)
+IJournalManagerPtr CreateJournalManager(TBootstrap* bootstrap)
 {
-    Impl_->UpdateStatistics(trunkNode, statistics);
-}
-
-void TJournalManager::SealJournal(
-    TJournalNode* trunkNode,
-    const TDataStatistics* statistics)
-{
-    Impl_->SealJournal(trunkNode, statistics);
-}
-
-void TJournalManager::TruncateJournal(
-    TJournalNode* trunkNode,
-    i64 desiredRowCount)
-{
-    Impl_->TruncateJournal(trunkNode, desiredRowCount);
+    return New<TJournalManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

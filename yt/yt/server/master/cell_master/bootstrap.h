@@ -120,7 +120,7 @@ public:
     const NObjectServer::IYsonInternRegistryPtr& GetYsonInternRegistry() const;
     const NObjectServer::IRequestProfilingManagerPtr& GetRequestProfilingManager() const;
     const NChunkServer::TChunkManagerPtr& GetChunkManager() const;
-    const NJournalServer::TJournalManagerPtr& GetJournalManager() const;
+    const NJournalServer::IJournalManagerPtr& GetJournalManager() const;
     const NSecurityServer::TSecurityManagerPtr& GetSecurityManager() const;
     const NSchedulerPoolServer::TSchedulerPoolManagerPtr& GetSchedulerPoolManager() const;
     const NCellServer::ITamedCellManagerPtr& GetTamedCellManager() const;
@@ -191,7 +191,7 @@ protected:
     NObjectServer::IYsonInternRegistryPtr YsonInternRegistry_;
     NObjectServer::IRequestProfilingManagerPtr RequestProfilingManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
-    NJournalServer::TJournalManagerPtr JournalManager_;
+    NJournalServer::IJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NCellServer::ITamedCellManagerPtr TamedCellManager_;
     NCellServer::ICellHydraJanitorPtr CellHydraJanitor_;

@@ -14,34 +14,30 @@ namespace NYT::NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalManager
-    : public TRefCounted
+struct IJournalManager
+    : public virtual TRefCounted
 {
-public:
-    explicit TJournalManager(NCellMaster::TBootstrap* bootstrap);
-    ~TJournalManager();
-
-    void UpdateStatistics(
+    virtual void UpdateStatistics(
         TJournalNode* trunkNode,
-        const NChunkClient::NProto::TDataStatistics* statistics);
+        const NChunkClient::NProto::TDataStatistics* statistics) = 0;
 
     //! Marks the journal as sealed and updates its snapshot statistics.
     //! If #statistics is |nullptr| then computes one from chunk lists.
     //! For secondary masters, this call also notifies the primary.
-    void SealJournal(
+    virtual void SealJournal(
         TJournalNode* trunkNode,
-        const NChunkClient::NProto::TDataStatistics* statistics);
+        const NChunkClient::NProto::TDataStatistics* statistics) = 0;
 
-    void TruncateJournal(
+    virtual void TruncateJournal(
         TJournalNode* trunkNode,
-        i64 rowCount);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+        i64 rowCount) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJournalManager)
+DEFINE_REFCOUNTED_TYPE(IJournalManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJournalManagerPtr CreateJournalManager(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
