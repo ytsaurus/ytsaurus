@@ -2164,7 +2164,7 @@ void TTablet::UpdateUnmergedRowCount()
             }
 
             i64 lookupCacheCapacity = lookupCacheRowsRatio * unmergedRowCount;
-            RowCache_->GetCache()->SetCapacity(lookupCacheCapacity);
+            RowCache_->GetCache()->SetCapacity(std::max<i64>(lookupCacheCapacity, 1));
         }
     }
 }
