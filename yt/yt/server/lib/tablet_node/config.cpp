@@ -379,11 +379,8 @@ void TTabletStoreReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletHunkReaderConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("use_new_chunk_fragment_reader", &TThis::UseNewChunkFragmentReader)
-        .Default(false);
-}
+void TTabletHunkReaderConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

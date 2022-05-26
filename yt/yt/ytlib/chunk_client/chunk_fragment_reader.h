@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/client/misc/workload.h>
-
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/library/erasure/public.h>

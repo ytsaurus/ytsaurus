@@ -54,7 +54,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
                                   hunk_chunk_reader={
                                       "max_hunk_count_per_read": 2,
                                       "max_total_hunk_length_per_read": 60,
-                                      "use_new_chunk_fragment_reader": True,
                                       "fragment_read_hedging_delay": 1
                                   },
                                   hunk_chunk_writer={

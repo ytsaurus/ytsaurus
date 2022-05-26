@@ -151,6 +151,7 @@ DEFINE_ENUM(EMasterReign,
     ((BuiltinMountConfig)                                           (2016))  // ifsmirnov
     ((BackupReplicated)                                             (2017))  // ifsmirnov
     ((DefaultMaxBackingStoreMemoryRatio)                            (2018))  // ifsmirnov
+    ((FarewellToOldCFR)                                             (2019))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

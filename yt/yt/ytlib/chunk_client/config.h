@@ -258,8 +258,7 @@ class TChunkFragmentReaderConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    //! Expiration timeouts of corresponding sync expiring caches.
-    TDuration ChunkReplicaLocatorExpirationTimeout;
+    //! Expiration timeout of corresponding sync expiring cache.
     TDuration PeerInfoExpirationTimeout;
 
     //! Minimal delay between sequential chunk replica locations.
