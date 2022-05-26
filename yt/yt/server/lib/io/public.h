@@ -48,6 +48,8 @@ struct TRequestSizes;
 
 constexpr i64 SectorSize = 512;
 
+DECLARE_REFCOUNTED_STRUCT(TBlocksExt)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO

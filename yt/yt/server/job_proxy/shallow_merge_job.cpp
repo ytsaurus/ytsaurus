@@ -357,7 +357,7 @@ private:
 
     std::vector<i64> GetBlockSizes(const TInputChunkState& chunkState) const
     {
-        auto blocksExt = GetProtoExtension<TBlocksExt>(chunkState.Meta->extensions());
+        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkState.Meta->extensions());
         std::vector<i64> blockSizes;
         blockSizes.reserve(chunkState.BlockCount);
         for (const auto& block : blocksExt.blocks()) {

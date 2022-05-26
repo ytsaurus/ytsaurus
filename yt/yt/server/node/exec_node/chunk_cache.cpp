@@ -984,7 +984,7 @@ private:
                 .ValueOrThrow();
 
             // Download all blocks.
-            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
+            auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
             blocks.reserve(blockCount);

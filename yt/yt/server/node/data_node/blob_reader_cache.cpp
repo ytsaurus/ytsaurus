@@ -64,14 +64,14 @@ public:
     { }
 
     // IBlocksExtCache implementation.
-    TRefCountedBlocksExtPtr Find() override
+    NIO::TBlocksExtPtr Find() override
     {
         return Chunk_->FindCachedBlocksExt();
     }
 
     void Put(
         const TRefCountedChunkMetaPtr& chunkMeta,
-        const TRefCountedBlocksExtPtr& blocksExt) override
+        const TBlocksExtPtr& blocksExt) override
     {
         ChunkMetaManager_->PutCachedMeta(GetChunkId(), chunkMeta);
         ChunkMetaManager_->PutCachedBlocksExt(GetChunkId(), blocksExt);

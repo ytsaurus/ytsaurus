@@ -7,6 +7,7 @@
 #include "location.h"
 #include "session_manager.h"
 
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
