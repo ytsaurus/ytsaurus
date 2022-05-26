@@ -31,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(ICypressNodeVisitor)
 void TraverseCypress(
     TCypressManagerPtr cypressManager,
     NTransactionServer::TTransactionManagerPtr transactionManager,
-    NObjectServer::TObjectManagerPtr objectManager,
+    NObjectServer::IObjectManagerPtr objectManager,
     NSecurityServer::TSecurityManagerPtr securityManager,
     IInvokerPtr invoker,
     TCypressNode* trunkRootNode,

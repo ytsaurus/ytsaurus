@@ -204,13 +204,13 @@ public:
     //! A reciprocal to the above. Called at chunk destruction.
     void UnrefUsedRequisitions(
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::TObjectManagerPtr& objectManager) const;
+        const NObjectServer::IObjectManagerPtr& objectManager) const;
 
     TChunkRequisitionIndex GetLocalRequisitionIndex() const;
     void SetLocalRequisitionIndex(
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     //! Prerequisite: IsExportedToCell(cellIndex).
     TChunkRequisitionIndex GetExternalRequisitionIndex(int cellIndex) const;
@@ -219,7 +219,7 @@ public:
         int cellIndex,
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     //! Returns chunk's requisition aggregated from local and external values.
     //! If aggregating them would result in an empty requisition, returns the most
@@ -326,7 +326,7 @@ public:
         int cellIndex,
         int importRefCounter,
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     i64 GetMasterMemoryUsage() const;
 
@@ -443,7 +443,7 @@ private:
 
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     void MaybeResetObsoleteEpochData();
 

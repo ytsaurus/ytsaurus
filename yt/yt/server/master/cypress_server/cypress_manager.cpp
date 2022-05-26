@@ -1322,7 +1322,7 @@ public:
         auto* object = objectManager->ResolvePathToObject(
             path,
             transaction,
-            TObjectManager::TResolvePathOptions{});
+            IObjectManager::TResolvePathOptions{});
         if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,

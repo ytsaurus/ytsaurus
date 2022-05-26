@@ -340,7 +340,7 @@ struct TWeakObjectPtrContext
 
 struct TEphemeralObjectPtrContext
 {
-    TObjectManagerPtr ObjectManager;
+    IObjectManagerPtr ObjectManager;
     TEpoch Epoch;
     IInvokerPtr EphemeralPtrUnrefInvoker;
 

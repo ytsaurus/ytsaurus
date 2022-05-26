@@ -762,9 +762,9 @@ public:
 
     void RecomputeMasterMemoryUsage();
 
-    void Set(const NObjectServer::TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
-    void Insert(const NObjectServer::TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
-    void Remove(const NObjectServer::TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    void Set(const NObjectServer::IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    void Insert(const NObjectServer::IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    void Remove(const NObjectServer::IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
     bool Contains(const TString& key) const;
 
     const TKeyToChild& KeyToChild() const;
@@ -774,15 +774,15 @@ public:
     void Ref() noexcept;
     void Unref() noexcept;
 
-    static void Destroy(TMapNodeChildren* children, const NObjectServer::TObjectManagerPtr& objectManager);
+    static void Destroy(TMapNodeChildren* children, const NObjectServer::IObjectManagerPtr& objectManager);
     static void Clear(TMapNodeChildren* children);
-    static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::TObjectManagerPtr& objectManager);
+    static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::IObjectManagerPtr& objectManager);
 
     DEFINE_BYVAL_RO_PROPERTY(i64, MasterMemoryUsage);
 
 private:
-    void RefChildren(const NObjectServer::TObjectManagerPtr& objectManager);
-    void UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager);
+    void RefChildren(const NObjectServer::IObjectManagerPtr& objectManager);
+    void UnrefChildren(const NObjectServer::IObjectManagerPtr& objectManager);
 
     TKeyToChild KeyToChild_;
     TChildToKey ChildToKey_;
@@ -811,7 +811,7 @@ public:
     const TChildToKey& ChildToKey() const;
 
     // Potentially does the 'copy' part of CoW.
-    TMapNodeChildren& MutableChildren(const NObjectServer::TObjectManagerPtr& objectManager);
+    TMapNodeChildren& MutableChildren(const NObjectServer::IObjectManagerPtr& objectManager);
 
     NYTree::ENodeType GetNodeType() const override;
 
@@ -824,7 +824,7 @@ public:
 
     void AssignChildren(
         const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
 private:
     NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;

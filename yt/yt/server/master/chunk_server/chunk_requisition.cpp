@@ -606,7 +606,7 @@ void TChunkRequisitionRegistry::Clear()
 
 void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
     NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     if (IndexToItem_.contains(EmptyChunkRequisitionIndex)) {
         YT_VERIFY(IndexToItem_.contains(MigrationChunkRequisitionIndex));
@@ -695,7 +695,7 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
 
 TChunkRequisitionIndex TChunkRequisitionRegistry::GetOrCreate(
     const TChunkRequisition& requisition,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     auto it = RequisitionToIndex_.find(requisition);
     if (it != RequisitionToIndex_.end()) {
@@ -716,7 +716,7 @@ std::optional<TChunkRequisitionIndex> TChunkRequisitionRegistry::Find(
 
 TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
     const TChunkRequisition& requisition,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     auto index = GenerateIndex();
 
@@ -741,7 +741,7 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
 
 void TChunkRequisitionRegistry::Erase(
     TChunkRequisitionIndex index,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     auto it = IndexToItem_.find(index);
     // Copy: we need the requisition to weak-unref accounts, and we need
@@ -771,7 +771,7 @@ void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 
 void TChunkRequisitionRegistry::Unref(
     TChunkRequisitionIndex index,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     auto& item = GetOrCrash(IndexToItem_, index);
     YT_VERIFY(item.RefCount != 0);

@@ -1,4 +1,5 @@
 #include "object_manager.h"
+
 #include "private.h"
 #include "config.h"
 #include "garbage_collector.h"
@@ -139,110 +140,111 @@ bool IsObjectLifeStageValidationSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManager::TImpl
-    : public NCellMaster::TMasterAutomatonPart
+class TObjectManager
+    : public IObjectManager
+    , public NCellMaster::TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap);
+    explicit TObjectManager(NCellMaster::TBootstrap* bootstrap);
 
-    TImpl(
+    TObjectManager(
         TTestingTag,
         NCellMaster::TBootstrap* bootstrap);
 
-    void Initialize();
+    void Initialize() override;
 
-    void RegisterHandler(IObjectTypeHandlerPtr handler);
-    const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const;
-    const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const;
-    const IObjectTypeHandlerPtr& GetHandler(const TObject* object) const;
+    void RegisterHandler(IObjectTypeHandlerPtr handler) override;
+    const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const override;
+    const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const override;
+    const IObjectTypeHandlerPtr& GetHandler(const TObject* object) const override;
 
-    const std::set<EObjectType>& GetRegisteredTypes() const;
+    const std::set<EObjectType>& GetRegisteredTypes() const override;
 
-    TObjectId GenerateId(EObjectType type, TObjectId hintId);
+    TObjectId GenerateId(EObjectType type, TObjectId hintId) override;
 
-    int RefObject(TObject* object);
-    int UnrefObject(TObject* object, int count = 1);
-    int EphemeralRefObject(TObject* object);
-    void EphemeralUnrefObject(TObject* object);
-    void EphemeralUnrefObject(TObject* object, TEpoch epoch);
-    int WeakRefObject(TObject* object);
-    int WeakUnrefObject(TObject* object);
+    int RefObject(TObject* object) override;
+    int UnrefObject(TObject* object, int count = 1) override;
+    int EphemeralRefObject(TObject* object) override;
+    void EphemeralUnrefObject(TObject* object) override;
+    void EphemeralUnrefObject(TObject* object, TEpoch epoch) override;
+    int WeakRefObject(TObject* object) override;
+    int WeakUnrefObject(TObject* object) override;
 
-    TObject* FindObject(TObjectId id);
-    TObject* GetObject(TObjectId id);
-    TObject* GetObjectOrThrow(TObjectId id);
-    TObject* GetWeakGhostObject(TObjectId id);
-    void RemoveObject(TObject* object);
+    TObject* FindObject(TObjectId id) override;
+    TObject* GetObject(TObjectId id) override;
+    TObject* GetObjectOrThrow(TObjectId id) override;
+    TObject* GetWeakGhostObject(TObjectId id) override;
+    void RemoveObject(TObject* object) override;
 
     std::optional<TObject*> FindObjectByAttributes(
         EObjectType type,
-        const IAttributeDictionary* attributes);
+        const IAttributeDictionary* attributes) override;
 
-    IYPathServicePtr CreateRemoteProxy(TObjectId id);
-    IYPathServicePtr CreateRemoteProxy(TCellTag cellTag);
+    IYPathServicePtr CreateRemoteProxy(TObjectId id) override;
+    IYPathServicePtr CreateRemoteProxy(TCellTag cellTag) override;
 
     IObjectProxyPtr GetProxy(
         TObject* object,
-        TTransaction* transaction = nullptr);
+        TTransaction* transaction = nullptr) override;
 
     void BranchAttributes(
         const TObject* originatingObject,
-        TObject* branchedObject);
+        TObject* branchedObject) override;
     void MergeAttributes(
         TObject* originatingObject,
-        const TObject* branchedObject);
+        const TObject* branchedObject) override;
     void FillAttributes(
         TObject* object,
-        const IAttributeDictionary& attributes);
+        const IAttributeDictionary& attributes) override;
 
-    IYPathServicePtr GetRootService();
+    IYPathServicePtr GetRootService() override;
 
-    TObject* GetMasterObject();
-    IObjectProxyPtr GetMasterProxy();
+    TObject* GetMasterObject() override;
+    IObjectProxyPtr GetMasterProxy() override;
 
-    TObject* FindSchema(EObjectType type);
-    TObject* GetSchema(EObjectType type);
-    IObjectProxyPtr GetSchemaProxy(EObjectType type);
+    TObject* FindSchema(EObjectType type) override;
+    TObject* GetSchema(EObjectType type) override;
+    IObjectProxyPtr GetSchemaProxy(EObjectType type) override;
 
     std::unique_ptr<TMutation> CreateExecuteMutation(
         const IServiceContextPtr& context,
-        const TAuthenticationIdentity& identity);
+        const TAuthenticationIdentity& identity) override;
     std::unique_ptr<TMutation> CreateDestroyObjectsMutation(
-        const NProto::TReqDestroyObjects& request);
+        const NProto::TReqDestroyObjects& request) override;
 
-    TFuture<void> GCCollect();
+    TFuture<void> GCCollect() override;
 
     TObject* CreateObject(
         TObjectId hintId,
         EObjectType type,
-        IAttributeDictionary* attributes);
+        IAttributeDictionary* attributes) override;
 
-    bool IsObjectLifeStageValid(const TObject* object) const;
-    void ValidateObjectLifeStage(const TObject* object) const;
+    bool IsObjectLifeStageValid(const TObject* object) const override;
+    void ValidateObjectLifeStage(const TObject* object) const override;
 
     TObject* ResolvePathToObject(
         const TYPath& path,
         TTransaction* transaction,
-        const TResolvePathOptions& options);
+        const TResolvePathOptions& options) override;
 
-    void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
+    void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        EPeerKind peerKind);
+        EPeerKind peerKind) override;
 
     void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
-        TCellTag cellTag);
+        TCellTag cellTag) override;
 
     void ReplicateObjectAttributesToSecondaryMaster(
         TObject* object,
-        TCellTag cellTag);
+        TCellTag cellTag) override;
 
-    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
+    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method) override;
 
-    const TGarbageCollectorPtr& GetGarbageCollector() const;
+    const TGarbageCollectorPtr& GetGarbageCollector() const override;
 
 private:
     friend class TObjectProxyBase;
@@ -353,7 +355,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManager::TImpl::TRemoteProxy
+class TObjectManager::TRemoteProxy
     : public IYPathService
 {
 public:
@@ -566,7 +568,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManager::TImpl::TRootService
+class TObjectManager::TRootService
     : public IYPathService
 {
 public:
@@ -640,7 +642,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
+TObjectManager::TObjectManager(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ObjectManager)
     , RootService_(New<TRootService>(Bootstrap_))
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
@@ -654,82 +656,82 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
 
     RegisterLoader(
         "ObjectManager.Keys",
-        BIND(&TImpl::LoadKeys, Unretained(this)));
+        BIND(&TObjectManager::LoadKeys, Unretained(this)));
     RegisterLoader(
         "ObjectManager.Values",
-        BIND(&TImpl::LoadValues, Unretained(this)));
+        BIND(&TObjectManager::LoadValues, Unretained(this)));
 
     RegisterSaver(
         ESyncSerializationPriority::Keys,
         "ObjectManager.Keys",
-        BIND(&TImpl::SaveKeys, Unretained(this)));
+        BIND(&TObjectManager::SaveKeys, Unretained(this)));
     RegisterSaver(
         ESyncSerializationPriority::Values,
         "ObjectManager.Values",
-        BIND(&TImpl::SaveValues, Unretained(this)));
+        BIND(&TObjectManager::SaveValues, Unretained(this)));
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 
-    RegisterMethod(BIND(&TImpl::HydraExecuteFollower, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraDestroyObjects, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraCreateForeignObject, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraRemoveForeignObject, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraUnrefExportedObjects, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraConfirmObjectLifeStage, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraAdvanceObjectLifeStage, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
-    RegisterMethod(BIND(&TImpl::HydraRemoveExpiredRecentlyAppliedMutationIds, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraConfirmObjectLifeStage, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraAdvanceObjectLifeStage, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraRemoveExpiredRecentlyAppliedMutationIds, Unretained(this)));
 
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, primaryCellTag);
 }
 
-TObjectManager::TImpl::TImpl(TTestingTag tag, TBootstrap* bootstrap)
+TObjectManager::TObjectManager(TTestingTag tag, TBootstrap* bootstrap)
     : TMasterAutomatonPart(tag, bootstrap)
     , RootService_(New<TRootService>(Bootstrap_))
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
 { }
 
-void TObjectManager::TImpl::Initialize()
+void TObjectManager::Initialize()
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND(&TObjectManager::OnDynamicConfigChanged, MakeWeak(this)));
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (multicellManager->IsPrimaryMaster()) {
         multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-            BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+            BIND(&TObjectManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-        BIND(&TImpl::OnProfiling, MakeWeak(this)),
+        BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         TDynamicObjectManagerConfig::DefaultProfilingPeriod);
     ProfilingExecutor_->Start();
 }
 
-IYPathServicePtr TObjectManager::TImpl::GetRootService()
+IYPathServicePtr TObjectManager::GetRootService()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return RootService_;
 }
 
-TObject* TObjectManager::TImpl::GetMasterObject()
+TObject* TObjectManager::GetMasterObject()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return MasterObject_.get();
 }
 
-IObjectProxyPtr TObjectManager::TImpl::GetMasterProxy()
+IObjectProxyPtr TObjectManager::GetMasterProxy()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return MasterProxy_;
 }
 
-TObject* TObjectManager::TImpl::FindSchema(EObjectType type)
+TObject* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -746,7 +748,7 @@ TObject* TObjectManager::GetSchema(EObjectType type)
     return schema;
 }
 
-IObjectProxyPtr TObjectManager::TImpl::GetSchemaProxy(EObjectType type)
+IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -755,7 +757,7 @@ IObjectProxyPtr TObjectManager::TImpl::GetSchemaProxy(EObjectType type)
     return entry.SchemaProxy;
 }
 
-void TObjectManager::TImpl::RegisterHandler(IObjectTypeHandlerPtr handler)
+void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 {
     // No thread affinity check here.
     // This will be called during init-time only but from an unspecified thread.
@@ -784,7 +786,7 @@ void TObjectManager::TImpl::RegisterHandler(IObjectTypeHandlerPtr handler)
     }
 }
 
-const IObjectTypeHandlerPtr& TObjectManager::TImpl::FindHandler(EObjectType type) const
+const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -792,7 +794,7 @@ const IObjectTypeHandlerPtr& TObjectManager::TImpl::FindHandler(EObjectType type
     return it == TypeToEntry_.end() ? NullTypeHandler : it->second.Handler;
 }
 
-const IObjectTypeHandlerPtr& TObjectManager::TImpl::GetHandler(EObjectType type) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -801,21 +803,21 @@ const IObjectTypeHandlerPtr& TObjectManager::TImpl::GetHandler(EObjectType type)
     return handler;
 }
 
-const IObjectTypeHandlerPtr& TObjectManager::TImpl::GetHandler(const TObject* object) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObject* object) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return GetHandler(object->GetType());
 }
 
-const std::set<EObjectType>& TObjectManager::TImpl::GetRegisteredTypes() const
+const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return RegisteredTypes_;
 }
 
-TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
+TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -847,7 +849,7 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
     return result;
 }
 
-int TObjectManager::TImpl::RefObject(TObject* object)
+int TObjectManager::RefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!object->IsGhost());
@@ -873,7 +875,7 @@ int TObjectManager::TImpl::RefObject(TObject* object)
     return refCounter;
 }
 
-int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
+int TObjectManager::UnrefObject(TObject* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->IsAlive());
@@ -913,45 +915,45 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
     return refCounter;
 }
 
-int TObjectManager::TImpl::EphemeralRefObject(TObject* object)
+int TObjectManager::EphemeralRefObject(TObject* object)
 {
     return GarbageCollector_->EphemeralRefObject(object);
 }
 
-void TObjectManager::TImpl::EphemeralUnrefObject(TObject* object)
+void TObjectManager::EphemeralUnrefObject(TObject* object)
 {
     return GarbageCollector_->EphemeralUnrefObject(object);
 }
 
-void TObjectManager::TImpl::EphemeralUnrefObject(TObject* object, TEpoch epoch)
+void TObjectManager::EphemeralUnrefObject(TObject* object, TEpoch epoch)
 {
     GarbageCollector_->EphemeralUnrefObject(object, epoch);
 }
 
-int TObjectManager::TImpl::WeakRefObject(TObject* object)
+int TObjectManager::WeakRefObject(TObject* object)
 {
     return GarbageCollector_->WeakRefObject(object);
 }
 
-int TObjectManager::TImpl::WeakUnrefObject(TObject* object)
+int TObjectManager::WeakUnrefObject(TObject* object)
 {
     return GarbageCollector_->WeakUnrefObject(object);
 }
 
-void TObjectManager::TImpl::SaveKeys(NCellMaster::TSaveContext& context) const
+void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveKeys(context);
     GarbageCollector_->SaveKeys(context);
     MutationIdempotizer_->Save(context);
 }
 
-void TObjectManager::TImpl::SaveValues(NCellMaster::TSaveContext& context) const
+void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveValues(context);
     GarbageCollector_->SaveValues(context);
 }
 
-void TObjectManager::TImpl::LoadKeys(NCellMaster::TLoadContext& context)
+void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -960,7 +962,7 @@ void TObjectManager::TImpl::LoadKeys(NCellMaster::TLoadContext& context)
     MutationIdempotizer_->Load(context);
 }
 
-void TObjectManager::TImpl::LoadValues(NCellMaster::TLoadContext& context)
+void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -971,7 +973,7 @@ void TObjectManager::TImpl::LoadValues(NCellMaster::TLoadContext& context)
     GarbageCollector_->LoadValues(context);
 }
 
-void TObjectManager::TImpl::Clear()
+void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -993,7 +995,7 @@ void TObjectManager::TImpl::Clear()
     MutationIdempotizer_->Clear();
 }
 
-void TObjectManager::TImpl::InitSchemas()
+void TObjectManager::InitSchemas()
 {
     for (auto& [_, entry] : TypeToEntry_) {
         entry.SchemaObject = nullptr;
@@ -1019,7 +1021,7 @@ void TObjectManager::TImpl::InitSchemas()
     }
 }
 
-void TObjectManager::TImpl::OnRecoveryStarted()
+void TObjectManager::OnRecoveryStarted()
 {
     TMasterAutomatonPart::OnRecoveryStarted();
 
@@ -1028,14 +1030,14 @@ void TObjectManager::TImpl::OnRecoveryStarted()
     GarbageCollector_->Reset();
 }
 
-void TObjectManager::TImpl::OnRecoveryComplete()
+void TObjectManager::OnRecoveryComplete()
 {
     TMasterAutomatonPart::OnRecoveryComplete();
 
     BufferedProducer_->SetEnabled(true);
 }
 
-void TObjectManager::TImpl::OnLeaderActive()
+void TObjectManager::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1045,7 +1047,7 @@ void TObjectManager::TImpl::OnLeaderActive()
     MutationIdempotizer_->Start();
 }
 
-void TObjectManager::TImpl::OnStopLeading()
+void TObjectManager::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1055,7 +1057,7 @@ void TObjectManager::TImpl::OnStopLeading()
     MutationIdempotizer_->Stop();
 }
 
-void TObjectManager::TImpl::OnStartFollowing()
+void TObjectManager::OnStartFollowing()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1064,7 +1066,7 @@ void TObjectManager::TImpl::OnStartFollowing()
     GarbageCollector_->Start();
 }
 
-void TObjectManager::TImpl::OnStopFollowing()
+void TObjectManager::OnStopFollowing()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1073,7 +1075,7 @@ void TObjectManager::TImpl::OnStopFollowing()
     GarbageCollector_->Stop();
 }
 
-void TObjectManager::TImpl::CheckInvariants()
+void TObjectManager::CheckInvariants()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1085,7 +1087,7 @@ void TObjectManager::TImpl::CheckInvariants()
     }
 }
 
-TObject* TObjectManager::TImpl::FindObject(TObjectId id)
+TObject* TObjectManager::FindObject(TObjectId id)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
@@ -1097,7 +1099,7 @@ TObject* TObjectManager::TImpl::FindObject(TObjectId id)
     return handler->FindObject(id);
 }
 
-TObject* TObjectManager::TImpl::GetObject(TObjectId id)
+TObject* TObjectManager::GetObject(TObjectId id)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
@@ -1106,7 +1108,7 @@ TObject* TObjectManager::TImpl::GetObject(TObjectId id)
     return object;
 }
 
-TObject* TObjectManager::TImpl::GetObjectOrThrow(TObjectId id)
+TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
@@ -1121,13 +1123,13 @@ TObject* TObjectManager::TImpl::GetObjectOrThrow(TObjectId id)
     return object;
 }
 
-TObject* TObjectManager::TImpl::GetWeakGhostObject(TObjectId id)
+TObject* TObjectManager::GetWeakGhostObject(TObjectId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     return GarbageCollector_->GetWeakGhostObject(id);
 }
 
-void TObjectManager::TImpl::RemoveObject(TObject* object)
+void TObjectManager::RemoveObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1173,17 +1175,17 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
     }
 }
 
-IYPathServicePtr TObjectManager::TImpl::CreateRemoteProxy(TObjectId id)
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
 {
     return New<TRemoteProxy>(Bootstrap_, id);
 }
 
-IYPathServicePtr TObjectManager::TImpl::CreateRemoteProxy(TCellTag cellTag)
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TCellTag cellTag)
 {
     return New<TRemoteProxy>(Bootstrap_, cellTag);
 }
 
-IObjectProxyPtr TObjectManager::TImpl::GetProxy(
+IObjectProxyPtr TObjectManager::GetProxy(
     TObject* object,
     TTransaction* transaction)
 {
@@ -1205,7 +1207,7 @@ IObjectProxyPtr TObjectManager::TImpl::GetProxy(
     return handler->GetProxy(object, transaction);
 }
 
-void TObjectManager::TImpl::BranchAttributes(
+void TObjectManager::BranchAttributes(
     const TObject* /*originatingObject*/,
     TObject* /*branchedObject*/)
 {
@@ -1213,7 +1215,7 @@ void TObjectManager::TImpl::BranchAttributes(
     // We don't store empty deltas at the moment
 }
 
-void TObjectManager::TImpl::MergeAttributes(
+void TObjectManager::MergeAttributes(
     TObject* originatingObject,
     const TObject* branchedObject)
 {
@@ -1237,7 +1239,7 @@ void TObjectManager::TImpl::MergeAttributes(
     }
 }
 
-void TObjectManager::TImpl::FillAttributes(
+void TObjectManager::FillAttributes(
     TObject* object,
     const IAttributeDictionary& attributes)
 {
@@ -1257,7 +1259,7 @@ void TObjectManager::TImpl::FillAttributes(
     }
 }
 
-std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
+std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(
     const IServiceContextPtr& context,
     const TAuthenticationIdentity& identity)
 {
@@ -1271,7 +1273,7 @@ std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
 
     auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request);
     mutation->SetHandler(BIND_DONT_CAPTURE_TRACE_CONTEXT(
-        &TImpl::HydraExecuteLeader,
+        &TObjectManager::HydraExecuteLeader,
         MakeStrong(this),
         identity,
         MakeCodicilData(identity),
@@ -1279,23 +1281,23 @@ std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
     return mutation;
 }
 
-std::unique_ptr<TMutation> TObjectManager::TImpl::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
+std::unique_ptr<TMutation> TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
 {
     return CreateMutation(
         Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
-        &TImpl::HydraDestroyObjects,
+        &TObjectManager::HydraDestroyObjects,
         this);
 }
 
-TFuture<void> TObjectManager::TImpl::GCCollect()
+TFuture<void> TObjectManager::GCCollect()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     return GarbageCollector_->Collect();
 }
 
-TObject* TObjectManager::TImpl::CreateObject(
+TObject* TObjectManager::CreateObject(
     TObjectId hintId,
     EObjectType type,
     IAttributeDictionary* attributes)
@@ -1418,7 +1420,7 @@ TObject* TObjectManager::TImpl::CreateObject(
     return object;
 }
 
-bool TObjectManager::TImpl::IsObjectLifeStageValid(const TObject* object) const
+bool TObjectManager::IsObjectLifeStageValid(const TObject* object) const
 {
     YT_VERIFY(IsObjectAlive(object));
 
@@ -1441,7 +1443,7 @@ bool TObjectManager::TImpl::IsObjectLifeStageValid(const TObject* object) const
     return false;
 }
 
-void TObjectManager::TImpl::ValidateObjectLifeStage(const TObject* object) const
+void TObjectManager::ValidateObjectLifeStage(const TObject* object) const
 {
     if (!IsObjectLifeStageValid(object)) {
         THROW_ERROR_EXCEPTION(
@@ -1452,7 +1454,7 @@ void TObjectManager::TImpl::ValidateObjectLifeStage(const TObject* object) const
     }
 }
 
-std::optional<TObject*> TObjectManager::TImpl::FindObjectByAttributes(
+std::optional<TObject*> TObjectManager::FindObjectByAttributes(
     EObjectType type,
     const IAttributeDictionary* attributes)
 {
@@ -1467,7 +1469,7 @@ std::optional<TObject*> TObjectManager::TImpl::FindObjectByAttributes(
     return handler->FindObjectByAttributes(attributes);
 }
 
-void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
+void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     if (!multicellManager->IsSecondaryMaster()) {
@@ -1491,7 +1493,7 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
     multicellManager->PostToPrimaryMaster(request);
 }
 
-void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer::TObject* object)
+void TObjectManager::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer::TObject* object)
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -1506,7 +1508,7 @@ void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjec
     multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
-TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
+TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
     static const TString NullService;
     static const TString NullMethod;
@@ -1530,7 +1532,7 @@ TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransac
     return payload->Object;
 }
 
-void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
+void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -1580,7 +1582,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
     }
 }
 
-TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
+TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const TSharedRefArray& requestMessage,
     TCellTag cellTag,
     EPeerKind peerKind)
@@ -1648,7 +1650,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     }));
 }
 
-void TObjectManager::TImpl::ReplicateObjectCreationToSecondaryMaster(
+void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
@@ -1672,7 +1674,7 @@ void TObjectManager::TImpl::ReplicateObjectCreationToSecondaryMaster(
     }
 }
 
-void TObjectManager::TImpl::ReplicateObjectAttributesToSecondaryMaster(
+void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
@@ -1683,12 +1685,12 @@ void TObjectManager::TImpl::ReplicateObjectAttributesToSecondaryMaster(
     DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ false);
 }
 
-TString TObjectManager::TImpl::MakeCodicilData(const TAuthenticationIdentity& identity)
+TString TObjectManager::MakeCodicilData(const TAuthenticationIdentity& identity)
 {
     return ToString(identity);
 }
 
-void TObjectManager::TImpl::HydraExecuteLeader(
+void TObjectManager::HydraExecuteLeader(
     const TAuthenticationIdentity& identity,
     const TString& codicilData,
     const IServiceContextPtr& rpcContext,
@@ -1755,7 +1757,7 @@ void TObjectManager::TImpl::HydraExecuteLeader(
     }
 }
 
-void TObjectManager::TImpl::HydraExecuteFollower(NProto::TReqExecute* request)
+void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1778,7 +1780,7 @@ void TObjectManager::TImpl::HydraExecuteFollower(NProto::TReqExecute* request)
     HydraExecuteLeader(identity, codicilData, context, GetCurrentMutationContext());
 }
 
-void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
+void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
 {
     // NB: Ordered map is a must to make the behavior deterministic.
     std::map<TCellTag, NProto::TReqUnrefExportedObjects> crossCellRequestMap;
@@ -1827,7 +1829,7 @@ void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* requ
     GarbageCollector_->CheckEmpty();
 }
 
-void TObjectManager::TImpl::HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept
+void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept
 {
     auto objectId = FromProto<TObjectId>(request->object_id());
     auto type = EObjectType(request->type());
@@ -1846,7 +1848,7 @@ void TObjectManager::TImpl::HydraCreateForeignObject(NProto::TReqCreateForeignOb
         type);
 }
 
-void TObjectManager::TImpl::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept
+void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept
 {
     auto objectId = FromProto<TObjectId>(request->object_id());
 
@@ -1879,7 +1881,7 @@ void TObjectManager::TImpl::HydraRemoveForeignObject(NProto::TReqRemoveForeignOb
     }
 }
 
-void TObjectManager::TImpl::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept
+void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept
 {
     auto cellTag = request->cell_tag();
 
@@ -1909,7 +1911,7 @@ void TObjectManager::TImpl::HydraUnrefExportedObjects(NProto::TReqUnrefExportedO
         request->entries_size());
 }
 
-void TObjectManager::TImpl::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
+void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -1932,7 +1934,7 @@ void TObjectManager::TImpl::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjec
     CheckObjectLifeStageVoteCount(object);
 }
 
-void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
+void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsSecondaryMaster());
@@ -1970,7 +1972,7 @@ void TObjectManager::TImpl::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjec
     }
 }
 
-void TObjectManager::TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept
+void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -2009,12 +2011,12 @@ void TObjectManager::TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::
     }
 }
 
-void TObjectManager::TImpl::HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRemoveExpiredRecentlyAppliedMutationIds* /*request*/)
+void TObjectManager::HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRemoveExpiredRecentlyAppliedMutationIds* /*request*/)
 {
     MutationIdempotizer_->RemoveExpiredMutations();
 }
 
-void TObjectManager::TImpl::DoRemoveObject(TObject* object)
+void TObjectManager::DoRemoveObject(TObject* object)
 {
     YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object removed (ObjectId: %v)",
         object->GetId());
@@ -2027,7 +2029,7 @@ void TObjectManager::TImpl::DoRemoveObject(TObject* object)
     }
 }
 
-void TObjectManager::TImpl::CheckRemovingObjectRefCounter(TObject* object)
+void TObjectManager::CheckRemovingObjectRefCounter(TObject* object)
 {
     if (object->GetObjectRefCounter(/*flushUnrefs*/ true) != 1) {
         return;
@@ -2053,7 +2055,7 @@ void TObjectManager::TImpl::CheckRemovingObjectRefCounter(TObject* object)
     }
 }
 
-void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TObject* object)
+void TObjectManager::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TObject* object)
 {
     while (true) {
         auto voteCount = object->GetLifeStageVoteCount();
@@ -2104,7 +2106,7 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
     }
 }
 
-NProfiling::TTimeCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeCounter(
+NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
     EObjectType type,
     const TString& method)
 {
@@ -2125,14 +2127,14 @@ NProfiling::TTimeCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeC
     return &(*entryPtr)->CumulativeExecuteTimeCounter;
 }
 
-const TGarbageCollectorPtr& TObjectManager::TImpl::GetGarbageCollector() const
+const TGarbageCollectorPtr& TObjectManager::GetGarbageCollector() const
 {
     Bootstrap_->VerifyPersistentStateRead();
 
     return GarbageCollector_;
 }
 
-void TObjectManager::TImpl::OnProfiling()
+void TObjectManager::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -2148,7 +2150,7 @@ void TObjectManager::TImpl::OnProfiling()
     BufferedProducer_->Update(std::move(buffer));
 }
 
-IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
+IAttributeDictionaryPtr TObjectManager::GetReplicatedAttributes(
     TObject* object,
     bool mandatory,
     bool writableOnly)
@@ -2210,7 +2212,7 @@ IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
     return attributes;
 }
 
-void TObjectManager::TImpl::DoReplicateObjectAttributesToSecondaryMaster(
+void TObjectManager::DoReplicateObjectAttributesToSecondaryMaster(
     TObject* object,
     TCellTag cellTag,
     bool mandatory)
@@ -2223,7 +2225,7 @@ void TObjectManager::TImpl::DoReplicateObjectAttributesToSecondaryMaster(
     multicellManager->PostToMaster(request, cellTag);
 }
 
-void TObjectManager::TImpl::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+void TObjectManager::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 {
     auto schemas = GetValuesSortedByKey(SchemaMap_);
     for (auto* schema : schemas) {
@@ -2231,257 +2233,26 @@ void TObjectManager::TImpl::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     }
 }
 
-const TDynamicObjectManagerConfigPtr& TObjectManager::TImpl::GetDynamicConfig()
+const TDynamicObjectManagerConfigPtr& TObjectManager::GetDynamicConfig()
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
 }
 
-void TObjectManager::TImpl::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+void TObjectManager::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectManager::TObjectManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TObjectManager::TObjectManager(
-    TTestingTag tag,
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(tag, bootstrap))
-{ }
-
-TObjectManager::~TObjectManager()
-{ }
-
-void TObjectManager::Initialize()
+IObjectManagerPtr CreateObjectManager(NCellMaster::TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TObjectManager>(bootstrap);
 }
 
-void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
+IObjectManagerPtr CreateObjectManager(TTestingTag tag, NCellMaster::TBootstrap* bootstrap)
 {
-    Impl_->RegisterHandler(std::move(handler));
-}
-
-const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
-{
-    return Impl_->FindHandler(type);
-}
-
-const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObject* object) const
-{
-    return Impl_->GetHandler(object);
-}
-
-const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
-{
-    return Impl_->GetHandler(type);
-}
-
-const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
-{
-    return Impl_->GetRegisteredTypes();
-}
-
-TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
-{
-    return Impl_->GenerateId(type, hintId);
-}
-
-int TObjectManager::RefObject(TObject* object)
-{
-    return Impl_->RefObject(object);
-}
-
-int TObjectManager::UnrefObject(TObject* object, int count)
-{
-    return Impl_->UnrefObject(object, count);
-}
-
-int TObjectManager::EphemeralRefObject(TObject* object)
-{
-    return Impl_->EphemeralRefObject(object);
-}
-
-void TObjectManager::EphemeralUnrefObject(TObject* object)
-{
-    Impl_->EphemeralUnrefObject(object);
-}
-
-void TObjectManager::EphemeralUnrefObject(TObject* object, TEpoch epoch)
-{
-    Impl_->EphemeralUnrefObject(object, epoch);
-}
-
-int TObjectManager::WeakRefObject(TObject* object)
-{
-    return Impl_->WeakRefObject(object);
-}
-
-int TObjectManager::WeakUnrefObject(TObject* object)
-{
-    return Impl_->WeakUnrefObject(object);
-}
-
-TObject* TObjectManager::FindObject(TObjectId id)
-{
-    return Impl_->FindObject(id);
-}
-
-TObject* TObjectManager::GetObject(TObjectId id)
-{
-    return Impl_->GetObject(id);
-}
-
-TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
-{
-    return Impl_->GetObjectOrThrow(id);
-}
-
-TObject* TObjectManager::GetWeakGhostObject(TObjectId id)
-{
-    return Impl_->GetWeakGhostObject(id);
-}
-
-void TObjectManager::RemoveObject(TObject* object)
-{
-    Impl_->RemoveObject(object);
-}
-
-IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
-{
-    return Impl_->CreateRemoteProxy(id);
-}
-
-IYPathServicePtr TObjectManager::CreateRemoteProxy(TCellTag cellTag)
-{
-    return Impl_->CreateRemoteProxy(cellTag);
-}
-
-IObjectProxyPtr TObjectManager::GetProxy(TObject* object, TTransaction* transaction)
-{
-    return Impl_->GetProxy(object, transaction);
-}
-
-void TObjectManager::BranchAttributes(const TObject* originatingObject, TObject* branchedObject)
-{
-    Impl_->BranchAttributes(originatingObject, branchedObject);
-}
-
-void TObjectManager::MergeAttributes(TObject* originatingObject, const TObject* branchedObject)
-{
-    Impl_->MergeAttributes(originatingObject, branchedObject);
-}
-
-void TObjectManager::FillAttributes(TObject* object, const IAttributeDictionary& attributes)
-{
-    Impl_->FillAttributes(object, attributes);
-}
-
-IYPathServicePtr TObjectManager::GetRootService()
-{
-    return Impl_->GetRootService();
-}
-
-TObject* TObjectManager::GetMasterObject()
-{
-    return Impl_->GetMasterObject();
-}
-
-IObjectProxyPtr TObjectManager::GetMasterProxy()
-{
-    return Impl_->GetMasterProxy();
-}
-
-TObject* TObjectManager::FindSchema(EObjectType type)
-{
-    return Impl_->FindSchema(type);
-}
-
-IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
-{
-    return Impl_->GetSchemaProxy(type);
-}
-
-std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(const IServiceContextPtr& context, const TAuthenticationIdentity& identity)
-{
-    return Impl_->CreateExecuteMutation(context, identity);
-}
-
-std::unique_ptr<TMutation> TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
-{
-    return Impl_->CreateDestroyObjectsMutation(request);
-}
-
-TFuture<void> TObjectManager::GCCollect()
-{
-    return Impl_->GCCollect();
-}
-
-TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttributeDictionary* attributes)
-{
-    return Impl_->CreateObject(hintId, type, attributes);
-}
-
-bool TObjectManager::IsObjectLifeStageValid(const TObject* object) const
-{
-    return Impl_->IsObjectLifeStageValid(object);
-}
-
-void TObjectManager::ValidateObjectLifeStage(const TObject* object) const
-{
-    return Impl_->ValidateObjectLifeStage(object);
-}
-
-std::optional<TObject*> TObjectManager::FindObjectByAttributes(
-    EObjectType type,
-    const NYTree::IAttributeDictionary* attributes)
-{
-    return Impl_->FindObjectByAttributes(type, attributes);
-}
-
-TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
-{
-    return Impl_->ResolvePathToObject(path, transaction, options);
-}
-
-void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
-{
-    Impl_->ValidatePrerequisites(prerequisites);
-}
-
-TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
-    const TSharedRefArray& requestMessage,
-    TCellTag cellTag,
-    EPeerKind peerKind)
-{
-    return Impl_->ForwardObjectRequest(
-        requestMessage,
-        cellTag,
-        peerKind);
-}
-
-void TObjectManager::ReplicateObjectCreationToSecondaryMaster(TObject* object, TCellTag cellTag)
-{
-    Impl_->ReplicateObjectCreationToSecondaryMaster(object, cellTag);
-}
-
-void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(TObject* object, TCellTag cellTag)
-{
-    Impl_->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
-}
-
-NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
-{
-    return Impl_->GetMethodCumulativeExecuteTimeCounter(type, method);
-}
-
-const TGarbageCollectorPtr& TObjectManager::GetGarbageCollector() const
-{
-    return Impl_->GetGarbageCollector();
+    return New<TObjectManager>(tag, bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -512,7 +512,7 @@ public:
 
     void EnsureBuiltinRequisitionsInitialized(
         NSecurityServer::TAccount* chunkWiseAccountingMigrationAccount,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     // NB: ref counts are not persisted.
     void Save(NCellMaster::TSaveContext& context) const;
@@ -529,7 +529,7 @@ public:
      */
     TChunkRequisitionIndex GetOrCreate(
         const TChunkRequisition& requisition,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     //! Returns specified requisition's index or null if no such requisition is registered.
     std::optional<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
@@ -539,7 +539,7 @@ public:
     void Ref(TChunkRequisitionIndex index);
     void Unref(
         TChunkRequisitionIndex index,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     void Serialize(NYson::IYsonConsumer* consumer, const TChunkManagerPtr& chunkManager) const;
 
@@ -564,11 +564,11 @@ private:
 
     TChunkRequisitionIndex Insert(
         const TChunkRequisition& requisition,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     void Erase(
         TChunkRequisitionIndex index,
-        const NObjectServer::TObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager);
 
     void FakeRefBuiltinRequisitions();
 };

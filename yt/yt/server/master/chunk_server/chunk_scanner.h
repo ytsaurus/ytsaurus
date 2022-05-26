@@ -42,7 +42,7 @@ class TChunkScanner
 {
 public:
     TChunkScanner(
-        NObjectServer::TObjectManagerPtr objectManager,
+        NObjectServer::IObjectManagerPtr objectManager,
         EChunkScanKind kind,
         bool journal);
 
@@ -90,7 +90,7 @@ public:
     int GetQueueSize() const;
 
 private:
-    const NObjectServer::TObjectManagerPtr ObjectManager_;
+    const NObjectServer::IObjectManagerPtr ObjectManager_;
     const EChunkScanKind Kind_;
     const bool Journal_;
     const NLogging::TLogger Logger;

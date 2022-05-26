@@ -196,7 +196,7 @@ inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) con
 
 inline void TChunk::UnrefUsedRequisitions(
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::TObjectManagerPtr& objectManager) const
+    const NObjectServer::IObjectManagerPtr& objectManager) const
 {
     registry->Unref(AggregatedRequisitionIndex_, objectManager);
     registry->Unref(LocalRequisitionIndex_, objectManager);
@@ -221,7 +221,7 @@ inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
 inline void TChunk::SetLocalRequisitionIndex(
     TChunkRequisitionIndex requisitionIndex,
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     registry->Unref(LocalRequisitionIndex_, objectManager);
     LocalRequisitionIndex_ = requisitionIndex;
@@ -242,7 +242,7 @@ inline void TChunk::SetExternalRequisitionIndex(
     int cellIndex,
     TChunkRequisitionIndex requisitionIndex,
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     YT_ASSERT(ExportDataList_);
     auto& data = (*ExportDataList_)[cellIndex];
@@ -256,7 +256,7 @@ inline void TChunk::SetExternalRequisitionIndex(
 
 inline void TChunk::UpdateAggregatedRequisitionIndex(
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     auto requisition = ComputeAggregatedRequisition(registry);
     if (requisition.GetEntryCount() == 0) {

@@ -23,7 +23,7 @@ using namespace NObjectServer;
 TBootstrapMock::TBootstrapMock()
 {
     HydraFacade_ = CreateHydraFacade(TTestingTag());
-    ObjectManager_ = New<NObjectServer::TObjectManager>(TTestingTag(), this);
+    ObjectManager_ = CreateObjectManager(TTestingTag(), this);
 }
 
 void TBootstrapMock::SetupMasterSmartpointers()

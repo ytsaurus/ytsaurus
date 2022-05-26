@@ -50,13 +50,15 @@ DEFINE_BIT_ENUM(ETypeFlags,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IObjectService)
-DECLARE_REFCOUNTED_CLASS(TObjectManager)
+DECLARE_REFCOUNTED_STRUCT(IObjectManager)
+
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
 DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 
 DECLARE_REFCOUNTED_STRUCT(TRequestProfilingCounters)
-DECLARE_REFCOUNTED_CLASS(TRequestProfilingManager)
+DECLARE_REFCOUNTED_STRUCT(IRequestProfilingManager)
+
 DECLARE_REFCOUNTED_CLASS(TMutationIdempotizer)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)

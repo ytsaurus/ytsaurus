@@ -817,7 +817,7 @@ void TMapNodeChildren::RecomputeMasterMemoryUsage()
     }
 }
 
-void TMapNodeChildren::Set(const TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+void TMapNodeChildren::Set(const IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
 {
     YT_VERIFY(!child || child->IsTrunk());
 
@@ -839,7 +839,7 @@ void TMapNodeChildren::Set(const TObjectManagerPtr& objectManager, const TString
     }
 }
 
-void TMapNodeChildren::Insert(const TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+void TMapNodeChildren::Insert(const IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
 {
     YT_VERIFY(!child || child->IsTrunk());
 
@@ -852,7 +852,7 @@ void TMapNodeChildren::Insert(const TObjectManagerPtr& objectManager, const TStr
     }
 }
 
-void TMapNodeChildren::Remove(const TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+void TMapNodeChildren::Remove(const IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
 {
     YT_VERIFY(!child || child->IsTrunk());
 
@@ -899,7 +899,7 @@ void TMapNodeChildren::Unref() noexcept
 
 /*static*/ void TMapNodeChildren::Destroy(
     TMapNodeChildren* children,
-    const TObjectManagerPtr& objectManager)
+    const IObjectManagerPtr& objectManager)
 {
     YT_VERIFY(children->GetRefCount() == 0);
     children->UnrefChildren(objectManager);
@@ -927,7 +927,7 @@ void TMapNodeChildren::Unref() noexcept
 
 /*static*/ TMapNodeChildren* TMapNodeChildren::Copy(
     TMapNodeChildren* srcChildren,
-    const TObjectManagerPtr& objectManager)
+    const IObjectManagerPtr& objectManager)
 {
     YT_VERIFY(srcChildren->GetRefCount() != 0);
 
@@ -942,7 +942,7 @@ void TMapNodeChildren::Unref() noexcept
     return holder.release();
 }
 
-void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
+void TMapNodeChildren::RefChildren(const NObjectServer::IObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
     auto sortedIterators = GetSortedIterators(
@@ -956,7 +956,7 @@ void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objec
     }
 }
 
-void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
+void TMapNodeChildren::UnrefChildren(const NObjectServer::IObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
     auto sortedIterators = GetSortedIterators(
@@ -989,7 +989,7 @@ const TMapNode::TChildToKey& TMapNode::ChildToKey() const
     return Children_.Get().ChildToKey();
 }
 
-TMapNodeChildren& TMapNode::MutableChildren(const TObjectManagerPtr& objectManager)
+TMapNodeChildren& TMapNode::MutableChildren(const IObjectManagerPtr& objectManager)
 {
     return Children_.MutableGet(objectManager);
 }
@@ -1032,7 +1032,7 @@ TDetailedMasterMemory TMapNode::GetDetailedMasterMemoryUsage() const
 
 void TMapNode::AssignChildren(
     const TObjectPartCoWPtr<TMapNodeChildren>& children,
-    const TObjectManagerPtr& objectManager)
+    const IObjectManagerPtr& objectManager)
 {
     Children_.Assign(children, objectManager);
     MutableChildren(objectManager).RecomputeMasterMemoryUsage();

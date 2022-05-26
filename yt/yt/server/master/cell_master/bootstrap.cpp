@@ -392,7 +392,7 @@ const IWorldInitializerPtr& TBootstrap::GetWorldInitializer() const
     return WorldInitializer_;
 }
 
-const TObjectManagerPtr& TBootstrap::GetObjectManager() const
+const IObjectManagerPtr& TBootstrap::GetObjectManager() const
 {
     return ObjectManager_;
 }
@@ -402,7 +402,7 @@ const IYsonInternRegistryPtr& TBootstrap::GetYsonInternRegistry() const
     return YsonInternRegistry_;
 }
 
-const TRequestProfilingManagerPtr& TBootstrap::GetRequestProfilingManager() const
+const IRequestProfilingManagerPtr& TBootstrap::GetRequestProfilingManager() const
 {
     return RequestProfilingManager_;
 }
@@ -735,11 +735,11 @@ void TBootstrap::DoInitialize()
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
-    ObjectManager_ = New<TObjectManager>(this);
+    ObjectManager_ = CreateObjectManager(this);
 
     YsonInternRegistry_ = CreateYsonInternRegistry(this);
 
-    RequestProfilingManager_ = New<TRequestProfilingManager>();
+    RequestProfilingManager_ = CreateRequestProfilingManager();
 
     SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
 

@@ -635,7 +635,7 @@ void TChunk::Unexport(
     int cellIndex,
     int importRefCounter,
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::TObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager)
 {
     YT_ASSERT(ExportDataList_);
     auto& data = (*ExportDataList_)[cellIndex];
