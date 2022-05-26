@@ -20,7 +20,7 @@ import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.VectorizedCapacity
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.YtTableFileSystem
+import ru.yandex.spark.yt.fs.{YtFileSystem, YtFileSystemBase, YtTableFileSystem}
 import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.logger.{TaskInfo, YtDynTableLoggerConfig}
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
@@ -142,12 +142,11 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private def createRowBaseReader(split: YtInputSplit)
                                  (implicit yt: CompoundClient): RecordReader[Void, InternalRow] = {
-    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtTableFileSystem]
     val iter = YtWrapper.readTable(
       split.ytPathWithFiltersDetailed,
       InternalRowDeserializer.getOrCreate(resultSchema),
       ytClientConf.timeout, None,
-      bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
+      incrementBytesRead
     )
     val unsafeProjection = UnsafeProjection.create(resultSchema)
 
@@ -182,16 +181,25 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   private def createVectorizedReader(split: YtInputSplit,
                                      returnBatch: Boolean)
                                     (implicit yt: CompoundClient): YtVectorizedReader = {
-
-    val fs = FileSystem.get(broadcastedConf.value.value).asInstanceOf[YtTableFileSystem]
     new YtVectorizedReader(
       split = split,
       batchMaxSize = batchMaxSize,
       returnBatch = returnBatch,
       arrowEnabled = arrowEnabled,
       timeout = ytClientConf.timeout,
-      bytesRead => fs.internalStatistics.incrementBytesRead(bytesRead)
+      incrementBytesRead
     )
+  }
+
+  private def incrementBytesRead: Long => Unit = {
+    val fs = FileSystem.get(broadcastedConf.value.value)
+    fs match {
+      case yfs: YtFileSystem => yfs.internalStatistics.incrementBytesRead
+      case ytfs: YtTableFileSystem => ytfs.internalStatistics.incrementBytesRead
+      case _ =>
+        log.warn(s"Unsupported fs: ${fs.getClass.getName}")
+        _ => () //noop
+    }
   }
 
   private def arrowSchemaSupported(dataSchema: StructType): Boolean = {
