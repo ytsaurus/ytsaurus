@@ -4,14 +4,14 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // This field is overridden by DefaultProfile in TEngineConfig.
@@ -20,7 +20,9 @@ public:
     NYTree::IMapNodePtr UserTemplate;
     NYTree::IMapNodePtr Users;
 
-    TUserConfig();
+    REGISTER_YSON_STRUCT(TUserConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserConfig);
@@ -28,12 +30,14 @@ DEFINE_REFCOUNTED_TYPE(TUserConfig);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDictionarySourceYtConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NYPath::TRichYPath Path;
 
-    TDictionarySourceYtConfig();
+    REGISTER_YSON_STRUCT(TDictionarySourceYtConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
@@ -44,13 +48,15 @@ DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig);
 //! Extra supported configuration type is "yt".
 //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_sources/
 class TDictionarySourceConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // TODO(max42): proper value omission.
     TDictionarySourceYtConfigPtr Yt;
 
-    TDictionarySourceConfig();
+    REGISTER_YSON_STRUCT(TDictionarySourceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
@@ -60,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig);
 //! External dictionary configuration.
 //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict/
 class TDictionaryConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Name;
@@ -80,7 +86,9 @@ public:
     //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_lifetime/
     NYTree::INodePtr Lifetime;
 
-    TDictionaryConfig();
+    REGISTER_YSON_STRUCT(TDictionaryConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
@@ -88,13 +96,15 @@ DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSystemLogConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Engine;
     int FlushIntervalMilliseconds;
 
-    TSystemLogConfig();
+    REGISTER_YSON_STRUCT(TSystemLogConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSystemLogConfig);
@@ -103,7 +113,7 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogConfig);
 
 //! Config containing native clickhouse settings. Do not add our own settings here.
 class TClickHouseConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! A map with users.
@@ -144,7 +154,9 @@ public:
     //! This map is merged into `users/profiles/default`.
     THashMap<TString, NYTree::INodePtr> Settings;
 
-    TClickHouseConfig();
+    REGISTER_YSON_STRUCT(TClickHouseConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseConfig);
