@@ -4,25 +4,41 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSerializableSpanContext
+    : public NYTree::TYsonStruct
+    , public NTracing::TSpanContext
+{
+public:
+    REGISTER_YSON_STRUCT(TSerializableSpanContext);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializableSpanContext)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSecondaryQueryHeader
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TQueryId QueryId;
     TQueryId ParentQueryId;
-    NTracing::TSpanContext SpanContext;
+    TSerializableSpanContextPtr SpanContext;
     // These values should always be initialized explicitly.
     // Set default values for easier debugging if we forget to initialize them.
     int StorageIndex = -42;
     int QueryDepth = -42;
 
-    TSecondaryQueryHeader();
+    REGISTER_YSON_STRUCT(TSecondaryQueryHeader);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecondaryQueryHeader);

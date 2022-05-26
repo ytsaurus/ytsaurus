@@ -62,7 +62,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
             auto header = NYTree::ConvertTo<TSecondaryQueryHeaderPtr>(NYson::TYsonString(clientInfo.current_query_id));
             clientInfo.current_query_id = ToString(header->QueryId);
 
-            TTraceContextPtr traceContext = New<TTraceContext>(header->SpanContext, "TcpHandler");
+            TTraceContextPtr traceContext = New<TTraceContext>(*header->SpanContext, "TcpHandler");
 
             YT_LOG_DEBUG("Registering new user (UserName: %v)", clientInfo.current_user);
             RegisterNewUser(context->getAccessControlManager(), TString(clientInfo.current_user));

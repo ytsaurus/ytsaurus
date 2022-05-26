@@ -4,16 +4,22 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecondaryQueryHeader::TSecondaryQueryHeader()
+void TSerializableSpanContext::Register(TRegistrar registrar)
 {
-    RegisterParameter("query_id", QueryId);
-    RegisterParameter("parent_query_id", ParentQueryId);
+    registrar.BaseClassParameter("trace_id", &TSerializableSpanContext::TraceId);
+    registrar.BaseClassParameter("span_id", &TSerializableSpanContext::SpanId);
+    registrar.BaseClassParameter("sampled", &TSerializableSpanContext::Sampled);
+}
 
-    RegisterParameter("trace_id", SpanContext.TraceId);
-    RegisterParameter("span_id", SpanContext.SpanId);
-    RegisterParameter("sampled", SpanContext.Sampled);
+////////////////////////////////////////////////////////////////////////////////
 
-    RegisterParameter("storage_index", StorageIndex);
+void TSecondaryQueryHeader::Register(TRegistrar registrar)
+{
+    registrar.Parameter("query_id", &TSecondaryQueryHeader::QueryId);
+    registrar.Parameter("parent_query_id", &TSecondaryQueryHeader::ParentQueryId);
+    registrar.Parameter("span_context", &TSecondaryQueryHeader::SpanContext);
+    registrar.Parameter("storage_index", &TSecondaryQueryHeader::StorageIndex);
+    registrar.Parameter("query_depth", &TSecondaryQueryHeader::QueryDepth);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
