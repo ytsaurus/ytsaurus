@@ -46,13 +46,14 @@ using ECellLifeStage = NTabletClient::ETabletCellLifeStage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ITamedCellManager)
-DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TCellBaseDecommissioner)
-DECLARE_REFCOUNTED_CLASS(TCellHydraJanitor)
 
+DECLARE_REFCOUNTED_STRUCT(IBundleNodeTracker)
 DECLARE_REFCOUNTED_STRUCT(ICellBalancerProvider)
+DECLARE_REFCOUNTED_STRUCT(ICellHydraJanitor)
+DECLARE_REFCOUNTED_STRUCT(ICellTracker)
 DECLARE_REFCOUNTED_STRUCT(ICellarNodeTracker)
+DECLARE_REFCOUNTED_STRUCT(ITamedCellManager)
 
 DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicCellarNodeTrackerConfig)

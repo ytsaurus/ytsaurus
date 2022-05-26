@@ -27,7 +27,7 @@ public:
 
     virtual const TCellSet* FindAssignedCells(const TString& address) const = 0;
 
-    virtual const TBundleNodeTrackerPtr& GetBundleNodeTracker() = 0;
+    virtual const IBundleNodeTrackerPtr& GetBundleNodeTracker() = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle)
     virtual const THashSet<TCellBundle*>& CellBundles(NCellarClient::ECellarType cellarType) = 0;

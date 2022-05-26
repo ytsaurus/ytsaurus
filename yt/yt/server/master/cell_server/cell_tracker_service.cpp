@@ -74,7 +74,7 @@ private:
 
         SyncWithUpstream();
 
-        TBundleNodeTracker::TNodeSet allNodes;
+        IBundleNodeTracker::TNodeSet allNodes;
 
         auto fillPeer = [&] (
             NCellBalancerClient::NProto::TPeer* protoPeer,

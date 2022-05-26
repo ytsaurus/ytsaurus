@@ -765,7 +765,7 @@ void TBootstrap::DoInitialize()
 
     TamedCellManager_ = CreateTamedCellManager(this);
 
-    CellHydraJanitor_ = New<TCellHydraJanitor>(this);
+    CellHydraJanitor_ = CreateCellHydraJanitor(this);
 
     TableManager_ = New<TTableManager>(this);
 

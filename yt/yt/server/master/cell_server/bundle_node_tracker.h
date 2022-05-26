@@ -12,29 +12,25 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBundleNodeTracker
+struct IBundleNodeTracker
     : public TRefCounted
 {
 public:
     using TNodeSet = THashSet<const NNodeTrackerServer::TNode*>;
 
-    explicit TBundleNodeTracker(NCellMaster::TBootstrap* bootstrap);
+    virtual void Initialize() = 0;
+    virtual void Clear() = 0;
 
-    ~TBundleNodeTracker();
+    virtual const TNodeSet& GetAreaNodes(const TArea* area) const = 0;
 
-    void Initialize();
-    void Clear();
-
-    const TNodeSet& GetAreaNodes(const TArea* area) const;
-
-    DECLARE_SIGNAL(void(const TArea*), AreaNodesChanged);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    DECLARE_INTERFACE_SIGNAL(void(const TArea*), AreaNodesChanged);
 };
 
-DEFINE_REFCOUNTED_TYPE(TBundleNodeTracker)
+DEFINE_REFCOUNTED_TYPE(IBundleNodeTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBundleNodeTrackerPtr CreateBundleNodeTracker(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

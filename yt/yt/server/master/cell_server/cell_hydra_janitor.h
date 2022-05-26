@@ -8,22 +8,17 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellHydraJanitor
+struct ICellHydraJanitor
     : public TRefCounted
 {
-public:
-    explicit TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap);
-
-    ~TCellHydraJanitor();
-
-    void Initialize();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Initialize() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellHydraJanitor)
+DEFINE_REFCOUNTED_TYPE(ICellHydraJanitor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ICellHydraJanitorPtr CreateCellHydraJanitor(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
