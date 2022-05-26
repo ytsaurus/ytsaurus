@@ -417,7 +417,7 @@ const IJournalManagerPtr& TBootstrap::GetJournalManager() const
     return JournalManager_;
 }
 
-const TSecurityManagerPtr& TBootstrap::GetSecurityManager() const
+const ISecurityManagerPtr& TBootstrap::GetSecurityManager() const
 {
     return SecurityManager_;
 }
@@ -741,7 +741,7 @@ void TBootstrap::DoInitialize()
 
     RequestProfilingManager_ = CreateRequestProfilingManager();
 
-    SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
+    SecurityManager_ = CreateSecurityManager(this);
 
     TransactionManager_ = New<TTransactionManager>(this);
 

@@ -32,7 +32,7 @@ void TraverseCypress(
     TCypressManagerPtr cypressManager,
     NTransactionServer::TTransactionManagerPtr transactionManager,
     NObjectServer::IObjectManagerPtr objectManager,
-    NSecurityServer::TSecurityManagerPtr securityManager,
+    NSecurityServer::ISecurityManagerPtr securityManager,
     IInvokerPtr invoker,
     TCypressNode* trunkRootNode,
     NTransactionServer::TTransaction* transaction,
