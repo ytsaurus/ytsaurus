@@ -17,6 +17,8 @@ struct TFairThrottlerConfig
 
     int GlobalAccumulationTicks;
 
+    std::optional<TString> IPCPath;
+
     TFairThrottlerConfig();
 };
 
@@ -41,6 +43,47 @@ struct TFairThrottlerBucketConfig
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairThrottlerBucketConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IIPCBucket
+    : public TRefCounted
+{
+    // NB: This struct is shared between processes. All changes must be backward compatible.
+    struct TBucket
+    {
+        std::atomic<double> Weight;
+        std::atomic<i64> Limit;
+        std::atomic<i64> Demand;
+        std::atomic<i64> InFlow;
+        std::atomic<i64> OutFlow;
+    };
+
+    virtual TBucket* State() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IIPCBucket)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IThrottlerIPC
+    : public TRefCounted
+{
+    // NB: This struct is shared between processes. All changes must be backward compatible.
+    struct TSharedBucket
+    {
+        std::atomic<i64> Value = 0;
+    };
+
+    virtual bool TryLock() = 0;
+    virtual TSharedBucket* State() = 0;
+    virtual std::vector<IIPCBucketPtr> ListBuckets() = 0;
+    virtual IIPCBucketPtr AddBucket() = 0;
+};
+
+IThrottlerIPCPtr CreateFileThrottlerIPC(const TString& path);
+
+DEFINE_REFCOUNTED_TYPE(IThrottlerIPC)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,11 +127,13 @@ private:
     const NProfiling::TProfiler Profiler_;
 
     TSharedBucketPtr SharedBucket_;
+    std::atomic<bool> IsLeader_ = false;
 
     struct TBucket
     {
         TFairThrottlerBucketConfigPtr Config;
         TBucketThrottlerPtr Throttler;
+        IIPCBucketPtr IPC;
     };
 
     // Protects all Config_ and Buckets_.
@@ -96,7 +141,11 @@ private:
     TFairThrottlerConfigPtr Config_;
     THashMap<TString, TBucket> Buckets_;
 
-    void DoUpdateLimits();
+    IThrottlerIPCPtr IPC_;
+
+    void DoUpdateLeader();
+    void DoUpdateFollower();
+    void RefillFromSharedBucket();
     void UpdateLimits(TInstant at);
     void ScheduleLimitUpdate(TInstant at);
 };
