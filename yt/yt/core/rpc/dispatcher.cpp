@@ -186,7 +186,7 @@ TDispatcher::~TDispatcher() = default;
 
 TDispatcher* TDispatcher::Get()
 {
-    return Singleton<TDispatcher>();
+    return LeakySingleton<TDispatcher>();
 }
 
 void TDispatcher::Configure(const TDispatcherConfigPtr& config)
