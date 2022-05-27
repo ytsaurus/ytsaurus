@@ -25,6 +25,7 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -164,7 +165,7 @@ public:
 
     std::optional<int> TryGetTerm() const override
     {
-        return Term_.load();
+        return Term_.Load();
     }
 
     TFuture<void> SetTerm(int term) override
@@ -186,7 +187,7 @@ public:
 
     std::optional<int> TryGetLatestChangelogId() const override
     {
-        return LatestChangelogId_.load();
+        return LatestChangelogId_.Load();
     }
 
     TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) override
@@ -226,8 +227,8 @@ private:
     const std::optional<TElectionPriority> ElectionPriority_;
     const TJournalWriterPerformanceCounters Counters_;
 
-    std::atomic<std::optional<int>> Term_;
-    std::atomic<std::optional<int>> LatestChangelogId_;
+    TAtomicObject<std::optional<int>> Term_;
+    TAtomicObject<std::optional<int>> LatestChangelogId_;
 
 
     void DoSetTerm(int term)
@@ -243,7 +244,7 @@ private:
             WaitFor(Client_->SetNode(Path_ + "/@term", ConvertToYsonString(term), options))
                 .ThrowOnError();
 
-            Term_.store(term);
+            Term_.Store(term);
 
             YT_LOG_DEBUG("Remote changelog store term set (Term: %v)",
                 term);
@@ -256,12 +257,12 @@ private:
 
     void UpdateLatestChangelogId(int id)
     {
-        auto expected = LatestChangelogId_.load();
+        auto expected = LatestChangelogId_.Load();
         do {
             if (expected >= id) {
                 return;
             }
-        } while (!LatestChangelogId_.compare_exchange_weak(expected, id));
+        } while (!LatestChangelogId_.CompareExchange(expected, id));
         YT_LOG_DEBUG("Latest changelog id updated (NewChangelogId: %v)",
             id);
     }
