@@ -3588,6 +3588,8 @@ private:
             .Item("operation_type").Value(operation->GetType())
             .OptionalItem("trimmed_annotations", operation->GetTrimmedAnnotations())
             .Item("spec").Value(operation->GetSpecString())
+            .Item("experiment_assignments").Value(operation->ExperimentAssignments())
+            .Item("experiment_assignment_names").Value(operation->GetExperimentAssignmentNames())
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
     }
 
