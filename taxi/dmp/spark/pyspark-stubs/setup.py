@@ -23,7 +23,7 @@ def list_packages(src_path=src_path):
 
 
 setup(
-    name="pyspark-stubs",
+    name="dmp-external-pyspark-stubs",
     package_dir={"": src_path},
     version="3.1.0.dev0",
     description="A collection of the Apache Spark stub files",
