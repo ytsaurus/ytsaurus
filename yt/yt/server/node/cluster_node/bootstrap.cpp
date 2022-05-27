@@ -801,17 +801,16 @@ private:
             "StorageLight");
 
         if (Config_->EnableFairThrottler) {
-            auto fairThrottlerConfig = New<TFairThrottlerConfig>();
-            fairThrottlerConfig->TotalLimit = Config_->NetworkBandwidth;
-
+            Config_->InThrottler->TotalLimit = Config_->NetworkBandwidth;
             InThrottler_ = New<TFairThrottler>(
-                fairThrottlerConfig,
+                Config_->InThrottler,
                 ClusterNodeLogger.WithTag("Direction: %v", "In"),
                 ClusterNodeProfiler.WithPrefix("/in_throttler"));
             DefaultInThrottler_ = GetInThrottler("default");
 
+            Config_->OutThrottler->TotalLimit = Config_->NetworkBandwidth;
             OutThrottler_ = New<TFairThrottler>(
-                fairThrottlerConfig,
+                Config_->OutThrottler,
                 ClusterNodeLogger.WithTag("Direction: %v", "Out"),
                 ClusterNodeProfiler.WithPrefix("/out_throttler"));
             DefaultOutThrottler_ = GetOutThrottler("default");

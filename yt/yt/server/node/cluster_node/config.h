@@ -351,6 +351,10 @@ public:
 
     bool EnableFairThrottler;
 
+    NConcurrency::TFairThrottlerConfigPtr InThrottler;
+
+    NConcurrency::TFairThrottlerConfigPtr OutThrottler;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 

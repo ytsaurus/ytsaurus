@@ -314,6 +314,10 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         .Default(1250000000);
     registrar.Parameter("enable_fair_throttler", &TThis::EnableFairThrottler)
         .Default(false);
+    registrar.Parameter("in_throttler", &TThis::InThrottler)
+        .DefaultNew();
+    registrar.Parameter("out_throttler", &TThis::OutThrottler)
+        .DefaultNew();
     registrar.Parameter("in_throttlers", &TThis::InThrottlers)
         .Default();
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
