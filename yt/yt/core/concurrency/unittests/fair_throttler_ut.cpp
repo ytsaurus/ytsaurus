@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/concurrency/fair_throttler.h>
 
+#include <library/cpp/testing/common/env.h>
+
 #include <vector>
 
 namespace NYT::NConcurrency {
@@ -232,6 +234,79 @@ TEST_F(TFairThrottlerTest, AcquireOverdraft)
     Sleep(TDuration::Seconds(5));
     ASSERT_TRUE(bucket->TryAcquire(1));
     ASSERT_FALSE(bucket->IsOverdraft());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFairThrottlerIPCTest
+    : public ::testing::Test
+{
+    TFairThrottlerConfigPtr Config = New<TFairThrottlerConfig>();
+    TFairThrottlerBucketConfigPtr BucketConfig = New<TFairThrottlerBucketConfig>();
+
+    TFairThrottlerPtr DatNode, ExeNode;
+
+    TFairThrottlerIPCTest()
+    {
+        TString testName = ::testing::UnitTest::GetInstance()->current_test_info()->name();
+
+        Config->IPCPath = GetOutputPath() / (testName + ".throttler");
+        Config->TotalLimit = 100;
+
+        auto logger = Logger.WithTag("Test: %v", testName);
+
+        DatNode = New<TFairThrottler>(Config, logger.WithTag("Node: dat"), NProfiling::TProfiler{});
+        ExeNode = New<TFairThrottler>(Config, logger.WithTag("Node: exe"), NProfiling::TProfiler{});
+    }
+};
+
+TEST_F(TFairThrottlerIPCTest, TwoBucket)
+{
+    auto first = DatNode->CreateBucketThrottler("first", BucketConfig);
+    auto second = ExeNode->CreateBucketThrottler("second", BucketConfig);
+
+    std::vector<TFuture<void>> firstRequests, secondRequests;
+
+    for (int i = 0; i < 100; i++) {
+        firstRequests.push_back(first->Throttle(10));
+        secondRequests.push_back(second->Throttle(10));
+    }
+
+    Sleep(TDuration::Seconds(5));
+
+    auto firstComplete = CountCompleted(firstRequests);
+    auto secondComplete = CountCompleted(secondRequests);
+
+    ASSERT_GE(firstComplete, 20);
+    ASSERT_GE(secondComplete, 20);
+    ASSERT_LE(firstComplete, 30);
+    ASSERT_LE(secondComplete, 30);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TFileIPC, Test)
+{
+    auto path = GetOutputPath() / "test_ipc";
+
+    auto a = CreateFileThrottlerIPC(path);
+    auto b = CreateFileThrottlerIPC(path);
+
+    ASSERT_TRUE(a->TryLock());
+    ASSERT_FALSE(b->TryLock());
+
+    ASSERT_EQ(0u, a->ListBuckets().size());
+    ASSERT_EQ(0u, b->ListBuckets().size());
+
+    auto b0 = a->AddBucket();
+
+    ASSERT_EQ(0u, a->ListBuckets().size());
+    ASSERT_EQ(1u, b->ListBuckets().size());
+
+    b0.Reset();
+
+    ASSERT_EQ(0u, a->ListBuckets().size());
+    ASSERT_EQ(0u, b->ListBuckets().size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
