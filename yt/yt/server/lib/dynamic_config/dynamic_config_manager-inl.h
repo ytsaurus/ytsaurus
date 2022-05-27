@@ -169,7 +169,9 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     }
 
     if (!configOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION("Failed to fetch dynamic config from Cypress")
+        THROW_ERROR_EXCEPTION(
+            NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,
+            "Failed to fetch dynamic config from Cypress")
             << TErrorAttribute("config_name", Options_.Name)
             << configOrError;
     }
