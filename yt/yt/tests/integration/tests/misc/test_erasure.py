@@ -4,7 +4,7 @@ from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
     remove, exists, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
-    sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table, sync_control_chunk_replicator,
+    sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
     get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
 
 from yt_driver_bindings import BufferedStream
