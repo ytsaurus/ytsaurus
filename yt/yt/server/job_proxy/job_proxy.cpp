@@ -402,7 +402,7 @@ void TJobProxy::RetrieveJobSpec(const TNodeDirectoryPtr& nodeDirectory)
     ApprovedMemoryReserve_ = totalMemoryReserve;
     RequestedMemoryReserve_ = totalMemoryReserve;
 
-    auto schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+    const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
     if (schedulerJobSpecExt.has_user_job_spec()) {
         const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
         JobProxyMemoryReserve_ = totalMemoryReserve - userJobSpec.memory_reserve();
@@ -1109,6 +1109,17 @@ void TJobProxy::CheckMemoryUsage()
     }
 
     i64 totalMemoryUsage = UserJobCurrentMemoryUsage_ + jobProxyMemoryUsage;
+            
+    const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+    if (schedulerJobSpecExt.has_user_job_spec()) {
+        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        if (Config_->AlwaysAbortOnMemoryReserveOverdraft && UserJobCurrentMemoryUsage_ > userJobSpec.memory_reserve()) {
+            YT_LOG_INFO("User job memory usage exceeded memory reserve (MemoryUsage: %v, MemoryReserve: %v)",
+                UserJobCurrentMemoryUsage_.load(),
+                userJobSpec.memory_reserve());
+            Abort(EJobProxyExitCode::ResourceOverdraft);
+        }
+    }
 
     if (TotalMaxMemoryUsage_ < totalMemoryUsage) {
         YT_LOG_DEBUG("Total memory usage increased (OldTotalMaxMemoryUsage: %v, NewTotalMaxMemoryUsage: %v)",

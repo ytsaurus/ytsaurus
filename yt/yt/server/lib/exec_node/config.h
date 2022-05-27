@@ -579,6 +579,9 @@ public:
     //! proper memory limits for asan builds.
     bool CheckUserJobMemoryLimit;
 
+    //! Enables job abort on violated memory reserve.
+    bool AlwaysAbortOnMemoryReserveOverdraft;
+
     TExecNodeConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -650,6 +653,9 @@ public:
 
         RegisterParameter("check_user_job_memory_limit", CheckUserJobMemoryLimit)
             .Default(true);
+
+        RegisterParameter("always_abort_on_memory_reserve_overdraft", AlwaysAbortOnMemoryReserveOverdraft)
+            .Default(false);
 
         RegisterParameter("user_job_monitoring", UserJobMonitoring)
             .DefaultNew();

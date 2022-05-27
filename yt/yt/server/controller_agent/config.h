@@ -858,7 +858,8 @@ public:
     double UserJobMemoryDigestPrecision;
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
-    double ResourceOverdraftFactor;
+    double MemoryDigestResourceOverdraftFactor;
+    std::optional<double> ResourceOverdraftMemoryReserveMultiplier;
 
     //! If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     std::optional<int> IopsThreshold;

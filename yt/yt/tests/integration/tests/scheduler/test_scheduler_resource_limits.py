@@ -1,10 +1,10 @@
-from yt_env_setup import YTEnvSetup, is_asan_build, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, is_asan_build, is_debug_build, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    ls, get,
-    set, create_pool, write_file, read_table, write_table, map, vanilla,
-    get_job, update_nodes_dynamic_config, set_node_resource_targets)
+    ls, get, set, create_pool, write_file, read_table, write_table, map, vanilla, get_job,
+    update_nodes_dynamic_config, set_node_resource_targets, update_controller_agent_config,
+    run_test_vanilla)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
 
@@ -126,15 +126,13 @@ class TestMemoryReserveFactor(YTEnvSetup):
         }
     }
 
-    @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
-    @authors("max42")
-    def test_memory_reserve_factor(self):
-        job_count = 30
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "always_abort_on_memory_reserve_overdraft": True,
+        }
+    }
 
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
-
-        mapper = b"""
+    SCRIPT = """
 #!/usr/bin/python
 import time
 
@@ -145,32 +143,41 @@ def rndstr(n):
         s += chr(randint(ord('a'), ord('z')))
     return s * (n // 100)
 
+{before_action}
+
 a = list()
-while len(a) * 100000 < 14e7:
+while len(a) * 100000 < {memory}:
     a.append(rndstr(100000))
 
 time.sleep(5.0)
 """
-        create("file", "//tmp/mapper.py")
-        write_file("//tmp/mapper.py", mapper)
-        set("//tmp/mapper.py/@executable", True)
-        create("table", "//tmp/t_out")
 
-        time.sleep(1)
-        op = map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
+    def _format_script(self, before_action="", memory=140 * 10 ** 6):
+        return self.SCRIPT.format(before_action=before_action, memory=memory).encode("ascii")
+
+    @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+    @authors("max42")
+    def test_memory_reserve_factor(self):
+        job_count = 30
+
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", self._format_script())
+        set("//tmp/mapper.py/@executable", True)
+
+        op = run_test_vanilla(
+            track=True,
             command="python mapper.py",
-            file="//tmp/mapper.py",
+            job_count=job_count,
             spec={
                 "resource_limits": {"cpu": 1},
-                "job_count": job_count,
-                "mapper": {"memory_limit": 2 * 10 ** 8},
             },
-        )
+            task_patch={
+                "memory_limit": 200 * 10 ** 6,
+                "file_paths": ["//tmp/mapper.py"],
+            })
 
         time.sleep(1)
-        event_log = read_table("//sys/scheduler/event_log")
+        event_log = read_table("//sys/scheduler/event_log", verbose=False)
         last_memory_reserve = None
         for event in event_log:
             if event["event_type"] == "job_completed" and event["operation_id"] == op.id:
@@ -183,6 +190,55 @@ time.sleep(5.0)
         assert last_memory_reserve is not None
         assert 1e8 <= last_memory_reserve <= 2e8
 
+    @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+    @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
+    @authors("ignat")
+    def test_resource_overdraft_memory_reserve_multiplier(self):
+        update_controller_agent_config("resource_overdraft_memory_reserve_multiplier", 1.5)
+
+        create("file", "//tmp/mapper.py")
+        write_file(
+            "//tmp/mapper.py",
+            self._format_script(
+                # This sleep is necessary to report statistics from job proxy to node before abort.
+                before_action="time.sleep(5)",
+                # Higher memory is necessary due to additional ytserver-exec memory footprint.
+                memory=250 * 10 ** 6,
+            ))
+        set("//tmp/mapper.py/@executable", True)
+
+        op = run_test_vanilla(
+            track=True,
+            command="python mapper.py",
+            job_count=1,
+            spec={
+                "resource_limits": {"cpu": 1},
+            },
+            task_patch={
+                "memory_limit": 400 * 10 ** 6,
+                "user_job_memory_digest_default_value": 0.4,
+                "file_paths": ["//tmp/mapper.py"],
+            })
+
+        time.sleep(1)
+        event_log = read_table("//sys/scheduler/event_log", verbose=False)
+        memory_reserves = []
+        for event in event_log:
+            if event["event_type"] in ("job_aborted", "job_completed") and event["operation_id"] == op.id:
+                if "user_job" not in event["statistics"]:
+                    memory_reserves.append(0)
+                    continue
+                print_debug(
+                    event["job_id"],
+                    event["statistics"]["user_job"]["memory_reserve"]["sum"],
+                    event["statistics"]["user_job"]["max_memory"]["sum"],
+                )
+                memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
+
+        print_debug("Memory reserves", memory_reserves)
+        assert memory_reserves[0] == 160 * 10 ** 6
+        assert memory_reserves[1] == 240 * 10 ** 6
+        assert memory_reserves[2] == 400 * 10 ** 6
 
 ###############################################################################################
 

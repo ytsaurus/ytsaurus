@@ -2702,7 +2702,7 @@ def update_controller_agent_config(path, value, wait_for_orchid=True):
     if wait_for_orchid:
         for agent in ls("//sys/controller_agents/instances"):
             orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
-            wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)
+            wait(lambda: get("{}/{}".format(orchid_config_path, path), default=None) == value)
 
 
 # TODO(eshcherbin): Rename to update_scheduler_config_option,
