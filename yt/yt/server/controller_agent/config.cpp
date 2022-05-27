@@ -762,9 +762,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_memory_reserve_quantile", &TThis::JobProxyMemoryReserveQuantile)
         .InRange(0.0, 1.0)
         .Default(0.95);
-    registrar.Parameter("resource_overdraft_factor", &TThis::ResourceOverdraftFactor)
+    registrar.Parameter("memory_digest_resource_overdraft_factor", &TThis::MemoryDigestResourceOverdraftFactor)
         .InRange(1.0, 10.0)
         .Default(1.1);
+    registrar.Parameter("resource_overdraft_memory_reserve_multiplier", &TThis::ResourceOverdraftMemoryReserveMultiplier)
+        .InRange(1.0, 10.0)
+        .Default(std::nullopt);
 
     registrar.Parameter("iops_threshold", &TThis::IopsThreshold)
         .Default();

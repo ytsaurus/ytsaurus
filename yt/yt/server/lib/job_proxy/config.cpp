@@ -119,6 +119,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
+    
+    registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
+        .Default(false);
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .Default();

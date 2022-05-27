@@ -501,18 +501,18 @@ void TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
     }
 
-    if (ResourceOverdraftedOutputCookies_.contains(joblet->OutputCookie)) {
+    auto findIt = ResourceOverdraftedOutputCookieToState_.find(joblet->OutputCookie);
+    if (findIt != ResourceOverdraftedOutputCookieToState_.end()) {
+        const auto& state = findIt->second;
         joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
         if (HasUserJob()) {
-            // TODO(gritukan): Currently fixed upper bound is used for used job memory digest.
-            // Use TLogDigestConfig in user job spec and get upper bound from it.
-            joblet->UserJobMemoryReserveFactor = 1.0;
+            joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
         }
     }
 
     auto estimatedResourceUsage = GetNeededResources(joblet);
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
-    
+
     TJobResourcesWithQuota neededResources = ApplyMemoryReserve(
         estimatedResourceUsage,
         *joblet->JobProxyMemoryReserveFactor,
@@ -835,7 +835,7 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, IsInput_);
 
-    Persist(context, ResourceOverdraftedOutputCookies_);
+    Persist(context, ResourceOverdraftedOutputCookieToState_);
 
     Persist(context, Logger);
 
@@ -1070,7 +1070,21 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     }
 
     if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
-        ResourceOverdraftedOutputCookies_.insert(joblet->OutputCookie);
+        auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
+        if (state.Status == EResourceOverdraftStatus::None) {
+            state.Status = EResourceOverdraftStatus::Once;
+            if (HasUserJob()) {
+                auto multiplier = TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
+                if (multiplier) {
+                    state.DedicatedUserJobMemoryReserveFactor = std::min(*joblet->UserJobMemoryReserveFactor * (*multiplier), 1.0);
+                } else {
+                    state.DedicatedUserJobMemoryReserveFactor = 1.0;
+                }
+            }
+        } else {
+            state.Status = EResourceOverdraftStatus::MultipleTimes;
+            state.DedicatedUserJobMemoryReserveFactor = 1.0;
+        }
     }
 
     JobSplitter_->OnJobAborted(jobSummary);
@@ -1401,7 +1415,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& sta
             // During resource overdraft actual max memory values may be outdated,
             // since statistics are updated periodically. To ensure that digest converge to large enough
             // values we introduce additional factor.
-            actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * TaskHost_->GetConfig()->ResourceOverdraftFactor);
+            actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * TaskHost_->GetConfig()->MemoryDigestResourceOverdraftFactor);
         }
         YT_LOG_DEBUG("Adding sample to the user job memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
             actualFactor,
@@ -1416,7 +1430,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, const TStatistics& sta
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
         if (resourceOverdraft) {
-            actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * TaskHost_->GetConfig()->ResourceOverdraftFactor);
+            actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * TaskHost_->GetConfig()->MemoryDigestResourceOverdraftFactor);
         }
         YT_LOG_DEBUG("Adding sample to the job proxy memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
             actualFactor,
@@ -2004,6 +2018,16 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
                 << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor()));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Status);
+    Persist(context, DedicatedUserJobMemoryReserveFactor);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

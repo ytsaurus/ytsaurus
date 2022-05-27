@@ -182,6 +182,8 @@ public:
 
     i64 AheadMemoryReserve;
 
+    bool AlwaysAbortOnMemoryReserveOverdraft; 
+
     bool TestRootFS;
 
     TJobThrottlerConfigPtr JobThrottler;

@@ -417,10 +417,19 @@ private:
     TReadRangeRegistry InputReadRangeRegistry_;
     TControllerFeatures ControllerFeatures_;
 
+    
+    struct TResourceOverdraftState
+    {
+        EResourceOverdraftStatus Status = EResourceOverdraftStatus::None;
+        double DedicatedUserJobMemoryReserveFactor = 0;
+    
+        void Persist(const TPersistenceContext& context);
+    };
+
     //! If job is aborted because of resource overdraft, its output cookie is put into this set.
     //! Next incarnation of this job will be run with maximal possible memory reserve factor to
     //! prevent repeated overdraft.
-    THashSet<NChunkPools::IChunkPoolOutput::TCookie> ResourceOverdraftedOutputCookies_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TResourceOverdraftState> ResourceOverdraftedOutputCookieToState_;
 
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
