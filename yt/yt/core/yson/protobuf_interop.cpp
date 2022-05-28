@@ -603,7 +603,9 @@ public:
             const auto* valueDescriptor = Underlying_->value(index);
             auto literal = Registry_->GetYsonLiteral(valueDescriptor);
             YT_VERIFY(LiteralToValue_.emplace(literal, valueDescriptor->number()).second);
-            YT_VERIFY(ValueToLiteral_.emplace(valueDescriptor->number(), literal).second);
+            // Allow aliases, i.e. different literals for the same tag, which can be helpful during migration.
+            // The first literal is selected as canonical for each tag.
+            ValueToLiteral_.try_emplace(valueDescriptor->number(), literal);
         }
     }
 

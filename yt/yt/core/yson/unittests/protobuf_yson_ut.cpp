@@ -179,8 +179,10 @@ TEST(TYsonToProtobufYsonTest, Success)
             .Item("nested_message1").BeginMap()
                 .Item("int32_field").Value(123)
                 .Item("color").Value("blue")
+                .Item("flag").Value("yes")
                 .Item("nested_message").BeginMap()
                     .Item("color").Value("green")
+                    .Item("flag").Value("true")
                     .Item("nested_message").BeginMap()
                     .EndMap()
                 .EndMap()
@@ -298,9 +300,11 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_TRUE(message.has_nested_message1());
     EXPECT_EQ(123, message.nested_message1().int32_field());
     EXPECT_EQ(NYT::NYson::NProto::EColor::Color_Blue, message.nested_message1().color());
+    EXPECT_EQ(NYT::NYson::NProto::EFlag::Flag_True, message.nested_message1().flag());
     EXPECT_TRUE(message.nested_message1().has_nested_message());
     EXPECT_FALSE(message.nested_message1().nested_message().has_int32_field());
     EXPECT_EQ(NYT::NYson::NProto::EColor::Color_Green, message.nested_message1().nested_message().color());
+    EXPECT_EQ(NYT::NYson::NProto::EFlag::Flag_True, message.nested_message1().nested_message().flag());
     EXPECT_TRUE(message.nested_message1().nested_message().has_nested_message());
     EXPECT_FALSE(message.nested_message1().nested_message().nested_message().has_nested_message());
     EXPECT_FALSE(message.nested_message1().nested_message().nested_message().has_int32_field());
@@ -2158,6 +2162,20 @@ TEST(TProtobufEnums, FindLiteralByValue)
     static const auto* type = ReflectProtobufEnumType(NYT::NYson::NProto::EColor_descriptor());
     ASSERT_EQ("red", FindProtobufEnumLiteralByValue(type, NYT::NYson::NProto::Color_Red));
     ASSERT_EQ(TStringBuf(), FindProtobufEnumLiteralByValue(type, NYT::NYson::NProto::EColor(666)));
+}
+
+TEST(TProtobufEnums, FindValueByLiteralWithAlias)
+{
+    static const auto* type = ReflectProtobufEnumType(NYT::NYson::NProto::EFlag_descriptor());
+    ASSERT_EQ(NYT::NYson::NProto::Flag_True, FindProtobufEnumValueByLiteral<NYT::NYson::NProto::EFlag>(type, "true"));
+    ASSERT_EQ(NYT::NYson::NProto::Flag_True, FindProtobufEnumValueByLiteral<NYT::NYson::NProto::EFlag>(type, "yes"));
+}
+
+TEST(TProtobufEnums, FindLiteralByValueWithAlias)
+{
+    static const auto* type = ReflectProtobufEnumType(NYT::NYson::NProto::EFlag_descriptor());
+    ASSERT_EQ("true", FindProtobufEnumLiteralByValue(type, NYT::NYson::NProto::Flag_True));
+    ASSERT_EQ("true", FindProtobufEnumLiteralByValue(type, NYT::NYson::NProto::Flag_Yes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
