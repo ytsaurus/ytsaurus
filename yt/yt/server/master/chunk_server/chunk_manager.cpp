@@ -1669,8 +1669,15 @@ public:
 
         TJobControllerCallbacks jobControllerCallbacks;
 
-        // Process job events and find missing jobs.
         THashSet<TJobPtr> processedJobs;
+
+        std::vector<TJobId> waitingJobIds;
+        waitingJobIds.reserve(request->jobs().size());
+
+        std::vector<TJobId> runningJobIds;
+        runningJobIds.reserve(request->jobs().size());
+
+        // Process job events and find missing jobs.
         for (const auto& jobStatus : request->jobs()) {
             auto jobId = FromProto<TJobId>(jobStatus.job_id());
             auto state = CheckedEnumCast<EJobState>(jobStatus.state());
@@ -1721,24 +1728,15 @@ public:
                         break;
 
                     case EJobState::Running:
-                        YT_LOG_DEBUG("Job is running (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-
+                        runningJobIds.push_back(jobId);
                         JobController_->OnJobRunning(job, &jobControllerCallbacks);
                         break;
 
                     case EJobState::Waiting:
-                        YT_LOG_DEBUG("Job is waiting (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
-                            jobId,
-                            jobType,
-                            address,
-                            job->GetChunkIdWithIndexes());
-
+                        waitingJobIds.push_back(jobId);
                         JobController_->OnJobWaiting(job, &jobControllerCallbacks);
                         break;
+
                     default:
                         YT_ABORT();
                 }
@@ -1785,6 +1783,18 @@ public:
                 }
             }
         }
+
+        YT_LOG_DEBUG_UNLESS(
+            runningJobIds.empty(),
+            "Jobs are running (JobIds: %v, Address: %v)",
+            runningJobIds,
+            address);
+
+        YT_LOG_DEBUG_UNLESS(
+            waitingJobIds.empty(),
+            "Jobs are waiting (JobIds: %v, Address: %v)",
+            waitingJobIds,
+            address);
 
         for (const auto& jobToAbort : jobControllerCallbacks.GetJobsToAbort()) {
             YT_LOG_DEBUG("Aborting job (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
