@@ -112,20 +112,20 @@ test_create_pool()
     check '5' "$($YT get //sys/pool_trees/yggdrasil/parent/@min_share_resources/cpu)"
 
     $YT create-pool --parent-name parent --pool-tree yggdrasil --name fair-share-child --weight 3.14 \
-    --max-operation-count 10 --max-running-operation-count 5 --attributes {attr=value}
+    --create-ephemeral-subpools --max-operation-count 10 --max-running-operation-count 5 --attributes {attr=value}
     check 'true' "$($YT exists //sys/pool_trees/yggdrasil/parent/fair-share-child)"
     check '3.14' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@weight)"
     check '10' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@max_operation_count)"
     check '5' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@max_running_operation_count)"
     check '"value"' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@attr)"
+    check '%true' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@create_ephemeral_subpools)"
 
     $YT create-pool fifo-child --parent-name parent --pool-tree yggdrasil --mode fifo --fifo-sort-parameters [pending_job_count] \
-    --create-ephemeral-subpools --ephemeral-subpool-config {max_operation_count=10} --forbid-immediate-operations
+    --ephemeral-subpool-config {max_operation_count=10} --forbid-immediate-operations
     check '"fifo"' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@mode)"
     check '"pending_job_count"' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@fifo_sort_parameters/0)"
     check 'false' "$($YT exists //sys/pool_trees/yggdrasil/parent/fifo-child/@fifo_sort_parameters/1)"
     check '%true' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@forbid_immediate_operations)"
-    check '%true' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@create_ephemeral_subpools)"
     check '10' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@ephemeral_subpool_config/max_operation_count)"
 
     $YT remove //sys/pool_trees/yggdrasil --force --recursive
