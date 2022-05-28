@@ -1436,6 +1436,39 @@ std::vector<TString> ListDisks()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTaskDiskStat GetSelfThreadIO()
+{
+#ifdef _linux_
+    TString path = "/proc/thread-self/io";
+
+    TTaskDiskStat stat;
+
+    TIFStream ioFile(path);
+    for (TString line; ioFile.ReadLine(line); ) {
+        if (line.empty()) {
+            continue;
+        }
+
+        auto fields = SplitString(line, " ", 2);
+        if (fields.size() != 2) {
+            continue;
+        }
+
+        if (fields[0] == "read_bytes:") {
+            stat.ReadBytes = FromString<ui64>(fields[1]);
+        } else if (fields[0] == "write_bytes:") {
+            stat.WriteBytes = FromString<ui64>(fields[1]);
+        }
+    }
+
+    return stat;
+#else
+    return {};
+#endif    
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFile MemfdCreate(const TString& name)
 {
 #ifdef _linux_

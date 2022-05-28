@@ -350,6 +350,9 @@ struct TIOEngineSensors final
     NProfiling::TCounter WrittenBytesCounter;
     NProfiling::TCounter ReadBytesCounter;
 
+    NProfiling::TCounter KernelWrittenBytesCounter;
+    NProfiling::TCounter KernelReadBytesCounter;
+
     TRequestSensors ReadSensors;
     TRequestSensors WriteSensors;
     TRequestSensors SyncSensors;
@@ -369,6 +372,28 @@ struct TIOEngineSensors final
     {
         ReadBytesCounter.Increment(count);
         TotalReadBytesCounter.fetch_add(count, std::memory_order_relaxed);
+    }
+
+    void UpdateKernelStats()
+    {
+        const TDuration UpdatePeriod = TDuration::Seconds(1);
+
+        static thread_local std::optional<TInstant> LastUpdate;
+        static thread_local TTaskDiskStat LastStats;
+
+        auto now = TInstant::Now();
+        if (!LastUpdate || (now - *LastUpdate) > UpdatePeriod) {
+            if (LastUpdate) {
+                auto current = GetSelfThreadIO();
+
+                KernelReadBytesCounter.Increment(current.ReadBytes - LastStats.ReadBytes);
+                KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStats.WriteBytes);
+
+                LastStats = current;
+            }
+
+            LastUpdate = now;
+        }
     }
 };
 
@@ -512,6 +537,7 @@ protected:
 
     TIOEngineHandlePtr DoOpen(const TOpenRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         TIOEngineHandlePtr handle;
         {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
@@ -529,6 +555,7 @@ protected:
 
     void DoFlushDirectory(const TFlushDirectoryRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             NFS::FlushDirectory(request.Path);
@@ -537,6 +564,7 @@ protected:
 
     void DoClose(const TCloseRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             if (request.Size) {
@@ -552,6 +580,7 @@ protected:
 
     void DoAllocate(const TAllocateRequest& request)
     {
+        Sensors_->UpdateKernelStats();
 #ifdef _linux_
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         int mode = EnableFallocateConvertUnwritten_.load() ? FALLOC_FL_CONVERT_UNWRITTEN : 0;
@@ -587,6 +616,7 @@ protected:
 
     void DoLock(const TLockRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         NFS::ExpectIOErrors([&] {
             auto op = GetLockOp(request.Mode) + (request.Nonblocking ? LOCK_NB : 0);
             if (HandleEintr(::flock, *request.Handle, op) != 0) {
@@ -597,6 +627,7 @@ protected:
 
     void DoResize(const TResizeRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         NFS::ExpectIOErrors([&] {
             if (!request.Handle->Resize(request.Size)) {
                 ythrow TFileError();
@@ -700,6 +731,9 @@ private:
 
         Sensors_->WrittenBytesCounter = Profiler.Counter("/written_bytes");
         Sensors_->ReadBytesCounter = Profiler.Counter("/read_bytes");
+
+        Sensors_->KernelWrittenBytesCounter = Profiler.Counter("/kernel_written_bytes");
+        Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
 
         auto makeRequestSensors = [] (TProfiler profiler) {
             TIOEngineSensors::TRequestSensors sensors;
@@ -1028,13 +1062,14 @@ private:
 
         const auto readWaitTime = timer.GetElapsedTime();
         AddReadWaitTimeSample(readWaitTime);
+        Sensors_->UpdateKernelStats();
 
         auto toReadRemaining = static_cast<i64>(buffer.Size());
         auto fileOffset = request.Offset;
         i64 bufferOffset = 0;
 
         YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-            "Started reading from disk (Handle: %v,  RequestSize: %v, ReadSessionId: %v, ReadWaitTime: %v)",
+            "Started reading from disk (Handle: %v, RequestSize: %v, ReadSessionId: %v, ReadWaitTime: %v)",
             static_cast<FHANDLE>(*request.Handle),
             request.Size,
             sessionId,
@@ -1116,6 +1151,7 @@ private:
         TWallTimer timer)
     {
         AddWriteWaitTimeSample(timer.GetElapsedTime());
+        Sensors_->UpdateKernelStats();
 
         auto fileOffset = request.Offset;
 
@@ -1234,6 +1270,7 @@ private:
 
     void DoFlushFile(const TFlushFileRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         if (!StaticConfig_->EnableSync) {
             return;
         }
@@ -1273,6 +1310,7 @@ private:
 
     void DoFlushFileRange(const TFlushFileRangeRequest& request)
     {
+        Sensors_->UpdateKernelStats();
         if (!StaticConfig_->EnableSync) {
             return;
         }

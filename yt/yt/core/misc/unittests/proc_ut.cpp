@@ -181,6 +181,11 @@ TEST(TProcTest, FileDescriptorCount)
     EXPECT_EQ(GetFileDescriptorCount(), initialCount);
 }
 
+TEST(TProcTest, SelfIO)
+{
+    GetSelfThreadIO();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
