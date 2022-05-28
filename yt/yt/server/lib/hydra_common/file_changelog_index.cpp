@@ -266,7 +266,7 @@ TFuture<void> TFileChangelogIndex::Flush()
     FlushedIndexRecordCount_ += recordCount;
 
     auto future = IOEngine_->Write({.Handle = Handle_, .Offset = currentPosition, .Buffers = {std::move(buffer)}, .Flush = Config_->EnableSync})
-        .Apply(BIND([=, this_ = MakeWeak(this)] {
+        .Apply(BIND([=, this_ = MakeStrong(this)] {
             YT_VERIFY(Flushing_.exchange(false));
             YT_LOG_DEBUG("Finished flushing changelog file index segment");
         }));
