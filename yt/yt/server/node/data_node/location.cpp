@@ -95,6 +95,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     BlobChunkWriterCloseTime = profiler.Timer("/blob_chunk_writer_close_time");
 
     BlobBlockReadBytes = profiler.Counter("/blob_block_read_bytes");
+    BlobBlockReadCount = profiler.Counter("/blob_block_read_count");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
         auto categoryProfiler = profiler
@@ -109,8 +110,8 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
             BlobBlockReadSize[category] = selectedProfiler.Summary("/blob_block_read_size");
             BlobBlockReadTime[category] = selectedProfiler.Histogram(
                 "/blob_block_read_time",
-                TDuration::MilliSeconds(1),
-                TDuration::Seconds(1));
+                TDuration::MicroSeconds(1),
+                TDuration::Seconds(125));
         }
     }
 

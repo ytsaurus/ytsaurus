@@ -75,6 +75,7 @@ struct TLocationPerformanceCounters
 
     TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadTime;
     NProfiling::TCounter BlobBlockReadBytes;
+    NProfiling::TCounter BlobBlockReadCount;
 
     TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadLatencies;
     TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobChunkMetaReadLatencies;
