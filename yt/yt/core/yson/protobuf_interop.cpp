@@ -1478,6 +1478,18 @@ private:
                 break;
             }
 
+            case FieldDescriptor::TYPE_SFIXED32: {
+                auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
+                BodyCodedStream_.WriteRaw(&i32Value, sizeof(i32Value));
+                break;
+            }
+
+            case FieldDescriptor::TYPE_SFIXED64: {
+                auto i64Value = CheckedCastField<i64>(value, TStringBuf("i64"), field);
+                BodyCodedStream_.WriteRaw(&i64Value, sizeof(i64Value));
+                break;
+            }
+
             case FieldDescriptor::TYPE_ENUM: {
                 auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
                 const auto* enumType = field->GetEnumType();
