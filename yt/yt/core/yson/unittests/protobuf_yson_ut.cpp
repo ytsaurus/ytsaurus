@@ -168,6 +168,8 @@ TEST(TYsonToProtobufYsonTest, Success)
             .Item("uint64_field").Value(10000U)
             .Item("fixed32_field").Value(10000U)
             .Item("fixed64_field").Value(10000U)
+            .Item("sfixed32_field").Value(-10000)
+            .Item("sfixed64_field").Value(10000)
             .Item("bool_field").Value(true)
             .Item("repeated_int32_field").BeginList()
                 .Item().Value(1)
@@ -286,6 +288,8 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(10000U, message.uint64_field());
     EXPECT_EQ(10000U, message.fixed32_field());
     EXPECT_EQ(10000U, message.fixed64_field());
+    EXPECT_EQ(-10000, message.sfixed32_field());
+    EXPECT_EQ(10000, message.sfixed64_field());
     EXPECT_TRUE(message.bool_field());
     EXPECT_EQ("hello", message.string_field());
     EXPECT_FLOAT_EQ(3.14, message.float_field());
@@ -435,6 +439,8 @@ TEST(TYsonToProtobufTest, TypeConversions)
             .Item("uint64_field").Value(10000)
             .Item("fixed32_field").Value(10000)
             .Item("fixed64_field").Value(10000)
+            .Item("sfixed32_field").Value(10000U)
+            .Item("sfixed64_field").Value(10000U)
             .Item("float_field").Value(0)
             .Item("double_field").Value(1)
         .EndMap();
@@ -447,6 +453,8 @@ TEST(TYsonToProtobufTest, TypeConversions)
     EXPECT_EQ(10000U, message.uint64_field());
     EXPECT_EQ(10000U, message.fixed32_field());
     EXPECT_EQ(10000U, message.fixed64_field());
+    EXPECT_EQ(10000, message.sfixed32_field());
+    EXPECT_EQ(10000, message.sfixed64_field());
     EXPECT_EQ(0.0, message.float_field());
     EXPECT_EQ(1.0, message.double_field());
 }
@@ -728,6 +736,28 @@ TEST(TYsonToProtobufTest, Failure)
                 .Item("fixed32_field").Value(-10000000000)
             .EndMap();
     }, "/fixed32_field");
+
+    // sfixed32
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("sfixed32_field").Value(10000000000)
+            .EndMap();
+    }, "/sfixed32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("sfixed32_field").Value(10000000000U)
+            .EndMap();
+    }, "/sfixed32_field");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessage)
+            .BeginMap()
+                .Item("sfixed32_field").Value(-10000000000)
+            .EndMap();
+    }, "/sfixed32_field");
 
     // fixed64
     EXPECT_YPATH({
@@ -1492,6 +1522,8 @@ TEST(TProtobufToYsonTest, Success)
     message.set_uint64_field(10000U);
     message.set_fixed32_field(10000U);
     message.set_fixed64_field(10000U);
+    message.set_sfixed32_field(-10000);
+    message.set_sfixed64_field(10000);
     message.set_bool_field(true);
     message.set_string_field("hello");
     message.set_float_field(3.14);
@@ -1628,6 +1660,8 @@ TEST(TProtobufToYsonTest, Success)
             .Item("uint64_field").Value(10000U)
             .Item("fixed32_field").Value(10000U)
             .Item("fixed64_field").Value(10000U)
+            .Item("sfixed32_field").Value(-10000)
+            .Item("sfixed64_field").Value(10000)
             .Item("bool_field").Value(true)
             .Item("string_field").Value("hello")
             .Item("float_field").Value(3.14)
@@ -2139,6 +2173,8 @@ TEST(TYsonToProtobufTest, ConvertToYsonString)
             .Item("uint64_field").Value(10000U)
             .Item("fixed32_field").Value(10000U)
             .Item("fixed64_field").Value(10000U)
+            .Item("sfixed32_field").Value(10000)
+            .Item("sfixed64_field").Value(-10000)
             .Item("bool_field").Value(true)
             .Item("string_field").Value("hello")
             .Item("float_field").Value(3.14)
