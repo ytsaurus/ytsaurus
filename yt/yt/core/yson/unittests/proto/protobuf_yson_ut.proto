@@ -12,10 +12,21 @@ enum EColor
     Color_Blue = 3 [(NYT.NYson.NProto.enum_value_name) = "blue"];
 }
 
+enum EFlag
+{
+    option allow_alias = true;
+
+    Flag_False = 0 [(NYT.NYson.NProto.enum_value_name) = "false"];
+    Flag_No = 0 [(NYT.NYson.NProto.enum_value_name) = "no"];
+    Flag_True = 1 [(NYT.NYson.NProto.enum_value_name) = "true"];
+    Flag_Yes = 1 [(NYT.NYson.NProto.enum_value_name) = "yes"];
+}
+
 message TNestedMessage
 {
     optional int32 int32_field = 1;
     optional EColor color = 19;
+    optional EFlag flag = 20;
     optional TNestedMessage nested_message = 2;
     repeated int32 repeated_int32_field = 100;
     map<string, TNestedMessage> nested_message_map = 3 [(NYT.NYson.NProto.yson_map) = true];
