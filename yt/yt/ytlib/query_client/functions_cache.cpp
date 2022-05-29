@@ -743,13 +743,31 @@ void FetchFunctionImplementationsFromFiles(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+ETypeTag TypeTagFromType(TType type)
+{
+    return Visit(type,
+        [] (EValueType) {
+            return ETypeTag::ConcreteType;
+        },
+        [] (const TTypeArgument&) {
+            return ETypeTag::TypeArgument;
+        },
+        [] (const TUnionType&) {
+            return ETypeTag::UnionType;
+        });
+}
+
+} // namespace
+
 void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
 {
     using namespace NYTree;
 
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("tag").Value(static_cast<ETypeCategory>(value.Type.index()))
+            .Item("tag").Value(TypeTagFromType(value.Type))
             .Do([&] (TFluentMap fluent) {
                 Visit(value.Type,
                     [&] (const auto& v) { fluent.Item("value").Value(v); });
@@ -759,34 +777,19 @@ void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
 {
-    using namespace NYTree;
-
     auto mapNode = node->AsMap();
-
-    auto tagNode = mapNode->GetChildOrThrow("tag");
-    ETypeCategory tag;
-    Deserialize(tag, tagNode);
-
+    auto tag = ConvertTo<ETypeTag>(mapNode->GetChildOrThrow("tag"));
     auto valueNode = mapNode->GetChildOrThrow("value");
     switch (tag) {
-        case ETypeCategory::TypeArgument: {
-            TTypeArgument type;
-            Deserialize(type, valueNode);
-            value.Type = type;
+        case ETypeTag::TypeArgument:
+            value.Type = ConvertTo<TTypeArgument>(valueNode);
             break;
-        }
-        case ETypeCategory::UnionType: {
-            TUnionType type;
-            Deserialize(type, valueNode);
-            value.Type = type;
+        case ETypeTag::UnionType:
+            value.Type = ConvertTo<TUnionType>(valueNode);
             break;
-        }
-        case ETypeCategory::ConcreteType: {
-            EValueType type;
-            Deserialize(type, valueNode);
-            value.Type = type;
+        case ETypeTag::ConcreteType:
+            value.Type = ConvertTo<EValueType>(valueNode);
             break;
-        }
         default:
             YT_ABORT();
     }

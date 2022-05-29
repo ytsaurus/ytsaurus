@@ -204,28 +204,31 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
 
 EValueType GetType(const NAst::TLiteralValue& literalValue)
 {
-    switch (literalValue.index()) {
-        case VariantIndexV<NAst::TNullLiteralValue, NAst::TLiteralValue>:
+    return Visit(literalValue,
+        [] (const NAst::TNullLiteralValue&) {
             return EValueType::Null;
-        case VariantIndexV<i64, NAst::TLiteralValue>:
+        },
+        [] (i64) {
             return EValueType::Int64;
-        case VariantIndexV<ui64, NAst::TLiteralValue>:
+        },
+        [] (ui64) {
             return EValueType::Uint64;
-        case VariantIndexV<double, NAst::TLiteralValue>:
+        },
+        [] (double) {
             return EValueType::Double;
-        case VariantIndexV<bool, NAst::TLiteralValue>:
+        },
+        [] (bool) {
             return EValueType::Boolean;
-        case VariantIndexV<TString, NAst::TLiteralValue>:
+        },
+        [] (const TString&) {
             return EValueType::String;
-        default:
-            YT_ABORT();
-    }
+        });
 }
 
 TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
 {
-    switch (literalValue.index()) {
-        case VariantIndexV<NAst::TNullLiteralValue, NAst::TLiteralValue>:
+    return Visit(literalValue,
+        [] (const NAst::TNullLiteralValue&) {
             return TTypeSet({
                 EValueType::Null,
                 EValueType::Int64,
@@ -233,51 +236,60 @@ TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
                 EValueType::Double,
                 EValueType::Boolean,
                 EValueType::String,
-                EValueType::Any});
-        case VariantIndexV<i64, NAst::TLiteralValue>:
+                EValueType::Any
+            });
+        },
+        [] (i64) {
             return TTypeSet({
                 EValueType::Int64,
                 EValueType::Uint64,
-                EValueType::Double});
-        case VariantIndexV<ui64, NAst::TLiteralValue>:
+                EValueType::Double
+            });
+        },
+        [] (ui64) {
             return TTypeSet({
                 EValueType::Uint64,
-                EValueType::Double});
-        case VariantIndexV<double, NAst::TLiteralValue>:
+                EValueType::Double
+            });
+        },
+        [] (double) {
             return TTypeSet({
-                EValueType::Double});
-        case VariantIndexV<bool, NAst::TLiteralValue>:
+                EValueType::Double
+            });
+        },
+        [] (bool) {
             return TTypeSet({
-                EValueType::Boolean});
-        case VariantIndexV<TString, NAst::TLiteralValue>:
+                EValueType::Boolean
+            });
+        },
+        [] (const TString&) {
             return TTypeSet({
-                EValueType::String});
-        default:
-            YT_ABORT();
-    }
+                EValueType::String
+            });
+        });
 }
 
 TValue GetValue(const NAst::TLiteralValue& literalValue)
 {
-    switch (literalValue.index()) {
-        case VariantIndexV<NAst::TNullLiteralValue, NAst::TLiteralValue>:
+    return Visit(literalValue,
+        [] (const NAst::TNullLiteralValue&) {
             return MakeUnversionedSentinelValue(EValueType::Null);
-        case VariantIndexV<i64, NAst::TLiteralValue>:
-            return MakeUnversionedInt64Value(std::get<i64>(literalValue));
-        case VariantIndexV<ui64, NAst::TLiteralValue>:
-            return MakeUnversionedUint64Value(std::get<ui64>(literalValue));
-        case VariantIndexV<double, NAst::TLiteralValue>:
-            return MakeUnversionedDoubleValue(std::get<double>(literalValue));
-        case VariantIndexV<bool, NAst::TLiteralValue>:
-            return MakeUnversionedBooleanValue(std::get<bool>(literalValue));
-        case VariantIndexV<TString, NAst::TLiteralValue>: {
-            const auto& data = std::get<TString>(literalValue);
-            return MakeUnversionedStringValue(TStringBuf(data.c_str(), data.length()));
-        }
-
-        default:
-            YT_ABORT();
-    }
+        },
+        [] (i64 value) {
+            return MakeUnversionedInt64Value(value);
+        },
+        [] (ui64 value) {
+            return MakeUnversionedUint64Value(value);
+        },
+        [] (double value) {
+            return MakeUnversionedDoubleValue(value);
+        },
+        [] (bool value) {
+            return MakeUnversionedBooleanValue(value);
+        },
+        [] (const TString& value) {
+            return MakeUnversionedStringValue(TStringBuf(value.c_str(), value.length()));
+        });
 }
 
 void BuildRow(

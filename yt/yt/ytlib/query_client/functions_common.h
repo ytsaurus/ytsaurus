@@ -19,18 +19,14 @@ using TType = std::variant<EValueType, TTypeArgument, TUnionType>;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ECallingConvention,
-    (Simple)
-    (UnversionedValue)
+    ((Simple)           (0))
+    ((UnversionedValue) (1))
 );
 
-constexpr auto TypeArgumentCategoryIndex = VariantIndexV<TTypeArgument, TType>;
-constexpr auto UnionTypeCategoryIndex = VariantIndexV<TUnionType, TType>;
-constexpr auto ConcreteTypeCategoryIndex = VariantIndexV<EValueType, TType>;
-
-DEFINE_ENUM(ETypeCategory,
-    ((TypeArgument) (TypeArgumentCategoryIndex))
-    ((UnionType)    (UnionTypeCategoryIndex))
-    ((ConcreteType) (ConcreteTypeCategoryIndex))
+DEFINE_ENUM(ETypeTag,
+    ((ConcreteType) (0))
+    ((TypeArgument) (1))
+    ((UnionType)    (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
