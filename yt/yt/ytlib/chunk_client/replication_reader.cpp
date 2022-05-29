@@ -1430,7 +1430,9 @@ private:
 
                     auto omittedSuspiciousNodeCount = totalCandidateCount - results.size();
                     if (omittedSuspiciousNodeCount > 0) {
-                        SessionOptions_.ChunkReaderStatistics->OmittedSuspiciousNodeCount += omittedSuspiciousNodeCount;
+                        SessionOptions_.ChunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(
+                            omittedSuspiciousNodeCount,
+                            std::memory_order_relaxed);
                     }
 
                     return results;
@@ -1822,7 +1824,9 @@ private:
             GetDesiredPeerCount(),
             blockIndexes);
 
-        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
+        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
+            pickPeerTimer.GetElapsedValue(),
+            std::memory_order_relaxed);
 
         auto channel = MakePeersChannel(
             peers,
@@ -1865,7 +1869,9 @@ private:
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
+            dataWaitTimer.GetElapsedValue(),
+            std::memory_order_relaxed);
 
         bool backup = IsBackup(rspOrError);
         const auto& respondedPeer = backup ? peers[1] : peers[0];
@@ -1888,7 +1894,9 @@ private:
             BanPeer(peers[0].AddressWithNetwork.Address, false);
         }
 
-        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
+            rsp->GetTotalSize(),
+            std::memory_order_relaxed);
         reader->AccountTraffic(rsp->GetTotalSize(), respondedPeer.NodeDescriptor);
 
         auto probeResult = ParseProbeResponse(rsp);
@@ -2043,7 +2051,9 @@ private:
 
                 const auto& block = blockOrError.Value().Block;
                 YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
-                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
+                SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                    block.Size(),
+                    std::memory_order_relaxed);
             }
         }
     }
@@ -2248,7 +2258,9 @@ private:
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
+            dataWaitTimer.GetElapsedValue(),
+            std::memory_order_relaxed);
 
         if (!rspOrError.IsOK()) {
             ProcessError(
@@ -2263,7 +2275,9 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
+            rsp->GetTotalSize(),
+            std::memory_order_relaxed);
         if (rsp->has_chunk_reader_statistics()) {
             UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
@@ -2498,7 +2512,9 @@ private:
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
         auto rspOrError = WaitFor(rspFuture);
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
+            dataWaitTimer.GetElapsedValue(),
+            std::memory_order_relaxed);
 
         bool backup = IsBackup(rspOrError);
         const auto& respondedPeer = backup ? peers[1] : peers[0];
@@ -2520,7 +2536,9 @@ private:
             BanPeer(peers[0].AddressWithNetwork.Address, false);
         }
 
-        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
+            rsp->GetTotalSize(),
+            std::memory_order_relaxed);
 
         if (rsp->net_throttling()) {
             YT_LOG_DEBUG("Peer is throttling (Address: %v)", respondedPeer.AddressWithNetwork);
@@ -2790,7 +2808,9 @@ private:
                         ] (const TErrorOr<TPeerList>& result) {
                             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-                            SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
+                            SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
+                                pickPeerTimer.GetElapsedValue(),
+                                std::memory_order_relaxed);
 
                             SinglePassCandidates_ = result.ValueOrThrow();
                             if (SinglePassCandidates_.empty()) {
@@ -2952,7 +2972,9 @@ private:
         const TPeer& chosenPeer,
         bool sentSchema)
     {
-        SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
+        SessionOptions_.ChunkReaderStatistics->DataWaitTime.fetch_add(
+            dataWaitTimer.GetElapsedValue(),
+            std::memory_order_relaxed);
 
         const auto& peerAddressWithNetwork = chosenPeer.AddressWithNetwork;
 
@@ -2978,7 +3000,10 @@ private:
 
         const auto& response = rspOrError.Value();
 
-        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += response->GetTotalSize();
+        SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
+            response->GetTotalSize(),
+            std::memory_order_relaxed);
+
         reader->AccountTraffic(
             response->GetTotalSize(),
             chosenPeer.NodeDescriptor);

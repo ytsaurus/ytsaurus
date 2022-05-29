@@ -213,7 +213,9 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
             : TBlock();
         if (cachedBlock) {
-            ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += cachedBlock.Size();
+            ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                cachedBlock.Size(),
+                std::memory_order_relaxed);
 
             TRef ref = cachedBlock.Data;
             windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
@@ -372,7 +374,9 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                 ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
                 : TBlock();
             if (cachedBlock) {
-                ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += cachedBlock.Size();
+                ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                    cachedBlock.Size(),
+                    std::memory_order_relaxed);
 
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
                 TRef ref = cachedBlock.Data;

@@ -246,7 +246,9 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& buffer = readResponse.OutputBuffers[0];
 
-    options.ChunkReaderStatistics->DataBytesReadFromDisk += buffer.Size();
+    options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
+        buffer.Size(),
+        std::memory_order_relaxed);
     const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
 
     std::vector<TBlock> blocks;
@@ -377,7 +379,9 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
             sizeof (TChunkMetaHeaderBase));
     }
 
-    chunkReaderStatistics->MetaBytesReadFromDisk += metaFileBlob.Size();
+    chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
+        metaFileBlob.Size(),
+        std::memory_order_relaxed);
 
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;

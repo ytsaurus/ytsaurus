@@ -118,7 +118,9 @@ TFuture<TSharedRef> TLookupSession::Run()
                 [=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)]
                 (const TVersionedChunkMetaCacheEntryPtr& entry)
             {
-                Options_.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+                Options_.ChunkReaderStatistics->MetaWaitTime.fetch_add(
+                    metaWaitTimer.GetElapsedValue(),
+                    std::memory_order_relaxed);
                 return DoRun(entry->Meta());
             })
             .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));

@@ -620,7 +620,9 @@ private:
             }
         }
         if (bytesRead > 0) {
-            chunkReaderStatistics->DataBytesReadFromCache += bytesRead;
+            chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                bytesRead,
+                std::memory_order_relaxed);
             return blocks;
         }
 
@@ -635,7 +637,9 @@ private:
                 auto blockId = TBlockId(chunkId, blockIndex);
                 auto block = blockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
                 blocks.push_back(block);
-                chunkReaderStatistics->DataBytesReadFromCache += block.Size();
+                chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                    block.Size(),
+                    std::memory_order_relaxed);
             }
         }
         return blocks;
@@ -911,7 +915,8 @@ private:
         response->set_net_throttling(netThrottling);
 
         i64 bytesReadFromDisk =
-            chunkReaderStatistics->DataBytesReadFromDisk + chunkReaderStatistics->MetaBytesReadFromDisk;
+            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed) +
+            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed);
         const auto& ioTracker = Bootstrap_->GetIOTracker();
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
@@ -1050,7 +1055,8 @@ private:
         }
 
         i64 bytesReadFromDisk =
-            chunkReaderStatistics->DataBytesReadFromDisk + chunkReaderStatistics->MetaBytesReadFromDisk;
+            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed) +
+            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed);
         const auto& ioTracker = Bootstrap_->GetIOTracker();
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
