@@ -24,12 +24,14 @@
 
 #include <yt/yt/library/re2/re2.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TP2PConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
@@ -62,7 +64,9 @@ public:
 
     TBooleanFormula NodeTagFilter;
 
-    TP2PConfig();
+    REGISTER_YSON_STRUCT(TP2PConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PConfig)
@@ -124,7 +128,9 @@ public:
 
     bool ResetUuid;
 
-    TStoreLocationConfigBase();
+    REGISTER_YSON_STRUCT(TStoreLocationConfigBase);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfigBase)
@@ -183,7 +189,9 @@ public:
     //! Per-location configuration of per-chunk changelog that is being written directly (w/o multiplexing).
     NYTree::INodePtr LowLatencySplitChangelog;
 
-    TStoreLocationConfig();
+    REGISTER_YSON_STRUCT(TStoreLocationConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocationConfig)
@@ -197,7 +205,9 @@ public:
     //! Controls incoming location bandwidth used by cache.
     NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
 
-    TCacheLocationConfig();
+    REGISTER_YSON_STRUCT(TCacheLocationConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
@@ -238,7 +248,9 @@ public:
     //! Records bigger than BigRecordThreshold are not multiplexed.
     std::optional<i64> BigRecordThreshold;
 
-    TMultiplexedChangelogConfig();
+    REGISTER_YSON_STRUCT(TMultiplexedChangelogConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
@@ -273,7 +285,9 @@ public:
 
     bool LocationIsAbsolute;
 
-    TLayerLocationConfig();
+    REGISTER_YSON_STRUCT(TLayerLocationConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
@@ -281,14 +295,16 @@ DEFINE_REFCOUNTED_TYPE(TLayerLocationConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTmpfsLayerCacheConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 Capacity;
     std::optional<TString> LayersDirectoryPath;
     TDuration LayersUpdatePeriod;
 
-    TTmpfsLayerCacheConfig();
+    REGISTER_YSON_STRUCT(TTmpfsLayerCacheConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsLayerCacheConfig)
@@ -327,7 +343,7 @@ DEFINE_REFCOUNTED_TYPE(TTableSchemaCacheDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVolumeManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NContainers::TPortoExecutorConfigPtr PortoExecutor;
@@ -347,7 +363,9 @@ public:
     TTmpfsLayerCacheConfigPtr RegularTmpfsLayerCache;
     TTmpfsLayerCacheConfigPtr NirvanaTmpfsLayerCache;
 
-    TVolumeManagerConfig();
+    REGISTER_YSON_STRUCT(TVolumeManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
@@ -370,7 +388,7 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 // COMPAT(gritukan): Drop all the optionals in this class after configs migration.
 class TMasterConnectorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent incremental data node heartbeats.
@@ -385,7 +403,9 @@ public:
     //! Splay for job heartbeats.
     TDuration JobHeartbeatPeriodSplay;
 
-    TMasterConnectorConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
@@ -393,7 +413,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent incremental data node heartbeats.
@@ -423,7 +443,9 @@ public:
     //! Enable detailed incremental heartbeat statistics profiling.
     bool EnableProfiling;
 
-    TMasterConnectorDynamicConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
@@ -431,7 +453,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAllyReplicaManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent requests to a certain node.
@@ -443,7 +465,9 @@ public:
     //! Timeout for AnnounceChunkReplicas request.
     TDuration AnnouncementRequestTimeout;
 
-    TAllyReplicaManagerDynamicConfig();
+    REGISTER_YSON_STRUCT(TAllyReplicaManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
@@ -451,7 +475,7 @@ DEFINE_REFCOUNTED_TYPE(TAllyReplicaManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkAutotomizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration RpcTimeout;
@@ -460,7 +484,9 @@ public:
     bool FailJobs;
     bool SleepInJobs;
 
-    TChunkAutotomizerConfig();
+    REGISTER_YSON_STRUCT(TChunkAutotomizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkAutotomizerConfig)
@@ -468,7 +494,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkAutotomizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeTestingOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! This duration will be used to insert delays within [0, MaxDelay] after each
@@ -477,7 +503,9 @@ public:
 
     bool SimulateNetworkThrottlingForGetBlockSet;
 
-    TDataNodeTestingOptions();
+    REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataNodeTestingOptions)
@@ -495,7 +523,9 @@ public:
     double VerificationSegmentSizeFactor;
     TDuration VerificationWindowPeriod;
 
-    TMediumThroughputMeterConfig();
+    REGISTER_YSON_STRUCT(TMediumThroughputMeterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumThroughputMeterConfig)
@@ -503,7 +533,7 @@ DEFINE_REFCOUNTED_TYPE(TMediumThroughputMeterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TIOThroughputMeterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
@@ -521,7 +551,9 @@ public:
     // Max allowed overall testing duration.
     TDuration TestingTimeHardLimit;
 
-    TIOThroughputMeterConfig();
+    REGISTER_YSON_STRUCT(TIOThroughputMeterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
@@ -529,13 +561,15 @@ DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkMergerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // Testing options.
     bool FailShallowMergeValidation;
 
-    TChunkMergerConfig();
+    REGISTER_YSON_STRUCT(TChunkMergerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMergerConfig)
@@ -543,14 +577,16 @@ DEFINE_REFCOUNTED_TYPE(TChunkMergerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkRepairJobDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NChunkClient::TErasureReaderConfigPtr Reader;
 
     i64 WindowSize;
 
-    TChunkRepairJobDynamicConfig();
+    REGISTER_YSON_STRUCT(TChunkRepairJobDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkRepairJobDynamicConfig)
@@ -558,7 +594,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkRepairJobDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Timeout for lease transactions.
@@ -764,11 +800,13 @@ public:
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;
 
-    TDataNodeConfig();
-
     i64 GetCacheCapacity() const;
 
     i64 GetNetOutThrottlingHardLimit() const;
+
+    REGISTER_YSON_STRUCT(TDataNodeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataNodeConfig)
@@ -776,7 +814,7 @@ DEFINE_REFCOUNTED_TYPE(TDataNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<int> StorageHeavyThreadCount;
@@ -832,7 +870,9 @@ public:
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;
 
-    TDataNodeDynamicConfig();
+    REGISTER_YSON_STRUCT(TDataNodeDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataNodeDynamicConfig)

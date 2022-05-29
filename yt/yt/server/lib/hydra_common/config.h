@@ -10,12 +10,14 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelogConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! When the number of unflushed data bytes exceeds this value, an automatic data flush is performed.
@@ -38,7 +40,9 @@ public:
     //! Buffer size for reading the tail of data file during recovery.
     i64 RecoveryBufferSize;
 
-    TFileChangelogConfig();
+    REGISTER_YSON_STRUCT(TFileChangelogConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
@@ -46,14 +50,16 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelogDispatcherConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     int IOClass;
     int IOPriority;
     TDuration FlushQuantum;
 
-    TFileChangelogDispatcherConfig();
+    REGISTER_YSON_STRUCT(TFileChangelogDispatcherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcherConfig)
@@ -72,7 +78,9 @@ public:
     NIO::EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
 
-    TFileChangelogStoreConfig();
+    REGISTER_YSON_STRUCT(TFileChangelogStoreConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelogStoreConfig)

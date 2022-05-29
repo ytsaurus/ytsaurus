@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +98,7 @@ DEFINE_REFCOUNTED_TYPE(TCongestionDetectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGentleLoaderConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     TCongestionDetectorConfigPtr CongestionDetector;
 
@@ -160,7 +162,9 @@ struct TGentleLoaderConfig
     i32 InitialSlowStartThreshold;
     TDuration WindowPeriod;
 
-    TGentleLoaderConfig();
+    REGISTER_YSON_STRUCT(TGentleLoaderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGentleLoaderConfig)

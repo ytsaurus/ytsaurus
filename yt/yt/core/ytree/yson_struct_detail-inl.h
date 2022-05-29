@@ -815,7 +815,7 @@ template <class... TArgs>
 TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::DefaultNew(TArgs&&... args)
 {
     IsTriviallyInitializedIntrusivePtr_ = true;
-    return DefaultCtor([=] () { return New<typename TValue::TUnderlying>(std::forward<TArgs>(args)...); });
+    return DefaultCtor([=] () mutable { return New<typename TValue::TUnderlying>(std::forward<TArgs>(args)...); });
 }
 
 template <class TValue>

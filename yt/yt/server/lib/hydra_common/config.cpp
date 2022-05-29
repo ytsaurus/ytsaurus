@@ -6,54 +6,54 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChangelogConfig::TFileChangelogConfig()
+void TFileChangelogConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("data_flush_size", DataFlushSize)
+    registrar.Parameter("data_flush_size", &TThis::DataFlushSize)
         .Alias("flush_buffer_size")
         .GreaterThanOrEqual(0)
         .Default(16_MB);
-    RegisterParameter("index_flush_size", IndexFlushSize)
+    registrar.Parameter("index_flush_size", &TThis::IndexFlushSize)
         .GreaterThanOrEqual(0)
         .Default(16_MB);
-    RegisterParameter("flush_period", FlushPeriod)
+    registrar.Parameter("flush_period", &TThis::FlushPeriod)
         .Default(TDuration::MilliSeconds(10));
-    RegisterParameter("enable_sync", EnableSync)
+    registrar.Parameter("enable_sync", &TThis::EnableSync)
         .Default(true);
-    RegisterParameter("preallocate_size", PreallocateSize)
+    registrar.Parameter("preallocate_size", &TThis::PreallocateSize)
         .GreaterThan(0)
         .Default();
-    RegisterParameter("recovery_buffer_size", RecoveryBufferSize)
+    registrar.Parameter("recovery_buffer_size", &TThis::RecoveryBufferSize)
         .GreaterThan(0)
         .Default(16_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChangelogDispatcherConfig::TFileChangelogDispatcherConfig()
+void TFileChangelogDispatcherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("io_class", IOClass)
+    registrar.Parameter("io_class", &TThis::IOClass)
         .Default(1); // IOPRIO_CLASS_RT
-    RegisterParameter("io_priority", IOPriority)
+    registrar.Parameter("io_priority", &TThis::IOPriority)
         .Default(3);
-    RegisterParameter("flush_quantum", FlushQuantum)
+    registrar.Parameter("flush_quantum", &TThis::FlushQuantum)
         .Default(TDuration::MilliSeconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileChangelogStoreConfig::TFileChangelogStoreConfig()
+void TFileChangelogStoreConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("path", Path);
-    RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultNew();
 
-    RegisterParameter("io_engine_type", IOEngineType)
+    registrar.Parameter("io_engine_type", &TThis::IOEngineType)
         .Default(NIO::EIOEngineType::ThreadPool);
-    RegisterParameter("io_engine", IOConfig)
+    registrar.Parameter("io_engine", &TThis::IOConfig)
         .Optional();
 
-    RegisterPreprocessor([&] () {
-        ChangelogReaderCache->Capacity = 4;
+    registrar.Preprocessor([] (TThis* config) {
+        config->ChangelogReaderCache->Capacity = 4;
     });
 }
 

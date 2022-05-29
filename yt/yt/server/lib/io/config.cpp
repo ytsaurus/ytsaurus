@@ -75,83 +75,83 @@ TCongestionDetectorConfig::TCongestionDetectorConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGentleLoaderConfig::TGentleLoaderConfig()
+void TGentleLoaderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("congestion_detector", CongestionDetector)
+    registrar.Parameter("congestion_detector", &TThis::CongestionDetector)
         .DefaultNew();
 
-    RegisterParameter("default_read_to_write_ratio", DefaultReadToWriteRatio)
+    registrar.Parameter("default_read_to_write_ratio", &TThis::DefaultReadToWriteRatio)
         .InRange(0, 100)
         .Default(75);
 
-    RegisterParameter("adaptive_read_to_write_ratio_threshold", AdaptiveReadToWriteRatioThreshold)
+    registrar.Parameter("adaptive_read_to_write_ratio_threshold", &TThis::AdaptiveReadToWriteRatioThreshold)
         .GreaterThan(0)
         .Default(100_GB);
 
-    RegisterParameter("load_adjusting_interval", LoadAdjustingInterval)
+    registrar.Parameter("load_adjusting_interval", &TThis::LoadAdjustingInterval)
         .Default(TDuration::MilliSeconds(200));
 
-    RegisterParameter("segment_size", SegmentSize)
+    registrar.Parameter("segment_size", &TThis::SegmentSize)
         .GreaterThan(0)
         .Default(32);
 
-    RegisterParameter("max_window_size", MaxWindowSize)
+    registrar.Parameter("max_window_size", &TThis::MaxWindowSize)
         .GreaterThan(0)
         .Default(10'000);
 
-    RegisterParameter("packet_size", PacketSize)
+    registrar.Parameter("packet_size", &TThis::PacketSize)
         .GreaterThan(0)
         .Default(128_KB);
 
-    RegisterParameter("max_in_flight_count", MaxInFlightCount)
+    registrar.Parameter("max_in_flight_count", &TThis::MaxInFlightCount)
         .GreaterThan(0)
         .Default(5000);
 
-    RegisterParameter("writers_count", WritersCount)
+    registrar.Parameter("writers_count", &TThis::WritersCount)
         .GreaterThan(0)
         .Default(100);
 
-    RegisterParameter("readers_count", ReadersCount)
+    registrar.Parameter("readers_count", &TThis::ReadersCount)
         .GreaterThan(0)
         .Default(100);
 
-    RegisterParameter("max_write_file_size", MaxWriteFileSize)
+    registrar.Parameter("max_write_file_size", &TThis::MaxWriteFileSize)
         .GreaterThan(4_KB)
         .Default(512_MB);
 
-    RegisterParameter("writers_folder", WritersFolder)
+    registrar.Parameter("writers_folder", &TThis::WritersFolder)
         .NonEmpty()
         .Default("writes_bench");
 
-    RegisterParameter("remove_written_files", RemoveWrittenFiles)
+    registrar.Parameter("remove_written_files", &TThis::RemoveWrittenFiles)
         .Default(true);
 
-    RegisterParameter("flush_after_write", FlushAfterWrite)
+    registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
         .Default(false);
 
-    RegisterParameter("stale_files_count_per_writer", StaleFilesCountPerWriter)
+    registrar.Parameter("stale_files_count_per_writer", &TThis::StaleFilesCountPerWriter)
         .Default(0);
 
-    RegisterParameter("wait_after_congested", WaitAfterCongested)
+    registrar.Parameter("wait_after_congested", &TThis::WaitAfterCongested)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("simulated_request_latency", SimulatedRequestLatency)
+    registrar.Parameter("simulated_request_latency", &TThis::SimulatedRequestLatency)
         .Default();
 
-    RegisterParameter("use_direct_io", UseDirectIO)
+    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
         .Default(true);
 
-    RegisterParameter("max_write_rate", MaxWriteRate)
+    registrar.Parameter("max_write_rate", &TThis::MaxWriteRate)
         .GreaterThan(0)
         .Default(96_MB);
 
-    RegisterParameter("initial_window_size", InitialWindowSize)
+    registrar.Parameter("initial_window_size", &TThis::InitialWindowSize)
         .Default(1);
 
-    RegisterParameter("initial_slow_start_threshold", InitialSlowStartThreshold)
+    registrar.Parameter("initial_slow_start_threshold", &TThis::InitialSlowStartThreshold)
         .Default(0);
 
-    RegisterParameter("window_period", WindowPeriod)
+    registrar.Parameter("window_period", &TThis::WindowPeriod)
         .Default();
 }
 

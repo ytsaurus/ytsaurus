@@ -892,9 +892,9 @@ public:
         TDataNodeConfigPtr config,
         TStoreLocation* location,
         TChunkContextPtr chunkContext)
-        : MultiplexedChangelogConfig_(UpdateYsonSerializable(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
-        , HighLatencySplitChangelogConfig_(UpdateYsonSerializable(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
-        , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
+        : MultiplexedChangelogConfig_(UpdateYsonStruct(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
+        , HighLatencySplitChangelogConfig_(UpdateYsonStruct(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
+        , LowLatencySplitChangelogConfig_(UpdateYsonStruct(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
         , Location_(location)
         , ChunkContext_(chunkContext)
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
