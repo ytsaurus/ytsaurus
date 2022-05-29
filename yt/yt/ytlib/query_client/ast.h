@@ -49,7 +49,8 @@ using TLiteralValue = std::variant<
     ui64,
     double,
     bool,
-    TString>;
+    TString
+>;
 
 using TLiteralValueList = std::vector<TLiteralValue>;
 using TLiteralValueTuple = std::vector<TLiteralValue>;

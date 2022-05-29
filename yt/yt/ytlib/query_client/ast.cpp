@@ -231,30 +231,27 @@ bool operator != (const TQuery& lhs, const TQuery& rhs)
 
 void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
 {
-    switch (value.index()) {
-        case VariantIndexV<TNullLiteralValue, TLiteralValue>:
+    Visit(value,
+        [&] (TNullLiteralValue) {
             builder->AppendString("null");
-            break;
-        case VariantIndexV<i64, TLiteralValue>:
-            builder->AppendFormat("%v", std::get<i64>(value));
-            break;
-        case VariantIndexV<ui64, TLiteralValue>:
-            builder->AppendFormat("%vu", std::get<ui64>(value));
-            break;
-        case VariantIndexV<double, TLiteralValue>:
-            builder->AppendFormat("%v", std::get<double>(value));
-            break;
-        case VariantIndexV<bool, TLiteralValue>:
-            builder->AppendFormat("%v", std::get<bool>(value) ? "true" : "false");
-            break;
-        case VariantIndexV<TString, TLiteralValue>:
+        },
+        [&] (i64 value) {
+            builder->AppendFormat("%v", value);
+        },
+        [&] (ui64 value) {
+            builder->AppendFormat("%vu", value);
+        },
+        [&] (double value) {
+            builder->AppendFormat("%v", value);
+        },
+        [&] (bool value) {
+            builder->AppendFormat("%v", value ? "true" : "false");
+        },
+        [&] (const TString& value) {
             builder->AppendChar('"');
-            builder->AppendString(EscapeC(std::get<TString>(value)));
+            builder->AppendString(EscapeC(value));
             builder->AppendChar('"');
-            break;
-        default:
-            YT_ABORT();
-    }
+        });
 }
 
 std::vector<TStringBuf> GetKeywords()
