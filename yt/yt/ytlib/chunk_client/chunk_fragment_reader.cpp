@@ -1354,7 +1354,9 @@ private:
             UpdateFromProto(&Options_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
         }
 
-        Options_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
+        Options_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
+            rsp->GetTotalSize(),
+            std::memory_order_relaxed);
 
         {
             // Feed responses to controllers.

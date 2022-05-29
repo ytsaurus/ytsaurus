@@ -1024,7 +1024,9 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::GetCachedVersionedChunkMeta(
     auto entry = WaitFor(entryFuture)
         .ValueOrThrow();
 
-    chunkReadOptions.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+    chunkReadOptions.ChunkReaderStatistics->MetaWaitTime.fetch_add(
+        metaWaitTimer.GetElapsedValue(),
+        std::memory_order_relaxed);
 
     {
         auto guard = WriterGuard(WeakCachedVersionedChunkMetaEntryLock_);

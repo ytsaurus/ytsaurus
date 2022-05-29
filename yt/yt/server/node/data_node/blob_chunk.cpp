@@ -267,7 +267,9 @@ void TBlobChunkBase::DoReadMeta(
 
     auto readTime = readTimer.GetElapsedTime();
 
-    session->Options.ChunkReaderStatistics->MetaReadFromDiskTime += DurationToValue(readTime);
+    session->Options.ChunkReaderStatistics->MetaReadFromDiskTime.fetch_add(
+        DurationToValue(readTime),
+        std::memory_order_relaxed);
 
     auto& performanceCounters = Location_->GetPerformanceCounters();
     performanceCounters.BlobChunkMetaReadTime.Record(readTime);
@@ -326,7 +328,9 @@ void TBlobChunkBase::OnBlocksExtLoaded(
                 session->AsyncResults.push_back(entry.Cookie->GetBlockFuture().Apply(
                     BIND([session, entryIndex] (const TCachedBlock& cachedBlock) {
                         auto block = cachedBlock.Block;
-                        session->Options.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
+                        session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                            block.Size(),
+                            std::memory_order_relaxed);
                         session->Entries[entryIndex].Block = std::move(block);
                     })));
                 continue;
@@ -678,7 +682,9 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             auto blockId = TBlockId(Id_, entry.BlockIndex);
             auto block = options.BlockCache->FindBlock(blockId, EBlockType::CompressedData).Block;
             if (block) {
-                session->Options.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
+                session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                    block.Size(),
+                    std::memory_order_relaxed);
                 entry.Block = std::move(block);
                 entry.Cached = true;
             } else {
