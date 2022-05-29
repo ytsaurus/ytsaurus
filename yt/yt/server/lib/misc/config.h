@@ -68,7 +68,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiskLocationConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Root directory for the location.
@@ -77,7 +77,9 @@ public:
     //! Minimum size the disk partition must have to make this location usable.
     std::optional<i64> MinDiskSpace;
 
-    TDiskLocationConfig();
+    REGISTER_YSON_STRUCT(TDiskLocationConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskLocationConfig)

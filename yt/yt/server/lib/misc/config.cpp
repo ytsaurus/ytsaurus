@@ -84,11 +84,11 @@ NHttp::TServerConfigPtr TDeprecatedServerConfig::CreateMonitoringHttpServerConfi
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskLocationConfig::TDiskLocationConfig()
+void TDiskLocationConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("path", Path)
+    registrar.Parameter("path", &TThis::Path)
         .NonEmpty();
-    RegisterParameter("min_disk_space", MinDiskSpace)
+    registrar.Parameter("min_disk_space", &TThis::MinDiskSpace)
         .GreaterThanOrEqual(0)
         .Default();
 }

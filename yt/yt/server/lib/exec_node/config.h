@@ -127,18 +127,9 @@ public:
 
     TString MediumName;
 
-    TSlotLocationConfig()
-    {
-        RegisterParameter("disk_quota", DiskQuota)
-            .Default()
-            .GreaterThan(0);
-        RegisterParameter("disk_usage_watermark", DiskUsageWatermark)
-            .Default(10_GB)
-            .GreaterThanOrEqual(0);
+    REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
-        RegisterParameter("medium_name", MediumName)
-            .Default(NChunkClient::DefaultSlotsMediumName);
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
@@ -189,7 +180,7 @@ public:
     TDuration SlotLocationStatisticsUpdatePeriod;
 
     int MaxConsecutiveJobAborts;
-    
+
     int MaxConsecutiveGpuJobFailures;
 
     TDuration DisableJobsTimeout;
@@ -715,7 +706,7 @@ public:
     {
         RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
             .Default();
-    
+
         RegisterParameter("check_disk_space_limit", CheckDiskSpaceLimit)
             .Default(false);
     }

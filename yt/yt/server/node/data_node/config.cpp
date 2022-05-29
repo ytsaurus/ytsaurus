@@ -4,65 +4,65 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TP2PConfig::TP2PConfig()
+void TP2PConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default(true);
 
-    RegisterParameter("block_cache", BlockCache)
+    registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultNew();
 
-    RegisterParameter("block_cache_override", BlockCacheOverride)
+    registrar.Parameter("block_cache_override", &TThis::BlockCacheOverride)
         .DefaultNew();
 
-    RegisterParameter("tick_period", TickPeriod)
+    registrar.Parameter("tick_period", &TThis::TickPeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("node_refresh_period", NodeRefreshPeriod)
+    registrar.Parameter("node_refresh_period", &TThis::NodeRefreshPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("request_timeout", RequestTimeout)
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("node_staleness_timeout", NodeStalenessTimeout)
+    registrar.Parameter("node_staleness_timeout", &TThis::NodeStalenessTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("iteration_wait_timeout", IterationWaitTimeout)
+    registrar.Parameter("iteration_wait_timeout", &TThis::IterationWaitTimeout)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("max_waiting_requests", MaxWaitingRequests)
+    registrar.Parameter("max_waiting_requests", &TThis::MaxWaitingRequests)
         .Default(128);
 
-    RegisterParameter("session_cleaup_period", SessionCleaupPeriod)
+    registrar.Parameter("session_cleaup_period", &TThis::SessionCleaupPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("session_ttl", SessionTTL)
+    registrar.Parameter("session_ttl", &TThis::SessionTTL)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("request_cache", RequestCache)
+    registrar.Parameter("request_cache", &TThis::RequestCache)
         .DefaultNew();
-    RegisterParameter("request_cache_override", RequestCacheOverride)
+    registrar.Parameter("request_cache_override", &TThis::RequestCacheOverride)
         .DefaultNew();
 
-    RegisterParameter("chunk_cooldown_timeout", ChunkCooldownTimeout)
+    registrar.Parameter("chunk_cooldown_timeout", &TThis::ChunkCooldownTimeout)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("max_distributed_bytes", MaxDistributedBytes)
+    registrar.Parameter("max_distributed_bytes", &TThis::MaxDistributedBytes)
         .Default(128_MB);
-    RegisterParameter("max_block_size", MaxBlockSize)
+    registrar.Parameter("max_block_size", &TThis::MaxBlockSize)
         .Default(128_MB);
-    RegisterParameter("block_counter_reset_ticks", BlockCounterResetTicks)
+    registrar.Parameter("block_counter_reset_ticks", &TThis::BlockCounterResetTicks)
         .GreaterThan(0)
         .Default(150);
-    RegisterParameter("hot_block_threshold", HotBlockThreshold)
+    registrar.Parameter("hot_block_threshold", &TThis::HotBlockThreshold)
         .Default(10);
-    RegisterParameter("second_hot_block_threshold", SecondHotBlockThreshold)
+    registrar.Parameter("second_hot_block_threshold", &TThis::SecondHotBlockThreshold)
         .Default(5);
-    RegisterParameter("hot_block_replica_count", HotBlockReplicaCount)
+    registrar.Parameter("hot_block_replica_count", &TThis::HotBlockReplicaCount)
         .Default(3);
-    RegisterParameter("block_redistribution_ticks", BlockRedistributionTicks)
+    registrar.Parameter("block_redistribution_ticks", &TThis::BlockRedistributionTicks)
         .Default(3000);
 
-    RegisterParameter("node_tag_filter", NodeTagFilter)
+    registrar.Parameter("node_tag_filter", &TThis::NodeTagFilter)
         .Default(MakeBooleanFormula("!CLOUD"));
 
-    RegisterPreprocessor([&] {
+    registrar.Preprocessor([] (TThis* config) {
         // Low default to prevent OOMs in yt-local.
-        BlockCache->Capacity = 1_MB;
+        config->BlockCache->Capacity = 1_MB;
 
         // Block cache won't accept blocks larger than Capacity / ShardCount * YoungerSizeFraction.
         //
@@ -70,110 +70,109 @@ TP2PConfig::TP2PConfig()
         // max block size is equal to 32MB, which is too low.
         //
         // With adjusted defaults, max block size is equal to 256MB.
-        BlockCache->ShardCount = 4;
-        BlockCache->YoungerSizeFraction = 0.5;
+        config->BlockCache->ShardCount = 4;
+        config->BlockCache->YoungerSizeFraction = 0.5;
 
         // Should be good enough.
-        RequestCache->Capacity = 16 * 1024;
+        config->RequestCache->Capacity = 16 * 1024;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreLocationConfigBase::TStoreLocationConfigBase()
+void TStoreLocationConfigBase::Register(TRegistrar registrar)
 {
-    RegisterParameter("quota", Quota)
+    registrar.Parameter("quota", &TThis::Quota)
         .GreaterThanOrEqual(0)
         .Default(std::optional<i64>());
-    RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
+    registrar.Parameter("replication_out_throttler", &TThis::ReplicationOutThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_compaction_and_partitioning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
+    registrar.Parameter("tablet_compaction_and_partitioning_out_throttler", &TThis::TabletCompactionAndPartitioningOutThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_logging_out_throttler", TabletLoggingOutThrottler)
+    registrar.Parameter("tablet_logging_out_throttler", &TThis::TabletLoggingOutThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
+    registrar.Parameter("tablet_preload_out_throttler", &TThis::TabletPreloadOutThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
+    registrar.Parameter("tablet_recovery_out_throttler", &TThis::TabletRecoveryOutThrottler)
         .DefaultNew();
-    RegisterParameter("io_engine_type", IOEngineType)
+    registrar.Parameter("io_engine_type", &TThis::IOEngineType)
         .Default(NIO::EIOEngineType::ThreadPool);
-    RegisterParameter("io_config", IOConfig)
+    registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
-    RegisterParameter("use_direct_io_for_reads", UseDirectIOForReads)
+    registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
         .Default(NIO::EDirectIOPolicy::Never);
-    RegisterParameter("throttle_counter_interval", ThrottleDuration)
+    registrar.Parameter("throttle_counter_interval", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("coalesced_read_max_gap_size", CoalescedReadMaxGapSize)
+    registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
         .Default(0);
-    RegisterParameter("disk_family", DiskFamily)
+    registrar.Parameter("disk_family", &TThis::DiskFamily)
         .Default("UNKNOWN");
 
-    RegisterParameter("device_name", DeviceName)
+    registrar.Parameter("device_name", &TThis::DeviceName)
         .Default("UNKNOWN");
-    RegisterParameter("device_model", DeviceModel)
+    registrar.Parameter("device_model", &TThis::DeviceModel)
         .Default("UNKNOWN");
-    RegisterParameter("max_write_rate_by_dwpd", MaxWriteRateByDWPD)
+    registrar.Parameter("max_write_rate_by_dwpd", &TThis::MaxWriteRateByDWPD)
         .GreaterThanOrEqual(0)
         .Default(0);
-    RegisterParameter("reset_uuid", ResetUuid)
+    registrar.Parameter("reset_uuid", &TThis::ResetUuid)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreLocationConfig::TStoreLocationConfig()
+void TStoreLocationConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("low_watermark", LowWatermark)
+    registrar.Parameter("low_watermark", &TThis::LowWatermark)
         .GreaterThanOrEqual(0)
         .Default(5_GB);
-    RegisterParameter("high_watermark", HighWatermark)
+    registrar.Parameter("high_watermark", &TThis::HighWatermark)
         .GreaterThanOrEqual(0)
         .Default(2_GB);
-    RegisterParameter("disable_writes_watermark", DisableWritesWatermark)
+    registrar.Parameter("disable_writes_watermark", &TThis::DisableWritesWatermark)
         .GreaterThanOrEqual(0)
         .Default(1_GB);
-    RegisterParameter("max_trash_ttl", MaxTrashTtl)
+    registrar.Parameter("max_trash_ttl", &TThis::MaxTrashTtl)
         .Default(TDuration::Hours(1))
         .GreaterThanOrEqual(TDuration::Zero());
-    RegisterParameter("trash_cleanup_watermark", TrashCleanupWatermark)
+    registrar.Parameter("trash_cleanup_watermark", &TThis::TrashCleanupWatermark)
         .GreaterThanOrEqual(0)
         .Default(4_GB);
-    RegisterParameter("trash_check_period", TrashCheckPeriod)
+    registrar.Parameter("trash_check_period", &TThis::TrashCheckPeriod)
         .GreaterThanOrEqual(TDuration::Zero())
         .Default(TDuration::Seconds(10));
-    RegisterParameter("repair_in_throttler", RepairInThrottler)
+    registrar.Parameter("repair_in_throttler", &TThis::RepairInThrottler)
         .DefaultNew();
-    RegisterParameter("replication_in_throttler", ReplicationInThrottler)
+    registrar.Parameter("replication_in_throttler", &TThis::ReplicationInThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
+    registrar.Parameter("tablet_comaction_and_partitoning_in_throttler", &TThis::TabletCompactionAndPartitioningInThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
+    registrar.Parameter("tablet_logging_in_throttler", &TThis::TabletLoggingInThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
+    registrar.Parameter("tablet_snapshot_in_throttler", &TThis::TabletSnapshotInThrottler)
         .DefaultNew();
-    RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
+    registrar.Parameter("tablet_store_flush_in_throttler", &TThis::TabletStoreFlushInThrottler)
         .DefaultNew();
 
-    RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
+    registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
         .Default();
-    RegisterParameter("high_latency_split_changelog", HighLatencySplitChangelog)
+    registrar.Parameter("high_latency_split_changelog", &TThis::HighLatencySplitChangelog)
         .Default();
-    RegisterParameter("low_latency_split_changelog", LowLatencySplitChangelog)
+    registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
         .Default();
 
-    // NB: base class's field.
-    RegisterParameter("medium_name", MediumName)
+    registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
 
-    RegisterPostprocessor([&] () {
-        if (HighWatermark > LowWatermark) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->HighWatermark > config->LowWatermark) {
             THROW_ERROR_EXCEPTION("\"high_full_watermark\" must be less than or equal to \"low_watermark\"");
         }
-        if (DisableWritesWatermark > HighWatermark) {
+        if (config->DisableWritesWatermark > config->HighWatermark) {
             THROW_ERROR_EXCEPTION("\"write_disable_watermark\" must be less than or equal to \"high_watermark\"");
         }
-        if (DisableWritesWatermark > TrashCleanupWatermark) {
+        if (config->DisableWritesWatermark > config->TrashCleanupWatermark) {
             THROW_ERROR_EXCEPTION("\"disable_writes_watermark\" must be less than or equal to \"trash_cleanup_watermark\"");
         }
     });
@@ -181,37 +180,36 @@ TStoreLocationConfig::TStoreLocationConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCacheLocationConfig::TCacheLocationConfig()
+void TCacheLocationConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("in_throttler", InThrottler)
+    registrar.Parameter("in_throttler", &TThis::InThrottler)
         .DefaultNew();
 
-    // NB: base class's field.
-    RegisterParameter("medium_name", MediumName)
+    registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultCacheMediumName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiplexedChangelogConfig::TMultiplexedChangelogConfig()
+void TMultiplexedChangelogConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_record_count", MaxRecordCount)
+    registrar.Parameter("max_record_count", &TThis::MaxRecordCount)
         .Default(1000000)
         .GreaterThan(0);
-    RegisterParameter("max_data_size", MaxDataSize)
+    registrar.Parameter("max_data_size", &TThis::MaxDataSize)
         .Default(256_MB)
         .GreaterThan(0);
-    RegisterParameter("auto_rotation_period", AutoRotationPeriod)
+    registrar.Parameter("auto_rotation_period", &TThis::AutoRotationPeriod)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("replay_buffer_size", ReplayBufferSize)
+    registrar.Parameter("replay_buffer_size", &TThis::ReplayBufferSize)
         .GreaterThan(0)
         .Default(256_MB);
-    RegisterParameter("max_clean_changelogs_to_keep", MaxCleanChangelogsToKeep)
+    registrar.Parameter("max_clean_changelogs_to_keep", &TThis::MaxCleanChangelogsToKeep)
         .GreaterThanOrEqual(0)
         .Default(3);
-    RegisterParameter("clean_delay", CleanDelay)
+    registrar.Parameter("clean_delay", &TThis::CleanDelay)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("big_record_threshold", BigRecordThreshold)
+    registrar.Parameter("big_record_threshold", &TThis::BigRecordThreshold)
         .Default();
 }
 
@@ -226,31 +224,31 @@ void TArtifactCacheReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLayerLocationConfig::TLayerLocationConfig()
+void TLayerLocationConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("low_watermark", LowWatermark)
+    registrar.Parameter("low_watermark", &TThis::LowWatermark)
         .Default(1_GB)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("quota", Quota)
+    registrar.Parameter("quota", &TThis::Quota)
         .Default();
 
-    RegisterParameter("location_is_absolute", LocationIsAbsolute)
+    registrar.Parameter("location_is_absolute", &TThis::LocationIsAbsolute)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTmpfsLayerCacheConfig::TTmpfsLayerCacheConfig()
+void TTmpfsLayerCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("capacity", Capacity)
+    registrar.Parameter("capacity", &TThis::Capacity)
         .Default(10 * 1_GB)
         .GreaterThan(0);
 
-    RegisterParameter("layers_directory_path", LayersDirectoryPath)
+    registrar.Parameter("layers_directory_path", &TThis::LayersDirectoryPath)
         .Default(std::nullopt);
 
-    RegisterParameter("layers_update_period", LayersUpdatePeriod)
+    registrar.Parameter("layers_update_period", &TThis::LayersUpdatePeriod)
         .Default(TDuration::Minutes(3))
         .GreaterThan(TDuration::Zero());
 }
@@ -277,441 +275,405 @@ void TTableSchemaCacheDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVolumeManagerConfig::TVolumeManagerConfig()
+void TVolumeManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("porto_executor", PortoExecutor)
+    registrar.Parameter("porto_executor", &TThis::PortoExecutor)
         .DefaultNew();
 
-    RegisterParameter("layer_locations", LayerLocations);
+    registrar.Parameter("layer_locations", &TThis::LayerLocations);
 
-    RegisterParameter("enable_layers_cache", EnableLayersCache)
+    registrar.Parameter("enable_layers_cache", &TThis::EnableLayersCache)
         .Default(true);
 
-    RegisterParameter("cache_capacity_fraction", CacheCapacityFraction)
+    registrar.Parameter("cache_capacity_fraction", &TThis::CacheCapacityFraction)
         .Default(0.8)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1);
 
-    RegisterParameter("layer_import_concurrency", LayerImportConcurrency)
+    registrar.Parameter("layer_import_concurrency", &TThis::LayerImportConcurrency)
         .Default(2)
         .GreaterThan(0)
         .LessThanOrEqual(10);
 
-    RegisterParameter("enable_disk_quota", EnableDiskQuota)
+    registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
         .Default(true);
 
-    RegisterParameter("tar2squash_tool_path", Tar2SquashToolPath)
+    registrar.Parameter("tar2squash_tool_path", &TThis::Tar2SquashToolPath)
         .Default("tar2squash");
 
-    RegisterParameter("use_bundled_tar2squash", UseBundledTar2Squash)
+    registrar.Parameter("use_bundled_tar2squash", &TThis::UseBundledTar2Squash)
         .Default(true);
 
-    RegisterParameter("convert_layers_to_squashfs", ConvertLayersToSquashfs)
+    registrar.Parameter("convert_layers_to_squashfs", &TThis::ConvertLayersToSquashfs)
         .Default(false);
 
-    RegisterParameter("regular_tmpfs_layer_cache", RegularTmpfsLayerCache)
+    registrar.Parameter("regular_tmpfs_layer_cache", &TThis::RegularTmpfsLayerCache)
         .Alias("tmpfs_layer_cache")
         .DefaultNew();
 
-    RegisterParameter("nirvana_tmpfs_layer_cache", NirvanaTmpfsLayerCache)
+    registrar.Parameter("nirvana_tmpfs_layer_cache", &TThis::NirvanaTmpfsLayerCache)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectorConfig::TMasterConnectorConfig()
+void TMasterConnectorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+    registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
         .Default();
-    RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+    registrar.Parameter("incremental_heartbeat_period_splay", &TThis::IncrementalHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("job_heartbeat_period", JobHeartbeatPeriod)
+    registrar.Parameter("job_heartbeat_period", &TThis::JobHeartbeatPeriod)
         .Default();
-    RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
+    registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectorDynamicConfig::TMasterConnectorDynamicConfig()
+void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+    registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
         .Default();
-    RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+    registrar.Parameter("incremental_heartbeat_period_splay", &TThis::IncrementalHeartbeatPeriodSplay)
         .Default();
-    RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
+    registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
+    registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("job_heartbeat_period", JobHeartbeatPeriod)
+    registrar.Parameter("job_heartbeat_period", &TThis::JobHeartbeatPeriod)
         .Default();
-    RegisterParameter("job_heartbeat_period_splay", JobHeartbeatPeriodSplay)
+    registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
         .Default();
-    RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
+    registrar.Parameter("job_heartbeat_timeout", &TThis::JobHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("max_chunk_events_per_incremental_heartbeat", MaxChunkEventsPerIncrementalHeartbeat)
+    registrar.Parameter("max_chunk_events_per_incremental_heartbeat", &TThis::MaxChunkEventsPerIncrementalHeartbeat)
         .Default(1000000);
-    RegisterParameter("enable_profiling", EnableProfiling)
+    registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAllyReplicaManagerDynamicConfig::TAllyReplicaManagerDynamicConfig()
+void TAllyReplicaManagerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("announcement_backoff_time", AnnouncementBackoffTime)
+    registrar.Parameter("announcement_backoff_time", &TThis::AnnouncementBackoffTime)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("max_chunks_per_announcement_request", MaxChunksPerAnnouncementRequest)
+    registrar.Parameter("max_chunks_per_announcement_request", &TThis::MaxChunksPerAnnouncementRequest)
         .Default(5'000);
-    RegisterParameter("announcement_request_timeout", AnnouncementRequestTimeout)
+    registrar.Parameter("announcement_request_timeout", &TThis::AnnouncementRequestTimeout)
         .Default(TDuration::Seconds(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkAutotomizerConfig::TChunkAutotomizerConfig()
+void TChunkAutotomizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("fail_jobs", FailJobs)
+    registrar.Parameter("fail_jobs", &TThis::FailJobs)
         .Default(false);
-    RegisterParameter("sleep_in_jobs", SleepInJobs)
+    registrar.Parameter("sleep_in_jobs", &TThis::SleepInJobs)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataNodeTestingOptions::TDataNodeTestingOptions()
+void TDataNodeTestingOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter(
+    registrar.Parameter(
         "columnar_statistics_chunk_meta_fetch_max_delay",
-        ColumnarStatisticsChunkMetaFetchMaxDelay)
+        &TThis::ColumnarStatisticsChunkMetaFetchMaxDelay)
         .Default();
 
-    RegisterParameter(
+    registrar.Parameter(
         "simulate_network_throttling_for_get_block_set",
-        SimulateNetworkThrottlingForGetBlockSet)
+        &TThis::SimulateNetworkThrottlingForGetBlockSet)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumThroughputMeterConfig::TMediumThroughputMeterConfig()
+void TMediumThroughputMeterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("medium_name", MediumName)
+    registrar.Parameter("medium_name", &TThis::MediumName)
         .NonEmpty();
 
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
-    RegisterParameter("verification_initial_window_factor", VerificationInitialWindowFactor)
+    registrar.Parameter("verification_initial_window_factor", &TThis::VerificationInitialWindowFactor)
         .Default(0.75);
 
-    RegisterParameter("verification_segment_size_factor", VerificationSegmentSizeFactor)
+    registrar.Parameter("verification_segment_size_factor", &TThis::VerificationSegmentSizeFactor)
         .Default(0.05);
 
-    RegisterParameter("verification_window_period", VerificationWindowPeriod)
+    registrar.Parameter("verification_window_period", &TThis::VerificationWindowPeriod)
         .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TIOThroughputMeterConfig::TIOThroughputMeterConfig()
+void TIOThroughputMeterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enabled", Enabled)
+    registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
-    RegisterParameter("mediums", Mediums);
+    registrar.Parameter("mediums", &TThis::Mediums);
 
-    RegisterParameter("time_between_tests", TimeBetweenTests)
+    registrar.Parameter("time_between_tests", &TThis::TimeBetweenTests)
         .Default(TDuration::Hours(12));
 
-    RegisterParameter("estimate_time_limit", EstimateTimeLimit)
+    registrar.Parameter("estimate_time_limit", &TThis::EstimateTimeLimit)
         .Default(TDuration::Minutes(20));
 
-    RegisterParameter("max_estimate_congestions", MaxEstimateCongestions)
+    registrar.Parameter("max_estimate_congestions", &TThis::MaxEstimateCongestions)
         .Default(20);
 
-    RegisterParameter("testing_time_hard_limit", TestingTimeHardLimit)
+    registrar.Parameter("testing_time_hard_limit", &TThis::TestingTimeHardLimit)
         .Default(TDuration::Minutes(120));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkMergerConfig::TChunkMergerConfig()
+void TChunkMergerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("fail_shallow_merge_validation", FailShallowMergeValidation)
+    registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkRepairJobDynamicConfig::TChunkRepairJobDynamicConfig()
+void TChunkRepairJobDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("reader", Reader)
+    registrar.Parameter("reader", &TThis::Reader)
         .Default();
 
-    RegisterParameter("window_size", WindowSize)
+    registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(256_MBs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataNodeConfig::TDataNodeConfig()
+void TDataNodeConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
+    registrar.Parameter("lease_transaction_timeout", &TThis::LeaseTransactionTimeout)
         .Default(TDuration::Seconds(120));
-    RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
+    registrar.Parameter("lease_transaction_ping_period", &TThis::LeaseTransactionPingPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
+    registrar.Parameter("incremental_heartbeat_period", &TThis::IncrementalHeartbeatPeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("incremental_heartbeat_period_splay", IncrementalHeartbeatPeriodSplay)
+    registrar.Parameter("incremental_heartbeat_period_splay", &TThis::IncrementalHeartbeatPeriodSplay)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("register_retry_period", RegisterRetryPeriod)
+    registrar.Parameter("register_retry_period", &TThis::RegisterRetryPeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("register_retry_splay", RegisterRetrySplay)
+    registrar.Parameter("register_retry_splay", &TThis::RegisterRetrySplay)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("register_timeout", RegisterTimeout)
+    registrar.Parameter("register_timeout", &TThis::RegisterTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
+    registrar.Parameter("incremental_heartbeat_timeout", &TThis::IncrementalHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("incremental_heartbeat_throttler", IncrementalHeartbeatThrottler)
-        .DefaultNew(/* limit */1, /* period */TDuration::Minutes(10));
+    registrar.Parameter("incremental_heartbeat_throttler", &TThis::IncrementalHeartbeatThrottler)
+        .DefaultNew(/* limit */std::optional<double>(1), /* period */TDuration::Minutes(10));
 
-    RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
+    registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
+    registrar.Parameter("job_heartbeat_timeout", &TThis::JobHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+    registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .DefaultNew();
-    RegisterParameter("blocks_ext_cache", BlocksExtCache)
+    registrar.Parameter("blocks_ext_cache", &TThis::BlocksExtCache)
         .DefaultNew();
-    RegisterParameter("block_meta_cache", BlockMetaCache)
+    registrar.Parameter("block_meta_cache", &TThis::BlockMetaCache)
         .DefaultNew();
-    RegisterParameter("block_cache", BlockCache)
+    registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultNew();
-    RegisterParameter("blob_reader_cache", BlobReaderCache)
+    registrar.Parameter("blob_reader_cache", &TThis::BlobReaderCache)
         .DefaultNew();
-    RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+    registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultNew();
-    RegisterParameter("table_schema_cache", TableSchemaCache)
-        .DefaultNew();
-
-    RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
-        .DefaultNew();
-    RegisterParameter("high_latency_split_changelog", HighLatencySplitChangelog)
-        .DefaultNew();
-    RegisterParameter("low_latency_split_changelog", LowLatencySplitChangelog)
+    registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
 
-    RegisterParameter("session_timeout", SessionTimeout)
+    registrar.Parameter("multiplexed_changelog", &TThis::MultiplexedChangelog)
+        .DefaultNew();
+    registrar.Parameter("high_latency_split_changelog", &TThis::HighLatencySplitChangelog)
+        .DefaultNew();
+    registrar.Parameter("low_latency_split_changelog", &TThis::LowLatencySplitChangelog)
+        .DefaultNew();
+
+    registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
-    RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
+    registrar.Parameter("node_rpc_timeout", &TThis::NodeRpcTimeout)
         .Default(TDuration::Seconds(120));
-    RegisterParameter("peer_update_period", PeerUpdatePeriod)
+    registrar.Parameter("peer_update_period", &TThis::PeerUpdatePeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("peer_update_expiration_time", PeerUpdateExpirationTime)
+    registrar.Parameter("peer_update_expiration_time", &TThis::PeerUpdateExpirationTime)
         .Default(TDuration::Seconds(40));
 
-    RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
+    registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .GreaterThan(0)
         .Default(512_MB);
-    RegisterParameter("net_out_throttling_extra_limit", NetOutThrottlingExtraLimit)
+    registrar.Parameter("net_out_throttling_extra_limit", &TThis::NetOutThrottlingExtraLimit)
         .GreaterThan(0)
         .Default(512_MB);
-    RegisterParameter("net_out_throttle_duration", NetOutThrottleDuration)
+    registrar.Parameter("net_out_throttle_duration", &TThis::NetOutThrottleDuration)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)
+    registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .GreaterThan(0)
         .Default(1_GB);
-    RegisterParameter("disk_read_throttling_limit", DiskReadThrottlingLimit)
+    registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
         .GreaterThan(0)
         .Default(512_MB);
 
-    RegisterParameter("store_locations", StoreLocations)
+    registrar.Parameter("store_locations", &TThis::StoreLocations)
         .Default();
 
-    RegisterParameter("cache_locations", CacheLocations)
+    registrar.Parameter("cache_locations", &TThis::CacheLocations)
         .Default();
 
-    RegisterParameter("volume_manager", VolumeManager)
+    registrar.Parameter("volume_manager", &TThis::VolumeManager)
         .DefaultNew();
 
-    RegisterParameter("replication_writer", ReplicationWriter)
+    registrar.Parameter("replication_writer", &TThis::ReplicationWriter)
         .DefaultNew();
-    RegisterParameter("repair_reader", RepairReader)
+    registrar.Parameter("repair_reader", &TThis::RepairReader)
         .DefaultNew();
-    RegisterParameter("repair_writer", RepairWriter)
-        .DefaultNew();
-
-    RegisterParameter("seal_reader", SealReader)
+    registrar.Parameter("repair_writer", &TThis::RepairWriter)
         .DefaultNew();
 
-    RegisterParameter("merge_reader", MergeReader)
-        .DefaultNew();
-    RegisterParameter("merge_writer", MergeWriter)
+    registrar.Parameter("seal_reader", &TThis::SealReader)
         .DefaultNew();
 
-    RegisterParameter("autotomy_reader", AutotomyReader)
+    registrar.Parameter("merge_reader", &TThis::MergeReader)
         .DefaultNew();
-    RegisterParameter("autotomy_writer", AutotomyWriter)
-        .DefaultNew();
-
-    RegisterParameter("throttlers", Throttlers)
-        .Optional();
-
-    // COMPAT(babenko): use /data_node/throttlers instead.
-    RegisterParameter("total_in_throttler", Throttlers[EDataNodeThrottlerKind::TotalIn])
-        .Optional();
-    RegisterParameter("total_out_throttler", Throttlers[EDataNodeThrottlerKind::TotalOut])
-        .Optional();
-    RegisterParameter("replication_in_throttler", Throttlers[EDataNodeThrottlerKind::ReplicationIn])
-        .Optional();
-    RegisterParameter("replication_out_throttler", Throttlers[EDataNodeThrottlerKind::ReplicationOut])
-        .Optional();
-    RegisterParameter("repair_in_throttler", Throttlers[EDataNodeThrottlerKind::RepairIn])
-        .Optional();
-    RegisterParameter("repair_out_throttler", Throttlers[EDataNodeThrottlerKind::RepairOut])
-        .Optional();
-    RegisterParameter("artifact_cache_in_throttler", Throttlers[EDataNodeThrottlerKind::ArtifactCacheIn])
-        .Optional();
-    RegisterParameter("artifact_cache_out_throttler", Throttlers[EDataNodeThrottlerKind::ArtifactCacheOut])
-        .Optional();
-    RegisterParameter("skynet_out_throttler", Throttlers[EDataNodeThrottlerKind::SkynetOut])
-        .Optional();
-    RegisterParameter("tablet_comaction_and_partitoning_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn])
-        .Optional();
-    RegisterParameter("tablet_comaction_and_partitoning_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut])
-        .Optional();
-    RegisterParameter("tablet_logging_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletLoggingIn])
-        .Optional();
-    RegisterParameter("tablet_preload_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletPreloadOut])
-        .Optional();
-    RegisterParameter("tablet_snapshot_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletSnapshotIn])
-        .Optional();
-    RegisterParameter("tablet_store_flush_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletStoreFlushIn])
-        .Optional();
-    RegisterParameter("tablet_recovery_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletRecoveryOut])
-        .Optional();
-    RegisterParameter("tablet_replication_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletReplicationOut])
-        .Optional();
-
-    RegisterParameter("read_rps_out_throttler", ReadRpsOutThrottler)
-        .DefaultNew();
-    RegisterParameter("announce_chunk_replica_rps_out_throttler", AnnounceChunkReplicaRpsOutThrottler)
+    registrar.Parameter("merge_writer", &TThis::MergeWriter)
         .DefaultNew();
 
-    RegisterParameter("disk_health_checker", DiskHealthChecker)
+    registrar.Parameter("autotomy_reader", &TThis::AutotomyReader)
+        .DefaultNew();
+    registrar.Parameter("autotomy_writer", &TThis::AutotomyWriter)
         .DefaultNew();
 
-    RegisterParameter("max_write_sessions", MaxWriteSessions)
+    registrar.Parameter("throttlers", &TThis::Throttlers)
+        .Optional();
+
+    registrar.Parameter("read_rps_out_throttler", &TThis::ReadRpsOutThrottler)
+        .DefaultNew();
+    registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
+        .DefaultNew();
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
+    registrar.Parameter("max_write_sessions", &TThis::MaxWriteSessions)
         .Default(1000)
         .GreaterThanOrEqual(1);
 
-    RegisterParameter("max_blocks_per_read", MaxBlocksPerRead)
+    registrar.Parameter("max_blocks_per_read", &TThis::MaxBlocksPerRead)
         .GreaterThan(0)
         .Default(100000);
-    RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
+    registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
         .GreaterThan(0)
         .Default(64_MB);
-    RegisterParameter("bytes_per_write", BytesPerWrite)
+    registrar.Parameter("bytes_per_write", &TThis::BytesPerWrite)
         .GreaterThan(0)
         .Default(16_MB);
 
-    RegisterParameter("validate_block_checksums", ValidateBlockChecksums)
+    registrar.Parameter("validate_block_checksums", &TThis::ValidateBlockChecksums)
         .Default(true);
 
-    RegisterParameter("placement_expiration_time", PlacementExpirationTime)
+    registrar.Parameter("placement_expiration_time", &TThis::PlacementExpirationTime)
         .Default(TDuration::Hours(1));
 
-    RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
+    registrar.Parameter("sync_directories_on_connect", &TThis::SyncDirectoriesOnConnect)
         .Default(false);
 
-    RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
+    registrar.Parameter("storage_heavy_thread_count", &TThis::StorageHeavyThreadCount)
         .GreaterThan(0)
         .Default(2);
-    RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
+    registrar.Parameter("storage_light_thread_count", &TThis::StorageLightThreadCount)
         .GreaterThan(0)
         .Default(2);
-    RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
+    registrar.Parameter("storage_lookup_thread_count", &TThis::StorageLookupThreadCount)
         .GreaterThan(0)
         .Default(2);
 
-    RegisterParameter("max_replication_errors_in_heartbeat", MaxReplicationErrorsInHeartbeat)
+    registrar.Parameter("max_replication_errors_in_heartbeat", &TThis::MaxReplicationErrorsInHeartbeat)
         .GreaterThan(0)
         .Default(3);
-    RegisterParameter("max_tablet_errors_in_heartbeat", MaxTabletErrorsInHeartbeat)
+    registrar.Parameter("max_tablet_errors_in_heartbeat", &TThis::MaxTabletErrorsInHeartbeat)
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("block_read_timeout_fraction", BlockReadTimeoutFraction)
+    registrar.Parameter("block_read_timeout_fraction", &TThis::BlockReadTimeoutFraction)
         .Default(0.75);
 
-    RegisterParameter("columnar_statistics_read_timeout_fraction", ColumnarStatisticsReadTimeoutFraction)
+    registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
         .Default(0.75);
 
-    RegisterParameter("background_artifact_validation_delay", BackgroundArtifactValidationDelay)
+    registrar.Parameter("background_artifact_validation_delay", &TThis::BackgroundArtifactValidationDelay)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
-    RegisterParameter("p2p", P2P)
+    registrar.Parameter("p2p", &TThis::P2P)
         .DefaultNew();
 
-    RegisterParameter("testing_options", TestingOptions)
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        ChunkMetaCache->Capacity = 1_GB;
-        BlocksExtCache->Capacity = 1_GB;
-        BlockMetaCache->Capacity = 1_GB;
-        BlockCache->CompressedData->Capacity = 1_GB;
-        BlockCache->UncompressedData->Capacity = 1_GB;
+    registrar.Preprocessor([] (TThis* config) {
+        config->ChunkMetaCache->Capacity = 1_GB;
+        config->BlocksExtCache->Capacity = 1_GB;
+        config->BlockMetaCache->Capacity = 1_GB;
+        config->BlockCache->CompressedData->Capacity = 1_GB;
+        config->BlockCache->UncompressedData->Capacity = 1_GB;
 
-        BlobReaderCache->Capacity = 256;
+        config->BlobReaderCache->Capacity = 256;
 
-        ChangelogReaderCache->Capacity = 256;
+        config->ChangelogReaderCache->Capacity = 256;
 
         // Expect many splits -- adjust configuration.
-        HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
+        config->HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
 
         // Turn off batching for non-multiplexed split changelogs.
-        LowLatencySplitChangelog->FlushPeriod = TDuration::Zero();
+        config->LowLatencySplitChangelog->FlushPeriod = TDuration::Zero();
 
         // Disable target allocation from master.
-        ReplicationWriter->UploadReplicationFactor = 1;
-        RepairWriter->UploadReplicationFactor = 1;
+        config->ReplicationWriter->UploadReplicationFactor = 1;
+        config->RepairWriter->UploadReplicationFactor = 1;
 
         // Use proper workload descriptors.
         // TODO(babenko): avoid passing workload descriptor in config
-        RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
-        ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+        config->RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
+        config->ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
 
         // Don't populate caches in chunk jobs.
-        RepairReader->PopulateCache = false;
-        RepairReader->RetryTimeout = TDuration::Minutes(15);
-        SealReader->PopulateCache = false;
+        config->RepairReader->PopulateCache = false;
+        config->RepairReader->RetryTimeout = TDuration::Minutes(15);
+        config->SealReader->PopulateCache = false;
     });
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         // Instantiate default throttler configs.
         for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
-            if (!Throttlers[kind]) {
-                Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+            if (!config->Throttlers[kind]) {
+                config->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
             }
         }
 
         // COMPAT(gritukan)
-        if (!MasterConnector->IncrementalHeartbeatPeriod) {
-            MasterConnector->IncrementalHeartbeatPeriod = IncrementalHeartbeatPeriod;
+        if (!config->MasterConnector->IncrementalHeartbeatPeriod) {
+            config->MasterConnector->IncrementalHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
-        if (!MasterConnector->JobHeartbeatPeriod) {
+        if (!config->MasterConnector->JobHeartbeatPeriod) {
             // This is not a mistake!
-            MasterConnector->JobHeartbeatPeriod = IncrementalHeartbeatPeriod;
+            config->MasterConnector->JobHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
     });
 }
@@ -736,96 +698,96 @@ i64 TDataNodeConfig::GetNetOutThrottlingHardLimit() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataNodeDynamicConfig::TDataNodeDynamicConfig()
+void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
+    registrar.Parameter("storage_heavy_thread_count", &TThis::StorageHeavyThreadCount)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
+    registrar.Parameter("storage_light_thread_count", &TThis::StorageLightThreadCount)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
+    registrar.Parameter("storage_lookup_thread_count", &TThis::StorageLookupThreadCount)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("master_job_thread_count", MasterJobThreadCount)
+    registrar.Parameter("master_job_thread_count", &TThis::MasterJobThreadCount)
         .GreaterThan(0)
         .Default(4);
 
-    RegisterParameter("throttlers", Throttlers)
+    registrar.Parameter("throttlers", &TThis::Throttlers)
         .Optional();
-    RegisterParameter("read_rps_out_throttler", ReadRpsOutThrottler)
+    registrar.Parameter("read_rps_out_throttler", &TThis::ReadRpsOutThrottler)
         .Optional();
-    RegisterParameter("announce_chunk_replica_rps_out_throttler", AnnounceChunkReplicaRpsOutThrottler)
+    registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
         .Optional();
 
-    RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+    registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .DefaultNew();
-    RegisterParameter("blocks_ext_cache", BlocksExtCache)
+    registrar.Parameter("blocks_ext_cache", &TThis::BlocksExtCache)
         .DefaultNew();
-    RegisterParameter("block_meta_cache", BlockMetaCache)
+    registrar.Parameter("block_meta_cache", &TThis::BlockMetaCache)
         .DefaultNew();
-    RegisterParameter("block_cache", BlockCache)
+    registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultNew();
-    RegisterParameter("blob_reader_cache", BlobReaderCache)
+    registrar.Parameter("blob_reader_cache", &TThis::BlobReaderCache)
         .DefaultNew();
-    RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
+    registrar.Parameter("changelog_reader_cache", &TThis::ChangelogReaderCache)
         .DefaultNew();
-    RegisterParameter("table_schema_cache", TableSchemaCache)
-        .DefaultNew();
-
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
 
-    RegisterParameter("ally_replica_manager", AllyReplicaManager)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
-    RegisterParameter("chunk_reader_retention_timeout", ChunkReaderRetentionTimeout)
+    registrar.Parameter("ally_replica_manager", &TThis::AllyReplicaManager)
+        .DefaultNew();
+
+    registrar.Parameter("chunk_reader_retention_timeout", &TThis::ChunkReaderRetentionTimeout)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
+    registrar.Parameter("artifact_cache_reader", &TThis::ArtifactCacheReader)
         .DefaultNew();
 
-    RegisterParameter("abort_on_location_disabled", AbortOnLocationDisabled)
+    registrar.Parameter("abort_on_location_disabled", &TThis::AbortOnLocationDisabled)
         .Default(true);
 
-    RegisterParameter("p2p", P2P)
+    registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 
-    RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
+    registrar.Parameter("chunk_autotomizer", &TThis::ChunkAutotomizer)
         .DefaultNew();
 
-    RegisterParameter("io_statistics_update_timeout", IOStatisticsUpdateTimeout)
+    registrar.Parameter("io_statistics_update_timeout", &TThis::IOStatisticsUpdateTimeout)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("adaptive_chunk_repair_job", AdaptiveChunkRepairJob)
+    registrar.Parameter("adaptive_chunk_repair_job", &TThis::AdaptiveChunkRepairJob)
         .Optional();
 
-    RegisterParameter("io_throughput_meter", IOThroughputMeter)
+    registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
         .DefaultNew();
 
-    RegisterParameter("chunk_merger", ChunkMerger)
+    registrar.Parameter("chunk_merger", &TThis::ChunkMerger)
         .DefaultNew();
 
-    RegisterParameter("chunk_repair_job", ChunkRepairJob)
+    registrar.Parameter("chunk_repair_job", &TThis::ChunkRepairJob)
         .DefaultNew();
 
-    RegisterParameter("medium_io_engine", MediumIOEngine)
+    registrar.Parameter("medium_io_engine", &TThis::MediumIOEngine)
         .Default();
 
-    RegisterParameter("medium_io_config", MediumIOConfig)
+    registrar.Parameter("medium_io_config", &TThis::MediumIOConfig)
         .Default();
 
-    RegisterParameter("testing_options", TestingOptions)
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
-    RegisterPostprocessor([&] {
-        if (!AdaptiveChunkRepairJob) {
-            AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();
-            AdaptiveChunkRepairJob->EnableAutoRepair = false;
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->AdaptiveChunkRepairJob) {
+            config->AdaptiveChunkRepairJob = New<NChunkClient::TErasureReaderConfig>();
+            config->AdaptiveChunkRepairJob->EnableAutoRepair = false;
         }
 
-        if (!ChunkRepairJob->Reader) {
-            ChunkRepairJob->Reader = AdaptiveChunkRepairJob;
+        if (!config->ChunkRepairJob->Reader) {
+            config->ChunkRepairJob->Reader = config->AdaptiveChunkRepairJob;
         }
     });
 
