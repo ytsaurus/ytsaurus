@@ -79,7 +79,7 @@ private:
             ? HunkChunkConfig_
             : StoreChunkConfig_;
 
-        if (!config->MaxBackupRequestPercentage) {
+        if (!config->MaxBackupRequestRatio) {
             return nullptr;
         }
 

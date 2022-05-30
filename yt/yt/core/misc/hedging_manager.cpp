@@ -21,12 +21,12 @@ public:
         , BackupRequestCount_(profiler.Counter("/backup_request_count"))
         , HedgingDelay_(profiler.TimeGauge("/hedging_delay"))
     {
-        YT_VERIFY(Config_->MaxBackupRequestPercentage);
+        YT_VERIFY(Config_->MaxBackupRequestRatio);
     }
 
     TDuration OnPrimaryRequestsStarted(int requestCount) override
     {
-        if (Config_->MaxBackupRequestPercentage == 100) {
+        if (Config_->MaxBackupRequestRatio == 1.) {
             return TDuration::Zero();
         }
 
@@ -38,7 +38,7 @@ public:
 
     bool OnHedgingDelayPassed(int attemptCount) override
     {
-        if (Config_->MaxBackupRequestPercentage == 100) {
+        if (Config_->MaxBackupRequestRatio == 1.) {
             return true;
         }
 
@@ -148,7 +148,7 @@ private:
 
     bool IsBackupRequestLimitExceeded(i64 primaryRequestCount, i64 backupRequestCount) const
     {
-        return backupRequestCount * 100 >= primaryRequestCount * *Config_->MaxBackupRequestPercentage;
+        return backupRequestCount >= static_cast<i64>(std::ceil(primaryRequestCount * *Config_->MaxBackupRequestRatio));
     }
 };
 

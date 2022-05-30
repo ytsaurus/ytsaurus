@@ -31,7 +31,7 @@ protected:
 TEST_F(TAdaptiveHedgingManagerTest, Simple)
 {
     Config_->MaxHedgingDelay = TDuration::Seconds(1);
-    Config_->MaxBackupRequestPercentage = 10;
+    Config_->MaxBackupRequestRatio = 0.1;
     CreateHedgingManager();
 
     EXPECT_EQ(TDuration::Seconds(1), HedgingManager_->OnPrimaryRequestsStarted(1));
@@ -41,7 +41,7 @@ TEST_F(TAdaptiveHedgingManagerTest, Simple)
 TEST_F(TAdaptiveHedgingManagerTest, Unlimited)
 {
     Config_->MaxHedgingDelay = TDuration::Seconds(1);
-    Config_->MaxBackupRequestPercentage = 100;
+    Config_->MaxBackupRequestRatio = 1.0;
     CreateHedgingManager();
 
     EXPECT_EQ(TDuration::Zero(), HedgingManager_->OnPrimaryRequestsStarted(1));
@@ -51,7 +51,7 @@ TEST_F(TAdaptiveHedgingManagerTest, Unlimited)
 TEST_F(TAdaptiveHedgingManagerTest, RestrainHedging)
 {
     Config_->MaxHedgingDelay = TDuration::Seconds(1);
-    Config_->MaxBackupRequestPercentage = 50;
+    Config_->MaxBackupRequestRatio = 0.5;
     CreateHedgingManager();
 
     EXPECT_EQ(TDuration::Seconds(1), HedgingManager_->OnPrimaryRequestsStarted(1));
@@ -65,7 +65,7 @@ TEST_F(TAdaptiveHedgingManagerTest, ApproveHedging)
 {
     Config_->MinHedgingDelay = TDuration::Seconds(1);
     Config_->MaxHedgingDelay = TDuration::Seconds(1);
-    Config_->MaxBackupRequestPercentage = 50;
+    Config_->MaxBackupRequestRatio = 0.5;
     Config_->TickPeriod = TDuration::Seconds(1);
     CreateHedgingManager();
 
@@ -85,7 +85,7 @@ TEST_F(TAdaptiveHedgingManagerTest, TuneHedgingDelay)
 {
     Config_->MinHedgingDelay = TDuration::MilliSeconds(1);
     Config_->MaxHedgingDelay = TDuration::Seconds(1);
-    Config_->MaxBackupRequestPercentage = 10;
+    Config_->MaxBackupRequestRatio = 0.1;
     Config_->HedgingDelayTuneFactor = 1e9;
     Config_->TickPeriod = TDuration::Seconds(1);
     CreateHedgingManager();
