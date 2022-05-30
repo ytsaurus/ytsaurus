@@ -372,10 +372,7 @@ public:
 
         if (persistent) {
             const auto* context = GetCurrentMutationContext();
-            // COMPAT(ifsmirnov)
-            if (context->Request().Reign >= ToUnderlying(ETabletReign::DiscardStoresRevision)) {
-                transaction->SetPrepareRevision(context->GetVersion().ToRevision());
-            }
+            transaction->SetPrepareRevision(context->GetVersion().ToRevision());
         }
 
         if (state == ETransactionState::Active) {

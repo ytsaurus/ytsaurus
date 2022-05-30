@@ -258,14 +258,6 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 
     bool versionedWrite = TimestampColumnId_ && dynamicRow[*TimestampColumnId_].Type != EValueType::Null;
 
-    // COMPAT(gritukan)
-    // Should be false in unittests only.
-    if (auto* mutationContext = NHydra::TryGetCurrentMutationContext()) {
-        if (mutationContext->Request().Reign < ToUnderlying(ETabletReign::VersionedWriteToOrderedTablet)) {
-            versionedWrite = false;
-        }
-    }
-
     if (TimestampColumnId_ && !versionedWrite) {
         dynamicRow[*TimestampColumnId_] = MakeUnversionedUint64Value(context->CommitTimestamp, *TimestampColumnId_);
     }

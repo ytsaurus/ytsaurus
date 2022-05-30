@@ -121,7 +121,7 @@ protected:
             config->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
             config->Load(configNode);
 
-            // WARNING: Changing cell reign in local mode is very bad idea. Think twice before doing it!
+            // WARNING: Changing cell reign in local mode is a very bad idea. Think twice before doing it!
             NTabletNode::SetReignChangeAllowed(/*allowed*/ false);
         } else {
             config = GetConfig();

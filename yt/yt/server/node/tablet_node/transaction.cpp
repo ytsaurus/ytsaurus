@@ -119,19 +119,14 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
     Load(context, CommitTimestamp_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::DiscardStoresRevision) {
-        Load(context, PrepareRevision_);
-    }
+    Load(context, PrepareRevision_);
 
     Load(context, PersistentPrepareSignature_);
     TransientPrepareSignature_ = PersistentPrepareSignature_;
 
-    // COMPAT(max42)
-    if (context.GetVersion() >= ETabletReign::WriteGenerations) {
-        Load(context, PersistentGeneration_);
-        TransientGeneration_ = PersistentGeneration_;
-    }
+    Load(context, PersistentGeneration_);
+    TransientGeneration_ = PersistentGeneration_;
+
     // COMPAT(gritukan)
     if (context.GetVersion() >= ETabletReign::CommitSignature) {
         Load(context, CommitSignature_);
