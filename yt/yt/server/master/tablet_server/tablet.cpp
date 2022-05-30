@@ -325,20 +325,12 @@ void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellSt
     protoStatistics->set_dynamic_memory_pool_size(statistics.DynamicMemoryPoolSize);
     protoStatistics->set_tablet_count(statistics.TabletCount);
 
-    // COMPAT(aozeritsky)
-    const auto oldMaxMediumCount = 7;
-    i64 oldDiskSpacePerMedium[oldMaxMediumCount] = {};
     for (const auto& [mediumIndex, diskSpace] : statistics.DiskSpacePerMedium) {
-        if (mediumIndex < oldMaxMediumCount) {
-            oldDiskSpacePerMedium[mediumIndex] = diskSpace;
-        }
-
         auto* item = protoStatistics->add_disk_space_per_medium();
         item->set_medium_index(mediumIndex);
         item->set_disk_space(diskSpace);
     }
 
-    ToProto(protoStatistics->mutable_disk_space_per_medium_old(), TRange<i64>(oldDiskSpacePerMedium, oldMaxMediumCount));
     ToProto(protoStatistics->mutable_tablet_count_per_memory_mode(), statistics.TabletCountPerMemoryMode);
 }
 
@@ -358,18 +350,7 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
     statistics->PreloadFailedStoreCount = protoStatistics.preload_failed_store_count();
     statistics->DynamicMemoryPoolSize = protoStatistics.dynamic_memory_pool_size();
     statistics->TabletCount = protoStatistics.tablet_count();
-
-    // COMPAT(aozeritsky)
-    const auto oldMaxMediumCount = 7;
-    i64 oldDiskSpacePerMedium[oldMaxMediumCount] = {};
-    auto diskSpacePerMedium = TMutableRange<i64>(oldDiskSpacePerMedium, oldMaxMediumCount);
-    FromProto(&diskSpacePerMedium, protoStatistics.disk_space_per_medium_old());
-    for (auto i = 0; i < oldMaxMediumCount; ++i) {
-        if (oldDiskSpacePerMedium[i] > 0) {
-            statistics->DiskSpacePerMedium[i] = oldDiskSpacePerMedium[i];
-        }
-    }
-    for (auto& item : protoStatistics.disk_space_per_medium()) {
+    for (const auto& item : protoStatistics.disk_space_per_medium()) {
         statistics->DiskSpacePerMedium[item.medium_index()] = item.disk_space();
     }
     FromProto(&statistics->TabletCountPerMemoryMode, protoStatistics.tablet_count_per_memory_mode());
