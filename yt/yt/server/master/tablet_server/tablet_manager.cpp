@@ -3802,11 +3802,6 @@ private:
         tableSettings->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
         tableSettings->set_hunk_writer_config(serializedTableSettings.HunkWriterConfig.ToString());
         tableSettings->set_hunk_writer_options(serializedTableSettings.HunkWriterOptions.ToString());
-        // COMPAT
-        request->set_mount_config(serializedTableSettings.MountConfig.ToString());
-        request->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
-        request->set_store_writer_config(serializedTableSettings.StoreWriterConfig.ToString());
-        request->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
     }
 
 
