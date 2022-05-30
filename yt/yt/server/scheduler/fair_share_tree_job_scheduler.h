@@ -630,13 +630,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<NNodeTrackerClient::TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
-    struct TSchedulingTagFilterEntry
-    {
-        int Index;
-        int Count;
-    };
-    THashMap<TSchedulingTagFilter, TSchedulingTagFilterEntry> SchedulingTagFilterToIndexAndCount_;
-
     NProfiling::TTimeCounter CumulativeScheduleJobsTime_;
 
     NProfiling::TCounter ScheduleJobsDeadlineReachedCounter_;
