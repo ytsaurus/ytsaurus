@@ -1,7 +1,8 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, print_debug, run_test_vanilla, wait, exists,
-    with_breakpoint, release_breakpoint, sync_create_cells)
+    with_breakpoint, release_breakpoint, sync_create_cells,
+    get_operation)
 
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -49,6 +50,18 @@ def check_running_operation(lookup_in_archive=False):
     release_breakpoint()
 
     wait(lambda: op.get_state() == "completed")
+
+    # Check clean start in events.
+    found_pending = False
+    events = get_operation(op.id, attributes=["events"])["events"]
+    for event in reversed(events):
+        if event["state"] == "pending":
+            assert "attributes" in event
+            assert "revived_from_snapshot" in event["attributes"]
+            assert not event["attributes"]["revived_from_snapshot"]
+            found_pending = True
+            break
+    assert found_pending
 
     if lookup_in_archive:
         wait(lambda: not exists(op.get_path()))

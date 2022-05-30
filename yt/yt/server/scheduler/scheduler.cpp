@@ -3348,7 +3348,12 @@ private:
                 operationId);
 
             operation->RevivalDescriptor().reset();
-            operation->SetStateAndEnqueueEvent(EOperationState::Pending);
+
+            operation->SetStateAndEnqueueEvent(
+                EOperationState::Pending,
+                BuildYsonStringFluently().BeginMap()
+                    .Item("revived_from_snapshot").Value(operation->GetRevivedFromSnapshot())
+                .EndMap());
 
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
@@ -4295,9 +4300,10 @@ private:
 
         agentTracker->AssignOperationToAgent(operation, agent);
 
-        THashMap<TString, TString> eventAttributes = {
-            {"controller_agent_address", GetDefaultAddress(agent->GetAgentAddresses())},
-        };
+        auto eventAttributes = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("controller_agent_address").Value(agent->GetAgentAddresses())
+            .EndMap();
 
         if (operation->RevivalDescriptor()) {
             operation->SetStateAndEnqueueEvent(EOperationState::ReviveInitializing, eventAttributes);
