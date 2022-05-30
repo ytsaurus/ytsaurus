@@ -346,6 +346,8 @@ message TSchedulerJobSpecExt
     optional NYT.NProto.TGuid probing_job_competition_id = 33;
 
     optional bool interruptible = 34;
+
+    optional bool allow_cpu_idle_policy = 35 [default = false];
 }
 
 message TSchedulerJobResultExt

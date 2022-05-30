@@ -118,7 +118,9 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    const TString& nodeTag);
+    const TString& nodeTag,
+    ESlotType slotType,
+    double requestedCpu);
 
 ////////////////////////////////////////////////////////////////////////////////
 

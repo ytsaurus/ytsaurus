@@ -146,6 +146,7 @@ TJob::TJob(
         GetType()))
     , ResourceUsage_(resourceUsage)
     , GpuRequested_(ResourceUsage_.gpu() > 0)
+    , RequestedCpu_(resourceUsage.cpu())
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
     , FinishGuard_(TraceContext_)
 {
@@ -261,10 +262,12 @@ void TJob::Start()
             YT_LOG_DEBUG("GPU slots acquired (DeviceNumbers: %v)", deviceNumbers);
         }
 
-        YT_LOG_INFO("Acquiring slot (DiskRequest: %v)", diskRequest);
+        bool allowCpuIdlePolicy = SchedulerJobSpecExt_->allow_cpu_idle_policy();
+        YT_LOG_INFO("Acquiring slot (DiskRequest: %v, RequestedCpu: %v, AllowCpuIdlePolicy: %v)",
+            diskRequest, RequestedCpu_, allowCpuIdlePolicy);
 
         auto slotManager = Bootstrap_->GetSlotManager();
-        Slot_ = slotManager->AcquireSlot(diskRequest);
+        Slot_ = slotManager->AcquireSlot(diskRequest, RequestedCpu_, allowCpuIdlePolicy);
 
         YT_LOG_INFO("Slot acquired (SlotIndex: %v)", Slot_->GetSlotIndex());
 

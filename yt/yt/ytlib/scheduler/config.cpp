@@ -534,6 +534,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("suspend_operation_if_account_limit_exceeded", &TThis::SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
+    registrar.Parameter("allow_cpu_idle_policy", &TThis::AllowCpuIdlePolicy)
+        .Default(false);
+
     registrar.Parameter("suspend_operation_after_materialization", &TThis::SuspendOperationAfterMaterialization)
         .Default(false);
 
