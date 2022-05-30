@@ -612,10 +612,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, NodeStatistics_);
     Load(context, InMemoryMode_);
     Load(context, TrimmedRowCount_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::SaveForcefullyUnmountedTablets) {
-        Load(context, WasForcefullyUnmounted_);
-    }
+    Load(context, WasForcefullyUnmounted_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
     Load(context, TabletErrorCount_);
@@ -623,10 +620,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, ExpectedState_);
     Load(context, UnconfirmedDynamicTableLocks_);
     Load(context, EdenStoreIds_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupsInitial) {
-        Load(context, BackupState_);
-    }
+    Load(context, BackupState_);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupOrdered) {
         Load(context, BackupCutoffDescriptor_);

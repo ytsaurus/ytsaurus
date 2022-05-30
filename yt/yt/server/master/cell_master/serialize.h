@@ -26,45 +26,12 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 NHydra::TReign GetCurrentReign();
-bool ValidateSnapshotReign(NHydra::TReign);
+bool ValidateSnapshotReign(NHydra::TReign reign);
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    ((TableCollocation)                                             (1667))  // akozhikhov
-    ((CollocationTypeAttribute)                                     (1668))  // gritukan
-    ((RecomputeUnrecognizedDynamicConfigOptions)                    (1669))  // shakurov
-    ((FixZombieReplicaRemoval)                                      (1670))  // aleksandra-zh
-    ((MoreChunkMergerLimits)                                        (1671))  // aleksandra-zh
-    ((DontUseUnconfirmedMergedChunk)                                (1672))  // aleksandra-zh
-    ((FixChunkMergerAccounting)                                     (1673))  // aleksandra-zh
-    ((CalculatePivotKeysForHunks)                                   (1674))  // ifsmirnov
-    // 21.3 starts here.
-    ((DropPoolTreeInternedAttributes)                               (1800))  // ignat
-    ((VirtualMutations)                                             (1801))  // gritukan
-    ((CreateUserIgnoreExisting)                                     (1802))  // kvk1920
-    ((SaveForcefullyUnmountedTablets)                               (1803))  // ifsmirnov
-    ((HandlePoolAttributesThatBecameUninterned)                     (1804))  // renadeen
-    ((PerFlavorNodeMaps)                                            (1805))  // gritukan
-    ((FixAccountChunkMergerAttributesReplication)                   (1806))  // babenko
-    ((CopyJournals)                                                 (1807))  // gritukan
-    ((HostObjects)                                                  (1808))  // gritukan
-    ((RemoveInterDCEdgeCapacities)                                  (1809))  // gritukan
-    ((BackupsInitial)                                               (1810))  // ifsmirnov
-    ((ReassignPeersSetLeading)                                      (1811))  // alexkolodezny
-    ((MasterSmartPtrs)                                              (1812))  // shakurov
-    ((FixClusterNodeMapMigration)                                   (1813))  // gritukan
-    ((ChunkAutotomizer)                                             (1814))  // gritukan
-    ((ForbidNestedPortals)                                          (1815))  // gritukan
-    ((Crp)                                                          (1816))  // shakurov
-    ((EnableCrpBuiltinAttribute)                                    (1817))  // shakurov
-    ((CrpTokenCountFixes)                                           (1818))  // shakurov
-    ((OneMoreChunkMergerOptimization)                               (1819))  // aleksandra-zh
-    ((DoubleSnapshotDivergenceFix)                                  (1820))  // shakurov
-    ((DontStoreChunkMetaWithDeadHunkChunks)                         (1821))  // babenko
-    ((ValidateTabletContainsStoreInPrepareUpdateTabletStores)       (1822))  // ifsmirnov
-    ((NewLookupCacheOptions)                                        (1823))  // lukyan
     // 22.1 starts here.
     ((EnableCellBalancerInConfig)                                   (1900))  // alexkolodezny
     ((RefFromTabletToDynamicStore)                                  (1901))  // ifsmirnov

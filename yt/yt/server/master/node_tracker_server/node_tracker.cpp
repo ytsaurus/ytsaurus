@@ -870,7 +870,7 @@ public:
     {
         return AggregatedOnlineNodeCount_;
     }
-    
+
     const std::vector<TNode*>& GetNodesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Nodes();
@@ -970,9 +970,6 @@ private:
     THashSet<TString> PendingRegisterNodeAddreses_;
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
-
-    // COMPAT(gritukan)
-    bool NeedToCreateHostObjects_ = false;
 
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
 
@@ -1537,13 +1534,7 @@ private:
         NodeMap_.LoadKeys(context);
         RackMap_.LoadKeys(context);
         DataCenterMap_.LoadKeys(context);
-
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::HostObjects) {
-            HostMap_.LoadKeys(context);
-        }
-
-        NeedToCreateHostObjects_ = context.GetVersion() < EMasterReign::HostObjects;
+        HostMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1553,12 +1544,9 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
+        HostMap_.LoadValues(context);
 
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::HostObjects) {
-            HostMap_.LoadValues(context);
-        }
-
+        // COMPAT(babenko)
         if (context.GetVersion() < EMasterReign::ChunkLocation) {
             Load<THashMap<TChunkLocationUuid, TNode*>>(context);
         }
@@ -1659,68 +1647,6 @@ private:
 
         for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
             NodeListPerRole_[nodeRole].UpdateAddresses();
-        }
-
-        // COMPAT(gritukan)
-        if (NeedToCreateHostObjects_) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
-            if (multicellManager->IsPrimaryMaster()) {
-                for (auto* node : GetValuesSortedByKey(NodeMap_)) {
-                    if (!IsObjectAlive(node)) {
-                        continue;
-                    }
-                    auto hostName = node->GetDefaultAddress();
-                    // Create host object for node.
-                    {
-                        auto req = TMasterYPathProxy::CreateObject();
-                        req->set_type(static_cast<int>(EObjectType::Host));
-                        auto attributes = CreateEphemeralAttributes();
-                        attributes->Set("name", hostName);
-                        ToProto(req->mutable_object_attributes(), *attributes);
-                        try {
-                            SyncExecuteVerb(rootService, req);
-                        } catch (const std::exception& ex) {
-                            YT_LOG_FATAL("Failed to create host object for a node (NodeId: %v, HostName: %v)",
-                                node->GetId(),
-                                hostName);
-                        }
-                    }
-
-                    // Set host for node.
-                    {
-                        auto req = TCypressYPathProxy::Set(Format("#%v/@host", ObjectIdFromNodeId(node->GetId())));
-                        req->set_value(ConvertToYsonString(hostName).ToString());
-                        try {
-                            SyncExecuteVerb(rootService, req);
-                        } catch (const std::exception& ex) {
-                            YT_LOG_FATAL("Failed to set host for node "
-                                "(NodeId: %v, HostName: %v)",
-                                node->GetId(),
-                                hostName);
-                        }
-                    }
-
-                    // Set rack for newly created host, if needed.
-                    if (auto* rack = node->GetLegacyRack()) {
-                        YT_VERIFY(IsObjectAlive(rack));
-                        auto* host = FindHostByName(hostName);
-                        YT_VERIFY(IsObjectAlive(host));
-                        // NB: Host maps is not created yet, so we set attribute by id.
-                        auto req = TCypressYPathProxy::Set(Format("#%v/@rack", host->GetId()));
-                        req->set_value(ConvertToYsonString(rack->GetName()).ToString());
-                        try {
-                            SyncExecuteVerb(rootService, req);
-                        } catch (const std::exception& ex) {
-                            YT_LOG_FATAL("Failed to set rack for host "
-                                "(HostName: %v, HostId: %v, RackName: %v)",
-                                hostName,
-                                host->GetId(),
-                                rack->GetName());
-                        }
-                    }
-                }
-            }
         }
     }
 

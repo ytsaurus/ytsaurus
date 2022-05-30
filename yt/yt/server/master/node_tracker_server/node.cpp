@@ -529,14 +529,10 @@ void TNode::Load(TLoadContext& context)
     Load(context, ResourceUsage_);
     Load(context, ResourceLimitsOverrides_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::HostObjects) {
-        Load(context, Host_);
-    } else {
-        Load(context, LegacyRack_);
-    }
+    Load(context, Host_);
 
     Load(context, LeaseTransaction_);
+
     Load(context, DestroyedReplicas_);
 
     // NB: This code does not load the replicas per se; it just
@@ -570,24 +566,7 @@ void TNode::Load(TLoadContext& context)
 
     Load(context, ReplicaEndorsements_);
 
-    if (context.GetVersion() >= EMasterReign::Crp) {
-        Load(context, ConsistentReplicaPlacementTokenCount_);
-        if (context.GetVersion() < EMasterReign::CrpTokenCountFixes) {
-            if (IsValidWriteTarget()) {
-                TCompactVector<int, 8> mediumIndexesWithZeroTokens;
-                for (auto [mediumIndex, tokenCount] : ConsistentReplicaPlacementTokenCount_) {
-                    if (tokenCount == 0) {
-                        mediumIndexesWithZeroTokens.push_back(mediumIndex);
-                    }
-                }
-                for (auto mediumIndex : mediumIndexesWithZeroTokens) {
-                    ConsistentReplicaPlacementTokenCount_.erase(mediumIndex);
-                }
-            } else {
-                ConsistentReplicaPlacementTokenCount_.clear();
-            }
-        }
-    }
+    Load(context, ConsistentReplicaPlacementTokenCount_);
 
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::MediumOverridesViaHeartbeats &&

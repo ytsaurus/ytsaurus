@@ -124,10 +124,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, DependentTransactions_);
     Load(context, Deadline_);
     Load(context, LockedDynamicTables_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupsInitial) {
-        Load(context, TablesWithBackupCheckpoints_);
-    }
+    Load(context, TablesWithBackupCheckpoints_);
     Load(context, Depth_);
     Load(context, Upload_);
     Load(context, NativeCommitMutationRevision_);

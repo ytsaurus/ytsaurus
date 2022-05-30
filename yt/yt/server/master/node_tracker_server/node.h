@@ -158,9 +158,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<NChunkServer::TChunkLocationId>, CompatChunkLocationUuids);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocation*>, ChunkLocations);
 
-    // COMPAT(gritukan): This is used for host creation only.
-    DEFINE_BYVAL_RO_PROPERTY(TRack*, LegacyRack);
-
     DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
 
     // Lease tracking.
