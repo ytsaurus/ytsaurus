@@ -741,19 +741,16 @@ void TTablet::Load(TLoadContext& context)
         }
     }
 
-    // COMPAT(babenko)
-    if (context.GetVersion() >= ETabletReign::Hunks1) {
-        int hunkChunkCount = TSizeSerializer::LoadSuspended(context);
-        SERIALIZATION_DUMP_WRITE(context, "hunk_chunks[%v]", hunkChunkCount);
-        SERIALIZATION_DUMP_INDENT(context) {
-            for (int index = 0; index < hunkChunkCount; ++index) {
-                auto chunkId = Load<TChunkId>(context);
-                auto hunkChunk = Context_->CreateHunkChunk(this, chunkId, nullptr);
-                YT_VERIFY(HunkChunkMap_.emplace(chunkId, hunkChunk).second);
-                hunkChunk->Load(context);
-                hunkChunk->Initialize();
-                UpdateDanglingHunkChunks(hunkChunk);
-            }
+    int hunkChunkCount = TSizeSerializer::LoadSuspended(context);
+    SERIALIZATION_DUMP_WRITE(context, "hunk_chunks[%v]", hunkChunkCount);
+    SERIALIZATION_DUMP_INDENT(context) {
+        for (int index = 0; index < hunkChunkCount; ++index) {
+            auto chunkId = Load<TChunkId>(context);
+            auto hunkChunk = Context_->CreateHunkChunk(this, chunkId, nullptr);
+            YT_VERIFY(HunkChunkMap_.emplace(chunkId, hunkChunk).second);
+            hunkChunk->Load(context);
+            hunkChunk->Initialize();
+            UpdateDanglingHunkChunks(hunkChunk);
         }
     }
 
@@ -806,10 +803,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, DynamicStoreIdPool_);
     Load(context, DynamicStoreIdRequested_);
 
-    // COMPAT(akozhikhov)
-    if (context.GetVersion() >= ETabletReign::SchemaIdUponMount) {
-        Load(context, SchemaId_);
-    }
+    Load(context, SchemaId_);
 
     // COMPAT(savrus)
     if (context.GetVersion() >= ETabletReign::Chaos) {
@@ -833,10 +827,7 @@ void TTablet::Load(TLoadContext& context)
         BackupMetadata_.SetBackupStage(Load<EBackupStage>(context));
     }
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::DiscardStoresRevision) {
-        Load(context, LastDiscardStoresRevision_);
-    }
+    Load(context, LastDiscardStoresRevision_);
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
@@ -912,20 +903,12 @@ void TTablet::AsyncLoad(TLoadContext& context)
     } else {
         Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Settings_.MountConfig);
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= ETabletReign::Hunks2) {
-        Load(context, *Settings_.StoreReaderConfig);
-        Load(context, *Settings_.HunkReaderConfig);
-    }
+    Load(context, *Settings_.StoreReaderConfig);
+    Load(context, *Settings_.HunkReaderConfig);
     Load(context, *Settings_.StoreWriterConfig);
     Load(context, *Settings_.StoreWriterOptions);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= ETabletReign::Hunks1) {
-        Load(context, *Settings_.HunkWriterConfig);
-        Load(context, *Settings_.HunkWriterOptions);
-    } else {
-        Settings_.HunkWriterOptions = CreateFallbackHunkWriterOptions(Settings_.StoreWriterOptions);
-    }
+    Load(context, *Settings_.HunkWriterConfig);
+    Load(context, *Settings_.HunkWriterOptions);
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
 

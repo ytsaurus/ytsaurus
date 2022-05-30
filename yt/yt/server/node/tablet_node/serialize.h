@@ -17,22 +17,12 @@ bool IsReignChangeAllowed();
 ////////////////////////////////////////////////////////////////////////////////
 
 NHydra::TReign GetCurrentReign();
-bool ValidateSnapshotReign(NHydra::TReign);
+bool ValidateSnapshotReign(NHydra::TReign reign);
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletReign,
-    // 21.2 starts here.
-    ((RowBufferEmptyRowDeserialization)   (100200)) // max42
-    ((Hunks1)                             (100201)) // babenko
-    ((Hunks2)                             (100202)) // babenko
-    ((PersistChunkTimestamp)              (100203)) // ifsmirnov
-    ((SchemaIdUponMount)                  (100204)) // akozhikhov
-    ((VersionedWriteToOrderedTablet)      (100205)) // gritukan
-    // 21.3 starts here.
-    ((WriteGenerations)                   (100301)) // max42
-    ((DiscardStoresRevision)              (100302)) // ifsmirnov
     // 22.1 starts here.
     ((NewLockMasks)                       (100400)) // gritukan
     ((Chaos)                              (100401)) // savrus

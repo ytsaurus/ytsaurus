@@ -215,11 +215,8 @@ void TStoreManagerBase::DiscardAllStores()
         RemoveStore(store);
     }
 
-    // COMPAT(ifsmirnov)
     const auto* context = GetCurrentMutationContext();
-    if (context->Request().Reign >= ToUnderlying(ETabletReign::DiscardStoresRevision)) {
-        Tablet_->SetLastDiscardStoresRevision(context->GetVersion().ToRevision());
-    }
+    Tablet_->SetLastDiscardStoresRevision(context->GetVersion().ToRevision());
 }
 
 void TStoreManagerBase::RemoveStore(IStorePtr store)
