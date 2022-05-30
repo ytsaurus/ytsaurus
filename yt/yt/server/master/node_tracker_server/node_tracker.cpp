@@ -1972,11 +1972,15 @@ private:
         const TAsyncSemaphorePtr& semaphore)
     {
         auto timeBefore = NProfiling::GetInstant();
-        auto handler = BIND([mutation = std::move(mutation), context = std::move(context), timeBefore] (TAsyncSemaphoreGuard) mutable {
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
+
+        auto handler = BIND([=, mutation = std::move(mutation), context = std::move(context)] (TAsyncSemaphoreGuard) mutable {
             auto requestTimeout = context->GetTimeout();
             auto timeAfter = NProfiling::GetInstant();
-            if (requestTimeout && timeAfter >= timeBefore + *requestTimeout) {
-                context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took longer than request timeout"));
+            if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
+                context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
             } else {
                 Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
             }

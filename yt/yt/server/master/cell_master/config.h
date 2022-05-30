@@ -247,6 +247,8 @@ public:
 
     THashMap<TString, double> AutomatonThreadBucketWeights;
 
+    TDuration ExpectedMutationCommitDuration;
+
     REGISTER_YSON_STRUCT(TDynamicCellMasterConfig);
 
     static void Register(TRegistrar registrar);

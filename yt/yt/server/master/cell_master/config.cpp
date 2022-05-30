@@ -256,6 +256,10 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("automaton_thread_bucket_weights", &TThis::AutomatonThreadBucketWeights)
         .Default();
+
+    registrar.Parameter("expected_mutation_commit_duration", &TThis::ExpectedMutationCommitDuration)
+        .Default(TDuration::Zero())
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
