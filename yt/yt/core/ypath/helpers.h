@@ -16,6 +16,9 @@ std::pair<TYPath, TString> DirNameAndBaseName(const TYPath& path);
 //! Check if path contains attribute designation by looking for @ token in it.
 bool IsPathPointingToAttributes(const TYPath& path);
 
+//! Eliminates path suffix after the @ token, if it exists.
+TYPath StripAttributes(const TYPath& path);
+
 TYPath YPathJoin(const TYPath& path, TStringBuf literal);
 
 ////////////////////////////////////////////////////////////////////////////////
