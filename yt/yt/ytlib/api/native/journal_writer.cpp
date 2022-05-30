@@ -1147,11 +1147,6 @@ private:
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
                 // COMPAT(aleksandra-zh): YT-15138
                 req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, UseOverlayedChunks()));
-                // COMPAT(babenko): YT-14089
-                req->mutable_misc()->set_sealed(true);
-                req->mutable_misc()->set_row_count(session->QuorumFlushedRowCount);
-                req->mutable_misc()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
-                req->mutable_misc()->set_compressed_data_size(session->QuorumFlushedDataSize);
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     GetCumulativeError(batchRspOrError),

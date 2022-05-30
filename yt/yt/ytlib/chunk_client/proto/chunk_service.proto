@@ -266,9 +266,9 @@ message TReqExecuteBatch
     message TSealChunkSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
-        // COMPAT(babenko): YT-14089
-        optional TMiscExt misc = 2;
         required TChunkSealInfo info = 3;
+
+        reserved 2;
     }
 
     repeated TSealChunkSubrequest seal_chunk_subrequests = 3;
