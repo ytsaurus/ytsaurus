@@ -867,42 +867,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         _check(["value", "key"])
 
     @authors("akozhikhov")
-    def test_lookup_hunks_from_suspicious_nodes(self):
-        self._separate_tablet_and_data_nodes()
-        sync_create_cells(1)
-
-        self._create_table()
-        set("//tmp/t/@replication_factor", self.NUM_NODES - 1)
-        set("//tmp/t/@hunk_chunk_reader",
-            {"periodic_update_delay": 500,
-             "evict_after_successful_access_time": 1000})
-        set("//tmp/t/@hunk_chunk_writer",
-            {"upload_replication_factor": self.NUM_NODES - 1})
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": 1, "value": "value" + "x" * 20}]
-        insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
-
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-
-        # Banned nodes are marked as suspicious and will be avoided within next lookups.
-        set_banned_flag(True, self._nodes[1:5])
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-        # Drop CFR cache
-        time.sleep(2)
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-
-        # Node shall not be suspicious anymore.
-        set_banned_flag(False, self._nodes[1:5])
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-        # Drop CFR cache
-        time.sleep(2)
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
-
-    @authors("akozhikhov")
     def test_hunks_profiling_flush(self):
         sync_create_cells(1)
         self._create_table()
