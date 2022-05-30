@@ -56,6 +56,25 @@ bool IsPathPointingToAttributes(const TYPath& path)
     return false;
 }
 
+TYPath StripAttributes(const TYPath& path)
+{
+    if (path.empty()) {
+        return {};
+    }
+    for (TTokenizer tokenizer(path); tokenizer.GetType() != ETokenType::EndOfStream; tokenizer.Advance()) {
+        if (tokenizer.GetType() == ETokenType::At) {
+            const auto& prefix = tokenizer.GetPrefix();
+            if (prefix.ends_with('/')) {
+                // Strip trailing '/'.
+                return TYPath(prefix.substr(0, prefix.size() - 1));
+            } else {
+                return TYPath(prefix);
+            }
+        }
+    }
+    return path;
+}
+
 TYPath YPathJoin(const TYPath& path, TStringBuf literal)
 {
     return TString::Join(path, "/", ToYPathLiteral(literal));
