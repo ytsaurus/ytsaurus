@@ -45,7 +45,6 @@ private:
     ui16 MonitoringPort_ = 0;
     ui16 TcpPort_ = 0;
     ui16 HttpPort_ = 0;
-
     bool PrintClickHouseVersion_ = false;
 
 public:
