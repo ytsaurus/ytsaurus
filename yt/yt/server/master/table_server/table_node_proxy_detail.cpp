@@ -2182,6 +2182,9 @@ bool TReplicatedTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, c
         case EInternedAttributeKey::ReplicatedTableOptions: {
             auto options = ConvertTo<TReplicatedTableOptionsPtr>(value);
             table->SetReplicatedTableOptions(options);
+            Bootstrap_->GetTabletManager()->GetReplicatedTableOptionsUpdatedSignal()->Fire(
+                table->GetTrunkNode()->GetId(),
+                options);
             return true;
         }
 

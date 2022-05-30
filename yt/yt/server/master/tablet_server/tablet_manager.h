@@ -187,6 +187,16 @@ public:
     TError PromoteFlushedDynamicStores(TTablet* tablet);
     TError ApplyBackupCutoff(TTablet* tablet);
 
+    DECLARE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
+    DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId), ReplicatedTableDestroyed);
+    DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
+
+    DECLARE_SIGNAL(void(TReplicaData), ReplicaCreated);
+    DECLARE_SIGNAL(void(NTabletClient::TTableReplicaId), ReplicaDestroyed);
+    DECLARE_SIGNAL(void(NTabletClient::TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated);
+    DECLARE_SIGNAL(void(NTabletClient::TTableReplicaId, bool), ReplicaEnablementUpdated);
+    DECLARE_SIGNAL_WITH_ACCESSOR(void(NTabletClient::TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
+
 private:
     template <class TImpl>
     friend class NTableServer::TTableNodeTypeHandlerBase;

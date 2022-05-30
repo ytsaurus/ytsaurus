@@ -105,6 +105,8 @@
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 #include <yt/yt/server/lib/timestamp_server/timestamp_manager.h>
 
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
@@ -478,6 +480,11 @@ const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
     return NodeChannelFactory_;
 }
 
+const IReplicatedTableTrackerPtr& TBootstrap::GetNewReplicatedTableTracker() const
+{
+    return NewReplicatedTableTracker_;
+}
+
 NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
@@ -840,6 +847,12 @@ void TBootstrap::DoInitialize()
     // new automaton parts registration after its initialization.
     // Cf. TConfigManager::Initialize.
     ConfigManager_->Initialize();
+
+    NewReplicatedTableTrackerHost_ = CreateReplicatedTableTrackerHost(this);
+    NewReplicatedTableTracker_ = CreateReplicatedTableTracker(
+        NewReplicatedTableTrackerHost_,
+        // NB: We rely on the config manager signal being called after RTT initialization so actual config will be applied.
+        New<TDynamicReplicatedTableTrackerConfig>());
 
     CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
         Config_->CellDirectorySynchronizer,

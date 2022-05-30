@@ -104,6 +104,9 @@ public:
     virtual void UnregisterConsumer(TTableNode* node) = 0;
 
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(NTabletServer::TTableCollocationData), ReplicationCollocationUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(NTableClient::TTableCollocationId), ReplicationCollocationDestroyed);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITableManager)

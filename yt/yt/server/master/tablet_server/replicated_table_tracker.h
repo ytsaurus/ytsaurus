@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
+#include <yt/yt/server/lib/tablet_server/public.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +26,12 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableTracker)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Master implementation of replicated table tracker host interface.
+IReplicatedTableTrackerHostPtr CreateReplicatedTableTrackerHost(
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

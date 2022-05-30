@@ -26,7 +26,7 @@ namespace NYT::NCellServer {
 
 struct TCellBundleProfilingCounters
 {
-    NProfiling::TCounter ReplicaSwitch;
+    NProfiling::TCounter ReplicaModeSwitch;
     NProfiling::TCounter InMemoryMoves;
     NProfiling::TCounter ExtMemoryMoves;
     NProfiling::TCounter TabletMerges;

@@ -28,6 +28,9 @@
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
+#include <yt/yt/server/lib/tablet_server/config.h>
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -257,6 +260,14 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         throw;
     }
 
+    if (replicated && !id.IsBranched() && !node->IsExternal()) {
+        tabletManager->GetReplicatedTableCreatedSignal()->Fire(TReplicatedTableData{
+            .Id = id.ObjectId,
+            .Options = New<TReplicatedTableOptions>(),
+            .ReplicaModeSwitchCounter = tabletCellBundle->ProfilingCounters().ReplicaModeSwitch
+        });
+    }
+
     return nodeHolder;
 }
 
@@ -275,7 +286,12 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
 
     if (table->IsTrunk()) {
         const auto& tabletManager = this->Bootstrap_->GetTabletManager();
+
         tabletManager->DestroyTable(table);
+
+        if (!table->IsExternal() && TypeFromId(table->GetId()) == EObjectType::ReplicatedTable) {
+            tabletManager->GetReplicatedTableDestroyedSignal()->Fire(table->GetId());
+        }
     }
 
     tableManager->ResetTableSchema(table);

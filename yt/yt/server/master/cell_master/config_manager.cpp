@@ -53,7 +53,7 @@ public:
                 BIND(&TConfigManager::GetAlerts, MakeStrong(this)));
         }
 
-        // NB: Config Manager initialization in performed after all automaton parts registration in Hydra,
+        // NB: Config Manager initialization is performed after all automaton parts registration in Hydra,
         // so config changed signal will be fired after other {LeaderRecoveryComplete,FollowerRecoveryComplete,LeaderActive}
         // subscribers. This property is crucial for many automaton parts.
         HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));

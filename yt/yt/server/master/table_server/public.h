@@ -12,7 +12,7 @@ namespace NYT::NTableServer {
 
 using TTableId = NTableClient::TTableId;
 using TMasterTableSchemaId = NObjectClient::TObjectId;
-using TTableCollocationId = NObjectClient::TObjectId;
+using TTableCollocationId = NTableClient::TTableCollocationId;
 
 DECLARE_ENTITY_TYPE(TMasterTableSchema, TMasterTableSchemaId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TTableCollocation, TTableCollocationId, NObjectClient::TDirectObjectIdHash)
@@ -29,7 +29,6 @@ class TReplicatedTableNodeTypeHandler;
 DECLARE_REFCOUNTED_STRUCT(ITableManager)
 
 DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable)
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)

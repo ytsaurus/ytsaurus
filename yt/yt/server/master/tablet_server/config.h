@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
+#include <yt/yt/server/lib/tablet_server/config.h>
+
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -153,19 +155,6 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTrackerExpiringCacheConfig
-    : public TAsyncExpiringCacheConfig
-{
-public:
-    REGISTER_YSON_STRUCT(TReplicatedTableTrackerExpiringCacheConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerExpiringCacheConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReplicatedTableTrackerConfig
     : public NYTree::TYsonSerializable
 {
@@ -176,31 +165,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicReplicatedTableTrackerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    bool EnableReplicatedTableTracker;
-
-    TDuration CheckPeriod;
-    TDuration UpdatePeriod;
-
-    TDuration GeneralCheckTimeout;
-
-    NTabletNode::TReplicatorHintConfigPtr ReplicatorHint;
-    TAsyncExpiringCacheConfigPtr BundleHealthCache;
-    TAsyncExpiringCacheConfigPtr ClusterStateCache;
-    NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
-
-    i64 MaxIterationsWithoutAcceptableBundleHealth;
-
-    TDynamicReplicatedTableTrackerConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
