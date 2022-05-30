@@ -69,10 +69,6 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
         } else {
             ToProto(protoDataSource->mutable_column_filter()->mutable_admitted_names(), *dataSource.Columns());
         }
-
-        // COMPAT(evgenstf): YT-11994: remove this old format support.
-        protoDataSource->set_has_legacy_column_filter(true);
-        ToProto(protoDataSource->mutable_legacy_admitted_columns(), *dataSource.Columns());
     }
 
     ToProto(protoDataSource->mutable_omitted_inaccessible_columns(), dataSource.OmittedInaccessibleColumns());
@@ -139,13 +135,6 @@ void FromProto(
         YT_VERIFY(columnFilterDictionary);
         int id = protoDataSource.column_filter_id();
         dataSource->Columns() = columnFilterDictionary->GetAdmittedColumns(id);
-    }
-    // COMPAT(evgenstf): YT-11994: remove this old format support.
-    else if (
-        protoDataSource.has_has_legacy_column_filter() &&
-        protoDataSource.has_legacy_column_filter())
-    {
-        dataSource->Columns() = FromProto<std::vector<TString>>(protoDataSource.legacy_admitted_columns());
     }
 
     dataSource->OmittedInaccessibleColumns() = FromProto<std::vector<TString>>(protoDataSource.omitted_inaccessible_columns());
