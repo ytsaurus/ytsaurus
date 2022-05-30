@@ -66,48 +66,6 @@ void TSingletonsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDeprecatedSingletonsConfig::TDeprecatedSingletonsConfig()
-{
-    RegisterParameter("spin_wait_slow_path_logging_threshold", SpinWaitSlowPathLoggingThreshold)
-        .Default(TDuration::MicroSeconds(100));
-    RegisterParameter("yt_alloc", YTAlloc)
-        .DefaultNew();
-    RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
-        .Default({});
-    RegisterParameter("address_resolver", AddressResolver)
-        .DefaultNew();
-    RegisterParameter("tcp_dispatcher", TcpDispatcher)
-        .DefaultNew();
-    RegisterParameter("rpc_dispatcher", RpcDispatcher)
-        .DefaultNew();
-    RegisterParameter("yp_service_discovery", YPServiceDiscovery)
-        .DefaultNew();
-    RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
-        .DefaultNew();
-    RegisterParameter("profile_manager", ProfileManager)
-        .DefaultNew();
-    RegisterParameter("solomon_exporter", SolomonExporter)
-        .DefaultNew();
-    RegisterParameter("logging", Logging)
-        .Default(NLogging::TLogManagerConfig::CreateDefault());
-    RegisterParameter("jaeger", Jaeger)
-        .DefaultNew();
-    RegisterParameter("rpc", Rpc)
-        .DefaultNew();
-    RegisterParameter("tcmalloc", TCMalloc)
-        .DefaultNew();
-
-    // COMPAT(prime@): backward compatible config for CHYT
-    RegisterPostprocessor([this] {
-        if (!ProfileManager->GlobalTags.empty()) {
-            SolomonExporter->Host = "";
-            SolomonExporter->InstanceTags = ProfileManager->GlobalTags;
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TSingletonsDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("spin_lock_slow_path_logging_threshold", &TThis::SpinWaitSlowPathLoggingThreshold)
@@ -130,28 +88,6 @@ void TSingletonsDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 }
 
-TDeprecatedSingletonsDynamicConfig::TDeprecatedSingletonsDynamicConfig()
-{
-    RegisterParameter("spin_lock_slow_path_logging_threshold", SpinWaitSlowPathLoggingThreshold)
-        .Optional();
-    RegisterParameter("yt_alloc", YTAlloc)
-        .Optional();
-    RegisterParameter("tcp_dispatcher", TcpDispatcher)
-        .DefaultNew();
-    RegisterParameter("rpc_dispatcher", RpcDispatcher)
-        .DefaultNew();
-    RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
-        .DefaultNew();
-    RegisterParameter("logging", Logging)
-        .DefaultNew();
-    RegisterParameter("jaeger", Jaeger)
-        .DefaultNew();
-    RegisterParameter("rpc", Rpc)
-        .DefaultNew();
-    RegisterParameter("tcmalloc", TCMalloc)
-        .Optional();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDiagnosticDumpConfig::Register(TRegistrar registrar)
@@ -159,14 +95,6 @@ void TDiagnosticDumpConfig::Register(TRegistrar registrar)
     registrar.Parameter("yt_alloc_dump_period", &TThis::YTAllocDumpPeriod)
         .Default();
     registrar.Parameter("ref_counted_tracker_dump_period", &TThis::RefCountedTrackerDumpPeriod)
-        .Default();
-}
-
-TDeprecatedDiagnosticDumpConfig::TDeprecatedDiagnosticDumpConfig()
-{
-    RegisterParameter("yt_alloc_dump_period", YTAllocDumpPeriod)
-        .Default();
-    RegisterParameter("ref_counted_tracker_dump_period", RefCountedTrackerDumpPeriod)
         .Default();
 }
 

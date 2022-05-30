@@ -25,7 +25,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// YsonStruct version.
 class TServerConfig
     : public TSingletonsConfig
     , public TDiagnosticDumpConfig
@@ -46,24 +45,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerConfig)
-
-// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
-class TDeprecatedServerConfig
-    : public TDeprecatedSingletonsConfig
-    , public TDeprecatedDiagnosticDumpConfig
-{
-public:
-    NBus::TTcpBusServerConfigPtr BusServer;
-    NRpc::TServerConfigPtr RpcServer;
-    NCoreDump::TCoreDumperConfigPtr CoreDumper;
-
-    int RpcPort;
-    int MonitoringPort;
-
-    TDeprecatedServerConfig();
-
-    NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

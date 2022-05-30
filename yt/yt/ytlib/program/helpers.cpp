@@ -103,11 +103,6 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     ConfigureSingletonsImpl(config);
 }
 
-void ConfigureSingletons(const TDeprecatedSingletonsConfigPtr& config)
-{
-    ConfigureSingletonsImpl(config);
-}
-
 template <class TStaticConfig, class TDynamicConfig>
 void ReconfigureSingletonsImpl(const TStaticConfig& config, const TDynamicConfig& dynamicConfig)
 {
@@ -145,11 +140,6 @@ void ReconfigureSingletonsImpl(const TStaticConfig& config, const TDynamicConfig
     } else if (config->TCMalloc) {
         ConfigureTCMalloc(config->TCMalloc);
     }
-}
-
-void ReconfigureSingletons(const TDeprecatedSingletonsConfigPtr& config, const TDeprecatedSingletonsDynamicConfigPtr& dynamicConfig)
-{
-    ReconfigureSingletonsImpl(config, dynamicConfig);
 }
 
 void ReconfigureSingletons(const TSingletonsConfigPtr& config, const TSingletonsDynamicConfigPtr& dynamicConfig)
@@ -194,11 +184,6 @@ void StartDiagnosticDumpImpl(const TConfig& config)
 }
 
 void StartDiagnosticDump(const TDiagnosticDumpConfigPtr& config)
-{
-    StartDiagnosticDumpImpl(config);
-}
-
-void StartDiagnosticDump(const TDeprecatedDiagnosticDumpConfigPtr& config)
 {
     StartDiagnosticDumpImpl(config);
 }
