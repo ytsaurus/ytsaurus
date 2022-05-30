@@ -177,7 +177,10 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
+    virtual void ValidateSnapshot(
+        int snapshotId,
+        const TSnapshotParams& params,
+        NConcurrency::IAsyncZeroCopyInputStreamPtr reader) = 0;
 
     //! Returns the callback for producing the monitoring info.
     /*!

@@ -213,12 +213,18 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
         // NB: Typically missing at followers.
         shard->ExpiredNodes.erase(trunkNode);
 
+        // This happens when removing a map node fails due to a lock on a nested node.
         if (!IsNodeLocked(trunkNode)) {
-            auto* mutationContext = GetCurrentMutationContext();
-            // Prolong expiration in case of removal failure. This is debatable but seems safer.
-            trunkNode->SetTouchTime(mutationContext->GetTimestamp());
             RegisterNodeExpirationTimeout(trunkNode);
         } // Else expiration will be rescheduled on lock release.
+    }
+
+    // Prolong expiration in case of removal failure. This is debatable but seems safer.
+    // NB: time(out) iterators differ on the leader and followers. Avoid relying
+    // on them when updating persistent state.
+    if (trunkNode->TryGetExpirationTimeout() && !IsNodeLocked(trunkNode)) {
+        auto* mutationContext = GetCurrentMutationContext();
+        trunkNode->SetTouchTime(mutationContext->GetTimestamp());
     }
 }
 

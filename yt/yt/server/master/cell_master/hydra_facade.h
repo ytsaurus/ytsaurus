@@ -26,7 +26,9 @@ struct IHydraFacade
 {
 public:
     virtual void Initialize() = 0;
+    // TODO(shakurov): include snapshot ID into TSnapshotParams?
     virtual void LoadSnapshot(
+        int snapshotId,
         NHydra::ISnapshotReaderPtr reader,
         bool dump,
         bool enableTotalWriteCountReport,

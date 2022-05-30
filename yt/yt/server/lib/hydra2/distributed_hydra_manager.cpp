@@ -380,9 +380,12 @@ public:
         return leaderCommitter->BuildSnapshot(waitForSnapshotCompletion, setReadOnly);
     }
 
-    void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
+    void ValidateSnapshot(
+        int snapshotId,
+        const TSnapshotParams& params,
+        IAsyncZeroCopyInputStreamPtr reader) override
     {
-        DecoratedAutomaton_->ValidateSnapshot(reader);
+        DecoratedAutomaton_->ValidateSnapshot(snapshotId, params, std::move(reader));
     }
 
     TYsonProducer GetMonitoringProducer() override

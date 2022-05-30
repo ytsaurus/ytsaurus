@@ -1190,7 +1190,7 @@ private:
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        ValidateTabletCellSnapshot(this, reader);
+        ValidateTabletCellSnapshot(this, InvalidSegmentId, reader->GetParams(), reader);
     }
 
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) override

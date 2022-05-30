@@ -119,6 +119,7 @@ DEFINE_ENUM(EMasterReign,
     ((BackupReplicated)                                             (2017))  // ifsmirnov
     ((DefaultMaxBackingStoreMemoryRatio)                            (2018))  // ifsmirnov
     ((FarewellToOldCFR)                                             (2019))  // akozhikhov
+    ((InitTouchTimeOnCloning)                                       (2020))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

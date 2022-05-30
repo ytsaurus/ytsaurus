@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -25,6 +27,7 @@ using namespace NCellarAgent;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NHiveClient;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NCellarNodeTrackerClient::NProto;
@@ -32,7 +35,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const IAsyncZeroCopyInputStreamPtr& reader)
+void ValidateTabletCellSnapshot(
+    IBootstrapBase* bootstrap,
+    int snapshotId,
+    const TSnapshotParams& snapshotParams,
+    const IAsyncZeroCopyInputStreamPtr& reader)
 {
     const auto& cellarManager = bootstrap
         ->GetCellarNodeBootstrap()
@@ -75,9 +82,9 @@ void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const IAsyncZeroCopyI
         cellar->ConfigureOccupant(occupant, protoInfo);
     }
 
-    BIND([=] {
+    BIND([=, reader=std::move(reader)] {
             const auto& hydraManager = occupant->GetHydraManager();
-            hydraManager->ValidateSnapshot(reader);
+            hydraManager->ValidateSnapshot(snapshotId, snapshotParams, reader);
         })
         .AsyncVia(occupant->GetOccupier()->GetOccupierAutomatonInvoker())
         .Run()

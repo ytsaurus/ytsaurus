@@ -2132,7 +2132,7 @@ private:
         ShardMap_.LoadValues(context);
 
         // COMPAT(shakurov)
-        NeedInitializeNodeTouchTimes_ = context.GetVersion() <= EMasterReign::PersistentNodeTouchTime;
+        NeedInitializeNodeTouchTimes_ = context.GetVersion() <= EMasterReign::InitTouchTimeOnCloning;
     }
 
     void Clear() override
@@ -2250,11 +2250,18 @@ private:
                 ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
             }
 
+            // COMPAT(shakurov)
+            if (NeedInitializeNodeTouchTimes_ &&
+                node->TryGetExpirationTimeout() &&
+                !node->GetTouchTime())
+            {
+                // NB: touch time on branches is not actually used but for
+                // invariant's sake let's set it anyway.
+                const auto* hydraContext = GetCurrentHydraContext();
+                node->SetTouchTime(hydraContext->GetTimestamp());
+            }
+
             if (node->IsTrunk() && node->TryGetExpirationTimeout()) {
-                if (NeedInitializeNodeTouchTimes_) {
-                    const auto* hydraContext = GetCurrentHydraContext();
-                    node->SetTouchTime(hydraContext->GetTimestamp());
-                }
                 ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
             }
         }
