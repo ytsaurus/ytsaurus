@@ -147,7 +147,6 @@ message TTabletCellStatistics
     optional int64 hunk_compressed_data_size = 19;
     required int64 memory_size = 4;
     required int64 dynamic_memory_pool_size = 5;
-    repeated int64 disk_space_per_medium_old = 6;
     required int32 chunk_count = 7;
     required int32 partition_count = 8;
     required int32 store_count = 9;
@@ -165,7 +164,7 @@ message TTabletCellStatistics
 
     repeated TMediumDiskSpace disk_space_per_medium = 17;
 
-    reserved 15, 16;
+    reserved 6, 15, 16;
 }
 
 message TReqUpdateTabletCellHealthStatistics
