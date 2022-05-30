@@ -599,7 +599,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", chunk_reader={
             "hedging_manager": {
-                "max_backup_request_percentage": 50,
+                "max_backup_request_ratio": 0.5,
             },
             "prefer_local_replicas": False,
             "use_block_cache": False,

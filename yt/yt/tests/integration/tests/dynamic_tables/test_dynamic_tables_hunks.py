@@ -1095,7 +1095,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     def test_hedging_manager_sensors(self):
         sync_create_cells(1)
         self._create_table()
-        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"max_backup_request_percentage": 50})
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"max_backup_request_ratio": 0.5})
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(5)]
