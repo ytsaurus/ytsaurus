@@ -478,7 +478,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 blockCache,
                 chunkMetaCache,
                 trafficMeter,
-                /* nodeStatusDirectory */ nullptr,
+                /*nodeStatusDirectory*/ nullptr,
                 bandwidthThrottler,
                 rpsThrottler);
 

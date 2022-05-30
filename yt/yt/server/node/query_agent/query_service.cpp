@@ -713,6 +713,10 @@ private:
                             auto reader = CreateWireProtocolReader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
                             auto writer = CreateWireProtocolWriter();
 
+                            const auto& hedgingManagerRegistry = inMemoryMode == EInMemoryMode::None
+                                ? tabletSnapshot->HedgingManagerRegistry
+                                : nullptr;
+
                             LookupRead(
                                 tabletSnapshot,
                                 TReadTimestampRange{
@@ -723,7 +727,8 @@ private:
                                 chunkReadOptions,
                                 retentionConfig,
                                 reader.get(),
-                                writer.get());
+                                writer.get(),
+                                hedgingManagerRegistry);
 
                             return responseCodec->Compress(writer->Finish());
                         });

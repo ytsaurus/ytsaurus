@@ -761,7 +761,7 @@ private:
                 addressWithNetwork);
             return;
         }
-        
+
         const auto& rsp = rspOrError.Value();
         auto targetLocationUuid = rsp->has_location_uuid()
             ? FromProto<TChunkLocationUuid>(rsp->location_uuid())

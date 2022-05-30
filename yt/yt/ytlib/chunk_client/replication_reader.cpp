@@ -48,6 +48,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/string.h>
 
@@ -774,24 +775,20 @@ protected:
 
     IChannelPtr MakePeersChannel(
         const TPeerList& peers,
-        std::optional<TDuration> delay,
-        bool cancelPrimary)
+        const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
         if (peers.empty()) {
             return nullptr;
         }
 
-        if (peers.size() == 1 || !delay) {
-            return GetChannel(peers[0].AddressWithNetwork);
+        if (peers.size() != 1 && hedgingOptions) {
+            return CreateHedgingChannel(
+                GetChannel(peers[0].AddressWithNetwork),
+                GetChannel(peers[1].AddressWithNetwork),
+                *hedgingOptions);
         }
 
-        return CreateHedgingChannel(
-            GetChannel(peers[0].AddressWithNetwork),
-            GetChannel(peers[1].AddressWithNetwork),
-            THedgingChannelOptions{
-                .Delay = *delay,
-                .CancelPrimary = cancelPrimary
-            });
+        return GetChannel(peers[0].AddressWithNetwork);
     }
 
     void NextRetry()
@@ -1828,10 +1825,24 @@ private:
             pickPeerTimer.GetElapsedValue(),
             std::memory_order_relaxed);
 
+        IHedgingManagerPtr hedgingManager;
+        if (SessionOptions_.HedgingManager) {
+            hedgingManager = SessionOptions_.HedgingManager;
+        } else if (ReaderConfig_->BlockRpcHedgingDelay) {
+            hedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->BlockRpcHedgingDelay);
+        }
+
+        std::optional<THedgingChannelOptions> hedgingOptions;
+        if (hedgingManager) {
+            hedgingOptions = THedgingChannelOptions{
+                .HedgingManager = std::move(hedgingManager),
+                .CancelPrimaryOnHedging = ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging,
+            };
+        }
+
         auto channel = MakePeersChannel(
             peers,
-            ReaderConfig_->BlockRpcHedgingDelay,
-            ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging);
+            hedgingOptions);
         if (!channel) {
             cancelAll(TError("No peers were selected"));
             return true;
@@ -2094,7 +2105,7 @@ private:
 
     int GetDesiredPeerCount() const
     {
-        return ReaderConfig_->BlockRpcHedgingDelay ? 2 : 1;
+        return (SessionOptions_.HedgingManager || ReaderConfig_->BlockRpcHedgingDelay) ? 2 : 1;
     }
 
     void OnCanceled(const TError& error) override
@@ -2482,7 +2493,14 @@ private:
             return;
         }
 
-        auto channel = MakePeersChannel(peers, ReaderConfig_->MetaRpcHedgingDelay, false);
+        std::optional<THedgingChannelOptions> hedgingOptions;
+        if (ReaderConfig_->MetaRpcHedgingDelay) {
+            hedgingOptions = THedgingChannelOptions{
+                .HedgingManager = CreateSimpleHedgingManager(*ReaderConfig_->MetaRpcHedgingDelay),
+                .CancelPrimaryOnHedging = false,
+            };
+        }
+        auto channel = MakePeersChannel(peers, hedgingOptions);
         if (!channel) {
             RequestMeta();
             return;

@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 
 #include "backing_store_cleaner.h"
+#include "hedging_manager_registry.h"
 #include "hint_manager.h"
 #include "hunk_chunk_sweeper.h"
 #include "in_memory_manager.h"
@@ -31,6 +32,8 @@
 
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/yt/ytlib/query_client/column_evaluator.h>
 
@@ -86,6 +89,9 @@ public:
         StructuredLogger_ = CreateStructuredLogger(this);
 
         HintManager_ = CreateHintManager(this);
+
+        HedgingManagerRegistry_ = CreateHedgingManagerRegistry(
+            NChunkClient::TDispatcher::Get()->GetReaderInvoker());
 
         QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
@@ -235,6 +241,11 @@ public:
         return HintManager_;
     }
 
+    const IHedgingManagerRegistryPtr& GetHedgingManagerRegistry() const override
+    {
+        return HedgingManagerRegistry_;
+    }
+
     const ISlotManagerPtr& GetSlotManager() const override
     {
         return SlotManager_;
@@ -362,6 +373,7 @@ private:
     IInMemoryManagerPtr InMemoryManager_;
     IStructuredLoggerPtr StructuredLogger_;
     IHintManagerPtr HintManager_;
+    IHedgingManagerRegistryPtr HedgingManagerRegistry_;
     ISlotManagerPtr SlotManager_;
 
     TThreadPoolPtr TableReplicatorThreadPool_;

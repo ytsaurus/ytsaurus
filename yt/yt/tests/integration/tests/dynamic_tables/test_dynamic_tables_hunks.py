@@ -1126,3 +1126,26 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         create("table", "//tmp/m/t")
         assert get("//tmp/m/t/@hunk_erasure_codec") == "isa_lrc_12_2_2"
+
+    @authors("akozhikhov")
+    def test_hedging_manager_sensors(self):
+        sync_create_cells(1)
+        self._create_table()
+        set("//tmp/t/@hunk_chunk_reader/hedging_manager", {"max_backup_request_percentage": 50})
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(5)]
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="hunks/hedging_manager/primary_request_count")
+
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        time.sleep(1)
+
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        wait(lambda: request_counter.get_delta() > 0)

@@ -22,9 +22,13 @@ struct TClientChunkReadOptions
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-    // NB: If |HunkChunkReaderStatistics| is null and hunk chunk reading is performed,
-    // relevant statistics will be updated within |ChunkReaderStatistics|.
+    // NB: If |HunkChunkReaderStatistics| is null and hunk chunk reading is
+    // performed, relevant statistics will be updated within
+    // |ChunkReaderStatistics|.
     NTableClient::IHunkChunkReaderStatisticsPtr HunkChunkReaderStatistics;
+
+    // If non-null, |HedgingManager| determines hedging policy shared between various chunk readers.
+    IHedgingManagerPtr HedgingManager;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

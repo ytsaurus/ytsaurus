@@ -76,11 +76,11 @@ TEST(ErasureChunkFragmentReadController, StressTest)
                 std::swap(start, end);
             }
             requests.push_back(TFragmentRequest{
-                .FragmentIndex = index,
                 .Length = end - start + 1,
-                .BlockIndex = blockIndex,
                 .BlockOffset = start,
-                .BlockSize = blockSize
+                .BlockSize = blockSize,
+                .BlockIndex = blockIndex,
+                .FragmentIndex = index,
             });
         }
 

@@ -646,6 +646,11 @@ private:
             return Owner_->Bootstrap_->GetMasterConnection()->GetChunkReplicaCache();
         }
 
+        IHedgingManagerRegistryPtr GetHedgingManagerRegistry() override
+        {
+            return Owner_->Bootstrap_->GetHedgingManagerRegistry();
+        }
+
         TString GetLocalHostName() override
         {
             return Owner_->Bootstrap_->GetLocalHostName();

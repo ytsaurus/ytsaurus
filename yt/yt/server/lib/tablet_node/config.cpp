@@ -375,12 +375,17 @@ void TTabletStoreReaderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("prefer_local_replicas", &TThis::PreferLocalReplicas)
         .Default(true);
+    registrar.Parameter("hedging_manager", &TThis::HedgingManager)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletHunkReaderConfig::Register(TRegistrar /*registrar*/)
-{ }
+void TTabletHunkReaderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("hedging_manager", &TThis::HedgingManager)
+        .DefaultNew();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

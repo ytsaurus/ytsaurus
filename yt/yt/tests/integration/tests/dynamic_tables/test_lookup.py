@@ -594,6 +594,35 @@ class TestLookup(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("akozhikhov")
+    def test_hedging_manager_sensors(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", chunk_reader={
+            "hedging_manager": {
+                "max_backup_request_percentage": 50,
+            },
+            "prefer_local_replicas": False,
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+        })
+        sync_mount_table("//tmp/t")
+
+        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
+            name="hedging_manager/primary_request_count")
+
+        keys = [{"key": i} for i in range(10)]
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        time.sleep(1)
+
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        wait(lambda: request_counter.get_delta() > 0)
+
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2

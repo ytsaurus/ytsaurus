@@ -28,6 +28,8 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
+#include <yt/yt/core/misc/config.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,6 +269,8 @@ class TTabletStoreReaderConfig
 public:
     bool PreferLocalReplicas;
 
+    TAdaptiveHedgingManagerConfigPtr HedgingManager;
+
     REGISTER_YSON_STRUCT(TTabletStoreReaderConfig);
 
     static void Register(TRegistrar registrar);
@@ -281,6 +285,8 @@ class TTabletHunkReaderConfig
     , public NTableClient::TBatchHunkReaderConfig
 {
 public:
+    TAdaptiveHedgingManagerConfigPtr HedgingManager;
+
     REGISTER_YSON_STRUCT(TTabletHunkReaderConfig);
 
     static void Register(TRegistrar registrar);

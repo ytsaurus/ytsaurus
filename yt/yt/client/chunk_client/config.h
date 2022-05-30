@@ -111,6 +111,7 @@ public:
     TDuration BlockRpcTimeout;
 
     //! Delay before sending a hedged block request. If null then hedging is disabled.
+    //! NB: Hedging policy may be overriden via hedging manager.
     std::optional<TDuration> BlockRpcHedgingDelay;
 
     //! Whether to cancel the primary block request when backup one is sent.
@@ -123,6 +124,7 @@ public:
     TDuration MetaRpcTimeout;
 
     //! Delay before sending for a hedged meta request. If null then hedging is disabled.
+    //! NB: Hedging policy may be overriden via hedging manager.
     std::optional<TDuration> MetaRpcHedgingDelay;
 
     //! Timeout for a queue size probing request.

@@ -132,6 +132,11 @@ NChunkClient::IChunkReplicaCachePtr TTabletContextMock::GetChunkReplicaCache()
     return nullptr;
 }
 
+IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry()
+{
+    return nullptr;
+}
+
 TString TTabletContextMock::GetLocalHostName()
 {
     return TString();

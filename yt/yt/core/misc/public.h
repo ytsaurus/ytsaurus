@@ -170,6 +170,9 @@ struct IFairScheduler;
 template <class TTask>
 using IFairSchedulerPtr = TIntrusivePtr<IFairScheduler<TTask>>;
 
+DECLARE_REFCOUNTED_CLASS(TAdaptiveHedgingManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(IHedgingManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(

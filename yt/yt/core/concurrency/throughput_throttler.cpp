@@ -270,7 +270,7 @@ private:
             auto maxAvailable = static_cast<i64>(Period_.load().SecondsFloat()) * *limit;
 
             if (lastUpdated == TInstant::Zero()) {
-                Available_ = maxAvailable;                
+                Available_ = maxAvailable;
                 LastUpdated_ = now;
             } else {
                 auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
@@ -284,7 +284,7 @@ private:
                     // Just in case.
                     LastUpdated_ = std::min(LastUpdated_.load(), now);
                 }
-                Available_ = newAvailable;                
+                Available_ = newAvailable;
             }
         } else {
             Available_ = 0;
