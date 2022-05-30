@@ -66,6 +66,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -428,7 +429,10 @@ public:
         replicaHolder->SetPreserveTimestamps(preserveTimestamps);
         replicaHolder->SetAtomicity(atomicity);
         replicaHolder->SetStartReplicationTimestamp(startReplicationTimestamp);
-        replicaHolder->SetState(enabled ? ETableReplicaState::Enabled : ETableReplicaState::Disabled);
+        auto state = enabled
+            ? ETableReplicaState::Enabled
+            : ETableReplicaState::Disabled;
+        replicaHolder->SetState(state);
 
         auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
         objectManager->RefObject(replica);
@@ -467,6 +471,16 @@ public:
             hiveManager->PostMessage(mailbox, req);
         }
 
+        ReplicaCreated_.Fire(TReplicaData{
+            .TableId = table->GetId(),
+            .Id = id,
+            .Mode = mode,
+            .Enabled = state == ETableReplicaState::Enabled,
+            .ClusterName = clusterName,
+            .TablePath = replicaPath,
+            .TrackingEnabled = replica->GetEnableReplicatedTableTracker(),
+        });
+
         return replica;
     }
 
@@ -494,6 +508,8 @@ public:
                 hiveManager->PostMessage(mailbox, req);
             }
         }
+
+        ReplicaDestroyed_.Fire(replica->GetId());
     }
 
     void AlterTableReplica(
@@ -586,6 +602,7 @@ public:
 
         if (mode) {
             replica->SetMode(*mode);
+            ReplicaModeUpdated_.Fire(replica->GetId(), *mode);
         }
 
         if (atomicity) {
@@ -2829,6 +2846,15 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
+
+    DEFINE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
+    DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableId), ReplicatedTableDestroyed);
+    DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);
+    DEFINE_SIGNAL(void(TReplicaData), ReplicaCreated);
+    DEFINE_SIGNAL(void(TTableReplicaId), ReplicaDestroyed);
+    DEFINE_SIGNAL(void(TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated);
+    DEFINE_SIGNAL(void(TTableReplicaId, bool), ReplicaEnablementUpdated);
+    DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableReplicaId, bool), ReplicaTrackingPolicyUpdated);
 
 private:
     const TTabletServicePtr TabletService_;
@@ -5854,12 +5880,14 @@ private:
 
         auto* table = replica->GetTable();
 
+        bool enabled;
         switch (state) {
             case ETableReplicaState::Enabling:
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Enabled);
+                enabled = true;
                 break;
 
             case ETableReplicaState::Disabling:
@@ -5867,11 +5895,14 @@ private:
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Disabled);
+                enabled = false;
                 break;
 
             default:
                 YT_ABORT();
         }
+
+        ReplicaEnablementUpdated_.Fire(replica->GetId(), enabled);
     }
 
     void DiscardDynamicStores(TTablet* tablet)
@@ -7137,6 +7168,8 @@ private:
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             dynamicConfig->ProfilingPeriod);
         ProfilingExecutor_->Start();
+
+        Bootstrap_->GetNewReplicatedTableTracker()->EnableTracking();
     }
 
     void OnStopLeading() override
@@ -7165,6 +7198,17 @@ private:
         }
 
         BundleIdToProfilingCounters_.clear();
+
+        Bootstrap_->GetNewReplicatedTableTracker()->DisableTracking();
+    }
+
+    void OnRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        Bootstrap_->GetNewReplicatedTableTracker()->Initialize();
     }
 
 
@@ -8119,6 +8163,15 @@ TError TTabletManager::ApplyBackupCutoff(TTablet* tablet)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_)
+
+DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TReplicatedTableData), ReplicatedTableCreated, *Impl_);
+DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableId), ReplicatedTableDestroyed, *Impl_);
+DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(TReplicaData), ReplicaCreated, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId), ReplicaDestroyed, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId, ETableReplicaMode), ReplicaModeUpdated, *Impl_);
+DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId, bool), ReplicaEnablementUpdated, *Impl_);
+DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableReplicaId, bool), ReplicaTrackingPolicyUpdated, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -27,6 +27,8 @@
 
 #include <yt/yt/server/lib/table_server/proto/table_manager.pb.h>
 
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -482,6 +484,7 @@ public:
                 for (auto* table : collocation->Tables()) {
                     table->SetReplicationCollocation(collocation);
                 }
+                OnReplicationCollocationUpdated(collocation);
                 break;
 
             default:
@@ -516,6 +519,8 @@ public:
         }
 
         collocation->Tables().clear();
+
+        ReplicationCollocationDestroyed_.Fire(collocation->GetId());
 
         YT_VERIFY(collocation->GetObjectRefCounter() == 0);
 
@@ -588,6 +593,7 @@ public:
         switch (collocationType) {
             case ETableCollocationType::Replication:
                 table->SetReplicationCollocation(collocation);
+                OnReplicationCollocationUpdated(collocation);
                 break;
 
             default:
@@ -631,6 +637,8 @@ public:
             collocationType,
             table->GetId(),
             collocation->Tables().size());
+
+        OnReplicationCollocationUpdated(collocation);
 
         // NB: On secondary master collocation should only be destroyed via foreign object removal mechanism.
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -777,6 +785,9 @@ public:
             return MakeFuture(ConvertToYsonString(objectRevisions));
         }
     }
+
+    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
 private:
     struct TStatisticsUpdateRequest
@@ -1233,6 +1244,23 @@ private:
         TableCollocationMap_.SaveValues(context);
         Save(context, Queues_);
         Save(context, Consumers_);
+    }
+
+    void OnReplicationCollocationUpdated(TTableCollocation* collocation)
+    {
+        std::vector<TTableId> tableIds;
+        tableIds.reserve(collocation->Tables().size());
+        for (auto* table : collocation->Tables()) {
+            if (IsObjectAlive(table)) {
+                tableIds.push_back(table->GetId());
+            }
+        }
+        if (!tableIds.empty()) {
+            ReplicationCollocationUpdated_.Fire(TTableCollocationData{
+                .Id = collocation->GetId(),
+                .TableIds = std::move(tableIds),
+            });
+        }
     }
 };
 

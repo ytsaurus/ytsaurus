@@ -1,5 +1,6 @@
 #include "private.h"
 #include "replicated_table_tracker.h"
+#include "tablet_manager.h"
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler_thread.h>
@@ -19,6 +20,7 @@
 #include <yt/yt/server/master/table_server/public.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_collocation.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/master/tablet_server/config.h>
 #include <yt/yt/server/master/tablet_server/table_replica.h>
@@ -28,6 +30,8 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
@@ -79,12 +83,12 @@ static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TClusterStateKey
+struct TClusterStateCacheKey
 {
     NApi::IClientPtr Client;
     TString ClusterName; // for diagnostics only
 
-    bool operator==(const TClusterStateKey& other) const
+    bool operator==(const TClusterStateCacheKey& other) const
     {
         return Client == other.Client;
     }
@@ -97,25 +101,25 @@ struct TClusterStateKey
     }
 };
 
-void FormatValue(TStringBuilderBase* builder, const TClusterStateKey& key, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TClusterStateCacheKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v", key.ClusterName);
 }
 
-TString ToString(const TClusterStateKey& key)
+TString ToString(const TClusterStateCacheKey& key)
 {
     return ToStringViaBuilder(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TBundleHealthKey
+struct TBundleHealthCacheKey
 {
     NApi::IClientPtr Client;
     TString ClusterName; // for diagnostics only
     TString BundleName;
 
-    bool operator==(const TBundleHealthKey& other) const
+    bool operator==(const TBundleHealthCacheKey& other) const
     {
         return
             Client == other.Client &&
@@ -131,14 +135,14 @@ struct TBundleHealthKey
     }
 };
 
-void FormatValue(TStringBuilderBase* builder, const TBundleHealthKey& key, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TBundleHealthCacheKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v@%v",
         key.BundleName,
         key.ClusterName);
 }
 
-TString ToString(const TBundleHealthKey& key)
+TString ToString(const TBundleHealthCacheKey& key)
 {
     return ToStringViaBuilder(key);
 }
@@ -148,7 +152,7 @@ TString ToString(const TBundleHealthKey& key)
 DECLARE_REFCOUNTED_CLASS(TBundleHealthCache)
 
 class TBundleHealthCache
-    : public TAsyncExpiringCache<TBundleHealthKey, ETabletCellHealth>
+    : public TAsyncExpiringCache<TBundleHealthCacheKey, ETabletCellHealth>
 {
 public:
     explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
@@ -159,7 +163,7 @@ public:
 
 protected:
     TFuture<ETabletCellHealth> DoGet(
-        const TBundleHealthKey& key,
+        const TBundleHealthCacheKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         return key.Client->GetNode("//sys/tablet_cell_bundles/" + ToYPathLiteral(key.BundleName) + "/@health").ToUncancelable()
@@ -176,7 +180,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleHealthCache)
 DECLARE_REFCOUNTED_CLASS(TClusterStateCache)
 
 class TClusterStateCache
-    : public TAsyncExpiringCache<TClusterStateKey, void>
+    : public TAsyncExpiringCache<TClusterStateCacheKey, void>
 {
 public:
     explicit TClusterStateCache(TAsyncExpiringCacheConfigPtr config)
@@ -187,7 +191,7 @@ public:
 
 protected:
     TFuture<void> DoGet(
-        const TClusterStateKey& key,
+        const TClusterStateCacheKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         return AllSucceeded(std::vector<TFuture<void>>{
@@ -197,7 +201,7 @@ protected:
     }
 
 private:
-    TFuture<void> CheckClusterLiveness(const TClusterStateKey& key) const
+    TFuture<void> CheckClusterLiveness(const TClusterStateCacheKey& key) const
     {
         TCheckClusterLivenessOptions options{
             .CheckCypressRoot = true,
@@ -205,26 +209,26 @@ private:
         };
         return key.Client->CheckClusterLiveness(options)
             .Apply(BIND([clusterName = key.ClusterName] (const TError& result) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qlv liveness",
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qv liveness",
                     clusterName);
             }));
     }
 
-    TFuture<void> CheckClusterSafeMode(const TClusterStateKey& key) const
+    TFuture<void> CheckClusterSafeMode(const TClusterStateCacheKey& key) const
     {
         return key.Client->GetNode("//sys/@config/enable_safe_mode")
             .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     error,
-                    "Error getting enable_safe_mode attribute for cluster %Qlv",
+                    "Error getting enable_safe_mode attribute for cluster %Qv",
                     clusterName);
-                if (auto isSafeModeEnabled = ConvertTo<bool>(error.Value())) {
-                    THROW_ERROR_EXCEPTION("Safe mode is enabled for cluster %Qlv", clusterName);
+                if (ConvertTo<bool>(error.Value())) {
+                    THROW_ERROR_EXCEPTION("Safe mode is enabled for cluster %Qv", clusterName);
                 }
             }));
     }
 
-    TFuture<void> CheckHydraIsReadOnly(const TClusterStateKey& key) const
+    TFuture<void> CheckHydraIsReadOnly(const TClusterStateCacheKey& key) const
     {
         return key.Client->GetNode("//sys/@hydra_read_only")
             .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
@@ -233,10 +237,10 @@ private:
                 }
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     error,
-                    "Error getting hydra_read_only attribute for cluster %Qlv",
+                    "Error getting hydra_read_only attribute for cluster %Qv",
                     clusterName);
-                if (auto isHydraReadOnly = ConvertTo<bool>(error.Value())) {
-                    THROW_ERROR_EXCEPTION("Hydra read only mode is activated for cluster %Qlv", clusterName);
+                if (ConvertTo<bool>(error.Value())) {
+                    THROW_ERROR_EXCEPTION("Hydra read only mode is activated for cluster %Qv", clusterName);
                 }
             }));
     }
@@ -605,7 +609,7 @@ private:
             return Config_ && Config_->EnableReplicatedTableTracker;
         }
 
-        void SetConfig(const NTableServer::TReplicatedTableOptionsPtr& config)
+        void SetConfig(const TReplicatedTableOptionsPtr& config)
         {
             auto guard = Guard(Lock_);
             Config_ = config;
@@ -823,7 +827,7 @@ private:
         const TObjectId Id_;
         const NProfiling::TCounter ReplicaSwitchCounter_;
 
-        NTableServer::TReplicatedTableOptionsPtr Config_;
+        TReplicatedTableOptionsPtr Config_;
         TTableCollocationId CollocationId_;
 
         YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -874,8 +878,14 @@ private:
         }
 
         const auto& dynamicConfig = GetDynamicConfig();
+
         if (!dynamicConfig->EnableReplicatedTableTracker) {
             YT_LOG_INFO("Replicated table tracker is disabled, see //sys/@config");
+            return;
+        }
+
+        if (dynamicConfig->UseNewReplicatedTableTracker) {
+            YT_LOG_DEBUG("Old replicated table tracker is disabled");
             return;
         }
 
@@ -1138,7 +1148,7 @@ private:
             if (it == Tables_.end()) {
                 table = New<TTable>(
                     id,
-                    object->TabletCellBundle()->ProfilingCounters().ReplicaSwitch,
+                    object->TabletCellBundle()->ProfilingCounters().ReplicaModeSwitch,
                     config,
                     collocationId);
                 Tables_.emplace(id, table);
@@ -1290,6 +1300,235 @@ TReplicatedTableTracker::TReplicatedTableTracker(
 { }
 
 TReplicatedTableTracker::~TReplicatedTableTracker() = default;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicatedTableTrackerHost
+    : public IReplicatedTableTrackerHost
+{
+public:
+    TReplicatedTableTrackerHost(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    TFuture<TReplicatedTableTrackerSnapshot> GetSnapshot() override
+    {
+        YT_VERIFY(LoadingFromSnapshotRequested());
+
+        return BIND([bootstrap = Bootstrap_, host = MakeStrong(this)] {
+            TReplicatedTableTrackerSnapshot snapshot;
+
+            const auto& cypressManager = bootstrap->GetCypressManager();
+            for (auto [id, node] : cypressManager->Nodes()) {
+                if (IsObjectAlive(node) &&
+                    node->IsTrunk() &&
+                    node->GetType() == EObjectType::ReplicatedTable &&
+                    !node->IsExternal())
+                {
+                    auto* table = node->As<NTableServer::TReplicatedTableNode>();
+                    snapshot.ReplicatedTables.push_back(TReplicatedTableData{
+                        .Id = table->GetId(),
+                        .Options = table->GetReplicatedTableOptions(),
+                        .ReplicaModeSwitchCounter = table->TabletCellBundle()->ProfilingCounters().ReplicaModeSwitch
+                    });
+
+                    for (auto* replica : table->Replicas()) {
+                        snapshot.Replicas.push_back(TReplicaData{
+                            .TableId = table->GetId(),
+                            .Id = replica->GetId(),
+                            .Mode = replica->GetMode(),
+                            .Enabled = replica->GetState() == ETableReplicaState::Enabled,
+                            .ClusterName = replica->GetClusterName(),
+                            .TablePath = replica->GetReplicaPath(),
+                            .TrackingEnabled = replica->GetEnableReplicatedTableTracker(),
+                        });
+                    }
+                }
+            }
+
+            const auto& tableManager = bootstrap->GetTableManager();
+            for (auto [id, tableCollocation] : tableManager->TableCollocations()) {
+                if (IsObjectAlive(tableCollocation)) {
+                    if (tableCollocation->GetType() == ETableCollocationType::Replication) {
+                        std::vector<TTableId> tableIds;
+                        tableIds.reserve(tableCollocation->Tables().size());
+                        for (auto* table : tableCollocation->Tables()) {
+                            if (IsObjectAlive(table)) {
+                                tableIds.push_back(table->GetId());
+                            }
+                        }
+                        if (!tableIds.empty()) {
+                            snapshot.Collocations.push_back(TTableCollocationData{
+                                .Id = tableCollocation->GetId(),
+                                .TableIds = std::move(tableIds)
+                            });
+                        }
+                    }
+                }
+            }
+
+            host->LoadingFromSnapshotRequested_.store(false);
+
+            return snapshot;
+        })
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    bool LoadingFromSnapshotRequested() const override
+    {
+        return LoadingFromSnapshotRequested_.load();
+    }
+
+    void RequestLoadingFromSnapshot() override
+    {
+        LoadingFromSnapshotRequested_.store(true);
+    }
+
+    TFuture<TReplicaLagTimes> ComputeReplicaLagTimes(
+        std::vector<NTabletClient::TTableReplicaId> replicaIds) override
+    {
+        return BIND([bootstrap = Bootstrap_, replicaIds = std::move(replicaIds)] {
+            auto latestTimestamp = bootstrap->GetTimestampProvider()->GetLatestTimestamp();
+            const auto& tabletManager = bootstrap->GetTabletManager();
+
+            TReplicaLagTimes results;
+            results.reserve(replicaIds.size());
+
+            for (auto replicaId : replicaIds) {
+                auto* replica = tabletManager->FindTableReplica(replicaId);
+                if (IsObjectAlive(replica)) {
+                    results.emplace_back(replicaId, replica->ComputeReplicationLagTime(latestTimestamp));
+                }
+            }
+
+            return results;
+        })
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    NApi::IClientPtr CreateClusterClient(const TString& clusterName) override
+    {
+        const auto& clusterDirectory = Bootstrap_->GetClusterConnection()->GetClusterDirectory();
+        auto connection = clusterDirectory->FindConnection(clusterName);
+        // TODO(akozhikhov): Consider employing specific user.
+        return connection
+            ? connection->CreateClient(NApi::TClientOptions::FromUser(RootUserName))
+            : nullptr;
+    }
+
+    TFuture<TApplyChangeReplicaCommandResults> ApplyChangeReplicaModeCommands(
+        std::vector<TChangeReplicaModeCommand> commands) override
+    {
+        return BIND([bootstrap = Bootstrap_, commands = std::move(commands)] {
+            std::vector<TFuture<TTableReplicaYPathProxy::TRspAlterPtr>> futures;
+            futures.reserve(commands.size());
+
+            for (const auto& command : commands) {
+                auto req = TTableReplicaYPathProxy::Alter(FromObjectId(command.ReplicaId));
+                GenerateMutationId(req);
+                req->set_mode(static_cast<int>(command.TargetMode));
+
+                const auto& objectManager = bootstrap->GetObjectManager();
+                auto rootService = objectManager->GetRootService();
+                futures.push_back(ExecuteVerb(rootService, req));
+            }
+
+            return AllSet(std::move(futures));
+        })
+            .AsyncVia(GetAutomatonInvoker())
+            .Run();
+    }
+
+    void SubscribeReplicatedTableCreated(TCallback<void(TReplicatedTableData)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableCreated(std::move(callback));
+    }
+
+    void SubscribeReplicatedTableDestroyed(TCallback<void(NTableClient::TTableId)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableDestroyed(std::move(callback));
+    }
+
+    void SubscribeReplicatedTableOptionsUpdated(
+        TCallback<void(NTableClient::TTableId, TReplicatedTableOptionsPtr)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicatedTableOptionsUpdated(std::move(callback));
+    }
+
+    void SubscribeReplicaCreated(TCallback<void(TReplicaData)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicaCreated(std::move(callback));
+    }
+
+    void SubscribeReplicaDestroyed(
+        TCallback<void(NTabletClient::TTableReplicaId)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicaDestroyed(std::move(callback));
+    }
+
+    void SubscribeReplicaModeUpdated(
+        TCallback<void(NTabletClient::TTableReplicaId, NTabletClient::ETableReplicaMode)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicaModeUpdated(std::move(callback));
+    }
+
+    void SubscribeReplicaEnablementUpdated(
+        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicaEnablementUpdated(std::move(callback));
+    }
+
+    void SubscribeReplicaTrackingPolicyUpdated(
+        TCallback<void(NTabletClient::TTableReplicaId, bool)> callback) override
+    {
+        Bootstrap_->GetTabletManager()->SubscribeReplicaTrackingPolicyUpdated(std::move(callback));
+    }
+
+    void SubscribeReplicationCollocationUpdated(TCallback<void(TTableCollocationData)> callback) override
+    {
+        Bootstrap_->GetTableManager()->SubscribeReplicationCollocationUpdated(std::move(callback));
+    }
+
+    void SubscribeReplicationCollocationDestroyed(
+        TCallback<void(NTableClient::TTableCollocationId)> callback) override
+    {
+        Bootstrap_->GetTableManager()->SubscribeReplicationCollocationDestroyed(std::move(callback));
+    }
+
+    void SubscribeConfigChanged(TCallback<void(TDynamicReplicatedTableTrackerConfigPtr)> callback) override
+    {
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(
+            [
+                callback = std::move(callback),
+                bootstrap = Bootstrap_
+            ] (TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+        {
+            callback(bootstrap->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker);
+        }));
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    std::atomic<bool> LoadingFromSnapshotRequested_ = false;
+
+
+    IInvokerPtr GetAutomatonInvoker() const
+    {
+        return Bootstrap_
+            ->GetHydraFacade()
+            ->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IReplicatedTableTrackerHostPtr CreateReplicatedTableTrackerHost(TBootstrap* bootstrap)
+{
+    return New<TReplicatedTableTrackerHost>(bootstrap);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

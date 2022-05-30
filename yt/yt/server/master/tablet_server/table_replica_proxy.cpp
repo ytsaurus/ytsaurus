@@ -206,7 +206,12 @@ private:
             case EInternedAttributeKey::EnableReplicatedTableTracker: {
                 ValidateNoTransaction();
 
-                replica->SetEnableReplicatedTableTracker(ConvertTo<bool>(value));
+                auto enableTracking = ConvertTo<bool>(value);
+                replica->SetEnableReplicatedTableTracker(enableTracking);
+                Bootstrap_->GetTabletManager()->GetReplicaTrackingPolicyUpdatedSignal()->Fire(
+                    replica->GetId(),
+                    enableTracking);
+
                 return true;
             }
         }

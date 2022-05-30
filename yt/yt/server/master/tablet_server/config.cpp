@@ -162,52 +162,10 @@ TDynamicTabletCellBalancerMasterConfig::TDynamicTabletCellBalancerMasterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReplicatedTableTrackerExpiringCacheConfig::Register(TRegistrar registrar)
-{
-    registrar.Preprocessor([] (TThis* config) {
-        config->RefreshTime = std::nullopt;
-        config->ExpireAfterAccessTime = TDuration::Seconds(1);
-        config->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(1);
-        config->ExpireAfterFailedUpdateTime = TDuration::Seconds(1);
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TReplicatedTableTrackerConfig::TReplicatedTableTrackerConfig()
 {
     RegisterParameter("checker_thread_count", CheckerThreadCount)
         .Default(1);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TDynamicReplicatedTableTrackerConfig::TDynamicReplicatedTableTrackerConfig()
-{
-    RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
-        .Default(true);
-    RegisterParameter("check_period", CheckPeriod)
-        .Default(TDuration::Seconds(3));
-    RegisterParameter("update_period", UpdatePeriod)
-        .Default(TDuration::Seconds(3));
-    RegisterParameter("general_check_timeout", GeneralCheckTimeout)
-        .Default(TDuration::Minutes(1))
-        .DontSerializeDefault();
-    RegisterParameter("replicator_hint", ReplicatorHint)
-        .DefaultNew();
-    RegisterParameter("bundle_health_cache", BundleHealthCache)
-        .DefaultNew();
-    RegisterParameter("cluster_state_cache", ClusterStateCache)
-        .DefaultNew();
-    RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
-        .DefaultNew();
-    RegisterParameter("max_iterations_without_acceptable_bundle_health", MaxIterationsWithoutAcceptableBundleHealth)
-        .Default(1)
-        .DontSerializeDefault();
-
-    RegisterPreprocessor([&] {
-        ClusterStateCache->RefreshTime = CheckPeriod;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

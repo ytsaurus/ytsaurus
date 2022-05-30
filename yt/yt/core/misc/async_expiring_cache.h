@@ -23,6 +23,9 @@ class TAsyncExpiringCache
     : public virtual TRefCounted
 {
 public:
+    using KeyType = TKey;
+    using ValueType = TValue;
+
     struct TExtendedGetResult
     {
         TFuture<TValue> Future;

@@ -42,6 +42,8 @@
 
 #include <yt/yt/server/lib/hydra2/public.h>
 
+#include <yt/yt/server/lib/tablet_server/public.h>
+
 #include <yt/yt/server/lib/timestamp_server/public.h>
 
 #include <yt/yt/server/lib/discovery_server/public.h>
@@ -133,6 +135,7 @@ public:
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
+    const NTabletServer::IReplicatedTableTrackerPtr& GetNewReplicatedTableTracker() const;
 
     NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
@@ -200,6 +203,8 @@ protected:
     NTabletServer::IBackupManagerPtr BackupManager_;
     NSchedulerPoolServer::ISchedulerPoolManagerPtr SchedulerPoolManager_;
     NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
+    NTabletServer::IReplicatedTableTrackerHostPtr NewReplicatedTableTrackerHost_;
+    NTabletServer::IReplicatedTableTrackerPtr NewReplicatedTableTracker_;
     NChaosServer::IChaosManagerPtr ChaosManager_;
     NSequoiaServer::ISequoiaManagerPtr SequoiaManager_;
     NHiveServer::THiveManagerPtr HiveManager_;

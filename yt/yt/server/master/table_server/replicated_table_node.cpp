@@ -3,6 +3,8 @@
 
 #include <yt/yt/server/master/tablet_server/table_replica.h>
 
+#include <yt/yt/server/lib/tablet_server/config.h>
+
 namespace NYT::NTableServer {
 
 using namespace NObjectClient;
@@ -13,7 +15,7 @@ using namespace NCellMaster;
 
 TReplicatedTableNode::TReplicatedTableNode(TVersionedNodeId id)
     : TTableNode(id)
-    , ReplicatedTableOptions_(New<TReplicatedTableOptions>())
+    , ReplicatedTableOptions_(New<NTabletServer::TReplicatedTableOptions>())
 { }
 
 void TReplicatedTableNode::Save(TSaveContext& context) const
