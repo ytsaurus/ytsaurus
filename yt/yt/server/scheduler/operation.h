@@ -35,7 +35,7 @@ struct TOperationEvent
 {
     TInstant Time;
     EOperationState State;
-    THashMap<TString, TString> Attributes;
+    NYson::TYsonString Attributes;
 };
 
 void Serialize(const TOperationEvent& schema, NYson::IYsonConsumer* consumer);
@@ -338,7 +338,7 @@ public:
     //! Sets operation state and adds the corresponding event with given attributes.
     void SetStateAndEnqueueEvent(
         EOperationState state,
-        const THashMap<TString, TString>& attributes = {});
+        NYson::TYsonString attributes = {});
 
     //! Slot index machinery.
     std::optional<int> FindSlotIndex(const TString& treeId) const override;

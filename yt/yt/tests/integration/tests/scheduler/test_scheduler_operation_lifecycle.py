@@ -13,7 +13,7 @@ from yt_commands import (
     start_transaction, abort_transaction,
     read_table, write_table, map, sort,
     run_test_vanilla, run_sleeping_vanilla,
-    abort_job, get_job, get_job_fail_context, list_jobs,
+    abort_job, get_job, get_job_fail_context, list_jobs, get_operation,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     set_banned_flag, PrepareTables, sorted_dicts)
 
@@ -65,6 +65,11 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         "controller_agent": {
             "operation_time_limit": 1000000,
             "operation_time_limit_check_period": 100,
+            "snapshot_period": 500,
+            "snapshot_writer": {
+                "upload_replication_factor": 1,
+                "min_upload_replication_factor": 1,
+            },
         }
     }
 
@@ -104,12 +109,26 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         assert get_current_time() - get_connection_time() > timedelta(seconds=3)
 
+        op.wait_for_fresh_snapshot()
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
         assert get_current_time() - get_connection_time() < timedelta(seconds=3)
 
         op.track()
+
+        # Check clean start in events.
+        found_pending = False
+        events = get_operation(op.id, attributes=["events"])["events"]
+        for event in reversed(events):
+            if event["state"] == "pending":
+                assert "attributes" in event
+                assert "revived_from_snapshot" in event["attributes"]
+                assert event["attributes"]["revived_from_snapshot"]
+                found_pending = True
+                break
+        assert found_pending
 
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
@@ -496,6 +515,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     def test_operation_events_attribute(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
+        op.wait_for_fresh_snapshot()
+
         wait_breakpoint()
 
         events = get(op.get_path() + "/@events")
@@ -510,6 +531,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         ] == [event["state"] for event in events]
 
         def event_contains_agent_address(event):
+            if "attributes" not in event:
+                return False
             if "controller_agent_address" not in event["attributes"]:
                 return False
             return len(event["attributes"]["controller_agent_address"]) > 0
@@ -534,7 +557,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "revive_initializing",
             "reviving",
             "pending",
-            "materializing",
+            "reviving_jobs",
             "running",
         ] == [event["state"] for event in events]
         assert sum(event_contains_agent_address(event) for event in events) == 2
@@ -556,7 +579,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             "revive_initializing",
             "reviving",
             "pending",
-            "materializing",
+            "reviving_jobs",
             "running",
             "completing",
             "completed",

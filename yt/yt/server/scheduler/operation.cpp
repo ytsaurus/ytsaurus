@@ -47,7 +47,7 @@ void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
         .BeginMap()
             .Item("time").Value(event.Time)
             .Item("state").Value(event.State)
-            .Item("attributes").Value(event.Attributes)
+            .OptionalItem("attributes", event.Attributes)
         .EndMap();
 }
 
@@ -56,7 +56,9 @@ void Deserialize(TOperationEvent& event, INodePtr node)
     auto mapNode = node->AsMap();
     event.Time = ConvertTo<TInstant>(mapNode->GetChildOrThrow("time"));
     event.State = ConvertTo<EOperationState>(mapNode->GetChildOrThrow("state"));
-    event.Attributes = ConvertTo<THashMap<TString, TString>>(mapNode->GetChildOrThrow("attributes"));
+    if (auto attributes = mapNode->FindChild("attributes")) {
+        event.Attributes = ConvertToYsonString(attributes);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,10 +330,16 @@ EOperationState TOperation::GetState() const
 
 void TOperation::SetStateAndEnqueueEvent(
     EOperationState state,
-    const THashMap<TString, TString>& attributes)
+    TYsonString attributes)
 {
+    static TYsonString DefaultAttributes = BuildYsonStringFluently()
+        .BeginMap()
+        .EndMap();
+    if (!attributes) {
+        attributes = DefaultAttributes;
+    }
     State_ = state;
-    Events_.emplace_back(TOperationEvent({TInstant::Now(), state, attributes}));
+    Events_.emplace_back(TOperationEvent({TInstant::Now(), state, std::move(attributes)}));
     ShouldFlush_ = true;
 }
 

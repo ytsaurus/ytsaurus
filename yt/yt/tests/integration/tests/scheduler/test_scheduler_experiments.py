@@ -10,6 +10,7 @@ from yt_commands import (
 import yt.environment.init_operation_archive as init_operation_archive
 
 from flaky import flaky
+import itertools
 import math
 
 ##################################################################
@@ -166,7 +167,7 @@ class TestSchedulerExperiments(YTEnvSetup):
     def test_controller_agent_tag(self):
         def get_controller_agent_address(events):
             addresses = [event["attributes"].get("controller_agent_address") for event in events]
-            addresses = [address for address in addresses if address is not None]
+            addresses = list(itertools.chain.from_iterable((address.values() for address in addresses if address is not None)))
             addresses = list(builtins.set(addresses))
             assert len(addresses) == 1
             return addresses[0]
