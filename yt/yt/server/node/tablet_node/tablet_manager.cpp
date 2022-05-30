@@ -3161,42 +3161,25 @@ private:
     template <class TRequest>
     NTabletNode::TTableSettings DeserializeTableSettings(TRequest* request, TTabletId tabletId)
     {
-        // COMPAT(babenko)
-        if (request->has_table_settings()) {
-            const auto& tableSettings = request->table_settings();
-            auto extraMountConfigAttributes = tableSettings.has_extra_mount_config_attributes()
-                ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
-                : nullptr;
+        const auto& tableSettings = request->table_settings();
+        auto extraMountConfigAttributes = tableSettings.has_extra_mount_config_attributes()
+            ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
+            : nullptr;
 
-            return {
-                .MountConfig = DeserializeTableMountConfig(
-                    TYsonString(tableSettings.mount_config()),
-                    extraMountConfigAttributes,
-                    tabletId),
-                .ProvidedMountConfig = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
-                .ProvidedExtraMountConfig = extraMountConfigAttributes,
-                .StoreReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(tableSettings.store_reader_config()), tabletId),
-                .HunkReaderConfig = DeserializeTabletHunkReaderConfig(TYsonString(tableSettings.hunk_reader_config()), tabletId),
-                .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),
-                .StoreWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(tableSettings.store_writer_options()), tabletId),
-                .HunkWriterConfig = DeserializeTabletHunkWriterConfig(TYsonString(tableSettings.hunk_writer_config()), tabletId),
-                .HunkWriterOptions = DeserializeTabletHunkWriterOptions(TYsonString(tableSettings.hunk_writer_options()), tabletId)
-            };
-        } else {
-            auto mountConfig = DeserializeTableMountConfig(TYsonString(request->mount_config()), nullptr, tabletId);
-            auto storeReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(request->store_reader_config()), tabletId);
-            auto storeWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(request->store_writer_config()), tabletId);
-            auto storeWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(request->store_writer_options()), tabletId);
-            return {
-                .MountConfig = mountConfig,
-                .StoreReaderConfig = storeReaderConfig,
-                .HunkReaderConfig = New<TTabletHunkReaderConfig>(),
-                .StoreWriterConfig = storeWriterConfig,
-                .StoreWriterOptions = storeWriterOptions,
-                .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
-                .HunkWriterOptions = TTablet::CreateFallbackHunkWriterOptions(storeWriterOptions)
-            };
-        }
+        return {
+            .MountConfig = DeserializeTableMountConfig(
+                TYsonString(tableSettings.mount_config()),
+                extraMountConfigAttributes,
+                tabletId),
+            .ProvidedMountConfig = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
+            .ProvidedExtraMountConfig = extraMountConfigAttributes,
+            .StoreReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(tableSettings.store_reader_config()), tabletId),
+            .HunkReaderConfig = DeserializeTabletHunkReaderConfig(TYsonString(tableSettings.hunk_reader_config()), tabletId),
+            .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),
+            .StoreWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(tableSettings.store_writer_options()), tabletId),
+            .HunkWriterConfig = DeserializeTabletHunkWriterConfig(TYsonString(tableSettings.hunk_writer_config()), tabletId),
+            .HunkWriterOptions = DeserializeTabletHunkWriterOptions(TYsonString(tableSettings.hunk_writer_options()), tabletId)
+        };
     }
 
     TTableMountConfigPtr DeserializeTableMountConfig(
