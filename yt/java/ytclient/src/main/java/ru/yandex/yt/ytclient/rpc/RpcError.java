@@ -88,7 +88,9 @@ public class RpcError extends RuntimeException {
     public boolean isUnrecoverable() {
         int code = error.getCode();
         return code == RpcErrorCode.Timeout.code ||
+                // COMPAT(babenko): drop ProxyBanned in favor of PeerBanned
                 code == RpcErrorCode.ProxyBanned.code ||
+                code == RpcErrorCode.PeerBanned.code ||
                 code == RpcErrorCode.TransportError.code ||
                 code == RpcErrorCode.Unavailable.code ||
                 code == RpcErrorCode.NoSuchService.code ||

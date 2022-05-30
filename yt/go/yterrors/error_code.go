@@ -23,6 +23,7 @@ const (
 	CodeStreamingNotSupported                  ErrorCode = 112
 	CodeUnsupportedClientFeature               ErrorCode = 113
 	CodeUnsupportedServerFeature               ErrorCode = 114
+	CodePeerBanned                             ErrorCode = 115
 	CodeNoSuchOperation                        ErrorCode = 200
 	CodeInvalidOperationState                  ErrorCode = 201
 	CodeTooManyOperations                      ErrorCode = 202
@@ -268,6 +269,8 @@ func (e ErrorCode) String() string {
 		return "UnsupportedClientFeature"
 	case CodeUnsupportedServerFeature:
 		return "UnsupportedServerFeature"
+	case CodePeerBanned:
+		return "PeerBanned"
 	case CodeNoSuchOperation:
 		return "NoSuchOperation"
 	case CodeInvalidOperationState:

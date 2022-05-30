@@ -21,6 +21,7 @@ public enum RpcErrorCode {
     InvalidCsrfToken(110),
     InvalidCredentials(111),
     StreamingNotSupported(112),
+    PeerBanned(115),
 
     TooManyOperations(202),
 
