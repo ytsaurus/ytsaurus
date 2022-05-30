@@ -14,10 +14,6 @@ message TDataSource
     optional uint64 retention_timestamp = 13;
     optional string path = 4;
 
-    // COMPAT(YT-11994): remove this old format support.
-    optional bool has_legacy_column_filter = 5 [default = false];
-    repeated string legacy_admitted_columns = 6;
-
     //! This field is used when the data source is a part of the data source directory.
     optional int32 table_schema_id = 7;
     repeated NTableClient.NProto.TColumnRenameDescriptor column_rename_descriptors = 8;
@@ -35,6 +31,8 @@ message TDataSource
 
     optional string object_id = 16;
     optional string account = 17;
+
+    reserved 5, 6;
 }
 
 message TDataSourceDirectoryExt
