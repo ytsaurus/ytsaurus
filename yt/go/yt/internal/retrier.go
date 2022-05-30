@@ -71,8 +71,12 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 }
 
 func isProxyBannedError(err error) bool {
-	var ytErr *yterrors.Error
-	if errors.As(err, &ytErr) && ytErr.Message == "This proxy is banned" {
+	// COMPAT(babenko): drop ProxyBanned in favor of PeerBanned
+	if yterrors.ContainsErrorCode(err, yterrors.CodeProxyBanned) {
+		return true
+	}
+
+	if yterrors.ContainsErrorCode(err, yterrors.CodePeerBanned) {
 		return true
 	}
 
