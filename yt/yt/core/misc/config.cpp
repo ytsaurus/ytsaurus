@@ -54,9 +54,9 @@ void THistoricUsageConfig::Register(TRegistrar registrar)
 
 void TAdaptiveHedgingManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("max_backup_request_percentage", &TThis::MaxBackupRequestPercentage)
-        .GreaterThan(0)
-        .LessThanOrEqual(100)
+    registrar.Parameter("max_backup_request_ratio", &TThis::MaxBackupRequestRatio)
+        .GreaterThan(0.)
+        .LessThanOrEqual(1.)
         .Optional();
 
     registrar.Parameter("tick_period", &TThis::TickPeriod)
