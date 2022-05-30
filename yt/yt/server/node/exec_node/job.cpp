@@ -1004,7 +1004,7 @@ void TJob::ReportProfile()
     }
 }
 
-void TJob::Interrupt(TDuration timeout, std::optional<TString> preemptionReason)
+void TJob::Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 

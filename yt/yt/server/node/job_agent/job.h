@@ -135,7 +135,7 @@ struct IJob
     virtual void ReportFailContext() = 0;
     virtual void ReportProfile() = 0;
 
-    virtual void Interrupt(TDuration timeout, std::optional<TString> preemptionReason) = 0;
+    virtual void Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

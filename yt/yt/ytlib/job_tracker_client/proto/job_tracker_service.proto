@@ -22,8 +22,8 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
     optional int32 job_reporter_write_failures_count = 9;
     optional bool job_reporter_queue_is_too_large = 10;
+    optional bool supports_interruption_logic = 12;
     reserved 11;
-    optional bool supports_interruption_logic = 12 [default = false];
 }
 
 message TControllerAgentDescriptor
