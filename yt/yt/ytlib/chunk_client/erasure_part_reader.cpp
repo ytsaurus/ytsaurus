@@ -88,13 +88,13 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
                     options,
                     client,
                     // Locality doesn't matter, since we typically have only one replica.
-                    /* localDescriptor */ {},
+                    /*localDescriptor*/ {},
                     partChunkId,
                     partReplicas,
                     blockCache,
                     chunkMetaCache,
                     trafficMeter,
-                    /* nodeStatusDirectory */ nullptr,
+                    /*nodeStatusDirectory*/ nullptr,
                     bandwidthThrottler,
                     rpsThrottler);
                 readers.push_back(reader);

@@ -61,4 +61,29 @@ DEFINE_REFCOUNTED_TYPE(THistoricUsageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAdaptiveHedgingManagerConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Percentage of primary requests that should have a hedging counterpart.
+    //! Null is for disabled hedging.
+    std::optional<int> MaxBackupRequestPercentage;
+
+    //! Period for hedging delay tuning and profiling.
+    TDuration TickPeriod;
+
+    //! Each tick hedging delay is tuned according to |MaxBackupRequestPercentage| by |HedgingDelayTuneFactor|.
+    double HedgingDelayTuneFactor;
+    TDuration MinHedgingDelay;
+    TDuration MaxHedgingDelay;
+
+    REGISTER_YSON_STRUCT(TAdaptiveHedgingManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAdaptiveHedgingManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

@@ -276,6 +276,7 @@ public:
     TDuration GetChunkFragmentSetRpcTimeout;
 
     //! Delay before sending a hedged request. If null then hedging is disabled.
+    //! NB: This option may be overriden via hedging manager.
     std::optional<TDuration> FragmentReadHedgingDelay;
 
     //! Limit on retry count.

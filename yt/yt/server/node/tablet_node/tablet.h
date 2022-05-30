@@ -259,6 +259,8 @@ struct TTabletSnapshot
 
     NChunkClient::IChunkFragmentReaderPtr ChunkFragmentReader;
 
+    ITabletHedgingManagerRegistryPtr HedgingManagerRegistry;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
@@ -325,6 +327,7 @@ struct ITabletContext
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
     virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() = 0;
+    virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -533,6 +536,8 @@ public:
     DECLARE_BYVAL_RW_PROPERTY(EBackupStage, BackupStage);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, NonActiveStoresUnmergedRowCount);
+
+    DEFINE_BYREF_RW_PROPERTY(ITabletHedgingManagerRegistryPtr, HedgingManagerRegistry);
 
 public:
     TTablet(
@@ -756,6 +761,7 @@ private:
     void ReconfigureProfiling();
     void ReconfigureRowCache(const ITabletSlotPtr& slot);
     void InvalidateChunkReaders();
+    void ReconfigureHedgingManagerRegistry();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

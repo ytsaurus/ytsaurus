@@ -26,6 +26,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -467,9 +468,9 @@ private:
 
                 auto& probingResult = chunkIdToProbingResult[chunkIdWithIndex.Id];
                 probingResult.Replicas.push_back(TChunkReplicaInfo{
-                    .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                     .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size()),
-                    .PeerInfo = peerInfo
+                    .PeerInfo = peerInfo,
+                    .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                 });
             }
         }
@@ -957,6 +958,8 @@ private:
 
     using TPerPeerPlanPtr = TIntrusivePtr<TPerPeerPlan>;
 
+    bool HasErasureChunks_ = false;
+
 
     void OnFatalError(TError error)
     {
@@ -984,7 +987,8 @@ private:
         State_->Response.BackendHedgingReadRequestCount += BackendHedgingReadRequestCount_;
 
         if (Promise_.TrySet()) {
-            YT_LOG_DEBUG("Chunk fragment read session completed (RetryIndex: %v/%v, WallTime: %v)",
+            YT_LOG_DEBUG("Chunk fragment read session completed "
+                "(RetryIndex: %v/%v, WallTime: %v, ReadRequestCount: %v, HedgingReadRequestCount: %v)",
                 State_->RetryIndex + 1,
                 Reader_->Config_->RetryCountLimit,
                 Timer_.GetElapsedTime(),
@@ -1015,6 +1019,10 @@ private:
 
             auto it = ChunkIdToChunkState_.find(request.ChunkId);
             if (it == ChunkIdToChunkState_.end()) {
+                if (IsErasureChunkId(request.ChunkId)) {
+                    HasErasureChunks_ = true;
+                }
+
                 it = ChunkIdToChunkState_.emplace(request.ChunkId, TChunkState()).first;
                 it->second.Controller = CreateChunkFragmentReadController(
                     request.ChunkId,
@@ -1023,12 +1031,12 @@ private:
             }
 
             auto& controller = *it->second.Controller;
-            controller.RegisterRequest({
-                .FragmentIndex = index,
+            controller.RegisterRequest(TFragmentRequest{
                 .Length = request.Length,
-                .BlockIndex = request.BlockIndex,
                 .BlockOffset = request.BlockOffset,
-                .BlockSize = request.BlockSize
+                .BlockSize = request.BlockSize,
+                .BlockIndex = request.BlockIndex,
+                .FragmentIndex = index,
             });
         }
 
@@ -1160,20 +1168,9 @@ private:
             NodeIdToSuspicionMarkTime_.size());
 
         NextRound(/*isHedged*/ false);
-
-        if (auto hedgingDelay = Reader_->Config_->FragmentReadHedgingDelay) {
-            if (*hedgingDelay == TDuration::Zero()) {
-                OnHedgingDeadlineReached();
-            } else {
-                TDelayedExecutor::Submit(
-                    BIND(&TSimpleReadFragmentsSession::OnHedgingDeadlineReached, MakeStrong(this)),
-                    *hedgingDelay,
-                    SessionInvoker_);
-            }
-        }
     }
 
-    void OnHedgingDeadlineReached()
+    void OnHedgingDeadlineReached(TDuration delay)
     {
         // Shortcut.
         if (Promise_.IsSet()) {
@@ -1181,7 +1178,7 @@ private:
         }
 
         YT_LOG_DEBUG("Hedging deadline reached (Delay: %v)",
-            Reader_->Config_->FragmentReadHedgingDelay);
+            delay);
 
         NextRound(/*isHedged*/ true);
     }
@@ -1189,7 +1186,37 @@ private:
     void NextRound(bool isHedged)
     {
         auto peerInfoToPlan = MakePlans();
+        auto peerCount = std::ssize(peerInfoToPlan);
+
+        auto applyHedgingManager = !HasErasureChunks_ && Options_.HedgingManager;
+
+        if (isHedged && applyHedgingManager) {
+            if (!Options_.HedgingManager->OnHedgingDelayPassed(peerCount)) {
+                YT_LOG_DEBUG("Hedging manager restrained hedging requests (PeerCount: %v)",
+                    peerCount);
+                return;
+            }
+        }
+
         RequestFragments(std::move(peerInfoToPlan), isHedged);
+
+        if (!isHedged && peerCount > 0) {
+            // TODO(akozhikhov): Support cancellation of primary requests?
+            auto hedgingDelay = applyHedgingManager
+                ? std::make_optional(Options_.HedgingManager->OnPrimaryRequestsStarted(peerCount))
+                : Reader_->Config_->FragmentReadHedgingDelay;
+
+            if (hedgingDelay) {
+                if (*hedgingDelay == TDuration::Zero()) {
+                    OnHedgingDeadlineReached(*hedgingDelay);
+                } else {
+                    TDelayedExecutor::Submit(
+                        BIND(&TSimpleReadFragmentsSession::OnHedgingDeadlineReached, MakeStrong(this), *hedgingDelay),
+                        *hedgingDelay,
+                        SessionInvoker_);
+                }
+            }
+        }
     }
 
     THashMap<TPeerInfoPtr, TPerPeerPlanPtr> MakePlans()
@@ -1221,10 +1248,13 @@ private:
                 }
             }
         }
+
         return peerInfoToPlan;
     }
 
-    void RequestFragments(THashMap<TPeerInfoPtr, TPerPeerPlanPtr> peerInfoToPlan, bool isHedged)
+    void RequestFragments(
+        THashMap<TPeerInfoPtr, TPerPeerPlanPtr> peerInfoToPlan,
+        bool isHedged)
     {
         int requestCount = std::ssize(peerInfoToPlan);
         TotalBackendReadRequestCount_ += requestCount;
@@ -1488,7 +1518,7 @@ private:
         }
 
         if (++State_->RetryIndex >= Reader_->Config_->RetryCountLimit) {
-            OnFatalError(TError("Chunk fragment reader has exceed retry count limit")
+            OnFatalError(TError("Chunk fragment reader has exceeded retry count limit")
                 << TErrorAttribute("retry_count_limit", Reader_->Config_->RetryCountLimit));
             return;
         }
@@ -1534,7 +1564,8 @@ private:
             Errors_.push_back(std::move(error));
         }
 
-        YT_LOG_DEBUG("Not all fragments were read; will backoff and retry (TotalFragmentCount: %v, ReadFragmentCount: %v, RetryBackoffTime: %v)",
+        YT_LOG_DEBUG("Not all fragments were read; will backoff and retry "
+            "(TotalFragmentCount: %v, ReadFragmentCount: %v, RetryBackoffTime: %v)",
             totalFragmentCount,
             readFragmentCount,
             Reader_->Config_->RetryBackoffTime);

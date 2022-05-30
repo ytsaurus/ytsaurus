@@ -39,6 +39,7 @@ public:
     INodeMemoryTrackerPtr GetMemoryUsageTracker() override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override;
     TString GetLocalHostName() override;
+    IHedgingManagerRegistryPtr GetHedgingManagerRegistry() override;
 
 private:
     const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_ =

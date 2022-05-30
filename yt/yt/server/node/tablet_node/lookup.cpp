@@ -1,5 +1,6 @@
 #include "lookup.h"
 #include "private.h"
+#include "hedging_manager_registry.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_reader.h"
@@ -725,7 +726,8 @@ void DoLookupRows(
     TSharedRange<TUnversionedRow> lookupKeys,
     const TRowBufferPtr& rowBuffer,
     TRowMerger& rowMerger,
-    const TRowWriter& rowWriter)
+    const TRowWriter& rowWriter,
+    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry)
 {
     tabletSnapshot->WaitOnLocks(timestamp);
 
@@ -739,6 +741,14 @@ void DoLookupRows(
     chunkReadOptions.HunkChunkReaderStatistics = CreateHunkChunkReaderStatistics(
         tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
         schema);
+
+    if (hedgingManagerRegistry) {
+        chunkReadOptions.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+            THedgingUnit{
+                .UserTag = GetCurrentProfilingUser(),
+                .HunkChunk = false,
+            });
+    }
 
     TLookupSession session(
         tabletSnapshot,
@@ -780,6 +790,14 @@ void DoLookupRows(
 
         auto sharedRows = MakeSharedRange(std::move(rows), std::move(rowBuffer));
 
+        if (hedgingManagerRegistry) {
+            chunkReadOptions.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
+                THedgingUnit{
+                    .UserTag = GetCurrentProfilingUser(),
+                    .HunkChunk = true,
+                });
+        }
+
         auto hunkReaderFuture = DecodeHunks(
             schema,
             columnFilter,
@@ -820,7 +838,8 @@ void LookupRows(
     std::optional<bool> useLookupCache,
     const TClientChunkReadOptions& chunkReadOptions,
     IWireProtocolReader* reader,
-    IWireProtocolWriter* writer)
+    IWireProtocolWriter* writer,
+    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry)
 {
     NTableClient::NProto::TReqLookupRows req;
     reader->ReadMessage(&req);
@@ -853,7 +872,8 @@ void LookupRows(
         rowMerger,
         [&] (TUnversionedRow row) {
             writer->WriteSchemafulRow(row);
-        });
+        },
+        std::move(hedgingManagerRegistry));
 }
 
 void VersionedLookupRows(
@@ -863,7 +883,8 @@ void VersionedLookupRows(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
     IWireProtocolReader* reader,
-    IWireProtocolWriter* writer)
+    IWireProtocolWriter* writer,
+    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry)
 {
     NTableClient::NProto::TReqVersionedLookupRows req;
     reader->ReadMessage(&req);
@@ -900,7 +921,8 @@ void VersionedLookupRows(
         rowMerger,
         [&] (TVersionedRow row) {
             writer->WriteVersionedRow(row);
-        });
+        },
+        std::move(hedgingManagerRegistry));
 }
 
 void ExecuteSingleRead(
@@ -910,7 +932,8 @@ void ExecuteSingleRead(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
     IWireProtocolReader* reader,
-    IWireProtocolWriter* writer)
+    IWireProtocolWriter* writer,
+    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry)
 {
     auto command = reader->ReadCommand();
     switch (command) {
@@ -921,7 +944,8 @@ void ExecuteSingleRead(
                 useLookupCache,
                 chunkReadOptions,
                 reader,
-                writer);
+                writer,
+                std::move(hedgingManagerRegistry));
             break;
 
         case EWireProtocolCommand::VersionedLookupRows:
@@ -936,7 +960,8 @@ void ExecuteSingleRead(
                 chunkReadOptions,
                 std::move(retentionConfig),
                 reader,
-                writer);
+                writer,
+                std::move(hedgingManagerRegistry));
             break;
 
         default:
@@ -952,7 +977,8 @@ void LookupRead(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const TRetentionConfigPtr& retentionConfig,
     IWireProtocolReader* reader,
-    IWireProtocolWriter* writer)
+    IWireProtocolWriter* writer,
+    const ITabletHedgingManagerRegistryPtr& hedgingManagerRegistry)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -970,7 +996,8 @@ void LookupRead(
             chunkReadOptions,
             retentionConfig,
             reader,
-            writer);
+            writer,
+            hedgingManagerRegistry);
     }
 }
 

@@ -155,7 +155,7 @@ public:
         int peerIndex = RandomNumber<size_t>(viablePeers.Size());
 
         IChannelPtr channel;
-        if (hedgingOptions && viablePeers.Size() > 1) {
+        if (hedgingOptions && hedgingOptions->HedgingManager && viablePeers.Size() > 1) {
             const auto& primaryPeer = viablePeers[peerIndex];
             const auto& backupPeer = peerIndex + 1 == viablePeers.Size()
                 ? viablePeers[0]

@@ -19,7 +19,8 @@ void LookupRows(
     std::optional<bool> useLookupCache,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NTableClient::IWireProtocolReader* reader,
-    NTableClient::IWireProtocolWriter* writer);
+    NTableClient::IWireProtocolWriter* writer,
+    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry = nullptr);
 
 void VersionedLookupRows(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -28,7 +29,8 @@ void VersionedLookupRows(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,
     NTableClient::IWireProtocolReader* reader,
-    NTableClient::IWireProtocolWriter* writer);
+    NTableClient::IWireProtocolWriter* writer,
+    ITabletHedgingManagerRegistryPtr hedgingManagerRegistry = nullptr);
 
 void LookupRead(
     const TTabletSnapshotPtr& tabletSnapshot,
@@ -37,7 +39,8 @@ void LookupRead(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     const NTableClient::TRetentionConfigPtr& retentionConfig,
     NTableClient::IWireProtocolReader* reader,
-    NTableClient::IWireProtocolWriter* writer);
+    NTableClient::IWireProtocolWriter* writer,
+    const ITabletHedgingManagerRegistryPtr& hedgingManagerRegistry);
 
 ////////////////////////////////////////////////////////////////////////////////
 

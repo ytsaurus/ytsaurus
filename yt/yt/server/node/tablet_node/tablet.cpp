@@ -12,6 +12,7 @@
 #include "tablet_profiling.h"
 #include "transaction_manager.h"
 #include "hunk_chunk.h"
+#include "hedging_manager_registry.h"
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -1441,6 +1442,7 @@ void TTablet::Reconfigure(const ITabletSlotPtr& slot)
     ReconfigureStructuredLogger();
     ReconfigureRowCache(slot);
     InvalidateChunkReaders();
+    ReconfigureHedgingManagerRegistry();
 }
 
 void TTablet::StartEpoch(const ITabletSlotPtr& slot)
@@ -1528,6 +1530,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->RowCache = RowCache_;
     snapshot->StoreFlushIndex = StoreFlushIndex_;
     snapshot->DistributedThrottlers = DistributedThrottlers_;
+    snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {
@@ -1688,6 +1691,15 @@ void TTablet::InvalidateChunkReaders()
             store->AsChunk()->InvalidateCachedReaders(Settings_);
         }
     }
+}
+
+void TTablet::ReconfigureHedgingManagerRegistry()
+{
+    HedgingManagerRegistry_ = Context_->GetHedgingManagerRegistry()->GetOrCreateTabletHedgingManagerRegistry(
+        TableId_,
+        Settings_.StoreReaderConfig->HedgingManager,
+        Settings_.HunkReaderConfig->HedgingManager,
+        TableProfiler_->GetProfiler());
 }
 
 void TTablet::ReconfigureProfiling()

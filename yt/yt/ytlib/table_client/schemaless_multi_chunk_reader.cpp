@@ -190,7 +190,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             blockCache,
                             chunkMetaCache,
                             trafficMeter,
-                            /* nodeStatusDirectory */ nullptr,
+                            /*nodeStatusDirectory*/ nullptr,
                             bandwidthThrottler,
                             rpsThrottler);
                     } catch (const std::exception& ex) {
@@ -1156,7 +1156,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             blockCache,
             chunkMetaCache,
             trafficMeter,
-            /* nodeStatusDirectory */ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
             bandwidthThrottler,
             rpsThrottler);
 

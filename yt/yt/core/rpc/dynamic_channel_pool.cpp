@@ -63,7 +63,9 @@ public:
 
     TFuture<IChannelPtr> GetRandomChannel()
     {
-        return GetChannel(nullptr, std::nullopt);
+        return GetChannel(
+            /*request*/ nullptr,
+            /*hedgingOptions*/ std::nullopt);
     }
 
     TFuture<IChannelPtr> GetChannel(
@@ -84,7 +86,11 @@ public:
             ? session->GetFinished()
             : session->GetFirstPeerDiscovered();
         return future.Apply(
-            BIND(&TImpl::GetChannelAfterDiscovery, MakeStrong(this), request, hedgingOptions));
+            BIND(
+                &TImpl::GetChannelAfterDiscovery,
+                MakeStrong(this),
+                request,
+                hedgingOptions));
     }
 
     void SetPeers(std::vector<TString> addresses)

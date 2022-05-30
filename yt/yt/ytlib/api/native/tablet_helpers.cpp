@@ -12,6 +12,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/helpers.h>
 
+#include <yt/yt/core/misc/hedging_manager.h>
+
 #include <yt/yt/core/rpc/hedging_channel.h>
 
 namespace NYT::NApi::NNative {
@@ -133,7 +135,7 @@ IChannelPtr CreateTabletReadChannel(
         std::move(primaryChannel),
         std::move(backupChannel),
         THedgingChannelOptions{
-            .Delay = *options.RpcHedgingDelay
+            .HedgingManager = CreateSimpleHedgingManager(*options.RpcHedgingDelay),
         });
 }
 

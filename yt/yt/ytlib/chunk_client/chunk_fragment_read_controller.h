@@ -16,11 +16,11 @@ namespace NYT::NChunkClient {
 
 struct TFragmentRequest
 {
-    int FragmentIndex;
     i64 Length;
-    int BlockIndex;
     i64 BlockOffset;
     i64 BlockSize;
+    int BlockIndex;
+    int FragmentIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,9 +38,9 @@ using TPeerInfoPtr = TIntrusivePtr<TPeerInfo>;
 
 struct TChunkReplicaInfo
 {
-    int ReplicaIndex = GenericChunkReplicaIndex;
     double Penalty = 0;
     TPeerInfoPtr PeerInfo;
+    int ReplicaIndex = GenericChunkReplicaIndex;
 };
 
 using TChunkReplicaInfoList = TCompactVector<TChunkReplicaInfo, TypicalReplicaCount>;
