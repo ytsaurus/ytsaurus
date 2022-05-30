@@ -44,44 +44,6 @@ NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
     return config;
 }
 
-TDeprecatedServerConfig::TDeprecatedServerConfig()
-{
-    RegisterParameter("bus_server", BusServer)
-        .DefaultNew();
-    RegisterParameter("rpc_server", RpcServer)
-        .DefaultNew();
-    RegisterParameter("core_dumper", CoreDumper)
-        .Default();
-
-    RegisterParameter("rpc_port", RpcPort)
-        .Default(0)
-        .GreaterThanOrEqual(0)
-        .LessThan(65536);
-    RegisterParameter("monitoring_port", MonitoringPort)
-        .Default(0)
-        .GreaterThanOrEqual(0)
-        .LessThan(65536);
-
-    RegisterPostprocessor([&] {
-        if (RpcPort > 0) {
-            if (BusServer->Port || BusServer->UnixDomainSocketPath) {
-                THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
-            }
-            BusServer->Port = RpcPort;
-        }
-    });
-}
-
-NHttp::TServerConfigPtr TDeprecatedServerConfig::CreateMonitoringHttpServerConfig()
-{
-    auto config = New<NHttp::TServerConfig>();
-    config->Port = MonitoringPort;
-    config->BindRetryCount = BusServer->BindRetryCount;
-    config->BindRetryBackoff = BusServer->BindRetryBackoff;
-    config->ServerName = "HttpMon";
-    return config;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDiskLocationConfig::Register(TRegistrar registrar)

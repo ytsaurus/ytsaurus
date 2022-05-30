@@ -60,7 +60,6 @@ DEFINE_REFCOUNTED_TYPE(TTCMallocConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// YsonStruct version.
 class TSingletonsConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -87,34 +86,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
 
-// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
-class TDeprecatedSingletonsConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    TDuration SpinWaitSlowPathLoggingThreshold;
-    NYTAlloc::TYTAllocConfigPtr YTAlloc;
-    THashMap<TString, int> FiberStackPoolSizes;
-    NNet::TAddressResolverConfigPtr AddressResolver;
-    NBus::TTcpDispatcherConfigPtr TcpDispatcher;
-    NRpc::TDispatcherConfigPtr RpcDispatcher;
-    NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
-    NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
-    NProfiling::TProfileManagerConfigPtr ProfileManager;
-    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
-    NLogging::TLogManagerConfigPtr Logging;
-    NTracing::TJaegerTracerConfigPtr Jaeger;
-    TRpcConfigPtr Rpc;
-    TTCMallocConfigPtr TCMalloc;
-
-    TDeprecatedSingletonsConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDeprecatedSingletonsConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-// YsonStruct version.
 class TSingletonsDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -136,29 +109,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSingletonsDynamicConfig)
 
-// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
-class TDeprecatedSingletonsDynamicConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    std::optional<TDuration> SpinWaitSlowPathLoggingThreshold;
-    NYTAlloc::TYTAllocConfigPtr YTAlloc;
-    NBus::TTcpDispatcherDynamicConfigPtr TcpDispatcher;
-    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
-    NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
-    NLogging::TLogManagerDynamicConfigPtr Logging;
-    NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
-    TRpcConfigPtr Rpc;
-    TTCMallocConfigPtr TCMalloc;
-
-    TDeprecatedSingletonsDynamicConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDeprecatedSingletonsDynamicConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-// YsonStruct version.
 class TDiagnosticDumpConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -172,19 +124,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiagnosticDumpConfig)
-
-// YsonSerializable version. Keep it in sync with verstion above. Expected to die quite soon.
-class TDeprecatedDiagnosticDumpConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    std::optional<TDuration> YTAllocDumpPeriod;
-    std::optional<TDuration> RefCountedTrackerDumpPeriod;
-
-    TDeprecatedDiagnosticDumpConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDeprecatedDiagnosticDumpConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
