@@ -731,7 +731,7 @@ template <class TValue>
 bool TYsonStructParameter<TValue>::CanOmitValue(const TYsonStructBase* self) const
 {
     const auto& value = FieldAccessor_->GetValue(self);
-    if constexpr (std::is_arithmetic_v<TValue> || std::is_same_v<TValue, TString>) {
+    if constexpr (NPrivate::SupportsDontSerializeDefault<TValue>) {
         if (!SerializeDefault_ && value == (*DefaultConstructor_)()) {
             return true;
         }
