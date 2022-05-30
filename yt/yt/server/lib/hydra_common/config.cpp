@@ -309,4 +309,24 @@ TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSerializationDumperConfig::TSerializationDumperConfig()
+{
+    RegisterParameter("lower_limit", LowerLimit)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    RegisterParameter("upper_limit", UpperLimit)
+        .GreaterThanOrEqual(0)
+        .Default(std::numeric_limits<i64>::max());
+
+    RegisterPostprocessor([&] () {
+        if (LowerLimit >= UpperLimit) {
+            THROW_ERROR_EXCEPTION("\"upper_limit\" must be greater than \"lower_limit\"")
+                << TErrorAttribute("lower_limit", LowerLimit)
+                << TErrorAttribute("upper_limit", UpperLimit);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHydra

@@ -1187,10 +1187,7 @@ private:
     {
         auto reader = CreateUncompressedHeaderlessLocalSnapshotReader(fileName);
 
-        WaitFor(reader->Open())
-            .ThrowOnError();
-
-        ValidateTabletCellSnapshot(this, InvalidSegmentId, reader->GetParams(), reader);
+        ValidateTabletCellSnapshot(this, reader);
     }
 
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) override

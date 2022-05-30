@@ -183,25 +183,6 @@ public:
         LocalJanitor_->Start();
     }
 
-    void LoadSnapshot(
-        int snapshotId,
-        ISnapshotReaderPtr reader,
-        bool dump,
-        bool enableTotalWriteCountReport,
-        const TSerializationDumperConfigPtr& dumpConfig) override
-    {
-        WaitFor(reader->Open())
-            .ThrowOnError();
-
-        Automaton_->SetSerializationDumpEnabled(dump);
-        Automaton_->SetEnableTotalWriteCountReport(enableTotalWriteCountReport);
-        if (dumpConfig) {
-            Automaton_->SetLowerWriteCountDumpLimit(dumpConfig->LowerLimit);
-            Automaton_->SetUpperWriteCountDumpLimit(dumpConfig->UpperLimit);
-        }
-        HydraManager_->ValidateSnapshot(snapshotId, reader->GetParams(), reader);
-    }
-
     const TMasterAutomatonPtr& GetAutomaton() const override
     {
         return Automaton_;

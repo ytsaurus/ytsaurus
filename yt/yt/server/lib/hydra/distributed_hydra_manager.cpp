@@ -376,11 +376,6 @@ public:
         }
     }
 
-    void ValidateSnapshot(int snapshotId, const TSnapshotParams& params, IAsyncZeroCopyInputStreamPtr reader) override
-    {
-        DecoratedAutomaton_->ValidateSnapshot(snapshotId, params, std::move(reader));
-    }
-
     TYsonProducer GetMonitoringProducer() override
     {
         VERIFY_THREAD_AFFINITY_ANY();

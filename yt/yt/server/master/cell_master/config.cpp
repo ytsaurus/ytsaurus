@@ -313,24 +313,4 @@ TDynamicClusterConfig::TDynamicClusterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializationDumperConfig::TSerializationDumperConfig()
-{
-    RegisterParameter("lower_limit", LowerLimit)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-    RegisterParameter("upper_limit", UpperLimit)
-        .GreaterThanOrEqual(0)
-        .Default(std::numeric_limits<i64>::max());
-
-    RegisterPostprocessor([&] () {
-        if (LowerLimit >= UpperLimit) {
-            THROW_ERROR_EXCEPTION("'UpperLimit' must be greater than 'LowerLimit'")
-                << TErrorAttribute("actual_lower_limit", LowerLimit)
-                << TErrorAttribute("actual_upper_limit", UpperLimit);
-        }
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NCellMaster

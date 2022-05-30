@@ -228,13 +228,13 @@ protected:
         const TString& fileName,
         bool dump,
         bool enableTotalWriteCountReport,
-        const TSerializationDumperConfigPtr& dumpConfig);
+        const NHydra::TSerializationDumperConfigPtr& dumpConfig);
 
     void ValidateLoadSnapshotParameters(
         bool dump,
         bool enableTotalWriteCountReport,
         const TString& dumpConfigString,
-        TSerializationDumperConfigPtr* dumpConfig);
+        NHydra::TSerializationDumperConfigPtr* dumpConfig);
 
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig);
 };
