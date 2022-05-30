@@ -484,7 +484,6 @@ private:
         chunkSealInfo.set_row_count(sealedRowCount);
         chunkSealInfo.set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
         chunkSealInfo.set_compressed_data_size(quorumInfo.CompressedDataSize);
-        chunkSealInfo.set_physical_row_count(GetPhysicalChunkRowCount(sealedRowCount, overlayed));
 
         if (quorumInfo.RowCountConfirmedReplicaCount >= writeQuorum &&
             !GetDynamicConfig()->Testing->ForceUnreliableSeal)

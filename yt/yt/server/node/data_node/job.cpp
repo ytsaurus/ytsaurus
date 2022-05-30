@@ -2102,7 +2102,6 @@ private:
                 chunkSealInfo.set_row_count(GetLogicalChunkRowCount(miscExt.row_count(), Overlayed_));
                 chunkSealInfo.set_compressed_data_size(miscExt.compressed_data_size());
                 chunkSealInfo.set_uncompressed_data_size(miscExt.uncompressed_data_size());
-                chunkSealInfo.set_physical_row_count(miscExt.row_count());
                 replicaInfos.push_back(chunkSealInfo);
 
                 YT_LOG_DEBUG("Body chunk replica info recieved "
@@ -2110,7 +2109,7 @@ private:
                     BodyChunkId_,
                     address,
                     chunkSealInfo.row_count(),
-                    chunkSealInfo.physical_row_count(),
+                    miscExt.row_count(),
                     locationUuid);
 
                 if (locationUuidToAddress.contains(locationUuid)) {
@@ -2144,7 +2143,6 @@ private:
         auto bodyChunkLogicalRowCount = std::max<i64>(bodyChunkSealInfo.row_count() - bodyChunkReplicaLagLimit, 0);
         bodyChunkSealInfo.set_first_overlayed_row_index(JobSpecExt_.body_chunk_first_overlayed_row_index());
         bodyChunkSealInfo.set_row_count(bodyChunkLogicalRowCount);
-        bodyChunkSealInfo.set_physical_row_count(GetPhysicalChunkRowCount(bodyChunkLogicalRowCount, Overlayed_));
 
         auto readQuorumInfoIndex = IsErasure()
             ? ReadQuorum_ - NErasure::GetCodec(ErasureCodecId_)->GetGuaranteedRepairablePartCount()
@@ -2156,7 +2154,7 @@ private:
             BodyChunkId_,
             ReadQuorum_,
             bodyChunkSealInfo.row_count(),
-            bodyChunkSealInfo.physical_row_count(),
+            GetPhysicalChunkRowCount(bodyChunkLogicalRowCount, Overlayed_),
             *totalRowCount);
 
         return bodyChunkSealInfo;
@@ -2491,7 +2489,6 @@ private:
         i64 tailFirstRowIndex = bodyChunkSealInfo.first_overlayed_row_index() + bodyChunkSealInfo.row_count();
         jobResultExt->mutable_tail_chunk_seal_info()->set_first_overlayed_row_index(tailFirstRowIndex);
         jobResultExt->mutable_tail_chunk_seal_info()->set_row_count(tailRowCount);
-        jobResultExt->mutable_tail_chunk_seal_info()->set_physical_row_count(GetPhysicalChunkRowCount(tailRowCount, Overlayed_));
         jobResultExt->mutable_tail_chunk_seal_info()->set_uncompressed_data_size(1);
         jobResultExt->mutable_tail_chunk_seal_info()->set_compressed_data_size(1);
     }

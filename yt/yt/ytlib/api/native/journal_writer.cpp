@@ -1145,8 +1145,6 @@ private:
                 req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
-                // COMPAT(aleksandra-zh): YT-15138
-                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, UseOverlayedChunks()));
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     GetCumulativeError(batchRspOrError),
@@ -1829,8 +1827,6 @@ private:
                 req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
-                // COMPAT(aleksandra-zh): YT-15138
-                req->mutable_info()->set_physical_row_count(GetPhysicalChunkRowCount(session->QuorumFlushedRowCount, UseOverlayedChunks()));
             }
 
             SealInProgress_ = true;
