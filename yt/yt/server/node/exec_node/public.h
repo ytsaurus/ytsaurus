@@ -72,6 +72,11 @@ DEFINE_ENUM(EExecNodeThrottlerKind,
     (JobOut)
 );
 
+DEFINE_ENUM(ESlotType,
+    ((Common)    (0))
+    ((Idle)      (1))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

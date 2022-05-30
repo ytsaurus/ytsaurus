@@ -54,22 +54,25 @@ public:
         const NClusterNode::TClusterNodeDynamicConfigPtr& oldNodeConfig,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 
-    //! Acquires a free slot, thows on error.
-    ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest);
+    //! Acquires a free slot, throws on error.
+    ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, double requestedCpu, bool allowCpuIdlePolicy);
 
     class TSlotGuard
     {
     public:
-        explicit TSlotGuard(TSlotManagerPtr slotManager);
+        explicit TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu);
         ~TSlotGuard();
 
         int GetSlotIndex() const;
+        ESlotType GetSlotType() const;
 
     private:
         const TSlotManagerPtr SlotManager_;
+        const ESlotType SlotType_;
         const int SlotIndex_;
+        const double RequestedCpu_;
     };
-    std::unique_ptr<TSlotGuard> AcquireSlot();
+    std::unique_ptr<TSlotGuard> AcquireSlot(ESlotType slotType, double requestedCpu);
 
     int GetSlotCount() const;
     int GetUsedSlotCount() const;
@@ -134,6 +137,9 @@ private:
     IJobEnvironmentPtr JobEnvironment_;
 
     THashSet<int> FreeSlots_;
+    int UsedIdleSlotCount_ = 0;
+
+    double IdlePolicyRequestedCpu_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     TEnumIndexedVector<ESlotManagerAlertType, TError> Alerts_;
@@ -151,11 +157,12 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     bool HasSlotDisablingAlert() const;
+    double GetIdleCpuFraction() const;
 
     void AsyncInitialize();
 
-    int DoAcquireSlot();
-    void ReleaseSlot(int slotIndex);
+    int DoAcquireSlot(ESlotType slotType);
+    void ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu);
 
     /*!
      *  \note

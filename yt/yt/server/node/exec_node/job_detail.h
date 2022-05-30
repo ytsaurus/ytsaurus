@@ -286,6 +286,7 @@ private:
 
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
     bool GpuRequested_;
+    double RequestedCpu_;
     std::vector<int> Ports_;
 
     EJobState JobState_ = EJobState::Waiting;

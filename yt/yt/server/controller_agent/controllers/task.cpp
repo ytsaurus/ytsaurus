@@ -1520,6 +1520,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
     }
     schedulerJobSpecExt->set_job_proxy_ref_counted_tracker_log_period(ToProto<i64>(TaskHost_->GetSpec()->JobProxyRefCountedTrackerLogPeriod));
     schedulerJobSpecExt->set_abort_job_if_account_limit_exceeded(TaskHost_->GetSpec()->SuspendOperationIfAccountLimitExceeded);
+    schedulerJobSpecExt->set_allow_cpu_idle_policy(TaskHost_->GetSpec()->AllowCpuIdlePolicy);
     if (TaskHost_->GetSpec()->ForceJobProxyTracing) {
         schedulerJobSpecExt->set_is_traced(true);
     }

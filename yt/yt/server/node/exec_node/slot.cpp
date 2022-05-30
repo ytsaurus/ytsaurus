@@ -43,11 +43,13 @@ public:
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
-        const TString& nodeTag)
+        const TString& nodeTag,
+        ESlotType slotType,
+        double requestedCpu)
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
-        , SlotGuard_(slotManager->AcquireSlot())
+        , SlotGuard_(slotManager->AcquireSlot(slotType, requestedCpu))
         , SlotIndex_(SlotGuard_->GetSlotIndex())
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
@@ -58,7 +60,7 @@ public:
     void CleanProcesses() override
     {
         // First kill all processes that may hold open handles to slot directories.
-        JobEnvironment_->CleanProcesses(SlotIndex_);
+        JobEnvironment_->CleanProcesses(SlotIndex_, SlotGuard_->GetSlotType());
     }
 
     void CleanSandbox() override
@@ -90,6 +92,7 @@ public:
                 }
 
                 return JobEnvironment_->RunJobProxy(
+                    SlotGuard_->GetSlotType(),
                     SlotIndex_,
                     Location_->GetSlotPath(SlotIndex_),
                     jobId,
@@ -226,7 +229,7 @@ public:
         int startIndex) override
     {
         return RunPrepareAction<void>([&] {
-                return JobEnvironment_->RunSetupCommands(SlotIndex_, jobId, commands, rootFS, user, devices, startIndex);
+                return JobEnvironment_->RunSetupCommands(SlotIndex_, SlotGuard_->GetSlotType(), jobId, commands, rootFS, user, devices, startIndex);
             },
             // Setup commands are uncancelable since they are run in separate processes.
             true);
@@ -297,14 +300,18 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    const TString& nodeTag)
+    const TString& nodeTag,
+    ESlotType slotType,
+    double requestedCpu)
 {
     auto slot = New<TSlot>(
         slotManager,
         std::move(location),
         std::move(environment),
         std::move(volumeManager),
-        nodeTag);
+        nodeTag,
+        slotType,
+        requestedCpu);
 
     return slot;
 }

@@ -3,10 +3,10 @@ from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, wait, events_on_fs, create, ls, get, set, exists,
     create_medium, create_account, read_table,
-    write_table, map,
+    write_table, map, release_breakpoint,
     start_transaction, abort_transaction,
     create_account_resource_usage_lease, update_controller_agent_config,
-    abort_job, run_test_vanilla,
+    abort_job, run_test_vanilla, update_nodes_dynamic_config,
     with_breakpoint, wait_breakpoint)
 
 from yt.common import YtError, update
@@ -16,6 +16,145 @@ import pytest
 import os
 import time
 import shutil
+
+##################################################################
+
+
+class TestIdleSlots(YTEnvSetup):
+    USE_PORTO = True
+
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 20,
+                    "user_slots": 10,
+                },
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "idle_cpu_fraction": 0.2,
+                },
+            },
+        },
+        "dynamic_config_manager": {
+            "update_period": 50,
+        },
+    }
+
+    def _get_job_info(self, op):
+        wait(lambda: len(op.get_running_jobs()) >= 1)
+        jobs = op.get_running_jobs()
+        job = jobs[list(jobs)[0]]
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) >= 1
+        job_id = job_ids[0]
+
+        return (job_id, job["address"])
+
+    def _check_slot_count(self, node, common_used, idle_used):
+        slot_count = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/slot_count")
+        free_slot_count = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/free_slot_count")
+        used_idle_slot_count = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/slot_manager/used_idle_slot_count")
+
+        return (free_slot_count + common_used + idle_used == slot_count) and (used_idle_slot_count == idle_used)
+
+    def _update_cpu_fraction(self, fraction=0.1):
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "slot_manager": {
+                    "idle_cpu_fraction": fraction,
+                },
+            },
+        })
+
+    def _get_actual_cpu_policy(self, op, job_id):
+        return op.read_stderr(job_id).decode("utf-8").strip()
+
+    def _run_idle_operation(self, cpu_limit, breakpoint_id="default"):
+        return run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_policy >&2; BREAKPOINT", breakpoint_id),
+            task_patch={"cpu_limit": cpu_limit, "enable_porto": "isolate"},
+            spec={
+                "allow_cpu_idle_policy": True,
+            }
+        )
+
+    @authors("nadya73")
+    def test_schedule_in_idle_container(self):
+        self._update_cpu_fraction()
+
+        all_operations_info = []
+        for cpu_limit, common_used, idle_used, expected_cpu_policy in [
+            (1, 0, 1, "idle"),
+            (0.5, 0, 2, "idle"),
+            (0.4, 0, 3, "idle"),
+            (0.2, 1, 3, "normal"),
+        ]:
+            op = self._run_idle_operation(cpu_limit)
+
+            job_id, node = self._get_job_info(op)
+
+            all_operations_info += [(op, job_id, expected_cpu_policy)]
+
+            wait_breakpoint()
+
+            wait(lambda: self._check_slot_count(node, common_used, idle_used))
+
+        release_breakpoint()
+        for op, job_id, expected_cpu_policy in all_operations_info:
+            op.track()
+            assert self._get_actual_cpu_policy(op, job_id) == expected_cpu_policy
+
+        self._check_slot_count(node, 0, 0)
+
+    @authors("nadya73")
+    def test_update_idle_cpu_fraction(self):
+        self._update_cpu_fraction(fraction=0.1)
+        op = self._run_idle_operation(cpu_limit=1, breakpoint_id="1")
+
+        wait_breakpoint("1")
+        job_id, node = self._get_job_info(op)
+        release_breakpoint("1")
+        op.track()
+        assert self._get_actual_cpu_policy(op, job_id) == "idle"
+
+        self._update_cpu_fraction(fraction=0.04)
+        op = self._run_idle_operation(cpu_limit=1, breakpoint_id="2")
+        wait_breakpoint("2")
+        job_id, node = self._get_job_info(op)
+        release_breakpoint("2")
+        op.track()
+        assert self._get_actual_cpu_policy(op, job_id) == "normal"
+
+    @authors("nadya73")
+    def test_common_in_common_container(self):
+        self._update_cpu_fraction()
+
+        op = run_test_vanilla(
+            with_breakpoint("portoctl get self cpu_policy >&2; BREAKPOINT"),
+            task_patch={"cpu_limit": 1, "enable_porto": "isolate"},
+        )
+
+        job_id, node = self._get_job_info(op)
+
+        wait_breakpoint()
+
+        self._check_slot_count(node, 1, 0)
+
+        release_breakpoint()
+        op.track()
+
+        assert self._get_actual_cpu_policy(op, job_id) == "normal"
+
+        wait(lambda: self._check_slot_count(node, 0, 0))
+
 
 ##################################################################
 

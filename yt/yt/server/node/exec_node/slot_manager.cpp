@@ -79,7 +79,8 @@ void TSlotManager::Initialize()
     // It should also be initialized synchronously, since it may prevent delection of chunk cache artifacts.
     JobEnvironment_->Init(
         SlotCount_,
-        Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu);
+        Bootstrap_->GetConfig()->ExecNode->JobController->ResourceLimits->Cpu,
+        GetIdleCpuFraction());
 
     if (!JobEnvironment_->IsEnabled()) {
         YT_LOG_INFO("Job environment is disabled");
@@ -112,6 +113,7 @@ void TSlotManager::OnDynamicConfigChanged(
     VERIFY_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newNodeConfig->ExecNode->SlotManager);
+    JobEnvironment_->UpdateIdleCpuFraction(GetIdleCpuFraction());
 }
 
 void TSlotManager::UpdateAliveLocations()
@@ -126,7 +128,7 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
+ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, double requestedCpu, bool allowCpuIdlePolicy)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -171,19 +173,27 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
         bestLocation->AcquireDiskSpace(diskRequest.disk_space());
     }
 
+    ESlotType slotType = ESlotType::Common;
+    if (allowCpuIdlePolicy && IdlePolicyRequestedCpu_ + requestedCpu <= JobEnvironment_->GetCpuLimit(ESlotType::Idle)) {
+        slotType = ESlotType::Idle;
+        IdlePolicyRequestedCpu_ += requestedCpu;
+    }
+
     return CreateSlot(
         this,
         std::move(bestLocation),
         JobEnvironment_,
         RootVolumeManager_.Load(),
-        NodeTag_);
+        NodeTag_,
+        slotType,
+        requestedCpu);
 }
 
-std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot()
+std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(ESlotType slotType, double cpuUsage)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return std::make_unique<TSlotManager::TSlotGuard>(this);
+    return std::make_unique<TSlotManager::TSlotGuard>(this, slotType, cpuUsage);
 }
 
 int TSlotManager::GetSlotCount() const
@@ -236,6 +246,14 @@ bool TSlotManager::HasSlotDisablingAlert() const
         !Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK() ||
         !Alerts_[ESlotManagerAlertType::JobProxyUnavailable].IsOK() ||
         (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK());
+}
+
+double TSlotManager::GetIdleCpuFraction() const
+{
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig
+        ? dynamicConfig->IdleCpuFraction.value_or(Config_->IdleCpuFraction)
+        : Config_->IdleCpuFraction;
 }
 
 bool TSlotManager::HasFatalAlert() const
@@ -411,6 +429,7 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
         fluent
             .Item("slot_count").Value(SlotCount_)
             .Item("free_slot_count").Value(FreeSlots_.size())
+            .Item("used_idle_slot_count").Value(UsedIdleSlotCount_)
             .Item("alerts").DoMapFor(
                 TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
                 [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
@@ -523,7 +542,7 @@ void TSlotManager::AsyncInitialize()
     YT_LOG_INFO("Slot manager async initialization finished");
 }
 
-int TSlotManager::DoAcquireSlot()
+int TSlotManager::DoAcquireSlot(ESlotType slotType)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -532,24 +551,33 @@ int TSlotManager::DoAcquireSlot()
     auto slotIndex = *slotIt;
     FreeSlots_.erase(slotIt);
 
-    YT_LOG_DEBUG("Exec slot acquired (SlotIndex: %v)",
-        slotIndex);
+    if (slotType == ESlotType::Idle) {
+        ++UsedIdleSlotCount_;
+    }
+
+    YT_LOG_DEBUG("Exec slot acquired (SlotType: %v, SlotIndex: %v)",
+        slotType, slotIndex);
 
     return slotIndex;
 }
 
-void TSlotManager::ReleaseSlot(int slotIndex)
+void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& jobInvoker = Bootstrap_->GetJobInvoker();
     jobInvoker->Invoke(
-        BIND([this, this_ = MakeStrong(this), slotIndex] {
+        BIND([this, this_ = MakeStrong(this), slotType, slotIndex, requestedCpu] {
             VERIFY_THREAD_AFFINITY(JobThread);
 
             YT_VERIFY(FreeSlots_.insert(slotIndex).second);
+            if (slotType == ESlotType::Idle) {
+                --UsedIdleSlotCount_;
+                IdlePolicyRequestedCpu_ -= requestedCpu;
+            }
 
-            YT_LOG_DEBUG("Exec slot released (SlotIndex: %v)",
+            YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v)",
+                slotType,
                 slotIndex);
         }));
 }
@@ -585,19 +613,26 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlotManager::TSlotGuard::TSlotGuard(TSlotManagerPtr slotManager)
+TSlotManager::TSlotGuard::TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu)
     : SlotManager_(std::move(slotManager))
-    , SlotIndex_(SlotManager_->DoAcquireSlot())
+    , SlotType_(slotType)
+    , SlotIndex_(SlotManager_->DoAcquireSlot(slotType))
+    , RequestedCpu_(requestedCpu)
 { }
 
 TSlotManager::TSlotGuard::~TSlotGuard()
 {
-    SlotManager_->ReleaseSlot(SlotIndex_);
+    SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_);
 }
 
 int TSlotManager::TSlotGuard::GetSlotIndex() const
 {
     return SlotIndex_;
+}
+
+ESlotType TSlotManager::TSlotGuard::GetSlotType() const
+{
+    return SlotType_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

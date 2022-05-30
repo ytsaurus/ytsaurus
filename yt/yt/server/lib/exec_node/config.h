@@ -190,6 +190,8 @@ public:
 
     bool DisableJobsOnGpuCheckFailure;
 
+    double IdleCpuFraction;
+
     TSlotManagerTestingConfigPtr Testing;
 
     TSlotManagerConfig()
@@ -224,6 +226,8 @@ public:
 
         RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
             .Default(true);
+        RegisterParameter("idle_cpu_fraction", IdleCpuFraction)
+            .Default(0);
 
         RegisterParameter("testing", Testing)
             .DefaultNew();
@@ -702,13 +706,16 @@ public:
     //! Enables disk usage checks in periodic disk resources update.
     bool CheckDiskSpaceLimit;
 
+    std::optional<double> IdleCpuFraction;
+
     TSlotManagerDynamicConfig()
     {
         RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
             .Default();
-
         RegisterParameter("check_disk_space_limit", CheckDiskSpaceLimit)
             .Default(false);
+        RegisterParameter("idle_cpu_fraction", IdleCpuFraction)
+            .Default();
     }
 };
 
