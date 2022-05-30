@@ -371,6 +371,10 @@ def get_started_by(command_length_limit=None):
         "python_version": python_version
     }
 
+    if is_arcadia_python():
+        import __res
+        started_by["arcadia_main_module"] = __res.find('PY_MAIN')
+
     started_by = update(started_by, get_user_info())
 
     platform = get_platform()
