@@ -37,7 +37,10 @@ DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
 DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
 DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitor)
 
+DECLARE_REFCOUNTED_CLASS(TSerializationDumperConfig)
+
 struct TDistributedHydraManagerOptions;
+struct TSnapshotValidationOptions;
 
 class THydraContext;
 

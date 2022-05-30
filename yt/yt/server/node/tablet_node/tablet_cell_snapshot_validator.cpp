@@ -7,6 +7,10 @@
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
 #include <yt/yt/server/lib/cellar_agent/occupier.h>
 
+#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/validate_snapshot.h>
+
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
@@ -35,11 +39,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateTabletCellSnapshot(
-    IBootstrapBase* bootstrap,
-    int snapshotId,
-    const TSnapshotParams& snapshotParams,
-    const IAsyncZeroCopyInputStreamPtr& reader)
+void ValidateTabletCellSnapshot(IBootstrapBase* bootstrap, const NHydra::ISnapshotReaderPtr& reader)
 {
     const auto& cellarManager = bootstrap
         ->GetCellarNodeBootstrap()
@@ -82,9 +82,9 @@ void ValidateTabletCellSnapshot(
         cellar->ConfigureOccupant(occupant, protoInfo);
     }
 
-    BIND([=, reader=std::move(reader)] {
-            const auto& hydraManager = occupant->GetHydraManager();
-            hydraManager->ValidateSnapshot(snapshotId, snapshotParams, reader);
+    BIND([=] {
+            auto automaton = occupant->GetAutomaton();
+            ValidateSnapshot(automaton, reader);
         })
         .AsyncVia(occupant->GetOccupier()->GetOccupierAutomatonInvoker())
         .Run()

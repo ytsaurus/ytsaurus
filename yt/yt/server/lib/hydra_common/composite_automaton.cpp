@@ -1,8 +1,10 @@
 #include "composite_automaton.h"
 #include "private.h"
+#include "config.h"
 #include "hydra_manager.h"
 #include "mutation_context.h"
 #include "snapshot.h"
+#include "validate_snapshot.h"
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -259,6 +261,16 @@ void TCompositeAutomaton::SetUpperWriteCountDumpLimit(i64 upperLimit)
 void TCompositeAutomaton::SetEnableTotalWriteCountReport(bool enableTotalWriteCountReport)
 {
     EnableTotalWriteCountReport_ = enableTotalWriteCountReport;
+}
+
+void TCompositeAutomaton::SetSnapshotValidationOptions(const TSnapshotValidationOptions& options)
+{
+    SetSerializationDumpEnabled(options.SerializationDumpEnabled);
+    if (options.DumpConfig) {
+        SetLowerWriteCountDumpLimit(options.DumpConfig->LowerLimit);
+        SetUpperWriteCountDumpLimit(options.DumpConfig->UpperLimit);
+    }
+    SetEnableTotalWriteCountReport(options.EnableTotalWriteCountReport);
 }
 
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)

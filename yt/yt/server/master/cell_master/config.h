@@ -288,18 +288,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializationDumperConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    i64 LowerLimit;
-    i64 UpperLimit;
-
-    TSerializationDumperConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TSerializationDumperConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NCellMaster

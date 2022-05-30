@@ -37,6 +37,7 @@
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
+#include <yt/yt/server/lib/hydra_common/validate_snapshot.h>
 
 #include <yt/yt/server/lib/hydra/local_snapshot_service.h>
 
@@ -1043,7 +1044,11 @@ void TBootstrap::DoLoadSnapshot(
     const TSerializationDumperConfigPtr& dumpConfig)
 {
     auto reader = CreateLocalSnapshotReader(fileName, InvalidSegmentId);
-    HydraFacade_->LoadSnapshot(InvalidSegmentId, reader, dump, enableTotalWriteCountReport, dumpConfig);
+    auto automaton = HydraFacade_->GetAutomaton();
+    ValidateSnapshot(
+        automaton,
+        reader,
+        /*options*/ {dump, enableTotalWriteCountReport, dumpConfig});
 }
 
 void TBootstrap::ValidateLoadSnapshotParameters(

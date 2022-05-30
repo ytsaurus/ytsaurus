@@ -161,6 +161,8 @@ public:
     void SetLowerWriteCountDumpLimit(i64 lowerLimit);
     void SetUpperWriteCountDumpLimit(i64 upperLimit);
 
+    void SetSnapshotValidationOptions(const TSnapshotValidationOptions& options) override;
+
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
     TReign LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
     void PrepareState() override;

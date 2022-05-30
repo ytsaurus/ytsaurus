@@ -10,9 +10,7 @@ namespace NYT::NTabletNode {
 
 void ValidateTabletCellSnapshot(
     NClusterNode::IBootstrapBase* bootstrap,
-    int snapshotId,
-    const NHydra::TSnapshotParams& snapshotParams,
-    const NConcurrency::IAsyncZeroCopyInputStreamPtr& reader);
+    const NHydra::ISnapshotReaderPtr& reader);
 
 ////////////////////////////////////////////////////////////////////////////////
 

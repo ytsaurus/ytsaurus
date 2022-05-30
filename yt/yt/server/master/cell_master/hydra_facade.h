@@ -26,13 +26,6 @@ struct IHydraFacade
 {
 public:
     virtual void Initialize() = 0;
-    // TODO(shakurov): include snapshot ID into TSnapshotParams?
-    virtual void LoadSnapshot(
-        int snapshotId,
-        NHydra::ISnapshotReaderPtr reader,
-        bool dump,
-        bool enableTotalWriteCountReport,
-        const TSerializationDumperConfigPtr& dumpConfig) = 0;
 
     virtual const TMasterAutomatonPtr& GetAutomaton() const = 0;
     virtual const NElection::IElectionManagerPtr& GetElectionManager() const = 0;
