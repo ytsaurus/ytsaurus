@@ -96,7 +96,7 @@ void AddJobToInterrupt(
     NJobTrackerClient::NProto::TRspHeartbeat* response,
     TJobId jobId,
     TDuration duration,
-    std::optional<TString> preemptionReason)
+    const std::optional<TString>& preemptionReason)
 {
     auto jobToInterrupt = response->add_jobs_to_interrupt();
     ToProto(jobToInterrupt->mutable_job_id(), jobId);
@@ -1490,7 +1490,7 @@ bool TNodeShard::AreNewJobsForbiddenForOperation(const TOperationId operationId)
     return operationState.ForbidNewJobs;
 }
 
-std::vector<TString> TNodeShard::GetNodesWithUnsupportedInterruption() const
+std::vector<TString> TNodeShard::GetNodeAddressesWithUnsupportedInterruption() const
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -2646,13 +2646,11 @@ void TNodeShard::SendPreemptedJobToNode(
     TDuration interruptTimeout,
     bool isJobInterruptible) const
 {
-    if (Config_->HandleInterruptionOnNode && job->GetNode()->GetSupportsInterruptionLogic()) {
+    if (Config_->HandleInterruptionAtNode && job->GetNode()->GetSupportsInterruptionLogic()) {
         YT_LOG_DEBUG(
             "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
             job->GetId(),
-            job->GetInterruptReason(),
-            Config_->HandleInterruptionOnNode,
-            job->GetNode()->GetSupportsInterruptionLogic());
+            job->GetInterruptReason());
         AddJobToInterrupt(response, job->GetId(), interruptTimeout, job->GetPreemptionReason());
     } else {
         if (isJobInterruptible) {
@@ -2660,7 +2658,7 @@ void TNodeShard::SendPreemptedJobToNode(
                 "Add job to interrupt using old format (JobId: %v, InterruptionReason: %v, ConfigEnabled: %v, NodeSupportsInterruptionLogic: %v)",
                 job->GetId(),
                 job->GetInterruptReason(),
-                Config_->HandleInterruptionOnNode,
+                Config_->HandleInterruptionAtNode,
                 job->GetNode()->GetSupportsInterruptionLogic());
             ToProto(response->add_old_jobs_to_interrupt(), job->GetId());
         } else {
@@ -2668,7 +2666,7 @@ void TNodeShard::SendPreemptedJobToNode(
                 "Add job to abort (JobId: %v, InterruptionReason: %v, ConfigEnabled: %v, NodeSupportsInterruptionLogic: %v)",
                 job->GetId(),
                 job->GetInterruptReason(),
-                Config_->HandleInterruptionOnNode,
+                Config_->HandleInterruptionAtNode,
                 job->GetNode()->GetSupportsInterruptionLogic());
             AddJobToAbort(response, BuildPreemptedJobAbortAttributes(job));
         }

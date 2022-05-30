@@ -860,7 +860,7 @@ public:
 
     bool EnableHeavyRuntimeParameters;
 
-    bool HandleInterruptionOnNode;
+    bool HandleInterruptionAtNode;
 
     TDuration ScheduleJobEntryRemovalTimeout;
     TDuration ScheduleJobEntryCheckPeriod;

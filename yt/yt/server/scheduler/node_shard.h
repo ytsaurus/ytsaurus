@@ -209,7 +209,7 @@ public:
     bool IsOperationRegistered(TOperationId operationId) const noexcept;
     bool AreNewJobsForbiddenForOperation(TOperationId operationId) const noexcept;
 
-    std::vector<TString> GetNodesWithUnsupportedInterruption() const;
+    std::vector<TString> GetNodeAddressesWithUnsupportedInterruption() const;
 
 private:
     const int Id_;

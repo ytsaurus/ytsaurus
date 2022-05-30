@@ -702,7 +702,7 @@ class TestRacyPreemptionWithInterruptionHandledByScheduler(TestRacyPreemption):
         "scheduler": {
             "fair_share_update_period": 100,
             "schedule_job_time_limit": 20000,
-            "handle_interruption_on_node": False,
+            "handle_interruption_at_node": False,
         },
     }
 

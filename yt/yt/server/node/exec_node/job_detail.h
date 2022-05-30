@@ -171,7 +171,7 @@ public:
 
     void ReportProfile() override;
 
-    void Interrupt(TDuration timeout, std::optional<TString> preemptionReason) override;
+    void Interrupt(TDuration timeout, const std::optional<TString>& preemptionReason) override;
 
     void Fail() override;
 

@@ -4594,7 +4594,7 @@ private:
                     .IsOK());
         };
 
-        if (!Config_->HandleInterruptionOnNode) {
+        if (!Config_->HandleInterruptionAtNode) {
             YT_LOG_DEBUG("Handling interruption on nodes is disabled, skip nodes with unsupported interruption scanning");
             setAlert({}, 0);
             return;
@@ -4603,7 +4603,7 @@ private:
         std::vector<TFuture<std::vector<TString>>> nodeShardFutures;
         nodeShardFutures.reserve(std::size(NodeShards_));
         for (const auto& nodeShard : NodeShards_) {
-            nodeShardFutures.push_back(BIND(&TNodeShard::GetNodesWithUnsupportedInterruption, nodeShard)
+            nodeShardFutures.push_back(BIND(&TNodeShard::GetNodeAddressesWithUnsupportedInterruption, nodeShard)
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run());
         }
@@ -4651,7 +4651,7 @@ private:
         
         TError error;
         if (!std::empty(nodeSample)) {
-            error = TError("Found nodes that don't support interruption handling")
+            error = TError("Found nodes that do not support interruption handling")
                 << TErrorAttribute("node_addresses_sample", nodeSample)
                 << TErrorAttribute("node_count", nodeCount);
         }

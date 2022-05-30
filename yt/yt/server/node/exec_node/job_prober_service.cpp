@@ -150,8 +150,10 @@ private:
 
         auto jobId = FromProto<TJobId>(request->job_id());
 
-        context->SetRequestInfo("JobId: %v",
-            jobId);
+        auto timeout = FromProto<TDuration>(request->timeout());
+
+        context->SetRequestInfo("JobId: %v, InterruptionTimeout: %v",
+            jobId, timeout);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
 
@@ -169,9 +171,7 @@ private:
                 job->GetType());
         }
 
-        auto timeout = FromProto<TDuration>(request->timeout());
-
-        job->Interrupt(timeout, std::nullopt);
+        job->Interrupt(timeout, /*preemptionReason*/ {});
 
         context->Reply();
     }

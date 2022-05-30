@@ -377,7 +377,7 @@ class TestJobProbeWithInterruptionsHandledByScheduler(TestJobProber):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "node_shard_count": 1,
-            "handle_interruption_on_node": False,
+            "handle_interruption_at_node": False,
         }
     }
 

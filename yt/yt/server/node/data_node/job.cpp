@@ -404,7 +404,7 @@ public:
         THROW_ERROR_EXCEPTION("Job shell is not supported");
     }
 
-    void Interrupt(TDuration /*duration*/, std::optional<TString> /*preemptionReason*/) override
+    void Interrupt(TDuration /*duration*/, const std::optional<TString>& /*preemptionReason*/) override
     {
         THROW_ERROR_EXCEPTION("Interrupting is not supported");
     }
