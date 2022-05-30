@@ -22,7 +22,8 @@ namespace NYT::NConcurrency {
 
 TFairThrottlerConfig::TFairThrottlerConfig()
 {
-    RegisterParameter("total_limit", TotalLimit);
+    RegisterParameter("total_limit", TotalLimit)
+        .Default(125_MB);
 
     RegisterParameter("distribution_period", DistributionPeriod)
         .Default(TDuration::MilliSeconds(100))
