@@ -184,6 +184,7 @@ public:
     }
 
     void LoadSnapshot(
+        int snapshotId,
         ISnapshotReaderPtr reader,
         bool dump,
         bool enableTotalWriteCountReport,
@@ -198,7 +199,7 @@ public:
             Automaton_->SetLowerWriteCountDumpLimit(dumpConfig->LowerLimit);
             Automaton_->SetUpperWriteCountDumpLimit(dumpConfig->UpperLimit);
         }
-        HydraManager_->ValidateSnapshot(reader);
+        HydraManager_->ValidateSnapshot(snapshotId, reader->GetParams(), reader);
     }
 
     const TMasterAutomatonPtr& GetAutomaton() const override

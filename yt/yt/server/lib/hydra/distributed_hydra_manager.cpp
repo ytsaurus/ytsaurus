@@ -376,9 +376,9 @@ public:
         }
     }
 
-    void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
+    void ValidateSnapshot(int snapshotId, const TSnapshotParams& params, IAsyncZeroCopyInputStreamPtr reader) override
     {
-        DecoratedAutomaton_->ValidateSnapshot(reader);
+        DecoratedAutomaton_->ValidateSnapshot(snapshotId, params, std::move(reader));
     }
 
     TYsonProducer GetMonitoringProducer() override

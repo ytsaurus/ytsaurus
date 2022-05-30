@@ -313,7 +313,8 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     // Copy expiration timeout.
     auto expirationTimeout = Load<std::optional<TDuration>>(*context);
     if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
-        trunkNode->SetExpirationTimeout(*expirationTimeout);
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTimeout(trunkNode, expirationTimeout);
     }
 
     // Copy attributes directly to suppress validation.

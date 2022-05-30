@@ -222,7 +222,10 @@ public:
         TInstant timestamp,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
-    void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
+    void ValidateSnapshot(
+        int snapshotId,
+        const NHydra::TSnapshotParams& params,
+        NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     TFuture<NHydra::TMutationResponse> TryBeginKeptRequest(const NHydra::TMutationRequest& request);
 

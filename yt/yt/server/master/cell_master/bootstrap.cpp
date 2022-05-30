@@ -1043,7 +1043,7 @@ void TBootstrap::DoLoadSnapshot(
     const TSerializationDumperConfigPtr& dumpConfig)
 {
     auto reader = CreateLocalSnapshotReader(fileName, InvalidSegmentId);
-    HydraFacade_->LoadSnapshot(reader, dump, enableTotalWriteCountReport, dumpConfig);
+    HydraFacade_->LoadSnapshot(InvalidSegmentId, reader, dump, enableTotalWriteCountReport, dumpConfig);
 }
 
 void TBootstrap::ValidateLoadSnapshotParameters(
