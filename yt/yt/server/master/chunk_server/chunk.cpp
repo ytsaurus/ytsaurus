@@ -215,10 +215,7 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
 
     Load(context, EndorsementRequired_);
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::Crp) {
-        Load(context, ConsistentReplicaPlacementHash_);
-    }
+    Load(context, ConsistentReplicaPlacementHash_);
 
     if (IsConfirmed()) {
         auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();

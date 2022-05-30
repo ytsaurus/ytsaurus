@@ -190,12 +190,7 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::BackupsInitial) {
-        UnderlyingTree_ = Load<TChunk*>(context);
-    } else {
-        Load(context, UnderlyingTree_);
-    }
+    Load(context, UnderlyingTree_);
 
     // COMPAT(ifsmirnov)
     if (context.GetVersion() < EMasterReign::ChunkViewModifier) {

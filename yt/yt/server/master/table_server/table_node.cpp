@@ -134,16 +134,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, ProfilingMode);
     Load(context, ProfilingTag);
     Load(context, EnableDetailedProfiling);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::EnableCrpBuiltinAttribute) {
-        Load(context, EnableConsistentChunkReplicaPlacement);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::BackupsInitial) {
-        Load(context, BackupState);
-        Load(context, TabletCountByBackupState);
-        Load(context, AggregatedTabletBackupState);
-    }
+    Load(context, EnableConsistentChunkReplicaPlacement);
+    Load(context, BackupState);
+    Load(context, TabletCountByBackupState);
+    Load(context, AggregatedTabletBackupState);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::MaxClipTimestampInChunkView) {
         Load(context, BackupCheckpointTimestamp);

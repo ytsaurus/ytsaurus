@@ -2354,9 +2354,6 @@ private:
     // COMPAT(ifsmirnov)
     bool NeedRecomputeApprovedReplicaCount_ = false;
 
-    // COMPAT(aleksandra-zh)
-    bool NeedClearDestroyedReplicaQueues_ = false;
-
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
@@ -3888,10 +3885,7 @@ private:
         ChunkViewMap_.LoadValues(context);
         DynamicStoreMap_.LoadValues(context);
 
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::DoubleSnapshotDivergenceFix) {
-            Load(context, ConsistentReplicaPlacementTokenDistribution_);
-        }
+        Load(context, ConsistentReplicaPlacementTokenDistribution_);
 
         // COMPAT(h0pless)
         if (context.GetVersion() >= EMasterReign::ChunkWeightStatisticsHistogram) {
@@ -3902,9 +3896,6 @@ private:
         } else {
             NeedRecomputeChunkWeightStatisticsHistogram_ = true;
         }
-
-        // COMPAT(aleksandra-zh)
-        NeedClearDestroyedReplicaQueues_ = context.GetVersion() < EMasterReign::FixZombieReplicaRemoval;
 
         // COMPAT(gritukan)
         NeedCreateHunkChunkLists_ = context.GetVersion() < EMasterReign::ChunkListType;
@@ -4002,12 +3993,6 @@ private:
                             chunk->GetApprovedReplicaCount() - 1);
                     }
                 }
-            }
-        }
-
-        if (NeedClearDestroyedReplicaQueues_) {
-            for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-                node->ClearDestroyedReplicas();
             }
         }
 
@@ -4132,7 +4117,6 @@ private:
         ExpirationTracker_->Clear();
 
         NeedRecomputeApprovedReplicaCount_ = false;
-        NeedClearDestroyedReplicaQueues_ = false;
         NeedCreateHunkChunkLists_ = false;
     }
 

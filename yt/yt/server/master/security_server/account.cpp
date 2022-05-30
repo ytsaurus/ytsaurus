@@ -193,10 +193,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, FolderId_);
 
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::MoreChunkMergerLimits) {
-        Load(context, ChunkMergerNodeTraversalConcurrency_);
-    }
+    Load(context, ChunkMergerNodeTraversalConcurrency_);
 
     // COMPAT(aleksandra-zh)
     const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();

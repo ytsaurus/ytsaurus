@@ -107,11 +107,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkMergerMode_);
     Load(context, EnableSkynetSharing_);
     Load(context, UpdatedSinceLastMerge_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::OneMoreChunkMergerOptimization) {
-        Load(context, ChunkMergerTraversalInfo_);
-    }
+    Load(context, ChunkMergerTraversalInfo_);
 }
 
 TChunkList* TChunkOwnerBase::GetChunkList() const
