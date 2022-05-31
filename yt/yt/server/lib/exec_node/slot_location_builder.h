@@ -2,20 +2,22 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSlotConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     int Index;
 
     std::optional<int> Uid;
 
-    TSlotConfig();
+    REGISTER_YSON_STRUCT(TSlotConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotConfig)
@@ -23,7 +25,7 @@ DEFINE_REFCOUNTED_TYPE(TSlotConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSlotLocationBuilderConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     TString LocationPath;
 
@@ -31,7 +33,9 @@ struct TSlotLocationBuilderConfig
 
     std::vector<TSlotConfigPtr> SlotConfigs;
 
-    TSlotLocationBuilderConfig();
+    REGISTER_YSON_STRUCT(TSlotLocationBuilderConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocationBuilderConfig)

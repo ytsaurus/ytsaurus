@@ -81,6 +81,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TUserJobSensor)
 
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorDynamicConfig)

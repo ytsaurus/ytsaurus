@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/ytree/node.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NExecNode {
 
@@ -22,7 +22,7 @@ namespace NYT::NExecNode {
 
 //! Describes configuration of a single environment.
 class TJobEnvironmentConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     EJobEnvironmentType Type;
@@ -33,17 +33,9 @@ public:
 
     TDuration MemoryWatchdogPeriod;
 
-    TJobEnvironmentConfig()
-    {
-        RegisterParameter("type", Type)
-            .Default(EJobEnvironmentType::Simple);
+    REGISTER_YSON_STRUCT(TJobEnvironmentConfig);
 
-        RegisterParameter("start_uid", StartUid)
-            .Default(10000);
-
-        RegisterParameter("memory_watchdog_period", MemoryWatchdogPeriod)
-            .Default(TDuration::Seconds(1));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobEnvironmentConfig)
@@ -83,35 +75,9 @@ public:
     //! Backoff time between container destruction attempts.
     TDuration ContainerDestructionBackoff;
 
-    TPortoJobEnvironmentConfig()
-    {
-        RegisterParameter("porto_executor", PortoExecutor)
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TPortoJobEnvironmentConfig);
 
-        RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("external_binds", ExternalBinds)
-            .Default();
-
-        RegisterParameter("jobs_io_weight", JobsIOWeight)
-            .Default(0.05);
-        RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
-            .GreaterThanOrEqual(0)
-            .Default(2);
-
-        RegisterParameter("use_short_container_names", UseShortContainerNames)
-            .Default(false);
-
-        RegisterParameter("use_daemon_subcontainer", UseDaemonSubcontainer)
-            .Default(false);
-
-        RegisterParameter("use_exec_from_layer", UseExecFromLayer)
-            .Default(false);
-
-        RegisterParameter("container_destruction_backoff", ContainerDestructionBackoff)
-            .Default(TDuration::Seconds(60));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPortoJobEnvironmentConfig)
@@ -137,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TSlotLocationConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlotManagerTestingConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! If set, slot manager does not report JobProxyUnavailableAlert
@@ -146,17 +112,15 @@ public:
     //! using this switch.
     bool SkipJobProxyUnavailableAlert;
 
-    TSlotManagerTestingConfig()
-    {
-        RegisterParameter("skip_job_proxy_unavailable_alert", SkipJobProxyUnavailableAlert)
-            .Default(false);
-    }
+    REGISTER_YSON_STRUCT(TSlotManagerTestingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManagerTestingConfig)
 
 class TSlotManagerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Root path for slot directories.
@@ -194,44 +158,9 @@ public:
 
     TSlotManagerTestingConfigPtr Testing;
 
-    TSlotManagerConfig()
-    {
-        RegisterParameter("locations", Locations);
-        RegisterParameter("enable_tmpfs", EnableTmpfs)
-            .Default(true);
-        RegisterParameter("detached_tmpfs_umount", DetachedTmpfsUmount)
-            .Default(true);
-        RegisterParameter("job_environment", JobEnvironment)
-            .Default(ConvertToNode(New<TSimpleJobEnvironmentConfig>()));
-        RegisterParameter("file_copy_chunk_size", FileCopyChunkSize)
-            .GreaterThanOrEqual(1_KB)
-            .Default(10_MB);
+    REGISTER_YSON_STRUCT(TSlotManagerConfig);
 
-        RegisterParameter("disk_resources_update_period", DiskResourcesUpdatePeriod)
-            .Alias("disk_info_update_period")
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("slot_location_statistics_update_period", SlotLocationStatisticsUpdatePeriod)
-            .Default(TDuration::Seconds(30));
-
-        RegisterParameter("max_consecutive_job_aborts", MaxConsecutiveJobAborts)
-            .Alias("max_consecutive_aborts")
-            .Default(500);
-        RegisterParameter("max_consecutive_gpu_job_failures", MaxConsecutiveGpuJobFailures)
-            .Default(50);
-        RegisterParameter("disable_jobs_timeout", DisableJobsTimeout)
-            .Default(TDuration::Minutes(10));
-
-        RegisterParameter("default_medium_name", DefaultMediumName)
-            .Default(NChunkClient::DefaultSlotsMediumName);
-
-        RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
-            .Default(true);
-        RegisterParameter("idle_cpu_fraction", IdleCpuFraction)
-            .Default(0);
-
-        RegisterParameter("testing", Testing)
-            .DefaultNew();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
@@ -239,7 +168,7 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THeartbeatReporterDynamicConfigBase
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent heartbeats.
@@ -257,20 +186,9 @@ public:
     //! Backoff mulitplier for sending the next heartbeat after a failure.
     std::optional<double> FailedHeartbeatBackoffMultiplier;
 
-    THeartbeatReporterDynamicConfigBase()
-    {
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
-            .Default();
-        RegisterParameter("heartbeat_splay", HeartbeatSplay)
-            .Default();
-        RegisterParameter("failed_heartbeat_backoff_start_time", FailedHeartbeatBackoffStartTime)
-            .Default();
-        RegisterParameter("failed_heartbeat_backoff_max_time", FailedHeartbeatBackoffMaxTime)
-            .Default();
-        RegisterParameter("failed_heartbeat_backoff_multiplier", FailedHeartbeatBackoffMultiplier)
-            .GreaterThanOrEqual(1.0)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,16 +209,9 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     std::optional<TDuration> RunningJobInfoSendingBackoff;
 
-    TControllerAgentConnectorDynamicConfig()
-        : THeartbeatReporterDynamicConfigBase{}
-    {
-        RegisterParameter("test_heartbeat_delay", TestHeartbeatDelay)
-            .Default();
-        RegisterParameter("statistics_throttler", StatisticsThrottler)
-            .Default();
-        RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
@@ -308,7 +219,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THeartbeatReporterConfigBase
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent heartbeats.
@@ -326,24 +237,11 @@ public:
     //! Backoff mulitplier for sending the next heartbeat after a failure.
     double FailedHeartbeatBackoffMultiplier;
 
-    THeartbeatReporterConfigBase()
-    {
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("heartbeat_splay", HeartbeatSplay)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("failed_heartbeat_backoff_start_time", FailedHeartbeatBackoffStartTime)
-            .GreaterThan(TDuration::Zero())
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("failed_heartbeat_backoff_max_time", FailedHeartbeatBackoffMaxTime)
-            .GreaterThan(TDuration::Zero())
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("failed_heartbeat_backoff_multiplier", FailedHeartbeatBackoffMultiplier)
-            .GreaterThanOrEqual(1.0)
-            .Default(2.0);
-    }
-
     void ApplyDynamicInplace(const THeartbeatReporterDynamicConfigBase& dynamicConfig);
+
+    REGISTER_YSON_STRUCT(THeartbeatReporterConfigBase);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -352,21 +250,9 @@ class TSchedulerConnectorConfig
     : public THeartbeatReporterConfigBase
 {
 public:
-    TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig)
-    {
-        YT_VERIFY(dynamicConfig);
+    TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig);
 
-        auto newConfig = CloneYsonSerializable(MakeStrong(this));
-        newConfig->ApplyDynamicInplace(*dynamicConfig);
-
-        return newConfig;
-    }
-
-    void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig)
-    {
-        THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
-        Postprocess();
-    }
+    void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
@@ -380,35 +266,12 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobInfoSendingBackoff;
 
-    TControllerAgentConnectorConfig()
-        : THeartbeatReporterConfigBase{}
-    {
-        RegisterParameter("statistics_throttler", StatisticsThrottler)
-            .DefaultNew(1_MB);
-        RegisterParameter("running_job_sending_backoff", RunningJobInfoSendingBackoff)
-            .Default(TDuration::Seconds(30));
-    }
+    TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig);
+    void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig);
 
-    TControllerAgentConnectorConfigPtr ApplyDynamic(const TControllerAgentConnectorDynamicConfigPtr& dynamicConfig)
-    {
-        YT_VERIFY(dynamicConfig);
+    REGISTER_YSON_STRUCT(TControllerAgentConnectorConfig);
 
-        auto newConfig = CloneYsonSerializable(MakeStrong(this));
-        newConfig->ApplyDynamicInplace(*dynamicConfig);
-
-        return newConfig;
-    }
-
-    void ApplyDynamicInplace(const TControllerAgentConnectorDynamicConfig& dynamicConfig)
-    {
-        THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
-        if (dynamicConfig.StatisticsThrottler) {
-            StatisticsThrottler->Limit = dynamicConfig.StatisticsThrottler->Limit;
-            StatisticsThrottler->Period = dynamicConfig.StatisticsThrottler->Period;
-        }
-        RunningJobInfoSendingBackoff = dynamicConfig.RunningJobInfoSendingBackoff.value_or(RunningJobInfoSendingBackoff);
-        Postprocess();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorConfig)
@@ -416,7 +279,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent exec node heartbeats.
@@ -425,13 +288,9 @@ public:
     //! Splay for exec node heartbeats.
     TDuration HeartbeatPeriodSplay;
 
-    TMasterConnectorConfig()
-    {
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
-            .Default(TDuration::Seconds(1));
-    }
+    REGISTER_YSON_STRUCT(TMasterConnectorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
@@ -439,7 +298,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSensor
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NProfiling::EMetricType Type;
@@ -448,42 +307,26 @@ public:
     std::optional<TString> Path;
     TString ProfilingName;
 
-    TUserJobSensor()
-    {
-        RegisterParameter("type", Type);
-        RegisterParameter("source", Source)
-            .Default(EUserJobSensorSource::Statistics);
-        RegisterParameter("path", Path)
-            .Default();
-        RegisterParameter("profiling_name", ProfilingName);
+    REGISTER_YSON_STRUCT(TUserJobSensor);
 
-        RegisterPostprocessor([&] () {
-            if (Source == EUserJobSensorSource::Statistics && !Path) {
-                THROW_ERROR_EXCEPTION("Parameter \"path\" is required for sensor with %lv source",
-                    Source);
-            }
-        });
-    }
+    static void Register(TRegistrar registrar);
 };
 
-DECLARE_REFCOUNTED_CLASS(TUserJobSensor)
 DEFINE_REFCOUNTED_TYPE(TUserJobSensor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobMonitoringConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TUserJobSensorPtr> Sensors;
 
-    TUserJobMonitoringConfig()
-    {
-        RegisterParameter("sensors", Sensors)
-            .Default();
-    }
-
     static const THashMap<TString, TUserJobSensorPtr>& GetDefaultSensors();
+
+    REGISTER_YSON_STRUCT(TUserJobMonitoringConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringConfig)
@@ -492,16 +335,14 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobMonitoringDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TUserJobSensorPtr> Sensors;
 
-    TUserJobMonitoringDynamicConfig()
-    {
-        RegisterParameter("sensors", Sensors)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TUserJobMonitoringDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DECLARE_REFCOUNTED_CLASS(TUserJobMonitoringDynamicConfig)
@@ -510,7 +351,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecNodeConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TSlotManagerConfigPtr SlotManager;
@@ -577,92 +418,9 @@ public:
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
 
-    TExecNodeConfig()
-    {
-        RegisterParameter("slot_manager", SlotManager)
-            .DefaultNew();
-        RegisterParameter("job_controller", JobController)
-            .DefaultNew();
-        RegisterParameter("job_reporter", JobReporter)
-            .Alias("statistics_reporter")
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TExecNodeConfig);
 
-        RegisterParameter("controller_agent_connector", ControllerAgentConnector)
-            .DefaultNew();
-        RegisterParameter("scheduler_connector", SchedulerConnector)
-            .DefaultNew();
-
-        RegisterParameter("job_proxy_logging", JobProxyLogging)
-            .DefaultNew();
-        RegisterParameter("job_proxy_jaeger", JobProxyJaeger)
-            .DefaultNew();
-        RegisterParameter("job_proxy_stderr_path", JobProxyStderrPath)
-            .Default();
-
-        RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
-            .Default(TDuration::Seconds(300));
-
-        RegisterParameter("job_proxy_heartbeat_period", JobProxyHeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
-
-        RegisterParameter("job_proxy_upload_debug_artifact_chunks", JobProxyUploadDebugArtifactChunks)
-            .Default(false);
-
-        RegisterParameter("test_root_fs", TestRootFS)
-            .Default(false);
-
-        RegisterParameter("root_fs_binds", RootFSBinds)
-            .Default();
-
-        RegisterParameter("node_directory_prepare_retry_count", NodeDirectoryPrepareRetryCount)
-            .Default(10);
-        RegisterParameter("node_directory_prepare_backoff_time", NodeDirectoryPrepareBackoffTime)
-            .Default(TDuration::Seconds(3));
-
-        RegisterParameter("job_proxy_preparation_timeout", JobProxyPreparationTimeout)
-            .Default(TDuration::Minutes(3));
-
-        RegisterParameter("min_required_disk_space", MinRequiredDiskSpace)
-            .Default(100_MB);
-        RegisterParameter("job_abortion_timeout", JobAbortionTimeout)
-            .Default(TDuration::Minutes(15));
-
-        RegisterParameter("test_job_error_truncation", TestJobErrorTruncation)
-            .Default(false);
-
-        RegisterParameter("core_watcher", CoreWatcher)
-            .DefaultNew();
-
-        RegisterParameter("test_poll_job_shell", TestPollJobShell)
-            .Default(false);
-
-        RegisterParameter("do_not_set_user_id", DoNotSetUserId)
-            .Default(false);
-
-        RegisterParameter("memory_tracker_cache_period", MemoryTrackerCachePeriod)
-            .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("smaps_memory_tracker_cache_period", SMapsMemoryTrackerCachePeriod)
-            .Default(TDuration::Seconds(5));
-
-        RegisterParameter("check_user_job_memory_limit", CheckUserJobMemoryLimit)
-            .Default(true);
-
-        RegisterParameter("always_abort_on_memory_reserve_overdraft", AlwaysAbortOnMemoryReserveOverdraft)
-            .Default(false);
-
-        RegisterParameter("user_job_monitoring", UserJobMonitoring)
-            .DefaultNew();
-
-        RegisterParameter("master_connector", MasterConnector)
-            .DefaultNew();
-
-        RegisterParameter("job_proxy_solomon_exporter", JobProxySolomonExporter)
-            .DefaultNew();
-        RegisterParameter("sensor_dump_timeout", SensorDumpTimeout)
-            .Default(TDuration::Seconds(5));
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNodeConfig)
@@ -670,7 +428,7 @@ DEFINE_REFCOUNTED_TYPE(TExecNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent exec node heartbeats.
@@ -682,15 +440,9 @@ public:
     //! Timeout of the exec node heartbeat RPC request.
     TDuration HeartbeatTimeout;
 
-    TMasterConnectorDynamicConfig()
-    {
-        RegisterParameter("heartbeat_period", HeartbeatPeriod)
-            .Default();
-        RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
-            .Default();
-        RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
-            .Default(TDuration::Seconds(60));
-    }
+    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
@@ -698,7 +450,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlotManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<bool> DisableJobsOnGpuCheckFailure;
@@ -708,15 +460,9 @@ public:
 
     std::optional<double> IdleCpuFraction;
 
-    TSlotManagerDynamicConfig()
-    {
-        RegisterParameter("disable_jobs_on_gpu_check_failure", DisableJobsOnGpuCheckFailure)
-            .Default();
-        RegisterParameter("check_disk_space_limit", CheckDiskSpaceLimit)
-            .Default(false);
-        RegisterParameter("idle_cpu_fraction", IdleCpuFraction)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
@@ -724,7 +470,7 @@ DEFINE_REFCOUNTED_TYPE(TSlotManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVolumeManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableAsyncLayerRemoval;
@@ -732,14 +478,9 @@ public:
     //! For testing.
     std::optional<TDuration> DelayAfterLayerImported;
 
-    TVolumeManagerDynamicConfig()
-    {
-        RegisterParameter("enable_async_layer_removal", EnableAsyncLayerRemoval)
-            .Default(true);
+    REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
-        RegisterParameter("delay_after_layer_imported", DelayAfterLayerImported)
-            .Default();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
@@ -747,7 +488,7 @@ DEFINE_REFCOUNTED_TYPE(TVolumeManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecNodeDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
@@ -769,38 +510,9 @@ public:
 
     TUserJobMonitoringDynamicConfigPtr UserJobMonitoring;
 
-    TExecNodeDynamicConfig()
-    {
-        RegisterParameter("master_connector", MasterConnector)
-            .DefaultNew();
+    REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 
-        RegisterParameter("slot_manager", SlotManager)
-            .DefaultNew();
-
-        RegisterParameter("volume_manager", VolumeManager)
-            .DefaultNew();
-
-        RegisterParameter("job_controller", JobController)
-            .DefaultNew();
-
-        RegisterParameter("job_reporter", JobReporter)
-            .DefaultNew();
-
-        RegisterParameter("scheduler_connector", SchedulerConnector)
-            .Default();
-
-        RegisterParameter("controller_agent_connector", ControllerAgentConnector)
-            .Default();
-
-        RegisterParameter("abort_on_jobs_disabled", AbortOnJobsDisabled)
-            .Default(false);
-
-        RegisterParameter("treat_job_proxy_failure_as_abort", TreatJobProxyFailureAsAbort)
-            .Default(false);
-
-        RegisterParameter("user_job_monitoring", UserJobMonitoring)
-            .DefaultNew();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNodeDynamicConfig)
