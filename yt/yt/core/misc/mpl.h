@@ -1,6 +1,5 @@
 #pragma once
 
-#include "yt/yt/core/ytree/public.h"
 #include <util/generic/typetraits.h>
 
 #include <tuple>
@@ -87,7 +86,8 @@ struct TIsPod
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived, template <class...> class TTemplatedBase>
-concept DerivedFromSpecializationOf = requires(const TDerived& instance) {
+concept DerivedFromSpecializationOf = requires(const TDerived& instance)
+{
     NDetail::DerivedFromSpecializationImpl<TTemplatedBase>(instance);
 };
 
