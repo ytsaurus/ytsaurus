@@ -919,15 +919,15 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     def _set_and_assert_revision_change(self, path, attribute, value, enable_revision_changing):
         old_revision = get(path + "/@attribute_revision")
-        set("{}/@{}".format(path, attribute), value)
-        assert get("{}/@{}".format(path, attribute)) == value
-        # TODO(achulkov2): This should always check for >.
+        set(f"{path}/@{attribute}", value)
+        assert get(f"{path}/@{attribute}") == value
         if enable_revision_changing:
-            assert get(path + "/@attribute_revision") > old_revision
+            assert get(f"{path}/@attribute_revision") > old_revision
         else:
-            assert get(path + "/@attribute_revision") == old_revision
+            assert get(f"{path}/@attribute_revision") == old_revision
 
     @authors("achulkov2")
+    # COMPAT(kvk1920): Remove @enable_revision_changing_for_builtin_attributes from config.
     @pytest.mark.parametrize("enable_revision_changing", [False, True])
     def test_revision_changes_on_queue_attribute_change(self, enable_revision_changing):
         set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
@@ -939,14 +939,19 @@ class TestMasterIntegration(TestQueueAgentBase):
         self._set_and_assert_revision_change("//tmp/q", "queue_agent_stage", "testing", enable_revision_changing)
 
     @authors("achulkov2")
+    # COMPAT(kvk1920): Remove @enable_revision_changing_for_builtin_attributes from config.
     @pytest.mark.parametrize("enable_revision_changing", [False, True])
+    @pytest.mark.skipif(
+        "BIGRT_CONSUMER_TABLE_SCHEMA" not in globals(),
+        reason="BIGRT_CONSUMER_TABLE_SCHEMA doesn't exist supported in current version")
     def test_revision_changes_on_consumer_attribute_change(self, enable_revision_changing):
+
         set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
         self._prepare_tables()
 
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
-        create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
+        create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,  # noqa
                                                "target_queue": "primary://tmp/q"})
 
         self._set_and_assert_revision_change("//tmp/c", "treat_as_queue_consumer", True, enable_revision_changing)
