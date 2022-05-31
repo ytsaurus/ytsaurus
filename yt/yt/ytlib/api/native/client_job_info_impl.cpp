@@ -569,7 +569,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(
         jobSpec,
-        GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false));
+        GetNativeConnection()->GetNodeDirectory());
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,

@@ -166,7 +166,7 @@ public:
         : ChunkSpec_(std::move(chunkSpec))
         , Config_(std::move(config))
         , Client_(std::move(client))
-        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false))
+        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
     {
@@ -708,7 +708,7 @@ public:
         , Schema_(std::move(schema))
         , Config_(std::move(config))
         , Client_(std::move(client))
-        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false))
+        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
         , ChunkReadOptions_(chunkReadOptions)
         , ReaderMemoryManager_(std::move(readerMemoryManager))

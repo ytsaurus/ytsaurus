@@ -623,7 +623,7 @@ TJobResult TJobProxy::RunJob()
 
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
-        RetrieveJobSpec(clusterConnection->GetNodeDirectory(/*startSynchronizer*/ false));
+        RetrieveJobSpec(clusterConnection->GetNodeDirectory());
 
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetJobUserName()));
 

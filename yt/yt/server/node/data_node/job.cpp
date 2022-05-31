@@ -147,7 +147,7 @@ public:
         , Config_(config)
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
-        , NodeDirectory_(Bootstrap_->GetNodeDirectory(/*startSynchronizer*/ false))
+        , NodeDirectory_(Bootstrap_->GetNodeDirectory())
         , Logger(DataNodeLogger.WithTag("JobId: %v, JobType: %v",
             JobId_,
             GetType()))

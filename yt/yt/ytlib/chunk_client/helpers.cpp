@@ -566,7 +566,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     throwOnError(batchRspOrError);
     const auto& batchRsp = batchRspOrError.Value();
 
-    const auto& nodeDirectory = client->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false);
+    const auto& nodeDirectory = client->GetNativeConnection()->GetNodeDirectory();
     nodeDirectory->MergeFrom(batchRsp->node_directory());
 
     auto& rsp = batchRsp->subresponses(0);

@@ -725,7 +725,7 @@ private:
             YT_VERIFY(target.GetReplicaIndex() == GenericChunkReplicaIndex);
         }
 
-        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false);
+        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         auto nodeDescriptor = nodeDirectory->GetDescriptor(target);
         auto addressWithNetwork = nodeDescriptor.GetAddressWithNetworkOrThrow(Networks_);
         YT_LOG_DEBUG("Starting write session (Address: %v)", addressWithNetwork);

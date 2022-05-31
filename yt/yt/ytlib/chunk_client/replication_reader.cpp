@@ -177,7 +177,7 @@ public:
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
-        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false))
+        , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(std::move(blockCache))
