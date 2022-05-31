@@ -814,6 +814,7 @@ void ExpectIOErrors(std::function<void()> func)
             case EIO:
             case ENOSPC:
             case EROFS:
+            case EWOULDBLOCK: // aka EAGAIN
                 THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "I/O error")
                     << TErrorAttribute("status", status)
                     << TError(ex);

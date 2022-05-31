@@ -287,6 +287,68 @@ INSTANTIATE_TEST_SUITE_P(
     )
 );
 
+TEST_P(TIOEngineTest, Lock)
+{
+    auto engine = CreateIOEngine();
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    auto firstHandler = engine->Open({fileName, RdWr | CreateAlways})
+        .Get()
+        .ValueOrThrow();
+
+    engine->Lock({firstHandler, ELockFileMode::Exclusive})
+        .Get()
+        .ThrowOnError();
+
+    // Open file once more.
+    auto secondHandler = engine->Open({fileName, RdOnly})
+        .Get()
+        .ValueOrThrow();
+
+    // Shared lock attempts should fail.
+    EXPECT_THROW({
+        engine->Lock({
+            .Handle = secondHandler,
+            .Mode = ELockFileMode::Shared,
+            .Nonblocking = true,
+        })
+            .Get()
+            .ThrowOnError();
+    }, NYT::TErrorException);
+
+    engine->Lock({firstHandler, ELockFileMode::Unlock})
+        .Get()
+        .ThrowOnError();
+
+    engine->Lock({
+        .Handle = secondHandler,
+        .Mode = ELockFileMode::Shared,
+        .Nonblocking = true,
+    })
+        .Get()
+        .ThrowOnError();
+
+    EXPECT_THROW({
+        engine->Lock({
+            .Handle = firstHandler,
+            .Mode = ELockFileMode::Exclusive,
+            .Nonblocking = true,
+        })
+            .Get()
+            .ThrowOnError();
+    }, NYT::TErrorException);
+
+    engine->Lock({
+        .Handle = firstHandler,
+        .Mode = ELockFileMode::Shared,
+        .Nonblocking = true,
+    })
+        .Get()
+        .ThrowOnError();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
