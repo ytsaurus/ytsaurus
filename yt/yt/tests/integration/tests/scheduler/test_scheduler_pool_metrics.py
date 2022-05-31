@@ -17,7 +17,6 @@ from yt.test_helpers import are_almost_equal
 from yt_scheduler_helpers import scheduler_orchid_operation_path
 
 import pytest
-from flaky import flaky
 
 import os
 import time
@@ -51,6 +50,7 @@ class TestPoolMetrics(YTEnvSetup):
             "fair_share_update_period": 100,
             "profiling_update_period": 100,
             "fair_share_profiling_period": 100,
+            "wait_for_agent_heartbeat_during_operation_unregistration_at_controller": True,
         },
     }
 
@@ -319,8 +319,6 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: check_metrics(total_time_completed_parent_counter, total_time_completed_child_counter))
         wait(lambda: check_metrics(total_time_aborted_parent_counter, total_time_aborted_child_counter))
 
-    # Temporarily flaky due to YT-12207.
-    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
         create_pool("parent")
@@ -427,8 +425,6 @@ class TestPoolMetrics(YTEnvSetup):
                 relative_error=0.05)
         )
 
-    # Temporarily flaky due to YT-12207.
-    @flaky(max_runs=5)
     @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
         create_pool("unique_pool")
@@ -488,8 +484,6 @@ class TestPoolMetrics(YTEnvSetup):
         assert total_time_operation_failed_counter.get_delta() == 0
         assert total_time_operation_aborted_counter.get_delta() == 0
 
-    # Temporarily flaky due to YT-12207.
-    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_failed_several_jobs(self):
         create_pool("unique_pool")
@@ -529,8 +523,6 @@ class TestPoolMetrics(YTEnvSetup):
         assert total_time_operation_completed_counter.get_delta() == 0
         assert total_time_operation_aborted_counter.get_delta() == 0
 
-    # Temporarily flaky due to YT-12207.
-    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_completed_per_tree(self):
         create("table", "//tmp/t_in")
