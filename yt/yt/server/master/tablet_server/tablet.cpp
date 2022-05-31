@@ -623,7 +623,12 @@ void TTablet::Load(TLoadContext& context)
     Load(context, BackupState_);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupOrdered) {
-        Load(context, BackupCutoffDescriptor_);
+        if (context.GetVersion() >= EMasterReign::BackupReplicated) {
+            Load(context, BackupCutoffDescriptor_);
+        } else {
+            BackupCutoffDescriptor_.emplace();
+            Load(context, *BackupCutoffDescriptor_);
+        }
     }
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::BackupReplicated) {
