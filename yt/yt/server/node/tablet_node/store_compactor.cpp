@@ -108,7 +108,7 @@ using NYT::ToProto;
 static const size_t MaxRowsPerRead = 65536;
 static const size_t MaxRowsPerWrite = 65536;
 
-static const size_t FinishedQueueSize = 100;
+static const size_t FinishedTaskQueueSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -742,9 +742,12 @@ private:
         ITabletSlotPtr Slot;
         IInvokerPtr Invoker;
 
+        TGuid TaskId;
         TTabletId TabletId;
         TRevision MountRevision;
         TString TabletLoggingTag;
+        TString TablePath;
+        TString TabletCellBundle;
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
         NLsm::EStoreCompactionReason Reason;
@@ -786,9 +789,12 @@ private:
             NLsm::EStoreCompactionReason reason)
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
+            , TaskId(TGuid::Create())
             , TabletId(tablet->GetId())
             , MountRevision(tablet->GetMountRevision())
             , TabletLoggingTag(tablet->GetLoggingTag())
+            , TablePath(tablet->GetTablePath())
+            , TabletCellBundle(slot->GetTabletCellBundleName())
             , PartitionId(partitionId)
             , StoreIds(std::move(stores))
             , Reason(reason)
@@ -842,56 +848,105 @@ private:
         : public TRefCounted
     {
     public:
-        void MarkTaskAsFinished()
+        void OnTaskStarted(TTask* task)
         {
-            auto guard = Guard(QueueSpinLock_);
+            auto guard = Guard(SpinLock_);
 
-            YT_VERIFY(FinishedTaskQueue_.size() <= FinishedQueueSize);
-            YT_VERIFY(!TaskQueue_.empty());
-
-            if (FinishedTaskQueue_.size() == FinishedQueueSize) {
-                FinishedTaskQueue_.pop_front();
+            auto it = PendingTasks_.find(task->TaskId);
+            YT_ASSERT(it != PendingTasks_.end());
+            if (it == PendingTasks_.end()) {
+                return;
             }
 
-            FinishedTaskQueue_.push_back(TaskQueue_.front());
-            TaskQueue_.pop_front();
+            it->second->StartTime.store(TInstant::Now());
+
+            YT_ASSERT(it->second->PartitionId == task->PartitionId);
+            RunningTasks_.emplace(task->TaskId, std::move(it->second));
+            PendingTasks_.erase(it);
+        }
+
+        void OnTaskFinished(TTask* task)
+        {
+            auto guard = Guard(SpinLock_);
+
+            auto it = RunningTasks_.find(task->TaskId);
+            YT_ASSERT(it != RunningTasks_.end());
+            if (it == RunningTasks_.end()) {
+                return;
+            }
+
+            if (FinishedTasks_.size() == FinishedTaskQueueSize) {
+                FinishedTasks_.pop_front();
+            }
+
+            it->second->FinishTime.store(TInstant::Now());
+            FinishedTasks_.push_back(it->second);
+            RunningTasks_.erase(it);
         }
 
         void ResetTaskQueue(
             std::vector<std::unique_ptr<TTask>>::iterator begin,
             std::vector<std::unique_ptr<TTask>>::iterator end)
         {
-            auto guard = Guard(QueueSpinLock_);
+            auto guard = Guard(SpinLock_);
 
-            TaskQueue_.clear();
+            PendingTasks_.clear();
             for (auto it = begin; it != end; ++it) {
-                TaskQueue_.push_back(New<TTaskInfo>(*it->get()));
+                auto* task = it->get();
+                PendingTasks_.emplace(task->TaskId, New<TTaskInfo>(*task));
             }
         }
 
         void GetTasks(IYsonConsumer* consumer) const
         {
-            auto guard = Guard(QueueSpinLock_);
-            auto taskQueue = TaskQueue_;
-            auto finishedTaskQueue = FinishedTaskQueue_;
+            auto guard = Guard(SpinLock_);
+
+            std::vector<TTaskInfoPtr> pendingTasks;
+            pendingTasks.reserve(PendingTasks_.size());
+            for (auto [id, task] : PendingTasks_) {
+                pendingTasks.push_back(std::move(task));
+            }
+
+            std::vector<TTaskInfoPtr> runningTasks;
+            runningTasks.reserve(RunningTasks_.size());
+            for (auto [id, task] : RunningTasks_) {
+                runningTasks.push_back(std::move(task));
+            }
+
+            auto finishedTasks = FinishedTasks_;
+
             guard.Release();
 
-            std::sort(taskQueue.begin(), taskQueue.end(), Comparer);
+            std::sort(pendingTasks.begin(), pendingTasks.end(), Comparer);
+
+            std::sort(
+                runningTasks.begin(),
+                runningTasks.end(),
+                [&] (const auto& lhs, const auto& rhs) {
+                    return lhs->StartTime.load() < rhs->StartTime.load();
+                });
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("task_count").Value(taskQueue.size())
-                    .Item("finished_task_count").Value(finishedTaskQueue.size())
+                    .Item("pending_task_count").Value(ssize(pendingTasks))
+                    .Item("running_task_count").Value(ssize(runningTasks))
+                    .Item("finished_task_count").Value(ssize(finishedTasks))
                     .Item("pending_tasks")
                         .DoListFor(
-                            taskQueue,
-                            [&](TFluentList fluent, const auto& task) {
+                            pendingTasks,
+                            [&] (TFluentList fluent, const auto& task) {
+                                task->Serialize(fluent);
+                            })
+                    .Item("running_tasks")
+                        .DoListFor(
+                            runningTasks,
+                            [&] (TFluentList fluent, const auto& task) {
                                 task->Serialize(fluent);
                             })
                     .Item("finished_tasks")
                         .DoListFor(
-                            finishedTaskQueue,
-                            [&](TFluentList fluent, const auto& task) {
+                            finishedTasks,
+                            [&] (TFluentList fluent, const auto& task) {
                                 task->Serialize(fluent);
                             })
                 .EndMap();
@@ -904,6 +959,8 @@ private:
             explicit TTaskInfo(const TTask& task)
                 : TabletId(task.TabletId)
                 , MountRevision(task.MountRevision)
+                , TablePath(task.TablePath)
+                , TabletCellBundle(task.TabletCellBundle)
                 , PartitionId(task.PartitionId)
                 , StoreCount(task.StoreIds.size())
                 , DiscardStores(task.DiscardStores)
@@ -914,29 +971,38 @@ private:
                 , Reason(task.Reason)
             { }
 
-            TTabletId TabletId;
-            TRevision MountRevision;
-            TPartitionId PartitionId;
-            int StoreCount;
+            const TTabletId TabletId;
+            const TRevision MountRevision;
+            const TString TablePath;
+            const TString TabletCellBundle;
+            const TPartitionId PartitionId;
+            const int StoreCount;
 
-            bool DiscardStores;
-            int Slack;
-            int Effect;
-            int FutureEffect;
-            ui64 Random;
-            NLsm::EStoreCompactionReason Reason;
+            const bool DiscardStores;
+            const int Slack;
+            const int Effect;
+            const int FutureEffect;
+            const ui64 Random;
+            const NLsm::EStoreCompactionReason Reason;
 
-            auto GetStoreCount()
+            std::atomic<std::optional<TInstant>> StartTime{};
+            std::atomic<std::optional<TInstant>> FinishTime{};
+
+            auto GetStoreCount() const
             {
                 return StoreCount;
             }
 
             void Serialize(TFluentList fluent) const
             {
+                auto startTime = StartTime.load();
+                auto finishTime = FinishTime.load();
                 fluent.Item()
                 .BeginMap()
                     .Item("tablet_id").Value(TabletId)
                     .Item("mount_revision").Value(MountRevision)
+                    .Item("table_path").Value(TablePath)
+                    .Item("tablet_cell_bundle").Value(TabletCellBundle)
                     .Item("partition_id").Value(PartitionId)
                     .Item("store_count").Value(StoreCount)
                     .Item("task_priority")
@@ -948,15 +1014,25 @@ private:
                             .Item("random").Value(Random)
                         .EndMap()
                     .Item("reason").Value(Reason)
+                    .DoIf(startTime.has_value(), [&] (auto fluent) {
+                        fluent
+                            .Item("start_time").Value(startTime)
+                            .Item("duration").Value(finishTime.value_or(TInstant::Now()) - *startTime);
+                    })
+                    .DoIf(finishTime.has_value(), [&] (auto fluent) {
+                        fluent
+                            .Item("finish_time").Value(finishTime);
+                    })
                  .EndMap();
             }
         };
 
         using TTaskInfoPtr = TIntrusivePtr<TTaskInfo>;
 
-        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueSpinLock_);
-        std::deque<TTaskInfoPtr> TaskQueue_;
-        std::deque<TTaskInfoPtr> FinishedTaskQueue_;
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+        THashMap<TGuid, TTaskInfoPtr> PendingTasks_;
+        THashMap<TGuid, TTaskInfoPtr> RunningTasks_;
+        std::deque<TTaskInfoPtr> FinishedTasks_;
 
         static inline bool Comparer(const TTaskInfoPtr& lhs, const TTaskInfoPtr& rhs)
         {
@@ -1150,7 +1226,7 @@ private:
             auto&& task = tasks->at(*index);
             task->Prepare(this, std::move(semaphoreGuard));
             ++scheduled;
-            orchidServiceManager->MarkTaskAsFinished();
+            orchidServiceManager->OnTaskStarted(task.get());
 
             // TODO(sandello): Better ownership management.
             auto invoker = task->Invoker;
@@ -1308,6 +1384,9 @@ private:
 
         auto doneGuard = Finally([&] {
             ScheduleMorePartitionings();
+        });
+        auto orchidManagerGuard = Finally([&] {
+            PartitioningOrchidServiceManager_->OnTaskFinished(task);
         });
 
         const auto& slot = task->Slot;
@@ -1665,6 +1744,9 @@ private:
 
         auto doneGuard = Finally([&] {
             ScheduleMoreCompactions();
+        });
+        auto orchidManagerGuard = Finally([&] {
+            CompactionOrchidServiceManager_->OnTaskFinished(task);
         });
 
         const auto& slot = task->Slot;
