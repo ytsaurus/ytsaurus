@@ -11,7 +11,8 @@ from yt_commands import (
     raises_yt_error, gc_collect, execute_command,
     get_batch_output,
     switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address)
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address,
+    sync_mount_table, sync_create_cells)
 
 from yt_helpers import get_current_time
 
@@ -44,7 +45,8 @@ def _set_sys_config(path, value):
     try:
         yield
     finally:
-        remove("//sys/@config" + path)
+        if exists(f"//sys/@config{path}"):
+            remove(f"//sys/@config{path}")
 
 
 class TestCypressRootCreationTime(YTEnvSetup):
@@ -4030,3 +4032,39 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
         subrequests = yson.dumps(subrequests)
         kwargs["path"] = path
         self._execute_command("PUT", "multiset_attributes", kwargs, input_stream=BytesIO(subrequests))
+
+
+class TestBuiltinAttributesRevision(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+
+    @authors("kvk1920")
+    @pytest.mark.parametrize("enable_revision_changing", [False, True])
+    def test_changing_builtin_attribute_increases_revision_yt_16764(self, enable_revision_changing):
+        set("//sys/accounts/tmp/@resource_limits/tablet_count", 1)
+        sync_create_cells(1)
+        create_user("u")
+        # COMPAT(kvk1920): Remove @enable_revision_changing_for_builtin_attributes from config.
+        with _set_sys_config("/cypress_manager/enable_revision_changing_for_builtin_attributes",
+                             enable_revision_changing):
+            create("table", "//tmp/t", attributes={"dynamic": True, "schema": [
+                {"name": "ShardId", "type": "uint64", "sort_order": "ascending"},
+                {"name": "Offset", "type": "uint64"},
+            ]})
+            sync_mount_table("//tmp/t")
+
+            attributes = {
+                "treat_as_queue_consumer": True,
+                "queue_agent_stage": "testing",
+                "owner": "u",
+                "vital_queue_consumer": True,
+                "acl": [make_ace("deny", "guest", "write")]
+            }
+
+            for attr, value in attributes.items():
+                old_revision = get("//tmp/t/@attribute_revision")
+                set(f"//tmp/t/@{attr}", value)
+                assert get(f"//tmp/t/@{attr}") == value
+                if enable_revision_changing:
+                    assert get("//tmp/t/@attribute_revision") > old_revision
+                else:
+                    assert get("//tmp/t/@attribute_revision") == old_revision
