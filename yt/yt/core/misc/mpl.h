@@ -1,5 +1,6 @@
 #pragma once
 
+#include "yt/yt/core/ytree/public.h"
 #include <util/generic/typetraits.h>
 
 #include <tuple>
@@ -31,6 +32,9 @@ struct TCallTraitsHelper<T, false>
 {
     typedef const T& TType;
 };
+
+template <template <class...> class TTemplate, class... TArgs>
+void DerivedFromSpecializationImpl(const TTemplate<TArgs...>&);
 
 } // namespace NDetail
 
@@ -79,6 +83,13 @@ struct TIsPod
             Value = sizeof(func<Derived>(0)) == 2                                        \
         };                                                                               \
     }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TDerived, template <class...> class TTemplatedBase>
+concept DerivedFromSpecializationOf = requires(const TDerived& instance) {
+    NDetail::DerivedFromSpecializationImpl<TTemplatedBase>(instance);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
