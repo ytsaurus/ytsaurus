@@ -148,7 +148,6 @@ private:
             , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
                 Path_,
                 Options_.TransactionId))
-            , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         {
             if (Config_->MaxBatchRowCount > options.ReplicaLagLimit) {
                 THROW_ERROR_EXCEPTION("\"max_batch_row_count\" cannot be greater than \"replica_lag_limit\"")
@@ -234,7 +233,6 @@ private:
 
         const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
-        const TNodeDirectoryPtr NodeDirectory_;
 
         struct TBatch
             : public TRefCounted
@@ -721,7 +719,6 @@ private:
                     /*replicationFactorOverride*/ std::nullopt,
                     preferredReplica,
                     GetBannedNodes(),
-                    NodeDirectory_,
                     Logger);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));
@@ -735,9 +732,11 @@ private:
                 }
             }
 
+            const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
+
             for (int index = 0; index < std::ssize(replicas); ++index) {
                 auto replica = replicas[index];
-                const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
+                const auto& descriptor = nodeDirectory->GetDescriptor(replica);
                 auto lightChannel = Client_->GetChannelFactory()->CreateChannel(descriptor);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,

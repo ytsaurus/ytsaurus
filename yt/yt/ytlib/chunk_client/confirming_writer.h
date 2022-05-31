@@ -24,7 +24,6 @@ IChunkWriterPtr CreateConfirmingWriter(
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
     TChunkListId parentChunkListId,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     TString localHostName,
     IBlockCachePtr blockCache = GetNullBlockCache(),

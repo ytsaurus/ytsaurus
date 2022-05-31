@@ -63,7 +63,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
-    , NodeDirectory_(client->GetNativeConnection()->GetNodeDirectory())
     , TrafficMeter_(trafficMeter)
 {
     YT_VERIFY(Config_);
@@ -107,11 +106,6 @@ const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunk
 const TChunkWithReplicasList& TNontemplateMultiChunkWriterBase::GetWrittenChunkWithReplicasList() const
 {
     return WrittenChunkWithReplicasList_;
-}
-
-TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
-{
-    return NodeDirectory_;
 }
 
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
@@ -193,7 +187,6 @@ void TNontemplateMultiChunkWriterBase::InitSession()
         CellTag_,
         TransactionId_,
         ParentChunkListId_,
-        NodeDirectory_,
         Client_,
         LocalHostName_,
         BlockCache_,

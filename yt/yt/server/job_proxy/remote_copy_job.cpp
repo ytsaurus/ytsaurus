@@ -392,10 +392,6 @@ private:
 
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
-        const auto& nodeDirectory = Host_
-            ->GetClient()
-            ->GetNativeConnection()
-            ->GetNodeDirectory(/*startSynchronizer*/ false);
         options->AllowAllocatingNewTargetNodes = false;
         auto targetReplicas = AllocateWriteTargets(
             Host_->GetClient(),
@@ -405,14 +401,12 @@ private:
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
             /*forbiddenAddresses*/ std::vector<TString>(),
-            nodeDirectory,
             Logger);
         auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
             erasureCodec,
-            nodeDirectory,
             Host_->GetClient(),
             Host_->GetTrafficMeter(),
             Host_->GetOutBandwidthThrottler(),
@@ -542,8 +536,7 @@ private:
                 erasureCodec,
                 erasedPartIndicies,
                 &writers,
-                targetReplicas,
-                nodeDirectory);
+                targetReplicas);
         } else {
             YT_LOG_DEBUG("All the parts were copied successfully");
         }
@@ -612,8 +605,7 @@ private:
         NErasure::ICodec* erasureCodec,
         const TPartIndexList& erasedPartIndicies,
         std::vector<IChunkWriterPtr>* partWriters,
-        const TChunkReplicaWithMediumList& targetReplicas,
-        const TNodeDirectoryPtr& nodeDirectory)
+        const TChunkReplicaWithMediumList& targetReplicas)
     {
         TCurrentTraceContextGuard guard(OutputTraceContext_);
 
@@ -658,7 +650,6 @@ private:
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
-            nodeDirectory,
             Host_->GetClient(),
             erasedPartIndicies,
             Host_->GetTrafficMeter(),
@@ -728,16 +719,11 @@ private:
 
         chunkMeta = GetChunkMeta({reader});
 
-        const auto& nodeDirectory = Host_
-            ->GetClient()
-            ->GetNativeConnection()
-            ->GetNodeDirectory(/*startSynchronizer*/ false);
         auto writer = CreateReplicationWriter(
             WriterConfig_,
             New<TRemoteWriterOptions>(),
             outputSessionId,
             TChunkReplicaWithMediumList(),
-            nodeDirectory,
             Host_->GetClient(),
             Host_->GetLocalHostName(),
             Host_->GetWriterBlockCache(),

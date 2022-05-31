@@ -47,7 +47,6 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     TReplicationWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
-    TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     const TPartIndexList& partIndexList,
     TTrafficMeterPtr trafficMeter,
@@ -71,7 +70,6 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             /*replicationFactorOverride*/ std::nullopt,
             /*preferredHostName*/ std::nullopt,
             std::vector<TString>(),
-            nodeDirectory,
             ChunkClientLogger);
     }
 
@@ -90,7 +88,6 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             options,
             partSessionId,
             TChunkReplicaWithMediumList(1, targetReplicas[index]),
-            nodeDirectory,
             client,
             /*localHostName*/ TString(), // Locality is not important here.
             blockCache,
@@ -106,7 +103,6 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
     ICodec* codec,
-    TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
@@ -121,7 +117,6 @@ std::vector<IChunkWriterPtr> CreateAllErasurePartWriters(
         config,
         options,
         sessionId,
-        nodeDirectory,
         client,
         partIndexList,
         trafficMeter,

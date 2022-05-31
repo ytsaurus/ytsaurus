@@ -667,15 +667,12 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         auto tabletCellTag = CellTagFromId(tabletSnapshot->TabletId);
 
-        auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
-
         auto storeChunkWriter = CreateConfirmingWriter(
             storeWriterConfig,
             storeWriterOptions,
             tabletCellTag,
             transaction->GetId(),
             /*parentChunkListId*/ {},
-            nodeDirectory,
             Client_,
             TabletContext_->GetLocalHostName(),
             blockCache,
@@ -688,7 +685,6 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletCellTag,
             transaction->GetId(),
             /*parentChunkListId*/ {},
-            nodeDirectory,
             Client_,
             TabletContext_->GetLocalHostName(),
             GetNullBlockCache(),

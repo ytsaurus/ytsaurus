@@ -51,7 +51,6 @@ public:
         TCellTag cellTag,
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
-        TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
         TString localHostName,
         IBlockCachePtr blockCache,
@@ -60,16 +59,15 @@ public:
         TSessionId sessionId,
         TChunkReplicaWithMediumList targetReplicas)
         : Config_(CloneYsonSerializable(config))
-        , Options_(options)
+        , Options_(std::move(options))
         , CellTag_(cellTag)
         , TransactionId_(transactionId)
         , ParentChunkListId_(parentChunkListId)
-        , NodeDirectory_(nodeDirectory)
-        , Client_(client)
+        , Client_(std::move(client))
         , LocalHostName_(std::move(localHostName))
-        , BlockCache_(blockCache)
-        , Throttler_(throttler)
-        , TrafficMeter_(trafficMeter)
+        , BlockCache_(std::move(blockCache))
+        , Throttler_(std::move(throttler))
+        , TrafficMeter_(std::move(trafficMeter))
         , TargetReplicas_(std::move(targetReplicas))
         , SessionId_(sessionId)
         , Logger(ChunkClientLogger.WithTag("TransactionId: %v", TransactionId_))
@@ -192,7 +190,6 @@ private:
     const TCellTag CellTag_;
     const TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
-    const TNodeDirectoryPtr NodeDirectory_;
     const NNative::IClientPtr Client_;
     const TString LocalHostName_;
     const IBlockCachePtr BlockCache_;
@@ -251,7 +248,6 @@ private:
                 Options_,
                 SessionId_,
                 std::move(TargetReplicas_),
-                NodeDirectory_,
                 Client_,
                 LocalHostName_,
                 BlockCache_,
@@ -273,7 +269,6 @@ private:
             options,
             SessionId_,
             erasureCodec,
-            NodeDirectory_,
             Client_,
             TrafficMeter_,
             Throttler_,
@@ -359,7 +354,6 @@ IChunkWriterPtr CreateConfirmingWriter(
     TCellTag cellTag,
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
     TString localHostName,
     IBlockCachePtr blockCache,
@@ -369,17 +363,16 @@ IChunkWriterPtr CreateConfirmingWriter(
     TChunkReplicaWithMediumList targetReplicas)
 {
     return New<TConfirmingWriter>(
-        config,
-        options,
+        std::move(config),
+        std::move(options),
         cellTag,
         transactionId,
         parentChunkListId,
-        nodeDirectory,
-        client,
+        std::move(client),
         std::move(localHostName),
-        blockCache,
-        throttler,
-        trafficMeter,
+        std::move(blockCache),
+        std::move(throttler),
+        std::move(trafficMeter),
         sessionId,
         std::move(targetReplicas));
 }

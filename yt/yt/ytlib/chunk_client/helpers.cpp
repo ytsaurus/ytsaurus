@@ -524,7 +524,6 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     std::optional<int> replicationFactorOverride,
     std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
-    const TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
@@ -567,6 +566,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     throwOnError(batchRspOrError);
     const auto& batchRsp = batchRspOrError.Value();
 
+    const auto& nodeDirectory = client->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false);
     nodeDirectory->MergeFrom(batchRsp->node_directory());
 
     auto& rsp = batchRsp->subresponses(0);

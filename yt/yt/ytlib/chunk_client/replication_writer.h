@@ -20,7 +20,6 @@ IChunkWriterPtr CreateReplicationWriter(
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
     TChunkReplicaWithMediumList targets,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
     TString localHostName,
     IBlockCachePtr blockCache = GetNullBlockCache(),
