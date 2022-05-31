@@ -10,6 +10,7 @@
 #include "skiff/schema.h"
 #include "skiff/record.h"
 #include "skiff/parser.h"
+#include "skiff/other_columns.h"
 #include "skiff/serialize.h"
 #include "skiff/switch.h"
 #include "skiff/raw_iterator.h"

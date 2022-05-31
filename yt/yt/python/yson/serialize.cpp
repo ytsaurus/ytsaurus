@@ -3,7 +3,7 @@
 #include "helpers.h"
 #include "error.h"
 
-#include "skiff/converter_common.h"
+#include "skiff/other_columns.h"
 
 #include <yt/yt/core/misc/finally.h>
 
