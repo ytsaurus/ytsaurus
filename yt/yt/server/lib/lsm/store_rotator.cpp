@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/core/utilex/random.h>
+
 namespace NYT::NLsm {
 
 using namespace NTransactionClient;
@@ -150,10 +152,17 @@ private:
                 rotationReason,
                 tablet->GetLoggingTag());
             YT_VERIFY(static_cast<bool>(tablet->FindActiveStore()));
-            batch.Rotations.push_back(TRotateStoreRequest{
+
+            TRotateStoreRequest request{
                 .Tablet = MakeStrong(tablet),
                 .Reason = rotationReason,
-            });
+            };
+
+            if (rotationReason == EStoreRotationReason::Periodic) {
+                PatchLastPeriodicRotationTime(&request);
+            }
+
+            batch.Rotations.push_back(request);
         }
 
         return batch;
@@ -272,15 +281,51 @@ private:
         return adjustedUsage > memoryDigest.Limit * forcedRotationMemoryRatio;
     }
 
-    static EStoreRotationReason GetImmediateRotationReason(TTablet* tablet)
+    EStoreRotationReason GetImmediateRotationReason(TTablet* tablet) const
     {
         if (tablet->GetIsOverflowRotationNeeded()) {
             return EStoreRotationReason::Overflow;
-        } else if (tablet->GetIsPeriodicRotationNeeded()) {
+        } else if (IsPeriodicRotationNeeded(tablet)) {
             return EStoreRotationReason::Periodic;
         } else {
             return EStoreRotationReason::None;
         }
+    }
+
+    bool IsPeriodicRotationNeeded(TTablet* tablet) const
+    {
+        // NB: We don't check for IsRotationPossible here and issue periodic
+        // rotation requests even if rotation is not possible just to update
+        // last periodic rotation time.
+        if (!tablet->FindActiveStore()) {
+            return false;
+        }
+
+        if (!tablet->GetLastPeriodicRotationTime()) {
+            return false;
+        }
+
+        auto timeElapsed = BackendState_.CurrentTime - *tablet->GetLastPeriodicRotationTime();
+        const auto& mountConfig = tablet->GetMountConfig();
+        return
+            mountConfig->DynamicStoreAutoFlushPeriod &&
+            timeElapsed > *mountConfig->DynamicStoreAutoFlushPeriod;
+    }
+
+    static void PatchLastPeriodicRotationTime(TRotateStoreRequest* request)
+    {
+        const auto& mountConfig = request->Tablet->GetMountConfig();
+
+        YT_VERIFY(request->Tablet->GetLastPeriodicRotationTime().has_value());
+
+        auto expectedTime = *request->Tablet->GetLastPeriodicRotationTime();
+        auto newTime =
+            expectedTime +
+            *mountConfig->DynamicStoreAutoFlushPeriod +
+            RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
+
+        request->ExpectedLastPeriodicRotationTime = expectedTime;
+        request->NewLastPeriodicRotationTime = newTime;
     }
 };
 

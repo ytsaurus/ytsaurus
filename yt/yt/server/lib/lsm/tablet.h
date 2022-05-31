@@ -26,11 +26,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(TString, LoggingTag);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsRotationPossible);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsForcedRotationPossible);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);
-    DEFINE_BYVAL_RW_PROPERTY(bool, IsPeriodicRotationNeeded);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, PeriodicRotationMilestone);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, LastPeriodicRotationTime);
 
     // Sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TPartition>>, Partitions);

@@ -82,15 +82,13 @@ public:
 
     bool IsOverflowRotationNeeded() const override;
     TError CheckOverflow() const override;
-    bool IsPeriodicRotationNeeded() const override;
     bool IsRotationPossible() const override;
     bool IsForcedRotationPossible() const override;
-    std::optional<TInstant> GetPeriodicRotationMilestone() const override;
+    std::optional<TInstant> GetLastPeriodicRotationTime() const override;
+    void SetLastPeriodicRotationTime(TInstant value) override;
 
     ISortedStoreManagerPtr AsSorted() override;
     IOrderedStoreManagerPtr AsOrdered() override;
-
-    void UpdatePeriodicRotationMilestone();
 
 protected:
     const TTabletManagerConfigPtr Config_;
@@ -100,7 +98,7 @@ protected:
     const NApi::NNative::IClientPtr Client_;
 
     bool RotationScheduled_ = false;
-    std::optional<TInstant> PeriodicRotationMilestone_;
+    std::optional<TInstant> LastPeriodicRotationTime_;
 
     THashSet<IStorePtr> LockedStores_;
 
@@ -137,6 +135,8 @@ protected:
 
     TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp timestampHint);
 
+private:
+    void ResetLastPeriodicRotationTime();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

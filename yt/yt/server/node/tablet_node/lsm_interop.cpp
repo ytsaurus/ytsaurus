@@ -183,11 +183,9 @@ private:
         lsmTablet->SetMountRevision(tablet->GetMountRevision());
         lsmTablet->SetLoggingTag(tablet->GetLoggingTag());
 
-        lsmTablet->SetIsRotationPossible(storeManager->IsRotationPossible());
         lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());
         lsmTablet->SetIsOverflowRotationNeeded(storeManager->IsOverflowRotationNeeded());
-        lsmTablet->SetIsPeriodicRotationNeeded(storeManager->IsPeriodicRotationNeeded());
-        lsmTablet->SetPeriodicRotationMilestone(storeManager->GetPeriodicRotationMilestone());
+        lsmTablet->SetLastPeriodicRotationTime(storeManager->GetLastPeriodicRotationTime());
 
         if (tablet->IsPhysicallySorted()) {
             lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());

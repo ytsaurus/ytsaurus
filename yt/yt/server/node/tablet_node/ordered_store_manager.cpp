@@ -103,8 +103,6 @@ bool TOrderedStoreManager::ExecuteWrites(
     IWireProtocolReader* reader,
     TWriteContext* context)
 {
-    UpdatePeriodicRotationMilestone();
-
     YT_VERIFY(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
         auto command = reader->ReadWriteCommand(

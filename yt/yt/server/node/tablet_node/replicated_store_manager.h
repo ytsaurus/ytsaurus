@@ -41,10 +41,10 @@ public:
 
     bool IsOverflowRotationNeeded() const override;
     TError CheckOverflow() const override;
-    bool IsPeriodicRotationNeeded() const override;
     bool IsRotationPossible() const override;
     bool IsForcedRotationPossible() const override;
-    std::optional<TInstant> GetPeriodicRotationMilestone() const override;
+    std::optional<TInstant> GetLastPeriodicRotationTime() const override;
+    void SetLastPeriodicRotationTime(TInstant value) override;
     bool IsRotationScheduled() const override;
     bool IsFlushNeeded() const override;
     void InitializeRotation() override;

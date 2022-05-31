@@ -69,7 +69,6 @@ bool TReplicatedStoreManager::ExecuteWrites(
     IWireProtocolReader* reader,
     TWriteContext* context)
 {
-    LogStoreManager_->UpdatePeriodicRotationMilestone();
     auto tableSchema = Tablet_->GetTableSchema();
 
     YT_ASSERT(context->Phase == EWritePhase::Commit);
@@ -114,19 +113,19 @@ TError TReplicatedStoreManager::CheckOverflow() const
     return LogStoreManager_->CheckOverflow();
 }
 
-bool TReplicatedStoreManager::IsPeriodicRotationNeeded() const
-{
-    return LogStoreManager_->IsPeriodicRotationNeeded();
-}
-
 bool TReplicatedStoreManager::IsRotationPossible() const
 {
     return LogStoreManager_->IsRotationPossible();
 }
 
-std::optional<TInstant> TReplicatedStoreManager::GetPeriodicRotationMilestone() const
+std::optional<TInstant> TReplicatedStoreManager::GetLastPeriodicRotationTime() const
 {
-    return LogStoreManager_->GetPeriodicRotationMilestone();
+    return LogStoreManager_->GetLastPeriodicRotationTime();
+}
+
+void TReplicatedStoreManager::SetLastPeriodicRotationTime(TInstant value)
+{
+    LogStoreManager_->SetLastPeriodicRotationTime(value);
 }
 
 bool TReplicatedStoreManager::IsForcedRotationPossible() const

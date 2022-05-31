@@ -59,13 +59,9 @@ void TTablet::Persist(const TStreamPersistenceContext& context)
     Persist<TNonNullableIntrusivePtrSerializer<>>(context, MountConfig_);
     Persist(context, MountRevision_);
     Persist(context, LoggingTag_);
-    Persist(context, IsRotationPossible_);
-    Persist(context, IsForcedRotationPossible_);
-    Persist(context, IsRotationPossible_);
     Persist(context, IsForcedRotationPossible_);
     Persist(context, IsOverflowRotationNeeded_);
-    Persist(context, IsPeriodicRotationNeeded_);
-    Persist(context, PeriodicRotationMilestone_);
+    Persist(context, LastPeriodicRotationTime_);
     Persist<TVectorSerializer<TUniquePtrSerializer<>>>(context, Partitions_);
     Persist<TUniquePtrSerializer<>>(context, Eden_);
     Persist(context, OverlappingStoreCount_);
