@@ -122,6 +122,7 @@ DEFINE_ENUM(EMasterReign,
     ((InitTouchTimeOnCloning)                                       (2020))  // shakurov
     ((AdaptiveHedgingManager)                                       (2021))  // akozhikhov
     ((NewReplicatedTableTracker)                                    (2022))  // akozhikhov
+    ((RemoveReplicateHostNameOption)                                (2023))  // prime
 );
 
 ////////////////////////////////////////////////////////////////////////////////
