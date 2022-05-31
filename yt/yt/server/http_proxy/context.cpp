@@ -559,6 +559,15 @@ void TContext::LogStructuredRequest()
         }
     });
 
+    YT_LOG_DEBUG("Request finished (RequestId: %v, Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
+        Request_->GetRequestId(),
+        Descriptor_->CommandName,
+        DriverRequest_.AuthenticatedUser,
+        WallTime_,
+        CpuTime_,
+        Request_->GetReadByteCount(),
+        Response_->GetWriteByteCount());
+
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())
         .Item("command").Value(Descriptor_->CommandName)
