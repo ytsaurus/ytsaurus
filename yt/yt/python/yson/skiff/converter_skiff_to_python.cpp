@@ -72,7 +72,7 @@ public:
         , Description_(std::move(description))
     { }
 
-    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser) 
+    PyObjectPtr operator() (TCheckedInDebugSkiffParser* parser)
     {
         auto string = parser->ParseString32();
         auto bytes = PyObjectPtr(PyBytes_FromStringAndSize(string.begin(), string.size()));
@@ -81,11 +81,12 @@ public:
                 Description_)
                 << Py::BuildErrorFromPythonException(/*clear*/ true);
         }
-        if (PyTuple_SetItem(OtherColumnsArgs_.ptr(), 0, bytes.get()) == -1) {
+        if (PyTuple_SetItem(OtherColumnsArgs_.ptr(), 0, bytes.release()) == -1) {
             THROW_ERROR_EXCEPTION("Failed to set tuple element for constructor of field %Qv",
                 Description_)
                 << Py::BuildErrorFromPythonException(/*clear*/ true);
         }
+
         auto obj = PyObjectPtr(PyObject_Call(OtherColumnsClass_.ptr(), OtherColumnsArgs_.ptr(), /* kwargs */ nullptr));
         if (!obj) {
             THROW_ERROR_EXCEPTION("Failed to create OtherColumns field %Qv",
@@ -266,7 +267,7 @@ public:
         : Description_(description)
     {
         static auto StructFieldClass = GetSchemaType("StructField");
-        static auto FieldMissingFromSchemaClass = GetSchemaType("FieldMissingFromSchema"); 
+        static auto FieldMissingFromSchemaClass = GetSchemaType("FieldMissingFromSchema");
         PyType_ = GetAttr(pySchema, PyTypeFieldName);
         auto fields = Py::List(GetAttr(pySchema, FieldsFieldName));
         for (const auto& field : fields) {
@@ -446,13 +447,13 @@ public:
 
         validateSystemColumnAndAdvance("key_switch");
         HasKeySwitch_ = attributes.hasKey("enable_key_switch") && attributes.getItem("enable_key_switch").as_bool();
-        
+
         validateSystemColumnAndAdvance("row_index");
         HasRowIndex_ = attributes.hasKey("enable_row_index") && attributes.getItem("enable_row_index").as_bool();
-        
+
         validateSystemColumnAndAdvance("range_index");
         HasRangeIndex_ = attributes.hasKey("enable_range_index") && attributes.getItem("enable_range_index").as_bool();
-        
+
         validateSystemColumnAndAdvance("other_columns");
         auto otherColumnsField = GetAttr(GetAttr(pySchema, StructSchemaFieldName), OtherColumnsFieldFieldName);
         if (!otherColumnsField.isNone()) {

@@ -71,7 +71,6 @@ TSkiffOtherColumns::TSkiffOtherColumns(Py::PythonClassInstance *self, Py::Tuple&
         return;
     }
     auto arg = args.getItem(0);
-    arg.increment_reference_count();
     if (PyBytes_Check(arg.ptr())) {
         UnparsedBytesObj_ = Py::Bytes(arg);
     } else if (arg.isMapping()) {
@@ -175,7 +174,7 @@ void TSkiffOtherColumns::MaybeMaterializeMap()
     try {
         TYsonPullParser parser(&input, EYsonType::Node);
         TPullObjectBuilder builder(&parser, /* alwaysCreateAttributes */ false, DefaultEncoding);
-        Map_ = Py::Mapping(Py::Object(builder.ParseObjectLazy().release(), /* owned */ true));
+        Map_ = Py::Object(builder.ParseObjectLazy().release(), /* owned */ true);
     } catch (const std::exception& exception) {
         throw Py::RuntimeError(::TStringBuilder() << "Failed to parse lazy yson: " << exception.what());
     }
