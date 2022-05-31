@@ -47,6 +47,8 @@ struct TRotateStoreRequest
 {
     TTabletPtr Tablet = nullptr;
     EStoreRotationReason Reason = EStoreRotationReason::None;
+    TInstant ExpectedLastPeriodicRotationTime = TInstant::Zero();
+    TInstant NewLastPeriodicRotationTime = TInstant::Zero();
 };
 
 struct TLsmActionBatch

@@ -2961,6 +2961,7 @@ private:
 
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
     {
+        const auto& storeManager = tablet->GetStoreManager();
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
@@ -2970,6 +2971,7 @@ private:
                 .Item("overlapping_store_count").Value(tablet->GetOverlappingStoreCount())
                 .Item("dynamic_store_count").Value(tablet->GetDynamicStoreCount())
                 .Item("retained_timestamp").Value(tablet->GetRetainedTimestamp())
+                .Item("last_periodic_rotation_time").Value(storeManager->GetLastPeriodicRotationTime())
                 .Item("in_flight_user_mutation_count").Value(tablet->GetInFlightUserMutationCount())
                 .Item("in_flight_replicator_mutation_count").Value(tablet->GetInFlightReplicatorMutationCount())
                 .Item("pending_user_write_record_count").Value(tablet->GetPendingUserWriteRecordCount())

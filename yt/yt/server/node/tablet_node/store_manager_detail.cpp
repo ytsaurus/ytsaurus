@@ -129,16 +129,7 @@ void TStoreManagerBase::StopEpoch()
 
 void TStoreManagerBase::InitializeRotation()
 {
-    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-    if (mountConfig->DynamicStoreAutoFlushPeriod &&
-        GetActiveStore() &&
-        !GetActiveStore()->IsEmpty())
-    {
-        PeriodicRotationMilestone_ = TInstant::Now() - RandomDuration(*mountConfig->DynamicStoreAutoFlushPeriod);
-    } else {
-        PeriodicRotationMilestone_ = std::nullopt;
-    }
-
+    ResetLastPeriodicRotationTime();
     RotationScheduled_ = false;
 }
 
@@ -484,6 +475,12 @@ void TStoreManagerBase::Mount(
 
 void TStoreManagerBase::Remount(const TTableSettings& settings)
 {
+    const auto& oldSettings = Tablet_->GetSettings();
+
+    if (oldSettings.MountConfig->DynamicStoreAutoFlushPeriod != settings.MountConfig->DynamicStoreAutoFlushPeriod) {
+        ResetLastPeriodicRotationTime();
+    }
+
     Tablet_->SetSettings(settings);
 
     InvalidateCachedChunkReaders();
@@ -494,7 +491,9 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
 void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
 {
     RotationScheduled_ = false;
-    PeriodicRotationMilestone_ = std::nullopt;
+    if (reason != EStoreRotationReason::Periodic) {
+        ResetLastPeriodicRotationTime();
+    }
 
     auto* activeStore = GetActiveStore();
 
@@ -604,21 +603,6 @@ TError TStoreManagerBase::CheckOverflow() const
     return TError();
 }
 
-bool TStoreManagerBase::IsPeriodicRotationNeeded() const
-{
-    if (!IsRotationPossible()) {
-        return false;
-    }
-
-    const auto* activeStore = GetActiveStore();
-    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-    return
-        mountConfig->DynamicStoreAutoFlushPeriod &&
-        !activeStore->IsEmpty() &&
-        PeriodicRotationMilestone_ &&
-        TInstant::Now() > *PeriodicRotationMilestone_ + *mountConfig->DynamicStoreAutoFlushPeriod;
-}
-
 bool TStoreManagerBase::IsRotationPossible() const
 {
     if (IsRotationScheduled()) {
@@ -664,9 +648,14 @@ bool TStoreManagerBase::IsForcedRotationPossible() const
     return true;
 }
 
-std::optional<TInstant> TStoreManagerBase::GetPeriodicRotationMilestone() const
+std::optional<TInstant> TStoreManagerBase::GetLastPeriodicRotationTime() const
 {
-    return PeriodicRotationMilestone_;
+    return LastPeriodicRotationTime_;
+}
+
+void TStoreManagerBase::SetLastPeriodicRotationTime(TInstant value)
+{
+    LastPeriodicRotationTime_ = value;
 }
 
 ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
@@ -677,18 +666,6 @@ ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 {
     YT_ABORT();
-}
-
-void TStoreManagerBase::UpdatePeriodicRotationMilestone()
-{
-    if (PeriodicRotationMilestone_) {
-        return;
-    }
-
-    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
-    if (mountConfig->DynamicStoreAutoFlushPeriod) {
-        PeriodicRotationMilestone_ = TInstant::Now() + RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
-    }
 }
 
 TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
@@ -764,6 +741,16 @@ TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timest
     auto monotonicTimestamp = std::max(lastCommitTimestamp + 1, timestampHint);
     Tablet_->UpdateLastCommitTimestamp(monotonicTimestamp);
     return monotonicTimestamp;
+}
+
+void TStoreManagerBase::ResetLastPeriodicRotationTime()
+{
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (mountConfig->DynamicStoreAutoFlushPeriod && GetActiveStore()) {
+        LastPeriodicRotationTime_ = TInstant::Now() - RandomDuration(*mountConfig->DynamicStoreAutoFlushPeriod);
+    } else {
+        LastPeriodicRotationTime_ = std::nullopt;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

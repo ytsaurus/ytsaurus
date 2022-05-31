@@ -15,6 +15,8 @@ namespace NYT::NTabletNode {
 
 using namespace NHydra;
 
+using NLsm::EStoreRotationReason;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
@@ -62,6 +64,20 @@ private:
                     "(ExpectedDynamicStoreId: %v, ActualDynamicStoreId: %v)",
                     lsmTablet->FindActiveStore()->GetId(),
                     activeStoreId);
+            }
+
+            if (request.Reason == EStoreRotationReason::Periodic) {
+                const auto& storeManager = tablet->GetStoreManager();
+                if (storeManager->GetLastPeriodicRotationTime() != request.ExpectedLastPeriodicRotationTime) {
+                    YT_LOG_DEBUG("Last periodic rotation time mismatch, aborting rotation "
+                        "(%v, ExpectedTime: %v, ActualTime: %v)",
+                        tablet->GetLoggingTag(),
+                        request.ExpectedLastPeriodicRotationTime,
+                        storeManager->GetLastPeriodicRotationTime());
+                    return;
+                }
+
+                storeManager->SetLastPeriodicRotationTime(request.NewLastPeriodicRotationTime);
             }
 
             tabletManager->ScheduleStoreRotation(tablet, request.Reason);

@@ -194,12 +194,19 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         else:
             self._create_simple_table("//tmp/t", schema=[{"name": "key", "type": "int64"}])
 
-        set("//tmp/t/@dynamic_store_auto_flush_period", 5000)
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        def _get_last_rotated():
+            return get(f"//sys/tablets/{tablet_id}/orchid/last_periodic_rotation_time")
+
+        set("//tmp/t/@dynamic_store_auto_flush_period", 7000)
         set("//tmp/t/@dynamic_store_flush_period_splay", 0)
-        set("//tmp/t/@enable_dynamic_store_read", 0)
+        set("//tmp/t/@enable_dynamic_store_read", False)
         sync_mount_table("//tmp/t")
 
-        sleep(5)
+        # Rotation attempts are recorded even in case of empty dynamic store.
+        last_rotated = _get_last_rotated()
+        wait(lambda: _get_last_rotated() != last_rotated)
+
         rows = [{"key": i} for i in range(10)]
         insert_rows("//tmp/t", rows)
 
