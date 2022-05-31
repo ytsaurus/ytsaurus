@@ -98,7 +98,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
     const NLogging::TLogger& logger);
 
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
-//! Populates #nodeDirectory with the returned node descriptors.
+//! Populates node directory with the returned node descriptors.
 //! Throws if the server returns no replicas.
 TChunkReplicaWithMediumList AllocateWriteTargets(
     const NApi::NNative::IClientPtr& client,
@@ -108,7 +108,6 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     std::optional<int> replicationFactorOverride,
     std::optional<TString> preferredHostName,
     const std::vector<TString>& forbiddenAddresses,
-    const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger);
 
 //! Returns the cumulative error for the whole batch.
@@ -120,10 +119,9 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
  */
 TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
-//! Locate all chunks passed in |chunkSpecList|.
-/*! Chunks from |chunkSpecList| are updated to store information about active replicas.
- *  If nonnull |nodeDirectory| is provided it is also updated to store information
- *  about these replicas.
+//! Locate all chunks passed in #chunkSpecList.
+/*! Chunks from #chunkSpecList are updated to store information about active replicas.
+ *  If nonnull #nodeDirectory is provided it is populated with information about these replicas.
  */
 void LocateChunks(
     const NApi::NNative::IClientPtr& client,

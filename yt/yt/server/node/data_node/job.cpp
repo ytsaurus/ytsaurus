@@ -737,7 +737,6 @@ private:
             options,
             sessionId,
             std::move(targetReplicas),
-            NodeDirectory_,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
@@ -950,7 +949,6 @@ private:
             options,
             partSessionId,
             TChunkReplicaWithMediumList(1, targetReplica),
-            NodeDirectory_,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),
@@ -1715,7 +1713,6 @@ private:
             CellTag_,
             NullTransactionId,
             NullChunkListId,
-            NodeDirectory_,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalHostName(),
             Bootstrap_->GetBlockCache(),
@@ -2264,7 +2261,6 @@ private:
                 New<TRemoteWriterOptions>(),
                 writeSessionId,
                 erasureCodec,
-                NodeDirectory_,
                 Bootstrap_->GetMasterClient(),
                 /*trafficMeter*/ nullptr,
                 Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::AutotomyOut),
@@ -2292,7 +2288,6 @@ private:
                 /*replicationFactorOverride*/ std::nullopt,
                 /*localHostName*/ Bootstrap_->GetLocalHostName(),
                 /*forbiddenAddresses*/ {},
-                NodeDirectory_,
                 Logger);
             YT_VERIFY(std::ssize(writeTargets) == ReplicationFactor_);
 
@@ -2312,7 +2307,6 @@ private:
                     writerOptions,
                     writeSessionId,
                     {writeTargets[index]},
-                    NodeDirectory_,
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetLocalHostName(),
                     GetNullBlockCache(),

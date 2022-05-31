@@ -176,30 +176,28 @@ public:
         TRemoteWriterOptionsPtr options,
         TSessionId sessionId,
         TChunkReplicaWithMediumList initialTargets,
-        TNodeDirectoryPtr nodeDirectory,
         NNative::IClientPtr client,
         TString localHostName,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
         TTrafficMeterPtr trafficMeter)
-        : Config_(config)
-        , Options_(options)
+        : Config_(std::move(config))
+        , Options_(std::move(options))
         , SessionId_(sessionId)
         , InitialTargets_(std::move(initialTargets))
-        , Client_(client)
+        , Client_(std::move(client))
         , LocalHostName_(std::move(localHostName))
-        , NodeDirectory_(nodeDirectory)
-        , Throttler_(throttler)
-        , BlockCache_(blockCache)
-        , TrafficMeter_(trafficMeter)
+        , Throttler_(std::move(throttler))
+        , BlockCache_(std::move(blockCache))
+        , TrafficMeter_(std::move(trafficMeter))
         , Logger(ChunkClientLogger.WithTag("ChunkId: %v", SessionId_))
-        , Networks_(client->GetNativeConnection()->GetNetworks())
-        , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
+        , Networks_(Client_->GetNativeConnection()->GetNetworks())
+        , WindowSlots_(New<TAsyncSemaphore>(Config_->SendWindowSize))
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
         , DirectUploadNodeCount_(Config_->GetDirectUploadNodeCount())
         , UncancelableStateError_(StateError_.ToFuture().ToUncancelable())
-        , BlockReorderer_(config)
+        , BlockReorderer_(Config_)
     {
         ClosePromise_.TrySetFrom(UncancelableStateError_);
     }
@@ -342,7 +340,6 @@ private:
     const TChunkReplicaWithMediumList InitialTargets_;
     const NNative::IClientPtr Client_;
     const TString LocalHostName_;
-    const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
     const TTrafficMeterPtr TrafficMeter_;
@@ -514,7 +511,6 @@ private:
             /*replicationFactorOverride*/ UploadReplicationFactor_,
             preferredHostName,
             forbiddenAddresses,
-            NodeDirectory_,
             Logger);
     }
 
@@ -729,7 +725,8 @@ private:
             YT_VERIFY(target.GetReplicaIndex() == GenericChunkReplicaIndex);
         }
 
-        auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
+        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false);
+        auto nodeDescriptor = nodeDirectory->GetDescriptor(target);
         auto addressWithNetwork = nodeDescriptor.GetAddressWithNetworkOrThrow(Networks_);
         YT_LOG_DEBUG("Starting write session (Address: %v)", addressWithNetwork);
 
@@ -1284,7 +1281,6 @@ IChunkWriterPtr CreateReplicationWriter(
     TRemoteWriterOptionsPtr options,
     TSessionId sessionId,
     TChunkReplicaWithMediumList targets,
-    TNodeDirectoryPtr nodeDirectory,
     NNative::IClientPtr client,
     TString localHostName,
     IBlockCachePtr blockCache,
@@ -1292,16 +1288,15 @@ IChunkWriterPtr CreateReplicationWriter(
     IThroughputThrottlerPtr throttler)
 {
     return New<TReplicationWriter>(
-        config,
-        options,
+        std::move(config),
+        std::move(options),
         sessionId,
         std::move(targets),
-        nodeDirectory,
-        client,
+        std::move(client),
         std::move(localHostName),
-        throttler,
-        blockCache,
-        trafficMeter);
+        std::move(throttler),
+        std::move(blockCache),
+        std::move(trafficMeter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

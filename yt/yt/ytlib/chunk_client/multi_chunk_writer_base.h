@@ -47,9 +47,6 @@ public:
 
     const TChunkWithReplicasList& GetWrittenChunkWithReplicasList() const override;
 
-    //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
-    NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
-
     NProto::TDataStatistics GetDataStatistics() const override;
 
     TCodecStatistics GetCompressionStatistics() const override;
@@ -90,7 +87,6 @@ private:
     const TChunkListId ParentChunkListId_;
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
-    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const TTrafficMeterPtr TrafficMeter_;
 
     TSession CurrentSession_;

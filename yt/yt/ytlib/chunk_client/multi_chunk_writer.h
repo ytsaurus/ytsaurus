@@ -23,8 +23,6 @@ struct IMultiChunkWriter
     virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunkSpecs() const = 0;
     virtual const TChunkWithReplicasList& GetWrittenChunkWithReplicasList() const = 0;
 
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
-
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
     virtual TCodecStatistics GetCompressionStatistics() const = 0;
 };

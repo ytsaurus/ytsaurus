@@ -227,7 +227,6 @@ private:
             CellTagFromId(TabletSnapshot_->TabletId),
             Transaction_->GetId(),
             /*parentChunkListId*/ {},
-            Bootstrap_->GetMasterConnection()->GetNodeDirectory(),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetLocalHostName(),
             GetNullBlockCache(),

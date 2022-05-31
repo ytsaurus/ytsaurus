@@ -240,7 +240,6 @@ private:
             CellTagFromId(outputChunkListId),
             FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id()),
             outputChunkListId,
-            New<TNodeDirectory>(),
             Host_->GetClient(),
             Host_->GetLocalHostName(),
             Host_->GetWriterBlockCache(),
