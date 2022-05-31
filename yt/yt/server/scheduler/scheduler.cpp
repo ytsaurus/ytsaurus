@@ -3622,10 +3622,33 @@ private:
         OperationsToDestroy_.push_back(operation);
     }
 
-    void ProcessUnregisterOperationResult(
-        const TOperationPtr& operation,
-        const TOperationControllerUnregisterResult& result) const
+    void UnregisterOperationAtController(const TOperationPtr& operation) const
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controller = operation->GetController();
+        if (!controller) {
+            return;
+        }
+
+        // Notify controller that it is going to be disposed.
+        auto unregisterFuture = controller->Unregister();
+        std::vector<TFuture<void>> futures = {unregisterFuture.As<void>()};
+        // NB(eshcherbin): We wait for full heartbeat to ensure that job metrics have been fully collected. See: YT-12207.
+        if (Config_->WaitForAgentHeartbeatDuringOperationUnregistrationAtController) {
+            futures.push_back(controller->GetFullHeartbeatProcessed());
+        }
+
+        // Failure is intentionally ignored.
+        Y_UNUSED(WaitFor(AllSet(futures)));
+
+        YT_VERIFY(unregisterFuture.IsSet());
+        auto resultOrError = unregisterFuture.Get();
+        if (!resultOrError.IsOK()) {
+            return;
+        }
+
+        auto result = resultOrError.Value();
         if (!result.ResidualJobMetrics.empty()) {
             GetStrategy()->ApplyJobMetricsDelta({{operation->GetId(), result.ResidualJobMetrics}});
         }
@@ -3706,14 +3729,7 @@ private:
 
         SubmitOperationToCleaner(operation, operationProgress);
 
-        // Notify controller that it is going to be disposed (failure is intentionally ignored).
-        {
-            const auto& controller = operation->GetController();
-            auto resultOrError = WaitFor(controller->Unregister());
-            if (resultOrError.IsOK()) {
-                ProcessUnregisterOperationResult(operation, resultOrError.Value());
-            }
-        }
+        UnregisterOperationAtController(operation);
 
         LogOperationFinished(
             operation,
@@ -4011,13 +4027,7 @@ private:
 
         SubmitOperationToCleaner(operation, operationProgress);
 
-        if (const auto& controller = operation->GetController()) {
-            // Notify controller that it is going to be disposed.
-            auto resultOrError = WaitFor(controller->Unregister());
-            if (resultOrError.IsOK()) {
-                ProcessUnregisterOperationResult(operation, resultOrError.Value());
-            }
-        }
+        UnregisterOperationAtController(operation);
 
         LogOperationFinished(
             operation,

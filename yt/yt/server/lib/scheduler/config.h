@@ -869,6 +869,8 @@ public:
 
     NRpc::TResponseKeeperConfigPtr OperationServiceResponseKeeper;
 
+    bool WaitForAgentHeartbeatDuringOperationUnregistrationAtController;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);
