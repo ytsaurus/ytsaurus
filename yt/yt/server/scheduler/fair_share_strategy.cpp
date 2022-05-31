@@ -615,8 +615,10 @@ public:
         YT_VERIFY(origin);
 
         for (auto& [poolTree, treeParams] : origin->SchedulingOptionsPerPoolTree) {
+            std::optional<TString> newPoolName = update->Pool;
             auto treeUpdateIt = update->SchedulingOptionsPerPoolTree.find(poolTree);
             if (treeUpdateIt != update->SchedulingOptionsPerPoolTree.end()) {
+                newPoolName = treeUpdateIt->second->Pool;
                 treeParams = UpdateFairShareTreeRuntimeParameters(treeParams, treeUpdateIt->second);
             }
 
@@ -624,8 +626,8 @@ public:
             if (update->Weight) {
                 treeParams->Weight = *update->Weight;
             }
-            if (update->Pool) {
-                treeParams->Pool = GetTree(poolTree)->CreatePoolName(*update->Pool, user);
+            if (newPoolName) {
+                treeParams->Pool = GetTree(poolTree)->CreatePoolName(*newPoolName, user);
             }
         }
     }

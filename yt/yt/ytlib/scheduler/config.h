@@ -1700,7 +1700,7 @@ class TOperationFairShareTreeRuntimeParametersUpdate
 {
 public:
     std::optional<double> Weight;
-    std::optional<TPoolName> Pool;
+    std::optional<TString> Pool;
     TJobResourcesConfigPtr ResourceLimits;
     // Can only be set by an administrator.
     std::optional<bool> EnableDetailedLogs;

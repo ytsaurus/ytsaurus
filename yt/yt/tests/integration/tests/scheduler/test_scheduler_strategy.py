@@ -1749,12 +1749,25 @@ class TestEphemeralPools(YTEnvSetup):
         wait(lambda: not exists(scheduler_orchid_pool_path("ephemeral")))
 
     @authors("renadeen")
-    def test_move_to_ephemeral_hub(self):
+    def test_move_to_ephemeral_hub_via_common_option(self):
         create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
         op = run_sleeping_vanilla(spec={"pool": "inexistent"})
         wait(lambda: exists(scheduler_orchid_pool_path("inexistent")))
 
         update_op_parameters(op.id, parameters={"pool": "ephemeral_hub"})
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool") == "ephemeral_hub$root")
+
+    @authors("renadeen")
+    def test_move_to_ephemeral_hub_via_per_pool_tree_option(self):
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+        op = run_sleeping_vanilla(spec={"pool": "inexistent"})
+        wait(lambda: exists(scheduler_orchid_pool_path("inexistent")))
+
+        update_op_parameters(op.id, parameters={
+            "scheduling_options_per_pool_tree": {
+                "default": {"pool": "ephemeral_hub"}
+            }})
 
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool") == "ephemeral_hub$root")
 
