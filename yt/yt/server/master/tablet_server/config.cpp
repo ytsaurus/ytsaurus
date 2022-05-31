@@ -179,104 +179,104 @@ TDynamicTabletNodeTrackerConfig::TDynamicTabletNodeTrackerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicTabletManagerConfig::TDynamicTabletManagerConfig()
+void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
+    registrar.Parameter("peer_revocation_timeout", &TThis::PeerRevocationTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
+    registrar.Parameter("leader_reassignment_timeout", &TThis::LeaderReassignmentTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("max_snapshot_count_to_remove_per_check", MaxSnapshotCountToRemovePerCheck)
+    registrar.Parameter("max_snapshot_count_to_remove_per_check", &TThis::MaxSnapshotCountToRemovePerCheck)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("max_changelog_count_to_remove_per_check", MaxChangelogCountToRemovePerCheck)
+    registrar.Parameter("max_changelog_count_to_remove_per_check", &TThis::MaxChangelogCountToRemovePerCheck)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+    registrar.Parameter("safe_online_node_count", &TThis::SafeOnlineNodeCount)
         .GreaterThanOrEqual(0)
         .Default(0);
-    RegisterParameter("cell_scan_period", CellScanPeriod)
+    registrar.Parameter("cell_scan_period", &TThis::CellScanPeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("enable_cell_tracker", EnableCellTracker)
+    registrar.Parameter("enable_cell_tracker", &TThis::EnableCellTracker)
         .Default(true);
-    RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
+    registrar.Parameter("tablet_data_size_footprint", &TThis::TabletDataSizeFootprint)
         .GreaterThanOrEqual(0)
         .Default(64_MB);
-    RegisterParameter("store_chunk_reader", StoreChunkReader)
+    registrar.Parameter("store_chunk_reader", &TThis::StoreChunkReader)
         .Alias("chunk_reader")
         .DefaultNew();
-    RegisterParameter("hunk_chunk_reader", HunkChunkReader)
+    registrar.Parameter("hunk_chunk_reader", &TThis::HunkChunkReader)
         .DefaultNew();
-    RegisterParameter("store_chunk_writer", StoreChunkWriter)
+    registrar.Parameter("store_chunk_writer", &TThis::StoreChunkWriter)
         .Alias("chunk_writer")
         .DefaultNew();
-    RegisterParameter("hunk_chunk_writer", HunkChunkWriter)
+    registrar.Parameter("hunk_chunk_writer", &TThis::HunkChunkWriter)
         .DefaultNew();
-    RegisterParameter("tablet_balancer", TabletBalancer)
+    registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
         .DefaultNew();
-    RegisterParameter("tablet_cell_decommissioner", TabletCellDecommissioner)
+    registrar.Parameter("tablet_cell_decommissioner", &TThis::TabletCellDecommissioner)
         .DefaultNew();
-    RegisterParameter("tablet_action_manager", TabletActionManager)
+    registrar.Parameter("tablet_action_manager", &TThis::TabletActionManager)
         .DefaultNew();
-    RegisterParameter("multicell_gossip", MulticellGossip)
+    registrar.Parameter("multicell_gossip", &TThis::MulticellGossip)
         // COMPAT(babenko)
         .Alias("multicell_gossip_config")
         .DefaultNew();
-    RegisterParameter("tablet_cells_cleanup_period", TabletCellsCleanupPeriod)
+    registrar.Parameter("tablet_cells_cleanup_period", &TThis::TabletCellsCleanupPeriod)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("dynamic_table_profiling_mode", DynamicTableProfilingMode)
+    registrar.Parameter("dynamic_table_profiling_mode", &TThis::DynamicTableProfilingMode)
         .Default(NTabletNode::EDynamicTableProfilingMode::Path);
-    RegisterParameter("tablet_cell_balancer", TabletCellBalancer)
+    registrar.Parameter("tablet_cell_balancer", &TThis::TabletCellBalancer)
         .DefaultNew();
-    RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
+    registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)
         .DefaultNew();
-    RegisterParameter("enable_bulk_insert", EnableBulkInsert)
+    registrar.Parameter("enable_bulk_insert", &TThis::EnableBulkInsert)
         .Default(false);
-    RegisterParameter("decommission_through_extra_peers", DecommissionThroughExtraPeers)
+    registrar.Parameter("decommission_through_extra_peers", &TThis::DecommissionThroughExtraPeers)
         .Default(false);
-    RegisterParameter("decommissioned_leader_reassignment_timeout", DecommissionedLeaderReassignmentTimeout)
+    registrar.Parameter("decommissioned_leader_reassignment_timeout", &TThis::DecommissionedLeaderReassignmentTimeout)
         .Default();
-    RegisterParameter("abandon_leader_lease_during_recovery", AbandonLeaderLeaseDuringRecovery)
+    registrar.Parameter("abandon_leader_lease_during_recovery", &TThis::AbandonLeaderLeaseDuringRecovery)
         .Default(false);
-    RegisterParameter("enable_dynamic_store_read_by_default", EnableDynamicStoreReadByDefault)
+    registrar.Parameter("enable_dynamic_store_read_by_default", &TThis::EnableDynamicStoreReadByDefault)
         .Default(false);
-    RegisterParameter("peer_revocation_reason_expiration_time", PeerRevocationReasonExpirationTime)
+    registrar.Parameter("peer_revocation_reason_expiration_time", &TThis::PeerRevocationReasonExpirationTime)
         .Default(TDuration::Minutes(15));
-    RegisterParameter("enable_relaxed_tablet_statistics_validation", EnableRelaxedTabletStatisticsValidation)
+    registrar.Parameter("enable_relaxed_tablet_statistics_validation", &TThis::EnableRelaxedTabletStatisticsValidation)
         .Default(false);
-    RegisterParameter("enable_aggressive_tablet_statistics_validation", EnableAggressiveTabletStatisticsValidation)
+    registrar.Parameter("enable_aggressive_tablet_statistics_validation", &TThis::EnableAggressiveTabletStatisticsValidation)
         .Default(false);
-    RegisterParameter("extra_peer_drop_delay", ExtraPeerDropDelay)
+    registrar.Parameter("extra_peer_drop_delay", &TThis::ExtraPeerDropDelay)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("accumulate_preload_pending_store_count_correctly", AccumulatePreloadPendingStoreCountCorrectly)
+    registrar.Parameter("accumulate_preload_pending_store_count_correctly", &TThis::AccumulatePreloadPendingStoreCountCorrectly)
         .Default(false)
         .DontSerializeDefault();
-    RegisterParameter("increase_upload_replication_factor", IncreaseUploadReplicationFactor)
+    registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
-    RegisterParameter("enable_tablet_resource_validation", EnableTabletResourceValidation)
+    registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)
         .Default(false);
 
-    RegisterParameter("tablet_node_tracker", TabletNodeTracker)
+    registrar.Parameter("tablet_node_tracker", &TThis::TabletNodeTracker)
         .DefaultNew();
 
-    RegisterParameter("enable_hunks", EnableHunks)
+    registrar.Parameter("enable_hunks", &TThis::EnableHunks)
         .Default(false);
 
-    RegisterParameter("profiling_period", ProfilingPeriod)
+    registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("tamed_cell_manager_profiling_period", TamedCellManagerProfilingPeriod)
+    registrar.Parameter("tamed_cell_manager_profiling_period", &TThis::TamedCellManagerProfilingPeriod)
         .Default(DefaultTamedCellManagerProfilingPeriod);
 
-   RegisterPreprocessor([&] {
-        StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
-        StoreChunkReader->BanPeersPermanently = false;
+   registrar.Preprocessor([] (TThis* config) {
+        config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
+        config->StoreChunkReader->BanPeersPermanently = false;
 
-        StoreChunkWriter->BlockSize = 256_KB;
-        StoreChunkWriter->SampleRate = 0.0005;
+        config->StoreChunkWriter->BlockSize = 256_KB;
+        config->StoreChunkWriter->SampleRate = 0.0005;
     });
 
-    RegisterPostprocessor([&] {
-        MaxSnapshotCountToKeep = 2;
+    registrar.Postprocessor([] (TThis* config) {
+        config->MaxSnapshotCountToKeep = 2;
     });
 }
 

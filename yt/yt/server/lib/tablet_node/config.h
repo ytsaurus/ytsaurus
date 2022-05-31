@@ -24,7 +24,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -41,7 +41,9 @@ public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
     bool UseNewHydra;
 
-    TTabletHydraManagerConfig();
+    REGISTER_YSON_STRUCT(TTabletHydraManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletHydraManagerConfig)
@@ -49,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletHydraManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRelativeReplicationThrottlerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -68,7 +70,9 @@ public:
     //! Maximum number of replication timestamps to keep.
     int MaxTimestampsToKeep;
 
-    TRelativeReplicationThrottlerConfig();
+    REGISTER_YSON_STRUCT(TRelativeReplicationThrottlerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
@@ -247,7 +251,7 @@ DEFINE_REFCOUNTED_TYPE(TTableMountConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration MaxTransactionTimeout;
@@ -255,7 +259,9 @@ public:
     int MaxAbortedTransactionPoolSize;
     bool RejectIncorrectClockClusterTag;
 
-    TTransactionManagerConfig();
+    REGISTER_YSON_STRUCT(TTransactionManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
@@ -310,7 +316,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TTabletManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     i64 PoolChunkSize;
@@ -341,7 +347,9 @@ public:
     //! of the invariant of isomorphism of locked rows list and write log.
     bool ShuffleLockedRows;
 
-    TTabletManagerConfig();
+    REGISTER_YSON_STRUCT(TTabletManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
@@ -349,12 +357,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<int> ReplicatorThreadPoolSize;
 
-    TTabletManagerDynamicConfig();
+    REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
@@ -362,14 +372,16 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreFlusherConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
     i64 MinForcedFlushDataSize;
 
-    TStoreFlusherConfig();
+    REGISTER_YSON_STRUCT(TStoreFlusherConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
@@ -377,7 +389,7 @@ DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreFlusherDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -389,7 +401,9 @@ public:
     std::optional<int> MaxConcurrentFlushes;
     std::optional<i64> MinForcedFlushDataSize;
 
-    TStoreFlusherDynamicConfig();
+    REGISTER_YSON_STRUCT(TStoreFlusherDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreFlusherDynamicConfig)
@@ -397,14 +411,16 @@ DEFINE_REFCOUNTED_TYPE(TStoreFlusherDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreCompactorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
     int MaxConcurrentPartitionings;
 
-    TStoreCompactorConfig();
+    REGISTER_YSON_STRUCT(TStoreCompactorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
@@ -412,7 +428,7 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreCompactorDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -420,7 +436,9 @@ public:
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
 
-    TStoreCompactorDynamicConfig();
+    REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
@@ -428,12 +446,14 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreTrimmerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
 
-    TStoreTrimmerDynamicConfig();
+    REGISTER_YSON_STRUCT(TStoreTrimmerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreTrimmerDynamicConfig)
@@ -441,12 +461,14 @@ DEFINE_REFCOUNTED_TYPE(TStoreTrimmerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THunkChunkSweeperDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
 
-    THunkChunkSweeperDynamicConfig();
+    REGISTER_YSON_STRUCT(THunkChunkSweeperDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THunkChunkSweeperDynamicConfig)
@@ -454,7 +476,7 @@ DEFINE_REFCOUNTED_TYPE(THunkChunkSweeperDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInMemoryManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxConcurrentPreloads;
@@ -467,7 +489,9 @@ public:
     // COMPAT(babenko): use /tablet_node/throttlers/static_store_preload_in instead.
     NConcurrency::TRelativeThroughputThrottlerConfigPtr PreloadThrottler;
 
-    TInMemoryManagerConfig();
+    REGISTER_YSON_STRUCT(TInMemoryManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryManagerConfig)
@@ -475,7 +499,7 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionBalancerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
@@ -502,7 +526,9 @@ public:
     //! Retry delay after unsuccessful partition balancing.
     TDuration SplitRetryDelay;
 
-    TPartitionBalancerConfig();
+    REGISTER_YSON_STRUCT(TPartitionBalancerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
@@ -510,12 +536,14 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionBalancerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
 
-    TPartitionBalancerDynamicConfig();
+    REGISTER_YSON_STRUCT(TPartitionBalancerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionBalancerDynamicConfig)
@@ -523,23 +551,27 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
-    TSecurityManagerConfig();
+    REGISTER_YSON_STRUCT(TSecurityManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 class TSecurityManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
-    TSecurityManagerDynamicConfig();
+    REGISTER_YSON_STRUCT(TSecurityManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
@@ -547,7 +579,7 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent tablet node heartbeats.
@@ -559,7 +591,9 @@ public:
     //! Timeout of the tablet node heartbeat RPC request.
     TDuration HeartbeatTimeout;
 
-    TMasterConnectorConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
@@ -567,7 +601,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterConnectorDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between consequent tablet node heartbeats.
@@ -579,7 +613,9 @@ public:
     //! Timeout of the tablet node heartbeat RPC request.
     TDuration HeartbeatTimeout;
 
-    TMasterConnectorDynamicConfig();
+    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
@@ -587,7 +623,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceLimitsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Maximum number of Tablet Managers to run.
@@ -599,7 +635,9 @@ public:
     //! Maximum amount of memory dynamics tablets are allowed to occupy.
     i64 TabletDynamicMemory;
 
-    TResourceLimitsConfig();
+    REGISTER_YSON_STRUCT(TResourceLimitsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
@@ -607,13 +645,15 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBackupManagerDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration CheckpointFeasibilityCheckBatchPeriod;
     TDuration CheckpointFeasibilityCheckBackoff;
 
-    TBackupManagerDynamicConfig();
+    REGISTER_YSON_STRUCT(TBackupManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBackupManagerDynamicConfig)
@@ -621,7 +661,7 @@ DEFINE_REFCOUNTED_TYPE(TBackupManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletNodeDynamicConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Maximum number of Tablet Managers to run.
@@ -651,7 +691,9 @@ public:
     TSecurityManagerDynamicConfigPtr SecurityManager;
     TBackupManagerDynamicConfigPtr BackupManager;
 
-    TTabletNodeDynamicConfig();
+    REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletNodeDynamicConfig)
@@ -659,12 +701,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THintManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr ReplicatorHintConfigFetcher;
 
-    THintManagerConfig();
+    REGISTER_YSON_STRUCT(THintManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THintManagerConfig)
@@ -672,7 +716,7 @@ DEFINE_REFCOUNTED_TYPE(THintManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletNodeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     // TODO(ifsmirnov): drop in favour of dynamic config.
@@ -723,7 +767,9 @@ public:
 
     TMasterConnectorConfigPtr MasterConnector;
 
-    TTabletNodeConfig();
+    REGISTER_YSON_STRUCT(TTabletNodeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletNodeConfig)
@@ -731,12 +777,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatorHintConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     THashSet<TString> BannedReplicaClusters;
 
-    TReplicatorHintConfig();
+    REGISTER_YSON_STRUCT(TReplicatorHintConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)

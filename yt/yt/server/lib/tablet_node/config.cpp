@@ -16,32 +16,32 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletHydraManagerConfig::TTabletHydraManagerConfig()
+void TTabletHydraManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("response_keeper", ResponseKeeper)
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
-    RegisterParameter("use_new_hydra", UseNewHydra)
+    registrar.Parameter("use_new_hydra", &TThis::UseNewHydra)
         .Default(false);
 
-    RegisterPreprocessor([&] {
-        PreallocateChangelogs = true;
+    registrar.Preprocessor([] (TThis* config) {
+        config->PreallocateChangelogs = true;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRelativeReplicationThrottlerConfig::TRelativeReplicationThrottlerConfig()
+void TRelativeReplicationThrottlerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
-    RegisterParameter("ratio", Ratio)
+    registrar.Parameter("ratio", &TThis::Ratio)
         .GreaterThan(0.0)
         .Default(2.0);
-    RegisterParameter("activation_threshold", ActivationThreshold)
+    registrar.Parameter("activation_threshold", &TThis::ActivationThreshold)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("window_size", WindowSize)
+    registrar.Parameter("window_size", &TThis::WindowSize)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("max_timestamps_to_keep", MaxTimestampsToKeep)
+    registrar.Parameter("max_timestamps_to_keep", &TThis::MaxTimestampsToKeep)
         .GreaterThan(0)
         .Default(100);
 }
@@ -356,16 +356,16 @@ void TTableMountConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManagerConfig::TTransactionManagerConfig()
+void TTransactionManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
+    registrar.Parameter("max_transaction_timeout", &TThis::MaxTransactionTimeout)
         .GreaterThan(TDuration())
         .Default(TDuration::Seconds(60));
-    RegisterParameter("barrier_check_period", BarrierCheckPeriod)
+    registrar.Parameter("barrier_check_period", &TThis::BarrierCheckPeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("max_aborted_transaction_pool_size", MaxAbortedTransactionPoolSize)
+    registrar.Parameter("max_aborted_transaction_pool_size", &TThis::MaxAbortedTransactionPoolSize)
         .Default(1000);
-    RegisterParameter("reject_incorrect_clock_cluster_tag", RejectIncorrectClockClusterTag)
+    registrar.Parameter("reject_incorrect_clock_cluster_tag", &TThis::RejectIncorrectClockClusterTag)
         .Default(false);
 }
 
@@ -404,424 +404,410 @@ void TTabletHunkWriterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletManagerConfig::TTabletManagerConfig()
+void TTabletManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("pool_chunk_size", PoolChunkSize)
+    registrar.Parameter("pool_chunk_size", &TThis::PoolChunkSize)
         .GreaterThan(64_KB)
         .Default(1_MB);
 
-    RegisterParameter("max_blocked_row_wait_time", MaxBlockedRowWaitTime)
+    registrar.Parameter("max_blocked_row_wait_time", &TThis::MaxBlockedRowWaitTime)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("preload_backoff_time", PreloadBackoffTime)
+    registrar.Parameter("preload_backoff_time", &TThis::PreloadBackoffTime)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("compaction_backoff_time", CompactionBackoffTime)
+    registrar.Parameter("compaction_backoff_time", &TThis::CompactionBackoffTime)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("flush_backoff_time", FlushBackoffTime)
+    registrar.Parameter("flush_backoff_time", &TThis::FlushBackoffTime)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("changelog_codec", ChangelogCodec)
+    registrar.Parameter("changelog_codec", &TThis::ChangelogCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("client_timestamp_threshold", ClientTimestampThreshold)
+    registrar.Parameter("client_timestamp_threshold", &TThis::ClientTimestampThreshold)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("replicator_thread_pool_size", ReplicatorThreadPoolSize)
+    registrar.Parameter("replicator_thread_pool_size", &TThis::ReplicatorThreadPoolSize)
         .GreaterThan(0)
         .Default(1);
-    RegisterParameter("replicator_soft_backoff_time", ReplicatorSoftBackoffTime)
+    registrar.Parameter("replicator_soft_backoff_time", &TThis::ReplicatorSoftBackoffTime)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("replicator_hard_backoff_time", ReplicatorHardBackoffTime)
+    registrar.Parameter("replicator_hard_backoff_time", &TThis::ReplicatorHardBackoffTime)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("tablet_cell_decommission_check_period", TabletCellDecommissionCheckPeriod)
+    registrar.Parameter("tablet_cell_decommission_check_period", &TThis::TabletCellDecommissionCheckPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("sleep_before_post_to_master", SleepBeforePostToMaster)
+    registrar.Parameter("sleep_before_post_to_master", &TThis::SleepBeforePostToMaster)
         .Default();
 
-    RegisterParameter("shuffle_locked_rows", ShuffleLockedRows)
+    registrar.Parameter("shuffle_locked_rows", &TThis::ShuffleLockedRows)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletManagerDynamicConfig::TTabletManagerDynamicConfig()
+void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("replicator_thread_pool_size", ReplicatorThreadPoolSize)
+    registrar.Parameter("replicator_thread_pool_size", &TThis::ReplicatorThreadPoolSize)
         .GreaterThan(0)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreFlusherConfig::TStoreFlusherConfig()
+void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
         .Default(1);
-    RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
+    registrar.Parameter("max_concurrent_flushes", &TThis::MaxConcurrentFlushes)
         .GreaterThan(0)
         .Default(16);
-    RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
+    registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Default(1_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreFlusherDynamicConfig::TStoreFlusherDynamicConfig()
+void TStoreFlusherDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
+    registrar.Parameter("forced_rotation_memory_ratio", &TThis::ForcedRotationMemoryRatio)
         .InRange(0.0, 1.0)
         .Optional();
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("max_concurrent_flushes", MaxConcurrentFlushes)
+    registrar.Parameter("max_concurrent_flushes", &TThis::MaxConcurrentFlushes)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("min_forced_flush_data_size", MinForcedFlushDataSize)
+    registrar.Parameter("min_forced_flush_data_size", &TThis::MinForcedFlushDataSize)
         .GreaterThan(0)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreCompactorConfig::TStoreCompactorConfig()
+void TStoreCompactorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
         .Default(1);
-    RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
+    registrar.Parameter("max_concurrent_compactions", &TThis::MaxConcurrentCompactions)
         .GreaterThan(0)
         .Default(1);
-    RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
+    registrar.Parameter("max_concurrent_partitionings", &TThis::MaxConcurrentPartitionings)
         .GreaterThan(0)
         .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreCompactorDynamicConfig::TStoreCompactorDynamicConfig()
+void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
-    RegisterParameter("thread_pool_size", ThreadPoolSize)
+    registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("max_concurrent_compactions", MaxConcurrentCompactions)
+    registrar.Parameter("max_concurrent_compactions", &TThis::MaxConcurrentCompactions)
         .GreaterThan(0)
         .Optional();
-    RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
+    registrar.Parameter("max_concurrent_partitionings", &TThis::MaxConcurrentPartitionings)
         .GreaterThan(0)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreTrimmerDynamicConfig::TStoreTrimmerDynamicConfig()
+void TStoreTrimmerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
-        .Default(true);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-THunkChunkSweeperDynamicConfig::THunkChunkSweeperDynamicConfig()
-{
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInMemoryManagerConfig::TInMemoryManagerConfig()
+void THunkChunkSweeperDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_concurrent_preloads", MaxConcurrentPreloads)
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TInMemoryManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_concurrent_preloads", &TThis::MaxConcurrentPreloads)
         .GreaterThan(0)
         .Default(1);
-    RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
+    registrar.Parameter("intercepted_data_retention_time", &TThis::InterceptedDataRetentionTime)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("ping_period", PingPeriod)
+    registrar.Parameter("ping_period", &TThis::PingPeriod)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
+    registrar.Parameter("control_rpc_timeout", &TThis::ControlRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("heavy_rpc_timeout", HeavyRpcTimeout)
+    registrar.Parameter("heavy_rpc_timeout", &TThis::HeavyRpcTimeout)
         .Default(TDuration::Seconds(20));
-    RegisterParameter("batch_size", BatchSize)
+    registrar.Parameter("batch_size", &TThis::BatchSize)
         .Default(16_MB);
-    RegisterParameter("workload_descriptor", WorkloadDescriptor)
+    registrar.Parameter("workload_descriptor", &TThis::WorkloadDescriptor)
         .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
-    RegisterParameter("preload_throttler", PreloadThrottler)
+    registrar.Parameter("preload_throttler", &TThis::PreloadThrottler)
         .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionBalancerConfig::TPartitionBalancerConfig()
+void TPartitionBalancerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
+    registrar.Parameter("chunk_location_throttler", &TThis::ChunkLocationThrottler)
         .DefaultNew();
-    RegisterParameter("chunk_scraper", ChunkScraper)
+    registrar.Parameter("chunk_scraper", &TThis::ChunkScraper)
         .DefaultNew();
-    RegisterParameter("samples_fetcher", SamplesFetcher)
+    registrar.Parameter("samples_fetcher", &TThis::SamplesFetcher)
         .DefaultNew();
-    RegisterParameter("min_partitioning_sample_count", MinPartitioningSampleCount)
+    registrar.Parameter("min_partitioning_sample_count", &TThis::MinPartitioningSampleCount)
         .Default(10)
         .GreaterThanOrEqual(3);
-    RegisterParameter("max_partitioning_sample_count", MaxPartitioningSampleCount)
+    registrar.Parameter("max_partitioning_sample_count", &TThis::MaxPartitioningSampleCount)
         .Default(1000)
         .GreaterThanOrEqual(10);
-    RegisterParameter("max_concurrent_samplings", MaxConcurrentSamplings)
+    registrar.Parameter("max_concurrent_samplings", &TThis::MaxConcurrentSamplings)
         .GreaterThan(0)
         .Default(8);
-    RegisterParameter("resampling_period", ResamplingPeriod)
+    registrar.Parameter("resampling_period", &TThis::ResamplingPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("split_retry_delay", SplitRetryDelay)
+    registrar.Parameter("split_retry_delay", &TThis::SplitRetryDelay)
         .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionBalancerDynamicConfig::TPartitionBalancerDynamicConfig()
+void TPartitionBalancerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManagerConfig::TSecurityManagerConfig()
+void TSecurityManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("resource_limits_cache", ResourceLimitsCache)
+    registrar.Parameter("resource_limits_cache", &TThis::ResourceLimitsCache)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManagerDynamicConfig::TSecurityManagerDynamicConfig()
+void TSecurityManagerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("resource_limits_cache", ResourceLimitsCache)
+    registrar.Parameter("resource_limits_cache", &TThis::ResourceLimitsCache)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectorConfig::TMasterConnectorConfig()
+void TMasterConnectorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("heartbeat_period", HeartbeatPeriod)
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterConnectorDynamicConfig::TMasterConnectorDynamicConfig()
+void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("heartbeat_period", HeartbeatPeriod)
+    registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default();
-    RegisterParameter("heartbeat_period_splay", HeartbeatPeriodSplay)
+    registrar.Parameter("heartbeat_period_splay", &TThis::HeartbeatPeriodSplay)
         .Default();
-    RegisterParameter("heartbeat_timeout", HeartbeatTimeout)
+    registrar.Parameter("heartbeat_timeout", &TThis::HeartbeatTimeout)
         .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceLimitsConfig::TResourceLimitsConfig()
+void TResourceLimitsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("slots", Slots)
+    registrar.Parameter("slots", &TThis::Slots)
         .GreaterThanOrEqual(0)
         .Default(4);
-    RegisterParameter("tablet_static_memory", TabletStaticMemory)
+    registrar.Parameter("tablet_static_memory", &TThis::TabletStaticMemory)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<i64>::max());
-    RegisterParameter("tablet_dynamic_memory", TabletDynamicMemory)
+    registrar.Parameter("tablet_dynamic_memory", &TThis::TabletDynamicMemory)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<i64>::max());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBackupManagerDynamicConfig::TBackupManagerDynamicConfig()
+void TBackupManagerDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("checkpoint_feasibility_check_batch_period", CheckpointFeasibilityCheckBatchPeriod)
+    registrar.Parameter("checkpoint_feasibility_check_batch_period", &TThis::CheckpointFeasibilityCheckBatchPeriod)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("checkpoint_feasibility_check_backoff", CheckpointFeasibilityCheckBackoff)
+    registrar.Parameter("checkpoint_feasibility_check_backoff", &TThis::CheckpointFeasibilityCheckBackoff)
         .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletNodeDynamicConfig::TTabletNodeDynamicConfig()
+void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("slots", Slots)
+    registrar.Parameter("slots", &TThis::Slots)
         .Optional();
 
-    RegisterParameter("tablet_manager", TabletManager)
+    registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
 
-    RegisterParameter("throttlers", Throttlers)
+    registrar.Parameter("throttlers", &TThis::Throttlers)
         .Optional();
 
-    RegisterParameter("store_compactor", StoreCompactor)
+    registrar.Parameter("store_compactor", &TThis::StoreCompactor)
         .DefaultNew();
-    RegisterParameter("store_flusher", StoreFlusher)
+    registrar.Parameter("store_flusher", &TThis::StoreFlusher)
         .DefaultNew();
-    RegisterParameter("store_trimmer", StoreTrimmer)
+    registrar.Parameter("store_trimmer", &TThis::StoreTrimmer)
         .DefaultNew();
-    RegisterParameter("hunk_chunk_sweeper", HunkChunkSweeper)
+    registrar.Parameter("hunk_chunk_sweeper", &TThis::HunkChunkSweeper)
         .DefaultNew();
-    RegisterParameter("partition_balancer", PartitionBalancer)
-        .DefaultNew();
-
-    RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
+    registrar.Parameter("partition_balancer", &TThis::PartitionBalancer)
         .DefaultNew();
 
-    RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
+    registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)
         .DefaultNew();
 
-    RegisterParameter("enable_structured_logger", EnableStructuredLogger)
+    registrar.Parameter("column_evaluator_cache", &TThis::ColumnEvaluatorCache)
+        .DefaultNew();
+
+    registrar.Parameter("enable_structured_logger", &TThis::EnableStructuredLogger)
         .Default(true);
-    RegisterParameter("full_structured_tablet_heartbeat_period", FullStructuredTabletHeartbeatPeriod)
+    registrar.Parameter("full_structured_tablet_heartbeat_period", &TThis::FullStructuredTabletHeartbeatPeriod)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("incremental_structured_tablet_heartbeat_period", IncrementalStructuredTabletHeartbeatPeriod)
+    registrar.Parameter("incremental_structured_tablet_heartbeat_period", &TThis::IncrementalStructuredTabletHeartbeatPeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
-    RegisterParameter("security_manager", SecurityManager)
+    registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
 
-    RegisterParameter("backup_manager", BackupManager)
-        .DefaultNew();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-THintManagerConfig::THintManagerConfig()
-{
-    RegisterParameter("replicator_hint_config_fetcher", ReplicatorHintConfigFetcher)
+    registrar.Parameter("backup_manager", &TThis::BackupManager)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletNodeConfig::TTabletNodeConfig()
+void THintManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
+    registrar.Parameter("replicator_hint_config_fetcher", &TThis::ReplicatorHintConfigFetcher)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTabletNodeConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("forced_rotation_memory_ratio", &TThis::ForcedRotationMemoryRatio)
         .InRange(0.0, 1.0)
         .Default(0.8)
         .Alias("forced_rotations_memory_ratio");
 
-    RegisterParameter("resource_limits", ResourceLimits)
+    registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
 
-    RegisterParameter("snapshots", Snapshots)
+    registrar.Parameter("snapshots", &TThis::Snapshots)
         .DefaultNew();
-    RegisterParameter("changelogs", Changelogs)
+    registrar.Parameter("changelogs", &TThis::Changelogs)
         .DefaultNew();
-    RegisterParameter("hydra_manager", HydraManager)
+    registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
-    RegisterParameter("election_manager", ElectionManager)
+    registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
-    RegisterParameter("hive_manager", HiveManager)
+    registrar.Parameter("hive_manager", &TThis::HiveManager)
         .DefaultNew();
-    RegisterParameter("transaction_manager", TransactionManager)
+    registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
-    RegisterParameter("transaction_supervisor", TransactionSupervisor)
+    registrar.Parameter("transaction_supervisor", &TThis::TransactionSupervisor)
         .DefaultNew();
-    RegisterParameter("tablet_manager", TabletManager)
+    registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
-    RegisterParameter("store_flusher", StoreFlusher)
+    registrar.Parameter("store_flusher", &TThis::StoreFlusher)
         .DefaultNew();
-    RegisterParameter("store_compactor", StoreCompactor)
+    registrar.Parameter("store_compactor", &TThis::StoreCompactor)
         .DefaultNew();
-    RegisterParameter("in_memory_manager", InMemoryManager)
+    registrar.Parameter("in_memory_manager", &TThis::InMemoryManager)
         .DefaultNew();
-    RegisterParameter("partition_balancer", PartitionBalancer)
+    registrar.Parameter("partition_balancer", &TThis::PartitionBalancer)
         .DefaultNew();
-    RegisterParameter("security_manager", SecurityManager)
+    registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
-    RegisterParameter("hint_manager", HintManager)
-        .DefaultNew();
-
-    RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
+    registrar.Parameter("hint_manager", &TThis::HintManager)
         .DefaultNew();
 
-    RegisterParameter("throttlers", Throttlers)
+    registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)
+        .DefaultNew();
+
+    registrar.Parameter("throttlers", &TThis::Throttlers)
         .Optional();
 
-    // COMPAT(babenko): use /tablet_node/throttlers instead.
-    RegisterParameter("store_flush_out_throttler", Throttlers[ETabletNodeThrottlerKind::StoreFlushOut])
-        .Optional();
-    RegisterParameter("store_compaction_and_partitioning_in_throttler", Throttlers[ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn])
-        .Optional();
-    RegisterParameter("store_compaction_and_partitioning_out_throttler", Throttlers[ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut])
-        .Optional();
-    RegisterParameter("replication_in_throttler", Throttlers[ETabletNodeThrottlerKind::ReplicationIn])
-        .Optional();
-    RegisterParameter("replication_out_throttler", Throttlers[ETabletNodeThrottlerKind::ReplicationOut])
-        .Optional();
-    RegisterParameter("dynamic_store_read_out_throttler", Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut])
-        .Optional();
-
-    RegisterParameter("slot_scan_period", SlotScanPeriod)
+    registrar.Parameter("slot_scan_period", &TThis::SlotScanPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("tablet_snapshot_eviction_timeout", TabletSnapshotEvictionTimeout)
+    registrar.Parameter("tablet_snapshot_eviction_timeout", &TThis::TabletSnapshotEvictionTimeout)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("column_evaluator_cache", ColumnEvaluatorCache)
+    registrar.Parameter("column_evaluator_cache", &TThis::ColumnEvaluatorCache)
         .DefaultNew();
 
-    RegisterParameter("master_connector", MasterConnector)
+    registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        VersionedChunkMetaCache->Capacity = 10_GB;
-        HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
+    registrar.Preprocessor([] (TThis* config) {
+        config->VersionedChunkMetaCache->Capacity = 10_GB;
+        config->HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
     });
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         // Instantiate default throttler configs.
         for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
-            if (Throttlers[kind]) {
+            if (config->Throttlers[kind]) {
                 continue;
             }
 
             switch (kind) {
                 case ETabletNodeThrottlerKind::StaticStorePreloadIn:
                 case ETabletNodeThrottlerKind::DynamicStoreReadOut:
-                    Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
+                    config->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>(100_MB);
                     break;
 
                 default:
-                    Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
+                    config->Throttlers[kind] = New<NConcurrency::TRelativeThroughputThrottlerConfig>();
             }
         }
 
-        if (InMemoryManager->PreloadThrottler) {
-            Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = InMemoryManager->PreloadThrottler;
+        if (config->InMemoryManager->PreloadThrottler) {
+            config->Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = config->InMemoryManager->PreloadThrottler;
         }
 
         // COMPAT(akozhikhov): set to false when masters are updated too.
-        HintManager->ReplicatorHintConfigFetcher->IgnoreConfigAbsence = true;
+        config->HintManager->ReplicatorHintConfigFetcher->IgnoreConfigAbsence = true;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatorHintConfig::TReplicatorHintConfig()
+void TReplicatorHintConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("banned_replica_clusters", BannedReplicaClusters)
+    registrar.Parameter("banned_replica_clusters", &TThis::BannedReplicaClusters)
         .Default();
 }
 

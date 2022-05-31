@@ -297,7 +297,9 @@ public:
 
     TDuration TamedCellManagerProfilingPeriod;
 
-    TDynamicTabletManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTabletManagerConfig)

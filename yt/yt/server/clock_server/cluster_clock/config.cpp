@@ -29,4 +29,10 @@ void TClusterClockConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TClockHydraManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
+        .DefaultNew();
+}
+
 } // namespace NYT::NClusterClock

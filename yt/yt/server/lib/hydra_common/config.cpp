@@ -107,201 +107,201 @@ TRemoteChangelogStoreConfig::TRemoteChangelogStoreConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THydraJanitorConfig::THydraJanitorConfig()
+void THydraJanitorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
+    registrar.Parameter("max_snapshot_count_to_keep", &TThis::MaxSnapshotCountToKeep)
         .GreaterThanOrEqual(0)
         .Default(10);
-    RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
+    registrar.Parameter("max_snapshot_size_to_keep", &TThis::MaxSnapshotSizeToKeep)
         .GreaterThanOrEqual(0)
         .Default();
-    RegisterParameter("max_changelog_count_to_keep", MaxChangelogCountToKeep)
+    registrar.Parameter("max_changelog_count_to_keep", &TThis::MaxChangelogCountToKeep)
         .GreaterThanOrEqual(0)
         .Default();
-    RegisterParameter("max_changelog_size_to_keep", MaxChangelogSizeToKeep)
+    registrar.Parameter("max_changelog_size_to_keep", &TThis::MaxChangelogSizeToKeep)
         .GreaterThanOrEqual(0)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocalHydraJanitorConfig::TLocalHydraJanitorConfig()
+void TLocalHydraJanitorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cleanup_period", CleanupPeriod)
+    registrar.Parameter("cleanup_period", &TThis::CleanupPeriod)
         .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDistributedHydraManagerConfig::TDistributedHydraManagerConfig()
+void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
+    registrar.Parameter("control_rpc_timeout", &TThis::ControlRpcTimeout)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("max_commit_batch_duration", MaxCommitBatchDuration)
+    registrar.Parameter("max_commit_batch_duration", &TThis::MaxCommitBatchDuration)
         .Default(TDuration::MilliSeconds(100));
-    RegisterParameter("leader_lease_check_period", LeaderLeaseCheckPeriod)
+    registrar.Parameter("leader_lease_check_period", &TThis::LeaderLeaseCheckPeriod)
         .Default(TDuration::Seconds(2));
-    RegisterParameter("leader_lease_timeout", LeaderLeaseTimeout)
+    registrar.Parameter("leader_lease_timeout", &TThis::LeaderLeaseTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("leader_lease_grace_delay", LeaderLeaseGraceDelay)
+    registrar.Parameter("leader_lease_grace_delay", &TThis::LeaderLeaseGraceDelay)
         .Default(TDuration::Seconds(6));
-    RegisterParameter("disable_leader_lease_grace_delay", DisableLeaderLeaseGraceDelay)
+    registrar.Parameter("disable_leader_lease_grace_delay", &TThis::DisableLeaderLeaseGraceDelay)
         .Default(false);
 
-    RegisterParameter("commit_flush_rpc_timeout", CommitFlushRpcTimeout)
+    registrar.Parameter("commit_flush_rpc_timeout", &TThis::CommitFlushRpcTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("commit_forwarding_rpc_timeout", CommitForwardingRpcTimeout)
+    registrar.Parameter("commit_forwarding_rpc_timeout", &TThis::CommitForwardingRpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("restart_backoff_time", RestartBackoffTime)
+    registrar.Parameter("restart_backoff_time", &TThis::RestartBackoffTime)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("snapshot_build_timeout", SnapshotBuildTimeout)
+    registrar.Parameter("snapshot_build_timeout", &TThis::SnapshotBuildTimeout)
         .Default(TDuration::Minutes(5));
-    RegisterParameter("snapshot_fork_timeout", SnapshotForkTimeout)
+    registrar.Parameter("snapshot_fork_timeout", &TThis::SnapshotForkTimeout)
         .Default(TDuration::Minutes(2));
-    RegisterParameter("snapshot_build_period", SnapshotBuildPeriod)
+    registrar.Parameter("snapshot_build_period", &TThis::SnapshotBuildPeriod)
         .Default(TDuration::Minutes(60));
-    RegisterParameter("snapshot_build_splay", SnapshotBuildSplay)
+    registrar.Parameter("snapshot_build_splay", &TThis::SnapshotBuildSplay)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("changelog_download_rpc_timeout", ChangelogDownloadRpcTimeout)
+    registrar.Parameter("changelog_download_rpc_timeout", &TThis::ChangelogDownloadRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("max_changelog_records_per_request", MaxChangelogRecordsPerRequest)
+    registrar.Parameter("max_changelog_records_per_request", &TThis::MaxChangelogRecordsPerRequest)
         .GreaterThan(0)
         .Default(64 * 1024);
-    RegisterParameter("max_changelog_bytes_per_request", MaxChangelogBytesPerRequest)
+    registrar.Parameter("max_changelog_bytes_per_request", &TThis::MaxChangelogBytesPerRequest)
         .GreaterThan(0)
         .Default(128_MB);
 
-    RegisterParameter("snapshot_download_rpc_timeout", SnapshotDownloadRpcTimeout)
+    registrar.Parameter("snapshot_download_rpc_timeout", &TThis::SnapshotDownloadRpcTimeout)
         .Default(TDuration::Seconds(10));
-    RegisterParameter("snapshot_download_block_size", SnapshotDownloadBlockSize)
+    registrar.Parameter("snapshot_download_block_size", &TThis::SnapshotDownloadBlockSize)
         .GreaterThan(0)
         .Default(32_MB);
 
-    RegisterParameter("snapshot_download_total_streaming_timeout", SnapshotDownloadTotalStreamingTimeout)
+    registrar.Parameter("snapshot_download_total_streaming_timeout", &TThis::SnapshotDownloadTotalStreamingTimeout)
         .Default(TDuration::Minutes(30));
-    RegisterParameter("snapshot_download_streaming_stall_timeout", SnapshotDownloadStreamingStallTimeout)
+    registrar.Parameter("snapshot_download_streaming_stall_timeout", &TThis::SnapshotDownloadStreamingStallTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("snapshot_download_window", SnapshotDownloadWindowSize)
+    registrar.Parameter("snapshot_download_window", &TThis::SnapshotDownloadWindowSize)
         .GreaterThan(0)
         .Default(32_MB);
-    RegisterParameter("snapshot_download_streaming_compression_codec", SnapshotDownloadStreamingCompressionCodec)
+    registrar.Parameter("snapshot_download_streaming_compression_codec", &TThis::SnapshotDownloadStreamingCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("max_commit_batch_delay", MaxCommitBatchDelay)
+    registrar.Parameter("max_commit_batch_delay", &TThis::MaxCommitBatchDelay)
         .Default(TDuration::MilliSeconds(10));
-    RegisterParameter("max_commit_batch_record_count", MaxCommitBatchRecordCount)
+    registrar.Parameter("max_commit_batch_record_count", &TThis::MaxCommitBatchRecordCount)
         .Default(10'000);
 
-    RegisterParameter("mutation_serialization_period", MutationSerializationPeriod)
+    registrar.Parameter("mutation_serialization_period", &TThis::MutationSerializationPeriod)
         .Default(TDuration::MilliSeconds(5));
-    RegisterParameter("mutation_flush_period", MutationFlushPeriod)
+    registrar.Parameter("mutation_flush_period", &TThis::MutationFlushPeriod)
         .Default(TDuration::MilliSeconds(5));
 
-    RegisterParameter("leader_sync_delay", LeaderSyncDelay)
+    registrar.Parameter("leader_sync_delay", &TThis::LeaderSyncDelay)
         .Default(TDuration::MilliSeconds(10));
 
-    RegisterParameter("max_changelog_record_count", MaxChangelogRecordCount)
+    registrar.Parameter("max_changelog_record_count", &TThis::MaxChangelogRecordCount)
         .Default(1'000'000)
         .GreaterThan(0);
-    RegisterParameter("max_changelog_data_size", MaxChangelogDataSize)
+    registrar.Parameter("max_changelog_data_size", &TThis::MaxChangelogDataSize)
         .Default(1_GB)
         .GreaterThan(0);
-    RegisterParameter("preallocate_changelogs", PreallocateChangelogs)
+    registrar.Parameter("preallocate_changelogs", &TThis::PreallocateChangelogs)
         .Default(false);
-    RegisterParameter("close_changelogs", CloseChangelogs)
+    registrar.Parameter("close_changelogs", &TThis::CloseChangelogs)
         .Default(true);
 
-    RegisterParameter("heartbeat_mutation_period", HeartbeatMutationPeriod)
+    registrar.Parameter("heartbeat_mutation_period", &TThis::HeartbeatMutationPeriod)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("heartbeat_mutation_timeout", HeartbeatMutationTimeout)
+    registrar.Parameter("heartbeat_mutation_timeout", &TThis::HeartbeatMutationTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("changelog_record_count_check_retry_period", ChangelogRecordCountCheckRetryPeriod)
+    registrar.Parameter("changelog_record_count_check_retry_period", &TThis::ChangelogRecordCountCheckRetryPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("mutation_logging_suspension_timeout", MutationLoggingSuspensionTimeout)
+    registrar.Parameter("mutation_logging_suspension_timeout", &TThis::MutationLoggingSuspensionTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("build_snapshot_delay", BuildSnapshotDelay)
+    registrar.Parameter("build_snapshot_delay", &TThis::BuildSnapshotDelay)
         .Default(TDuration::Zero());
 
-    RegisterParameter("min_persistent_store_initialization_backoff_time", MinPersistentStoreInitializationBackoffTime)
+    registrar.Parameter("min_persistent_store_initialization_backoff_time", &TThis::MinPersistentStoreInitializationBackoffTime)
         .Default(TDuration::MilliSeconds(200));
-    RegisterParameter("max_persistent_store_initialization_backoff_time", MaxPersistentStoreInitializationBackoffTime)
+    registrar.Parameter("max_persistent_store_initialization_backoff_time", &TThis::MaxPersistentStoreInitializationBackoffTime)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("persistent_store_initialization_backoff_time_multiplier", PersistentStoreInitializationBackoffTimeMultiplier)
+    registrar.Parameter("persistent_store_initialization_backoff_time_multiplier", &TThis::PersistentStoreInitializationBackoffTimeMultiplier)
         .Default(1.5);
 
-    RegisterParameter("abandon_leader_lease_request_timeout", AbandonLeaderLeaseRequestTimeout)
+    registrar.Parameter("abandon_leader_lease_request_timeout", &TThis::AbandonLeaderLeaseRequestTimeout)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("force_mutation_logging", ForceMutationLogging)
+    registrar.Parameter("force_mutation_logging", &TThis::ForceMutationLogging)
         .Default(false);
 
-    RegisterParameter("enable_state_hash_checker", EnableStateHashChecker)
+    registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
         .Default(true);
 
-    RegisterParameter("max_state_hash_checker_entry_count", MaxStateHashCheckerEntryCount)
+    registrar.Parameter("max_state_hash_checker_entry_count", &TThis::MaxStateHashCheckerEntryCount)
         .GreaterThan(0)
         .Default(1000);
 
-    RegisterParameter("state_hash_checker_mutation_verification_sampling_rate", StateHashCheckerMutationVerificationSamplingRate)
+    registrar.Parameter("state_hash_checker_mutation_verification_sampling_rate", &TThis::StateHashCheckerMutationVerificationSamplingRate)
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("max_queued_mutation_count", MaxQueuedMutationCount)
+    registrar.Parameter("max_queued_mutation_count", &TThis::MaxQueuedMutationCount)
         .GreaterThan(0)
         .Default(100'000);
 
-    RegisterParameter("max_queued_mutation_data_size", MaxQueuedMutationDataSize)
+    registrar.Parameter("max_queued_mutation_data_size", &TThis::MaxQueuedMutationDataSize)
         .GreaterThan(0)
         .Default(2_GB);
 
-    RegisterParameter("leader_switch_timeout", LeaderSwitchTimeout)
+    registrar.Parameter("leader_switch_timeout", &TThis::LeaderSwitchTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("invariants_check_probability", InvariantsCheckProbability)
+    registrar.Parameter("invariants_check_probability", &TThis::InvariantsCheckProbability)
         .Default();
 
-    RegisterParameter("max_in_flight_accept_mutations_request_count", MaxInFlightAcceptMutationsRequestCount)
+    registrar.Parameter("max_in_flight_accept_mutations_request_count", &TThis::MaxInFlightAcceptMutationsRequestCount)
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("max_in_flight_mutations_count", MaxInFlightMutationCount)
+    registrar.Parameter("max_in_flight_mutations_count", &TThis::MaxInFlightMutationCount)
         .GreaterThan(0)
         .Default(100000);
 
-    RegisterParameter("max_in_flight_mutation_data_size", MaxInFlightMutationDataSize)
+    registrar.Parameter("max_in_flight_mutation_data_size", &TThis::MaxInFlightMutationDataSize)
         .GreaterThan(0)
         .Default(2_GB);
 
-    RegisterParameter("max_changelogs_for_recovery", MaxChangelogsForRecovery)
+    registrar.Parameter("max_changelogs_for_recovery", &TThis::MaxChangelogsForRecovery)
         .GreaterThan(0)
         .Default(20);
 
-    RegisterParameter("max_changelog_mutation_count_for_recovery", MaxChangelogMutationCountForRecovery)
+    registrar.Parameter("max_changelog_mutation_count_for_recovery", &TThis::MaxChangelogMutationCountForRecovery)
         .GreaterThan(0)
         .Default(20'000'000);
 
-    RegisterParameter("max_total_changelog_size_for_recovery", MaxTotalChangelogSizeForRecovery)
+    registrar.Parameter("max_total_changelog_size_for_recovery", &TThis::MaxTotalChangelogSizeForRecovery)
         .GreaterThan(0)
         .Default(20_GB);
 
-    RegisterParameter("checkpoint_check_period", CheckpointCheckPeriod)
+    registrar.Parameter("checkpoint_check_period", &TThis::CheckpointCheckPeriod)
         .Default(TDuration::Seconds(15));
 
-    RegisterParameter("max_changelogs_to_create_during_acquisition", MaxChangelogsToCreateDuringAcquisition)
+    registrar.Parameter("max_changelogs_to_create_during_acquisition", &TThis::MaxChangelogsToCreateDuringAcquisition)
         .Default(10);
 
-    RegisterParameter("alert_on_snapshot_failure", AlertOnSnapshotFailure)
+    registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Default(true);
 
-    RegisterPostprocessor([&] {
-        if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->DisableLeaderLeaseGraceDelay && config->LeaderLeaseGraceDelay <= config->LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
         }
     });

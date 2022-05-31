@@ -134,7 +134,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class THydraJanitorConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     std::optional<int> MaxSnapshotCountToKeep;
@@ -142,7 +142,9 @@ public:
     std::optional<int> MaxChangelogCountToKeep;
     std::optional<i64> MaxChangelogSizeToKeep;
 
-    THydraJanitorConfig();
+    REGISTER_YSON_STRUCT(THydraJanitorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(THydraJanitorConfig)
@@ -155,7 +157,9 @@ class TLocalHydraJanitorConfig
 public:
     TDuration CleanupPeriod;
 
-    TLocalHydraJanitorConfig();
+    REGISTER_YSON_STRUCT(TLocalHydraJanitorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitorConfig)
@@ -163,7 +167,7 @@ DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDistributedHydraManagerConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     //! Timeout for various control RPC requests.
@@ -372,7 +376,9 @@ public:
     //! Alert if no successful snapshots are built.
     bool AlertOnSnapshotFailure;
 
-    TDistributedHydraManagerConfig();
+    REGISTER_YSON_STRUCT(TDistributedHydraManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedHydraManagerConfig)

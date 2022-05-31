@@ -14,11 +14,7 @@ class TCellBalancerConfig
 public:
     bool EnableTabletCellSmoothing;
 
-    TCellBalancerConfig()
-    {
-        RegisterParameter("enable_tablet_cell_smoothing", EnableTabletCellSmoothing)
-            .Default(true);
-    }
+    TCellBalancerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
@@ -31,12 +27,7 @@ class TDynamicCellarNodeTrackerConfig
 public:
     int MaxConcurrentHeartbeats;
 
-    TDynamicCellarNodeTrackerConfig()
-    {
-        RegisterParameter("max_concurrent_heartbeats", MaxConcurrentHeartbeats)
-            .Default(10)
-            .GreaterThan(0);
-    }
+    TDynamicCellarNodeTrackerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicCellarNodeTrackerConfig)
@@ -49,11 +40,9 @@ class TDynamicCellManagerConfig
 public:
     TDynamicCellarNodeTrackerConfigPtr CellarNodeTracker;
 
-    TDynamicCellManagerConfig()
-    {
-        RegisterParameter("cellar_node_tracker", CellarNodeTracker)
-            .DefaultNew();
-    }
+    REGISTER_YSON_STRUCT(TDynamicCellManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicCellManagerConfig)
