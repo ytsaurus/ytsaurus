@@ -1,6 +1,5 @@
 #include "converter_skiff_to_python.h"
-#include "Python2/Objects.hxx"
-#include "contrib/tools/python/src/Include/object.h"
+#include "other_columns.h"
 
 #include <yt/yt/python/common/helpers.h>
 

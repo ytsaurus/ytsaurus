@@ -1,6 +1,6 @@
 #include "converter_python_to_skiff.h"
+#include "other_columns.h"
 
-#include <exception>
 #include <yt/yt/python/common/helpers.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -13,6 +13,7 @@
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
 
+#include <exception>
 #include <limits>
 #include <type_traits>
 
