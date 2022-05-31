@@ -531,11 +531,13 @@ public:
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs);
 bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs);
 
+/// Create table schema by protobuf message descriptor
 TTableSchema CreateTableSchema(
     const ::google::protobuf::Descriptor& messageDescriptor,
     const TSortColumns& sortColumns = TSortColumns(),
     bool keepFieldsWithoutExtension = true);
 
+/// Create table schema by protobuf message type
 template <class TProtoType, typename = std::enable_if_t<std::is_base_of_v<::google::protobuf::Message, TProtoType>>>
 inline TTableSchema CreateTableSchema(
     const TSortColumns& sortColumns = TSortColumns(),
@@ -565,6 +567,7 @@ inline TTableSchema CreateTableSchema()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// ERelation describes comparison operation used in key bound
 enum class ERelation
 {
     Less            /* "<"  */,
@@ -573,6 +576,9 @@ enum class ERelation
     GreaterOrEqual  /* ">=" */,
 };
 
+/// @brief Bound of key range
+///
+///
 struct TKeyBound
 {
     using TSelf = TKeyBound;
@@ -617,21 +623,33 @@ struct TReadRange
     }
 };
 
+/// @brief RichYPath, path with additional attributes
+///
+/// Allows to specify additional attributes for path used in some operations.
+///
+/// @see https://yt.yandex-team.ru/docs/description/common/ypath
 struct TRichYPath
 {
     using TSelf = TRichYPath;
 
+    /// YPath itself
     FLUENT_FIELD(TYPath, Path);
 
+    /// Specifies that path should be appended not overwritten
     FLUENT_FIELD_OPTION(bool, Append);
     FLUENT_FIELD_OPTION(bool, PartiallySorted);
+
+    /// Specifies that path is expected to be sorted by these columns
     FLUENT_FIELD(TSortColumns, SortedBy);
 
+    /// Specifies range of the path to be read
     FLUENT_VECTOR_FIELD(TReadRange, Range);
 
-    // Specifies columns that should be read.
-    // If it's set to Nothing then all columns will be read.
-    // If empty TColumnNames is specified then each read row will be empty.
+    ///
+    /// @brief Specifies columns that should be read.
+    ///
+    /// If it's set to Nothing then all columns will be read.
+    /// If empty TColumnNames is specified then each read row will be empty.
     FLUENT_FIELD_OPTION(TColumnNames, Columns);
 
     FLUENT_FIELD_OPTION(bool, Teleport);
@@ -640,20 +658,30 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(i64, RowCountLimit);
 
     FLUENT_FIELD_OPTION(TString, FileName);
+
+    /// Specifies original path to be shown in Web UI
     FLUENT_FIELD_OPTION(TYPath, OriginalPath);
     FLUENT_FIELD_OPTION(bool, Executable);
     FLUENT_FIELD_OPTION(TNode, Format);
+
+    /// Specifies table schema that will be set on the path
     FLUENT_FIELD_OPTION(TTableSchema, Schema);
 
+    /// Specifies compression codec that will be set on the path
     FLUENT_FIELD_OPTION(TString, CompressionCodec);
+
+    /// Specifies erasure codec that will be set on the path
     FLUENT_FIELD_OPTION(EErasureCodecAttr, ErasureCodec);
+
+    /// Specifies optimize_for attribute that will be set on the path
     FLUENT_FIELD_OPTION(EOptimizeForAttr, OptimizeFor);
 
-    // @brief Do not put file used in operation into node cache
-    //
-    // If BypassArtifactCache == true, file will be loaded into the job's sandbox bypassing the cache on the YT node.
-    // It helps jobs that use tmpfs to start faster,
-    // because files will be loaded into tmpfs directly bypassing disk cache
+    ///
+    /// @brief Do not put file used in operation into node cache
+    ///
+    /// If BypassArtifactCache == true, file will be loaded into the job's sandbox bypassing the cache on the YT node.
+    /// It helps jobs that use tmpfs to start faster,
+    /// because files will be loaded into tmpfs directly bypassing disk cache
     FLUENT_FIELD_OPTION(bool, BypassArtifactCache);
 
     // Timestamp of dynamic table.
@@ -661,12 +689,14 @@ struct TRichYPath
     // (instead it's transaction timestamp, that is more complex structure).
     FLUENT_FIELD_OPTION(i64, Timestamp);
 
-    // Specifiy transaction that should be used to access this path.
-    // Allows to start cross-transactional operations.
+    ///
+    /// @brief Specifiy transaction that should be used to access this path.
+    ///
+    /// Allows to start cross-transactional operations.
     FLUENT_FIELD_OPTION(TTransactionId, TransactionId);
 
-    // Specifies columnar mapping which will be applied to columns before transfer to job.
     using TRenameColumnsDescriptor = THashMap<TString, TString>;
+    /// Specifies columnar mapping which will be applied to columns before transfer to job.
     FLUENT_FIELD_OPTION(TRenameColumnsDescriptor, RenameColumns);
 
     TRichYPath()
@@ -703,16 +733,16 @@ TRichYPath MaybeWithSchema(const TRichYPath& path, const TSortColumns& sortBy = 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Statistics about table columns.
+/// Statistics about table columns.
 struct TTableColumnarStatistics
 {
-    // Total data weight for all chunks for each of requested columns.
+    /// Total data weight for all chunks for each of requested columns.
     THashMap<TString, i64> ColumnDataWeight;
 
-    // Total weight of all old chunks that don't keep columnar statitics.
+    /// Total weight of all old chunks that don't keep columnar statitics.
     i64 LegacyChunksDataWeight = 0;
 
-    // Timestamps total weight (only for dynamic tables).
+    /// Timestamps total weight (only for dynamic tables).
     TMaybe<i64> TimestampTotalWeight;
 };
 
@@ -758,6 +788,7 @@ struct TAttributeFilter
 
 bool IsTrivial(const TReadLimit& readLimit);
 
+/// Convert yson node type to table schema type
 EValueType NodeTypeToValueType(TNode::EType nodeType);
 
 ////////////////////////////////////////////////////////////////////////////////
