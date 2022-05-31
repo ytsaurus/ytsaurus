@@ -11,23 +11,23 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlotConfig::TSlotConfig()
+void TSlotConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("index", Index)
+    registrar.Parameter("index", &TThis::Index)
         .Default();
-    RegisterParameter("uid", Uid)
+    registrar.Parameter("uid", &TThis::Uid)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSlotLocationBuilderConfig::TSlotLocationBuilderConfig()
+void TSlotLocationBuilderConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("location_path", LocationPath)
+    registrar.Parameter("location_path", &TThis::LocationPath)
         .Default();
-    RegisterParameter("node_uid", NodeUid)
+    registrar.Parameter("node_uid", &TThis::NodeUid)
         .Default();
-    RegisterParameter("slot_configs", SlotConfigs)
+    registrar.Parameter("slot_configs", &TThis::SlotConfigs)
         .Default();
 }
 

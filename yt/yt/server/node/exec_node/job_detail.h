@@ -14,7 +14,7 @@
 
 #include <yt/yt/server/lib/containers/public.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/server/lib/job_agent/job_report.h>
 #include <yt/yt/server/lib/job_agent/public.h>
