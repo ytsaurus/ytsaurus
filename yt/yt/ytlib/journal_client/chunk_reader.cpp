@@ -146,7 +146,7 @@ public:
         , Logger(JournalClientLogger.WithTag("ChunkId: %v", ChunkId_))
         , InitialReplicas_(replicas)
     {
-        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false);
+        const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
             ChunkId_,
             Codec_->GetId(),

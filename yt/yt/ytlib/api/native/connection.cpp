@@ -457,11 +457,8 @@ public:
         return ChaosCellDirectorySynchronizer_;
     }
 
-    const TNodeDirectoryPtr& GetNodeDirectory(bool startSynchronizer) override
+    const TNodeDirectoryPtr& GetNodeDirectory() override
     {
-        if (startSynchronizer) {
-            NodeDirectorySynchronizer_->Start();
-        }
         return NodeDirectory_;
     }
 

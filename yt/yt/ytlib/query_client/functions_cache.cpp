@@ -583,7 +583,7 @@ private:
             key,
             chunkReadOptions.ReadSessionId);
 
-        client->GetNativeConnection()->GetNodeDirectory(/*startSynchronizer*/ false)->MergeFrom(nodeDirectory);
+        client->GetNativeConnection()->GetNodeDirectory()->MergeFrom(nodeDirectory);
 
         // TODO(gepardo): pass correct data source here. See YT-16305 for details.
         auto reader = NFileClient::CreateFileMultiChunkReader(

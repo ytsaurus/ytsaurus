@@ -476,9 +476,9 @@ public:
         return MasterConnector_->GetEpoch();
     }
 
-    const TNodeDirectoryPtr& GetNodeDirectory(bool startSynchronizer) const override
+    const TNodeDirectoryPtr& GetNodeDirectory() const override
     {
-        return MasterConnection_->GetNodeDirectory(startSynchronizer);
+        return MasterConnection_->GetNodeDirectory();
     }
 
     TNetworkPreferenceList GetLocalNetworks() const override
@@ -1499,9 +1499,9 @@ TMasterEpoch TBootstrapBase::GetMasterEpoch() const
     return Bootstrap_->GetMasterEpoch();
 }
 
-const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory(bool startSynchronizer) const
+const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory() const
 {
-    return Bootstrap_->GetNodeDirectory(startSynchronizer);
+    return Bootstrap_->GetNodeDirectory();
 }
 
 TNetworkPreferenceList TBootstrapBase::GetLocalNetworks() const
