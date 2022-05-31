@@ -250,7 +250,7 @@ public:
     //! WithRenameDisabled disables sensors name normalization.
     TProfiler WithRenameDisabled() const;
 
-    //! WithProducerRemoveSupport removes sensors that was absent on producer iteration.
+    //! WithProducerRemoveSupport removes sensors that were absent on producer iteration.
     /*!
      *  By default, if sensor is absent on producer iteration, profiler keeps repeating
      *  previous sensor value.
