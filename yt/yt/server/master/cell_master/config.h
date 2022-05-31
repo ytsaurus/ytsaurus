@@ -61,7 +61,9 @@ class TMasterHydraManagerConfig
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
-    TMasterHydraManagerConfig();
+    REGISTER_YSON_STRUCT(TMasterHydraManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterHydraManagerConfig)

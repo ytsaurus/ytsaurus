@@ -55,9 +55,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterHydraManagerConfig::TMasterHydraManagerConfig()
+void TMasterHydraManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("response_keeper", ResponseKeeper)
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
 }
 

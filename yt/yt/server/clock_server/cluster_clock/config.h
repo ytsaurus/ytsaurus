@@ -31,11 +31,9 @@ class TClockHydraManagerConfig
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
-    TClockHydraManagerConfig()
-    {
-        RegisterParameter("response_keeper", ResponseKeeper)
-            .DefaultNew();
-    }
+    REGISTER_YSON_STRUCT(TClockHydraManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClockHydraManagerConfig)
