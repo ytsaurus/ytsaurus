@@ -896,7 +896,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
             }
         }
 
-        if (spec->MemoryReserveFactor && 
+        if (spec->MemoryReserveFactor &&
             (*spec->MemoryReserveFactor == 1.0 || !spec->IgnoreMemoryReserveFactorLessThanOne))
         {
             spec->UserJobMemoryDigestLowerBound = spec->UserJobMemoryDigestDefaultValue = *spec->MemoryReserveFactor;
@@ -2167,7 +2167,7 @@ void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registr
 
     registrar.Postprocessor([] (TOperationFairShareTreeRuntimeParametersUpdate* update) {
         if (update->Pool.has_value()) {
-            ValidatePoolName(update->Pool->ToString());
+            ValidatePoolName(*update->Pool);
         }
     });
 }
