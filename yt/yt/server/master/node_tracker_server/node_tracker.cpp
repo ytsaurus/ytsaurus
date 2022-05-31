@@ -2031,9 +2031,7 @@ private:
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }
 
-        if (GetDynamicConfig()->ReplicateHostNameDuringRegistration) {
-            request.set_host_name(node->GetHost()->GetName());
-        }
+        request.set_host_name(node->GetHost()->GetName());
 
         request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
 

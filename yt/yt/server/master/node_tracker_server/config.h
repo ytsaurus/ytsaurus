@@ -114,7 +114,6 @@ public:
 
     // COMPAT(gritukan): Drop this after hosts migration.
     bool PreserveRackForNewHost;
-    bool ReplicateHostNameDuringRegistration;
 
     TDuration ProfilingPeriod;
 
@@ -164,10 +163,6 @@ public:
             .Default(false);
 
         RegisterParameter("preserve_rack_for_new_host", PreserveRackForNewHost)
-            .Default(false)
-            .DontSerializeDefault();
-
-        RegisterParameter("replicate_host_name_during_registration", ReplicateHostNameDuringRegistration)
             .Default(false)
             .DontSerializeDefault();
 
