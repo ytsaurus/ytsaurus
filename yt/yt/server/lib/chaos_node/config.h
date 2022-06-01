@@ -2,27 +2,23 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/cellar_agent/config.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/misc/config.h>
-
-#include <yt/yt/core/concurrency/config.h>
+#include <yt/yt/server/lib/cellar_agent/public.h>
 
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosCellSynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration SyncPeriod;
 
-    TChaosCellSynchronizerConfig()
-    {
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Seconds(30));
-    }
+    REGISTER_YSON_STRUCT(TChaosCellSynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosCellSynchronizerConfig)
@@ -30,20 +26,15 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellSynchronizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationCardObserverConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration ObservationPeriod;
     i64 ReplicationCardCountPerRound;
 
-    TReplicationCardObserverConfig()
-    {
-        RegisterParameter("observation_period", ObservationPeriod)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("replication_card_count_per_round", ReplicationCardCountPerRound)
-            .GreaterThan(0)
-            .Default(1000);
-    }
+    REGISTER_YSON_STRUCT(TReplicationCardObserverConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCardObserverConfig)
@@ -51,22 +42,16 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardObserverConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TChaosCellSynchronizerConfigPtr ChaosCellSynchronizer;
     TReplicationCardObserverConfigPtr ReplicationCardObserver;
     TDuration EraCommencingPeriod;
 
-    TChaosManagerConfig()
-    {
-        RegisterParameter("chaos_cell_synchronizer", ChaosCellSynchronizer)
-            .DefaultNew();
-        RegisterParameter("replication_card_observer", ReplicationCardObserver)
-            .DefaultNew();
-        RegisterParameter("era_commencing_period", EraCommencingPeriod)
-            .Default(TDuration::Seconds(15));
-    }
+    REGISTER_YSON_STRUCT(TChaosManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosManagerConfig)
@@ -74,10 +59,12 @@ DEFINE_REFCOUNTED_TYPE(TChaosManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoordinatorManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    TCoordinatorManagerConfig()
+    REGISTER_YSON_STRUCT(TCoordinatorManagerConfig);
+
+    static void Register(TRegistrar )
     { }
 };
 
@@ -86,20 +73,15 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration MaxTransactionTimeout;
     int MaxAbortedTransactionPoolSize;
 
-    TTransactionManagerConfig()
-    {
-        RegisterParameter("max_transaction_timeout", MaxTransactionTimeout)
-            .GreaterThan(TDuration())
-            .Default(TDuration::Seconds(60));
-        RegisterParameter("max_aborted_transaction_pool_size", MaxAbortedTransactionPoolSize)
-            .Default(1000);
-    }
+    REGISTER_YSON_STRUCT(TTransactionManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
@@ -107,7 +89,7 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosNodeConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NCellarAgent::TCellarOccupantConfigPtr CellarOccupant;
@@ -122,21 +104,9 @@ public:
 
     int SnapshotStoreReadPoolSize;
 
-    TChaosNodeConfig()
-    {
-        RegisterParameter("cellar_occupant", CellarOccupant)
-            .DefaultNew();
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
-        RegisterParameter("chaos_manager", ChaosManager)
-            .DefaultNew();
-        RegisterParameter("coordinator_manager", CoordinatorManager)
-            .DefaultNew();
-        RegisterParameter("slot_scan_period", SlotScanPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("snapshot_store_read_pool_size", SnapshotStoreReadPoolSize)
-            .Default(8);
-    }
+    REGISTER_YSON_STRUCT(TChaosNodeConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosNodeConfig)

@@ -2,39 +2,34 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hive/config.h>
-
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosPeerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<TString> AlienCluster;
 
-    TChaosPeerConfig()
-    {
-        RegisterParameter("alien_cluster", AlienCluster)
-            .Optional();
-    }
+    REGISTER_YSON_STRUCT(TChaosPeerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosPeerConfig)
 
 class TChaosHydraConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<TChaosPeerConfigPtr> Peers;
 
-    TChaosHydraConfig()
-    {
-        RegisterParameter("peers", Peers);
-    }
+    REGISTER_YSON_STRUCT(TChaosHydraConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosHydraConfig)
@@ -42,22 +37,16 @@ DEFINE_REFCOUNTED_TYPE(TChaosHydraConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAlienCellSynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
     TDuration SyncPeriod;
     TDuration FullSyncPeriod;
 
-    TAlienCellSynchronizerConfig()
-    {
-        RegisterParameter("enable", Enable)
-            .Default(false);
-        RegisterParameter("sync_period", SyncPeriod)
-            .Default(TDuration::Minutes(1));
-        RegisterParameter("full_sync_period", FullSyncPeriod)
-            .Default(TDuration::Minutes(5));
-    }
+    REGISTER_YSON_STRUCT(TAlienCellSynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAlienCellSynchronizerConfig)
@@ -65,16 +54,14 @@ DEFINE_REFCOUNTED_TYPE(TAlienCellSynchronizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChaosManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TAlienCellSynchronizerConfigPtr AlienCellSynchronizer;
 
-    TDynamicChaosManagerConfig()
-    {
-        RegisterParameter("alien_cell_synchronizer", AlienCellSynchronizer)
-            .DefaultNew();
-    }
+    REGISTER_YSON_STRUCT(TDynamicChaosManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChaosManagerConfig)

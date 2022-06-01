@@ -4,11 +4,11 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChaosCellDirectorySynchronizerConfig::TChaosCellDirectorySynchronizerConfig()
+void TChaosCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("sync_period", SyncPeriod)
+    registrar.Parameter("sync_period", &TThis::SyncPeriod)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("sync_period_splay", SyncPeriodSplay)
+    registrar.Parameter("sync_period_splay", &TThis::SyncPeriodSplay)
         .Default(TDuration::Seconds(5));
 }
 
