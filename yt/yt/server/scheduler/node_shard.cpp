@@ -2398,7 +2398,6 @@ void TNodeShard::OnJobFinished(const TJobPtr& job, TJobStatus* status)
     }
 
     SetFinishedState(job);
-    job->SetFinishTime(TInstant::Now());
 
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
@@ -2421,7 +2420,6 @@ void TNodeShard::DoAbortJob(const TJobPtr& job, TJobStatus* const status)
     }
 
     SetFinishedState(job);
-    job->SetFinishTime(TInstant::Now());
 
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {

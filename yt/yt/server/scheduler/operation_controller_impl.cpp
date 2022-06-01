@@ -903,7 +903,7 @@ TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
         .OperationId = OperationId_,
         .LogAndProfile = logAndProfile,
         .StartTime = job->GetStartTime(),
-        .FinishTime = job->GetFinishTime(),
+        .FinishTime = TInstant::Now(),
         .TreeId = job->GetTreeId(),
         .Status = std::move(statusHolder),
         .AbortReason = {},
