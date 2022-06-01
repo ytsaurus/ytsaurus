@@ -4592,16 +4592,16 @@ private:
         }
 
         auto setAlert = [&] (const std::vector<TString>& nodeSample, int nodeCount) {
-            YT_VERIFY(
-                WaitFor(
-                    BIND(
-                        &TImpl::SetNodesWithUnsupportedInterruptionAlert,
-                        MakeWeak(this),
-                        ConstRef(nodeSample),
-                        nodeCount)
-                            .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity))
-                            .Run())
-                    .IsOK());
+            auto error = WaitFor(
+                BIND(
+                    &TImpl::SetNodesWithUnsupportedInterruptionAlert,
+                    MakeWeak(this),
+                    ConstRef(nodeSample),
+                    nodeCount)
+                .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity))
+                .Run());
+            
+            YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while nodes with unsupported interruption alert setting");
         };
 
         if (!Config_->HandleInterruptionAtNode) {
