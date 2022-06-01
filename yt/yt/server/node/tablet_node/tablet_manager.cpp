@@ -347,7 +347,11 @@ public:
                 switch (chunk->GetPreloadState()) {
                     case EStorePreloadState::Scheduled:
                     case EStorePreloadState::Running:
-                        statistics->PreloadPendingStoreCount += 1;
+                        if (chunk->IsPreloadAllowed()) {
+                            statistics->PreloadPendingStoreCount += 1;
+                        } else {
+                            statistics->PreloadFailedStoreCount += 1;
+                        }
                         statistics->PreloadPendingBytes += bytes;
                         break;
 
