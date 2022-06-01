@@ -2,7 +2,7 @@ from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
 from .common import (require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short,
-                     hide_secure_vault)
+                     hide_secure_vault, hide_auth_headers)
 from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
                      create_http_response_error)
 from .format import JsonFormat
@@ -280,20 +280,26 @@ def make_request(command_name,
 
     def process_trailers(response):
         trailers = response.trailers()
-        if trailers is None:
-            return
-
-        error = get_error_from_headers(trailers)
-        if error is not None:
-            error_exception = create_http_response_error(
-                json.loads(error),
-                url=response.request_info["url"],
-                request_headers=response.request_info["headers"],
-                response_headers=trailers,
-                params=response.request_info["params"])
-            raise error_exception
+        if trailers is not None:
+            logger.info(
+                "HTTP response has non-empty trailers (request_id: %s, trailers: %s)",
+                response.request_id,
+                hide_auth_headers(trailers))
+            error = get_error_from_headers(trailers)
+            if error is not None:
+                error_exception = create_http_response_error(
+                    json.loads(error),
+                    url=response.request_info["url"],
+                    request_headers=response.request_info["headers"],
+                    response_headers=trailers,
+                    params=response.request_info["params"])
+                raise error_exception
 
         if response.framing_error is not None:
+            logger.info(
+                "HTTP response has framing error (request_id: %s, error: %s)",
+                response.request_id,
+                repr(response.framing_error))
             raise response.framing_error
 
     if return_content:

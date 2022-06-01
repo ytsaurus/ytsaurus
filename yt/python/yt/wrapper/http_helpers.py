@@ -169,7 +169,7 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
 
-def create_response(response, request_info, error_format, client):
+def create_response(response, request_info, request_id, error_format, client):
     if error_format is None:
         error_format = "json"
 
@@ -211,6 +211,7 @@ def create_response(response, request_info, error_format, client):
         response.framed_iter_content = response.iter_content
         response.iter_content = lambda *args: unframed_iter_content(response, *args)
     response.request_info = request_info
+    response.request_id = request_id
     response._error = get_error()
     response.error = types.MethodType(error, response)
     response.is_ok = types.MethodType(is_ok, response)
@@ -346,7 +347,7 @@ class RequestRetrier(Retrier):
             else:
                 timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=deepcopy(timeout), **self.kwargs),
-                                       request_info, self.error_format, self.client)
+                                       request_info, self.request_id, self.error_format, self.client)
 
         except requests.ConnectionError as error:
             # Module requests patched to process response from YT proxy
@@ -357,7 +358,7 @@ class RequestRetrier(Retrier):
                 try:
                     # We should perform it under try..except due to response may be incomplete.
                     # See YT-4053.
-                    rsp = create_response(error.response, request_info, self.error_format, self.client)
+                    rsp = create_response(error.response, request_info, self.request_id, self.error_format, self.client)
                 except:
                     reraise(*exc_info)
                 check_response_is_decodable(rsp, "json")
