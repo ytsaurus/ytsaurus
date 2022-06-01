@@ -9,6 +9,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/golang/protobuf/proto"
+	"github.com/opentracing/opentracing-go"
 
 	"a.yandex-team.ru/library/go/certifi"
 	"a.yandex-team.ru/library/go/core/log"
@@ -31,7 +32,8 @@ type client struct {
 	rpcClusterURL  yt.ClusterURL
 	token          string
 
-	log log.Structured
+	log    log.Structured
+	tracer opentracing.Tracer
 
 	// httpClient is used to retrieve available proxies.
 	httpClient *http.Client
@@ -47,6 +49,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		httpClusterURL: yt.NormalizeProxyURL(conf.Proxy),
 		rpcClusterURL:  yt.NormalizeProxyURL(conf.RPCProxy),
 		log:            conf.GetLogger(),
+		tracer:         conf.GetTracer(),
 		stop:           internal.NewStopGroup(),
 	}
 
@@ -89,6 +92,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 
 	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
 	requestLogger := &LoggingInterceptor{Structured: c.log}
+	requestTracer := &TracingInterceptor{Tracer: c.tracer}
 	mutationRetrier := &MutationRetrier{Log: c.log}
 	readRetrier := &Retrier{Config: c.conf, Log: c.log}
 	errorWrapper := &ErrorWrapper{}
@@ -96,6 +100,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	c.Encoder.Invoke = c.Encoder.Invoke.
 		Wrap(proxyBouncer.Intercept).
 		Wrap(requestLogger.Intercept).
+		Wrap(requestTracer.Intercept).
 		Wrap(mutationRetrier.Intercept).
 		Wrap(readRetrier.Intercept).
 		Wrap(errorWrapper.Intercept)

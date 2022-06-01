@@ -5,22 +5,19 @@ import (
 	"net/textproto"
 	"testing"
 
-	"a.yandex-team.ru/yt/go/ypath"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ytjaeger"
-	"a.yandex-team.ru/yt/go/yttest"
-
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
+
+	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yt/ytjaeger"
+	"a.yandex-team.ru/yt/go/yttest"
 )
 
 func TestTracing(t *testing.T) {
-	env := yttest.New(t, yttest.WithConfig(yt.Config{
-		TraceFn: ytjaeger.TraceFn,
-	}))
-
 	tracer, closer, err := config.Configuration{
 		ServiceName: "debug",
 		Sampler: &config.SamplerConfig{
@@ -39,6 +36,10 @@ func TestTracing(t *testing.T) {
 	defer func() {
 		opentracing.SetGlobalTracer(opentracing.NoopTracer{})
 	}()
+
+	env := yttest.New(t, yttest.WithConfig(yt.Config{
+		TraceFn: ytjaeger.TraceFn,
+	}))
 
 	var traceParent []string
 	clientTrace := &httptrace.ClientTrace{
@@ -61,4 +62,30 @@ func TestTracing(t *testing.T) {
 	require.NotEmpty(t, traceParent)
 
 	require.NoError(t, env.YT.GetNode(ctx, ypath.Path("//@"), &attrs, nil))
+
+	// Indirect smoke test for tracingReader/tracingWriter
+	name := tmpPath()
+	_, err = env.YT.CreateNode(ctx, name, yt.NodeTable, &yt.CreateNodeOptions{
+		Attributes: map[string]interface{}{
+			"schema": schema.MustInfer(&exampleRow{}),
+		},
+	})
+	require.NoError(t, err)
+
+	w, err := env.YT.WriteTable(ctx, name, nil)
+	require.NoError(t, err)
+	require.NoError(t, w.Write(exampleRow{"foo", 1}))
+	require.NoError(t, w.Commit())
+
+	r, err := env.YT.ReadTable(ctx, name, nil)
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+
+	var s exampleRow
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&s))
+	require.Equal(t, exampleRow{"foo", 1}, s)
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
 }

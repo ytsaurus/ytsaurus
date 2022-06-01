@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/opentracing/opentracing-go"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/blockcodecs"
@@ -46,6 +47,7 @@ type httpClient struct {
 	internal.Encoder
 
 	requestLogger   *internal.LoggingInterceptor
+	requestTracer   *internal.TracingInterceptor
 	mutationRetrier *internal.MutationRetrier
 	readRetrier     *internal.Retrier
 
@@ -53,6 +55,7 @@ type httpClient struct {
 	netDialer  *net.Dialer
 	httpClient *http.Client
 	log        log.Structured
+	tracer     opentracing.Tracer
 	config     *yt.Config
 	stop       *internal.StopGroup
 
@@ -634,6 +637,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	var client httpClient
 
 	client.log = c.GetLogger()
+	client.tracer = c.GetTracer()
 
 	proxy, err := c.GetProxy()
 	if err != nil {
@@ -680,12 +684,14 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.mutationRetrier = &internal.MutationRetrier{Log: client.log}
 	client.readRetrier = &internal.Retrier{Config: client.config, Log: client.log}
 	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
+	client.requestTracer = &internal.TracingInterceptor{Tracer: client.tracer}
 	proxyBouncer := &internal.ProxyBouncer{Log: client.log, ProxySet: client.proxySet}
 	errorWrapper := &internal.ErrorWrapper{}
 
 	client.Encoder.Invoke = client.Encoder.Invoke.
 		Wrap(proxyBouncer.Intercept).
 		Wrap(client.requestLogger.Intercept).
+		Wrap(client.requestTracer.Intercept).
 		Wrap(client.mutationRetrier.Intercept).
 		Wrap(client.readRetrier.Intercept).
 		Wrap(errorWrapper.Intercept)
@@ -693,12 +699,14 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.Encoder.InvokeRead = client.Encoder.InvokeRead.
 		Wrap(proxyBouncer.Read).
 		Wrap(client.requestLogger.Read).
+		Wrap(client.requestTracer.Read).
 		Wrap(client.readRetrier.Read).
 		Wrap(errorWrapper.Read)
 
 	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.
 		Wrap(proxyBouncer.Write).
 		Wrap(client.requestLogger.Write).
+		Wrap(client.requestTracer.Write).
 		Wrap(client.readRetrier.Write).
 		Wrap(errorWrapper.Write)
 
