@@ -18,6 +18,7 @@
 
 #include <library/cpp/monlib/encode/json/json.h>
 #include <library/cpp/monlib/encode/spack/spack_v1.h>
+#include <library/cpp/monlib/encode/prometheus/prometheus.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
 
@@ -586,6 +587,10 @@ void TSolomonExporter::DoHandleShard(
                     &buffer,
                     NMonitoring::ETimePrecision::SECONDS,
                     compression);
+                break;
+
+            case NMonitoring::EFormat::PROMETHEUS:
+                encoder = NMonitoring::EncoderPrometheus(&buffer);
                 break;
 
             default:
