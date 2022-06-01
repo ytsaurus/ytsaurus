@@ -2692,7 +2692,7 @@ protected:
         } else if (Spec->PartitionDataWeight) {
             PartitionCount = DivCeil(dataWeightAfterPartition, *Spec->PartitionDataWeight);
         } else {
-            i64 partitionSize = Spec->DataWeightPerShuffleJob * Spec->PartitionSizeFactor;
+            i64 partitionSize = std::max<i64>(Spec->DataWeightPerShuffleJob * Spec->PartitionSizeFactor, 1);
             PartitionCount = DivCeil(dataWeightAfterPartition, partitionSize);
 
             if (PartitionCount == 1 && TotalEstimatedInputUncompressedDataSize > Spec->DataWeightPerShuffleJob) {
