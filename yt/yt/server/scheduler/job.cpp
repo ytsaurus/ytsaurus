@@ -53,11 +53,6 @@ void TJob::SetNode(const TExecNodePtr& node)
     Logger_ = CreateLogger();
 }
 
-TDuration TJob::GetDuration() const
-{
-    return *FinishTime_ - StartTime_;
-}
-
 bool TJob::IsRevived() const
 {
     return RevivalNodeId_ != NNodeTrackerClient::InvalidNodeId;

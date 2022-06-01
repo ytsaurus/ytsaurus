@@ -38,7 +38,7 @@ NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentCompletedJobE
     // It is needed here, because TCompletedJobSummary verifies job state.
     jobEvent.mutable_status()->set_state(static_cast<int>(EJobState::Completed));
     jobEvent.set_start_time(ToProto<ui64>(job->GetStartTime()));
-    jobEvent.set_finish_time(ToProto<ui64>(*job->GetFinishTime()));
+    jobEvent.set_finish_time(ToProto<ui64>(TInstant::Now()));
     jobEvent.set_interrupt_reason(static_cast<int>(EInterruptReason::None));
     return jobEvent;
 }
@@ -212,7 +212,6 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
     // Process all preempted jobs.
     for (const auto& preemptedJob : context->PreemptedJobs()) {
         auto& job = preemptedJob.Job;
-        job->SetFinishTime(event.Time);
         auto duration = event.Time - job->GetStartTime();
 
         PreemptJob(job, Config_->EnableFullEventLog);
@@ -280,7 +279,6 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
     JobAndOperationCounter_->OnJobFinished();
 
     job->SetAllocationState(EAllocationState::Finished);
-    job->SetFinishTime(event.Time);
 
     if (Config_->EnableFullEventLog) {
         LogFinishedJobFluently(ELogEventType::JobCompleted, job);
@@ -382,13 +380,11 @@ const NLogging::TLogger* TSimulatorNodeShard::GetEventLogger()
 
 NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedJobFluently(ELogEventType eventType, const TJobPtr& job)
 {
-    YT_VERIFY(job->GetFinishTime());
     YT_LOG_INFO("Logging job event");
-    return LogEventFluently(StrategyHost_->GetEventLogger(), eventType, *job->GetFinishTime())
+    return LogEventFluently(StrategyHost_->GetEventLogger(), eventType)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperationId())
         .Item("start_time").Value(job->GetStartTime())
-        .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
         .Item("job_type").Value(job->GetType());
 }

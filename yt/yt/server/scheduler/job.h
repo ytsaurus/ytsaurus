@@ -56,9 +56,6 @@ class TJob
     //! True if job can be interrupted.
     DEFINE_BYVAL_RO_PROPERTY(bool, Interruptible);
 
-    //! The time when the job was finished.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, FinishTime);
-
     //! True if job was already unregistered.
     DEFINE_BYVAL_RW_PROPERTY(bool, Unregistered, false);
 
@@ -136,9 +133,6 @@ public:
         std::optional<EJobSchedulingStage> schedulingStage = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         TString revivalNodeAddress = TString());
-
-    //! The difference between |FinishTime| and |StartTime|.
-    TDuration GetDuration() const;
 
     //! Returns true if the job was revived.
     bool IsRevived() const;
