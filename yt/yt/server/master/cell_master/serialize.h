@@ -123,6 +123,7 @@ DEFINE_ENUM(EMasterReign,
     ((AdaptiveHedgingManager)                                       (2021))  // akozhikhov
     ((NewReplicatedTableTracker)                                    (2022))  // akozhikhov
     ((RemoveReplicateHostNameOption)                                (2023))  // prime
+    ((ForcedUnmountEdenStoreIds)                                    (2024))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

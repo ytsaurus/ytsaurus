@@ -4,7 +4,8 @@ from yt_commands import (
     authors, wait, create, get, set, insert_rows, select_rows, lookup_rows,
     alter_table, write_table,
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
-    sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts)
+    sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
+    sync_freeze_table, sync_unfreeze_table)
 
 from yt_type_helpers import make_schema
 
@@ -395,6 +396,39 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             )
             _check(expected_values, sorted_dicts(list(select_rows("* from [//tmp/t]"))))
 
+    @authors("ifsmirnov")
+    def test_eden_store_ids_forced_unmount(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@min_partition_data_size", 1)
+        set("//tmp/t/@desired_partition_data_size", 2)
+        set("//tmp/t/@min_partitioning_store_count", 100)
+        set("//tmp/t/@max_partitioning_store_count", 200)
+        sync_reshard_table("//tmp/t", [[], [2], [4], [6]])
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i} for i in (1, 2, 4, 6)])
+        sync_compact_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[]])
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert len(get(f"//sys/tablets/{tablet_id}/orchid/partitions")) == 4
+        assert len(get(f"//sys/tablets/{tablet_id}/orchid/eden/stores")) == 1
+
+        for i in range(3):
+            insert_rows("//tmp/t", [{"key": i} for i in (0, 3, 5, 7)])
+            sync_freeze_table("//tmp/t")
+            sync_unfreeze_table("//tmp/t")
+
+        # Wait until three stores in Eden compact to one and lose |eden| flag in meta.
+        wait(lambda: len(get(f"//sys/tablets/{tablet_id}/orchid/eden/stores")) == 2)
+        assert len(get(f"//sys/tablets/{tablet_id}/orchid/partitions")) == 4
+
+        sync_unmount_table("//tmp/t", force=True)
+        sync_mount_table("//tmp/t")
+        assert len(get(f"//sys/tablets/{tablet_id}/orchid/partitions")) == 4
+        assert len(get(f"//sys/tablets/{tablet_id}/orchid/eden/stores")) == 2
 
 ################################################################################
 
