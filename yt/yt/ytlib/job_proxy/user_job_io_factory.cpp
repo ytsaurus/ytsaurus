@@ -349,6 +349,13 @@ public:
 
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
 
+        // COMPAT(max42, onionalex): remove after all CAs are 22.2+.
+        for (auto& dataSource : dataSourceDirectory->DataSources()) {
+            if (!dataSource.Schema() || dataSource.Schema()->Columns().empty()) {
+                dataSource.Schema() = TTableSchema::FromSortColumns(sortColumns);
+            }
+        }
+
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
