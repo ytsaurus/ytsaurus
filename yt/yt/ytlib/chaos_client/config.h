@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosCellDirectorySynchronizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Interval between consequent directory updates.
@@ -18,7 +18,9 @@ public:
     //! Splay for directory updates period.
     TDuration SyncPeriodSplay;
 
-    TChaosCellDirectorySynchronizerConfig();
+    REGISTER_YSON_STRUCT(TChaosCellDirectorySynchronizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChaosCellDirectorySynchronizerConfig)

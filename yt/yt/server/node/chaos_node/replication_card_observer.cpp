@@ -11,6 +11,7 @@
 #include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 
@@ -21,7 +22,6 @@
 
 namespace NYT::NChaosNode {
 
-using namespace NApi;
 using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NChaosClient;
@@ -101,7 +101,7 @@ private:
         YT_LOG_DEBUG("Starting replication card observer iteration (ReplicationCardCount: %v, Rounds: %v)",
             std::ssize(replicationCardIds),
             roundCount);
-        
+
         for (i64 roundIndex = 0; roundIndex < roundCount; ++roundIndex) {
             std::vector<TExpiredReplicaHistory> expiredHistories;
 

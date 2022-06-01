@@ -6,7 +6,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NChaosClient {
 
@@ -21,34 +21,38 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializableSegment
+    : public TYsonStruct
+{
+    TUnversionedOwningRow LowerKey;
+    TTimestamp Timestamp;
+
+    REGISTER_YSON_STRUCT(TSerializableSegment);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("lower_key", &TThis::LowerKey)
+            .Default();
+        registrar.Parameter("timestamp", &TThis::Timestamp)
+            .Default();
+    }
+};
+
 DECLARE_REFCOUNTED_STRUCT(TSerializableReplicationProgress)
 
 struct TSerializableReplicationProgress
-    : public NYTree::TYsonSerializable
+    : public TYsonStruct
 {
-    struct TSerializableSegment
-        : public NYTree::TYsonSerializable
-    {
-        TUnversionedOwningRow LowerKey;
-        TTimestamp Timestamp;
-
-        TSerializableSegment()
-        {
-            RegisterParameter("lower_key", LowerKey)
-                .Default();
-            RegisterParameter("timestamp", Timestamp)
-                .Default();
-        }
-    };
-
     std::vector<TIntrusivePtr<TSerializableSegment>> Segments;
     TUnversionedOwningRow UpperKey;
 
-    TSerializableReplicationProgress()
+    REGISTER_YSON_STRUCT(TSerializableReplicationProgress);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("segments", Segments)
+        registrar.Parameter("segments", &TThis::Segments)
             .Default();
-        RegisterParameter("upper_key", UpperKey)
+        registrar.Parameter("upper_key", &TThis::UpperKey)
             .Default();
     }
 };
@@ -60,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TSerializableReplicationProgress)
 DECLARE_REFCOUNTED_STRUCT(TSerializableReplicaInfo)
 
 struct TSerializableReplicaInfo
-    : public NYTree::TYsonSerializable
+    : public TYsonStruct
 {
     TString ClusterName;
     NYPath::TYPath ReplicaPath;
@@ -69,18 +73,20 @@ struct TSerializableReplicaInfo
     NTabletClient::ETableReplicaState State;
     TReplicationProgress ReplicationProgress;
 
-    TSerializableReplicaInfo()
+    REGISTER_YSON_STRUCT(TSerializableReplicaInfo);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("cluster_name", ClusterName)
+        registrar.Parameter("cluster_name", &TThis::ClusterName)
             .NonEmpty();
-        RegisterParameter("replica_path", ReplicaPath)
+        registrar.Parameter("replica_path", &TThis::ReplicaPath)
             .NonEmpty();
-        RegisterParameter("content_type", ContentType);
-        RegisterParameter("mode", Mode)
+        registrar.Parameter("content_type", &TThis::ContentType);
+        registrar.Parameter("mode", &TThis::Mode)
             .Default(ETableReplicaMode::Async);
-        RegisterParameter("state", State)
+        registrar.Parameter("state", &TThis::State)
             .Default(ETableReplicaState::Disabled);
-        RegisterParameter("replication_progress", ReplicationProgress)
+        registrar.Parameter("replication_progress", &TThis::ReplicationProgress)
             .Default();
     }
 };
@@ -92,7 +98,7 @@ DEFINE_REFCOUNTED_TYPE(TSerializableReplicaInfo)
 DECLARE_REFCOUNTED_STRUCT(TSerializableReplicationCard)
 
 struct TSerializableReplicationCard
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     THashMap<TString, TReplicaInfo> Replicas;
     std::vector<NObjectClient::TCellId> CoordinatorCellIds;
@@ -102,20 +108,22 @@ struct TSerializableReplicationCard
     TString TableClusterName;
     NTransactionClient::TTimestamp CurrentTimestamp;
 
-    TSerializableReplicationCard()
+    REGISTER_YSON_STRUCT(TSerializableReplicationCard);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("replicas", Replicas);
-        RegisterParameter("coordinator_cell_ids", CoordinatorCellIds)
+        registrar.Parameter("replicas", &TThis::Replicas);
+        registrar.Parameter("coordinator_cell_ids", &TThis::CoordinatorCellIds)
             .Default();
-        RegisterParameter("era", Era)
+        registrar.Parameter("era", &TThis::Era)
             .Default(0);
-        RegisterParameter("table_id", TableId)
+        registrar.Parameter("table_id", &TThis::TableId)
             .Default();
-        RegisterParameter("table_path", TablePath)
+        registrar.Parameter("table_path", &TThis::TablePath)
             .Default();
-        RegisterParameter("table_cluster_name", TableClusterName)
+        registrar.Parameter("table_cluster_name", &TThis::TableClusterName)
             .Default();
-        RegisterParameter("current_timestamp", CurrentTimestamp)
+        registrar.Parameter("current_timestamp", &TThis::CurrentTimestamp)
             .Default();
     }
 };
