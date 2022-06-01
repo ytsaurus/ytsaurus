@@ -217,7 +217,7 @@ private:
         void Run()
         {
             YT_LOG_DEBUG("Starting peer discovery");
-            DoRun();
+            TDispatcher::Get()->GetLightInvoker()->Invoke(BIND(&TDiscoverySession::DoRun, MakeStrong(this)));
         }
 
         void OnPeerDiscovered(const TString& address)
@@ -284,10 +284,13 @@ private:
                 owner->DiscoverRequestHook_.Run(req.Get());
             }
 
+            // NB: Via prevents stack overflow due to QueryPeer -> OnResponse -> DoRun loop in
+            // case when Invoke() is immediately set.
             req->Invoke().Subscribe(BIND(
                 &TDiscoverySession::OnResponse,
                 MakeStrong(this),
-                address));
+                address)
+                .Via(TDispatcher::Get()->GetLightInvoker()));
         }
 
         void OnResponse(
