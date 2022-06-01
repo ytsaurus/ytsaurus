@@ -259,7 +259,11 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
         {
             entry = nullptr;
         }
+    } else {
+        // Do not return stale errors.
+        entry = nullptr;
     }
+
     return TCookie(std::move(underlyingCookie), std::move(entry));
 }
 
