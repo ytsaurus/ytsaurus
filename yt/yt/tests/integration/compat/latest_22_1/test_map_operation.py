@@ -3,7 +3,7 @@ from original_tests.yt.yt.tests.integration.tests.controller.test_map_operation 
 from yt.common import update
 
 
-class TestMapCommandsCompatUpToCA(BaseTestMapCommands):
+class TestMapCommandsCompatNewCA(BaseTestMapCommands):
     ARTIFACT_COMPONENTS = {
         "22_1": ["master", "node", "job-proxy", "exec", "tools"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
