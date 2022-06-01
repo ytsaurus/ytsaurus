@@ -3,6 +3,8 @@
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////

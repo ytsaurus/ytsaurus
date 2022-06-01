@@ -5,9 +5,11 @@ from yt_commands import (
     alter_table, write_table,
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
-    sync_freeze_table, sync_unfreeze_table)
+    sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id)
 
 from yt_type_helpers import make_schema
+
+from yt_helpers import profiler_factory
 
 import yt.yson as yson
 
@@ -429,6 +431,37 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert len(get(f"//sys/tablets/{tablet_id}/orchid/partitions")) == 4
         assert len(get(f"//sys/tablets/{tablet_id}/orchid/eden/stores")) == 2
+
+    @authors("ifsmirnov")
+    def test_compaction_cancelled(self):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+        set(f"//sys/cluster_nodes/{cell_node}/@disable_write_sessions", True)
+
+        self._create_simple_table("//tmp/t", replication_factor=1)
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}])
+        sync_flush_table("//tmp/t")
+
+        profiler = profiler_factory().at_node(cell_node)
+        def _get_running_compaction_count():
+            return profiler.get("tablet_node/store_compactor/running_compactions")
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        chunk_node = get(f"#{chunk_id}/@stored_replicas/0")
+        set(f"//sys/cluster_nodes/{chunk_node}/@banned", True)
+
+        assert _get_running_compaction_count() == 0.0
+        set("//tmp/t/@auto_compaction_period", 1)
+        remount_table("//tmp/t")
+
+        wait(lambda: _get_running_compaction_count() == 1.0)
+        sleep(1)
+        assert get_singular_chunk_id("//tmp/t") == chunk_id
+
+        sync_unmount_table("//tmp/t")
+        wait(lambda: _get_running_compaction_count() == 0.0)
+        assert get_singular_chunk_id("//tmp/t") == chunk_id
 
 ################################################################################
 

@@ -64,6 +64,8 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -741,6 +743,7 @@ private:
     {
         ITabletSlotPtr Slot;
         IInvokerPtr Invoker;
+        TCancelableContextPtr CancelableContext;
 
         TGuid TaskId;
         TTabletId TabletId;
@@ -789,6 +792,7 @@ private:
             NLsm::EStoreCompactionReason reason)
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
+            , CancelableContext(tablet->GetCancelableContext())
             , TaskId(TGuid::Create())
             , TabletId(tablet->GetId())
             , MountRevision(tablet->GetMountRevision())
@@ -1230,7 +1234,13 @@ private:
 
             // TODO(sandello): Better ownership management.
             auto invoker = task->Invoker;
-            invoker->Invoke(BIND(action, MakeStrong(this), Owned(task.release())));
+            auto cancelableContext = task->CancelableContext;
+            auto taskFuture = BIND(action, MakeStrong(this), Owned(task.release()))
+                .AsyncVia(invoker)
+                .Run();
+            if (cancelableContext) {
+                cancelableContext->PropagateTo(taskFuture);
+            }
         }
 
         if (scheduled > 0) {
