@@ -124,6 +124,7 @@ DEFINE_ENUM(EMasterReign,
     ((NewReplicatedTableTracker)                                    (2022))  // akozhikhov
     ((RemoveReplicateHostNameOption)                                (2023))  // prime
     ((ForcedUnmountEdenStoreIds)                                    (2024))  // ifsmirnov
+    ((RecomputeAccountResourceUsageOnceAgain)                       (2025))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
