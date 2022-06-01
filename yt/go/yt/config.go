@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -81,6 +82,20 @@ type Config struct {
 	// WARNING: Running YT client in production without debug logs is highly discouraged.
 	Logger log.Structured
 
+	// Tracer overrides default tracer, used by the client
+	//
+	// When Tracer is not set opentracing.GlobalTracer is used.
+	//
+	// If opentracing.GlobalTracer is not set, no tracing is performed.
+	Tracer opentracing.Tracer
+
+	// TraceFn extracts trace parent from request context.
+	//
+	// This function is extracted into config in order to avoid direct dependency on jaeger client.
+	//
+	// Assign ytjaeger.TraceFn to this field, if you wish to enable tracing.
+	TraceFn TraceFn
+
 	// LightRequestTimeout specifies default timeout for light requests. Timeout includes all retries and backoffs.
 	// Timeout for single request is not configurable right now.
 	//
@@ -117,13 +132,6 @@ type Config struct {
 	//
 	// NOTE: this codec has nothing to do with codec used for storing table chunks.
 	CompressionCodec ClientCompressionCodec
-
-	// TraceFn extracts trace parent from request context.
-	//
-	// This function is extracted into config in order to avoid direct dependency on jaeger client.
-	//
-	// Assign ytjaeger.TraceFn to this field, if you wish to enable tracing.
-	TraceFn TraceFn
 }
 
 func (c *Config) GetProxy() (string, error) {
@@ -187,6 +195,14 @@ func (c *Config) GetLogger() log.Structured {
 		panic(fmt.Sprintf("failed to configure default logger: %+v", err))
 	}
 	return l.Structured()
+}
+
+func (c *Config) GetTracer() opentracing.Tracer {
+	if c.Tracer != nil {
+		return c.Tracer
+	}
+
+	return opentracing.GlobalTracer()
 }
 
 func (c *Config) GetLightRequestTimeout() time.Duration {
