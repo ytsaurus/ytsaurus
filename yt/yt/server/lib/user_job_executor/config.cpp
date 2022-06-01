@@ -6,28 +6,28 @@ namespace NYT::NUserJobExecutor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobExecutorConfig::TUserJobExecutorConfig()
+void TUserJobExecutorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("command", Command);
+    registrar.Parameter("command", &TThis::Command);
 
-    RegisterParameter("pipes", Pipes)
+    registrar.Parameter("pipes", &TThis::Pipes)
         .Default();
 
-    RegisterParameter("job_id", JobId);
+    registrar.Parameter("job_id", &TThis::JobId);
 
-    RegisterParameter("environment", Environment)
+    registrar.Parameter("environment", &TThis::Environment)
         .Default();
 
-    RegisterParameter("uid", Uid)
+    registrar.Parameter("uid", &TThis::Uid)
         .Default(-1);
 
-    RegisterParameter("enable_core_dump", EnableCoreDump)
+    registrar.Parameter("enable_core_dump", &TThis::EnableCoreDump)
         .Default(false);
 
-    RegisterParameter("user_job_synchronizer_connection_config", UserJobSynchronizerConnectionConfig);
+    registrar.Parameter("user_job_synchronizer_connection_config", &TThis::UserJobSynchronizerConnectionConfig);
 
-    RegisterPostprocessor([&] {
-        for (const auto& variable : Environment) {
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& variable : config->Environment) {
             if (variable.find('=') == TString::npos) {
                 THROW_ERROR_EXCEPTION("Bad environment variable: missing '=' in %Qv", variable);
             }

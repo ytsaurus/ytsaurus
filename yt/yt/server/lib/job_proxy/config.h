@@ -120,20 +120,16 @@ DEFINE_REFCOUNTED_TYPE(TMemoryTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBindConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString ExternalPath;
     TString InternalPath;
     bool ReadOnly;
 
-    TBindConfig()
-    {
-        RegisterParameter("external_path", ExternalPath);
-        RegisterParameter("internal_path", InternalPath);
-        RegisterParameter("read_only", ReadOnly)
-            .Default(true);
-    }
+    REGISTER_YSON_STRUCT(TBindConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBindConfig)
@@ -182,7 +178,7 @@ public:
 
     i64 AheadMemoryReserve;
 
-    bool AlwaysAbortOnMemoryReserveOverdraft; 
+    bool AlwaysAbortOnMemoryReserveOverdraft;
 
     bool TestRootFS;
 

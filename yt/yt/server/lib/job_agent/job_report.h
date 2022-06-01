@@ -16,7 +16,7 @@
 
 #include <yt/yt/core/yson/string.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/property.h>
@@ -157,8 +157,22 @@ struct TNodeJobReport
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGpuDevice
+    : public NYTree::TYsonStruct
+{
+    int DeviceNumber;
+
+    TString DeviceName;
+
+    REGISTER_YSON_STRUCT(TGpuDevice);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuDevice);
+
 struct TExecAttributes
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonStructLite
 {
     //! Job slot index.
     int SlotIndex = -1;
@@ -174,39 +188,12 @@ struct TExecAttributes
     //! Medium of disk acquired by slot.
     TString MediumName;
 
-    struct TGpuDevice
-        : public NYTree::TYsonSerializable
-    {
-        int DeviceNumber;
-
-        TString DeviceName;
-
-        TGpuDevice()
-        {
-            RegisterParameter("device_number", DeviceNumber)
-                .Default();
-            RegisterParameter("device_name", DeviceName)
-                .Default();
-        }
-    };
-    DEFINE_REFCOUNTED_TYPE(TGpuDevice);
-
     //! GPU devices used by job.
     std::vector<TIntrusivePtr<TGpuDevice>> GpuDevices;
 
-    TExecAttributes()
-    {
-        RegisterParameter("slot_index", SlotIndex)
-            .Default(-1);
-        RegisterParameter("ip_addresses", IPAddresses)
-            .Default();
-        RegisterParameter("sandbox_path", SandboxPath)
-            .Default();
-        RegisterParameter("medium_name", MediumName)
-            .Default();
-        RegisterParameter("gpu_devices", GpuDevices)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TExecAttributes);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

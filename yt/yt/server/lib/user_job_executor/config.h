@@ -6,14 +6,14 @@
 
 #include <yt/yt/library/process/pipe.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NUserJobExecutor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobExecutorConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Command to execute.
@@ -37,7 +37,9 @@ public:
     //! Config of the connection between user job executor and job proxy.
     NUserJobSynchronizerClient::TUserJobSynchronizerConnectionConfigPtr UserJobSynchronizerConnectionConfig;
 
-    TUserJobExecutorConfig();
+    REGISTER_YSON_STRUCT(TUserJobExecutorConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

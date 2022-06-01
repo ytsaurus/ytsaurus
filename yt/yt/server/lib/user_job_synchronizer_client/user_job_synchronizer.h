@@ -6,20 +6,22 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NUserJobSynchronizerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserJobSynchronizerConnectionConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! User job -> Job proxy connection config.
     NBus::TTcpBusClientConfigPtr BusClientConfig;
 
-    TUserJobSynchronizerConnectionConfig();
+    REGISTER_YSON_STRUCT(TUserJobSynchronizerConnectionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizerConnectionConfig)

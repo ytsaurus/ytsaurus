@@ -528,4 +528,30 @@ void TNodeJobReport::SetTaskName(const TString& taskName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuDevice::Register(TRegistrar registrar)
+{
+    registrar.Parameter("device_number", &TThis::DeviceNumber)
+        .Default();
+    registrar.Parameter("device_name", &TThis::DeviceName)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TExecAttributes::Register(TRegistrar registrar)
+{
+    registrar.Parameter("slot_index", &TThis::SlotIndex)
+        .Default(-1);
+    registrar.Parameter("ip_addresses", &TThis::IPAddresses)
+        .Default();
+    registrar.Parameter("sandbox_path", &TThis::SandboxPath)
+        .Default();
+    registrar.Parameter("medium_name", &TThis::MediumName)
+        .Default();
+    registrar.Parameter("gpu_devices", &TThis::GpuDevices)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NJobAgent
