@@ -211,7 +211,7 @@ public:
                 ReplicasFuture_ = MakeFuture(TAllyReplicasInfo::FromChunkReplicas(InitialReplicas_));
             } else {
                 const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
-                auto futures = chunkReplicaCache->GetReplicas({Reader_->ChunkId_});
+                auto futures = chunkReplicaCache->GetReplicas({DecodeChunkId(Reader_->ChunkId_).Id});
                 YT_VERIFY(futures.size() == 1);
                 ReplicasFuture_ = std::move(futures[0]);
             }
@@ -228,7 +228,10 @@ public:
                 return;
             }
 
+            // NB: These replicas may correspond to replicas of whole erasure chunk even if Reader_->ChunkId_
+            // is an erasure chunk part. That is fine because CreatePartReaders performs proper filtering.
             const auto& replicas = replicasOrError.Value();
+
             auto partsReader = New<TErasurePartsReader>(
                 Reader_->Config_,
                 Reader_->Codec_,
@@ -285,7 +288,7 @@ public:
             if (error.FindMatching(NChunkClient::EErrorCode::NoSuchChunk)) {
                 Reader_->InitialReplicas_.Store(TChunkReplicaList{});
                 Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(
-                    Reader_->ChunkId_,
+                    DecodeChunkId(Reader_->ChunkId_).Id,
                     ReplicasFuture_);
             }
 

@@ -11,6 +11,7 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
@@ -47,6 +48,7 @@ public:
         auto mapGuard = ReaderGuard(EntriesLock_);
         for (int index = 0; index < std::ssize(chunkIds); ++index) {
             auto chunkId = chunkIds[index];
+            YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
             auto it = Entries_.find(chunkId);
             if (it != Entries_.end()) {
                 auto& entry = *it->second;
@@ -74,6 +76,7 @@ public:
             auto mapGuard = ReaderGuard(EntriesLock_);
             for (int index = 0; index < std::ssize(chunkIds); ++index) {
                 auto chunkId = chunkIds[index];
+                YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
                 auto it = Entries_.find(chunkId);
                 if (it == Entries_.end()) {
                     missingIndices.push_back(index);
@@ -194,6 +197,8 @@ public:
         TChunkId chunkId,
         const TFuture<TAllyReplicasInfo>& future) override
     {
+        YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
+
         auto now = TInstant::Now();
         auto mapGuard = WriterGuard(EntriesLock_);
         auto it = Entries_.find(chunkId);
@@ -214,6 +219,8 @@ public:
         TChunkId chunkId,
         const TAllyReplicasInfo& replicas) override
     {
+        YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
+
         auto now = TInstant::Now();
 
         auto update = [&] (TEntry& entry) {
@@ -268,6 +275,8 @@ public:
         TChunkId chunkId,
         const TChunkReplicaWithMediumList& replicas) override
     {
+        YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
+
         UpdateReplicas(
             chunkId,
             TAllyReplicasInfo{

@@ -321,7 +321,8 @@ private:
         }
 
         YT_VERIFY(Options_->AllowFetchingSeedsFromMaster);
-        auto futures = Client_->GetNativeConnection()->GetChunkReplicaCache()->GetReplicas({ChunkId_});
+        const auto& chunkReplicaCache = Client_->GetNativeConnection()->GetChunkReplicaCache();
+        auto futures = chunkReplicaCache->GetReplicas({DecodeChunkId(ChunkId_).Id});
         YT_VERIFY(futures.size() == 1);
         return futures[0];
     }
@@ -339,7 +340,9 @@ private:
             InitialSeeds_.clear();
         }
 
-        Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(ChunkId_, future);
+        Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardReplicas(
+            DecodeChunkId(ChunkId_).Id,
+            future);
     }
 
     void OnChunkReplicasLocated(const TAllyReplicasInfo& seedReplicas)
@@ -850,17 +853,15 @@ protected:
             return;
         }
 
-        // TODO(akozhikhov): Propagate ally replicas to erasure reader.
-        if (!allyReplicas ||
-            SeedReplicas_.Revision >= allyReplicas.Revision ||
-            !IsRegularChunkId(ChunkId_))
-        {
+        if (!allyReplicas || SeedReplicas_.Revision >= allyReplicas.Revision) {
             return;
         }
 
         // NB: We could have changed current pass seeds,
         // but for the sake of simplicity that will be done upon next retry within standard reading pipeline.
-        reader->Client_->GetNativeConnection()->GetChunkReplicaCache()->UpdateReplicas(ChunkId_, allyReplicas);
+        reader->Client_->GetNativeConnection()->GetChunkReplicaCache()->UpdateReplicas(
+            DecodeChunkId(ChunkId_).Id,
+            allyReplicas);
     }
 
     void DiscardSeeds()
@@ -1211,6 +1212,15 @@ private:
         }
 
         SeedReplicas_ = result.Value();
+        if (IsErasureChunkPartId(ChunkId_)) {
+            auto replicaIndex = ReplicaIndexFromErasurePartId(ChunkId_);
+            EraseIf(
+                SeedReplicas_.Replicas,
+                [&] (const auto& replica) {
+                    return replica.GetReplicaIndex() != replicaIndex;
+                });
+        }
+
         reader->OnChunkReplicasLocated(SeedReplicas_);
 
         if (!SeedReplicas_) {
