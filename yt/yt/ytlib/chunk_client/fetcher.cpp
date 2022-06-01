@@ -109,7 +109,14 @@ private:
         Scraper_->Start();
 
         BatchLocatedPromise_ = NewPromise<void>();
+        BatchLocatedPromise_.OnCanceled(BIND(&TFetcherChunkScraper::OnCanceled, MakeWeak(this)));
         return BatchLocatedPromise_;
+    }
+
+    void OnCanceled(const TError& error)
+    {
+        YT_LOG_DEBUG(error, "Fetcher chunk scraper canceled");
+        Scraper_->Stop();
     }
 
     void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas, bool missing)
@@ -231,13 +238,15 @@ TFuture<void> TFetcherBase::Fetch()
         }
     }
 
-    Invoker_->Invoke(
-        BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this)));
+    ActiveTaskFuture_.Store(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
+        .AsyncVia(Invoker_)
+        .Run());
     auto future = Promise_.ToFuture();
     if (CancelableContext_) {
         future = future.ToImmediatelyCancelable();
         CancelableContext_->PropagateTo(future);
     }
+    Promise_.OnCanceled(BIND(&TFetcherBase::OnCanceled, MakeWeak(this)));
     return future;
 }
 
@@ -252,6 +261,11 @@ void TFetcherBase::StartFetchingRound()
         UnfetchedChunkIndexes_.size(),
         DeadNodes_.size(),
         DeadChunks_.size());
+
+    if (Promise_.IsCanceled()) {
+        YT_LOG_DEBUG("Fetcher canceled, abort fetching round");
+        return;
+    }
 
     // Unban nodes with expired ban duration.
     auto now = TInstant::Now();
@@ -309,7 +323,7 @@ void TFetcherBase::StartFetchingRound()
         DeadNodes_.clear();
         DeadChunks_.clear();
         Invoker_->Invoke(
-            BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), /* backoff */ false, error));
+            BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), /*backoff*/ false, error));
         return;
     }
 
@@ -353,9 +367,11 @@ void TFetcherBase::StartFetchingRound()
 
     bool backoff = asyncResults.empty();
 
-    AllSucceeded(asyncResults).Subscribe(
+    auto future = AllSucceeded(asyncResults);
+    future.Subscribe(
         BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), backoff)
             .Via(Invoker_));
+    ActiveTaskFuture_.Store(std::move(future));
 }
 
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
@@ -435,7 +451,9 @@ void TFetcherBase::OnFetchingRoundCompleted(bool backoff, const TError& error)
         TDelayedExecutor::WaitForDuration(Config_->BackoffTime);
     }
 
-    StartFetchingRound();
+    ActiveTaskFuture_.Store(BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
+        .AsyncVia(Invoker_)
+        .Run());
 }
 
 void TFetcherBase::OnFetchingStarted()
@@ -443,6 +461,14 @@ void TFetcherBase::OnFetchingStarted()
 
 void TFetcherBase::OnFetchingCompleted()
 { }
+
+void TFetcherBase::OnCanceled(const TError& error)
+{
+    YT_LOG_DEBUG(error, "Fetcher canceled");
+    if (auto future = ActiveTaskFuture_.Load()) {
+        future.Cancel(error);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

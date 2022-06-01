@@ -28,7 +28,7 @@
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
-#include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>

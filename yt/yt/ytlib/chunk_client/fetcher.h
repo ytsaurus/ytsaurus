@@ -8,6 +8,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/guid.h>
 
@@ -108,6 +109,8 @@ protected:
         const std::vector<int>& chunkIndexes);
 
 private:
+    void OnCanceled(const TError& error);
+
     NApi::NNative::IClientPtr Client_;
 
     //! Indexes of chunks for which no info is fetched yet.
@@ -126,6 +129,8 @@ private:
     THashMap<NNodeTrackerClient::TNodeId, TInstant> UnbanTime_;
 
     TCancelableContextPtr CancelableContext_;
+
+    TAtomicObject<TFuture<void>> ActiveTaskFuture_;
 
     TPromise<void> Promise_ = NewPromise<void>();
 

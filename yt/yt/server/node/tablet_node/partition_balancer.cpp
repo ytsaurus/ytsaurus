@@ -43,6 +43,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -196,14 +198,19 @@ private:
 
         tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionSplit();
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+        auto future = BIND(
             &TPartitionBalancer::DoRunSplit,
             MakeStrong(this),
             slot,
             partition,
             request.SplitFactor,
             partition->GetTablet(),
-            Logger));
+            Logger)
+            .AsyncVia(tablet->GetEpochAutomatonInvoker())
+            .Run();
+        if (const auto& context = partition->GetTablet()->GetCancelableContext()) {
+            context->PropagateTo(future);
+        }
     }
 
     void ProcessMergeRequest(const ITabletSlotPtr& slot, const NLsm::TMergePartitionsRequest& request)
@@ -463,13 +470,16 @@ private:
 
         YT_LOG_DEBUG("Partition is scheduled for sampling");
 
-        BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
+        auto future = BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
             .Run(
                 slot,
                 partition,
                 partition->GetTablet(),
                 Logger);
+        if (const auto& context = partition->GetTablet()->GetCancelableContext()) {
+            context->PropagateTo(future);
+        }
         return true;
     }
 

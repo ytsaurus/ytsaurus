@@ -43,6 +43,8 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>

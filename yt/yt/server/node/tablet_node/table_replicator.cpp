@@ -47,6 +47,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
