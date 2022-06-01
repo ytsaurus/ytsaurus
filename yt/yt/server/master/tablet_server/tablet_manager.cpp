@@ -7438,6 +7438,7 @@ private:
             if (!onDestroy) {
                 DiscardDynamicStores(tablet);
             }
+            SetTabletEdenStoreIds(tablet, {});
             DoTabletUnmounted(tablet, /*force*/ true);
         }
     }
