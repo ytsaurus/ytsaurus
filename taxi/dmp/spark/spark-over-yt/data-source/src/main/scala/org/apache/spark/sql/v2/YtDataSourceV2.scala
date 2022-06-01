@@ -1,7 +1,7 @@
 package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.connector.catalog.Table
+import org.apache.spark.sql.connector.catalog.{SessionConfigSupport, Table}
 import org.apache.spark.sql.execution.datasources.FileFormat
 import org.apache.spark.sql.execution.datasources.v2.FileDataSourceV2
 import org.apache.spark.sql.types.StructType
@@ -10,10 +10,8 @@ import org.apache.spark.sql.vectorized.YtFileFormat
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.GlobalTransaction
 import ru.yandex.spark.yt.fs.YPathEnriched.{YtLatestVersionPath, YtRootPath, YtTimestampPath, YtTransactionPath}
 
-class YtDataSourceV2 extends FileDataSourceV2 {
-  private val defaultOptions: Map[String, String] = Map(
-    "recursiveFileLookup" -> "true"
-  )
+class YtDataSourceV2 extends FileDataSourceV2 with SessionConfigSupport {
+  private val defaultOptions: Map[String, String] = Map()
 
   override def fallbackFileFormat: Class[_ <: FileFormat] = classOf[YtFileFormat]
 
@@ -58,5 +56,6 @@ class YtDataSourceV2 extends FileDataSourceV2 {
     val tableName = getTableName(options, paths)
     YtTable(tableName, sparkSession, getOptions(options), paths, Some(schema), fallbackFileFormat)
   }
-}
 
+  override def keyPrefix(): String = "yt"
+}

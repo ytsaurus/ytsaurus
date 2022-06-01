@@ -12,7 +12,7 @@ import org.apache.spark.sql.execution.datasources.PartitionedFile
 import org.apache.spark.sql.execution.datasources.v2.{FilePartitionReaderFactory, PartitionReaderWithPartitionValues}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.vectorized.{ColumnarBatch, YtVectorizedReader}
+import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch, SingleValueColumnVector, YtVectorizedReader}
 import org.apache.spark.util.SerializableConfiguration
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.common.utils.SegmentSet
@@ -41,7 +41,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
 
   private val unsupportedTypes: Set[DataType] = Set(DateType, TimestampType, FloatType)
 
-  private val resultSchema = StructType(partitionSchema.fields ++ readDataSchema.fields)
+  private val resultSchema = StructType(readDataSchema.fields)
   private val ytClientConf = ytClientConfiguration(sqlConf)
   private val arrowEnabled: Boolean = {
     import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
@@ -75,7 +75,7 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
     buildLockedSplitReader(file) { case (split, transaction) =>
       val reader = if (readBatch) {
-        createVectorizedReader(split, returnBatch = false)
+        createVectorizedReader(split, returnBatch = false, file.partitionValues)
       } else {
         createRowBaseReader(split)
       }
@@ -92,20 +92,35 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
       }
 
       new PartitionReaderWithPartitionValues(fileReader, readDataSchema,
-        partitionSchema, split.file.partitionValues)
+        partitionSchema, file.partitionValues)
     }
   }
 
   override def buildColumnarReader(file: PartitionedFile): PartitionReader[ColumnarBatch] = {
     implicit val yt: CompoundClient = YtClientProvider.ytClient(ytClientConf)
     buildLockedSplitReader(file) { case (split, transaction) =>
-      val vectorizedReader = createVectorizedReader(split, returnBatch = true)
-
+      val vectorizedReader = createVectorizedReader(split, returnBatch = true, file.partitionValues)
       new PartitionReader[ColumnarBatch] {
         override def next(): Boolean = vectorizedReader.nextKeyValue()
 
-        override def get(): ColumnarBatch =
-          vectorizedReader.getCurrentValue.asInstanceOf[ColumnarBatch]
+        override def get(): ColumnarBatch = {
+          val sourceBatch = vectorizedReader.getCurrentValue.asInstanceOf[ColumnarBatch]
+          val capacity = sourceBatch.numRows()
+          val schemaCols = sourceBatch.numCols()
+          if (partitionSchema != null && partitionSchema.nonEmpty) {
+            val columnVectors = new Array[ColumnVector](sourceBatch.numCols() + partitionSchema.fields.length)
+            for (i <- 0 until schemaCols) {
+              columnVectors(i) = sourceBatch.column(i)
+            }
+            partitionSchema.fields.zipWithIndex.foreach { case (field, index) =>
+              columnVectors(index + schemaCols) = new SingleValueColumnVector(capacity, field.dataType,
+                file.partitionValues, index)
+            }
+            new ColumnarBatch(columnVectors, capacity)
+          }
+          else
+            sourceBatch
+        }
 
         override def close(): Unit = {
           transaction.foreach(_.commit().join())
@@ -179,7 +194,8 @@ case class YtPartitionReaderFactory(sqlConf: SQLConf,
   }
 
   private def createVectorizedReader(split: YtInputSplit,
-                                     returnBatch: Boolean)
+                                     returnBatch: Boolean,
+                                     partitionValues: InternalRow)
                                     (implicit yt: CompoundClient): YtVectorizedReader = {
     new YtVectorizedReader(
       split = split,

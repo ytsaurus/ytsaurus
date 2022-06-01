@@ -5,7 +5,6 @@ import org.apache.spark.network.util.ByteUnit
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.{FilePartition, PartitionDirectory, PartitionedFile}
-import org.apache.spark.sql.internal.SQLConf.buildConf
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.YtPartitionedFile
 import ru.yandex.spark.yt.fs.conf.YT_MIN_PARTITION_BYTES
@@ -54,7 +53,7 @@ object YtFilePartition {
     YtPath.fromPath(file.getPath) match {
       case yp: YtDynamicPath =>
         YtPartitionedFile.dynamic(yp.toStringPath, yp.beginKey, yp.endKey, file.getLen,
-          yp.keyColumns, file.getModificationTime)
+          yp.keyColumns, file.getModificationTime, partitionValues)
       case p =>
         PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
     }
@@ -64,13 +63,15 @@ object YtFilePartition {
                          path: YtStaticPath,
                          rowOffset: Long,
                          rowCount: Long,
-                         byteSize: Long): PartitionedFile = {
+                         byteSize: Long,
+                         partitionValues: InternalRow): PartitionedFile = {
     YtPartitionedFile.static(
       path.toStringPath,
       path.attrs.beginRow + rowOffset,
       path.attrs.beginRow + rowOffset + rowCount,
       byteSize,
-      file.getModificationTime
+      file.getModificationTime,
+      partitionValues
     )
   }
 
@@ -94,7 +95,7 @@ object YtFilePartition {
         case yp: YtStaticPath =>
           val maxSplitRows = Math.max(1, Math.ceil(maxSplitBytes.toDouble / file.getLen * yp.rowCount).toLong)
           split(yp.rowCount, maxSplitRows) { case (offset, size) =>
-            getPartitionedFile(file, yp, offset, size, size * file.getBlockSize)
+            getPartitionedFile(file, yp, offset, size, size * file.getBlockSize, partitionValues)
           }
         case _ =>
           split(file.getLen, maxSplitBytes) { case (offset, size) =>

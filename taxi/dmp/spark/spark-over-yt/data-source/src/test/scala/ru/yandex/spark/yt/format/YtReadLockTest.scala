@@ -266,7 +266,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
 
     insertNewRow(s"$tmpPath/1")
 
-    readCustomTimestampWithinTransaction(ts, tmpPath) { (df, readTransaction) =>
+    readCustomTimestampWithinTransactionRecursive(ts, tmpPath) { (df, readTransaction) =>
       lockCount(objectPath(s"$tmpPath/1", readTransaction)) shouldEqual 1
       lockCount(objectPath(s"$tmpPath/2", readTransaction)) shouldEqual 1
 
@@ -319,7 +319,7 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
     val ts = yt.generateTimestamps().join().getValue
     insertNewRow(s"$tmpPath/1")
 
-    readCustomTimestampWithinTransaction(ts, tmpPath) { (df, _) =>
+    readCustomTimestampWithinTransactionRecursive(ts, tmpPath) { (df, _) =>
       remove(s"$tmpPath/2")
 
       df.selectAs[TestRow].collect() should contain theSameElementsAs testRow +: testData
@@ -334,6 +334,11 @@ class YtReadLockTest extends FlatSpec with Matchers with LocalSpark with TestUti
   private def readCustomTimestampWithinTransaction(timestamp: Long, path: String*)
                                                   (f: (DataFrame, String) => Unit): Unit = {
     readWithinTransactionInner(_.timestamp(timestamp), path:_*)(f)
+  }
+
+  private def readCustomTimestampWithinTransactionRecursive(timestamp: Long, path: String*)
+                                                  (f: (DataFrame, String) => Unit): Unit = {
+    readWithinTransactionInner(_.timestamp(timestamp).option("recursiveFileLookup", "true"), path:_*)(f)
   }
 
   private def readWithinTransactionInner(applyOptions: DataFrameReader => DataFrameReader, path: String*)

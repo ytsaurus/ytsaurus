@@ -9,8 +9,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
-import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
-import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.{NullTypeAllowed, isNullTypeAllowed}
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.isNullTypeAllowed
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
 import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
@@ -68,7 +67,12 @@ object SchemaConverter {
   def keys(schema: StructType): Seq[Option[String]] = {
     val keyMap = schema
       .fields
-      .map(x => (x.metadata.getLong(MetadataFields.KEY_ID), x.metadata.getString(MetadataFields.ORIGINAL_NAME)))
+      .map(x =>
+        if (x.metadata.contains(MetadataFields.KEY_ID))
+          (x.metadata.getLong(MetadataFields.KEY_ID), x.metadata.getString(MetadataFields.ORIGINAL_NAME))
+        else
+          (-1L, x.name)
+      )
       .toMap
     val max = if (keyMap.nonEmpty) keyMap.keys.max else -1
     (0L to max).map(keyMap.get)
