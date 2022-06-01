@@ -15,9 +15,9 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobSynchronizerConnectionConfig::TUserJobSynchronizerConnectionConfig()
+void TUserJobSynchronizerConnectionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("bus_client_config", BusClientConfig)
+    registrar.Parameter("bus_client_config", &TThis::BusClientConfig)
         .DefaultNew();
 }
 

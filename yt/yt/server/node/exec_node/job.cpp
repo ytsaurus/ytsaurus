@@ -136,7 +136,7 @@ TJob::TJob(
     , JobTestingOptions_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_testing_options()
         ? ConvertTo<TJobTestingOptionsPtr>(TYsonString(SchedulerJobSpecExt_->testing_options()))
         : New<TJobTestingOptions>())
-    , Interruptible_(SchedulerJobSpecExt_->has_interruptible() 
+    , Interruptible_(SchedulerJobSpecExt_->has_interruptible()
         ? std::make_optional<bool>(SchedulerJobSpecExt_->interruptible())
         : std::nullopt)
     , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
@@ -1968,7 +1968,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
 
         ExecAttributes_.GpuDevices.reserve(GpuSlots_.size());
         for (const auto& gpuSlot : GpuSlots_) {
-            auto& gpuDevice = ExecAttributes_.GpuDevices.emplace_back(New<TExecAttributes::TGpuDevice>());
+            auto& gpuDevice = ExecAttributes_.GpuDevices.emplace_back(New<TGpuDevice>());
             gpuDevice->DeviceNumber = gpuSlot->GetDeviceNumber();
             gpuDevice->DeviceName = gpuSlot->GetDeviceName();
         }

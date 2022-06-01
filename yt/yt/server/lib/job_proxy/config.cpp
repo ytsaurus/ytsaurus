@@ -62,6 +62,16 @@ void TMemoryTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Zero());
 }
 
+void TBindConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("external_path", &TThis::ExternalPath);
+
+    registrar.Parameter("internal_path", &TThis::InternalPath);
+
+    registrar.Parameter("read_only", &TThis::ReadOnly)
+        .Default(true);
+}
+
 void TJobProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
@@ -119,7 +129,7 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
-    
+
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
 
