@@ -3,7 +3,7 @@ package org.apache.spark.sql.v2
 import org.apache.hadoop.fs.FileStatus
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
-import org.apache.spark.sql.execution.datasources.FileFormat
+import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.execution.datasources.v2.FileTable
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
@@ -19,6 +19,17 @@ case class YtTable(name: String,
                    userSpecifiedSchema: Option[StructType],
                    fallbackFileFormat: Class[_ <: FileFormat])
   extends FileTable(sparkSession, options, paths, userSpecifiedSchema) {
+
+  override lazy val fileIndex: YtInMemoryFileIndex = {
+    val caseSensitiveMap = options.asCaseSensitiveMap.asScala.toMap
+    // Hadoop Configurations are case sensitive.
+    val hadoopConf = sparkSession.sessionState.newHadoopConfWithOptions(caseSensitiveMap)
+    // This is a non-streaming file based datasource.
+    val rootPathsSpecified = DataSource.checkAndGlobPathIfNecessary(paths, hadoopConf,
+      checkEmptyGlobPath = true, checkFilesExist = true)
+    val fileStatusCache = FileStatusCache.getOrCreate(sparkSession)
+    new YtInMemoryFileIndex(sparkSession, rootPathsSpecified, caseSensitiveMap, userSpecifiedSchema, fileStatusCache)
+  }
 
   override def newScanBuilder(options: CaseInsensitiveStringMap): YtScanBuilder =
     YtScanBuilder(sparkSession, fileIndex, schema, dataSchema, options)

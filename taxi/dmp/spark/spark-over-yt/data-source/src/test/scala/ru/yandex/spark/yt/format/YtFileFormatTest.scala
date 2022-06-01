@@ -17,11 +17,9 @@ import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
-import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.WriteTransaction
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.YtTableFileSystem
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
-import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
@@ -69,6 +67,28 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
       Row(1, "a", 0.3),
       Row(2, "b", 0.5)
+    )
+  }
+
+  it should "read partitioned dataset" in {
+    YtWrapper.createDir(tmpPath)
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+    ), tmpPath + "/d=11", atomicSchema)
+    writeTableFromYson(Seq(
+      """{a = 2; b = "b"; c = 0.5}""",
+    ), tmpPath + "/d=22", atomicSchema)
+
+    YtWrapper.listDir(tmpPath) should contain theSameElementsAs Seq("d=11", "d=22")
+
+    val res0 = spark.read.option("recursiveFileLookup", "false").yt(tmpPath + "/d=11")
+    res0.columns should contain theSameElementsAs Seq("a", "b", "c")
+
+    val res = spark.read.option("recursiveFileLookup", "false").yt(tmpPath).filter("d=11")
+
+    res.columns should contain theSameElementsAs Seq("a", "b", "c", "d")
+    res.select("a", "b", "c", "d").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3, 11L)
     )
   }
 
@@ -325,7 +345,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
   it should "use external transaction in writing" in {
     Seq(("a", 1L), ("b", 2L), ("c", 3L)).toDF("c1", "c2").write.yt(tmpPath)
 
-    val transaction = YtWrapper.createTransaction(None, 1 minute)
+    val transaction = YtWrapper.createTransaction(None, 10 minute)
 
     Seq(("d", 4L)).toDF("c1", "c2").write
       .mode(SaveMode.Append).transaction(transaction.getId.toString).yt(tmpPath)
@@ -340,6 +360,41 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     resultAfterCommit.collect() should contain theSameElementsAs Seq(
       Row("a", 1L), Row("b", 2L), Row("c", 3L), Row("d", 4L)
     )
+  }
+
+  it should "work with several transactions" in {
+    val data1 = Seq(("a", 1L), ("b", 2L), ("c", 3L))
+    val data2 = Seq(("d", 4L))
+    val data3 = Seq(("e", 5L))
+    data1.toDF("_1", "_2").write.yt(tmpPath)
+
+    val trWrite1 = YtWrapper.createTransaction(None, 10 minute)
+    val trWrite2 = YtWrapper.createTransaction(None, 10 minute)
+    val trRead = YtWrapper.createTransaction(None, 10 minute)
+    try {
+      data2.toDF("_1", "_2").write.mode(SaveMode.Append).transaction(trWrite1.getId.toString).yt(tmpPath)
+      val resultInTransaction = spark.read.option("recursiveFileLookup", "false")
+        .transaction(trRead.getId.toString).yt(tmpPath).selectAs[(String, Long)]
+      resultInTransaction.collect() should contain theSameElementsAs data1
+      trWrite1.commit().get(10, TimeUnit.SECONDS)
+
+      data3.toDF("_1", "_2").write.mode(SaveMode.Append).option("recursiveFileLookup", "false")
+        .transaction(trWrite2.getId.toString).yt(tmpPath)
+      resultInTransaction.collect() should contain theSameElementsAs data1
+      trWrite2.commit().get(10, TimeUnit.SECONDS)
+
+      resultInTransaction.collect() should contain theSameElementsAs data1
+
+      val resultAfterCommit = spark.read.option("recursiveFileLookup", "false")
+        .yt(tmpPath).selectAs[(String, Long)]
+      trRead.commit()
+      resultAfterCommit.collect() should contain theSameElementsAs (data1 ++ data2 ++ data3)
+    }
+    finally {
+      trWrite1.close()
+      trWrite2.close()
+      trRead.close()
+    }
   }
 
   it should "kill transaction when failed because of timeout" in {

@@ -20,12 +20,12 @@ object TestPartitionedFile {
 
   case class Static(path: String, beginRow: Long, endRow: Long) extends TestPartitionedFile {
     override def toPartitionedFile: PartitionedFile =
-      YtPartitionedFile.static(path, beginRow, endRow, 0, 0)
+      YtPartitionedFile.static(path, beginRow, endRow, 0, 0, YtPartitionedFile.emptyInternalRow)
   }
 
   case class Dynamic(path: String, length: Long) extends TestPartitionedFile {
     override def toPartitionedFile: PartitionedFile =
-      YtPartitionedFile.dynamic(path, Array.empty, Array.empty, length, Nil, 0)
+      YtPartitionedFile.dynamic(path, Array.empty, Array.empty, length, Nil, 0, YtPartitionedFile.emptyInternalRow)
   }
 
   case class Csv(path: String, length: Long) extends TestPartitionedFile {

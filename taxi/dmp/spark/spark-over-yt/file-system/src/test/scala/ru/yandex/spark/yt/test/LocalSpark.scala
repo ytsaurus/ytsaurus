@@ -148,4 +148,5 @@ object LocalSpark {
     .set("spark.hadoop.yt.read.arrow.enabled", "true")
     .set("spark.sql.adaptive.enabled", "true")
     .set("spark.yt.log.enabled", "false"))
+    .set("spark.datasource.yt.recursiveFileLookup", "true")
 }

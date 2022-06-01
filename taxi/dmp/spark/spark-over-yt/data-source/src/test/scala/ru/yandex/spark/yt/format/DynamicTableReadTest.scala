@@ -2,21 +2,24 @@ package ru.yandex.spark.yt.format
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
-import org.apache.spark.sql.internal.SQLConf.{FILES_MAX_PARTITION_BYTES, FILES_OPEN_COST_IN_BYTES, PARALLEL_PARTITION_DISCOVERY_THRESHOLD}
+import org.apache.spark.sql.internal.SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test._
+import ru.yandex.spark.yt.wrapper.YtWrapper.createTransaction
 
+import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
-import scala.util.Random
 
 class DynamicTableReadTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils with DynTableTestUtils {
 
+  import ru.yandex.spark.yt._
   import spark.implicits._
 
   "YtFileFormat" should "read dynamic table" in {
     prepareTestTable(tmpPath, testData, Nil)
-    val df = spark.read.yt(tmpPath)
+    val tr = createTransaction(None, 5.minutes)
+    val df = spark.read.transaction(tr.getId.toString).yt(tmpPath)
     df.selectAs[TestRow].collect() should contain theSameElementsAs testData
   }
 

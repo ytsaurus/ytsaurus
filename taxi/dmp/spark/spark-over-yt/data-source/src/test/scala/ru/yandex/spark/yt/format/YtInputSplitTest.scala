@@ -1,23 +1,20 @@
 package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.sources._
-import org.apache.spark.sql.types.{LongType, Metadata, MetadataBuilder, StructField, StructType}
+import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.ExpressionTransformer.expressionToSegmentSet
-import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, Segment, SegmentSet}
+import ru.yandex.spark.yt.common.utils._
 import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathStaticImpl}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
 import ru.yandex.spark.yt.fs.YPathEnriched.ypath
-import ru.yandex.spark.yt.serializers.SchemaConverter
-import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
-import ru.yandex.spark.yt.test.{DynTableTestUtils, LocalSpark, TestRow, TestUtils, TmpDir}
+import ru.yandex.spark.yt.test._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
@@ -307,7 +304,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
   it should "get ypath" in {
     val keyColumns = List("a", "b")
     val file = new YtPartitionedFile("//dir/path", Array(), Array(), 2,
-      5, 10, false, keyColumns, 0)
+      5, 10, false, keyColumns, 0, YtPartitionedFile.emptyInternalRow)
     val baseYPath =  ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
     getYPathStaticImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
