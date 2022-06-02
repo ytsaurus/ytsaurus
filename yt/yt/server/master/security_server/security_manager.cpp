@@ -884,7 +884,6 @@ public:
         ValidateResourceUsageIncrease(account, resourcesDelta, /*allowRootAccount*/ true);
 
         DoUpdateAccountResourceUsageLease(accountResourceUsageLease, resources);
-
     }
 
     void UpdateTransactionResourceUsage(
@@ -2811,8 +2810,8 @@ private:
         // COMPAT(h0pless)
         RecomputeChunkHostCellMasterMemory_ = context.GetVersion() < EMasterReign::AccountGossipStatisticsOptimization;
 
-        // COMPAT(aleksandra-zh)
-        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::RecomputeAccountResourceUsageOnceAgain;
+        // COMPAT(aleksandra-zh, gritukan)
+        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::LetsRecomputeAccountResourceUsageAgainWhyNotItsNice;
 
         ProxyRoleMap_.LoadValues(context);
         AccountResourceUsageLeaseMap_.LoadValues(context);
@@ -2979,6 +2978,17 @@ private:
                         stat.NodeCommittedUsage += usage;
                     }
                 });
+        }
+
+        for (auto [leaseId, lease] : AccountResourceUsageLeaseMap_) {
+            // NB: Account resource usage lease resource usage is discounted
+            // during zombification.
+            if (!IsObjectAlive(lease)) {
+                continue;
+            }
+
+            auto* account = lease->GetAccount();
+            statMap[account].NodeUsage += lease->Resources();
         }
 
         auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool committed) {
