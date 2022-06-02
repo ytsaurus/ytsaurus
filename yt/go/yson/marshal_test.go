@@ -221,3 +221,23 @@ func TestArraySizeMismatch(t *testing.T) {
 	require.NoError(t, Unmarshal([]byte(`[1;2;3;4]`), &v))
 	require.Equal(t, [3]int{1, 2, 3}, v)
 }
+
+func TestMarshalWideStruct(t *testing.T) {
+	wide := wideStruct{
+		MyInt8:    127,
+		MyInt16:   22222,
+		MyInt32:   72999581,
+		MyInt64:   1824885299695929,
+		MyUint8:   8,
+		MyUint16:  22222,
+		MyUint32:  38587587,
+		MyUint64:  8248848929948,
+		MyFloat:   0.100301,
+		MyDouble:  0.499942,
+		MyBytes:   []byte("hold my beer"),
+		MyString:  "All work and no play makes Jack a dull boy",
+		MyBoolean: true,
+	}
+
+	testRoundtrip(t, wide)
+}

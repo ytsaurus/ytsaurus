@@ -144,7 +144,7 @@ func decodeUint(r *Reader, bits int) (u uint64, err error) {
 	case TypeUint64:
 		switch bits {
 		case 8:
-			if r.currentInt > math.MaxUint8 {
+			if r.currentUint > math.MaxUint8 {
 				return 0, ErrIntegerOverflow
 			}
 		case 16:
