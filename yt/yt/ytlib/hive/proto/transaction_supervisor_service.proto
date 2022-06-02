@@ -14,6 +14,7 @@ message TReqCommitTransaction
     required bool force_2pc = 3;
     optional bool generate_prepare_timestamp = 6 [default = true];
     required bool inherit_commit_timestamp = 4;
+    optional int32 coordinator_prepare_mode = 11; // ETransactionCoordinatorPrepareMode
     optional int32 coordinator_commit_mode = 5; // ETransactionCoordinatorCommitMode
     optional uint64 max_allowed_commit_timestamp = 9;
     optional int32 clock_cluster_tag = 10;
