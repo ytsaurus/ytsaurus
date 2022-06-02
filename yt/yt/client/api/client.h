@@ -487,6 +487,11 @@ struct TTransactionCommitOptions
     //! Lazy: all the participants must successfully commit before coordinator commits; only after this success is reported.
     ETransactionCoordinatorCommitMode CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Eager;
 
+    //! Early: coordinator is prepared first and committed first.
+    //! Late: coordinator is prepared last and after commit timestamp generation; prepare and commit
+    //! are executed in single mutation.
+    ETransactionCoordinatorPrepareMode CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Early;
+
     //! At non-coordinating participants, Transaction Manager will synchronize with
     //! these cells before running prepare.
     std::vector<NObjectClient::TCellId> CellIdsToSyncWithBeforePrepare;

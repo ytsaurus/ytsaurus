@@ -47,9 +47,12 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
     DEFINE_BYVAL_RO_PROPERTY(bool, GeneratePrepareTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
+    DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorPrepareMode, CoordinatorPrepareMode);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, MaxAllowedCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
+    DEFINE_BYREF_RW_PROPERTY(TTimestamp, PrepareTimestamp);
+    DEFINE_BYREF_RW_PROPERTY(NApi::TClusterTag, PrepareTimestampClusterTag);
     DEFINE_BYREF_RW_PROPERTY(NHiveClient::TTimestampMap, CommitTimestamps);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState, ECommitState::Start);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState, ECommitState::Start);
@@ -69,6 +72,7 @@ public:
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
+        NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
@@ -84,7 +88,6 @@ public:
 
 private:
     TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

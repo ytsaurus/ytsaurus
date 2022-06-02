@@ -152,6 +152,7 @@ public:
                 false,
                 true,
                 false,
+                ETransactionCoordinatorPrepareMode::Early,
                 ETransactionCoordinatorCommitMode::Eager,
                 /*maxAllowedCommitTimestamp*/ NullTimestamp,
                 NullMutationId,
@@ -673,6 +674,7 @@ private:
             auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
             auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+            auto coordinatorPrepareMode = CheckedEnumCast<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
             auto clockClusterTag = request->has_clock_cluster_tag()
                 ? request->clock_cluster_tag()
                 : InvalidCellTag;
@@ -693,6 +695,14 @@ private:
                     << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds);
             }
 
+            if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
+                coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)
+            {
+                THROW_ERROR_EXCEPTION("Coordinator prepare and commit modes are incompatible")
+                    << TErrorAttribute("coordinator_prepare_mode", coordinatorPrepareMode)
+                    << TErrorAttribute("coordinator_commit_mode", coordinatorCommitMode);
+            }
+
             auto owner = GetOwnerOrThrow();
 
             if (clockClusterTag != InvalidCellTag &&
@@ -706,8 +716,8 @@ private:
             }
 
             context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
-                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, CoordinatorCommitMode: %v, "
-                "PrerequisiteTransactionIds: %v, MaxAllowedCommitTimestamp: %v",
+                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, ClockClusterTag: %v, "
+                "CoordinatorPrepareMode: %v, CoordinatorCommitMode: %v, PrerequisiteTransactionIds: %v, MaxAllowedCommitTimestamp: %v",
                 transactionId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
@@ -716,6 +726,7 @@ private:
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 clockClusterTag,
+                coordinatorPrepareMode,
                 coordinatorCommitMode,
                 prerequisiteTransactionIds,
                 maxAllowedCommitTimestamp);
@@ -740,6 +751,7 @@ private:
                     force2PC,
                     generatePrepareTimestamp,
                     inheritCommitTimestamp,
+                    coordinatorPrepareMode,
                     coordinatorCommitMode,
                     maxAllowedCommitTimestamp,
                     context->GetMutationId(),
@@ -758,6 +770,7 @@ private:
                         force2PC,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp,
+                        coordinatorPrepareMode,
                         coordinatorCommitMode,
                         maxAllowedCommitTimestamp,
                         mutationId,
@@ -957,6 +970,7 @@ private:
         bool force2PC,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
+        ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         TTimestamp maxAllowedCommitTimestamp,
         TMutationId mutationId,
@@ -983,6 +997,7 @@ private:
             distributed,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
+            coordinatorPrepareMode,
             coordinatorCommitMode,
             maxAllowedCommitTimestamp,
             identity,
@@ -1054,6 +1069,7 @@ private:
         request.set_generate_prepare_timestamp(commit->GetGeneratePrepareTimestamp());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         request.set_coordinator_commit_mode(ToProto<int>(commit->GetCoordinatorCommitMode()));
+        request.set_coordinator_prepare_mode(ToProto<int>(commit->GetCoordinatorPrepareMode()));
         request.set_prepare_timestamp(prepareTimestamp);
         request.set_prepare_timestamp_cluster_tag(SelfClockClusterTag_);
         request.set_max_allowed_commit_timestamp(commit->GetMaxAllowedCommitTimestamp());
@@ -1197,12 +1213,13 @@ private:
             commit = CreateTransientCommit(
                 transactionId,
                 mutationId,
-                /* participantCellIds */ {},
-                /* prepareOnlyParticipantCellIds */ {},
-                /* cellIdsToSyncWithBeforePrepare */ {},
-                /* distributed */ false,
-                /* generatePrepareTimestamp */ true,
-                /* inheritCommitTimestamp */ false,
+                /*participantCellIds*/ {},
+                /*prepareOnlyParticipantCellIds*/ {},
+                /*cellIdsToSyncWithBeforePrepare*/ {},
+                /*distributed*/ false,
+                /*generatePrepareTimestamp*/ true,
+                /*inheritCommitTimestamp*/ false,
+                ETransactionCoordinatorPrepareMode::Early,
                 ETransactionCoordinatorCommitMode::Eager,
                 /* maxAllowedCommitTimestamp*/ NullTimestamp,
                 identity,
@@ -1226,7 +1243,8 @@ private:
         auto cellIdsToSyncWithBeforePrepare = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with_before_prepare());
         auto generatePrepareTimestamp = request->generate_prepare_timestamp();
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
-        auto coordindatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+        auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+        auto coordinatorPrepareMode = CheckedEnumCast<ETransactionCoordinatorPrepareMode>(request->coordinator_prepare_mode());
         auto prepareTimestamp = request->prepare_timestamp();
         auto prepareTimestampClusterTag = FromProto<TClusterTag>(request->prepare_timestamp_cluster_tag());
         auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
@@ -1246,7 +1264,8 @@ private:
                 true,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
-                coordindatorCommitMode,
+                coordinatorPrepareMode,
+                coordinatorCommitMode,
                 maxAllowedCommitTimestamp,
                 identity);
         } catch (const std::exception& ex) {
@@ -1259,57 +1278,29 @@ private:
         }
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
         }
 
+        commit->PrepareTimestamp() = prepareTimestamp;
+        commit->PrepareTimestampClusterTag() = prepareTimestampClusterTag;
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Distributed commit phase one started (TransactionId: %v, %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
+            "Distributed commit phase one started (TransactionId: %v, %v, ParticipantCellIds: %v, PrepareTimestamp: %llx@%v)",
             transactionId,
             NRpc::GetCurrentAuthenticationIdentity(),
             participantCellIds,
-            prepareTimestamp);
+            prepareTimestamp,
+            prepareTimestampClusterTag);
 
-        // Prepare at coordinator.
-        try {
-            // Any exception thrown here is caught below.
-            const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
-            YT_VERIFY(prerequisiteTransactionIds.empty());
-
-            TTransactionPrepareOptions options{
-                .Persistent = true,
-                .PrepareTimestamp = prepareTimestamp,
-                .PrepareTimestampClusterTag = prepareTimestampClusterTag,
-                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
-            };
-            TransactionManager_->PrepareTransactionCommit(
-                transactionId,
-                options);
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, %v)",
-                transactionId,
-                ECommitState::Prepare,
-                NRpc::GetCurrentAuthenticationIdentity());
-            SetCommitFailed(commit, ex);
-            RemovePersistentCommit(commit);
-            try {
-                TTransactionAbortOptions options{
-                    .Force = true
-                };
-                TransactionManager_->AbortTransaction(transactionId, options);
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, %v)",
-                    transactionId,
-                    NRpc::GetCurrentAuthenticationIdentity());
-            }
+        if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Early && 
+            !RunCoordinatorPrepare(commit))
+        {
             return;
         }
-
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator success (TransactionId: %v, State: %v)",
-            transactionId,
-            ECommitState::Prepare);
 
         ChangeCommitPersistentState(commit, ECommitState::Prepare);
         ChangeCommitTransientState(commit, ECommitState::Prepare);
@@ -1346,11 +1337,19 @@ private:
             return;
         }
 
+        if (commit->GetCoordinatorPrepareMode() == ETransactionCoordinatorPrepareMode::Late &&
+            !RunCoordinatorPrepare(commit))
+        {
+            return;
+        }
+
         commit->CommitTimestamps() = commitTimestamps;
         ChangeCommitPersistentState(commit, ECommitState::Commit);
         ChangeCommitTransientState(commit, ECommitState::Commit);
 
-        if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Eager) {
+        if (commit->GetCoordinatorCommitMode() == ETransactionCoordinatorCommitMode::Eager ||
+            commit->GetCoordinatorPrepareMode() == ETransactionCoordinatorPrepareMode::Late)
+        {
             RunCoordinatorCommit(commit);
         }
     }
@@ -1595,6 +1594,7 @@ private:
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
+        ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
@@ -1609,6 +1609,7 @@ private:
             distributed,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
+            coordinatorPrepareMode,
             coordinatorCommitMode,
             maxAllowedCommitTimestamp,
             std::move(identity),
@@ -1625,6 +1626,7 @@ private:
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
+        ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity)
@@ -1649,6 +1651,7 @@ private:
                 distributed,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
+                coordinatorPrepareMode,
                 coordinatorCommitMode,
                 maxAllowedCommitTimestamp,
                 std::move(identity));
@@ -1702,6 +1705,62 @@ private:
         commit->SetResponseMessage(std::move(responseMessage));
     }
 
+
+    bool RunCoordinatorPrepare(TCommit* commit)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto transactionId = commit->GetTransactionId();
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %llx@%v",
+            transactionId,
+            commit->PrepareTimestamp(),
+            commit->PrepareTimestampClusterTag());
+
+        try {
+            // Any exception thrown here is caught below.
+            const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
+            YT_VERIFY(prerequisiteTransactionIds.empty());
+
+            auto latePrepare = commit->GetCoordinatorPrepareMode() == ETransactionCoordinatorPrepareMode::Late;
+
+            TTransactionPrepareOptions options{
+                .Persistent = true,
+                .LatePrepare = latePrepare,
+                .PrepareTimestamp = commit->PrepareTimestamp(),
+                .PrepareTimestampClusterTag = commit->PrepareTimestampClusterTag(),
+                .PrerequisiteTransactionIds = prerequisiteTransactionIds,
+            };
+            TransactionManager_->PrepareTransactionCommit(
+                transactionId,
+                options);
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, %v)",
+                transactionId,
+                ECommitState::Prepare,
+                NRpc::GetCurrentAuthenticationIdentity());
+            SetCommitFailed(commit, ex);
+            RemovePersistentCommit(commit);
+            try {
+                TTransactionAbortOptions options{
+                    .Force = true
+                };
+                TransactionManager_->AbortTransaction(transactionId, options);
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, %v)",
+                    transactionId,
+                    NRpc::GetCurrentAuthenticationIdentity());
+            }
+            return false;
+        }
+
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Coordinator prepared (TransactionId: %v)",
+            transactionId);
+
+        return true;
+    }
 
     void RunCoordinatorCommit(TCommit* commit)
     {
@@ -2203,6 +2262,7 @@ private:
             version ==  9 || // babenko: YT-10869: Authentication identity in commit
             version == 10 || // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
             version == 11 || // ifsmirnov: YT-15025: MaxAllowedCommitTimestamp
+            version == 12 || // gritukan: YT-16858: Coordinator prepare mode.
             false;
     }
 

@@ -26,6 +26,7 @@ TCommit::TCommit(
     bool distributed,
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
+    NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
     TTimestamp maxAllowedCommitTimestamp,
     NRpc::TAuthenticationIdentity identity,
@@ -38,6 +39,7 @@ TCommit::TCommit(
     , Distributed_(distributed)
     , GeneratePrepareTimestamp_(generatePrepareTimestamp)
     , InheritCommitTimestamp_(inheritCommitTimestamp)
+    , CoordinatorPrepareMode_(coordinatorPrepareMode)
     , CoordinatorCommitMode_(coordinatorCommitMode)
     , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
@@ -74,8 +76,11 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, Distributed_);
     Save(context, GeneratePrepareTimestamp_);
     Save(context, InheritCommitTimestamp_);
+    Save(context, PrepareTimestamp_);
+    Save(context, PrepareTimestampClusterTag_);
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
+    Save(context, CoordinatorPrepareMode_);
     Save(context, CoordinatorCommitMode_);
     Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_.User);
@@ -106,8 +111,22 @@ void TCommit::Load(TLoadContext& context)
         GeneratePrepareTimestamp_ = true;
     }
     Load(context, InheritCommitTimestamp_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= 11) {
+        Load(context, PrepareTimestamp_);
+        Load(context, PrepareTimestampClusterTag_);
+    } else {
+        PrepareTimestamp_ = NTransactionClient::NullTimestamp;
+        PrepareTimestampClusterTag_ = NObjectClient::InvalidCellTag;
+    }
     Load(context, CommitTimestamps_);
     Load(context, PersistentState_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= 12) {
+        Load(context, CoordinatorPrepareMode_);
+    } else {
+        CoordinatorPrepareMode_ = NApi::ETransactionCoordinatorPrepareMode::Early;
+    }
     // COMPAT(babenko)
     if (context.GetVersion() >= 4) {
         Load(context, CoordinatorCommitMode_);

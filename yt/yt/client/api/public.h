@@ -66,6 +66,16 @@ DEFINE_ENUM(ETransactionCoordinatorCommitMode,
     ((Lazy)   (1))
 );
 
+DEFINE_ENUM(ETransactionCoordinatorPrepareMode,
+    // Coordinator is prepared just like every other participant.
+    ((Early)            (0))
+    // Coordinator is prepared after other participants prepared and
+    // after commit timestamp generation. In this mode prepare and commit
+    // for coordinator are executed in the same mutation, so no preparation
+    // locks are required.
+    ((Late)             (1))
+);
+
 DEFINE_ENUM(EProxyType,
     ((Http) (1))
     ((Rpc)  (2))

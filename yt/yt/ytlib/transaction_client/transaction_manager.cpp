@@ -919,6 +919,7 @@ private:
             req->set_force_2pc(options.Force2PC);
             req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
             req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
+            req->set_coordinator_prepare_mode(ToProto<int>(options.CoordinatorPrepareMode));
             req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
             req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
             req->set_clock_cluster_tag(ClockClusterTag_);
