@@ -125,6 +125,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveReplicateHostNameOption)                                (2023))  // prime
     ((ForcedUnmountEdenStoreIds)                                    (2024))  // ifsmirnov
     ((RecomputeAccountResourceUsageOnceAgain)                       (2025))  // aleksandra-zh
+    ((LetsRecomputeAccountResourceUsageAgainWhyNotItsNice)          (2026))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
