@@ -39,6 +39,7 @@ public:
     TDuration DequeuePeriod = TDuration::MilliSeconds(100);
     int MaxBacktraceSize = 256;
     int RingBufferLogSize = 20; // 1 MiB
+    bool RecordActionRunTime = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

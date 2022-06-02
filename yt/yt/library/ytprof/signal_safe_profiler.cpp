@@ -15,6 +15,8 @@
 #include <util/generic/yexception.h>
 #endif
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 namespace NYT::NYTProf {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,12 +126,23 @@ void TSignalSafeProfiler::Stop()
     BackgroundThread_.join();
 }
 
+TCpuDuration GetActionRunTime()
+{
+    auto fiberStartTime = GetTraceContextTimingCheckpoint();
+    if (fiberStartTime == 0) {
+        return 0;
+    }
+
+    return GetCpuInstant() - fiberStartTime;
+}
+
 void TSignalSafeProfiler::RecordSample(TFramePointerCursor* cursor, i64 value)
 {
     int count = 0;
     bool pushTid = false;
     bool pushFiberStorage = false;
     bool pushValue = false;
+    bool pushActionRunTime = false;
     int tagIndex = 0;
 
     auto tagsPtr = GetCpuProfilerTags();
@@ -147,6 +160,11 @@ void TSignalSafeProfiler::RecordSample(TFramePointerCursor* cursor, i64 value)
         if (!pushTid) {
             pushTid = true;
             return {reinterpret_cast<void*>(GetTid()), true};
+        }
+
+        if (Options_.RecordActionRunTime && !pushActionRunTime) {
+            pushActionRunTime = true;
+            return {reinterpret_cast<void*>(GetActionRunTime()), true};
         }
 
         if (namePushed < 2) {
@@ -207,6 +225,7 @@ void TSignalSafeProfiler::DequeueSamples()
 
             std::optional<i64> value;
             std::optional<size_t> tid;
+            std::optional<TCpuDuration> actionRunTime;
             uintptr_t threadName[2] = {};
             int namePopped = 0;
             std::optional<void*> fiberStorage;
@@ -220,6 +239,11 @@ void TSignalSafeProfiler::DequeueSamples()
 
                 if (!tid) {
                     tid = reinterpret_cast<size_t>(ip);
+                    return;
+                }
+
+                if (Options_.RecordActionRunTime && !actionRunTime) {
+                    actionRunTime = reinterpret_cast<TCpuDuration>(ip);
                     return;
                 }
 
@@ -259,6 +283,12 @@ void TSignalSafeProfiler::DequeueSamples()
                 sample.Tags.push_back(std::move(tag));
             }
             ReleaseFiberTagStorage(*fiberStorage);
+
+            if (Options_.RecordActionRunTime) {
+                sample.Tags.emplace_back(
+                    "action_run_time_us",
+                    static_cast<i64>(CpuDurationToDuration(*actionRunTime).MicroSeconds()));
+            }
 
             auto& counter = Counters_[sample];
             counter.Count++;

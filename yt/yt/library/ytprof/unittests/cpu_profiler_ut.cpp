@@ -70,9 +70,10 @@ void RunUnderProfiler(
     const std::vector<TSampleFilter>& filters = {},
     bool expectEmpty = false)
 {
-    TCpuProfilerOptions options{.SampleFilters = filters};
-
+    TCpuProfilerOptions options;
+    options.SampleFilters = filters;
     options.SamplingFrequency = 100000;
+    options.RecordActionRunTime = true;
 
 #ifdef YTPROF_DEBUG_BUILD
     options.SamplingFrequency = 100;
