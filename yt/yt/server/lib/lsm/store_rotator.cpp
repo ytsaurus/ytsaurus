@@ -312,20 +312,33 @@ private:
             timeElapsed > *mountConfig->DynamicStoreAutoFlushPeriod;
     }
 
-    static void PatchLastPeriodicRotationTime(TRotateStoreRequest* request)
+    void PatchLastPeriodicRotationTime(TRotateStoreRequest* request) const
     {
         const auto& mountConfig = request->Tablet->GetMountConfig();
 
         YT_VERIFY(request->Tablet->GetLastPeriodicRotationTime().has_value());
 
-        auto expectedTime = *request->Tablet->GetLastPeriodicRotationTime();
-        auto newTime =
-            expectedTime +
-            *mountConfig->DynamicStoreAutoFlushPeriod +
+        auto period = *mountConfig->DynamicStoreAutoFlushPeriod;
+        auto lastRotated = *request->Tablet->GetLastPeriodicRotationTime();
+        auto timeElapsed = BackendState_.CurrentTime - lastRotated;
+        i64 passedPeriodCount = (timeElapsed.GetValue() - 1) / period.GetValue();
+
+        auto newLastRotated =
+            lastRotated +
+            (period * passedPeriodCount) +
             RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
 
-        request->ExpectedLastPeriodicRotationTime = expectedTime;
-        request->NewLastPeriodicRotationTime = newTime;
+        if (passedPeriodCount > 0) {
+            YT_LOG_DEBUG("More than one periodic rotation period passed between subsequent attempts "
+                "(%v, LastRotated: %v, RotationPeriod: %v, SkippedPeriodCount: %v)",
+                request->Tablet->GetLoggingTag(),
+                lastRotated,
+                period,
+                passedPeriodCount - 1);
+        }
+
+        request->ExpectedLastPeriodicRotationTime = lastRotated;
+        request->NewLastPeriodicRotationTime = newLastRotated;
     }
 };
 
