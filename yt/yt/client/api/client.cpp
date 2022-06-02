@@ -3,6 +3,8 @@
 
 #include <yt/yt/client/job_tracker_client/helpers.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/optional.h>
@@ -191,6 +193,26 @@ TError TCheckPermissionByAclResult::ToError(const TString &user, EPermission per
         default:
             YT_ABORT();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TMultiTablePartition& partition, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("table_ranges").Value(partition.TableRanges)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TMultiTablePartitions& partitions, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("partitions").Value(partitions.Partitions)
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1357,6 +1357,13 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     }));
 }
 
+TFuture<TMultiTablePartitions> TClient::PartitionTables(
+    const std::vector<NYPath::TRichYPath>& /*paths*/,
+    const TPartitionTablesOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 TFuture<void> TClient::TruncateJournal(
     const NYPath::TYPath& path,
     i64 rowCount,

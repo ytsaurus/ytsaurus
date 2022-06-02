@@ -1,6 +1,7 @@
 #include "client_impl.h"
 #include "table_reader.h"
 #include "table_writer.h"
+#include "partition_tables.h"
 #include "skynet.h"
 
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
@@ -67,7 +68,7 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
 
         auto transactionId = path.GetTransactionId();
 
-        auto [inputChunks, schema] = CollectTableInputChunks(
+        auto [inputChunks, schema, _] = CollectTableInputChunks(
             path,
             this,
             nodeDirectory,
@@ -104,6 +105,22 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
         }
     }
     return allStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMultiTablePartitions TClient::DoPartitionTables(
+    const std::vector<TRichYPath>& paths,
+    const TPartitionTablesOptions& options)
+{
+    TMultiTablePartitioner partitioner(
+        /* client */ this,
+        paths,
+        options,
+        Logger.WithTag("Name: Root").WithTag("OperationId: ???") // TODO(galtsev): OperationId
+    );
+
+    return partitioner.DoPartitionTables();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

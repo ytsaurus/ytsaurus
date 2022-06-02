@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/chaos_client/alien_cell.h>
 
+#include <yt/yt/ytlib/chunk_pools/public.h>
+
 #include <yt/yt/ytlib/tablet_client/public.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
@@ -332,6 +334,11 @@ public:
     IMPLEMENT_METHOD(std::vector<NTableClient::TColumnarStatistics>, GetColumnarStatistics, (
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options),
+        (paths, options))
+
+    IMPLEMENT_METHOD(TMultiTablePartitions, PartitionTables, (
+        const std::vector<NYPath::TRichYPath>& paths,
+        const TPartitionTablesOptions& options),
         (paths, options))
 
     IMPLEMENT_METHOD(void, TruncateJournal, (
@@ -730,6 +737,10 @@ private:
     std::vector<NTableClient::TColumnarStatistics> DoGetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
+
+    TMultiTablePartitions DoPartitionTables(
+        const std::vector<NYPath::TRichYPath>& paths,
+        const TPartitionTablesOptions& options);
 
     //
     // Journals

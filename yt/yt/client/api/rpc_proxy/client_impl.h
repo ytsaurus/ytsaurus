@@ -270,6 +270,10 @@ public:
         const std::vector<NYPath::TRichYPath>& path,
         const NApi::TGetColumnarStatisticsOptions& options) override;
 
+    TFuture<TMultiTablePartitions> PartitionTables(
+        const std::vector<NYPath::TRichYPath>& paths,
+        const NApi::TPartitionTablesOptions& options) override;
+
     TFuture<void> TruncateJournal(
         const NYPath::TYPath& path,
         i64 rowCount,

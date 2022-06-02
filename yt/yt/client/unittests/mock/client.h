@@ -325,6 +325,10 @@ public:
         const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options), (override));
 
+     MOCK_METHOD(TFuture<TMultiTablePartitions>, PartitionTables, (
+         const std::vector<NYPath::TRichYPath>& paths,
+         const TPartitionTablesOptions& options), (override));
+
     MOCK_METHOD(TFuture<void>, TruncateJournal, (
         const NYPath::TYPath& path,
         i64 rowCount,

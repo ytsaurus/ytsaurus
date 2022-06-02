@@ -323,7 +323,7 @@ void ValidateDynamicTableTimestamp(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): unify with input chunk collection procedure in operation_controller_detail.cpp.
-std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr> CollectTableInputChunks(
+std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> CollectTableInputChunks(
     const TRichYPath& path,
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
@@ -410,7 +410,7 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr> CollectTa
         inputChunks.push_back(New<TInputChunk>(chunkSpec));
     }
 
-    return {std::move(inputChunks), std::move(schema)};
+    return {std::move(inputChunks), std::move(schema), dynamic};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

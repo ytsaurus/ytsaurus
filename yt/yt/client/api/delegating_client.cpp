@@ -422,6 +422,13 @@ TFuture<std::vector<NTableClient::TColumnarStatistics>> TDelegatingClient::GetCo
     return Underlying_->GetColumnarStatistics(path, options);
 }
 
+TFuture<TMultiTablePartitions> TDelegatingClient::PartitionTables(
+    const std::vector<NYPath::TRichYPath>& paths,
+    const TPartitionTablesOptions& options)
+{
+    return Underlying_->PartitionTables(paths, options);
+}
+
 TFuture<void> TDelegatingClient::TruncateJournal(
     const NYPath::TYPath& path,
     i64 rowCount,

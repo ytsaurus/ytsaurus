@@ -101,6 +101,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPartitionTablesCommand
+    : public TTypedCommand<NApi::TPartitionTablesOptions>
+{
+public:
+    TPartitionTablesCommand();
+
+private:
+    std::vector<NYPath::TRichYPath> Paths;
+    NTableClient::EPartitionMode PartitionMode;
+    i64 DataWeightPerPartition;
+    std::optional<int> MaxPartitionCount;
+    bool EnableKeyGuarantee;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TOptions>
 class TTabletCommandBase
     : public TTypedCommand<TOptions>
