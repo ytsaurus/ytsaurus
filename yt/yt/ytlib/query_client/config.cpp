@@ -6,35 +6,35 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExecutorConfig::TExecutorConfig()
+void TExecutorConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cg_cache", CGCache)
+    registrar.Parameter("cg_cache", &TThis::CGCache)
         .DefaultNew();
 
-    RegisterPreprocessor([&] () {
-        CGCache->Capacity = 512;
-        CGCache->ShardCount = 1;
+    registrar.Preprocessor([] (TThis* config) {
+        config->CGCache->Capacity = 512;
+        config->CGCache->ShardCount = 1;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluatorCacheConfig::TColumnEvaluatorCacheConfig()
+void TColumnEvaluatorCacheConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cg_cache", CGCache)
+    registrar.Parameter("cg_cache", &TThis::CGCache)
         .DefaultNew();
 
-    RegisterPreprocessor([&] () {
-        CGCache->Capacity = 512;
-        CGCache->ShardCount = 1;
+    registrar.Preprocessor([] (TThis* config) {
+        config->CGCache->Capacity = 512;
+        config->CGCache->ShardCount = 1;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnEvaluatorCacheDynamicConfig::TColumnEvaluatorCacheDynamicConfig()
+void TColumnEvaluatorCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("cg_cache", CGCache)
+    registrar.Parameter("cg_cache", &TThis::CGCache)
         .DefaultNew();
 }
 
