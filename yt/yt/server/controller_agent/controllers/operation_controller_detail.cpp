@@ -1124,10 +1124,11 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         FetchUserFiles();
         ValidateUserFileSizes();
 
+        SuppressLivePreviewIfNeeded();
+
         PickIntermediateDataCells();
         InitChunkListPools();
 
-        SuppressLivePreviewIfNeeded();
         CreateLivePreviewTables();
 
         CollectTotals();
