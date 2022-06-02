@@ -475,13 +475,13 @@ void TStoreManagerBase::Mount(
 
 void TStoreManagerBase::Remount(const TTableSettings& settings)
 {
-    const auto& oldSettings = Tablet_->GetSettings();
-
-    if (oldSettings.MountConfig->DynamicStoreAutoFlushPeriod != settings.MountConfig->DynamicStoreAutoFlushPeriod) {
-        ResetLastPeriodicRotationTime();
-    }
+    auto oldMountConfig  = Tablet_->GetSettings().MountConfig;
 
     Tablet_->SetSettings(settings);
+
+    if (oldMountConfig->DynamicStoreAutoFlushPeriod != settings.MountConfig->DynamicStoreAutoFlushPeriod) {
+        ResetLastPeriodicRotationTime();
+    }
 
     InvalidateCachedChunkReaders();
 
