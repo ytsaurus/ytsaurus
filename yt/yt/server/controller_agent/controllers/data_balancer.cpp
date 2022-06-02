@@ -30,9 +30,9 @@ TDataBalancer::TDataBalancer(
 {
     for (const auto& [nodeId, execNode] : execNodes) {
         auto& node = GetOrRegisterNode(execNode);
-        if (node.Descriptor.IOWeight > 0) {
+        if (auto weight = GetNodeIOWeight(node); weight > 0) {
             node.Active = true;
-            ActiveNodeTotalIOWeight_ += node.Descriptor.IOWeight;
+            ActiveNodeTotalIOWeight_ += weight;
         }
     }
 }
@@ -64,7 +64,7 @@ void TDataBalancer::OnExecNodesUpdated(const TExecNodeDescriptorMap& newExecNode
     for (auto& [nodeId, node] : IdToNode_) {
         if (node.Active && !newExecNodes.contains(nodeId)) {
             node.Active = false;
-            ActiveNodeTotalIOWeight_ -= node.Descriptor.IOWeight;
+            ActiveNodeTotalIOWeight_ -= GetNodeIOWeight(node);
         }
     }
 }
@@ -149,8 +149,17 @@ void TDataBalancer::LogStatistics() const
 i64 TDataBalancer::GetNodeDataWeightLimit(const TDataBalancer::TNode& node) const
 {
     return DivCeil<i64>(
-        TotalDataWeight_ * node.Descriptor.IOWeight * Options_->Tolerance,
+        TotalDataWeight_ * GetNodeIOWeight(node) * Options_->Tolerance,
         std::max<i64>(ActiveNodeTotalIOWeight_, 1));
+}
+
+double TDataBalancer::GetNodeIOWeight(const TNode& node) const
+{
+    if (Options_->UseNodeIOWeight) {
+        return node.Descriptor.IOWeight;
+    } else {
+        return 1;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

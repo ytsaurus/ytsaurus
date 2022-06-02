@@ -78,6 +78,8 @@ private:
     void LogViolation(const TNode& node, i64 dataWeight);
 
     i64 GetNodeDataWeightLimit(const TNode& node) const;
+
+    double GetNodeIOWeight(const TNode& node) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataBalancer)
