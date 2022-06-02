@@ -743,8 +743,9 @@ protected:
                 if (entry->LowerLimit.KeyBound() || entry->UpperLimit.KeyBound()) {
                     // NB: If child is a chunk list, its children can be unsorted, so we can't prune by lower or upper key bounds.
                     if (childType == EObjectType::ChunkList) {
-                        childLowerLimit.KeyBound() = entry->LowerLimit.KeyBound();
-                        childUpperLimit.KeyBound() = entry->UpperLimit.KeyBound();
+                        YT_ASSERT(child->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+                        childLowerLimit.KeyBound() = TOwningKeyBound::MakeUniversal(false);
+                        childUpperLimit.KeyBound() = TOwningKeyBound::MakeUniversal(true);
                     } else {
                         childLowerLimit.KeyBound() = GetLowerKeyBoundOrThrow(child, Comparator_.GetLength());
                         childUpperLimit.KeyBound() = GetUpperKeyBoundOrThrow(child, Comparator_.GetLength());

@@ -10,7 +10,7 @@ from yt_commands import (
     map, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
-    create_dynamic_table, raises_yt_error, sorted_dicts)
+    create_dynamic_table, raises_yt_error, sorted_dicts, print_debug)
 
 from yt_type_helpers import make_schema
 import yt_error_codes
@@ -25,6 +25,9 @@ from time import sleep
 from copy import deepcopy
 
 import builtins
+import random
+
+from io import BytesIO
 
 ##################################################################
 
@@ -1314,6 +1317,79 @@ class TestBulkInsert(DynamicTablesBase):
             assert has_hunk_chunks()
             assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("update_mode", ["append", "overwrite"])
+    def test_read_range(self, update_mode):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_reshard_table("//tmp/t_output", [[], [12], [18], [25], [32]])
+
+        rows = [{"key": i, "value": str(i)} for i in range(50)]
+        for start in range(0, 50, 10):
+            write_table("<append=%true>//tmp/t_input", rows[start:start + 10])
+
+        sync_mount_table("//tmp/t_output", freeze=True)
+        merge(
+            in_="//tmp/t_input",
+            out=self._ypath_with_update_mode("//tmp/t_output", update_mode),
+            mode="ordered",
+            spec={"job_count": 5})
+        sync_unmount_table("//tmp/t_output")
+
+        assert len(builtins.set(get("//tmp/t_output/@chunk_ids"))) == 5
+
+        def _check_reads():
+            streams = []
+            responses = []
+            expected = []
+            ranges = []
+            for i in range(20):
+                l = random.randint(-5, 55)
+                r = random.randint(-5, 55)
+                if l > r:
+                    l, r = r, l
+                if r < 0 or l >= 50:
+                    expected.append([])
+                else:
+                    expected.append(rows[max(0, l):min(r, 50)])
+                read_range = f"{{lower_limit={{key=[{l}]}};upper_limit={{key=[{r}]}}}}"
+                ranges.append(read_range)
+                streams.append(BytesIO())
+                responses.append(read_table(
+                    f"<ranges=[{read_range}]>//tmp/t_output",
+                    output_stream=streams[-1],
+                    return_response=True))
+
+                x = random.randint(-5, 55)
+                if 0 <= x < 50:
+                    expected.append(rows[x:x+1])
+                else:
+                    expected.append([])
+                read_range = f"{{exact={{key=[{x}]}}}}"
+                ranges.append(read_range)
+                streams.append(BytesIO())
+                responses.append(read_table(
+                    f"<ranges=[{read_range}]>//tmp/t_output",
+                    output_stream=streams[-1],
+                    return_response=True))
+
+            for stream, response, expected, read_range in zip(streams, responses, expected, ranges):
+                response.wait()
+                assert response.is_ok()
+                result = list(yson.loads(stream.getvalue(), yson_type="list_fragment"))
+                if result != expected:
+                    print_debug(f"Expected: {expected}, actual: {result}, read_range: {read_range}")
+                assert result == expected
+
+        _check_reads()
+
+        for i in range(3):
+            tablet_count = random.randint(1, 10)
+            pivot_keys = sorted(random.sample(range(50), tablet_count - 1))
+            sync_reshard_table("//tmp/t_output", [[]] + [[x] for x in pivot_keys])
+            _check_reads()
 
 ##################################################################
 
