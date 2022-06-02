@@ -183,7 +183,7 @@ TEST(TProcTest, FileDescriptorCount)
 
 TEST(TProcTest, SelfIO)
 {
-    GetSelfThreadIO();
+    GetSelfThreadTaskDiskStatistics();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
