@@ -133,7 +133,14 @@ def check_hunks():
     hunk_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
     get("#{}/@child_ids".format(hunk_chunk_list_id)) == [tablet_hunk_chunk_list_id]
 
-    sync_mount_table("//tmp/t")
+    for _ in range(100):
+        ok = True
+        try:
+            sync_mount_table("//tmp/t")
+        except:
+            ok = False
+        if ok:
+            break
 
     assert_items_equal(select_rows("* from [//tmp/t]"), rows)
     assert_items_equal(lookup_rows("//tmp/t", keys), rows)
