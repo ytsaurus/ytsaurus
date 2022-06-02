@@ -394,7 +394,8 @@ def execute_command(
         parameters["path"] = prepare_path(parameters["path"])
 
     if "paths" in parameters:
-        parameters["paths"] = yson.loads(parameters["paths"].encode("ascii"))
+        if isinstance(parameters["paths"], str):
+            parameters["paths"] = yson.loads(parameters["paths"].encode("ascii"))
         for index in range(len(parameters["paths"])):
             parameters["paths"][index] = prepare_path(parameters["paths"][index])
 
@@ -566,6 +567,11 @@ def get_job_spec(job_id, **kwargs):
 def get_table_columnar_statistics(paths, **kwargs):
     kwargs["paths"] = paths
     return execute_command("get_table_columnar_statistics", kwargs, parse_yson=True)
+
+
+def partition_tables(paths, **kwargs):
+    kwargs["paths"] = paths
+    return execute_command("partition_tables", kwargs, parse_yson=True)
 
 
 def get_job_stderr(operation_id, job_id, **kwargs):

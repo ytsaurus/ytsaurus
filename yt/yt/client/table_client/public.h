@@ -174,6 +174,12 @@ DEFINE_ENUM(EColumnarStatisticsFetcherMode,
     ((Fallback)              (2))
 );
 
+DEFINE_ENUM(EPartitionMode,
+    ((Sorted)       (0))
+    ((Ordered)      (1))
+    ((Unordered)    (2))
+);
+
 DEFINE_ENUM(EMisconfiguredPartitionTactics,
     ((Fail)     (0))
     ((Skip)     (1))

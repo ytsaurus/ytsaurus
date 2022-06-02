@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/http_proxy/clickhouse/public.h>
 
+#include <yt/yt/server/lib/chunk_pools/public.h>
+
 #include <yt/yt/ytlib/auth/public.h>
 
 #include <yt/yt/ytlib/api/public.h>

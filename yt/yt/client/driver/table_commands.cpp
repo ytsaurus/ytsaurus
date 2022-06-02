@@ -21,6 +21,8 @@
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/parser.h>
 
+#include <yt/yt/client/ypath/public.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/misc/finally.h>
 
@@ -394,6 +396,41 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
                 }
             });
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionTablesCommand::TPartitionTablesCommand()
+{
+    RegisterParameter("paths", Paths);
+    RegisterParameter("partition_mode", PartitionMode)
+        .Default(EPartitionMode::Unordered);
+    RegisterParameter("data_weight_per_partition", DataWeightPerPartition);
+    RegisterParameter("max_partition_count", MaxPartitionCount)
+        .Default();
+    RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
+        .Default(false);
+}
+
+void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
+{
+    Options.FetchChunkSpecConfig = context->GetConfig()->TableReader;
+    Options.FetcherConfig = context->GetConfig()->Fetcher;
+
+    Options.PartitionMode = PartitionMode;
+    Options.DataWeightPerPartition = DataWeightPerPartition;
+    Options.MaxPartitionCount = MaxPartitionCount;
+    Options.EnableKeyGuarantee = EnableKeyGuarantee;
+
+    // NB: Important for columns to appear in the paths' attributes.
+    for (auto& path : Paths) {
+        path = path.Normalize();
+    }
+
+    auto partitions = WaitFor(context->GetClient()->PartitionTables(Paths, Options))
+       .ValueOrThrow();
+
+    context->ProduceOutputValue(ConvertToYsonString(partitions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

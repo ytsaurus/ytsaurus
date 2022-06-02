@@ -953,6 +953,33 @@ struct TGetColumnarStatisticsOptions
     bool EnableEarlyFinish = false;
 };
 
+struct TPartitionTablesOptions
+    : public TTransactionalOptions
+    , public TTimeoutOptions
+{
+    NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig;
+    NChunkClient::TFetcherConfigPtr FetcherConfig;
+    NTableClient::EPartitionMode PartitionMode = NTableClient::EPartitionMode::Unordered;
+    i64 DataWeightPerPartition;
+    std::optional<int> MaxPartitionCount;
+    bool EnableKeyGuarantee = false;
+};
+
+struct TMultiTablePartition
+{
+    //! Table ranges are indexed by table index.
+    std::vector<NYPath::TRichYPath> TableRanges;
+};
+
+void Serialize(const TMultiTablePartition& partitions, NYson::IYsonConsumer* consumer);
+
+struct TMultiTablePartitions
+{
+    std::vector<TMultiTablePartition> Partitions; 
+};
+
+void Serialize(const TMultiTablePartitions& partitions, NYson::IYsonConsumer* consumer);
+
 struct TLocateSkynetShareOptions
     : public TTimeoutOptions
 {
@@ -1741,6 +1768,10 @@ struct IClient
     virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& path,
         const TGetColumnarStatisticsOptions& options = {}) = 0;
+
+    virtual TFuture<TMultiTablePartitions> PartitionTables(
+        const std::vector<NYPath::TRichYPath>& paths,
+        const TPartitionTablesOptions& options) = 0;
 
     // Journals
     virtual TFuture<void> TruncateJournal(
