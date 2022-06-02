@@ -26,11 +26,11 @@ struct ICommand
 struct ICommandContext
     : public virtual TRefCounted
 {
-    virtual const TDriverConfigPtr& GetConfig() = 0;
-    virtual const NApi::IClientPtr& GetClient() = 0;
-    virtual const IDriverPtr& GetDriver() = 0;
+    virtual const TDriverConfigPtr& GetConfig() const = 0;
+    virtual const NApi::IClientPtr& GetClient() const = 0;
+    virtual const IDriverPtr& GetDriver() const = 0;
 
-    virtual const TDriverRequest& Request() = 0;
+    virtual const TDriverRequest& Request() const = 0;
 
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;

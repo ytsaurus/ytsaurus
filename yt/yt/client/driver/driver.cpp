@@ -507,22 +507,22 @@ private:
             , Request_(request)
         { }
 
-        const TDriverConfigPtr& GetConfig() override
+        const TDriverConfigPtr& GetConfig() const override
         {
             return Config_;
         }
 
-        const IClientPtr& GetClient() override
+        const IClientPtr& GetClient() const override
         {
             return Client_;
         }
 
-        const IDriverPtr& GetDriver() override
+        const IDriverPtr& GetDriver() const override
         {
             return Driver_;
         }
 
-        const TDriverRequest& Request() override
+        const TDriverRequest& Request() const override
         {
             return Request_;
         }
