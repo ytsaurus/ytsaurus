@@ -323,13 +323,13 @@ std::vector<TString> ListDisks();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTaskDiskStat
+struct TTaskDiskStatistics
 {
     i64 ReadBytes = 0;
     i64 WriteBytes = 0;
 };
 
-TTaskDiskStat GetSelfThreadIO();
+TTaskDiskStatistics GetSelfThreadTaskDiskStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -374,25 +374,25 @@ struct TIOEngineSensors final
         TotalReadBytesCounter.fetch_add(count, std::memory_order_relaxed);
     }
 
-    void UpdateKernelStats()
+    void UpdateKernelStatistics()
     {
-        const TDuration UpdatePeriod = TDuration::Seconds(1);
+        constexpr auto UpdatePeriod = TDuration::Seconds(1);
 
-        static thread_local std::optional<TInstant> LastUpdate;
-        static thread_local TTaskDiskStat LastStats;
+        static thread_local std::optional<TInstant> LastUpdateInstant;
+        static thread_local TTaskDiskStatistics LastStatistics;
 
         auto now = TInstant::Now();
-        if (!LastUpdate || (now - *LastUpdate) > UpdatePeriod) {
-            if (LastUpdate) {
-                auto current = GetSelfThreadIO();
+        if (!LastUpdateInstant || (now - *LastUpdateInstant) > UpdatePeriod) {
+            if (LastUpdateInstant) {
+                auto current = GetSelfThreadTaskDiskStatistics();
 
-                KernelReadBytesCounter.Increment(current.ReadBytes - LastStats.ReadBytes);
-                KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStats.WriteBytes);
+                KernelReadBytesCounter.Increment(current.ReadBytes - LastStatistics.ReadBytes);
+                KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStatistics.WriteBytes);
 
-                LastStats = current;
+                LastStatistics = current;
             }
 
-            LastUpdate = now;
+            LastUpdateInstant = now;
         }
     }
 };
@@ -537,7 +537,7 @@ protected:
 
     TIOEngineHandlePtr DoOpen(const TOpenRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         TIOEngineHandlePtr handle;
         {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
@@ -555,7 +555,7 @@ protected:
 
     void DoFlushDirectory(const TFlushDirectoryRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             NFS::FlushDirectory(request.Path);
@@ -564,7 +564,7 @@ protected:
 
     void DoClose(const TCloseRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             if (request.Size) {
@@ -580,7 +580,7 @@ protected:
 
     void DoAllocate(const TAllocateRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
 #ifdef _linux_
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         int mode = EnableFallocateConvertUnwritten_.load() ? FALLOC_FL_CONVERT_UNWRITTEN : 0;
@@ -616,7 +616,7 @@ protected:
 
     void DoLock(const TLockRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         NFS::ExpectIOErrors([&] {
             auto op = GetLockOp(request.Mode) + (request.Nonblocking ? LOCK_NB : 0);
             if (HandleEintr(::flock, *request.Handle, op) != 0) {
@@ -627,7 +627,7 @@ protected:
 
     void DoResize(const TResizeRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         NFS::ExpectIOErrors([&] {
             if (!request.Handle->Resize(request.Size)) {
                 ythrow TFileError();
@@ -1062,7 +1062,7 @@ private:
 
         const auto readWaitTime = timer.GetElapsedTime();
         AddReadWaitTimeSample(readWaitTime);
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
 
         auto toReadRemaining = static_cast<i64>(buffer.Size());
         auto fileOffset = request.Offset;
@@ -1151,7 +1151,7 @@ private:
         TWallTimer timer)
     {
         AddWriteWaitTimeSample(timer.GetElapsedTime());
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
 
         auto fileOffset = request.Offset;
 
@@ -1270,7 +1270,7 @@ private:
 
     void DoFlushFile(const TFlushFileRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         if (!StaticConfig_->EnableSync) {
             return;
         }
@@ -1310,7 +1310,7 @@ private:
 
     void DoFlushFileRange(const TFlushFileRangeRequest& request)
     {
-        Sensors_->UpdateKernelStats();
+        Sensors_->UpdateKernelStatistics();
         if (!StaticConfig_->EnableSync) {
             return;
         }

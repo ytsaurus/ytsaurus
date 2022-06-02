@@ -89,9 +89,9 @@ std::optional<i64> TFairThrottlerBucketConfig::GetGuarantee(i64 totalLimit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TStringBuf FilenameLock = "lock";
-constexpr TStringBuf FilenameShared = "shared.v1";
-constexpr TStringBuf FilenameBuckets = "buckets.v1";
+static constexpr TStringBuf LockFileName = "lock";
+static constexpr TStringBuf SharedFileName = "shared.v1";
+static constexpr TStringBuf BucketsFileName = "buckets.v1";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,11 +135,11 @@ public:
         : Path_(path)
     {
         NFS::MakeDirRecursive(Path_);
-        NFS::MakeDirRecursive(Path_ + "/" + FilenameBuckets);
+        NFS::MakeDirRecursive(Path_ + "/" + BucketsFileName);
 
-        Lock_ = std::make_unique<TFileLock>(Path_ + "/" + FilenameLock);
+        Lock_ = std::make_unique<TFileLock>(Path_ + "/" + LockFileName);
 
-        SharedBucketFile_ = TFile(Path_ + "/" + FilenameShared, OpenAlways | RdWr);
+        SharedBucketFile_ = TFile(Path_ + "/" + SharedFileName, OpenAlways | RdWr);
         SharedBucketFile_.Resize(sizeof(TSharedBucket));
 
         SharedBucketMap_ = std::make_unique<TFileMap>(SharedBucketFile_, TMemoryMapCommon::oRdWr);
@@ -191,7 +191,7 @@ public:
 
         auto id = TGuid::Create();
         OwnedBuckets_.insert(ToString(id));
-        return New<TFileIPCBucket>(Path_ + "/" + FilenameBuckets + "/" + ToString(id), true);
+        return New<TFileIPCBucket>(Path_ + "/" + BucketsFileName + "/" + ToString(id), true);
     }
 
 private:
@@ -208,7 +208,7 @@ private:
     void Reload()
     {
         TVector<TString> currentBuckets;
-        TFsPath{Path_ + "/" + FilenameBuckets}.ListNames(currentBuckets);
+        TFsPath{Path_ + "/" + BucketsFileName}.ListNames(currentBuckets);
 
         auto openBuckets = std::move(OpenBuckets_);
         for (const auto& fileName : currentBuckets) {
@@ -217,7 +217,7 @@ private:
             }
 
             try {
-                auto bucketPath = Path_ + "/" + FilenameBuckets + "/" + fileName;
+                auto bucketPath = Path_ + "/" + BucketsFileName + "/" + fileName;
 
                 TFileLock lockCheck(bucketPath);
                 if (lockCheck.TryAcquire()) {

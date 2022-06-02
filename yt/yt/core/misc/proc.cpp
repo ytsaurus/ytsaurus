@@ -1436,12 +1436,12 @@ std::vector<TString> ListDisks()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTaskDiskStat GetSelfThreadIO()
+TTaskDiskStatistics GetSelfThreadTaskDiskStatistics()
 {
 #ifdef _linux_
-    TString path = "/proc/thread-self/io";
+    static const TString path = "/proc/thread-self/io";
 
-    TTaskDiskStat stat;
+    TTaskDiskStatistics stat;
 
     TIFStream ioFile(path);
     for (TString line; ioFile.ReadLine(line); ) {
@@ -1455,9 +1455,9 @@ TTaskDiskStat GetSelfThreadIO()
         }
 
         if (fields[0] == "read_bytes:") {
-            stat.ReadBytes = FromString<ui64>(fields[1]);
+            TryFromString(fields[1], stat.ReadBytes);
         } else if (fields[0] == "write_bytes:") {
-            stat.WriteBytes = FromString<ui64>(fields[1]);
+            TryFromString(fields[1], stat.ReadBytes);
         }
     }
 
