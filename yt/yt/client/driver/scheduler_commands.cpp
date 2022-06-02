@@ -56,7 +56,7 @@ void TGetJobInputCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     auto output = context->Request().OutputStream;
-    PipeInputToOutput(jobInputReader, context->Request().OutputStream);
+    PipeInputToOutput(jobInputReader, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +71,6 @@ void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
     auto inputPaths = WaitFor(context->GetClient()->GetJobInputPaths(JobId, Options))
         .ValueOrThrow();
 
-    auto output = context->Request().OutputStream;
     context->ProduceOutputValue(std::move(inputPaths));
 }
 
@@ -93,7 +92,6 @@ void TGetJobSpecCommand::DoExecute(ICommandContextPtr context)
     auto jobSpec = WaitFor(context->GetClient()->GetJobSpec(JobId, Options))
         .ValueOrThrow();
 
-    auto output = context->Request().OutputStream;
     context->ProduceOutputValue(std::move(jobSpec));
 }
 
