@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"a.yandex-team.ru/library/go/ptr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"a.yandex-team.ru/library/go/ptr"
 )
 
 type simpleStruct struct {
@@ -230,4 +231,20 @@ func TestUnmarshalNonNilPtr(t *testing.T) {
 
 	require.NoError(t, Unmarshal([]byte(`{X=#}`), &v))
 	require.True(t, v.X == nil)
+}
+
+type wideStruct struct {
+	MyInt8    int8    `yson:"MyInt8"`
+	MyInt16   int16   `yson:"MyInt16"`
+	MyInt32   int32   `yson:"MyInt32"`
+	MyInt64   int64   `yson:"MyInt64"`
+	MyUint8   uint8   `yson:"MyUint8"`
+	MyUint16  uint16  `yson:"MyUint16"`
+	MyUint32  uint32  `yson:"MyUint32"`
+	MyUint64  uint64  `yson:"MyUint64"`
+	MyFloat   float32 `yson:"MyFloat"`
+	MyDouble  float64 `yson:"MyDouble"`
+	MyBytes   []byte  `yson:"MyBytes"`
+	MyString  string  `yson:"MyString"`
+	MyBoolean bool    `yson:"MyBoolean"`
 }
