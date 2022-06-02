@@ -272,6 +272,7 @@ public:
     i64 LoggingMinConsecutiveViolationCount;
     TDuration LoggingPeriod;
     double Tolerance;
+    bool UseNodeIOWeight;
 
     REGISTER_YSON_STRUCT(TDataBalancerOptions)
 

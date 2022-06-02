@@ -265,6 +265,8 @@ void TDataBalancerOptions::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("tolerance", &TThis::Tolerance)
         .Default(2.0);
+    registrar.Parameter("use_node_io_weight", &TThis::UseNodeIOWeight)
+        .Default(true);
 }
 
 void TUserJobOptions::Register(TRegistrar registrar)
