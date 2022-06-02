@@ -1009,6 +1009,18 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
     QUEUE_REGISTRY = []
     CONSUMER_REGISTRY = []
 
+    def setup_method(self, method):
+        super(TestCypressSynchronizerBase, self).setup_method(method)
+
+        self._prepare_tables()
+
+    def teardown_method(self, method):
+        self._drop_queues()
+        self._drop_consumers()
+        self._drop_tables()
+
+        super(TestCypressSynchronizerBase, self).teardown_method(method)
+
     def _create_queue_object(self, path, initiate_helpers=True, **queue_attributes):
         update_inplace(queue_attributes, {"dynamic": True, "schema": [{"name": "useless", "type": "string"}]})
         create("table",
@@ -1128,8 +1140,6 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
 
-        self._prepare_tables()
-
         q1 = self._get_queue_name("a")
         q2 = self._get_queue_name("b")
         c1 = self._get_consumer_name("a")
@@ -1203,15 +1213,9 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
                 assert consumer["target_path"] == "another_path"
                 assert consumer["vital"]
 
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
-
     @authors("achulkov2")
     def test_content_change(self):
         orchid = CypressSynchronizerOrchid()
-
-        self._prepare_tables()
 
         q1 = self._get_queue_name("a")
         self._create_and_register_queue(q1, max_dynamic_store_row_count=1)
@@ -1222,23 +1226,22 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         self._assert_increased_revision(queues[0])
 
         insert_rows(q1, [{"useless": "a"}])
-        insert_rows(q1, [{"useless": "a"}])
+
+        # Insert can fail while dynamic store is being flushed.
+        def try_insert():
+            insert_rows(q1, [{"useless": "a"}])
+            return True
+        wait(try_insert, ignore_exceptions=True)
+
         wait(lambda: len(get(q1 + "/@chunk_ids")) == 2)
         orchid.wait_fresh_poll()
         queues = self._get_queues_and_check_invariants(expected_count=1)
         # This checks that the revision doesn't change when dynamic stores are flushed.
         self._assert_constant_revision(queues[0])
 
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
-
     @authors("achulkov2")
     def test_synchronization_errors(self):
         orchid = CypressSynchronizerOrchid()
-
-        self._prepare_tables()
-        self._prepare_tables()
 
         q1 = self._get_queue_name("a")
         c1 = self._get_consumer_name("a")
@@ -1305,10 +1308,6 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
 
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
-
 
 class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -1325,8 +1324,6 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
     @authors("achulkov2")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
-
-        self._prepare_tables()
 
         q1 = self._get_queue_name("a")
         q2 = self._get_queue_name("b")
@@ -1411,15 +1408,10 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
         self._get_queues_and_check_invariants(expected_count=1)
 
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
-
+    # TODO(achulkov2): Unify this test with its copy once https://a.yandex-team.ru/review/2527564 is merged.
     @authors("achulkov2")
     def test_content_change(self):
         orchid = CypressSynchronizerOrchid()
-
-        self._prepare_tables()
 
         q1 = self._get_queue_name("a")
         self._create_queue_object(q1, max_dynamic_store_row_count=1)
@@ -1430,23 +1422,22 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         self._assert_increased_revision(queues[0])
 
         insert_rows(q1, [{"useless": "a"}])
-        insert_rows(q1, [{"useless": "a"}])
+
+        # Insert can fail while dynamic store is being flushed.
+        def try_insert():
+            insert_rows(q1, [{"useless": "a"}])
+            return True
+        wait(try_insert, ignore_exceptions=True)
+
         wait(lambda: len(get(q1 + "/@chunk_ids")) == 2)
         orchid.wait_fresh_poll()
         queues = self._get_queues_and_check_invariants(expected_count=1)
         # This checks that the revision doesn't change when dynamic stores are flushed.
         self._assert_constant_revision(queues[0])
 
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
-
     @authors("achulkov2")
     def test_synchronization_errors(self):
         orchid = CypressSynchronizerOrchid()
-
-        self._prepare_tables()
-        self._prepare_tables()
 
         q1 = self._get_queue_name("a")
         c1 = self._get_consumer_name("a")
@@ -1483,10 +1474,6 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-
-        self._drop_queues()
-        self._drop_consumers()
-        self._drop_tables()
 
 
 class TestDynamicConfig(TestQueueAgentBase):
