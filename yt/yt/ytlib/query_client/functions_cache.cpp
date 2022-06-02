@@ -39,7 +39,7 @@
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -65,7 +65,7 @@ static const auto& Logger = QueryClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressFunctionDescriptor
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Name;
@@ -75,19 +75,6 @@ public:
     ECallingConvention CallingConvention;
     bool UseFunctionContext;
 
-    TCypressFunctionDescriptor()
-    {
-        RegisterParameter("name", Name)
-            .NonEmpty();
-        RegisterParameter("argument_types", ArgumentTypes);
-        RegisterParameter("result_type", ResultType);
-        RegisterParameter("calling_convention", CallingConvention);
-        RegisterParameter("use_function_context", UseFunctionContext)
-            .Default(false);
-        RegisterParameter("repeated_argument_type", RepeatedArgumentType)
-            .Default();
-    }
-
     std::vector<TType> GetArgumentsTypes() const
     {
         std::vector<TType> argumentTypes;
@@ -96,13 +83,28 @@ public:
         }
         return argumentTypes;
     }
+
+    REGISTER_YSON_STRUCT(TCypressFunctionDescriptor);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("name", &TThis::Name)
+            .NonEmpty();
+        registrar.Parameter("argument_types", &TThis::ArgumentTypes);
+        registrar.Parameter("result_type", &TThis::ResultType);
+        registrar.Parameter("calling_convention", &TThis::CallingConvention);
+        registrar.Parameter("use_function_context", &TThis::UseFunctionContext)
+            .Default(false);
+        registrar.Parameter("repeated_argument_type", &TThis::RepeatedArgumentType)
+            .Default();
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
 DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
 
 class TCypressAggregateDescriptor
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TString Name;
@@ -111,14 +113,16 @@ public:
     TDescriptorType ResultType;
     ECallingConvention CallingConvention;
 
-    TCypressAggregateDescriptor()
+    REGISTER_YSON_STRUCT(TCypressAggregateDescriptor);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("name", Name)
+        registrar.Parameter("name", &TThis::Name)
             .NonEmpty();
-        RegisterParameter("argument_type", ArgumentType);
-        RegisterParameter("state_type", StateType);
-        RegisterParameter("result_type", ResultType);
-        RegisterParameter("calling_convention", CallingConvention);
+        registrar.Parameter("argument_type", &TThis::ArgumentType);
+        registrar.Parameter("state_type", &TThis::StateType);
+        registrar.Parameter("result_type", &TThis::ResultType);
+        registrar.Parameter("calling_convention", &TThis::CallingConvention);
     }
 };
 
