@@ -186,6 +186,7 @@ public:
 
 DEFINE_ENUM(EPeerPriorityStrategy,
     (None)
+    (PreferLocal)
 );
 
 class TViablePeerRegistryConfig

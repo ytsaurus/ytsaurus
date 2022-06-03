@@ -7,7 +7,14 @@
 #include <yt/yt/core/misc/compact_set.h>
 #include <yt/yt/core/misc/random.h>
 
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
+
 namespace NYT::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,10 +33,11 @@ public:
 
     bool RegisterPeer(const TString& address) override
     {
-        switch (Config_->PeerPriorityStrategy) {
-            case EPeerPriorityStrategy::None:
-                return RegisterPeerWithPriority(address, /*priority*/ 0);
+        int priority = 0;
+        if (Config_->PeerPriorityStrategy == EPeerPriorityStrategy::PreferLocal) {
+            priority = (InferYPClusterFromHostName(address) == GetLocalYPCluster()) ? 0 : 1;
         }
+        return RegisterPeerWithPriority(address, priority);
     }
 
     bool UnregisterPeer(const TString& address) override

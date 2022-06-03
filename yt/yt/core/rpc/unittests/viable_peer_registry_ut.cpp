@@ -3,6 +3,8 @@
 #include <yt/yt/core/bus/bus.h>
 #include <yt/yt/core/bus/server.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/rpc/channel.h>
 #include <yt/yt/core/rpc/config.h>
 #include <yt/yt/core/rpc/client.h>
@@ -155,13 +157,19 @@ private:
     THashSet<TString> ChannelRegistry_;
 };
 
-IViablePeerRegistryPtr CreateTestRegistry(const IChannelFactoryPtr& channelFactory, int maxPeerCount, std::optional<int> hashesPerPeer = {})
+IViablePeerRegistryPtr CreateTestRegistry(
+    EPeerPriorityStrategy peerPriorityStrategy,
+    const IChannelFactoryPtr& channelFactory,
+    int maxPeerCount,
+    std::optional<int> hashesPerPeer = {})
 {
     auto config = New<TViablePeerRegistryConfig>();
     config->MaxPeerCount = maxPeerCount;
     if (hashesPerPeer) {
         config->HashesPerPeer = *hashesPerPeer;
     }
+
+    config->PeerPriorityStrategy = peerPriorityStrategy;
 
     return CreateViablePeerRegistry(config, BIND([=] (const TString& address) { return channelFactory->CreateChannel(address); }), Logger);
 }
@@ -175,10 +183,14 @@ std::vector<TString> AddressesFromChannels(const std::vector<IChannelPtr>& chann
     return result;
 }
 
-TEST(TViablePeerRegistryTest, Simple)
+class TParametrizedViablePeerRegistryTest
+    : public testing::TestWithParam<EPeerPriorityStrategy>
+{ };
+
+TEST_P(TParametrizedViablePeerRegistryTest, Simple)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(channelFactory, 3);
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 3);
 
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a"));
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b"));
@@ -208,10 +220,10 @@ TEST(TViablePeerRegistryTest, Simple)
     EXPECT_THAT(channelFactory->GetChannelRegistry(), UnorderedElementsAreArray(AddressesFromChannels(viablePeerRegistry->GetActiveChannels())));
 }
 
-TEST(TViablePeerRegistryTest, UnregisterFromBacklog)
+TEST_P(TParametrizedViablePeerRegistryTest, UnregisterFromBacklog)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(channelFactory, 2);
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 2);
 
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a"));
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b"));
@@ -237,10 +249,10 @@ TEST(TViablePeerRegistryTest, UnregisterFromBacklog)
     EXPECT_THAT(channelFactory->GetChannelRegistry(), AllOf(SizeIs(1), IsSubsetOf({"a", "b"})));
 }
 
-TEST(TViablePeerRegistryTest, Clear)
+TEST_P(TParametrizedViablePeerRegistryTest, Clear)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(channelFactory, 2);
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 2);
 
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a"));
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b"));
@@ -287,10 +299,10 @@ IClientRequestPtr CreateRequest(bool enableStickiness = false)
     return request;
 }
 
-TEST(TViablePeerRegistryTest, GetChannelBasic)
+TEST_P(TParametrizedViablePeerRegistryTest, GetChannelBasic)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(channelFactory, 3);
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 3);
 
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a"));
     EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b"));
@@ -319,10 +331,10 @@ TEST(TViablePeerRegistryTest, GetChannelBasic)
     }
 }
 
-TEST(TViablePeerRegistryTest, GetRandomChannel)
+TEST_P(TParametrizedViablePeerRegistryTest, GetRandomChannel)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(channelFactory, 100);
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 100);
 
     for (int i = 0; i < 100; ++i) {
         EXPECT_TRUE(viablePeerRegistry->RegisterPeer(Format("address-%v", i)));
@@ -341,10 +353,10 @@ TEST(TViablePeerRegistryTest, GetRandomChannel)
     EXPECT_GT(retrievedAddresses.size(), 1u);
 }
 
-TEST(TViablePeerRegistryTest, GetStickyChannel)
+TEST_P(TParametrizedViablePeerRegistryTest, GetStickyChannel)
 {
     auto channelFactory = New<TFakeChannelFactory>();
-    auto viablePeerRegistry = CreateTestRegistry(channelFactory, 2000, 10);
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 2000, 10);
 
     for (int i = 0; i < 1000; ++i) {
         EXPECT_TRUE(viablePeerRegistry->RegisterPeer(Format("address-%v", i)));
@@ -384,6 +396,36 @@ TEST(TViablePeerRegistryTest, GetStickyChannel)
     }
 
     EXPECT_LE(misses, 100);
+}
+
+INSTANTIATE_TEST_SUITE_P(AllPriorityStrategies,
+                         TParametrizedViablePeerRegistryTest,
+                         testing::Values(EPeerPriorityStrategy::None, EPeerPriorityStrategy::PreferLocal));
+
+TEST(TPreferLocalViablePeerRegistryTest, Simple)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
+
+    auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
+        NNet::WriteLocalHostName(oldLocalHostName);
+    });
+    NNet::WriteLocalHostName("home.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("c.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a.man.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("d.sas.yp-c.yandex.net"));
+
+    EXPECT_THAT(
+        channelFactory->GetChannelRegistry(),
+        UnorderedElementsAre("b.sas.yp-c.yandex.net", "c.sas.yp-c.yandex.net", "a.man.yp-c.yandex.net"));
+
+    auto req = CreateRequest();
+    for (int iter = 0; iter < 100; ++iter) {
+        auto channel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
+        EXPECT_EQ(channel->GetEndpointDescription(), "a.man.yp-c.yandex.net");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
