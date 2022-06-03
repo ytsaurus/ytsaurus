@@ -1208,12 +1208,12 @@ public:
         auto unregisterFuture = VoidFuture;
 
         {
-            auto guard = Guard(NodeAddressToNodeShardIdLock_);
+            auto guard = Guard(NodeAddressToNodeIdLock_);
 
             auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
             const auto& address = descriptor.GetDefaultAddress();
-            auto it = NodeAddressToNodeShardId_.find(address);
-            if (it != NodeAddressToNodeShardId_.end()) {
+            auto it = NodeAddressToNodeId_.find(address);
+            if (it != NodeAddressToNodeId_.end()) {
                 int oldNodeId = it->second;
                 if (nodeId != oldNodeId) {
                     auto nodeShard = GetNodeShard(oldNodeId);
@@ -1223,7 +1223,7 @@ public:
                             .Run();
                 }
             }
-            NodeAddressToNodeShardId_[address] = nodeId;
+            NodeAddressToNodeId_[address] = nodeId;
         }
 
         unregisterFuture.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
@@ -2119,8 +2119,8 @@ private:
     THashSet<TNodeId> NodeIdsWithoutTree_;
 
     // Special map to support node consistency between node shards YT-11381.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeShardIdLock_);
-    THashMap<TString, int> NodeAddressToNodeShardId_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeIdLock_);
+    THashMap<TString, int> NodeAddressToNodeId_;
 
     mutable THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
