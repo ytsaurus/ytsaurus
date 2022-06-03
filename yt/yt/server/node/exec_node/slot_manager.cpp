@@ -32,6 +32,7 @@ using namespace NClusterNode;
 using namespace NDataNode;
 using namespace NJobAgent;
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,17 +332,17 @@ void TSlotManager::OnJobFinished(const IJobPtr& job)
 
     auto guard = Guard(SpinLock_);
 
-    if (job->GetState() == EJobState::Aborted) {
-        ++ConsecutiveAbortedJobCount_;
+    if (TypeFromId(job->GetId()) == EObjectType::SchedulerJob && job->GetState() == EJobState::Aborted) {
+        ++ConsecutiveAbortedSchedulerJobCount_;
     } else {
-        ConsecutiveAbortedJobCount_ = 0;
+        ConsecutiveAbortedSchedulerJobCount_ = 0;
     }
 
-    if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveJobAborts) {
+    if (ConsecutiveAbortedSchedulerJobCount_ > Config_->MaxConsecutiveJobAborts) {
         if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK()) {
             auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
 
-            auto error = TError("Too many consecutive job abortions")
+            auto error = TError("Too many consecutive scheduler job abortions")
                 << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveJobAborts);
             YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
             Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = error;
@@ -399,7 +400,7 @@ void TSlotManager::ResetConsecutiveAbortedJobCount()
 
     auto guard = Guard(SpinLock_);
     Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = {};
-    ConsecutiveAbortedJobCount_ = 0;
+    ConsecutiveAbortedSchedulerJobCount_ = 0;
 }
 
 void TSlotManager::ResetConsecutiveFailedGpuJobCount()
