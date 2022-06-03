@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
@@ -47,6 +49,7 @@ using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChunkServer;
 using namespace NTableServer;
+using namespace NTabletBalancer;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
 using namespace NSecurityServer;
@@ -220,7 +223,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::TabletBalancerConfig:
-                cellBundle->TabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
+                cellBundle->TabletBalancerConfig() = ConvertTo<TBundleTabletBalancerConfigPtr>(value);
                 return true;
 
             case EInternedAttributeKey::ResourceLimits: {

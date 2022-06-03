@@ -79,7 +79,6 @@ DECLARE_REFCOUNTED_CLASS(TMountConfigStorage)
 
 struct ITabletCellBalancer;
 
-DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissionerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletActionManagerMasterConfig)

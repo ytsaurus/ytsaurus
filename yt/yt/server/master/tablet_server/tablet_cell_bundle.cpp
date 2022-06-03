@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
@@ -17,6 +19,7 @@ namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NTabletBalancer;
 using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NYson;
@@ -31,7 +34,7 @@ static const auto& Logger = TabletServerLogger;
 
 TTabletCellBundle::TTabletCellBundle(TTabletCellBundleId id)
     : TCellBundle(id)
-    , TabletBalancerConfig_(New<TTabletBalancerConfig>())
+    , TabletBalancerConfig_(New<TBundleTabletBalancerConfig>())
 { }
 
 void TTabletCellBundle::IncreaseActiveTabletActionCount()

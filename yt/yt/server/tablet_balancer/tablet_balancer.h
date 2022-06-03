@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "public.h"
 
 #include <yt/yt/core/actions/public.h>
 
@@ -13,6 +14,8 @@ struct ITabletBalancer
 {
     virtual void Start() = 0;
     virtual void Stop() = 0;
+
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletBalancer)
@@ -21,7 +24,7 @@ DEFINE_REFCOUNTED_TYPE(ITabletBalancer)
 
 ITabletBalancerPtr CreateTabletBalancer(
     IBootstrap* bootstrap,
-    TTabletBalancerConfigPtr config,
+    TStandaloneTabletBalancerConfigPtr config,
     IInvokerPtr controlInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////

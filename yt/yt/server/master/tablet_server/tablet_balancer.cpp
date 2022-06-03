@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>

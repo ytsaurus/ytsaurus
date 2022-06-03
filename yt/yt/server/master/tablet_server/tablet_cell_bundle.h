@@ -3,6 +3,8 @@
 #include "public.h"
 #include "tablet_resources.h"
 
+#include <yt/yt/server/lib/tablet_balancer/public.h>
+
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/security_server/acl.h>
@@ -43,7 +45,7 @@ class TTabletCellBundle
     : public NCellServer::TCellBundle
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(TTabletBalancerConfigPtr, TabletBalancerConfig);
+    DEFINE_BYREF_RW_PROPERTY(NTabletBalancer::TBundleTabletBalancerConfigPtr, TabletBalancerConfig);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);
     DEFINE_BYVAL_RO_PROPERTY(int, ActiveTabletActionCount);

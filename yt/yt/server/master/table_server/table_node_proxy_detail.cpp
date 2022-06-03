@@ -37,6 +37,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -81,6 +83,7 @@ using namespace NQueueClient;
 using namespace NRpc;
 using namespace NSecurityServer;
 using namespace NTableClient;
+using namespace NTabletBalancer;
 using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NTabletServer;
@@ -1444,7 +1447,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
+            lockedTable->MutableTabletBalancerConfig() = ConvertTo<TTableTabletBalancerConfigPtr>(value);
             return true;
         }
 
