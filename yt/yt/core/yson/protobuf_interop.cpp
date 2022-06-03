@@ -274,8 +274,7 @@ private:
     TStringBuf InternString(const TString& str)
     {
         auto guard = Guard(InternedStringsLock_);
-        InternedStrings_.push_back(str);
-        return InternedStrings_.back();
+        return *InternedStrings_.emplace(str).first;
     }
 
 private:
@@ -287,7 +286,7 @@ private:
     THashMap<std::pair<const Descriptor*, int>, TProtobufMessageBytesFieldConverter> MessageFieldConverterMap_;
 
     NThreading::TForkAwareSpinLock InternedStringsLock_;
-    std::vector<TString> InternedStrings_;
+    THashSet<TString> InternedStrings_;
     mutable std::vector<TRegisterAction> Actions_;
 };
 
