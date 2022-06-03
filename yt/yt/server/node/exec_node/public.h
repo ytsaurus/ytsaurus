@@ -73,7 +73,9 @@ DEFINE_ENUM(EExecNodeThrottlerKind,
 );
 
 DEFINE_ENUM(ESlotType,
+    //! With cpu_policy=normal
     ((Common)    (0))
+    //! With cpu_polcy=idle
     ((Idle)      (1))
 );
 

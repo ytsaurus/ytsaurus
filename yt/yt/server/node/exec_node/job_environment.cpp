@@ -444,6 +444,7 @@ public:
 
 private:
     static constexpr TStringBuf JobsMetaContainerIdleSuffix = "_idle";
+
     const TPortoJobEnvironmentConfigPtr Config_;
 
     //! Main porto connection for contaner creation and lightweight operations.
@@ -537,7 +538,7 @@ private:
 
         auto metaIdleInstanceName = metaInstanceName + JobsMetaContainerIdleSuffix;
 
-        auto createContainer = [this](const TString& name) {
+        auto createContainer = [this] (const TString& name) {
             try {
                 // Cleanup leftovers during restart.
                 WaitFor(PortoExecutor_->DestroyContainer(name))
@@ -559,7 +560,6 @@ private:
         MetaInstance_ = GetPortoInstance(
             PortoExecutor_,
             metaInstanceName);
-
         MetaIdleInstance_ = GetPortoInstance(
             PortoExecutor_,
             metaIdleInstanceName);
@@ -567,10 +567,9 @@ private:
         MetaInstance_->SetIOWeight(Config_->JobsIOWeight);
         MetaIdleInstance_->SetIOWeight(Config_->JobsIOWeight);
 
-        MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
-        MetaIdleInstance_->SetCpuLimit(IdleCpuLimit_);
+        UpdateContainerCpuLimits();
 
-        auto createSlots = [this, slotCount](const TString& name, ESlotType slotType) {
+        auto createSlots = [this, slotCount] (const TString& name, ESlotType slotType) {
             try {
                 for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
                     auto slotContainer = GetFullSlotMetaContainerName(
@@ -638,6 +637,15 @@ private:
         return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
 
+    void UpdateContainerCpuLimits() {
+        if (MetaInstance_) {
+            MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
+        }
+        if (MetaIdleInstance_) {
+            MetaIdleInstance_->SetCpuLimit(IdleCpuLimit_);
+        }
+    }
+
     void UpdateCpuLimit(double cpuLimit) override
     {
         if (std::abs(CpuLimit_ - cpuLimit) < CpuUpdatePrecision) {
@@ -646,24 +654,15 @@ private:
 
         CpuLimit_ = cpuLimit;
         IdleCpuLimit_ = cpuLimit * IdleCpuFraction_;
-        if (MetaInstance_) {
-            MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
-        }
-        if (MetaIdleInstance_) {
-            MetaIdleInstance_->SetCpuLimit(IdleCpuLimit_);
-        }
+        UpdateContainerCpuLimits();
+
     }
     
     void UpdateIdleCpuFraction(double idleCpuFraction) override
     {
         IdleCpuFraction_ = idleCpuFraction;
         IdleCpuLimit_ = CpuLimit_ * IdleCpuFraction_;
-        if (MetaInstance_) {
-            MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
-        }
-        if (MetaIdleInstance_) {
-            MetaIdleInstance_->SetCpuLimit(IdleCpuLimit_);
-        }
+        UpdateContainerCpuLimits();
     }
 
     double GetCpuLimit(ESlotType slotType) const override
@@ -683,7 +682,8 @@ private:
         ESlotType slotType,
         TJobId jobId,
         const TRootFS& rootFS,
-        const TString& user, int index)
+        const TString& user,
+        int index)
     {
         TString setupCommandContainerJobPart = Config_->UseShortContainerNames
             ? "/sc"

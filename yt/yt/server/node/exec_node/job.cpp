@@ -262,12 +262,16 @@ void TJob::Start()
             YT_LOG_DEBUG("GPU slots acquired (DeviceNumbers: %v)", deviceNumbers);
         }
 
-        bool allowCpuIdlePolicy = SchedulerJobSpecExt_->allow_cpu_idle_policy();
-        YT_LOG_INFO("Acquiring slot (DiskRequest: %v, RequestedCpu: %v, AllowCpuIdlePolicy: %v)",
-            diskRequest, RequestedCpu_, allowCpuIdlePolicy);
+        NScheduler::NProto::TCpuRequest cpuRequest;
+        cpuRequest.set_cpu(RequestedCpu_);
+        cpuRequest.set_allow_cpu_idle_policy(SchedulerJobSpecExt_->allow_cpu_idle_policy());
+
+        YT_LOG_INFO("Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
+            diskRequest,
+            cpuRequest);
 
         auto slotManager = Bootstrap_->GetSlotManager();
-        Slot_ = slotManager->AcquireSlot(diskRequest, RequestedCpu_, allowCpuIdlePolicy);
+        Slot_ = slotManager->AcquireSlot(diskRequest, cpuRequest);
 
         YT_LOG_INFO("Slot acquired (SlotIndex: %v)", Slot_->GetSlotIndex());
 

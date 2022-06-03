@@ -229,7 +229,15 @@ public:
         int startIndex) override
     {
         return RunPrepareAction<void>([&] {
-                return JobEnvironment_->RunSetupCommands(SlotIndex_, SlotGuard_->GetSlotType(), jobId, commands, rootFS, user, devices, startIndex);
+                return JobEnvironment_->RunSetupCommands(
+                    SlotIndex_,
+                    SlotGuard_->GetSlotType(),
+                    jobId,
+                    commands,
+                    rootFS,
+                    user,
+                    devices,
+                    startIndex);
             },
             // Setup commands are uncancelable since they are run in separate processes.
             true);

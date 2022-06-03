@@ -458,6 +458,7 @@ public:
     //! Enables disk usage checks in periodic disk resources update.
     bool CheckDiskSpaceLimit;
 
+    //! How to distribute cpu resources between 'common' and 'idle' slots.
     std::optional<double> IdleCpuFraction;
 
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);

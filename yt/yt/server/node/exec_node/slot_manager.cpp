@@ -128,7 +128,7 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, double requestedCpu, bool allowCpuIdlePolicy)
+ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -173,10 +173,13 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
         bestLocation->AcquireDiskSpace(diskRequest.disk_space());
     }
 
-    ESlotType slotType = ESlotType::Common;
-    if (allowCpuIdlePolicy && IdlePolicyRequestedCpu_ + requestedCpu <= JobEnvironment_->GetCpuLimit(ESlotType::Idle)) {
+    auto slotType = ESlotType::Common;
+    if (cpuRequest.allow_cpu_idle_policy() &&
+        IdlePolicyRequestedCpu_ + cpuRequest.cpu() <= JobEnvironment_->GetCpuLimit(ESlotType::Idle))
+    {
         slotType = ESlotType::Idle;
-        IdlePolicyRequestedCpu_ += requestedCpu;
+        IdlePolicyRequestedCpu_ += cpuRequest.cpu();
+        ++UsedIdleSlotCount_;
     }
 
     return CreateSlot(
@@ -186,7 +189,7 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
         RootVolumeManager_.Load(),
         NodeTag_,
         slotType,
-        requestedCpu);
+        cpuRequest.cpu());
 }
 
 std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(ESlotType slotType, double cpuUsage)
@@ -430,6 +433,7 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
             .Item("slot_count").Value(SlotCount_)
             .Item("free_slot_count").Value(FreeSlots_.size())
             .Item("used_idle_slot_count").Value(UsedIdleSlotCount_)
+            .Item("idle_policy_requested_cpu").Value(IdlePolicyRequestedCpu_)
             .Item("alerts").DoMapFor(
                 TEnumTraits<ESlotManagerAlertType>::GetDomainValues(),
                 [&] (TFluentMap fluent, ESlotManagerAlertType alertType) {
@@ -551,12 +555,9 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
     auto slotIndex = *slotIt;
     FreeSlots_.erase(slotIt);
 
-    if (slotType == ESlotType::Idle) {
-        ++UsedIdleSlotCount_;
-    }
-
     YT_LOG_DEBUG("Exec slot acquired (SlotType: %v, SlotIndex: %v)",
-        slotType, slotIndex);
+        slotType,
+        slotIndex);
 
     return slotIndex;
 }
@@ -576,9 +577,10 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double request
                 IdlePolicyRequestedCpu_ -= requestedCpu;
             }
 
-            YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v)",
+            YT_LOG_DEBUG("Exec slot released (SlotType: %v, SlotIndex: %v, RequestedCpu: %v)",
                 slotType,
-                slotIndex);
+                slotIndex,
+                requestedCpu);
         }));
 }
 
@@ -615,24 +617,14 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 
 TSlotManager::TSlotGuard::TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu)
     : SlotManager_(std::move(slotManager))
+    , RequestedCpu_(requestedCpu)
     , SlotType_(slotType)
     , SlotIndex_(SlotManager_->DoAcquireSlot(slotType))
-    , RequestedCpu_(requestedCpu)
 { }
 
 TSlotManager::TSlotGuard::~TSlotGuard()
 {
     SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_);
-}
-
-int TSlotManager::TSlotGuard::GetSlotIndex() const
-{
-    return SlotIndex_;
-}
-
-ESlotType TSlotManager::TSlotGuard::GetSlotType() const
-{
-    return SlotType_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,6 +43,12 @@ message TDiskRequest
     optional int32 medium_index = 3;
 }
 
+message TCpuRequest
+{
+    optional double cpu = 1;
+    optional bool allow_cpu_idle_policy = 2 [default = false];
+}
+
 // TODO(babenko): consider renaming
 message TJobResourcesWithQuota
 {
