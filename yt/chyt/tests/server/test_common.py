@@ -21,6 +21,8 @@ import signal
 
 
 class TestClickHouseCommon(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 4
+
     def setup(self):
         self._setup()
 
