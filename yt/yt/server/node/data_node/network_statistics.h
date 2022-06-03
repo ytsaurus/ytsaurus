@@ -20,6 +20,8 @@ struct TNetworkCounters final
     NProfiling::TCounter ThrottledReadsCounter;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TNetworkStatistics
 {
 public:

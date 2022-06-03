@@ -601,7 +601,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
         const auto& location = Locations_[index];
-        if (!CanStartNewSession(location, sessionId.MediumIndex, options.WorkloadDescriptor)) {
+        if (!CanStartNewSession(location, sessionId.MediumIndex)) {
             continue;
         }
         if (options.PlacementId) {
@@ -659,24 +659,11 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
 
 bool TChunkStore::CanStartNewSession(
     const TStoreLocationPtr& location,
-    int mediumIndex,
-    const TWorkloadDescriptor& workloadDescriptor)
+    int mediumIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!location->IsEnabled()) {
-        return false;
-    }
-
-    if (location->IsSick()) {
-        return false;
-    }
-
-    if (location->IsFull()) {
-        return false;
-    }
-
-    if (location->GetPendingIOSize(EIODirection::Write, workloadDescriptor) > Config_->DiskWriteThrottlingLimit) {
+    if (!location->IsWritable()) {
         return false;
     }
 

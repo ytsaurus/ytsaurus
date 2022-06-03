@@ -124,7 +124,7 @@ public:
     //! Storage device vendor info.
     TString DeviceModel;
 
-    i64 MaxWriteRateByDWPD;
+    i64 MaxWriteRateByDwpd;
 
     bool ResetUuid;
 
@@ -682,10 +682,8 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
-    //! Extra limit for net queue size, that is checked after blocks are read from disk.
-    i64 NetOutThrottlingExtraLimit;
-
-    TDuration NetOutThrottleDuration;
+    //! Smoothing interval for net out limit throttling.
+    TDuration NetOutThrottlingDuration;
 
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
@@ -802,8 +800,6 @@ public:
 
     i64 GetCacheCapacity() const;
 
-    i64 GetNetOutThrottlingHardLimit() const;
-
     REGISTER_YSON_STRUCT(TDataNodeConfig);
 
     static void Register(TRegistrar registrar);
@@ -866,6 +862,18 @@ public:
     THashMap<TString, NIO::EIOEngineType> MediumIOEngine;
 
     THashMap<TString, NYTree::INodePtr> MediumIOConfig;
+
+    std::optional<i64> NetOutThrottlingLimit;
+
+    std::optional<i64> DiskWriteThrottlingLimit;
+    std::optional<i64> DiskReadThrottlingLimit;
+
+    //! If the total pending read size exceeds the limit, all writes to this location become disabled.
+    std::optional<i64> DisableLocationWritesPendingReadSizeHighLimit;
+
+    //! If writes to the location were earlier disabled due to #DisableLocationWritesPendingReadSizeHighLimit,
+    //! writes are re-enabled once the total pending read size drops below this limit.
+    std::optional<i64> DisableLocationWritesPendingReadSizeLowLimit;
 
     //! Testing options.
     TDataNodeTestingOptionsPtr TestingOptions;

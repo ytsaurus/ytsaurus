@@ -221,10 +221,10 @@ public:
     //! Returns the number of bytes pending for disk IO.
     i64 GetPendingIOSize(
         EIODirection direction,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TWorkloadDescriptor& workloadDescriptor) const;
 
     //! Returns the maximum number of bytes pending for disk IO in given #direction.
-    i64 GetMaxPendingIOSize(EIODirection direction);
+    i64 GetMaxPendingIOSize(EIODirection direction) const;
 
     //! Acquires a lock for the given number of bytes to be read or written.
     TPendingIOGuard IncreasePendingIOSize(
@@ -264,8 +264,20 @@ public:
 
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
-    bool IsReadThrottling();
-    bool IsWriteThrottling();
+    //! Returns |true| if reads were throttled (within some recent time interval).
+    bool IsReadThrottling() const;
+
+    //! Returns |true| if writes were throttled (within some recent time interval).
+    bool IsWriteThrottling() const;
+
+    //! Returns the total number of bytes to read from disk including those accounted by out throttler.
+    i64 GetReadQueueSize(const TWorkloadDescriptor& workloadDescriptor) const;
+
+    //! Returns |true| if writes must currently be throttled.
+    bool CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool incrementCounter = true) const;
+
+    //! Returns |true| if writes must currently be throttled.
+    bool CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor) const;
 
     //! Returns |true| if location is sick.
     bool IsSick() const;
@@ -294,6 +306,9 @@ protected:
 
     virtual void DoStart();
     virtual std::vector<TChunkDescriptor> DoScan();
+
+    i64 GetReadThrottlingLimit() const;
+    i64 GetWriteThrottlingLimit() const;
 
 private:
     friend class TPendingIOGuard;
@@ -332,7 +347,7 @@ private:
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
-    THashSet<TChunkId> LockedChunks_;
+    THashSet<TChunkId> LockedChunkIds_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
 
@@ -353,7 +368,6 @@ private:
     virtual i64 GetAdditionalSpace() const;
 
     virtual std::optional<TChunkDescriptor> RepairChunk(TChunkId chunkId) = 0;
-
     virtual std::vector<TString> GetChunkPartNames(TChunkId chunkId) const = 0;
 };
 
@@ -396,7 +410,7 @@ public:
 
     //! Returns max allowed write rate by device warranty.
     //! Never throws.
-    i64 GetMaxWriteRateByDWPD() const;
+    i64 GetMaxWriteRateByDwpd() const;
 
     //! Checks whether the location is full.
     bool IsFull() const;
@@ -410,7 +424,10 @@ public:
     void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
     //! Returns various IO related statistics.
-    TIOStatistics GetIOStatistics();
+    TIOStatistics GetIOStatistics() const;
+
+    //! Returns |true| if the location accepts new writes.
+    bool IsWritable() const;
 
 private:
     const TStoreLocationConfigPtr Config_;
@@ -419,6 +436,7 @@ private:
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
 
     mutable std::atomic<bool> Full_ = false;
+    mutable std::atomic<bool> WritesDisabledDueToHighPendingReadSize_ = false;
 
     struct TTrashChunkEntry
     {
@@ -430,6 +448,9 @@ private:
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
+
+    class TIOStatisticsProvider;
+    const TIntrusivePtr<TIOStatisticsProvider> StatisticsProvider_;
 
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler_;
@@ -459,9 +480,6 @@ private:
 
     void DoStart() override;
     std::vector<TChunkDescriptor> DoScan() override;
-
-    class TIOStatisticsProvider;
-    TIntrusivePtr<TIOStatisticsProvider> StatisticsProvider_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

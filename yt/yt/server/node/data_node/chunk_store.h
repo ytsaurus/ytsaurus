@@ -195,8 +195,7 @@ private:
 
     bool CanStartNewSession(
         const TStoreLocationPtr& location,
-        int mediumIndex,
-        const TWorkloadDescriptor& workloadDescriptor);
+        int mediumIndex);
 
     void DoRegisterExistingChunk(const IChunkPtr& chunk);
 

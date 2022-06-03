@@ -442,7 +442,7 @@ i64 TChunkLocation::GetAvailableSpace() const
 
 i64 TChunkLocation::GetPendingIOSize(
     EIODirection direction,
-    const TWorkloadDescriptor& workloadDescriptor)
+    const TWorkloadDescriptor& workloadDescriptor) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -450,7 +450,7 @@ i64 TChunkLocation::GetPendingIOSize(
     return PerformanceCounters_->PendingIOSize[direction][category].load();
 }
 
-i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction)
+i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -657,7 +657,7 @@ IThroughputThrottlerPtr TChunkLocation::GetOutThrottler(const TWorkloadDescripto
     }
 }
 
-bool TChunkLocation::IsReadThrottling()
+bool TChunkLocation::IsReadThrottling() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -665,7 +665,7 @@ bool TChunkLocation::IsReadThrottling()
     return GetCpuInstant() < time + 2 * DurationToCpuDuration(Config_->ThrottleDuration);
 }
 
-bool TChunkLocation::IsWriteThrottling()
+bool TChunkLocation::IsWriteThrottling() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -755,15 +755,56 @@ void TChunkLocation::InitializeUuid()
     }
 }
 
+i64 TChunkLocation::GetReadQueueSize(const TWorkloadDescriptor& workloadDescriptor) const
+{
+    return
+        GetPendingIOSize(EIODirection::Read, workloadDescriptor) +
+        GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+}
+
+bool TChunkLocation::CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool incrementCounter) const
+{
+    bool throttle = GetReadQueueSize(workloadDescriptor) > GetReadThrottlingLimit();
+    if (throttle && incrementCounter) {
+        PerformanceCounters_->ThrottleRead();
+    }
+    return throttle;
+}
+
+bool TChunkLocation::CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor) const
+{
+    bool throttle = GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit();
+    if (throttle) {
+        PerformanceCounters_->ThrottleWrite();
+    }
+    return throttle;
+}
+
+i64 TChunkLocation::GetReadThrottlingLimit() const
+{
+    const auto& config = ChunkContext_->DataNodeConfig;
+    auto limit = DynamicConfigManager_->GetConfig()->DataNode->DiskReadThrottlingLimit;
+    return limit.value_or(config->DiskReadThrottlingLimit);
+}
+
+i64 TChunkLocation::GetWriteThrottlingLimit() const
+{
+    const auto& config = ChunkContext_->DataNodeConfig;
+    auto limit = DynamicConfigManager_->GetConfig()->DataNode->DiskWriteThrottlingLimit;
+    return limit.value_or(config->DiskWriteThrottlingLimit);
+}
+
 bool TChunkLocation::IsSick() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return IOEngine_->IsSick();
 }
 
 bool TChunkLocation::TryLock(TChunkId chunkId, bool verbose)
 {
     auto guard = Guard(LockedChunksLock_);
-    if (LockedChunks_.emplace(chunkId).second) {
+    if (LockedChunkIds_.emplace(chunkId).second) {
         if (verbose) {
             YT_LOG_DEBUG("Locked chunk (ChunkId: %v)",
                 chunkId);
@@ -777,7 +818,7 @@ bool TChunkLocation::TryLock(TChunkId chunkId, bool verbose)
 void TChunkLocation::Unlock(TChunkId chunkId)
 {
     auto guard = Guard(LockedChunksLock_);
-    if (LockedChunks_.erase(chunkId)) {
+    if (LockedChunkIds_.erase(chunkId)) {
         YT_LOG_DEBUG("Unlocked chunk (ChunkId: %v)",
             chunkId);
     } else {
@@ -965,7 +1006,7 @@ public:
         NProfiling::TProfiler profiler,
         TLogger logger)
         : DeviceName_(config->DeviceName)
-        , MaxWriteRateByDWPD_(config->MaxWriteRateByDWPD)
+        , MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
@@ -998,7 +1039,7 @@ private:
     };
 
     const TString DeviceName_;
-    const i64 MaxWriteRateByDWPD_;
+    const i64 MaxWriteRateByDwpd_;
     const NIO::IIOEnginePtr IOEngine_;
     const TLogger Logger;
     std::atomic<TDuration> UpdateStatisticsTimeout_;
@@ -1094,7 +1135,7 @@ private:
 
             writer->AddGauge(
                 "/disk/max_write_rate_by_dwpd",
-                MaxWriteRateByDWPD_);
+                MaxWriteRateByDwpd_);
 
         } catch (const std::exception& ex) {
             if (!ErrorLogged_) {
@@ -1157,8 +1198,7 @@ TStoreLocation::TStoreLocation(
     UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedIn", diskThrottlerProfiler);
 }
 
-TStoreLocation::~TStoreLocation()
-{ }
+TStoreLocation::~TStoreLocation() = default;
 
 const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
 {
@@ -1181,11 +1221,11 @@ i64 TStoreLocation::GetLowWatermarkSpace() const
     return Config_->LowWatermark;
 }
 
-i64 TStoreLocation::GetMaxWriteRateByDWPD() const
+i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Config_->MaxWriteRateByDWPD;
+    return Config_->MaxWriteRateByDwpd;
 }
 
 bool TStoreLocation::IsFull() const
@@ -1611,10 +1651,47 @@ void TStoreLocation::DoStart()
     TrashCheckExecutor_->Start();
 }
 
-
-TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics()
+TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics() const
 {
     return StatisticsProvider_->Get();
+}
+
+bool TStoreLocation::IsWritable() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!IsEnabled()) {
+        return false;
+    }
+
+    if (IsFull()) {
+        return false;
+    }
+
+    if (IsSick()) {
+        return false;
+    }
+
+    if (GetMaxPendingIOSize(EIODirection::Write) > GetWriteThrottlingLimit()) {
+        return false;
+    }
+
+    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
+    if (dynamicConfig->DisableLocationWritesPendingReadSizeLowLimit && dynamicConfig->DisableLocationWritesPendingReadSizeHighLimit) {
+        auto pendingReadSize = GetMaxPendingIOSize(EIODirection::Read);
+        if (WritesDisabledDueToHighPendingReadSize_.load()) {
+            if (pendingReadSize < *dynamicConfig->DisableLocationWritesPendingReadSizeLowLimit) {
+                WritesDisabledDueToHighPendingReadSize_.store(false);
+            }
+        } else {
+            if (pendingReadSize > *dynamicConfig->DisableLocationWritesPendingReadSizeHighLimit) {
+                WritesDisabledDueToHighPendingReadSize_.store(true);
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
