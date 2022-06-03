@@ -1,4 +1,4 @@
-from base import Clique, ClickHouseTestBase
+from base import Clique, ClickHouseTestBase, get_current_test_name
 
 from yt_commands import (authors, create_user, sync_mount_table, add_member, remove, create, sync_create_cells,
                          create_tablet_cell_bundle, freeze_table, wait_for_tablet_state, write_file, read_table,
@@ -192,19 +192,17 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
 
     @authors("gritukan")
     def test_log_tailer(self):
-        clique_index = Clique.clique_index
-
         # Prepare log tailer config and upload it to Cypress.
         log_tailer_config = get_log_tailer_config()
         log_file_path = os.path.join(
-            self.path_to_run, "logs", "clickhouse-{}".format(clique_index), "clickhouse-{}.debug.log".format(0)
+            self.path_to_run, "logs", "clickhouse-{}-0".format(get_current_test_name()), "clickhouse-{}.debug.log".format(0)
         )
 
         log_table = "//sys/clickhouse/logs/log"
         log_tailer_config["log_tailer"]["log_files"] = [{"path": log_file_path, "tables": [{"path": log_table}]}]
 
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = os.path.join(
-            self.path_to_run, "logs", "clickhouse-{}".format(clique_index), "log_tailer-{}.debug.log".format(0)
+            self.path_to_run, "logs", "clickhouse-{}-0".format(get_current_test_name()), "log_tailer-{}.debug.log".format(0)
         )
         log_tailer_config["cluster_connection"] = self.Env.configs["driver"]
         log_tailer_config_filename = "//sys/clickhouse/log_tailer_config.yson"
