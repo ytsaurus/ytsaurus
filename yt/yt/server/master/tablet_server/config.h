@@ -22,40 +22,6 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    bool EnableInMemoryCellBalancer;
-    bool EnableCellBalancer;
-    bool EnableTabletSizeBalancer;
-
-    bool EnableTabletCellSmoothing;
-
-    double HardInMemoryCellBalanceThreshold;
-    double SoftInMemoryCellBalanceThreshold;
-
-    i64 MinTabletSize;
-    i64 MaxTabletSize;
-    i64 DesiredTabletSize;
-
-    i64 MinInMemoryTabletSize;
-    i64 MaxInMemoryTabletSize;
-    i64 DesiredInMemoryTabletSize;
-
-    double TabletToCellRatio;
-
-    TTimeFormula TabletBalancerSchedule;
-
-    bool EnableVerboseLogging;
-
-    TTabletBalancerConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletBalancerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletBalancerMasterConfig
     : public NYTree::TYsonSerializable
 {

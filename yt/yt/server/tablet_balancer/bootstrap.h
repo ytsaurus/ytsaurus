@@ -1,6 +1,8 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
+
+#include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

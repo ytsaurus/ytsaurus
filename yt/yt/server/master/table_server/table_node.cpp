@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/tablet_balancer/config.h>
+
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
@@ -30,6 +32,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChaosClient;
 using namespace NObjectClient;
+using namespace NTabletBalancer;
 using namespace NTabletServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
@@ -52,7 +55,7 @@ void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNode::TDynamicTableAttributes::TDynamicTableAttributes()
-    : TabletBalancerConfig(New<TTabletBalancerConfig>())
+    : TabletBalancerConfig(New<TTableTabletBalancerConfig>())
     , MountConfigStorage(New<TMountConfigStorage>())
 { }
 
@@ -225,7 +228,7 @@ void TTableNode::TDynamicTableAttributes::EndCopy(TEndCopyContext* context)
     FOR_EACH_COPYABLE_ATTRIBUTE(XX)
     #undef XX
 
-    TabletBalancerConfig = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+    TabletBalancerConfig = ConvertTo<TTableTabletBalancerConfigPtr>(Load<TYsonString>(*context));
     MountConfigStorage = ConvertTo<TMountConfigStoragePtr>(Load<TYsonString>(*context));
 }
 

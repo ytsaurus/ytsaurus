@@ -139,6 +139,18 @@ void MergeFrom(TTarget* target, const TSource& source)
     }
 }
 
+template <typename TKey, typename TValue>
+void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set)
+{
+    for (auto it = map->begin(); it != map->end(); ) {
+        if (!set.contains(it->first)) {
+            map->erase(it++);
+        } else {
+            ++it;
+        }
+    }
+}
+
 template <class TMap, class TKey>
 const auto& GetOrCrash(const TMap& map, const TKey& key)
 {

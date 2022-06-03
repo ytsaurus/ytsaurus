@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/misc/intrusive_ptr.h>
+
+namespace NYT::NTabletBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TTableTabletBalancerConfig)
+DECLARE_REFCOUNTED_CLASS(TBundleTabletBalancerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletBalancer

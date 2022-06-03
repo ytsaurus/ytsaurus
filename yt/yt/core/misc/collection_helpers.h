@@ -38,6 +38,9 @@ bool ShrinkHashTable(T* collection);
 template <class TSource, class TTarget>
 void MergeFrom(TTarget* target, const TSource& source);
 
+template <typename TKey, typename TValue>
+void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set);
+
 /*!
  * This function is supposed to replace a frequent pattern
  *    auto it = map.find(key);

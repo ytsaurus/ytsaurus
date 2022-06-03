@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 #include "schemaful_node.h"
+
+#include <yt/yt/server/lib/tablet_balancer/public.h>
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -75,7 +76,7 @@ private:
         NTransactionClient::TTransactionId LastMountTransactionId;
         NTransactionClient::TTransactionId PrimaryLastMountTransactionId;
         NTransactionClient::TTransactionId CurrentMountTransactionId;
-        TTabletBalancerConfigPtr TabletBalancerConfig;
+        NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig;
         THashMap<NTransactionClient::TTransactionId, TDynamicTableLock> DynamicTableLocks;
         int UnconfirmedDynamicTableLockCount = 0;
         std::optional<bool> EnableDynamicStoreRead;

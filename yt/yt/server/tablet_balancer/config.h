@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/server/lib/cypress_election/config.h>
 
@@ -12,7 +12,7 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerConfig
+class TStandaloneTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -20,12 +20,14 @@ public:
 
     TDuration Period;
 
-    REGISTER_YSON_STRUCT(TTabletBalancerConfig)
+    i64 WorkerThreadPoolSize;
+
+    REGISTER_YSON_STRUCT(TStandaloneTabletBalancerConfig)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletBalancerConfig)
+DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,14 +37,14 @@ class TTabletBalancerServerConfig
 public:
     bool AbortOnUnrecognizedOptions;
 
-    TTabletBalancerConfigPtr TabletBalancer;
+    TStandaloneTabletBalancerConfigPtr TabletBalancer;
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     TString ClusterUser;
 
     NYPath::TYPath RootPath;
-    
+
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     REGISTER_YSON_STRUCT(TTabletBalancerServerConfig)

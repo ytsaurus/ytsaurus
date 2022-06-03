@@ -203,6 +203,8 @@ void TBootstrap::RegisterInstance()
         ToYPathLiteral(LocalAddress_));
     auto orchidPath = instancePath + "/orchid";
 
+    YT_LOG_DEBUG("RegisterInstance started. (instancePath: %v, orchidPath: %v", instancePath, orchidPath);
+
     NObjectClient::TObjectServiceProxy proxy(Client_
         ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
     auto batchReq = proxy.ExecuteBatch();

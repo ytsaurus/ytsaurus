@@ -8,12 +8,14 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletBalancerConfig::Register(TRegistrar registrar)
+void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("period", &TThis::Period)
         .Default(TDuration::Minutes(5));
+    registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
+        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
