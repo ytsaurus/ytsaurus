@@ -964,6 +964,10 @@ private:
                     replica->GetId())
                     << TErrorAttribute("table_id", table->GetId());
             }
+
+            if (!replica->GetPreserveTimestamps()) {
+                THROW_ERROR_EXCEPTION("Cannot backup replica with \"preserve_timestamps\" = %v", false);
+            }
         }
     }
 };

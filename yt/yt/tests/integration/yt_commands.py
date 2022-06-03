@@ -1167,22 +1167,23 @@ def get_operation_cypress_path(op_id):
 
 
 class Operation(object):
-    def __init__(self):
+    def __init__(self, driver=None):
         self._tmpdir = ""
         self._poll_frequency = 0.1
+        self._driver = driver
 
     def get_path(self):
         return get_operation_cypress_path(self.id)
 
     def get_node(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
-        return get(job_path + "/address", verbose=False)
+        return get(job_path + "/address", verbose=False, driver=self._driver)
 
     def get_job_phase(self, job_id):
         job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(
             self.get_node(job_id), job_id
         )
-        return get(job_phase_path, verbose=False)
+        return get(job_phase_path, verbose=False, driver=self._driver)
 
     def ensure_running(self, timeout=10.0):
         print_debug("Waiting for operation %s to become running" % self.id)
@@ -1212,7 +1213,7 @@ class Operation(object):
             path = base_path + str(state)
             if state == "aborted" or state == "completed":
                 path += "/total"
-            return get(path, verbose=verbose)
+            return get(path, verbose=verbose, driver=self._driver)
         except YtError as err:
             if not err.is_resolve_error():
                 raise
@@ -1220,19 +1221,23 @@ class Operation(object):
 
     def get_running_jobs(self, verbose=False):
         jobs_path = self.get_path() + "/controller_orchid/running_jobs"
-        return get(jobs_path, verbose=verbose, default={})
+        return get(jobs_path, verbose=verbose, default={}, driver=self._driver)
 
     def get_runtime_state(self, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         return get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(self.id), **kwargs)
 
     def get_runtime_progress(self, path=None, default=None):
-        progress = get("//sys/scheduler/orchid/scheduler/operations/{}/progress".format(self.id))
+        progress = get("//sys/scheduler/orchid/scheduler/operations/{}/progress".format(self.id), driver=self._driver)
         if path is None:
             return progress
         else:
             return get_at(progress, path, default)
 
     def get_state(self, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         try:
             return get(self.get_path() + "/@state", verbose_error=False, **kwargs)
         except YtResponseError as err:
@@ -1251,35 +1256,37 @@ class Operation(object):
             timepoint = datetime.utcnow()
             snapshot_path = self.get_path() + "/snapshot"
             wait(
-                lambda: exists(snapshot_path)
-                and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint
+                lambda: exists(snapshot_path, driver=self._driver)
+                and date_string_to_datetime(get(snapshot_path + "/@creation_time", driver=self._driver)) > timepoint
             )
 
     def wait_presence_in_scheduler(self):
-        wait(lambda: exists("//sys/scheduler/orchid/scheduler/operations/" + self.id))
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/operations/" + self.id, driver=self._driver))
 
     def get_alerts(self):
         try:
-            return get(self.get_path() + "/@alerts")
+            return get(self.get_path() + "/@alerts", driver=self._driver)
         except YtResponseError as err:
             if err.is_resolve_error():
                 return {}
             raise
 
     def list_jobs(self, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         return [job_info["id"] for job_info in list_jobs(self.id, **kwargs)["jobs"]]
 
     def read_stderr(self, job_id):
-        return get_job_stderr(self.id, job_id)
+        return get_job_stderr(self.id, job_id, driver=self._driver)
 
     def get_error(self):
         state = self.get_state(verbose=False)
         if state == "failed":
-            error = get(self.get_path() + "/@result/error", verbose=False)
+            error = get(self.get_path() + "/@result/error", verbose=False, driver=self._driver)
             job_ids = self.list_jobs(with_stderr=True)
             job_errors = []
             for job_id in job_ids:
-                job_info = get_job(self.id, job_id)
+                job_info = get_job(self.id, job_id, driver=self._driver)
                 if job_info["state"] not in ("completed", "failed", "aborted"):
                     continue
                 if not job_info.get("error"):
@@ -1317,6 +1324,7 @@ class Operation(object):
                 self.get_path() + "/@brief_progress/jobs",
                 verbose=False,
                 verbose_error=False,
+                driver=self._driver,
             )
         except YtError:
             return "(brief progress is not available yet)"
@@ -1359,32 +1367,40 @@ class Operation(object):
             raise YtError("Operation {} has not finished in {} seconds".format(self.id, timeout.total_seconds()))
 
     def abort(self, wait_until_finished=False, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         abort_op(self.id, **kwargs)
         if wait_until_finished:
             self.wait_for_state("aborted")
 
     def complete(self, wait_until_finished=False, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         complete_op(self.id, **kwargs)
         if wait_until_finished:
             self.wait_for_state("completed")
 
     def suspend(self, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         suspend_op(self.id, **kwargs)
 
     def resume(self, **kwargs):
+        if self._driver is not None:
+            kwargs.update({"driver": self._driver})
         resume_op(self.id, **kwargs)
 
     def get_orchid_path(self):
         path = self.get_path() + "/@controller_agent_address"
-        wait(lambda: exists(path))
-        controller_agent = get(path)
+        wait(lambda: exists(path, driver=self._driver))
+        controller_agent = get(path, driver=self._driver)
         return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}".format(
             controller_agent, self.id
         )
 
     def lookup_in_archive(self):
         id_hi, id_lo = uuid_to_parts(self.id)
-        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
+        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}], driver=self._driver)
         assert len(rows) == 1
         return rows[0]
 
@@ -1431,7 +1447,7 @@ def start_op(op_type, **kwargs):
     for opt in ["sort_by", "reduce_by", "join_by"]:
         flat(kwargs, opt)
 
-    operation = Operation()
+    operation = Operation(_get_driver(kwargs.get("driver", None)))
 
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])

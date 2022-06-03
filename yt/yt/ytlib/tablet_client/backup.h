@@ -15,11 +15,6 @@ DEFINE_ENUM(ETableBackupState,
 
     //! Backup destination. Table cannot be mounted, resharded etc.
     ((BackupCompleted)             (1))
-
-    //! Table was restored and can be mounted and resharded but still has
-    //! some restrictions, e.g. cannot be altered to static.
-    //! When secondary cell removes restrictions table transitions to |None| backup state.
-    ((RestoredWithRestrictions)    (2))
 )
 
 //! Backup state of individual tables. Stored at the external cell. Also aggregate value
