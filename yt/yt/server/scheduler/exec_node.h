@@ -125,7 +125,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, InfinibandCluster);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, SupportsInterruptionLogic, false);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<bool>, SupportsInterruptionLogic);
 
 public:
     TExecNode(

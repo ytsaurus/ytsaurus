@@ -1103,7 +1103,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
         ToProto(req->mutable_job_id(), jobId);
 
         req->set_timeout(ToProto<i64>(*interruptTimeout));
-        if (!job->GetNode()->GetSupportsInterruptionLogic()) {
+        if (!job->GetNode()->GetSupportsInterruptionLogic().value_or(false)) {
             if (!job->GetInterruptible()) {
                 THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
                     "because such job type does not support interruption or \"interruption_signal\" is not set",
@@ -1496,7 +1496,7 @@ std::vector<TString> TNodeShard::GetNodeAddressesWithUnsupportedInterruption() c
 
     std::vector<TString> result;
     for (const auto& [_, node] : IdToNode_) {
-        if (!node->GetSupportsInterruptionLogic()) {
+        if (!node->GetSupportsInterruptionLogic().value_or(true)) {
             result.push_back(node->GetDefaultAddress());
         }
     }
@@ -2644,7 +2644,9 @@ void TNodeShard::SendPreemptedJobToNode(
     TDuration interruptTimeout,
     bool isJobInterruptible) const
 {
-    if (Config_->HandleInterruptionAtNode && job->GetNode()->GetSupportsInterruptionLogic()) {
+    auto nodeSupportsInterruptionLogic = job->GetNode()->GetSupportsInterruptionLogic();
+    YT_VERIFY(nodeSupportsInterruptionLogic);
+    if (Config_->HandleInterruptionAtNode && *nodeSupportsInterruptionLogic) {
         YT_LOG_DEBUG(
             "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
             job->GetId(),
