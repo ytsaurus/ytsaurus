@@ -205,7 +205,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
     CachedResourceStatisticsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
-IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResult& result)
+IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultPtr& result)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -214,8 +214,7 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResult&
     YT_VERIFY(!Connected_);
     Connected_ = true;
 
-    WaitingForRegisterOperationIds_.clear();
-    WaitingForRegisterOperationIds_.insert(std::cbegin(result.OperationIds), std::cend(result.OperationIds));
+    WaitingForRegisterOperationIds_ = result->OperationIds;
 
     YT_VERIFY(!CancelableContext_);
     CancelableContext_ = New<TCancelableContext>();
@@ -224,8 +223,8 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResult&
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitJobsToStrategyExecutor_->Start();
 
-    InitialSchedulingSegmentsState_ = result.InitialSchedulingSegmentsState;
-    SchedulingSegmentInitializationDeadline_ = result.SchedulingSegmentInitializationDeadline;
+    InitialSchedulingSegmentsState_ = result->InitialSchedulingSegmentsState;
+    SchedulingSegmentInitializationDeadline_ = result->SchedulingSegmentInitializationDeadline;
 
     return CancelableInvoker_;
 }
