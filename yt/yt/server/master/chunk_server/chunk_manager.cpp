@@ -1057,9 +1057,8 @@ public:
 
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
-                    // TODO(gritukan): Joint prepare and commit!
+                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
 
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
@@ -1077,7 +1076,7 @@ public:
         const NHiveServer::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
-        // TODO(gritukan): Check if prepare is late.
+        YT_VERIFY(options.LatePrepare);
 
         ExecuteCreateChunkSubrequest(
             request,
