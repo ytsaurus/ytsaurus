@@ -55,22 +55,20 @@ public:
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig);
 
     //! Acquires a free slot, throws on error.
-    ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, double requestedCpu, bool allowCpuIdlePolicy);
+    ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest);
 
     class TSlotGuard
     {
     public:
-        explicit TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu);
+        TSlotGuard(TSlotManagerPtr slotManager, ESlotType slotType, double requestedCpu);
         ~TSlotGuard();
-
-        int GetSlotIndex() const;
-        ESlotType GetSlotType() const;
 
     private:
         const TSlotManagerPtr SlotManager_;
-        const ESlotType SlotType_;
-        const int SlotIndex_;
         const double RequestedCpu_;
+
+        DEFINE_BYVAL_RO_PROPERTY(ESlotType, SlotType);
+        DEFINE_BYVAL_RO_PROPERTY(int, SlotIndex);
     };
     std::unique_ptr<TSlotGuard> AcquireSlot(ESlotType slotType, double requestedCpu);
 
@@ -157,6 +155,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
     bool HasSlotDisablingAlert() const;
+
     double GetIdleCpuFraction() const;
 
     void AsyncInitialize();
