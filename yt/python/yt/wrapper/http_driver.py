@@ -280,7 +280,7 @@ def make_request(command_name,
 
     def process_trailers(response):
         trailers = response.trailers()
-        if trailers is not None:
+        if trailers is not None and trailers:
             logger.info(
                 "HTTP response has non-empty trailers (request_id: %s, trailers: %s)",
                 response.request_id,
