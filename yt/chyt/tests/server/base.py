@@ -59,6 +59,10 @@ QueryFailedError = 2200
 InstanceUnavailableCode = 2201
 
 
+def get_current_test_name():
+    return os.environ.get('PYTEST_CURRENT_TEST').split(':')[-1].split(' ')[0]
+
+
 class Clique(object):
     base_config = None
     clique_index = 0
@@ -66,6 +70,7 @@ class Clique(object):
     path_to_run = None
     core_dump_path = None
     proxy_address = None
+    clique_index_by_test_name = {}
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, **kwargs):
         config = (
@@ -79,8 +84,13 @@ class Clique(object):
         if "spec" in kwargs:
             spec = update(spec, kwargs.pop("spec"))
 
-        self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
-        self.stderr_root = os.path.join(self.path_to_run, "stderrs", "clickhouse-{}".format(Clique.clique_index))
+        test_name = get_current_test_name()
+        clique_index_in_test = Clique.clique_index_by_test_name.get(test_name, 0)
+        Clique.clique_index_by_test_name[test_name] = clique_index_in_test + 1
+        clique_dir_name = "clickhouse-{}-{}".format(test_name, clique_index_in_test)
+
+        self.log_root = os.path.join(self.path_to_run, "logs", clique_dir_name)
+        self.stderr_root = os.path.join(self.path_to_run, "stderrs", clique_dir_name)
         for root in (self.log_root, self.stderr_root):
             try:
                 os.makedirs(root)
