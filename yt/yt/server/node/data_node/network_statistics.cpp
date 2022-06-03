@@ -30,11 +30,11 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
 
 void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics)
 {
-    Counters_.IterateReadOnly([this, statistics] (const auto& name, const auto& counters) {
+    Counters_.IterateReadOnly([&] (const auto& name, const auto& counters) {
         auto* network = statistics->add_network();
         network->set_network(name);
 
-        auto resetAt = counters->UpdateTime.load() + 2 * DurationToCpuDuration(Config_->NetOutThrottleDuration);
+        auto resetAt = counters->UpdateTime.load() + 2 * DurationToCpuDuration(Config_->NetOutThrottlingDuration);
         network->set_throttling_reads(GetCpuInstant() < resetAt);
     });
 }

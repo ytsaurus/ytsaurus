@@ -113,7 +113,7 @@ void TStoreLocationConfigBase::Register(TRegistrar registrar)
         .Default("UNKNOWN");
     registrar.Parameter("device_model", &TThis::DeviceModel)
         .Default("UNKNOWN");
-    registrar.Parameter("max_write_rate_by_dwpd", &TThis::MaxWriteRateByDWPD)
+    registrar.Parameter("max_write_rate_by_dwpd", &TThis::MaxWriteRateByDwpd)
         .GreaterThanOrEqual(0)
         .Default(0);
     registrar.Parameter("reset_uuid", &TThis::ResetUuid)
@@ -516,10 +516,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .GreaterThan(0)
         .Default(512_MB);
-    registrar.Parameter("net_out_throttling_extra_limit", &TThis::NetOutThrottlingExtraLimit)
-        .GreaterThan(0)
-        .Default(512_MB);
-    registrar.Parameter("net_out_throttle_duration", &TThis::NetOutThrottleDuration)
+    registrar.Parameter("net_out_throttling_duration", &TThis::NetOutThrottlingDuration)
         .Default(TDuration::Seconds(30));
 
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
@@ -691,11 +688,6 @@ i64 TDataNodeConfig::GetCacheCapacity() const
     return capacity;
 }
 
-i64 TDataNodeConfig::GetNetOutThrottlingHardLimit() const
-{
-    return NetOutThrottlingLimit + NetOutThrottlingExtraLimit;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDataNodeDynamicConfig::Register(TRegistrar registrar)
@@ -777,6 +769,19 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("medium_io_config", &TThis::MediumIOConfig)
         .Default();
 
+    registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
+        .Default();
+
+    registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
+        .Default();
+    registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
+        .Default();
+
+    registrar.Parameter("disable_location_writes_pending_read_size_high_limit", &TThis::DisableLocationWritesPendingReadSizeHighLimit)
+        .Default();
+    registrar.Parameter("disable_location_writes_pending_read_size_low_limit", &TThis::DisableLocationWritesPendingReadSizeLowLimit)
+        .Default();
+
     registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 
@@ -789,8 +794,21 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         if (!config->ChunkRepairJob->Reader) {
             config->ChunkRepairJob->Reader = config->AdaptiveChunkRepairJob;
         }
-    });
 
+        if (config->DisableLocationWritesPendingReadSizeHighLimit.has_value() != config->DisableLocationWritesPendingReadSizeLowLimit.has_value()) {
+            THROW_ERROR_EXCEPTION(
+                "\"disable_location_writes_pending_read_size_high_limit\" and "
+                "\"disable_location_writes_pending_read_size_low_limit\" must either both be present or absent");
+        }
+
+        if (config->DisableLocationWritesPendingReadSizeHighLimit &&
+            *config->DisableLocationWritesPendingReadSizeHighLimit < *config->DisableLocationWritesPendingReadSizeLowLimit)
+        {
+            THROW_ERROR_EXCEPTION(
+                "\"disable_location_writes_pending_read_size_high_limit\" must not be less than "
+                "\"disable_location_writes_pending_read_size_low_limit\"");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

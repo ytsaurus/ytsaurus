@@ -255,11 +255,11 @@ void TP2PChunk::Reserve(size_t size)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TP2PSnooper::TP2PSnooper(const TP2PConfigPtr& config)
+TP2PSnooper::TP2PSnooper(TP2PConfigPtr config)
     : TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>(
         config->RequestCache,
         P2PProfiler.WithPrefix("/request_cache"))
-    , Config_(config)
+    , Config_(std::move(config))
     , ThrottledBytes_(P2PProfiler.Counter("/throttled_bytes"))
     , ThrottledLargeBlockBytes_(P2PProfiler.Counter("/throttled_large_block_bytes"))
     , DistributedBytes_(P2PProfiler.Counter("/distributed_bytes"))
@@ -278,25 +278,16 @@ TP2PSnooper::TP2PSnooper(const TP2PConfigPtr& config)
 
 void TP2PSnooper::UpdateConfig(const TP2PConfigPtr& config)
 {
-    if (config) {
-        TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(config->RequestCacheOverride);
-    } else {
-        TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(New<TSlruCacheDynamicConfig>());
-    }
+    auto cacheConfig = config  ? config->RequestCacheOverride : New<TSlruCacheDynamicConfig>();
+    TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>::Reconfigure(cacheConfig);
 
-    {
-        auto guard = Guard(ConfigLock_);
-        DynamicConfig_ = config;
-    }
+    DynamicConfig_.Store(config);
 }
 
-TP2PConfigPtr TP2PSnooper::Config()
+TP2PConfigPtr TP2PSnooper::GetConfig()
 {
-    auto guard = Guard(ConfigLock_);
-    if (DynamicConfig_) {
-        return DynamicConfig_;
-    }
-    return Config_;
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig ? dynamicConfig : Config_;
 }
 
 std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
@@ -306,15 +297,15 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
     bool* throttledLargeBlock,
     bool readFromP2P)
 {
-    auto config = Config();
+    auto config = GetConfig();
     if (!config->Enabled) {
         return {};
     }
 
     YT_VERIFY(!blockIndices.empty());
 
-    TP2PChunkPtr chunk;
-    if (!(chunk = Find(chunkId))) {
+    auto chunk = Find(chunkId);
+    if (!chunk) {
         chunk = New<TP2PChunk>(chunkId);
         TryInsert(chunk, &chunk);
     }
@@ -458,7 +449,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
 
 std::vector<TP2PSuggestion> TP2PSnooper::OnBlockProbe(TChunkId chunkId, const std::vector<int>& blockIndices)
 {
-    if (!Config()->Enabled) {
+    if (!GetConfig()->Enabled) {
         return {};
     }
 
@@ -500,7 +491,7 @@ void TP2PSnooper::FinishTick(
     i64 *currentTick,
     std::vector<TQueuedBlock>* hotBlocks)
 {
-    auto config = Config();
+    auto config = GetConfig();
     auto guard = Guard(QueueLock_);
 
     *currentTick = CurrentTick_++;
@@ -541,7 +532,7 @@ void TP2PSnooper::CoolChunk(const TP2PChunkPtr& chunk)
 
 TPeerList TP2PSnooper::AllocatePeers()
 {
-    auto config = Config();
+    auto config = GetConfig();
 
     TPeerList peerList;
 
@@ -564,60 +555,54 @@ TPeerList TP2PSnooper::AllocatePeers()
 ////////////////////////////////////////////////////////////////////////////////
 
 TP2PDistributor::TP2PDistributor(
-    const TP2PConfigPtr& config,
-    const IInvokerPtr& invoker,
+    TP2PConfigPtr config,
+    IInvokerPtr invoker,
     IBootstrap* bootstrap)
-    : Config_(config)
-    , Snooper_(bootstrap->GetP2PSnooper())
+    : Config_(std::move(config))
     , Invoker_(invoker)
     , Bootstrap_(bootstrap)
-    , Distributor_(New<TPeriodicExecutor>(
+    , Snooper_(Bootstrap_->GetP2PSnooper())
+    , DistributorExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TP2PDistributor::DistributeBlocks, MakeWeak(this)),
         Config_->TickPeriod))
-    , Allocator_(New<TPeriodicExecutor>(
+    , AllocatorExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TP2PDistributor::AllocateNodes, MakeWeak(this)),
         Config_->NodeRefreshPeriod))
-    , Cooler_(New<TPeriodicExecutor>(
+    , CoolerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TP2PDistributor::CoolHotChunks, MakeWeak(this)),
         Config_->ChunkCooldownTimeout))
-    , DistributionErrors_(P2PProfiler.Counter("/distribution_errors"))
+    , DistributionErrorsCounter_(P2PProfiler.Counter("/distribution_errors"))
 { }
 
 void TP2PDistributor::Start()
 {
-    Distributor_->Start();
-    Allocator_->Start();
-    Cooler_->Start();
+    DistributorExecutor_->Start();
+    AllocatorExecutor_->Start();
+    CoolerExecutor_->Start();
 }
 
 void TP2PDistributor::UpdateConfig(const TP2PConfigPtr& config)
 {
-    {
-        auto guard = Guard(ConfigLock_);
-        DynamicConfig_ = config;
-    }
+    DynamicConfig_.Store(config);
 
-    auto realConfig = Config();
-    Distributor_->SetPeriod(realConfig->TickPeriod);
-    Allocator_->SetPeriod(realConfig->NodeRefreshPeriod);
-    Cooler_->SetPeriod(realConfig->ChunkCooldownTimeout);
+    auto realConfig = GetConfig();
+    DistributorExecutor_->SetPeriod(realConfig->TickPeriod);
+    AllocatorExecutor_->SetPeriod(realConfig->NodeRefreshPeriod);
+    CoolerExecutor_->SetPeriod(realConfig->ChunkCooldownTimeout);
 }
 
-TP2PConfigPtr TP2PDistributor::Config()
+TP2PConfigPtr TP2PDistributor::GetConfig()
 {
-    auto guard = Guard(ConfigLock_);
-    if (DynamicConfig_) {
-        return DynamicConfig_;
-    }
-    return Config_;
+    auto dynamicConfig = DynamicConfig_.Load();
+    return dynamicConfig ? dynamicConfig : Config_;
 }
 
 void TP2PDistributor::DistributeBlocks()
 {
-    auto config = Config();
+    auto config = GetConfig();
 
     i64 currentTick;
     std::vector<TP2PSnooper::TQueuedBlock> blocks;
@@ -642,7 +627,7 @@ void TP2PDistributor::DistributeBlocks()
         }
     }
 
-    std::vector<TFuture<void>> distributors;
+    std::vector<TFuture<void>> futures;
     for (const auto& [peerId, hotBlocks] : peerHotBlocks) {
         auto nodeDescriptor = Bootstrap_->GetNodeDirectory()->FindDescriptor(peerId);
         if (!nodeDescriptor) {
@@ -650,13 +635,13 @@ void TP2PDistributor::DistributeBlocks()
         }
 
         auto destinationAddress = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
-        auto async = BIND([
-            hotBlocks=std::move(hotBlocks),
+        auto future = BIND([
+            hotBlocks = std::move(hotBlocks),
             destinationAddress,
             currentTick,
             config,
             this,
-            this_=MakeStrong(this)
+            this_ = MakeStrong(this)
         ] () mutable {
             const auto& channelFactory = Bootstrap_
                 ->GetMasterClient()
@@ -705,27 +690,25 @@ void TP2PDistributor::DistributeBlocks()
             .AsyncVia(Invoker_)
             .Run();
 
-        async.Subscribe(BIND([this, this_=MakeStrong(this)] (const TError& error) {
+        future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK()) {
-                DistributionErrors_.Increment();
+                DistributionErrorsCounter_.Increment();
                 YT_LOG_DEBUG(error, "Failed to distribute blocks");
             }
         }));
 
-        distributors.push_back(async);
+        futures.push_back(future);
     }
 
-    for (const auto& asyncResult : distributors) {
-        auto result = WaitFor(asyncResult);
-    }
+    Y_UNUSED(WaitFor(AllSet(std::move(futures))));
 
     YT_LOG_DEBUG("Finished block distribution (Iteration: %v)", currentTick);
 }
 
 void TP2PDistributor::AllocateNodes()
 {
-    auto config = Config();
-    std::vector<TNodeId> eligiblePeers;
+    auto config = GetConfig();
+    std::vector<TNodeId> eligiblePeerIds;
 
     auto now = TInstant::Now();
 
@@ -743,18 +726,18 @@ void TP2PDistributor::AllocateNodes()
             continue;
         }
 
-        eligiblePeers.push_back(nodeId);
+        eligiblePeerIds.push_back(nodeId);
     }
 
-    YT_LOG_DEBUG("Updated peer list (Size: %v)", eligiblePeers.size());
-    Snooper_->SetEligiblePeers(eligiblePeers);
+    YT_LOG_DEBUG("Updated peer list (Size: %v)", eligiblePeerIds.size());
+    Snooper_->SetEligiblePeers(eligiblePeerIds);
 }
 
 void TP2PDistributor::CoolHotChunks()
 {
-    auto config = Config();
+    auto config = GetConfig();
     auto cutoff = TInstant::Now() - config->ChunkCooldownTimeout;
-    for (auto& chunk : Snooper_->GetHotChunks()) {
+    for (const auto& chunk : Snooper_->GetHotChunks()) {
         if (CpuInstantToInstant(chunk->LastAccessTime) < cutoff) {
             Snooper_->CoolChunk(chunk);
 

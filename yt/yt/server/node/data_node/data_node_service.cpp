@@ -392,8 +392,7 @@ private:
             flushBlocks,
             location->GetMediumName());
 
-        if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
-            location->GetPerformanceCounters().ThrottleWrite();
+        if (location->CheckWriteThrottling(session->GetWorkloadDescriptor())) {
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
@@ -593,11 +592,13 @@ private:
             }
 
             auto p2pSessionId = FromProto<TGuid>(barrier.session_id());
-            auto asyncBarrier = p2pBlockCache->WaitSessionIteration(p2pSessionId, barrier.iteration());
+            auto barrierFuture = p2pBlockCache->WaitSessionIteration(p2pSessionId, barrier.iteration());
 
-            if (!asyncBarrier.IsSet()) {
-                YT_LOG_DEBUG("Waiting for P2P barrier (SessionId: %v, Iteration: %v)", p2pSessionId, barrier.iteration());
-                WaitFor(asyncBarrier)
+            if (!barrierFuture.IsSet()) {
+                YT_LOG_DEBUG("Waiting for P2P barrier (SessionId: %v, Iteration: %v)",
+                    p2pSessionId,
+                    barrier.iteration());
+                WaitFor(barrierFuture)
                     .ThrowOnError();
             }
         }
@@ -682,21 +683,17 @@ private:
             auto* subresponse = response->add_subresponses();
 
             auto chunk = chunkRegistry->FindChunk(chunkId);
+
             bool hasCompleteChunk = chunk.operator bool();
             subresponse->set_has_complete_chunk(hasCompleteChunk);
             if (hasCompleteChunk) {
                 ++completeChunkCount;
             }
 
-            i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
-            auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
-            i64 diskThrottlerQueueSize = locationThrottler
-                ? locationThrottler->GetQueueTotalCount()
-                : 0LL;
-            i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
+            auto diskQueueSize = chunk ? chunk->GetLocation()->GetReadQueueSize(workloadDescriptor) : 0;
             subresponse->set_disk_queue_size(diskQueueSize);
 
-            bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
+            bool diskThrottling = chunk ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*incrementCounter*/ false) : 0;
             subresponse->set_disk_throttling(diskThrottling);
 
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
@@ -705,23 +702,19 @@ private:
             }
         }
 
-        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+        auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
         response->set_net_queue_size(netQueueSize);
 
-        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+        bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor, /*incrementCounter*/ false);
         response->set_net_throttling(netThrottling);
 
         context->SetResponseInfo(
             "ChunkCount: %v, CompleteChunkCount: %v, "
-            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v",
+            "NetThrottling: %v, NetQueueSize: %v",
             chunkCount,
             completeChunkCount,
             netThrottling,
-            netOutQueueSize,
-            netThrottlerQueueSize);
+            netQueueSize);
 
         context->Reply();
     }
@@ -741,32 +734,24 @@ private:
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
+
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
-        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
-        i64 diskThrottlerQueueSize = locationThrottler
-            ? locationThrottler->GetQueueTotalCount()
-            : 0LL;
-        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
+        auto diskQueueSize = chunk ? chunk->GetLocation()->GetReadQueueSize(workloadDescriptor) : 0;
         response->set_disk_queue_size(diskQueueSize);
 
-        bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
+        bool diskThrottling = chunk ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*incrementCounter*/ false) : false;
         response->set_disk_throttling(diskThrottling);
 
-        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+        auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
         response->set_net_queue_size(netQueueSize);
 
-        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+        bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor, /*incrementCounter*/ false);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
             YT_LOG_WARNING("Simulating network throttling for ProbeBlockSet (ChunkId: %v)", chunkId);
             netThrottling = true;
         }
-
         response->set_net_throttling(netThrottling);
 
         SuggestAllyReplicas(context);
@@ -776,16 +761,14 @@ private:
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
-            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
-            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v "
+            "NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
             "PeerDescriptorCount: %v",
             hasCompleteChunk,
             netThrottling,
-            netOutQueueSize,
-            netThrottlerQueueSize,
+            netQueueSize,
             diskThrottling,
-            diskReadQueueSize,
-            diskThrottlerQueueSize,
+            diskQueueSize,
             response->peer_descriptors_size());
 
         context->Reply();
@@ -820,45 +803,23 @@ private:
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
-        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
-        i64 diskThrottlerQueueSize = locationThrottler
-            ? locationThrottler->GetQueueTotalCount()
-            : 0LL;
-        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
+        auto diskQueueSize = chunk ? chunk->GetLocation()->GetReadQueueSize(workloadDescriptor) : 0;
         response->set_disk_queue_size(diskQueueSize);
 
-        bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
+        bool diskThrottling = chunk ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor) : false;
         response->set_disk_throttling(diskThrottling);
-        if (diskThrottling && chunk) {
-            const auto& location = chunk->GetLocation();
-            location->GetPerformanceCounters().ThrottleRead();
-        }
 
-        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
+        response->set_net_queue_size(netQueueSize);
 
-        i64 netThrottlerQueueSize, netOutQueueSize;
-        auto checkNetThrottling = [&] (i64 limit) {
-            netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-            netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-            i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-            response->set_net_queue_size(netQueueSize);
+        SuggestAllyReplicas(context);
+        WaitP2PBarriers(request);
 
-            return netQueueSize > limit;
-        };
-
-        auto netThrottling = checkNetThrottling(Config_->NetOutThrottlingLimit);
+        bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
             YT_LOG_WARNING("Simulating network throttling for GetBlockSet (ChunkId: %v)", chunkId);
             netThrottling = true;
         }
-
-        if (netThrottling) {
-            IncrementReadThrottlingCounter(context);
-        }
-
-        SuggestAllyReplicas(context);
-        WaitP2PBarriers(request);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -882,20 +843,20 @@ private:
                 readFromP2P = true;
             } else {
                 const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-                auto asyncBlocks = chunkBlockManager->ReadBlockSet(
+                auto blocksFuture = chunkBlockManager->ReadBlockSet(
                     chunkId,
                     blockIndexes,
                     options);
 
-                blocks = WaitFor(asyncBlocks)
+                blocks = WaitFor(blocksFuture)
                     .ValueOrThrow();
             }
         }
 
-        // NB: p2p manager might steal blocks and assign null values.
+        // NB: P2P manager might steal blocks and assign null values.
         const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
         bool throttledLargeBlock = false;
-        std::vector<TP2PSuggestion> blockPeers = p2pSnooper->OnBlockRead(
+        auto blockPeers = p2pSnooper->OnBlockRead(
             chunkId,
             blockIndexes,
             &blocks,
@@ -903,18 +864,17 @@ private:
             readFromP2P);
         AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
 
-        if (!blocks.empty()) {
-            if (!checkNetThrottling(Config_->GetNetOutThrottlingHardLimit())) {
-                SetRpcAttachedBlocks(response, blocks);
-            } else if (!netThrottling) {
-                netThrottling = true;
-                IncrementReadThrottlingCounter(context);
-            }
+        if (!netThrottling) {
+            SetRpcAttachedBlocks(response, blocks);
         }
 
+        auto blocksSize = GetByteSize(response->Attachments());
+        if (blocksSize == 0 && throttledLargeBlock) {
+            netThrottling = true;
+        }
         response->set_net_throttling(netThrottling);
 
-        i64 bytesReadFromDisk =
+        auto bytesReadFromDisk =
             chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed) +
             chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed);
         const auto& ioTracker = Bootstrap_->GetIOTracker();
@@ -933,24 +893,17 @@ private:
             }
         }
 
-        i64 blocksSize = GetByteSize(response->Attachments());
-        if (blocksSize == 0 && throttledLargeBlock) {
-            response->set_net_throttling(true);
-        }
-
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
-            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
-            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v, "
+            "NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
             "ThrottledLargeBlock: %v, "
             "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
-            netOutQueueSize,
-            netThrottlerQueueSize,
+            netQueueSize,
             diskThrottling,
-            diskReadQueueSize,
-            diskThrottlerQueueSize,
+            diskQueueSize,
             throttledLargeBlock,
             blocksWithData,
             response->peer_descriptors_size(),
@@ -961,6 +914,7 @@ private:
         // to be delivered immediately.
         if (blocksSize > 0) {
             context->SetComplete();
+            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
             context->ReplyFrom(netThrottler->Throttle(blocksSize));
         } else {
             context->Reply();
@@ -987,43 +941,21 @@ private:
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
+
         bool hasCompleteChunk = chunk.operator bool();
         response->set_has_complete_chunk(hasCompleteChunk);
 
-        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
-        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
-        i64 diskThrottlerQueueSize = locationThrottler
-            ? locationThrottler->GetQueueTotalCount()
-            : 0LL;
-        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
+        auto diskQueueSize = chunk ? chunk->GetLocation()->GetReadQueueSize(workloadDescriptor) : 0;
         response->set_disk_queue_size(diskQueueSize);
 
-        bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
+        bool diskThrottling = chunk ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor) : 0;
         response->set_disk_throttling(diskThrottling);
-        if (diskThrottling && chunk) {
-            const auto& location = chunk->GetLocation();
-            location->GetPerformanceCounters().ThrottleRead();
-        }
 
-        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
+        response->set_net_queue_size(netQueueSize);
 
-        i64 netThrottlerQueueSize, netOutQueueSize;
-        auto checkNetThrottling = [&] (i64 limit) {
-            netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-            netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-            i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-            response->set_net_queue_size(netQueueSize);
-
-            bool netThrottling = netQueueSize > limit;
-            response->set_net_throttling(netThrottling);
-
-            return netThrottling;
-        };
-
-        bool netThrottling = checkNetThrottling(Config_->NetOutThrottlingLimit);
-        if (netThrottling) {
-            IncrementReadThrottlingCounter(context);
-        }
+        bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -1039,22 +971,20 @@ private:
         }
 
         const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-        auto asyncBlocks = chunkBlockManager->ReadBlockRange(
+        auto blocksFuture = chunkBlockManager->ReadBlockRange(
             chunkId,
             firstBlockIndex,
             blockCount,
             options);
 
-        auto blocks = WaitFor(asyncBlocks)
+        auto blocks = WaitFor(blocksFuture)
             .ValueOrThrow();
-        if (!checkNetThrottling(Config_->GetNetOutThrottlingHardLimit())) {
+
+        if (!netThrottling) {
             SetRpcAttachedBlocks(response, blocks);
-        } else if (!netThrottling) {
-            netThrottling = true;
-            IncrementReadThrottlingCounter(context);
         }
 
-        i64 bytesReadFromDisk =
+        auto bytesReadFromDisk =
             chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed) +
             chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed);
         const auto& ioTracker = Bootstrap_->GetIOTracker();
@@ -1067,20 +997,18 @@ private:
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
         int blocksWithData = static_cast<int>(response->Attachments().size());
-        i64 blocksSize = GetByteSize(response->Attachments());
+        auto blocksSize = GetByteSize(response->Attachments());
 
         context->SetResponseInfo(
             "HasCompleteChunk: %v, "
-            "NetThrottling: %v, NetOutQueueSize: %v, NetThrottlerQueueSize: %v, "
-            "DiskThrottling: %v, DiskReadQueueSize: %v, DiskThrottlerQueueSize: %v, "
+            "NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
             "BlocksWithData: %v, BlocksSize: %v",
             hasCompleteChunk,
             netThrottling,
-            netOutQueueSize,
-            netThrottlerQueueSize,
+            netQueueSize,
             diskThrottling,
-            diskReadQueueSize,
-            diskThrottlerQueueSize,
+            diskQueueSize,
             blocksWithData,
             blocksSize);
 
@@ -1089,6 +1017,7 @@ private:
         // to be delivered immediately.
         if (blocksSize > 0) {
             context->SetComplete();
+            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
             context->ReplyFrom(netThrottler->Throttle(blocksSize));
         } else {
             context->Reply();
@@ -1118,15 +1047,6 @@ private:
             totalFragmentCount);
 
         ValidateOnline();
-
-        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
-        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
-        if (netThrottling) {
-            IncrementReadThrottlingCounter(context);
-        }
 
         THashMap<TChunkLocation*, int> locationToLocationIndex;
         std::vector<std::pair<TChunkLocation*, int>> requestedLocations;
@@ -1195,7 +1115,6 @@ private:
             [
                 =,
                 this_ = MakeStrong(this),
-                &netThrottler,
                 requestedLocations = std::move(requestedLocations),
                 chunkRequestInfos = std::move(chunkRequestInfos)
             ] (const TError& error) mutable {
@@ -1261,7 +1180,6 @@ private:
                         [
                             =,
                             this_ = MakeStrong(this),
-                            &netThrottler,
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
                             requestedLocations = std::move(requestedLocations)
@@ -1307,6 +1225,7 @@ private:
                             response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
                             response->mutable_chunk_reader_statistics()->set_data_io_requests(dataIORequests);
 
+                            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
                             if (netThrottler->IsOverdraft()) {
                                 context->SetComplete();
                                 context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
@@ -1367,29 +1286,17 @@ private:
         }
         YT_VERIFY(!schemaRequested);
 
-        i64 diskReadQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
-        auto locationThrottler = GetLocationOutThrottler(chunk, workloadDescriptor);
-        i64 diskThrottlerQueueSize = locationThrottler
-            ? locationThrottler->GetQueueTotalCount()
-            : 0LL;
-        i64 diskQueueSize = diskReadQueueSize + diskThrottlerQueueSize;
-        bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
-        response->set_disk_throttling(diskThrottling);
+        auto diskQueueSize = chunk->GetLocation()->GetReadQueueSize(workloadDescriptor);
         response->set_disk_queue_size(diskQueueSize);
-        if (diskThrottling) {
-            const auto& location = chunk->GetLocation();
-            location->GetPerformanceCounters().ThrottleRead();
-        }
 
-        i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
-        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
-        response->set_net_throttling(netThrottling);
+        bool diskThrottling = chunk->GetLocation()->CheckReadThrottling(workloadDescriptor);
+        response->set_disk_throttling(diskThrottling);
+
+        auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
         response->set_net_queue_size(netQueueSize);
-        if (netThrottling) {
-            IncrementReadThrottlingCounter(context);
-        }
+
+        bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling);
 
         if (rejectIfThrottling && (diskThrottling || netThrottling)) {
             YT_LOG_DEBUG("Rows lookup failed to start due to net throttling "
@@ -1446,10 +1353,8 @@ private:
                     netQueueSize);
 
                 if (rejectIfThrottling) {
-                    i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
-                    i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-                    i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
-                    bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+                    auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
+                    bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
                     if (netThrottling) {
                         // NB: Flow of lookups may be dense enough, so upon start of throttling
                         // we will come up with few throttled lookups on the data node. We would like to avoid this.
@@ -1460,8 +1365,6 @@ private:
                             readSessionId,
                             netThrottling,
                             netQueueSize);
-
-                        IncrementReadThrottlingCounter(context);
 
                         response->set_fetched_rows(false);
                         response->set_rejected_due_to_throttling(true);
@@ -1493,20 +1396,24 @@ private:
             ? std::nullopt
             : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        bool enableThrottling = request->enable_throttling();
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
             chunkId,
             extensionTags,
             partitionTag,
             workloadDescriptor,
-            request->enable_throttling());
+            enableThrottling);
 
         ValidateOnline();
 
-        if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
-            IncrementReadThrottlingCounter(context);
+        bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling);
 
-            response->set_net_throttling(true);
+        context->SetResponseInfo("NetThrottling: %v",
+            netThrottling);
+
+        if (enableThrottling && netThrottling) {
             context->Reply();
             return;
         }
@@ -1518,11 +1425,11 @@ private:
         options.WorkloadDescriptor = workloadDescriptor;
         options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        auto asyncChunkMeta = chunk->ReadMeta(
+        auto chunkMetaFuture = chunk->ReadMeta(
             options,
             extensionTags);
 
-        context->ReplyFrom(asyncChunkMeta.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
+        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
             if (context->IsCanceled()) {
                 throw TFiberCanceledException();
             }
@@ -2016,7 +1923,7 @@ private:
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
 
-        std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncResults;
+        std::vector<TFuture<TRefCountedChunkMetaPtr>> futures;
 
         auto nameTable = FromProto<TNameTablePtr>(request->name_table());
 
@@ -2058,10 +1965,10 @@ private:
             options.WorkloadDescriptor = workloadDescriptor;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-            auto asyncChunkMeta = chunk->ReadMeta(options);
+            auto chunkMetaFuture = chunk->ReadMeta(options);
             // Fault-injection for tests.
             if (Config_->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
-                asyncChunkMeta = asyncChunkMeta.Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedChunkMetaPtr& result) {
+                chunkMetaFuture = chunkMetaFuture.Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedChunkMetaPtr& result) {
                     auto maxDelay = *config->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay;
                     auto delay = index * maxDelay / request->subrequests_size();
                     YT_LOG_DEBUG("Injected a random delay after a chunk meta fetch (Delay: %v)", delay);
@@ -2069,7 +1976,7 @@ private:
                     return result;
                 }).AsyncVia(heavyInvoker));
             }
-            asyncResults.push_back(asyncChunkMeta);
+            futures.push_back(chunkMetaFuture);
         }
 
         std::optional<TDuration> earlyFinishTimeout;
@@ -2078,7 +1985,7 @@ private:
             YT_LOG_DEBUG("Early finish is enabled (EarlyFinishTimeout: %v)", earlyFinishTimeout);
         }
 
-        auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(asyncResults, *earlyFinishTimeout) : AllSet(asyncResults));
+        auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(futures, *earlyFinishTimeout) : AllSet(futures));
         context->SubscribeCanceled(BIND([combinedResult = combinedResult] {
             combinedResult.Cancel(TError("RPC request canceled"));
         }));
@@ -2199,27 +2106,32 @@ private:
         }
     }
 
-    static i64 GetDiskReadQueueSize(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
-    {
-        if (!chunk) {
-            return 0;
-        }
-        return chunk->GetLocation()->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
-    }
 
-    static IThroughputThrottlerPtr GetLocationOutThrottler(const IChunkPtr& chunk, const TWorkloadDescriptor& workloadDescriptor)
+    template <class TContextPtr>
+    i64 GetNetOutQueueSize(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
-        if (!chunk) {
-            return nullptr;
-        }
-        return chunk->GetLocation()->GetOutThrottler(workloadDescriptor);
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = netThrottler->GetQueueTotalCount();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+        return netThrottlerQueueSize + netOutQueueSize;
     }
 
     template <class TContextPtr>
-    void IncrementReadThrottlingCounter(const TContextPtr& context)
+    bool CheckNetOutThrottling(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true)
     {
-        Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
-            context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
+        auto netQueueLimit = DynamicConfigManager_->GetConfig()->DataNode->NetOutThrottlingLimit.value_or(Config_->NetOutThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
+        return throttle;
     }
 };
 

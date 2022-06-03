@@ -912,21 +912,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& config = Bootstrap_->GetConfig()->DataNode;
-
-        if (!location->IsEnabled()) {
-            return false;
-        }
-
-        if (location->IsFull()) {
-            return false;
-        }
-
-        if (location->IsSick()) {
-            return false;
-        }
-
-        if (location->GetMaxPendingIOSize(EIODirection::Write) > config->DiskWriteThrottlingLimit) {
+        if (!location->IsWritable()) {
             return false;
         }
 

@@ -7,11 +7,10 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <yt/yt/core/misc/sync_cache.h>
+#include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
-
-#include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NDataNode {
 
@@ -153,7 +152,7 @@ class TP2PSnooper
     , private TSyncSlruCacheBase<NChunkClient::TChunkId, TP2PChunk>
 {
 public:
-    TP2PSnooper(const TP2PConfigPtr& config);
+    explicit TP2PSnooper(TP2PConfigPtr config);
 
     std::vector<TP2PSuggestion> OnBlockRead(
         TChunkId chunkId,
@@ -187,11 +186,10 @@ public:
     void CoolChunk(const TP2PChunkPtr& chunk);
 
 private:
-    TP2PConfigPtr Config_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ConfigLock_);
-    TP2PConfigPtr DynamicConfig_;
+    const TP2PConfigPtr Config_;
+    TAtomicObject<TP2PConfigPtr> DynamicConfig_;
 
-    TGuid SessionId_ = TGuid::Create();
+    const TGuid SessionId_ = TGuid::Create();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodesLock_);
     std::vector<TNodeId> EligibleNodes_;
@@ -212,7 +210,7 @@ private:
 
     TPeerList AllocatePeers();
 
-    TP2PConfigPtr Config();
+    TP2PConfigPtr GetConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PSnooper)
@@ -224,33 +222,34 @@ class TP2PDistributor
 {
 public:
     TP2PDistributor(
-        const TP2PConfigPtr& config,
-        const IInvokerPtr& invoker,
+        TP2PConfigPtr config,
+        IInvokerPtr invoker,
         IBootstrap* bootstrap);
 
     void Start();
     void UpdateConfig(const TP2PConfigPtr& config);
 
 private:
-    TP2PConfigPtr Config_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ConfigLock_);
-    TP2PConfigPtr DynamicConfig_;
+    const TP2PConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+    IBootstrap* const Bootstrap_;
 
-    TP2PSnooperPtr Snooper_;
-    IInvokerPtr Invoker_;
-    IBootstrap* Bootstrap_;
+    const TP2PSnooperPtr Snooper_;
 
-    NConcurrency::TPeriodicExecutorPtr Distributor_;
-    NConcurrency::TPeriodicExecutorPtr Allocator_;
-    NConcurrency::TPeriodicExecutorPtr Cooler_;
+    const NConcurrency::TPeriodicExecutorPtr DistributorExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr AllocatorExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr CoolerExecutor_;
 
-    NProfiling::TCounter DistributionErrors_;
+    TAtomicObject<TP2PConfigPtr> DynamicConfig_;
+
+    NProfiling::TCounter DistributionErrorsCounter_;
+
 
     void DistributeBlocks();
     void AllocateNodes();
     void CoolHotChunks();
 
-    TP2PConfigPtr Config();
+    TP2PConfigPtr GetConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TP2PDistributor)

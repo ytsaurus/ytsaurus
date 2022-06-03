@@ -112,10 +112,10 @@ public:
 
         // Override max write rate for current location.
         mediumConfig = CloneYsonSerializable(mediumConfig);
-        if (auto maxWriteRate = Location_->GetMaxWriteRateByDWPD()) {
+        if (auto maxWriteRate = Location_->GetMaxWriteRateByDwpd()) {
             mediumConfig->MaxWriteRate = maxWriteRate;
         }
-    
+
         auto now = TInstant::Now();
         Session_ = TSession{
             .Timestamp = now,
