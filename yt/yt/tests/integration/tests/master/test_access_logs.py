@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, link,
-    exists, start_transaction, alter_table, write_table, sort, remount_table, generate_timestamp,
+    exists, start_transaction, abort_transaction, alter_table, write_table, sort, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, create_dynamic_table)
 
@@ -442,6 +442,49 @@ class TestAccessLog(YTEnvSetup):
             }
         )
 
+        self._validate_entries_against_log(log_list)
+
+    def test_set_modified(self):
+        create("table", "//tmp/t")
+        id = get("//tmp/t/@id")
+
+        write_table("<append=%true>//tmp/t", {"a": 25, "b": "foo"})
+        log_list = [
+            {
+                "path": "//tmp/t",
+                "type": "table",
+                "id": id,
+                "method": "SetModified",
+                "modification_type": "Content"
+            }
+        ]
+        self._validate_entries_against_log(log_list)
+
+        set("//tmp/t/@qqq", 12)
+        log_list = [
+            {
+                "path": "//tmp/t",
+                "type": "table",
+                "id": id,
+                "method": "SetModified",
+                "modification_type": "Attributes"
+            }
+        ]
+        self._validate_entries_against_log(log_list)
+
+        tx = start_transaction()
+        set("//tmp/t/@qqq", 56, tx=tx)
+        abort_transaction(tx)
+        log_list = [
+            {
+                "path": "//tmp/access_log/t",
+                "type": "table",
+                "id": id,
+                "method": "SetModified",
+                "transaction": tx,
+                "modification_type": "Attributes"
+            }
+        ]
         self._validate_entries_against_log(log_list)
 
 

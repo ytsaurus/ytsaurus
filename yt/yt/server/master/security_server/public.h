@@ -91,7 +91,7 @@ class TDetailedMasterMemory;
 
 struct TUserWorkload;
 
-constexpr int TypicalAccessLogAttributeCount = 1;
+constexpr int TypicalAccessLogAttributeCount = 2;
 using TAttributeVector = TCompactVector<std::pair<TStringBuf, TStringBuf>, TypicalAccessLogAttributeCount>;
 constexpr int TypicalSecurityTagCount = 16;
 using TSecurityTagsItems = TCompactVector<TSecurityTag, TypicalSecurityTagCount>;

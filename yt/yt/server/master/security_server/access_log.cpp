@@ -217,7 +217,8 @@ void LogAccess(
     TNodeId id,
     const TStringBuf path,
     const TTransaction* transaction,
-    const TStringBuf method)
+    const TStringBuf method,
+    const TAttributeVector& additionalAttributes)
 {
     YT_ASSERT(bootstrap->GetConfigManager()->GetConfig()->SecurityManager->EnableAccessLog);
     YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
@@ -232,6 +233,11 @@ void LogAccess(
             fluent.Item("transaction_info").DoMap([&] (auto fluent) {
                 TraverseTransactionAncestors(transaction, fluent);
             });
+        })
+        .Do([&] (auto fluent) {
+            for (const auto& [key, value]: additionalAttributes) {
+                fluent.Item(key).Value(value);
+            }
         });
 }
 

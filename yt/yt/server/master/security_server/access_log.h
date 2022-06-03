@@ -76,7 +76,8 @@ void LogAccess(
     NCypressServer::TNodeId id,
     const TStringBuf path,
     const NTransactionServer::TTransaction* transaction,
-    const TStringBuf method);
+    const TStringBuf method,
+    const TAttributeVector& additionalAttributes = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

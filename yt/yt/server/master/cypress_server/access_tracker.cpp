@@ -9,6 +9,8 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
+#include <yt/yt/server/master/security_server/access_log.h>
+
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
@@ -28,6 +30,7 @@ using namespace NTransactionServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,17 +78,27 @@ void TAccessTracker::SetModified(
     node->SetModificationTime(hydraContext->GetTimestamp());
 
     auto currentRevision = GetCurrentHydraContext()->GetVersion().ToRevision();
-
     switch (modificationType) {
-        case EModificationType::Attributes:
+        case EModificationType::Attributes: {
             node->SetAttributeRevision(currentRevision);
             break;
-        case EModificationType::Content:
+        }
+        case EModificationType::Content: {
             node->SetContentRevision(currentRevision);
             break;
+        }
         default:
             YT_ABORT();
     }
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto transaction = node->GetTransaction();
+    YT_LOG_ACCESS(
+        node->GetId(),
+        cypressManager->GetNodePath(node->GetTrunkNode(), transaction),
+        transaction,
+        "Revise",
+        {{"revision_type", FormatEnum(modificationType)}, {"revision", ToString(currentRevision)}});
 }
 
 void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
