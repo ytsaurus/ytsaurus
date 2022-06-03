@@ -1377,7 +1377,7 @@ private:
     EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override
     {
         // If repair in remote copy is disabled, all parts are required.
-        if (Spec_->RepairErasureChunks) {
+        if (!Spec_->RepairErasureChunks) {
             return EChunkAvailabilityPolicy::AllPartsAvailable;
         }
 
