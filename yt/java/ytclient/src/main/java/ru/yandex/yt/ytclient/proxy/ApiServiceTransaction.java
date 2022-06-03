@@ -66,6 +66,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     private final ScheduledExecutorService executor;
     private final CompletableFuture<Void> transactionCompleteFuture = new CompletableFuture<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.ACTIVE);
+    private final AtomicReference<Boolean> forcedPingStop = new AtomicReference<>(false);
     private final AbstractQueue<CompletableFuture<Void>> modifyRowsResults = new ConcurrentLinkedQueue<>();
     private final Consumer<Exception> onPingFailed;
 
@@ -160,7 +161,11 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean isPingableState() {
         State currentState = state.get();
-        return currentState == State.ACTIVE || currentState == State.COMMITTING;
+        return (currentState == State.ACTIVE || currentState == State.COMMITTING) && !forcedPingStop.get();
+    }
+
+    public void stopPing() {
+        forcedPingStop.set(true);
     }
 
     private void runPeriodicPings() {
