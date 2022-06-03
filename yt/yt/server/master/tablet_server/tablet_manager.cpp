@@ -2014,7 +2014,7 @@ public:
         if (mode == ENodeCloneMode::Backup) {
             trunkClonedTable->SetBackupState(ETableBackupState::BackupCompleted);
         } else if (mode == ENodeCloneMode::Restore) {
-            trunkClonedTable->SetBackupState(ETableBackupState::RestoredWithRestrictions);
+            trunkClonedTable->SetBackupState(ETableBackupState::None);
         } else {
             trunkClonedTable->SetBackupState(trunkSourceTable->GetTrunkNode()->GetBackupState());
         }
@@ -2324,15 +2324,6 @@ public:
         }
 
         table->ValidateNotBackup("Cannot switch backup table to static mode");
-
-        // TODO(ifsmirnov): ordered dynamic tables may contain chunk views when restored from backup.
-        // We forbid altering such tables.
-        // When all chunk views vanish secondary master may report that to primary and change
-        // table backup state back to |None|.
-        if (table->GetBackupState() == ETableBackupState::RestoredWithRestrictions) {
-            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: "
-                "table was recently restored from backup and still has some restrictions");
-        }
 
         if (table->IsPhysicallyLog()) {
             THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static for table type %Qlv",
@@ -7663,10 +7654,6 @@ private:
 
                 case ENodeCloneMode::Backup:
                     trunkNode->ValidateNotBackup("Cannot backup a backup table");
-                    if (trunkNode->GetBackupState() == ETableBackupState::RestoredWithRestrictions) {
-                        THROW_ERROR_EXCEPTION("Cannot backup table that was recently restored and still "
-                            "has some restrictions");
-                    }
                     if (trunkNode->IsPhysicallyLog() && !trunkNode->IsReplicated()) {
                         THROW_ERROR_EXCEPTION("Cannot backup a table of type %Qlv",
                             trunkNode->GetType());

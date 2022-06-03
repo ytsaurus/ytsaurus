@@ -5,7 +5,8 @@ from yt_commands import (
     wait, start_transaction, commit_transaction, print_debug, lookup_rows,
     generate_timestamp, set, sync_compact_table, read_table, merge, create,
     get_driver, sync_enable_table_replica, create_table_replica, sync_disable_table_replica,
-    sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica)
+    sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica,
+    write_table, remote_copy, alter_table)
 
 import yt_error_codes
 
@@ -34,9 +35,11 @@ class EmptyDynamicStoreIdPoolException(Exception):
 
 @authors("ifsmirnov")
 class TestBackups(DynamicTablesBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     NUM_SCHEDULERS = 1
+
+    ENABLE_BULK_INSERT = True
 
     def test_basic_backup(self):
         sync_create_cells(1)
@@ -62,7 +65,7 @@ class TestBackups(DynamicTablesBase):
 
         restore_table_backup(["//tmp/bak", "//tmp/res"])
         assert get("//tmp/res/@tablet_backup_state") == "none"
-        assert get("//tmp/res/@backup_state") == "restored_with_restrictions"
+        assert get("//tmp/res/@backup_state") == "none"
         sync_mount_table("//tmp/res")
         assert_items_equal(select_rows("* from [//tmp/res]"), rows)
 
@@ -168,7 +171,7 @@ class TestBackups(DynamicTablesBase):
 
         rowsets = []
         for table in restored_tables:
-            assert get(table + "/@backup_state") == "restored_with_restrictions"
+            assert get(table + "/@backup_state") == "none"
             sync_mount_table(table)
             rowsets.append(list(select_rows("* from [{}] order by key limit 1000000".format(table))))
 
@@ -359,7 +362,7 @@ class TestBackups(DynamicTablesBase):
 
         rowsets = []
         for table in restored_tables:
-            assert get(table + "/@backup_state") == "restored_with_restrictions"
+            assert get(table + "/@backup_state") == "none"
             sync_mount_table(table)
             rowsets.append(list(select_rows("* from [{}] order by key limit 1000000".format(table))))
 
@@ -503,11 +506,117 @@ class TestBackups(DynamicTablesBase):
             assert len(list(read_table(table))) == (0 if empty else 1)
             assert len(list(select_rows("* from [{}]".format(table)))) == (0 if empty else 1)
 
+    def test_cannot_set_enable_dynamic_store_read(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=1000)
+
+        with raises_yt_error():
+            set("//tmp/bak/@enable_dynamic_store_read", True)
+        with raises_yt_error():
+            set("//tmp/bak/@enable_dynamic_store_read", False)
+
+    def test_bulk_insert_into_backup_table(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        normal_rows = [{"key": 1, "value": "foo"}]
+        bulk_rows = [{"key": 2, "value": "bar"}]
+        extra_rows = [{"key": 3, "value": "baz"}]
+        insert_rows("//tmp/t", normal_rows)
+        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=1000)
+        insert_rows("//tmp/t", extra_rows)
+        sync_freeze_table("//tmp/t")
+
+        with raises_yt_error():
+            remote_copy(
+                in_="//tmp/t",
+                out="//tmp/bak",
+                spec={"cluster_name": "primary"})
+
+        restore_table_backup(["//tmp/bak", "//tmp/res"])
+        sync_mount_table("//tmp/res")
+
+        create("table", "//tmp/data")
+        write_table("//tmp/data", bulk_rows)
+        merge(in_="//tmp/data", out="<append=%true>//tmp/res", mode="ordered")
+
+        assert_items_equal(list(select_rows("* from [//tmp/res]")), normal_rows + bulk_rows)
+        assert read_table("//tmp/res") == normal_rows + bulk_rows
+        assert_items_equal(list(select_rows("* from [//tmp/t]")), normal_rows + extra_rows)
+        assert read_table("//tmp/t") == normal_rows + extra_rows
+
+    @pytest.mark.parametrize("sorted", [True, False])
+    @pytest.mark.parametrize("empty", [True, False])
+    def test_frozen_tables(self, sorted, empty):
+        sync_create_cells(2)
+        if sorted:
+            self._create_sorted_table("//tmp/t", pivot_keys=[[], [1]])
+        else:
+            self._create_ordered_table("//tmp/t", tablet_count=2, commit_ordering="strong")
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}]
+        if not sorted:
+            for row in rows:
+                row["$tablet_index"] = row["key"]
+
+        if not empty:
+            insert_rows("//tmp/t", rows)
+
+        tablet_ids = [t["tablet_id"] for t in get("//tmp/t/@tablets")]
+        sync_freeze_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+
+        response = create_table_backup(
+            ["//tmp/t", "//tmp/bak"],
+            checkpoint_timestamp_delay=5000,
+            return_response=True)
+
+        def _get_backup_stage(index):
+            return get("//sys/tablets/{}/orchid/backup_stage".format(tablet_ids[index]))
+
+        wait(lambda: _get_backup_stage(0) == "feasibility_confirmed")
+        wait(lambda: _get_backup_stage(1) == "feasibility_confirmed")
+
+        response.wait()
+        assert response.is_ok()
+        assert get("//tmp/bak/@tablet_backup_state") == "backup_completed"
+        assert get("//tmp/bak/@backup_state") == "backup_completed"
+
+    def test_static_table(self):
+        create("table", "//tmp/t")
+        with raises_yt_error():
+            create_table_backup(["//tmp/t", "//tmp/bak"])
+
+    def test_alter_to_static(self):
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(100)]
+        insert_rows("//tmp/t", rows[:50])
+        create_table_backup(
+            ["//tmp/t", "//tmp/bak", {"ordered_mode": "at_least"}],
+            checkpoint_timestamp_delay=2000)
+        insert_rows("//tmp/t", rows[50:])
+        sync_flush_table("//tmp/t")
+
+        with raises_yt_error():
+            alter_table("//tmp/bak", dynamic=False)
+
+        restore_table_backup(["//tmp/bak", "//tmp/res"])
+        alter_table("//tmp/res", dynamic=False)
+        assert read_table("//tmp/res") == rows[:50]
+
 ##################################################################
 
 
 @authors("ifsmirnov")
 class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
+    NUM_SCHEDULERS = 1
+    ENABLE_BULK_INSERT = True
+
     def _create_tables(self, replica_modes, mount=True):
         self._create_replicated_table("//tmp/t", mount=mount)
         for i, mode in enumerate(replica_modes):
@@ -602,17 +711,17 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
             driver=get_driver(cluster=driver_cluster))
 
         assert get("//tmp/res/@type") == "replicated_table"
-        assert get("//tmp/res/@backup_state") == "restored_with_restrictions"
+        assert get("//tmp/res/@backup_state") == "none"
         replicas = get("//tmp/res/@replicas")
 
-        assert get("//tmp/res1/@backup_state", driver=self.replica_driver) == "restored_with_restrictions"
+        assert get("//tmp/res1/@backup_state", driver=self.replica_driver) == "none"
         replica_id = get("//tmp/res1/@upstream_replica_id", driver=self.replica_driver)
         assert replicas[replica_id]["replica_path"] == "//tmp/res1"
         assert replicas[replica_id]["mode"] == "sync"
         assert replicas[replica_id]["state"] == "disabled"
         sync_enable_table_replica(replica_id)
 
-        assert get("//tmp/res2/@backup_state", driver=self.replica_driver) == "restored_with_restrictions"
+        assert get("//tmp/res2/@backup_state", driver=self.replica_driver) == "none"
         replica_id = get("//tmp/res2/@upstream_replica_id", driver=self.replica_driver)
         assert replicas[replica_id]["replica_path"] == "//tmp/res2"
         assert replicas[replica_id]["mode"] == "async"
@@ -848,6 +957,94 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
 
         # But it should not prevent us from backing up only replica 2.
         create_table_backup(self._make_backup_manifest([2]))
+
+    def test_bulk_insert_to_replicas(self):
+        self._create_cells()
+        self._create_tables(["sync", "async"])
+
+        normal_rows = [{"key": i, "value1": str(i), "value2": i * 100} for i in range(10)]
+        for row in normal_rows:
+            insert_rows("//tmp/t", [row])
+
+        bulk_rows = [{"key": i, "value1": str(i), "value2": i * 100} for i in range(10, 20)]
+        create("table", "//tmp/data", driver=self.replica_driver)
+        write_table("//tmp/data", bulk_rows, driver=self.replica_driver)
+
+        for table in ["//tmp/r1", "//tmp/r2"]:
+            set(table + "/@enable_compaction_and_partitioning", False, driver=self.replica_driver)
+            remount_table(table, driver=self.replica_driver)
+            merge(in_="//tmp/data", out="<append=%true>" + table, mode="ordered", driver=self.replica_driver)
+
+        rows = normal_rows + bulk_rows
+        assert_items_equal(list(select_rows("* from [//tmp/r1]", driver=self.replica_driver)), rows)
+        wait(lambda: are_items_equal(list(select_rows("* from [//tmp/r2]", driver=self.replica_driver)), rows))
+
+        create_table_backup(self._make_backup_manifest(2))
+        sync_freeze_table("//tmp/t")
+        sync_freeze_table("//tmp/r1", driver=self.replica_driver)
+        sync_freeze_table("//tmp/r2", driver=self.replica_driver)
+
+        restore_table_backup(self._make_restore_manifest(2))
+
+    def test_frozen_replicated_table(self):
+        self._create_cells()
+        self._create_tables(["async"])
+        set("//tmp/t/@replication_throttler", {"limit": 2000})
+        remount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "A" * 1000, "value2": i * 100} for i in range(15)]
+        for row in rows:
+            insert_rows("//tmp/t", [row], require_sync_replica=False)
+
+        def _get_replica_row_count(table):
+            return len(list(select_rows(f"* from [{table}]", driver=self.replica_driver)))
+
+        wait(lambda: _get_replica_row_count("//tmp/r1") >= 5)
+        sync_freeze_table("//tmp/t")
+
+        create_table_backup(self._make_backup_manifest(1), checkpoint_timestamp_delay=1000)
+        sync_flush_table("//tmp/r1", driver=self.replica_driver)
+
+        set("//tmp/t/@replication_throttler/limit", 10000)
+        remount_table("//tmp/t")
+        wait(lambda: _get_replica_row_count("//tmp/r1") == len(rows))
+
+        restore_table_backup(self._make_restore_manifest(1))
+        sync_mount_table("//tmp/res")
+        sync_mount_table("//tmp/res1", driver=self.replica_driver)
+
+        written_row_count = _get_replica_row_count("//tmp/res1")
+        tablet_info = get_tablet_infos("//tmp/res", [0])["tablets"][0]
+        replica_info = tablet_info["replica_infos"][0]
+        replicated_row_count = replica_info["current_replication_row_index"]
+        assert written_row_count == replicated_row_count
+
+        set("//tmp/res/@replication_throttler/limit", 10000)
+        remount_table("//tmp/res")
+        cloned_replica_id = get("//tmp/res1/@upstream_replica_id", driver=self.replica_driver)
+        sync_enable_table_replica(cloned_replica_id)
+        wait(lambda: are_items_equal(
+            rows,
+            list(select_rows("* from [//tmp/res1]", driver=self.replica_driver))))
+
+    def test_preserve_timestamps(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r1",
+            mode="sync",
+            attributes={"preserve_timestamps": False})
+        self._create_replica_table("//tmp/r1", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 1, "value1": "foo", "value2": 1234}]
+        insert_rows("//tmp/t", rows)
+        assert_items_equal(list(select_rows("* from [//tmp/r1]", driver=self.replica_driver)), rows)
+
+        with raises_yt_error():
+            create_table_backup(self._make_backup_manifest(1))
 
 ##################################################################
 

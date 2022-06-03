@@ -1230,6 +1230,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             }
             if (lockedTable->IsDynamic()) {
                 lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
+                lockedTable->ValidateNotBackup("Cannot change dynamic stores readability");
             }
 
             lockedTable->SetEnableDynamicStoreRead(std::nullopt);
@@ -1461,6 +1462,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
             if (lockedTable->IsDynamic()) {
                 lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
+                lockedTable->ValidateNotBackup("Cannot change dynamic stores readability");
             }
 
             lockedTable->SetEnableDynamicStoreRead(ConvertTo<bool>(value));

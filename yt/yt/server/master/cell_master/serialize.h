@@ -126,6 +126,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForcedUnmountEdenStoreIds)                                    (2024))  // ifsmirnov
     ((RecomputeAccountResourceUsageOnceAgain)                       (2025))  // aleksandra-zh
     ((LetsRecomputeAccountResourceUsageAgainWhyNotItsNice)          (2026))  // gritukan
+    ((BackupsMisc)                                                  (2027))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

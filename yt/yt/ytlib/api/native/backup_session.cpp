@@ -57,8 +57,14 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
         &tableInfo.ExternalCellTag,
         {"sorted", "upstream_replica_id", "replicas", "dynamic", "commit_ordering"});
 
-    auto sorted = tableInfo.Attributes->Get<bool>("sorted");
     auto dynamic = tableInfo.Attributes->Get<bool>("dynamic");
+
+    if (!dynamic) {
+        THROW_ERROR_EXCEPTION("Cannot backup static table %v", tableInfo.SourcePath)
+            << TErrorAttribute("cluster_name", ClusterName_);
+    }
+
+    auto sorted = tableInfo.Attributes->Get<bool>("sorted");
     auto commitOrdering = tableInfo.Attributes->Get<ECommitOrdering>("commit_ordering");
     auto type = TypeFromId(tableInfo.SourceTableId);
     bool replicated = type == EObjectType::ReplicatedTable;
@@ -97,11 +103,6 @@ void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifes
 
         if (!SourceTableIds_.insert(tableInfo.SourceTableId).second) {
             THROW_ERROR_EXCEPTION("Duplicate table %Qv in backup manifest",
-                tableInfo.SourcePath);
-        }
-
-        if (!dynamic) {
-            THROW_ERROR_EXCEPTION("Table %Qv is not dynamic",
                 tableInfo.SourcePath);
         }
 
