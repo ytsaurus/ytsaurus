@@ -2392,25 +2392,17 @@ private:
             auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
             NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
 
-            const auto getOperationIds = [&operations{result.Operations}] {
-                std::vector<TOperationId> operationIds;
-                operationIds.reserve(std::size(operations));
-
-                for (const auto& operation : operations) {
-                    operationIds.push_back(operation->GetId());
-                }
-
-                return operationIds;
-            };
-            const TNodeShardMasterHandshakeResult nodeShardResult{
-                .InitialSchedulingSegmentsState = result.SchedulingSegmentsState,
-                .SchedulingSegmentInitializationDeadline = segmentsInitializationDeadline,
-                .OperationIds = getOperationIds(),
-            };
+            auto nodeShardResult = New<TNodeShardMasterHandshakeResult>();
+            nodeShardResult->InitialSchedulingSegmentsState = result.SchedulingSegmentsState;
+            nodeShardResult->SchedulingSegmentInitializationDeadline = segmentsInitializationDeadline;
+            nodeShardResult->OperationIds.reserve(std::size(result.Operations));
+            for (const auto& operation : result.Operations) {
+                nodeShardResult->OperationIds.insert(operation->GetId());
+            }
 
             std::vector<TFuture<IInvokerPtr>> asyncInvokers;
             for (const auto& nodeShard : NodeShards_) {
-                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard, ConstRef(nodeShardResult))
+                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard, nodeShardResult)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
@@ -4591,12 +4583,12 @@ private:
             return;
         }
 
-        auto setAlert = [&] (const std::vector<TString>& nodeSample, int nodeCount) {
+        auto setAlert = [&] (std::vector<TString> nodeSample, int nodeCount) {
             auto error = WaitFor(
                 BIND(
                     &TImpl::SetNodesWithUnsupportedInterruptionAlert,
                     MakeWeak(this),
-                    ConstRef(nodeSample),
+                    Passed(std::move(nodeSample)),
                     nodeCount)
                 .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity))
                 .Run());
@@ -4650,7 +4642,7 @@ private:
                 nodesWithUnsupportedInterruption);
         }
 
-        setAlert(nodesWithUnsupportedInterruption, nodeWithUnsupportedInterruptionCount);
+        setAlert(std::move(nodesWithUnsupportedInterruption), nodeWithUnsupportedInterruptionCount);
     }
 
     void SetNodesWithUnsupportedInterruptionAlert(

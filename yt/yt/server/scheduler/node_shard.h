@@ -113,12 +113,14 @@ using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegme
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNodeShardMasterHandshakeResult
+struct TNodeShardMasterHandshakeResult final
 {
     TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState;
     TInstant SchedulingSegmentInitializationDeadline;
-    std::vector<TOperationId> OperationIds;
+    THashSet<TOperationId> OperationIds;
 };
+
+using TNodeShardMasterHandshakeResultPtr = TIntrusivePtr<TNodeShardMasterHandshakeResult>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,7 +139,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    IInvokerPtr OnMasterConnected(const TNodeShardMasterHandshakeResult& result);
+    IInvokerPtr OnMasterConnected(const TNodeShardMasterHandshakeResultPtr& result);
     void OnMasterDisconnected();
 
     void RegisterOperation(
