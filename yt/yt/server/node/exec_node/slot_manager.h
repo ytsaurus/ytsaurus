@@ -144,7 +144,7 @@ private:
 
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart or alert reset.
-    int ConsecutiveAbortedJobCount_ = 0;
+    int ConsecutiveAbortedSchedulerJobCount_ = 0;
 
     //! If we observe too many consecutive GPU job failures, we disable user slots on
     //! the node until restart or alert reset.
