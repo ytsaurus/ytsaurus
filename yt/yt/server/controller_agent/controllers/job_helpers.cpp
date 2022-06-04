@@ -173,6 +173,12 @@ void ParseAndEnrichStatistics(
     const TJobletPtr& joblet,
     const TYsonString& lastObservedStatisticsYson)
 {
+    auto getCumulativeMemory = [] (i64 memory, TDuration period) {
+        double cumulativeMemory = static_cast<double>(memory) * period.MilliSeconds();
+        // Due to possible i64 overflow we consider cumulativeMemory in bytes * seconds.
+        return static_cast<i64>(cumulativeMemory / 1000.0); 
+    };
+
     auto& statistics = jobSummary->Statistics;
     const auto& statisticsYson = jobSummary->StatisticsYson
         ? jobSummary->StatisticsYson
@@ -205,15 +211,15 @@ void ParseAndEnrichStatistics(
         auto duration = endTime - joblet->StartTime;
         statistics->ReplacePathWithSample("/time/total", duration.MilliSeconds());
         statistics->ReplacePathWithSample("/job_proxy/estimated_memory", joblet->EstimatedResourceUsage.GetJobProxyMemory());
-        statistics->ReplacePathWithSample("/job_proxy/cumulative_estimated_memory", joblet->EstimatedResourceUsage.GetJobProxyMemory() * duration.MilliSeconds());
+        statistics->ReplacePathWithSample("/job_proxy/cumulative_estimated_memory", getCumulativeMemory(joblet->EstimatedResourceUsage.GetJobProxyMemory(), duration));
         if (auto userJobMaxMemoryUsage = FindNumericValue(*statistics, "/user_job/max_memory")) {
-            statistics->ReplacePathWithSample("/user_job/cumulative_max_memory", *userJobMaxMemoryUsage * duration.MilliSeconds());
+            statistics->ReplacePathWithSample("/user_job/cumulative_max_memory", getCumulativeMemory(*userJobMaxMemoryUsage, duration));
         }
         if (auto userJobMemoryReserve = FindNumericValue(*statistics, "/user_job/memory_reserve")) {
-            statistics->ReplacePathWithSample("/user_job/cumulative_memory_reserve", *userJobMemoryReserve * duration.MilliSeconds());
+            statistics->ReplacePathWithSample("/user_job/cumulative_memory_reserve", getCumulativeMemory(*userJobMemoryReserve, duration));
         }
         if (auto jobProxyMaxMemoryUsage = FindNumericValue(*statistics, "/job_proxy/max_memory")) {
-            statistics->ReplacePathWithSample("/job_proxy/cumulative_max_memory", *jobProxyMaxMemoryUsage * duration.MilliSeconds());
+            statistics->ReplacePathWithSample("/job_proxy/cumulative_max_memory", getCumulativeMemory(*jobProxyMaxMemoryUsage, duration));
         }
     }
 
