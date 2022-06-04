@@ -209,6 +209,7 @@ def prepare_yt_environment(destination, artifact_components=None, **kwargs):
     return bin_dir
 
 
+# Absolute paths to binaries must be provided for the shutil.copy.
 def collect_cores(pids, working_directory, binaries, logger=None):
     cores_path = os.path.join(working_directory, "cores")
     if not os.path.isdir(cores_path):
