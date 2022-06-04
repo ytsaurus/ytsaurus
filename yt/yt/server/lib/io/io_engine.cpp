@@ -196,6 +196,7 @@ public:
 
     bool EnablePwritev;
     bool FlushAfterWrite;
+    bool AsyncFlushAfterWrite;
 
     // Request size in bytes.
     i64 DesiredRequestSize;
@@ -217,6 +218,8 @@ public:
         RegisterParameter("enable_pwritev", EnablePwritev)
             .Default(true);
         RegisterParameter("flush_after_write", FlushAfterWrite)
+            .Default(false);
+        RegisterParameter("async_flush_after_write", AsyncFlushAfterWrite)
             .Default(false);
 
         RegisterParameter("desired_request_size", DesiredRequestSize)
@@ -1137,11 +1140,17 @@ private:
 
         auto config = Config_.Load();
         if (config->FlushAfterWrite && request.Flush && writtenBytes) {
-            YT_VERIFY(writtenBytes > 0);
             DoFlushFileRange(TFlushFileRangeRequest{
                 .Handle = request.Handle,
                 .Offset = request.Offset,
                 .Size = writtenBytes
+            });
+        } else if (config->AsyncFlushAfterWrite && writtenBytes) {
+            DoFlushFileRange(TFlushFileRangeRequest{
+                .Handle = request.Handle,
+                .Offset = request.Offset,
+                .Size = writtenBytes,
+                .Async = true
             });
         }
     }
@@ -1321,7 +1330,9 @@ private:
             int result = 0;
             {
                 TRequestStatsGuard statsGuard(Sensors_->DataSyncSensors);
-                constexpr auto flags = SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER;
+                const auto flags = request.Async
+                    ? SYNC_FILE_RANGE_WRITE
+                    : SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER;
                 result = HandleEintr(::sync_file_range, *request.Handle, request.Offset, request.Size, flags);
             };
             if (result != 0) {

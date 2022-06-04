@@ -104,6 +104,7 @@ struct IIOEngine
         TIOEngineHandlePtr Handle;
         i64 Offset = -1;
         i64 Size = -1;
+        bool Async = false;
     };
 
     struct TFlushDirectoryRequest
