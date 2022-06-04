@@ -1914,10 +1914,16 @@ private:
     {
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
+        std::optional<TDuration> earlyFinishTimeout;
+        if (request->enable_early_finish() && context->GetTimeout()) {
+            earlyFinishTimeout = *context->GetTimeout() * Config_->ColumnarStatisticsReadTimeoutFraction;
+        }
+
         context->SetRequestInfo(
-            "SubrequestCount: %v, Workload: %v",
+            "SubrequestCount: %v, Workload: %v, EarlyFinishTimeout: %v",
             request->subrequests_size(),
-            workloadDescriptor);
+            workloadDescriptor,
+            earlyFinishTimeout);
 
         ValidateOnline();
 
@@ -1979,14 +1985,11 @@ private:
             futures.push_back(chunkMetaFuture);
         }
 
-        std::optional<TDuration> earlyFinishTimeout;
-        if (request->enable_early_finish() && context->GetTimeout()) {
-            earlyFinishTimeout = *context->GetTimeout() * Config_->ColumnarStatisticsReadTimeoutFraction;
-            YT_LOG_DEBUG("Early finish is enabled (EarlyFinishTimeout: %v)", earlyFinishTimeout);
-        }
+        YT_LOG_DEBUG("Awaiting chunk meta asynchronous read");
 
         auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(futures, *earlyFinishTimeout) : AllSet(futures));
-        context->SubscribeCanceled(BIND([combinedResult = combinedResult] {
+        context->SubscribeCanceled(BIND([Logger = Logger, combinedResult = combinedResult] {
+            YT_LOG_DEBUG("Columnar statistics fetch cancelled, propagating cancellation to chunk meta reading");
             combinedResult.Cancel(TError("RPC request canceled"));
         }));
         context->ReplyFrom(combinedResult.Apply(
@@ -2007,9 +2010,12 @@ private:
         const TCtxGetColumnarStatisticsPtr& context,
         const std::vector<TErrorOr<TRefCountedChunkMetaPtr>>& metaOrErrors)
     {
+        YT_LOG_DEBUG("Extracting columnar statistics from chunk metas");
+
         YT_VERIFY(subresponseIndices.size() == columnStableNames.size());
         YT_VERIFY(subresponseIndices.size() == chunkIds.size());
         YT_VERIFY(subresponseIndices.size() == metaOrErrors.size());
+
         for (int index = 0; index < std::ssize(subresponseIndices); ++index) {
             auto chunkId = chunkIds[index];
             const auto& subresponse = context->Response().mutable_subresponses(subresponseIndices[index]);
