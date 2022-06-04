@@ -19,6 +19,8 @@ import pytest
 
 
 class TestInputFetching(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def setup(self):
         self._setup()
 
