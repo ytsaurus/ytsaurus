@@ -40,6 +40,15 @@ struct TLockDescriptor
     TTransaction* WriteTransaction;
     std::atomic<TTimestamp> PrepareTimestamp;
     std::atomic<TEditListHeader*> WriteRevisionList;
+
+    // Edit list of revision of committed transactions that were holding this read lock.
+    // Actually only maximum timestamp in this list is important for conflicts check, edit list
+    // is used here only to deal with asynchronious snapshot serialization. In particular,
+    // only maximum value in this list is stored into snapshot and other values are lost
+    // during reserialization.
+    // NB: Timestamps in this list are not monotone since transactions can be committed in
+    // arbitrary order.
+    std::atomic<TEditListHeader*> ReadLockRevisionList;
 };
 
 struct TSortedDynamicRowHeader
@@ -394,7 +403,7 @@ public:
     }
 
 
-    static TRevisionList GetWriteRevisionList(TLockDescriptor& lock)
+    static TRevisionList GetWriteRevisionList(const TLockDescriptor& lock)
     {
         return TRevisionList(lock.WriteRevisionList);
     }
@@ -402,6 +411,17 @@ public:
     static void SetWriteRevisionList(TLockDescriptor& lock, TRevisionList list)
     {
         lock.WriteRevisionList = list.Header_;
+    }
+
+
+    static TRevisionList GetReadLockRevisionList(const TLockDescriptor& lock)
+    {
+        return TRevisionList(lock.ReadLockRevisionList);
+    }
+
+    static void SetReadLockRevisionList(TLockDescriptor& lock, TRevisionList list)
+    {
+        lock.ReadLockRevisionList = list.Header_;
     }
 
 
