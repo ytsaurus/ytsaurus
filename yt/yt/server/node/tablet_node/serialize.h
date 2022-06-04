@@ -38,6 +38,7 @@ DEFINE_ENUM(ETabletReign,
     ((CommitSignature)                    (100501)) // gritukan
     ((MountConfig)                        (100502)) // ifsmirnov
     ((BackupsReplicated)                  (100503)) // ifsmirnov
+    ((PersistLastReadLockTimestamp)       (100504)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

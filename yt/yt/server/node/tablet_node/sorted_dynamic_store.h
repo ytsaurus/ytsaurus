@@ -213,6 +213,7 @@ private:
 
     void AddDeleteRevision(TSortedDynamicRow row, ui32 revision);
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
+    void AddReadLockRevision(TLockDescriptor& lock, ui32 revision);
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
     void AddValue(TSortedDynamicRow row, int index, TDynamicValue value);
@@ -225,13 +226,16 @@ private:
         std::vector<std::vector<ui32>> WriteRevisions;
     };
 
-    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
+    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData, TTimestamp* lastReadLockTimestamps);
     ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
     ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
 
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
+
+    TTimestamp GetLastTimestamp(TRevisionList list) const;
+    TTimestamp GetLastTimestamp(TRevisionList list, ui32 revision) const;
 
     ui32 GetLatestRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
