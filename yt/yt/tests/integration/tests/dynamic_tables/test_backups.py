@@ -6,7 +6,7 @@ from yt_commands import (
     generate_timestamp, set, sync_compact_table, read_table, merge, create,
     get_driver, sync_enable_table_replica, create_table_replica, sync_disable_table_replica,
     sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica,
-    write_table, remote_copy, alter_table)
+    write_table, remote_copy, alter_table, copy, move, delete_rows)
 
 import yt_error_codes
 
@@ -608,6 +608,72 @@ class TestBackups(DynamicTablesBase):
         restore_table_backup(["//tmp/bak", "//tmp/res"])
         alter_table("//tmp/res", dynamic=False)
         assert read_table("//tmp/res") == rows[:50]
+
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_clone_backup(self, sorted):
+        sync_create_cells(1)
+        if sorted:
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table(
+                "//tmp/t",
+                replication_factor=10,
+                chunk_writer={"upload_replication_factor": 10})
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(100)]
+        insert_rows("//tmp/t", rows[:50])
+        create_table_backup(
+            ["//tmp/t", "//tmp/bak", {"ordered_mode": "at_least"}],
+            checkpoint_timestamp_delay=2000)
+        insert_rows("//tmp/t", rows[50:])
+
+        copy("//tmp/bak", "//tmp/bak_copy")
+        move("//tmp/bak", "//tmp/bak_move")
+
+        assert get("//tmp/bak_copy/@backup_state") == "backup_completed"
+        assert get("//tmp/bak_move/@backup_state") == "backup_completed"
+        assert get("//tmp/bak_copy/@tablet_backup_state") == "backup_completed"
+        assert get("//tmp/bak_move/@tablet_backup_state") == "backup_completed"
+        assert get("//tmp/bak_copy/@backup_checkpoint_timestamp") > 0
+        assert get("//tmp/bak_move/@backup_checkpoint_timestamp") > 0
+
+        if not sorted:
+            set("//tmp/t/@chunk_writer/upload_replication_factor", 1)
+            remount_table("//tmp/t")
+        sync_freeze_table("//tmp/t")
+
+        for iter in range(2):
+            restore_table_backup(["//tmp/bak_copy", "//tmp/res_copy"])
+            assert read_table("//tmp/res_copy") == rows[:50]
+            if not sorted:
+                set("//tmp/res_copy/@chunk_writer/upload_replication_factor", 1)
+            sync_mount_table("//tmp/res_copy")
+            assert_items_equal(select_rows("key, value from [//tmp/res_copy]"), rows[:50])
+            if sorted:
+                set("//tmp/res_copy/@min_data_ttl", 0)
+                remount_table("//tmp/res_copy")
+                delete_rows("//tmp/res_copy", [{"key": k["key"]} for k in rows[:50]])
+                sync_flush_table("//tmp/res_copy")
+                sync_compact_table("//tmp/res_copy")
+                assert get("//tmp/res_copy/@chunk_count") == 2  # dynamic stores
+            else:
+                insert_rows("//tmp/res_copy", [{"key": 1234, "value": "barbarbar"}])
+                sync_flush_table("//tmp/res_copy")
+
+            restore_table_backup(["//tmp/bak_move", "//tmp/res_move"])
+            assert read_table("//tmp/res_move") == rows[:50]
+            sync_mount_table("//tmp/res_move")
+            assert_items_equal(select_rows("key, value from [//tmp/res_move]"), rows[:50])
+            sync_unmount_table("//tmp/res_move")
+
+            move("//tmp/res_move", "//tmp/res_move2")
+            assert read_table("//tmp/res_move2") == rows[:50]
+            sync_mount_table("//tmp/res_move2")
+            assert_items_equal(select_rows("key, value from [//tmp/res_move2]"), rows[:50])
+
+            remove("//tmp/res_copy")
+            remove("//tmp/res_move2")
 
 ##################################################################
 
