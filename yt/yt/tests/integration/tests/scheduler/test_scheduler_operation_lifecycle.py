@@ -258,6 +258,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_suspend_during_revive(self):
+        update_controller_agent_config("enable_snapshot_loading", False)
+
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
         write_table("//tmp/in", [{"foo": i} for i in range(5)])
