@@ -6,44 +6,44 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellOptions::TTabletCellOptions()
+void TTabletCellOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("peer_count", PeerCount)
+    registrar.Parameter("peer_count", &TThis::PeerCount)
         .Default(1)
         .InRange(1, MaxPeerCount);
-    RegisterParameter("independent_peers", IndependentPeers)
+    registrar.Parameter("independent_peers", &TThis::IndependentPeers)
         .Default(false);
-    RegisterParameter("clock_cluster_tag", ClockClusterTag)
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
         .Default(InvalidCellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicTabletCellOptions::TDynamicTabletCellOptions()
+void TDynamicTabletCellOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+    registrar.Parameter("cpu_per_tablet_slot", &TThis::CpuPerTabletSlot)
         .Optional();
-    RegisterParameter("suppress_tablet_cell_decommission", SuppressTabletCellDecommission)
+    registrar.Parameter("suppress_tablet_cell_decommission", &TThis::SuppressTabletCellDecommission)
         .Optional();
-    RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
+    registrar.Parameter("forced_rotation_memory_ratio", &TThis::ForcedRotationMemoryRatio)
         .InRange(0.0, 1.0)
         .Default(0.7);
-    RegisterParameter("dynamic_memory_pool_weight", DynamicMemoryPoolWeight)
+    registrar.Parameter("dynamic_memory_pool_weight", &TThis::DynamicMemoryPoolWeight)
         .InRange(1, MaxDynamicMemoryPoolWeight)
         .Default(1);
-    RegisterParameter("enable_tablet_dynamic_memory_limit", EnableTabletDynamicMemoryLimit)
+    registrar.Parameter("enable_tablet_dynamic_memory_limit", &TThis::EnableTabletDynamicMemoryLimit)
         .Default(true);
-    RegisterParameter("solomon_tag", SolomonTag)
+    registrar.Parameter("solomon_tag", &TThis::SolomonTag)
         .Optional()
         .DontSerializeDefault();
-    RegisterParameter("max_backing_store_memory_ratio", MaxBackingStoreMemoryRatio)
+    registrar.Parameter("max_backing_store_memory_ratio", &TThis::MaxBackingStoreMemoryRatio)
         .Default(0.15);
-    RegisterParameter("increase_upload_replication_factor", IncreaseUploadReplicationFactor)
+    registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        if (MaxBackingStoreMemoryRatio &&
-            *MaxBackingStoreMemoryRatio + ForcedRotationMemoryRatio >= 1.0)
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxBackingStoreMemoryRatio &&
+            *config->MaxBackingStoreMemoryRatio + config->ForcedRotationMemoryRatio >= 1.0)
         {
             THROW_ERROR_EXCEPTION("\"max_backing_store_memory_ratio\" + "
                 "\"forced_rotation_memory_ratio\" should be less than 1");

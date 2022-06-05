@@ -15,7 +15,7 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableReplicatedTableTracker;
@@ -34,9 +34,11 @@ public:
 
     std::optional<std::vector<TString>> PreferredSyncReplicaClusters;
 
-    TReplicatedTableOptions();
-
     std::tuple<int, int> GetEffectiveMinMaxReplicaCount(int replicaCount) const;
+
+    REGISTER_YSON_STRUCT(TReplicatedTableOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableOptions)
@@ -44,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicatedTableOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicReplicatedTableTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableReplicatedTableTracker;
@@ -69,7 +71,9 @@ public:
 
     TDuration ClientExpirationTime;
 
-    TDynamicReplicatedTableTrackerConfig();
+    REGISTER_YSON_STRUCT(TDynamicReplicatedTableTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicReplicatedTableTrackerConfig)

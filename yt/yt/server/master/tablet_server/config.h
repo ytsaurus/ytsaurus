@@ -14,7 +14,7 @@
 
 #include <yt/yt/core/misc/cache_config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
@@ -23,7 +23,7 @@ namespace NYT::NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerMasterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableTabletBalancer;
@@ -32,7 +32,9 @@ public:
     TDuration ConfigCheckPeriod;
     TDuration BalancePeriod;
 
-    TTabletBalancerMasterConfig();
+    REGISTER_YSON_STRUCT(TTabletBalancerMasterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletBalancerMasterConfig)
@@ -40,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletCellDecommissionerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableTabletCellDecommission;
@@ -52,7 +54,9 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr DecommissionThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr KickOrphansThrottler;
 
-    TTabletCellDecommissionerConfig();
+    REGISTER_YSON_STRUCT(TTabletCellDecommissionerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
@@ -60,12 +64,14 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissionerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletActionManagerMasterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration TabletActionsCleanupPeriod;
 
-    TTabletActionManagerMasterConfig();
+    REGISTER_YSON_STRUCT(TTabletActionManagerMasterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletActionManagerMasterConfig)
@@ -73,7 +79,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletActionManagerMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTablesMulticellGossipConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Multicell tablet cell statistics gossip period.
@@ -99,7 +105,9 @@ public:
 
     bool EnableUpdateStatisticsOnHeartbeat;
 
-    TDynamicTablesMulticellGossipConfig();
+    REGISTER_YSON_STRUCT(TDynamicTablesMulticellGossipConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTablesMulticellGossipConfig)
@@ -107,14 +115,16 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTablesMulticellGossipConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTabletCellBalancerMasterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableTabletCellSmoothing;
     bool EnableVerboseLogging;
     TDuration RebalanceWaitTime;
 
-    TDynamicTabletCellBalancerMasterConfig();
+    REGISTER_YSON_STRUCT(TDynamicTabletCellBalancerMasterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
@@ -122,12 +132,14 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellBalancerMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int CheckerThreadCount;
 
-    TReplicatedTableTrackerConfig();
+    REGISTER_YSON_STRUCT(TReplicatedTableTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerConfig)
@@ -135,12 +147,14 @@ DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicTabletNodeTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxConcurrentHeartbeats;
 
-    TDynamicTabletNodeTrackerConfig();
+    REGISTER_YSON_STRUCT(TDynamicTabletNodeTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)

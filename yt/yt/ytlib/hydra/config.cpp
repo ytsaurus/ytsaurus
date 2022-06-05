@@ -28,67 +28,67 @@ void TPeerConnectionConfig::Register(TRegistrar registrar)
     });
 }
 
-TRemoteSnapshotStoreOptions::TRemoteSnapshotStoreOptions()
+void TRemoteSnapshotStoreOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("snapshot_replication_factor", SnapshotReplicationFactor)
+    registrar.Parameter("snapshot_replication_factor", &TThis::SnapshotReplicationFactor)
         .GreaterThan(0)
         .InRange(1, NChunkClient::MaxReplicationFactor)
         .Default(3);
-    RegisterParameter("snapshot_compression_codec", SnapshotCompressionCodec)
+    registrar.Parameter("snapshot_compression_codec", &TThis::SnapshotCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
-    RegisterParameter("snapshot_account", SnapshotAccount)
+    registrar.Parameter("snapshot_account", &TThis::SnapshotAccount)
         .NonEmpty();
-    RegisterParameter("snapshot_primary_medium", SnapshotPrimaryMedium)
+    registrar.Parameter("snapshot_primary_medium", &TThis::SnapshotPrimaryMedium)
         .Default(NChunkClient::DefaultStoreMediumName);
-    RegisterParameter("snapshot_erasure_codec", SnapshotErasureCodec)
+    registrar.Parameter("snapshot_erasure_codec", &TThis::SnapshotErasureCodec)
         .Default(NErasure::ECodec::None);
-    RegisterParameter("snapshot_enable_striped_erasure", SnapshotEnableStripedErasure)
+    registrar.Parameter("snapshot_enable_striped_erasure", &TThis::SnapshotEnableStripedErasure)
         .Default(false);
-    RegisterParameter("snapshot_acl", SnapshotAcl)
+    registrar.Parameter("snapshot_acl", &TThis::SnapshotAcl)
         .Default(BuildYsonNodeFluently()
             .BeginList()
             .EndList()->AsList());
 }
 
-TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
+void TRemoteChangelogStoreOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("changelog_erasure_codec", ChangelogErasureCodec)
+    registrar.Parameter("changelog_erasure_codec", &TThis::ChangelogErasureCodec)
         .Default(NErasure::ECodec::None);
-    RegisterParameter("changelog_replication_factor", ChangelogReplicationFactor)
+    registrar.Parameter("changelog_replication_factor", &TThis::ChangelogReplicationFactor)
         .GreaterThan(0)
         .InRange(1, NChunkClient::MaxReplicationFactor)
         .Default(3);
-    RegisterParameter("changelog_read_quorum", ChangelogReadQuorum)
+    registrar.Parameter("changelog_read_quorum", &TThis::ChangelogReadQuorum)
         .GreaterThan(0)
         .InRange(1, NChunkClient::MaxReplicationFactor)
         .Default(2);
-    RegisterParameter("changelog_write_quorum", ChangelogWriteQuorum)
+    registrar.Parameter("changelog_write_quorum", &TThis::ChangelogWriteQuorum)
         .GreaterThan(0)
         .InRange(1, NChunkClient::MaxReplicationFactor)
         .Default(2);
-    RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
+    registrar.Parameter("enable_changelog_multiplexing", &TThis::EnableChangelogMultiplexing)
         .Default(true);
-    RegisterParameter("enable_changelog_chunk_preallocation", EnableChangelogChunkPreallocation)
+    registrar.Parameter("enable_changelog_chunk_preallocation", &TThis::EnableChangelogChunkPreallocation)
         .Default(false);
-    RegisterParameter("changelog_replica_lag_limit", ChangelogReplicaLagLimit)
+    registrar.Parameter("changelog_replica_lag_limit", &TThis::ChangelogReplicaLagLimit)
         .Default(NJournalClient::DefaultReplicaLagLimit);
-    RegisterParameter("changelog_external_cell_tag", ChangelogExternalCellTag)
+    registrar.Parameter("changelog_external_cell_tag", &TThis::ChangelogExternalCellTag)
         .Optional();
-    RegisterParameter("changelog_account", ChangelogAccount)
+    registrar.Parameter("changelog_account", &TThis::ChangelogAccount)
         .NonEmpty();
-    RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)
+    registrar.Parameter("changelog_primary_medium", &TThis::ChangelogPrimaryMedium)
         .Default(NChunkClient::DefaultStoreMediumName);
-    RegisterParameter("changelog_acl", ChangelogAcl)
+    registrar.Parameter("changelog_acl", &TThis::ChangelogAcl)
         .Default(BuildYsonNodeFluently()
             .BeginList()
             .EndList()->AsList());
 
-    RegisterPostprocessor([&] () {
+    registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
-            ChangelogErasureCodec,
-            ChangelogReplicationFactor,
-            ChangelogReadQuorum,
-            ChangelogWriteQuorum);
+            config->ChangelogErasureCodec,
+            config->ChangelogReplicationFactor,
+            config->ChangelogReadQuorum,
+            config->ChangelogWriteQuorum);
     });
 }
 

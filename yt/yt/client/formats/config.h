@@ -41,7 +41,9 @@ public:
     //! Only works for tabular data.
     bool SkipNullValues;
 
-    TYsonFormatConfig();
+    REGISTER_YSON_STRUCT(TYsonFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYsonFormatConfig)
@@ -77,6 +79,11 @@ public:
     char EscapingSymbol;
 
     bool EnableTableIndex;
+
+    REGISTER_YSON_STRUCT(TTableFormatConfigBase);
+
+    static void Register(TRegistrar )
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableFormatConfigBase)
@@ -90,6 +97,11 @@ public:
     bool HasSubkey;
     bool Lenval;
     bool EnableEom;
+
+    REGISTER_YSON_STRUCT(TYamrFormatConfigBase);
+
+    static void Register(TRegistrar )
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TYamrFormatConfigBase)
@@ -104,6 +116,11 @@ public:
 
     // Only supported for tabular data
     std::optional<TString> LinePrefix;
+
+    REGISTER_YSON_STRUCT(TDsvFormatConfigBase);
+
+    static void Register(TRegistrar )
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TDsvFormatConfigBase)
@@ -118,7 +135,9 @@ public:
     TString Subkey;
     TString Value;
 
-    TYamrFormatConfig();
+    REGISTER_YSON_STRUCT(TYamrFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYamrFormatConfig)
@@ -133,7 +152,9 @@ public:
     TString TableIndexColumn;
     bool SkipUnsupportedTypes = false;
 
-    TDsvFormatConfig();
+    REGISTER_YSON_STRUCT(TDsvFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDsvFormatConfig)
@@ -152,7 +173,9 @@ public:
 
     bool SkipUnsupportedTypesInValue = false;
 
-    TYamredDsvFormatConfig();
+    REGISTER_YSON_STRUCT(TYamredDsvFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYamredDsvFormatConfig)
@@ -178,7 +201,9 @@ public:
 
     const std::vector<TString>& GetColumnsOrThrow() const;
 
-    TSchemafulDsvFormatConfig();
+    REGISTER_YSON_STRUCT(TSchemafulDsvFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulDsvFormatConfig)
