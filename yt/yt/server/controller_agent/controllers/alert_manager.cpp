@@ -34,6 +34,8 @@ public:
 
     void Analyze() override
     {
+        YT_LOG_DEBUG("Analyze operation alerts");
+
         AnalyzeMemoryAndTmpfsUsage();
         AnalyzeInputStatistics();
         AnalyzeIntermediateJobsStatistics();
