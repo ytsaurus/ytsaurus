@@ -164,7 +164,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("low_gpu_usage_alert_statistics", &TThis::LowGpuUsageAlertStatistics)
         .Default({
-            "/user_job/gpu/utilization_gpu",
+            "/user_job/gpu/cumulative_utilization_gpu",
         });
 
     registrar.Parameter("low_gpu_usage_alert_job_states", &TThis::LowGpuUsageAlertJobStates)

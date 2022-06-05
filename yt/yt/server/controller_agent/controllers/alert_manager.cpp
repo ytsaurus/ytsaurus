@@ -536,7 +536,7 @@ private:
                 Config_->LowGpuUsageAlertGpuUtilizationPowerThreshold * 100.0);
 
             AnalyzeProcessingUnitUsage(
-                {"/user_job/gpu/utilization_power"},
+                {"/user_job/gpu/cumulative_utilization_power"},
                 Config_->LowGpuUsageAlertJobStates,
                 getGpuLimit,
                 needSetAlert,
@@ -556,7 +556,7 @@ private:
                 Config_->LowGpuUsageAlertGpuPowerThreshold);
 
             AnalyzeProcessingUnitUsage(
-                {"/user_job/gpu/power"},
+                {"/user_job/gpu/cumulative_power"},
                 Config_->LowGpuUsageAlertJobStates,
                 getGpuLimit,
                 needSetAlert,
@@ -610,7 +610,7 @@ private:
                 const auto& aggregatedStatistics = (jobState == EJobState::Running)
                     ? Host_->GetAggregatedRunningJobStatistics()
                     : Host_->GetAggregatedFinishedJobStatistics();
-                usage += aggregatedStatistics.GetSumByJobStateAndType("/user_job/gpu/power", jobState, taskName);
+                usage += aggregatedStatistics.GetSumByJobStateAndType("/user_job/gpu/cumulative_power", jobState, taskName);
             }
 
             auto& records = descriptorToRecords[taskName];
