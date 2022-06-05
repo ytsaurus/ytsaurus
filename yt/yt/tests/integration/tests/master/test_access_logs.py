@@ -444,45 +444,47 @@ class TestAccessLog(YTEnvSetup):
 
         self._validate_entries_against_log(log_list)
 
-    def test_set_modified(self):
-        create("table", "//tmp/t")
-        id = get("//tmp/t/@id")
+    def test_revise(self):
+        create("map_node", "//tmp/access_log")
 
-        write_table("<append=%true>//tmp/t", {"a": 25, "b": "foo"})
+        create("table", "//tmp/access_log/t")
+        id = get("//tmp/access_log/t/@id")
+
+        write_table("<append=%true>//tmp/access_log/t", {"a": 25, "b": "foo"})
         log_list = [
             {
-                "path": "//tmp/t",
+                "path": "//tmp/access_log/t",
                 "type": "table",
                 "id": id,
-                "method": "SetModified",
-                "modification_type": "Content"
+                "method": "Revise",
+                "revision_type": "content"
             }
         ]
         self._validate_entries_against_log(log_list)
 
-        set("//tmp/t/@qqq", 12)
+        set("//tmp/access_log/t/@qqq", 12)
         log_list = [
             {
-                "path": "//tmp/t",
+                "path": "//tmp/access_log/t",
                 "type": "table",
                 "id": id,
-                "method": "SetModified",
-                "modification_type": "Attributes"
+                "method": "Revise",
+                "revision_type": "attributes"
             }
         ]
         self._validate_entries_against_log(log_list)
 
         tx = start_transaction()
-        set("//tmp/t/@qqq", 56, tx=tx)
+        set("//tmp/access_log/t/@qqq", 56, tx=tx)
         abort_transaction(tx)
         log_list = [
             {
                 "path": "//tmp/access_log/t",
                 "type": "table",
                 "id": id,
-                "method": "SetModified",
-                "transaction": tx,
-                "modification_type": "Attributes"
+                "method": "Revise",
+                "transaction_id": tx,
+                "revision_type": "attributes"
             }
         ]
         self._validate_entries_against_log(log_list)
