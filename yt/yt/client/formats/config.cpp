@@ -15,51 +15,51 @@ void TControlAttributesConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonFormatConfig::TYsonFormatConfig()
+void TYsonFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("format", Format)
+    registrar.Parameter("format", &TThis::Format)
         .Default(NYson::EYsonFormat::Binary);
-    RegisterParameter("complex_type_mode", ComplexTypeMode)
+    registrar.Parameter("complex_type_mode", &TThis::ComplexTypeMode)
         .Default(EComplexTypeMode::Named);
-    RegisterParameter("decimal_mode", DecimalMode)
+    registrar.Parameter("decimal_mode", &TThis::DecimalMode)
         .Default(EDecimalMode::Binary);
-    RegisterParameter("time_mode", TimeMode)
+    registrar.Parameter("time_mode", &TThis::TimeMode)
         .Default(ETimeMode::Binary);
-    RegisterParameter("uuid_mode", UuidMode)
+    registrar.Parameter("uuid_mode", &TThis::UuidMode)
         .Default(EUuidMode::Binary);
-    RegisterParameter("skip_null_values", SkipNullValues)
+    registrar.Parameter("skip_null_values", &TThis::SkipNullValues)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYamrFormatConfig::TYamrFormatConfig()
+void TYamrFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("has_subkey", HasSubkey)
+    registrar.BaseClassParameter("has_subkey", &TThis::HasSubkey)
         .Default(false);
-    RegisterParameter("key", Key)
+    registrar.Parameter("key", &TThis::Key)
         .Default("key");
-    RegisterParameter("subkey", Subkey)
+    registrar.Parameter("subkey", &TThis::Subkey)
         .Default("subkey");
-    RegisterParameter("value", Value)
+    registrar.Parameter("value", &TThis::Value)
         .Default("value");
-    RegisterParameter("lenval", Lenval)
+    registrar.BaseClassParameter("lenval", &TThis::Lenval)
         .Default(false);
-    RegisterParameter("fs", FieldSeparator)
+    registrar.BaseClassParameter("fs", &TThis::FieldSeparator)
         .Default('\t');
-    RegisterParameter("rs", RecordSeparator)
+    registrar.BaseClassParameter("rs", &TThis::RecordSeparator)
         .Default('\n');
-    RegisterParameter("enable_table_index", EnableTableIndex)
+    registrar.BaseClassParameter("enable_table_index", &TThis::EnableTableIndex)
         .Default(false);
-    RegisterParameter("enable_escaping", EnableEscaping)
+    registrar.BaseClassParameter("enable_escaping", &TThis::EnableEscaping)
         .Default(false);
-    RegisterParameter("escaping_symbol", EscapingSymbol)
+    registrar.BaseClassParameter("escaping_symbol", &TThis::EscapingSymbol)
         .Default('\\');
-    RegisterParameter("enable_eom", EnableEom)
+    registrar.BaseClassParameter("enable_eom", &TThis::EnableEom)
         .Default(false);
 
-    RegisterPreprocessor([&] {
-        if (EnableEom && !Lenval) {
+    registrar.Preprocessor([] (TThis* config) {
+        if (config->EnableEom && !config->Lenval) {
             THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");
         }
     });
@@ -67,78 +67,78 @@ TYamrFormatConfig::TYamrFormatConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvFormatConfig::TDsvFormatConfig()
+void TDsvFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("record_separator", RecordSeparator)
+    registrar.BaseClassParameter("record_separator", &TThis::RecordSeparator)
         .Default('\n');
-    RegisterParameter("key_value_separator", KeyValueSeparator)
+    registrar.BaseClassParameter("key_value_separator", &TThis::KeyValueSeparator)
         .Default('=');
-    RegisterParameter("field_separator", FieldSeparator)
+    registrar.BaseClassParameter("field_separator", &TThis::FieldSeparator)
         .Default('\t');
-    RegisterParameter("line_prefix", LinePrefix)
+    registrar.BaseClassParameter("line_prefix", &TThis::LinePrefix)
         .Default();
-    RegisterParameter("enable_escaping", EnableEscaping)
+    registrar.BaseClassParameter("enable_escaping", &TThis::EnableEscaping)
         .Default(true);
-    RegisterParameter("escaping_symbol", EscapingSymbol)
+    registrar.BaseClassParameter("escaping_symbol", &TThis::EscapingSymbol)
         .Default('\\');
-    RegisterParameter("enable_table_index", EnableTableIndex)
+    registrar.BaseClassParameter("enable_table_index", &TThis::EnableTableIndex)
         .Default(false);
-    RegisterParameter("table_index_column", TableIndexColumn)
+    registrar.Parameter("table_index_column", &TThis::TableIndexColumn)
         .Default("@table_index")
         .NonEmpty();
-    RegisterParameter("skip_unsupported_types", SkipUnsupportedTypes)
+    registrar.Parameter("skip_unsupported_types", &TThis::SkipUnsupportedTypes)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYamredDsvFormatConfig::TYamredDsvFormatConfig()
+void TYamredDsvFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("record_separator", RecordSeparator)
+    registrar.BaseClassParameter("record_separator", &TThis::RecordSeparator)
         .Default('\n');
-    RegisterParameter("key_value_separator", KeyValueSeparator)
+    registrar.BaseClassParameter("key_value_separator", &TThis::KeyValueSeparator)
         .Default('=');
-    RegisterParameter("field_separator", FieldSeparator)
+    registrar.BaseClassParameter("field_separator", &TThis::FieldSeparator)
         .Default('\t');
-    RegisterParameter("line_prefix", LinePrefix)
+    registrar.BaseClassParameter("line_prefix", &TThis::LinePrefix)
         .Default();
-    RegisterParameter("enable_escaping", EnableEscaping)
+    registrar.BaseClassParameter("enable_escaping", &TThis::EnableEscaping)
         .Default(true);
-    RegisterParameter("escaping_symbol", EscapingSymbol)
+    registrar.BaseClassParameter("escaping_symbol", &TThis::EscapingSymbol)
         .Default('\\');
-    RegisterParameter("enable_table_index", EnableTableIndex)
+    registrar.BaseClassParameter("enable_table_index", &TThis::EnableTableIndex)
         .Default(false);
-    RegisterParameter("has_subkey", HasSubkey)
+    registrar.BaseClassParameter("has_subkey", &TThis::HasSubkey)
         .Default(false);
-    RegisterParameter("lenval", Lenval)
+    registrar.BaseClassParameter("lenval", &TThis::Lenval)
         .Default(false);
-    RegisterParameter("key_column_names", KeyColumnNames);
-    RegisterParameter("subkey_column_names", SubkeyColumnNames)
+    registrar.Parameter("key_column_names", &TThis::KeyColumnNames);
+    registrar.Parameter("subkey_column_names", &TThis::SubkeyColumnNames)
         .Default();
-    RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
+    registrar.Parameter("yamr_keys_separator", &TThis::YamrKeysSeparator)
         .Default(' ');
-    RegisterParameter("enable_eom", EnableEom)
+    registrar.BaseClassParameter("enable_eom", &TThis::EnableEom)
         .Default(false);
-    RegisterParameter("skip_unsupported_types_in_value", SkipUnsupportedTypesInValue)
+    registrar.Parameter("skip_unsupported_types_in_value", &TThis::SkipUnsupportedTypesInValue)
         .Default(false);
 
-    RegisterPreprocessor([&] {
-        if (EnableEom && !Lenval) {
+    registrar.Preprocessor([] (TThis* config) {
+        if (config->EnableEom && !config->Lenval) {
             THROW_ERROR_EXCEPTION("EOM marker is not supported in YAMR text mode");
         }
     });
 
-    RegisterPostprocessor([&] {
+    registrar.Postprocessor([] (TThis* config) {
         THashSet<TString> names;
 
-        for (const auto& name : KeyColumnNames) {
+        for (const auto& name : config->KeyColumnNames) {
             if (!names.insert(name).second) {
                 THROW_ERROR_EXCEPTION("Duplicate column %Qv found in \"key_column_names\"",
                     name);
             }
         }
 
-        for (const auto& name : SubkeyColumnNames) {
+        for (const auto& name : config->SubkeyColumnNames) {
             if (!names.insert(name).second) {
                 THROW_ERROR_EXCEPTION("Duplicate column %Qv found in \"subkey_column_names\"",
                     name);
@@ -157,37 +157,37 @@ const std::vector<TString>& TSchemafulDsvFormatConfig::GetColumnsOrThrow() const
     return *Columns;
 }
 
-TSchemafulDsvFormatConfig::TSchemafulDsvFormatConfig()
+void TSchemafulDsvFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("record_separator", RecordSeparator)
+    registrar.BaseClassParameter("record_separator", &TThis::RecordSeparator)
         .Default('\n');
-    RegisterParameter("field_separator", FieldSeparator)
+    registrar.BaseClassParameter("field_separator", &TThis::FieldSeparator)
         .Default('\t');
 
-    RegisterParameter("enable_table_index", EnableTableIndex)
+    registrar.BaseClassParameter("enable_table_index", &TThis::EnableTableIndex)
         .Default(false);
 
-    RegisterParameter("enable_escaping", EnableEscaping)
+    registrar.BaseClassParameter("enable_escaping", &TThis::EnableEscaping)
         .Default(true);
-    RegisterParameter("escaping_symbol", EscapingSymbol)
+    registrar.BaseClassParameter("escaping_symbol", &TThis::EscapingSymbol)
         .Default('\\');
 
-    RegisterParameter("columns", Columns)
+    registrar.Parameter("columns", &TThis::Columns)
         .Default();
 
-    RegisterParameter("missing_value_mode", MissingValueMode)
+    registrar.Parameter("missing_value_mode", &TThis::MissingValueMode)
         .Default(EMissingSchemafulDsvValueMode::Fail);
 
-    RegisterParameter("missing_value_sentinel", MissingValueSentinel)
+    registrar.Parameter("missing_value_sentinel", &TThis::MissingValueSentinel)
         .Default("");
 
-    RegisterParameter("enable_column_names_header", EnableColumnNamesHeader)
+    registrar.Parameter("enable_column_names_header", &TThis::EnableColumnNamesHeader)
         .Default();
 
-    RegisterPostprocessor([&] {
-        if (Columns) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->Columns) {
             THashSet<TString> names;
-            for (const auto& name : *Columns) {
+            for (const auto& name : *config->Columns) {
                 if (!names.insert(name).second) {
                     THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV configuration",
                         name);

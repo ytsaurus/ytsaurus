@@ -26,7 +26,9 @@ public:
     bool IndependentPeers;
     NApi::TClusterTag ClockClusterTag;
 
-    TTabletCellOptions();
+    REGISTER_YSON_STRUCT(TTabletCellOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
@@ -35,7 +37,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellOptions)
 
 //! These options can be changed in runtime.
 class TDynamicTabletCellOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<double> CpuPerTabletSlot;
@@ -48,7 +50,9 @@ public:
     // COMPAT(akozhikhov): YT-14187
     bool IncreaseUploadReplicationFactor;
 
-    TDynamicTabletCellOptions();
+    REGISTER_YSON_STRUCT(TDynamicTabletCellOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTabletCellOptions)

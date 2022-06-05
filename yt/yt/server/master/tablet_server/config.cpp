@@ -10,19 +10,19 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletBalancerMasterConfig::TTabletBalancerMasterConfig()
+void TTabletBalancerMasterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_tablet_balancer", EnableTabletBalancer)
+    registrar.Parameter("enable_tablet_balancer", &TThis::EnableTabletBalancer)
         .Default(true);
-    RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+    registrar.Parameter("tablet_balancer_schedule", &TThis::TabletBalancerSchedule)
         .Default(DefaultTabletBalancerSchedule);
-    RegisterParameter("config_check_period", ConfigCheckPeriod)
+    registrar.Parameter("config_check_period", &TThis::ConfigCheckPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("balance_period", BalancePeriod)
+    registrar.Parameter("balance_period", &TThis::BalancePeriod)
         .Default(TDuration::Minutes(5));
 
-    RegisterPostprocessor([&] () {
-        if (TabletBalancerSchedule.IsEmpty()) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->TabletBalancerSchedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("tablet_balancer_schedule cannot be empty in master config");
         }
     });
@@ -30,75 +30,75 @@ TTabletBalancerMasterConfig::TTabletBalancerMasterConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletCellDecommissionerConfig::TTabletCellDecommissionerConfig()
+void TTabletCellDecommissionerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_tablet_cell_decommission", EnableTabletCellDecommission)
+    registrar.Parameter("enable_tablet_cell_decommission", &TThis::EnableTabletCellDecommission)
         .Default(true);
-    RegisterParameter("enable_tablet_cell_removal", EnableTabletCellRemoval)
+    registrar.Parameter("enable_tablet_cell_removal", &TThis::EnableTabletCellRemoval)
         .Default(true);
-    RegisterParameter("decommission_check_period", DecommissionCheckPeriod)
+    registrar.Parameter("decommission_check_period", &TThis::DecommissionCheckPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("orphans_check_period", OrphansCheckPeriod)
+    registrar.Parameter("orphans_check_period", &TThis::OrphansCheckPeriod)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("decommission_throttler", DecommissionThrottler)
+    registrar.Parameter("decommission_throttler", &TThis::DecommissionThrottler)
         .DefaultNew();
-    RegisterParameter("kick_orphans_throttler", KickOrphansThrottler)
+    registrar.Parameter("kick_orphans_throttler", &TThis::KickOrphansThrottler)
         .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletActionManagerMasterConfig::TTabletActionManagerMasterConfig()
+void TTabletActionManagerMasterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tablet_actions_cleanup_period", TabletActionsCleanupPeriod)
+    registrar.Parameter("tablet_actions_cleanup_period", &TThis::TabletActionsCleanupPeriod)
         .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicTablesMulticellGossipConfig::TDynamicTablesMulticellGossipConfig()
+void TDynamicTablesMulticellGossipConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("tablet_cell_statistics_gossip_period", TabletCellStatisticsGossipPeriod)
+    registrar.Parameter("tablet_cell_statistics_gossip_period", &TThis::TabletCellStatisticsGossipPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("tablet_cell_status_full_gossip_period", TabletCellStatusFullGossipPeriod)
+    registrar.Parameter("tablet_cell_status_full_gossip_period", &TThis::TabletCellStatusFullGossipPeriod)
         .Default();
-    RegisterParameter("tablet_cell_status_incremental_gossip_period", TabletCellStatusIncrementalGossipPeriod)
+    registrar.Parameter("tablet_cell_status_incremental_gossip_period", &TThis::TabletCellStatusIncrementalGossipPeriod)
         .Default();
-    RegisterParameter("table_statistics_gossip_period", TableStatisticsGossipPeriod)
+    registrar.Parameter("table_statistics_gossip_period", &TThis::TableStatisticsGossipPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("table_statistics_gossip_throttler", TableStatisticsGossipThrottler)
+    registrar.Parameter("table_statistics_gossip_throttler", &TThis::TableStatisticsGossipThrottler)
         .DefaultNew();
-    RegisterParameter("bundle_resource_usage_gossip_period", BundleResourceUsageGossipPeriod)
+    registrar.Parameter("bundle_resource_usage_gossip_period", &TThis::BundleResourceUsageGossipPeriod)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("enable_update_statistics_on_heartbeat", EnableUpdateStatisticsOnHeartbeat)
+    registrar.Parameter("enable_update_statistics_on_heartbeat", &TThis::EnableUpdateStatisticsOnHeartbeat)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicTabletCellBalancerMasterConfig::TDynamicTabletCellBalancerMasterConfig()
+void TDynamicTabletCellBalancerMasterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_tablet_cell_smoothing", EnableTabletCellSmoothing)
+    registrar.Parameter("enable_tablet_cell_smoothing", &TThis::EnableTabletCellSmoothing)
         .Default(true);
-    RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false);
-    RegisterParameter("rebalance_wait_time", RebalanceWaitTime)
+    registrar.Parameter("rebalance_wait_time", &TThis::RebalanceWaitTime)
         .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableTrackerConfig::TReplicatedTableTrackerConfig()
+void TReplicatedTableTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("checker_thread_count", CheckerThreadCount)
+    registrar.Parameter("checker_thread_count", &TThis::CheckerThreadCount)
         .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicTabletNodeTrackerConfig::TDynamicTabletNodeTrackerConfig()
+void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_concurrent_heartbeats", MaxConcurrentHeartbeats)
+    registrar.Parameter("max_concurrent_heartbeats", &TThis::MaxConcurrentHeartbeats)
         .Default(10)
         .GreaterThan(0);
 }

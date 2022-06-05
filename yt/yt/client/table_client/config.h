@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/singleton.h>
 
@@ -149,7 +149,7 @@ DEFINE_REFCOUNTED_TYPE(TTableWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypeConversionConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableTypeConversion;
@@ -158,7 +158,9 @@ public:
     bool EnableIntegralTypeConversion;
     bool EnableIntegralToDoubleConversion;
 
-    TTypeConversionConfig();
+    REGISTER_YSON_STRUCT(TTypeConversionConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTypeConversionConfig)
@@ -166,12 +168,14 @@ DEFINE_REFCOUNTED_TYPE(TTypeConversionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInsertRowsFormatConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     bool EnableNullToYsonEntityConversion;
 
-    TInsertRowsFormatConfig();
+    REGISTER_YSON_STRUCT(TInsertRowsFormatConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInsertRowsFormatConfig)

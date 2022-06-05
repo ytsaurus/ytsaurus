@@ -135,34 +135,34 @@ void TTableReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypeConversionConfig::TTypeConversionConfig()
+void TTypeConversionConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_type_conversion", EnableTypeConversion)
+    registrar.Parameter("enable_type_conversion", &TThis::EnableTypeConversion)
         .Default(false);
-    RegisterParameter("enable_string_to_all_conversion", EnableStringToAllConversion)
+    registrar.Parameter("enable_string_to_all_conversion", &TThis::EnableStringToAllConversion)
         .Default(false);
-    RegisterParameter("enable_all_to_string_conversion", EnableAllToStringConversion)
+    registrar.Parameter("enable_all_to_string_conversion", &TThis::EnableAllToStringConversion)
         .Default(false);
-    RegisterParameter("enable_integral_type_conversion", EnableIntegralTypeConversion)
+    registrar.Parameter("enable_integral_type_conversion", &TThis::EnableIntegralTypeConversion)
         .Default(true);
-    RegisterParameter("enable_integral_to_double_conversion", EnableIntegralToDoubleConversion)
+    registrar.Parameter("enable_integral_to_double_conversion", &TThis::EnableIntegralToDoubleConversion)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        if (EnableTypeConversion) {
-            EnableStringToAllConversion = true;
-            EnableAllToStringConversion = true;
-            EnableIntegralTypeConversion = true;
-            EnableIntegralToDoubleConversion = true;
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableTypeConversion) {
+            config->EnableStringToAllConversion = true;
+            config->EnableAllToStringConversion = true;
+            config->EnableIntegralTypeConversion = true;
+            config->EnableIntegralToDoubleConversion = true;
         }
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInsertRowsFormatConfig::TInsertRowsFormatConfig()
+void TInsertRowsFormatConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_null_to_yson_entity_conversion", EnableNullToYsonEntityConversion)
+    registrar.Parameter("enable_null_to_yson_entity_conversion", &TThis::EnableNullToYsonEntityConversion)
         .Default(true);
 }
 

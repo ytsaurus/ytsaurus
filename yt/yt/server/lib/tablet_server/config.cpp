@@ -4,35 +4,35 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableOptions::TReplicatedTableOptions()
+void TReplicatedTableOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
+    registrar.Parameter("enable_replicated_table_tracker", &TThis::EnableReplicatedTableTracker)
         .Default(false);
 
-    RegisterParameter("max_sync_replica_count", MaxSyncReplicaCount)
+    registrar.Parameter("max_sync_replica_count", &TThis::MaxSyncReplicaCount)
         .Alias("sync_replica_count")
         .Optional();
-    RegisterParameter("min_sync_replica_count", MinSyncReplicaCount)
+    registrar.Parameter("min_sync_replica_count", &TThis::MinSyncReplicaCount)
         .Optional();
 
-    RegisterParameter("sync_replica_lag_threshold", SyncReplicaLagThreshold)
+    registrar.Parameter("sync_replica_lag_threshold", &TThis::SyncReplicaLagThreshold)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("tablet_cell_bundle_name_ttl", TabletCellBundleNameTtl)
+    registrar.Parameter("tablet_cell_bundle_name_ttl", &TThis::TabletCellBundleNameTtl)
         .Default(TDuration::Seconds(300));
-    RegisterParameter("tablet_cell_bundle_name_failure_interval", RetryOnFailureInterval)
+    registrar.Parameter("tablet_cell_bundle_name_failure_interval", &TThis::RetryOnFailureInterval)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("enable_preload_state_check", EnablePreloadStateCheck)
+    registrar.Parameter("enable_preload_state_check", &TThis::EnablePreloadStateCheck)
         .Default(false);
-    RegisterParameter("incomplete_preload_grace_period", IncompletePreloadGracePeriod)
+    registrar.Parameter("incomplete_preload_grace_period", &TThis::IncompletePreloadGracePeriod)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("preferred_sync_replica_clusters", PreferredSyncReplicaClusters)
+    registrar.Parameter("preferred_sync_replica_clusters", &TThis::PreferredSyncReplicaClusters)
         .Default(std::nullopt);
 
-    RegisterPostprocessor([&] {
-        if (MaxSyncReplicaCount && MinSyncReplicaCount && *MinSyncReplicaCount > *MaxSyncReplicaCount) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MaxSyncReplicaCount && config->MinSyncReplicaCount && *config->MinSyncReplicaCount > *config->MaxSyncReplicaCount) {
             THROW_ERROR_EXCEPTION("\"min_sync_replica_count\" must be less or equal to \"max_sync_replica_count\"");
         }
     });
@@ -56,36 +56,36 @@ std::tuple<int, int> TReplicatedTableOptions::GetEffectiveMinMaxReplicaCount(int
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicReplicatedTableTrackerConfig::TDynamicReplicatedTableTrackerConfig()
+void TDynamicReplicatedTableTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
+    registrar.Parameter("enable_replicated_table_tracker", &TThis::EnableReplicatedTableTracker)
         .Default(true);
-    RegisterParameter("use_new_replicated_table_tracker", UseNewReplicatedTableTracker)
+    registrar.Parameter("use_new_replicated_table_tracker", &TThis::UseNewReplicatedTableTracker)
         .Default(false);
-    RegisterParameter("check_period", CheckPeriod)
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("general_check_timeout", GeneralCheckTimeout)
+    registrar.Parameter("general_check_timeout", &TThis::GeneralCheckTimeout)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("replicator_hint", ReplicatorHint)
+    registrar.Parameter("replicator_hint", &TThis::ReplicatorHint)
         .DefaultNew();
-    RegisterParameter("bundle_health_cache", BundleHealthCache)
+    registrar.Parameter("bundle_health_cache", &TThis::BundleHealthCache)
         .DefaultNew();
-    RegisterParameter("cluster_state_cache", ClusterStateCache)
+    registrar.Parameter("cluster_state_cache", &TThis::ClusterStateCache)
         .DefaultNew();
-    RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
+    registrar.Parameter("cluster_directory_synchronizer", &TThis::ClusterDirectorySynchronizer)
         .DefaultNew();
-    RegisterParameter("max_iterations_without_acceptable_bundle_health", MaxIterationsWithoutAcceptableBundleHealth)
+    registrar.Parameter("max_iterations_without_acceptable_bundle_health", &TThis::MaxIterationsWithoutAcceptableBundleHealth)
         .Default(1);
-    RegisterParameter("max_action_queue_size", MaxActionQueueSize)
+    registrar.Parameter("max_action_queue_size", &TThis::MaxActionQueueSize)
         .Default(10000)
         .GreaterThanOrEqual(0);
-    RegisterParameter("client_expiration_time", ClientExpirationTime)
+    registrar.Parameter("client_expiration_time", &TThis::ClientExpirationTime)
         .Default(TDuration::Minutes(15));
 
-    RegisterPreprocessor([&] {
-        ClusterStateCache->RefreshTime = CheckPeriod;
+    registrar.Preprocessor([] (TThis* config) {
+        config->ClusterStateCache->RefreshTime = config->CheckPeriod;
     });
 }
 

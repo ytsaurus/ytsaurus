@@ -549,7 +549,7 @@ public:
                 dynamicOptions = New<TDynamicTabletCellOptions>();
                 dynamicOptions->SetUnrecognizedStrategy(EUnrecognizedStrategy::Keep);
                 dynamicOptions->Load(ConvertTo<INodePtr>(TYsonString(updateInfo.dynamic_options())));
-                auto unrecognized = dynamicOptions->GetUnrecognized();
+                auto unrecognized = dynamicOptions->GetLocalUnrecognized();
 
                 if (unrecognized->GetChildCount() > 0) {
                     THROW_ERROR_EXCEPTION("Dynamic options contains unrecognized parameters (Unrecognized: %v)",

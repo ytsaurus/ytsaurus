@@ -4,72 +4,72 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBundleTabletBalancerConfig::TBundleTabletBalancerConfig()
+void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_in_memory_cell_balancer", EnableInMemoryCellBalancer)
+    registrar.Parameter("enable_in_memory_cell_balancer", &TThis::EnableInMemoryCellBalancer)
         .Default(true)
         .Alias("enable_in_memory_balancer");
 
-    RegisterParameter("enable_cell_balancer", EnableCellBalancer)
+    registrar.Parameter("enable_cell_balancer", &TThis::EnableCellBalancer)
         .Default(false);
 
-    RegisterParameter("enable_tablet_size_balancer", EnableTabletSizeBalancer)
+    registrar.Parameter("enable_tablet_size_balancer", &TThis::EnableTabletSizeBalancer)
         .Default(true);
 
     // COMPAT(savrus) Only for compatibility purpose.
-    RegisterParameter("compat_enable_tablet_cell_smoothing", EnableTabletCellSmoothing)
+    registrar.Parameter("compat_enable_tablet_cell_smoothing", &TThis::EnableTabletCellSmoothing)
         .Default(true)
         .Alias("enable_tablet_cell_smoothing");
 
-    RegisterParameter("soft_in_memory_cell_balance_threshold", SoftInMemoryCellBalanceThreshold)
+    registrar.Parameter("soft_in_memory_cell_balance_threshold", &TThis::SoftInMemoryCellBalanceThreshold)
         .Default(0.05)
         .Alias("cell_balance_factor");
 
-    RegisterParameter("hard_in_memory_cell_balance_threshold", HardInMemoryCellBalanceThreshold)
+    registrar.Parameter("hard_in_memory_cell_balance_threshold", &TThis::HardInMemoryCellBalanceThreshold)
         .Default(0.15);
 
-    RegisterParameter("min_tablet_size", MinTabletSize)
+    registrar.Parameter("min_tablet_size", &TThis::MinTabletSize)
         .Default(128_MB);
 
-    RegisterParameter("max_tablet_size", MaxTabletSize)
+    registrar.Parameter("max_tablet_size", &TThis::MaxTabletSize)
         .Default(20_GB);
 
-    RegisterParameter("desired_tablet_size", DesiredTabletSize)
+    registrar.Parameter("desired_tablet_size", &TThis::DesiredTabletSize)
         .Default(10_GB);
 
-    RegisterParameter("min_in_memory_tablet_size", MinInMemoryTabletSize)
+    registrar.Parameter("min_in_memory_tablet_size", &TThis::MinInMemoryTabletSize)
         .Default(512_MB);
 
-    RegisterParameter("max_in_memory_tablet_size", MaxInMemoryTabletSize)
+    registrar.Parameter("max_in_memory_tablet_size", &TThis::MaxInMemoryTabletSize)
         .Default(2_GB);
 
-    RegisterParameter("desired_in_memory_tablet_size", DesiredInMemoryTabletSize)
+    registrar.Parameter("desired_in_memory_tablet_size", &TThis::DesiredInMemoryTabletSize)
         .Default(1_GB);
 
-    RegisterParameter("tablet_to_cell_ratio", TabletToCellRatio)
+    registrar.Parameter("tablet_to_cell_ratio", &TThis::TabletToCellRatio)
         .GreaterThan(0)
         .Default(5.0);
 
-    RegisterParameter("tablet_balancer_schedule", TabletBalancerSchedule)
+    registrar.Parameter("tablet_balancer_schedule", &TThis::TabletBalancerSchedule)
         .Default();
 
-    RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false);
 
-    RegisterPostprocessor([&] () {
-        if (MinTabletSize > DesiredTabletSize) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->MinTabletSize > config->DesiredTabletSize) {
             THROW_ERROR_EXCEPTION("\"min_tablet_size\" must be less than or equal to \"desired_tablet_size\"");
         }
-        if (DesiredTabletSize > MaxTabletSize) {
+        if (config->DesiredTabletSize > config->MaxTabletSize) {
             THROW_ERROR_EXCEPTION("\"desired_tablet_size\" must be less than or equal to \"max_tablet_size\"");
         }
-        if (MinInMemoryTabletSize >= DesiredInMemoryTabletSize) {
+        if (config->MinInMemoryTabletSize >= config->DesiredInMemoryTabletSize) {
             THROW_ERROR_EXCEPTION("\"min_in_memory_tablet_size\" must be less than \"desired_in_memory_tablet_size\"");
         }
-        if (DesiredInMemoryTabletSize >= MaxInMemoryTabletSize) {
+        if (config->DesiredInMemoryTabletSize >= config->MaxInMemoryTabletSize) {
             THROW_ERROR_EXCEPTION("\"desired_in_memory_tablet_size\" must be less than \"max_in_memory_tablet_size\"");
         }
-        if (SoftInMemoryCellBalanceThreshold > HardInMemoryCellBalanceThreshold) {
+        if (config->SoftInMemoryCellBalanceThreshold > config->HardInMemoryCellBalanceThreshold) {
             THROW_ERROR_EXCEPTION("\"soft_in_memory_cell_balance_threshold\" must less than or equal to "
                 "\"hard_in_memory_cell_balance_threshold\"");
         }
@@ -78,35 +78,35 @@ TBundleTabletBalancerConfig::TBundleTabletBalancerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableTabletBalancerConfig::TTableTabletBalancerConfig()
+void TTableTabletBalancerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_auto_reshard", EnableAutoReshard)
+    registrar.Parameter("enable_auto_reshard", &TThis::EnableAutoReshard)
         .Default(true);
 
-    RegisterParameter("enable_auto_tablet_move", EnableAutoTabletMove)
+    registrar.Parameter("enable_auto_tablet_move", &TThis::EnableAutoTabletMove)
         .Default(true);
 
-    RegisterParameter("min_tablet_size", MinTabletSize)
+    registrar.Parameter("min_tablet_size", &TThis::MinTabletSize)
         .Default();
 
-    RegisterParameter("max_tablet_size", MaxTabletSize)
+    registrar.Parameter("max_tablet_size", &TThis::MaxTabletSize)
         .Default();
 
-    RegisterParameter("desired_tablet_size", DesiredTabletSize)
+    registrar.Parameter("desired_tablet_size", &TThis::DesiredTabletSize)
         .Default();
 
-    RegisterParameter("desired_tablet_count", DesiredTabletCount)
+    registrar.Parameter("desired_tablet_count", &TThis::DesiredTabletCount)
         .Default();
 
-    RegisterParameter("min_tablet_count", MinTabletCount)
+    registrar.Parameter("min_tablet_count", &TThis::MinTabletCount)
         .Default()
         .GreaterThan(0);
 
-    RegisterParameter("enable_verbose_logging", EnableVerboseLogging)
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false);
 
-    RegisterPostprocessor([&] {
-        CheckTabletSizeInequalities();
+    registrar.Postprocessor([] (TThis* config) {
+        config->CheckTabletSizeInequalities();
     });
 }
 

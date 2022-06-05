@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/erasure/public.h>
 
@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(TPeerConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteSnapshotStoreOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     int SnapshotReplicationFactor;
@@ -45,7 +45,9 @@ public:
     bool SnapshotEnableStripedErasure;
     NYTree::IListNodePtr SnapshotAcl;
 
-    TRemoteSnapshotStoreOptions();
+    REGISTER_YSON_STRUCT(TRemoteSnapshotStoreOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreOptions)
@@ -53,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteChangelogStoreOptions
-    : public virtual NYTree::TYsonSerializable
+    : public virtual NYTree::TYsonStruct
 {
 public:
     NErasure::ECodec ChangelogErasureCodec;
@@ -68,7 +70,9 @@ public:
     TString ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;
 
-    TRemoteChangelogStoreOptions();
+    REGISTER_YSON_STRUCT(TRemoteChangelogStoreOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreOptions)

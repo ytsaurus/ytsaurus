@@ -12,7 +12,7 @@ namespace NYT::NTabletBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBundleTabletBalancerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableInMemoryCellBalancer;
@@ -38,7 +38,9 @@ public:
 
     bool EnableVerboseLogging;
 
-    TBundleTabletBalancerConfig();
+    REGISTER_YSON_STRUCT(TBundleTabletBalancerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleTabletBalancerConfig)
@@ -46,7 +48,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleTabletBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableTabletBalancerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableAutoReshard;
@@ -59,12 +61,16 @@ public:
     std::optional<int> MinTabletCount;
     bool EnableVerboseLogging;
 
-    TTableTabletBalancerConfig();
+    REGISTER_YSON_STRUCT(TTableTabletBalancerConfig);
 
+    static void Register(TRegistrar registrar);
+
+public:
     // COMPAT(ifsmirnov)
     void SetMinTabletSize(std::optional<i64> value);
 
     void SetDesiredTabletSize(std::optional<i64> value);
+
     void SetMaxTabletSize(std::optional<i64> value);
 
 private:
@@ -74,6 +80,7 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
