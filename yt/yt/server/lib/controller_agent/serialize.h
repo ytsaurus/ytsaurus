@@ -32,6 +32,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MajorUpdateTo22_2)                    (300901))
     ((DropUnavailableInputChunkCount)       (300902))
     ((ResourceOverdraftState)               (300903))
+    ((ResourceOverdraftJobProxy)            (300904))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
