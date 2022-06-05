@@ -75,6 +75,10 @@ TExecutionStack::TExecutionStack(size_t size)
         0));
 
     if (Base_ == MAP_FAILED) {
+        if (LastSystemError() == ENOMEM) {
+            fprintf(stderr, "Out-of-memory condition detected while allocating execution stack; terminating\n");
+            _exit(9);
+        }
         YT_LOG_FATAL(TError::FromSystem(), "Failed to allocate execution stack (Size: %v)", Size_);
     }
 
