@@ -422,6 +422,7 @@ private:
     {
         EResourceOverdraftStatus Status = EResourceOverdraftStatus::None;
         double DedicatedUserJobMemoryReserveFactor = 0;
+        double DedicatedJobProxyMemoryReserveFactor = 0;
     
         void Persist(const TPersistenceContext& context);
     };

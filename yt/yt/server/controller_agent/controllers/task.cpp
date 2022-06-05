@@ -504,7 +504,12 @@ void TTask::ScheduleJob(
     auto findIt = ResourceOverdraftedOutputCookieToState_.find(joblet->OutputCookie);
     if (findIt != ResourceOverdraftedOutputCookieToState_.end()) {
         const auto& state = findIt->second;
-        joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+        if (state.DedicatedJobProxyMemoryReserveFactor > 0.0) {
+            joblet->JobProxyMemoryReserveFactor = state.DedicatedJobProxyMemoryReserveFactor;
+        } else {
+            // COMPAT(ignat)
+            joblet->JobProxyMemoryReserveFactor = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+        }
         if (HasUserJob()) {
             joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
         }
@@ -1071,19 +1076,28 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
     if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
         auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
+        auto multiplier = TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
+        double userJobMemoryReserveUpperBound = 1.0;
+        double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
         if (state.Status == EResourceOverdraftStatus::None) {
             state.Status = EResourceOverdraftStatus::Once;
             if (HasUserJob()) {
-                auto multiplier = TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
                 if (multiplier) {
-                    state.DedicatedUserJobMemoryReserveFactor = std::min(*joblet->UserJobMemoryReserveFactor * (*multiplier), 1.0);
+                    state.DedicatedUserJobMemoryReserveFactor = std::min(
+                        *joblet->UserJobMemoryReserveFactor * (*multiplier),
+                        userJobMemoryReserveUpperBound);
+                    state.DedicatedJobProxyMemoryReserveFactor = std::min(
+                        *joblet->JobProxyMemoryReserveFactor * (*multiplier),
+                        jobProxyMemoryReserveUpperBound);
                 } else {
-                    state.DedicatedUserJobMemoryReserveFactor = 1.0;
+                    state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
+                    state.DedicatedUserJobMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
                 }
             }
         } else {
             state.Status = EResourceOverdraftStatus::MultipleTimes;
-            state.DedicatedUserJobMemoryReserveFactor = 1.0;
+            state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
+            state.DedicatedJobProxyMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
         }
     }
 
@@ -2028,6 +2042,9 @@ void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
 
     Persist(context, Status);
     Persist(context, DedicatedUserJobMemoryReserveFactor);
+    if (context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobProxy) {
+        Persist(context, DedicatedJobProxyMemoryReserveFactor);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
