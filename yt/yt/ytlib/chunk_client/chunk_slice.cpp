@@ -11,6 +11,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/core/concurrency/periodic_yielder.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
@@ -20,10 +22,15 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto SlicerYieldPeriod = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +98,11 @@ public:
         auto blockCount = blockMetaExt.data_blocks_size();
         BlockDescriptors_.reserve(blockCount);
 
+        TPeriodicYielder yielder(SlicerYieldPeriod);
+
         for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+            yielder.TryYield();
+
             const auto& block = blockMetaExt.data_blocks(blockIndex);
             YT_VERIFY(block.block_index() == blockIndex);
 
@@ -136,6 +147,16 @@ public:
 
         SliceStartRowIndex_ = sliceLowerLimit.GetRowIndex().value_or(0);
         SliceEndRowIndex_ = sliceUpperLimit.GetRowIndex().value_or(chunkRowCount);
+    }
+
+    void Clear()
+    {
+        TPeriodicYielder yielder(SlicerYieldPeriod);
+
+        while (!BlockDescriptors_.empty()) {
+            BlockDescriptors_.pop_back();
+            yielder.TryYield();
+        }
     }
 
     std::vector<TChunkSlice> Slice()
@@ -183,9 +204,12 @@ public:
         TOwningKeyBound lastBlockUpperBound;
         i64 lastBlockEndRowIndex = -1;
 
-        for (int blockIndex = 0; blockIndex < std::ssize(BlockDescriptors_); ++blockIndex) {
-            const auto& block = BlockDescriptors_[blockIndex];
+        TPeriodicYielder yielder(SlicerYieldPeriod);
 
+        for (int blockIndex = 0; blockIndex < std::ssize(BlockDescriptors_); ++blockIndex) {
+            yielder.TryYield();
+
+            const auto& block = BlockDescriptors_[blockIndex];
             auto blockLowerBound = blockIndex == 0
                 ? ChunkLowerBound_
                 : BlockDescriptors_[blockIndex - 1].UpperBound.Invert();
@@ -256,6 +280,8 @@ public:
             } else {
                 i64 rowsPerDataSlice = std::max<i64>(1, DivCeil<i64>(sliceDataWeight, DataWeightPerRow_));
                 while (endRowIndex - currentSliceStartRowIndex >= rowsPerDataSlice) {
+                    yielder.TryYield();
+
                     i64 currentSliceEndRowIndex = currentSliceStartRowIndex + rowsPerDataSlice;
                     YT_VERIFY(currentSliceEndRowIndex > startRowIndex &&
                         currentSliceEndRowIndex <= endRowIndex);
@@ -321,7 +347,10 @@ std::vector<TChunkSlice> SliceChunk(
     const NProto::TChunkMeta& meta)
 {
     TSortedChunkSlicer slicer(sliceReq, meta);
-    return slicer.Slice();
+    auto result = slicer.Slice();
+    slicer.Clear();
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
