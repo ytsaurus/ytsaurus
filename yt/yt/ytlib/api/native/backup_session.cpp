@@ -45,6 +45,25 @@ TClusterBackupSession::~TClusterBackupSession()
     }
 }
 
+void TClusterBackupSession::ValidateBackupsEnabled()
+{
+    auto rspOrError = WaitFor(Client_->GetNode("//sys/@config/tablet_manager/enable_backups", {}));
+
+    if (rspOrError.IsOK()) {
+        auto rsp = ConvertTo<bool>(rspOrError.Value());
+        if (rsp) {
+            return;
+        }
+    } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        THROW_ERROR_EXCEPTION("Failed to check if backups are enabled at cluster %Qv",
+            ClusterName_)
+            << rspOrError;
+    }
+
+    THROW_ERROR_EXCEPTION("Backups are disabled at cluster %Qv",
+        ClusterName_);
+}
+
 void TClusterBackupSession::RegisterTable(const TTableBackupManifestPtr& manifest)
 {
     TTableInfo tableInfo;
@@ -758,6 +777,7 @@ void TBackupSession::InitializeAndLockTables(EBackupDirection direction)
 {
     for (const auto& [cluster, tables]: Manifest_->Clusters) {
         auto* clusterSession = CreateClusterSession(cluster);
+        clusterSession->ValidateBackupsEnabled();
         for (const auto& table : tables) {
             clusterSession->RegisterTable(table);
         }

@@ -74,6 +74,8 @@ public:
 
     ~TClusterBackupSession();
 
+    void ValidateBackupsEnabled();
+
     void RegisterTable(const TTableBackupManifestPtr& manifest);
 
     void StartTransaction(TStringBuf title);

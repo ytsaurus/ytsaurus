@@ -273,6 +273,8 @@ public:
     // COMPAT(babenko)
     bool EnableHunks;
 
+    bool EnableBackups;
+
     TDuration ProfilingPeriod;
 
     TDuration TamedCellManagerProfilingPeriod;

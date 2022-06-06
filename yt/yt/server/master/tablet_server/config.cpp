@@ -187,6 +187,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_hunks", &TThis::EnableHunks)
         .Default(false);
 
+    registrar.Parameter("enable_backups", &TThis::EnableBackups)
+        .Default(false);
+
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
 
