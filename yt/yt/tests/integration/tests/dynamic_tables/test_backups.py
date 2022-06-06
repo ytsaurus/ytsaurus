@@ -1,5 +1,5 @@
 from yt_commands import (
-    authors, get, insert_rows, select_rows, mount_table, reshard_table, sync_create_cells,
+    authors, get, insert_rows, select_rows, mount_table, sync_reshard_table, sync_create_cells,
     remove, sync_mount_table, sync_flush_table, sync_freeze_table, sync_unmount_table,
     create_table_backup, restore_table_backup, raises_yt_error, update_nodes_dynamic_config,
     wait, start_transaction, commit_transaction, print_debug, lookup_rows,
@@ -27,7 +27,7 @@ import pytest
 ##################################################################
 
 
-class EmptyDynamicStoreIdPoolException(Exception):
+class BackupKnowinglyFailedException(Exception):
     pass
 
 ##################################################################
@@ -61,7 +61,7 @@ class TestBackups(DynamicTablesBase):
         with raises_yt_error():
             mount_table("//tmp/bak")
         with raises_yt_error():
-            reshard_table("//tmp/bak", [[], [1], [2]])
+            sync_reshard_table("//tmp/bak", [[], [1], [2]])
 
         restore_table_backup(["//tmp/bak", "//tmp/res"])
         assert get("//tmp/res/@tablet_backup_state") == "none"
@@ -309,7 +309,7 @@ class TestBackups(DynamicTablesBase):
 
     @pytest.mark.flaky(
         max_runs=5,
-        rerun_filter=lambda err, *args: issubclass(err[0], EmptyDynamicStoreIdPoolException))
+        rerun_filter=lambda err, *args: issubclass(err[0], BackupKnowinglyFailedException))
     def test_backup_multiple_tables_ordered(self):
         table_count = 3
         source_tables = ["//tmp/t_" + str(i) for i in range(table_count)]
@@ -353,7 +353,7 @@ class TestBackups(DynamicTablesBase):
         if not response.is_ok():
             error = YtResponseError(response.error())
             if error.contains_text("cannot perform backup cutoff due to empty dynamic store id pool"):
-                raise EmptyDynamicStoreIdPoolException()
+                raise BackupKnowinglyFailedException()
             raise error
 
         for table in source_tables:
@@ -510,7 +510,7 @@ class TestBackups(DynamicTablesBase):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=1000)
+        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=2000)
 
         with raises_yt_error():
             set("//tmp/bak/@enable_dynamic_store_read", True)
@@ -525,7 +525,7 @@ class TestBackups(DynamicTablesBase):
         bulk_rows = [{"key": 2, "value": "bar"}]
         extra_rows = [{"key": 3, "value": "baz"}]
         insert_rows("//tmp/t", normal_rows)
-        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=1000)
+        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=2000)
         insert_rows("//tmp/t", extra_rows)
         sync_freeze_table("//tmp/t")
 
@@ -818,7 +818,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         self._create_tables(["sync"])
         create_table_backup(
             self._make_backup_manifest(1),
-            checkpoint_timestamp_delay=1000)
+            checkpoint_timestamp_delay=2000)
 
         with raises_yt_error():
             create_table_replica("//tmp/bak", self.REPLICA_CLUSTER_NAME, "//tmp/aaa")
@@ -895,6 +895,9 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
             rows,
             list(select_rows("* from [//tmp/res1]", driver=self.replica_driver))))
 
+    @pytest.mark.flaky(
+        max_runs=5,
+        rerun_filter=lambda err, *args: issubclass(err[0], BackupKnowinglyFailedException))
     def test_lagging_async_replica(self):
         self._create_cells(5)
         self._create_tables(["async", "async"], mount=False)
@@ -907,9 +910,9 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
 
         tablet_count = 10
         key_count = 500
-        reshard_table("//tmp/t", _make_pivots(tablet_count, key_count))
-        reshard_table("//tmp/r1", _make_pivots(tablet_count, key_count), driver=self.replica_driver)
-        reshard_table("//tmp/r2", _make_pivots(tablet_count, key_count), driver=self.replica_driver)
+        sync_reshard_table("//tmp/t", _make_pivots(tablet_count, key_count))
+        sync_reshard_table("//tmp/r1", _make_pivots(tablet_count, key_count), driver=self.replica_driver)
+        sync_reshard_table("//tmp/r2", _make_pivots(tablet_count, key_count), driver=self.replica_driver)
         sync_mount_table("//tmp/r1", driver=self.replica_driver)
         sync_mount_table("//tmp/r2", driver=self.replica_driver)
 
@@ -937,7 +940,12 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         bad_rows = [{"key": i, "value1": "bad", "value2": -1} for i in range(key_count)]
         _write_rows_async("//tmp/t", rows[:key_count//2])
 
-        create_table_backup(self._make_backup_manifest(2), checkpoint_timestamp_delay=1000)
+        try:
+            create_table_backup(self._make_backup_manifest(2), checkpoint_timestamp_delay=2000)
+        except YtResponseError as e:
+            if e.contains_text("Backup aborted due to overlapping replication transaction"):
+                raise BackupKnowinglyFailedException()
+            raise e
 
         _write_rows_async("//tmp/t", bad_rows)
         remove("//tmp/t/@replication_throttler")
@@ -1068,7 +1076,7 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         wait(lambda: _get_replica_row_count("//tmp/r1") >= 5)
         sync_freeze_table("//tmp/t")
 
-        create_table_backup(self._make_backup_manifest(1), checkpoint_timestamp_delay=1000)
+        create_table_backup(self._make_backup_manifest(1), checkpoint_timestamp_delay=2000)
         sync_flush_table("//tmp/r1", driver=self.replica_driver)
 
         set("//tmp/t/@replication_throttler/limit", 10000)
