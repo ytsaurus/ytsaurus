@@ -127,6 +127,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeAccountResourceUsageOnceAgain)                       (2025))  // aleksandra-zh
     ((LetsRecomputeAccountResourceUsageAgainWhyNotItsNice)          (2026))  // gritukan
     ((BackupsMisc)                                                  (2027))  // ifsmirnov
+    ((FixChunkWeightHistograms)                                     (2028))  // h0pless
 );
 
 ////////////////////////////////////////////////////////////////////////////////
