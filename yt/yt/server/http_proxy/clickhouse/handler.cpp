@@ -160,7 +160,7 @@ public:
 
             .Item("http_code").Value(static_cast<int>(Response_->GetStatus().value_or(EStatusCode::OK)))
             .Item("start_time").Value(Request_->GetStartTime())
-            .Item("duration").Value((TInstant::Now() - Request_->GetStartTime()).MicroSeconds())
+            .Item("duration").Value(static_cast<i64>((TInstant::Now() - Request_->GetStartTime()).MicroSeconds()))
             .OptionalItem("error_code", !ResponseError_.IsOK() ?
                 std::make_optional(static_cast<int>(ResponseError_.GetCode())) :
                 std::nullopt)
