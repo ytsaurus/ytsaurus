@@ -8,8 +8,6 @@ import spyt.TarArchiverPlugin.autoImport._
 import spyt.YtPublishPlugin.autoImport._
 import spyt.ZipPlugin.autoImport._
 
-import java.util.UUID
-
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -172,10 +170,13 @@ lazy val `e2e-checker` = (project in file("e2e-checker"))
   )
 
 lazy val `e2e-test` = (project in file("e2e-test"))
-  .enablePlugins(E2ETestPlugin, YtPublishPlugin, BuildInfoPlugin)
-  .dependsOn(`yt-wrapper`, `file-system`, `data-source`, `spark-submit`, `e2e-checker`,
+  .enablePlugins(E2ETestPlugin, YtPublishPlugin, SparkPackagePlugin, BuildInfoPlugin)
+  .dependsOn(`yt-wrapper`, `file-system`, `data-source`, `spark-submit`, `e2e-checker`, `spark-fork`,
     `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
+    sparkAdditionalJars := Nil,
+    sparkAdditionalBin := Nil,
+    sparkAdditionalPython := Nil,
     libraryDependencies ++= commonDependencies.value,
     publishYtArtifacts ++= {
       val tempFolder = YtPublishDirectory(e2eTestUDirPath, proxy = None,

@@ -20,8 +20,10 @@ object SparkPackagePlugin extends AutoPlugin {
 
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
+    val sparkAddCustomFiles = taskKey[File]("Add custom files to spark dist")
 
     val sparkHome = settingKey[File]("")
+    val sparkForkHome = settingKey[File]("spark-fork directory")
     val sparkVersionPyFile = settingKey[File]("")
 
     val sparkAdditionalJars = taskKey[Seq[File]]("Jars to copy in SPARK_HOME/jars")
@@ -73,18 +75,19 @@ object SparkPackagePlugin extends AutoPlugin {
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
     sparkHome := (ThisBuild / baseDirectory).value.getParentFile / "spark",
+    sparkForkHome := (ThisBuild / baseDirectory).value / "spark-fork",
     (ThisBuild / sparkVersionPyFile) := sparkHome.value / "python" / "pyspark" / "version.py",
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta") || version.value.contains("dev"),
     sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
     sparkReleaseLinks := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
       Seq(
-        baseDirectory.value / "spark-defaults.conf",
-        baseDirectory.value / "spark-env.sh",
-        baseDirectory.value / "metrics.properties",
-        baseDirectory.value / "log4j" / "log4j.properties",
-        baseDirectory.value / "log4j" / "log4j.workerLogJson.properties",
-        baseDirectory.value / "log4j" / "log4j.worker.properties"
+        sparkForkHome.value / "spark-defaults.conf",
+        sparkForkHome.value / "spark-env.sh",
+        sparkForkHome.value / "metrics.properties",
+        sparkForkHome.value / "log4j" / "log4j.properties",
+        sparkForkHome.value / "log4j" / "log4j.workerLogJson.properties",
+        sparkForkHome.value / "log4j" / "log4j.worker.properties"
       )
     },
     sparkAdditionalBin := Nil,
@@ -138,6 +141,23 @@ object SparkPackagePlugin extends AutoPlugin {
 
       configsPublish ++ (launchConfigPublish +: globalConfigPublish)
     },
+    sparkAddCustomFiles := {
+      val sparkDist = sparkHome.value / "dist"
+      sparkAdditionalJars.value.foreach { file =>
+        IO.copyFile(file, sparkDist / "jars" / file.name)
+      }
+      sparkLocalConfigs.value.foreach { file =>
+        IO.copyFile(file, sparkDist / "conf" / file.name)
+      }
+      sparkAdditionalBin.value.foreach { file =>
+        IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
+      }
+      val pythonDir = sparkDist / "bin" / "python"
+      if (!pythonDir.exists()) IO.createDirectory(pythonDir)
+      val ignorePython = Set("build", "dist", ".egg-info", "setup.py", ".pyc", "__pycache__")
+      sparkAdditionalPython.value.foreach(FileUtils.copyDirectory(_, pythonDir, ignorePython))
+      sparkDist
+    },
     sparkPackage := {
       val log = streams.value.log
       val sparkDist = sparkHome.value / "dist"
@@ -151,23 +171,7 @@ object SparkPackagePlugin extends AutoPlugin {
           override def accept(dir: File, name: String): Boolean = name.startsWith("spark-yt-")
         })
       }
-
-      sparkAdditionalJars.value.foreach { file =>
-        IO.copyFile(file, sparkDist / "jars" / file.name)
-      }
-      sparkLocalConfigs.value.foreach { file =>
-        IO.copyFile(file, sparkDist / "conf" / file.name)
-      }
-      sparkAdditionalBin.value.foreach { file =>
-        IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
-      }
-
-      val pythonDir = sparkDist / "bin" / "python"
-      if (!pythonDir.exists()) IO.createDirectory(pythonDir)
-      val ignorePython = Set("build", "dist", ".egg-info", "setup.py", ".pyc", "__pycache__")
-      sparkAdditionalPython.value.foreach(FileUtils.copyDirectory(_, pythonDir, ignorePython))
-
-      sparkDist
+      sparkAddCustomFiles.value
     },
     sparkMvnInstall := {
       mvnInstall(sparkHome.value)
