@@ -338,7 +338,7 @@ THunkValue ReadHunkValue(TRef input)
             ui64 length;
             ui32 blockIndex;
             ui64 blockOffset;
-            ui64 blockSize;
+            ui64 blockSize = 0;
             currentPtr += ReadPod(currentPtr, &chunkId);
             if (IsErasureChunkId(chunkId)) {
                 currentPtr += ReadVarInt32(currentPtr, &erasureCodec);
