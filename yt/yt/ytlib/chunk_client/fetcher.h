@@ -97,6 +97,7 @@ protected:
 
     void StartFetchingRound();
 
+    // NB: Timeouts are retried on the same node.
     void OnChunkFailed(
         NNodeTrackerClient::TNodeId nodeId,
         int chunkIndex,
@@ -113,8 +114,14 @@ private:
 
     NApi::NNative::IClientPtr Client_;
 
+    // NB: At each moment in time a chunk index is in exactly one of three possible states:
+    //     - Stored in |UnfetchedChunkIndexes_|
+    //     - Stored in |NodeToChunkIndexesToFetch_|
+    //     - Currently being fetched by |FetchFromNode|
     //! Indexes of chunks for which no info is fetched yet.
     THashSet<int> UnfetchedChunkIndexes_;
+    //! Indexes of chunks to be fetched by each node in the current round.
+    THashMap<NNodeTrackerClient::TNodeId, THashSet<int>> NodeToChunkIndexesToFetch_;
 
     //! Ids of nodes that failed to reply.
     THashSet<NNodeTrackerClient::TNodeId> DeadNodes_;
@@ -136,6 +143,10 @@ private:
 
     void OnFetchingRoundCompleted(bool backoff, const TError& error);
     void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas);
+
+    //! Fetches all chunks in |NodeToChunkIndexesToFetch_| via calls to |FetchFromNode|.
+    //! Timeouts are retried until they result in success or another error.
+    void PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId);
 };
 
 DEFINE_REFCOUNTED_TYPE(IFetcherChunkScraper)

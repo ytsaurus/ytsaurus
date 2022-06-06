@@ -255,6 +255,51 @@ void TFetcherBase::SetCancelableContext(TCancelableContextPtr cancelableContext)
     CancelableContext_ = std::move(cancelableContext);
 }
 
+void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId nodeId)
+{
+    const auto& nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
+    YT_LOG_DEBUG(
+        "Starting node fetching round (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
+        nodeId,
+        nodeAddress,
+        NodeToChunkIndexesToFetch_[nodeId].size());
+    for (auto& chunkIndexesToFetch = NodeToChunkIndexesToFetch_[nodeId]; !chunkIndexesToFetch.empty();) {
+        auto lastIt = std::next(
+            chunkIndexesToFetch.begin(),
+            static_cast<i64>(std::min(static_cast<ui64>(Config_->MaxChunksPerNodeFetch), chunkIndexesToFetch.size())));
+        std::vector<int> chunkIds(chunkIndexesToFetch.begin(), lastIt);
+        chunkIndexesToFetch.erase(chunkIndexesToFetch.begin(), lastIt);
+        // Fetch another portion of chunks from node.
+        YT_LOG_DEBUG(
+            "Fetching from node (NodeId: %v, NodeAddress: %v, ChunkCount: %v)",
+            nodeId,
+            nodeAddress,
+            chunkIds.size());
+        try {
+            WaitFor(FetchFromNode(nodeId, std::move(chunkIds)))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Stopping node fetching round due to an error");
+            throw;
+        }
+
+        if (DeadNodes_.contains(nodeId)) {
+            break;
+        }
+    }
+
+    YT_LOG_DEBUG(
+        "Node fetching round completed (NodeId: %v, NodeAddress: %v, UnfetchedChunkCount: %v)",
+        nodeId,
+        nodeAddress,
+        NodeToChunkIndexesToFetch_[nodeId].size());
+
+    UnfetchedChunkIndexes_.insert(
+        NodeToChunkIndexesToFetch_[nodeId].begin(),
+        NodeToChunkIndexesToFetch_[nodeId].end());
+    NodeToChunkIndexesToFetch_[nodeId].clear();
+}
+
 void TFetcherBase::StartFetchingRound()
 {
     YT_LOG_DEBUG("Start fetching round (UnfetchedChunkCount: %v, DeadNodes: %v, DeadChunks: %v)",
@@ -280,7 +325,7 @@ void TFetcherBase::StartFetchingRound()
     }
 
     // Construct address -> chunk* map.
-    typedef THashMap<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
+    typedef THashMap<TNodeId, std::vector<int>> TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
     THashSet<TInputChunkPtr> unavailableChunks;
 
@@ -345,24 +390,20 @@ void TFetcherBase::StartFetchingRound()
     std::vector<TFuture<void>> asyncResults;
     THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
-        std::vector<int> chunkIndexes;
         for (int chunkIndex : it->second) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
                 YT_VERIFY(requestedChunkIndexes.insert(chunkIndex).second);
-                chunkIndexes.push_back(chunkIndex);
+                NodeToChunkIndexesToFetch_[it->first].insert(chunkIndex);
             }
         }
 
-        if (std::ssize(chunkIndexes) > Config_->MaxChunksPerNodeFetch) {
-            UnfetchedChunkIndexes_.insert(chunkIndexes.begin() + Config_->MaxChunksPerNodeFetch, chunkIndexes.end());
-            chunkIndexes.resize(Config_->MaxChunksPerNodeFetch);
-        }
-
-        if (chunkIndexes.empty()) {
+        if (NodeToChunkIndexesToFetch_[it->first].empty()) {
             continue;
         }
 
-        asyncResults.push_back(FetchFromNode(it->first, std::move(chunkIndexes)));
+        asyncResults.push_back(BIND(&TFetcherBase::PerformFetchingRoundFromNode, MakeWeak(this), it->first)
+            .AsyncVia(Invoker_)
+            .Run());
     }
 
     bool backoff = asyncResults.empty();
@@ -388,12 +429,12 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
 
     if (error.FindMatching(NYT::EErrorCode::Timeout)) {
         YT_LOG_DEBUG(error, "Timed out fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
+        YT_VERIFY(NodeToChunkIndexesToFetch_[nodeId].insert(chunkIndex).second);
     } else {
         YT_LOG_DEBUG(error, "Error fetching chunk info (ChunkId: %v, Address: %v)", chunkId, address);
         DeadChunks_.emplace(nodeId, chunkId);
+        YT_VERIFY(UnfetchedChunkIndexes_.insert(chunkIndex).second);
     }
-
-    YT_VERIFY(UnfetchedChunkIndexes_.insert(chunkIndex).second);
 }
 
 void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkIndexes)
@@ -446,6 +487,8 @@ void TFetcherBase::OnFetchingRoundCompleted(bool backoff, const TError& error)
         Promise_.Set(TError());
         return;
     }
+
+    YT_LOG_DEBUG("Fetching round completed (UnfetchedChunkCount: %v)", UnfetchedChunkIndexes_.size());
 
     if (backoff) {
         TDelayedExecutor::WaitForDuration(Config_->BackoffTime);
