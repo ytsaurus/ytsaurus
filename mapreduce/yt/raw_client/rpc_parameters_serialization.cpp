@@ -700,13 +700,16 @@ TNode SerializeParamsForPutFileToCache(
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
-    const TPutFileToCacheOptions&)
+    const TPutFileToCacheOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     SetPathParam(&result, filePath);
     result["md5"] = md5Signature;
     result["cache_path"] = cachePath;
+    if (options.PreserveExpirationTimeout_) {
+        result["preserve_expiration_timeout"] = *options.PreserveExpirationTimeout_;
+    }
     return result;
 }
 

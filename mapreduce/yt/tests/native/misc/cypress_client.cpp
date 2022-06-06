@@ -570,12 +570,18 @@ Y_UNIT_TEST_SUITE(CypressClient) {
                 *writer << content;
                 writer->Finish();
             }
-
+            auto expirationTimeout = 600000;
+            client->Set(workingDir + "/file/@expiration_timeout", expirationTimeout);
             auto md5 = MD5::Calc(content);
-            auto pathInCache = client->PutFileToCache(workingDir + "/file", md5, cachePath);
+            auto pathInCache = client->PutFileToCache(
+                workingDir + "/file",
+                md5,
+                cachePath,
+                TPutFileToCacheOptions().PreserveExpirationTimeout(true));
 
             auto maybePath = client->GetFileFromCache(md5, cachePath);
             UNIT_ASSERT(maybePath.Defined());
+            UNIT_ASSERT_VALUES_EQUAL(expirationTimeout, client->Get(*maybePath + "/@expiration_timeout"));
             UNIT_ASSERT_VALUES_EQUAL(content, client->CreateFileReader(*maybePath)->ReadAll());
         }
 
