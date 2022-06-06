@@ -553,51 +553,45 @@ private:
         NErasure::ICodec* erasureCodec,
         std::vector<TFuture<void>>* copyFutures)
     {
-        // This promise is set when repair can be started.
-        TPromise<void> canStartRepair = NewPromise<void>();
+        struct TContext final
+        {
+            // This promise is set when repair can be started.
+            TPromise<void> CanStartRepair = NewPromise<void>();
 
-        // Set of parts that were not copied yet.
-        TPartIndexSet erasedPartSet;
+            // Set of parts that were not copied yet.
+            TPartIndexSet ErasedPartSet;
 
-        // Set of parts that were copied unsuccessfully.
-        TPartIndexSet failedPartSet;
+            // Set of parts that were copied unsuccessfully.
+            TPartIndexSet FailedPartSet;
 
-        std::vector<TError> copyErrors;
-
-        std::vector<TFutureCallbackCookie> callbackCookies;
-        callbackCookies.reserve(copyFutures->size());
+            std::vector<TError> CopyErrors;
+        };
+        auto callbackContext = New<TContext>();
 
         for (int partIndex = 0; partIndex < std::ssize(*copyFutures); ++partIndex) {
-            erasedPartSet.set(partIndex);
+            callbackContext->ErasedPartSet.set(partIndex);
 
             auto& copyFuture = (*copyFutures)[partIndex];
-            auto cookie = copyFuture.Subscribe(BIND([&, partIndex, Logger = Logger] (const TError& error) {
+            copyFuture.Subscribe(BIND([callbackContext, erasureCodec, partIndex, Logger = Logger] (const TError& error) {
                 if (error.IsOK()) {
-                    erasedPartSet.reset(partIndex);
-                    if (erasureCodec->CanRepair(erasedPartSet)) {
-                        canStartRepair.TrySet();
+                    callbackContext->ErasedPartSet.reset(partIndex);
+                    if (erasureCodec->CanRepair(callbackContext->ErasedPartSet)) {
+                        callbackContext->CanStartRepair.TrySet();
                     }
                 } else {
-                    failedPartSet.set(partIndex);
-                    copyErrors.push_back(error);
+                    callbackContext->FailedPartSet.set(partIndex);
+                    callbackContext->CopyErrors.push_back(error);
                     // Chunk cannot be repaired, this situation is unrecoverable.
-                    if (!erasureCodec->CanRepair(failedPartSet)) {
-                        canStartRepair.TrySet(TError("Cannot repair erasure chunk")
-                            << copyErrors);
+                    if (!erasureCodec->CanRepair(callbackContext->FailedPartSet)) {
+                        callbackContext->CanStartRepair.TrySet(TError("Cannot repair erasure chunk")
+                            << callbackContext->CopyErrors);
                     }
                 }
             }));
-            callbackCookies.push_back(cookie);
         }
 
-        WaitFor(canStartRepair.ToFuture())
+        WaitFor(callbackContext->CanStartRepair.ToFuture())
             .ThrowOnError();
-
-        for (int partIndex = 0; partIndex < std::ssize(*copyFutures); ++partIndex) {
-            auto& copyFuture = (*copyFutures)[partIndex];
-            auto callbackCookie = callbackCookies[partIndex];
-            copyFuture.Unsubscribe(callbackCookie);
-        }
     }
 
     void RepairErasureChunk(
