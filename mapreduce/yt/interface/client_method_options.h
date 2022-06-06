@@ -188,10 +188,10 @@ struct TCopyOptions
     /// Allows to use existing node as destination, it will be overwritten.
     FLUENT_FIELD_DEFAULT(bool, Force, false);
 
-    /// Wether to preserves account of source node.
+    /// Whether to preserves account of source node.
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
 
-    /// Wether to preserve `expiration_time` attribute of source node.
+    /// Whether to preserve `expiration_time` attribute of source node.
     FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
 };
 
@@ -211,10 +211,10 @@ struct TMoveOptions
     /// Allows to use existing node as destination, it will be overwritten.
     FLUENT_FIELD_DEFAULT(bool, Force, false);
 
-    /// Wether to preserves account of source node.
+    /// Whether to preserves account of source node.
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
 
-    /// Wether to preserve `expiration_time` attribute of source node.
+    /// Whether to preserve `expiration_time` attribute of source node.
     FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
 };
 
@@ -748,7 +748,7 @@ struct TLockOptions
     /// @endcond
 
     ///
-    /// @brief Wether to wait already locked node to be unlocked.
+    /// @brief Whether to wait already locked node to be unlocked.
     ///
     /// If `Waitable' is set to true Lock method will create
     /// waitable lock, that will be taken once other transactions
@@ -906,7 +906,7 @@ struct TLookupRowsOptions
     FLUENT_FIELD_OPTION(TColumnNames, Columns);
 
     ///
-    /// @brief Wether to return rows that were not found in table.
+    /// @brief Whether to return rows that were not found in table.
     ///
     /// If set to true List returned by LookupRows method will have same
     /// length as list of keys. If row is not found in table corresponding item in list
@@ -949,7 +949,7 @@ struct TSelectRowsOptions
     FLUENT_FIELD_DEFAULT(ui64, RangeExpansionLimit, 1000);
 
     ///
-    /// @brief Wether to fail if InputRowLimit or OutputRowLimit is exceeded.
+    /// @brief Whether to fail if InputRowLimit or OutputRowLimit is exceeded.
     ///
     /// @see https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language#ogranicheniya-na-slozhnost-zaprosa-(opcii)
     FLUENT_FIELD_DEFAULT(bool, FailOnIncompleteResult, true);
@@ -1093,14 +1093,14 @@ struct TInsertRowsOptions
     : public TTabletTransactionOptions<TInsertRowsOptions>
 {
     ///
-    /// @brief Wether to overwrite missing columns with nulls.
+    /// @brief Whether to overwrite missing columns with nulls.
     ///
     /// By default all columns missing in input data are set to Null and overwrite currently stored value.
     /// If `Update' is set to true currently stored value will not be overwritten for columns that are missing in input data.
     FLUENT_FIELD_OPTION(bool, Update);
 
     ///
-    /// @brief Wether to overwrite or aggregate aggregated columns.
+    /// @brief Whether to overwrite or aggregate aggregated columns.
     ///
     /// Used with aggregating columns.
     /// By default value in aggregating column will be overwritten.
@@ -1108,7 +1108,7 @@ struct TInsertRowsOptions
     FLUENT_FIELD_OPTION(bool, Aggregate);
 
     ///
-    /// @brief Wether to fail when inserting to table without sync replica.
+    /// @brief Whether to fail when inserting to table without sync replica.
     ///
     /// Used for insert operation for tables without sync replica
     /// https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables#write
@@ -1124,7 +1124,7 @@ struct TDeleteRowsOptions
     : public TTabletTransactionOptions<TDeleteRowsOptions>
 {
     ///
-    /// @brief Wether to fail when deleting from table without sync replica.
+    /// @brief Whether to fail when deleting from table without sync replica.
     ///
     // Used for delete operation for tables without sync replica
     // https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables#write
@@ -1151,7 +1151,7 @@ struct TAlterTableReplicaOptions
     /// @endcond
 
     ///
-    /// @brief Wether to enable or disable replica.
+    /// @brief Whether to enable or disable replica.
     ///
     /// Doesn't change state of replica if `Enabled' is not set.
     FLUENT_FIELD_OPTION(bool, Enabled);
@@ -1187,6 +1187,9 @@ struct TPutFileToCacheOptions
     /// @cond Doxygen_Suppress
     using TSelf = TPutFileToCacheOptions;
     /// @endcond
+
+    /// Whether to preserve `expiration_timeout` attribute of source node.
+    FLUENT_FIELD_OPTION(bool, PreserveExpirationTimeout);
 };
 
 ///
@@ -1220,7 +1223,7 @@ enum class EPermission : int
     Manage       /* "manage" */,
 };
 
-/// Wether permission is granted or denied.
+/// Whether permission is granted or denied.
 enum class ESecurityAction : int
 {
     /// Permission is granted.

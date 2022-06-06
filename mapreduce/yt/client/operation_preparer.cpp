@@ -473,6 +473,13 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
         uniquePath,
         OperationPreparer_.GetPreparationId());
 
+    auto attributes = TNode()("replication_factor", GetFileCacheReplicationFactor());
+    auto putFileToCacheOptions = TPutFileToCacheOptions();
+    if (Options_.FileExpirationTimeout_) {
+        attributes["expiration_timeout"] = Options_.FileExpirationTimeout_->MilliSeconds();
+        putFileToCacheOptions.PreserveExpirationTimeout(true);
+    }
+
     Create(
         OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),
         OperationPreparer_.GetAuth(),
@@ -482,8 +489,7 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
         TCreateOptions()
             .IgnoreExisting(true)
             .Recursive(true)
-    .Attributes(TNode()("replication_factor", GetFileCacheReplicationFactor()))
-    );
+            .Attributes(attributes));
 
     {
         TFileWriter writer(
@@ -503,7 +509,7 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
         uniquePath,
         md5Signature,
         GetCachePath(),
-        TPutFileToCacheOptions());
+        putFileToCacheOptions);
 
     Remove(
         OperationPreparer_.GetClientRetryPolicy()->CreatePolicyForGenericRequest(),

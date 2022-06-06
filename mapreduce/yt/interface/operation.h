@@ -1421,6 +1421,10 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TString, FileStorage);
 
     ///
+    /// @brief Expiration timeout for uploaded files.
+    FLUENT_FIELD_OPTION(TDuration, FileExpirationTimeout);
+
+    ///
     /// @brief Info to be passed securely to the job.
     FLUENT_FIELD_OPTION(TNode, SecureVault);
 

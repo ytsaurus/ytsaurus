@@ -169,7 +169,7 @@ TNode SerializeParamsForPutFileToCache(
     const TYPath& filePath,
     const TString& md5Signature,
     const TYPath& cachePath,
-    const TPutFileToCacheOptions&);
+    const TPutFileToCacheOptions& options);
 
 TNode SerializeParamsForSkyShareTable(
     const TString& serverName,
