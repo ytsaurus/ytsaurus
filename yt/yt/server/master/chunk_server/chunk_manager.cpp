@@ -764,9 +764,7 @@ public:
 
         chunk->Confirm(chunkInfo, chunkMeta);
 
-        if (chunk->IsBlob()) {
-            UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
-        }
+        UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
 
         CancelChunkExpiration(chunk);
 
@@ -1130,9 +1128,7 @@ public:
             UpdateResourceUsage(chunk, -1);
         }
 
-        if (chunk->IsBlob() && chunk->IsConfirmed()) {
-            UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
-        }
+        UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ false);
 
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
@@ -2528,7 +2524,10 @@ private:
 
     void UpdateChunkWeightStatisticsHistogram(const TChunk* chunk, bool add)
     {
-        YT_VERIFY(chunk->IsBlob() && chunk->IsConfirmed());
+        if (!chunk->IsBlob() || !chunk->IsConfirmed() || chunk->IsForeign()) {
+            return;
+        }
+
         auto rowCount = chunk->GetRowCount();
         auto compressedDataSize = chunk->GetCompressedDataSize();
         auto uncompressedDataSize = chunk->GetUncompressedDataSize();
@@ -3887,11 +3886,19 @@ private:
         Load(context, ConsistentReplicaPlacementTokenDistribution_);
 
         // COMPAT(h0pless)
-        if (context.GetVersion() >= EMasterReign::ChunkWeightStatisticsHistogram) {
+        if (context.GetVersion() >= EMasterReign::FixChunkWeightHistograms) {
             LoadHistogramValues(context, ChunkRowCountHistogram_);
             LoadHistogramValues(context, ChunkCompressedDataSizeHistogram_);
             LoadHistogramValues(context, ChunkUncompressedDataSizeHistogram_);
             LoadHistogramValues(context, ChunkDataWeightHistogram_);
+        } else if (context.GetVersion() >= EMasterReign::ChunkWeightStatisticsHistogram) {
+            TGaugeHistogram dummy(ChunkRowCountHistogram_);
+            LoadHistogramValues(context, dummy);
+            LoadHistogramValues(context, dummy);
+            LoadHistogramValues(context, dummy);
+            LoadHistogramValues(context, dummy);
+            dummy.Reset();
+            NeedRecomputeChunkWeightStatisticsHistogram_ = true;
         } else {
             NeedRecomputeChunkWeightStatisticsHistogram_ = true;
         }
@@ -3917,7 +3924,7 @@ private:
         for (auto [chunkId, chunk] : ChunkMap_) {
             RegisterChunk(chunk);
 
-            if (NeedRecomputeChunkWeightStatisticsHistogram_ && chunk->IsConfirmed() && chunk->IsBlob()) {
+            if (NeedRecomputeChunkWeightStatisticsHistogram_) {
                 UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
             }
 
