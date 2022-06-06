@@ -689,8 +689,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         # Some 4 parts are unavailable, repair is impossible.
         set_banned_flag_for_part_nodes([0, 1, 3, 8], True)
         time.sleep(8)
-        # Job freezes.
-        assert len(op.get_running_jobs()) == 1
+        assert op.get_state() not in ("failed", "aborted", "completed")
         # Unban one part, job should complete.
         set_banned_flag_for_part_nodes([1], False)
         op.track()
