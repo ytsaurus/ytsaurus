@@ -12,6 +12,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/guid"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof"
 
@@ -170,7 +171,7 @@ func findMetadata(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	s, err := storage.NewTableStorageMigrate(flagTablePath, YT, l)
+	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
 		l.Fatal("storage creation failed", log.Error(err))
 		return err
@@ -210,7 +211,7 @@ func findData(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	s, err := storage.NewTableStorageMigrate(flagTablePath, YT, l)
+	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
 		l.Fatal("storage creation failed", log.Error(err))
 		return err
@@ -257,7 +258,7 @@ func getData(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	s, err := storage.NewTableStorageMigrate(flagTablePath, YT, l)
+	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
 		l.Fatal("storage creation failed", log.Error(err))
 		return err

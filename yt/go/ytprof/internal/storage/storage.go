@@ -65,17 +65,15 @@ func NewTableStorage(yc yt.Client, path ypath.Path, l *logzap.Logger) *TableStor
 	return p
 }
 
-func NewTableStorageMigrate(flagTablePath string, yt yt.Client, l *logzap.Logger) (*TableStorage, error) {
-	tableYTPath := ypath.Path(flagTablePath)
-
-	err := ytprof.MigrateTables(yt, tableYTPath)
+func NewTableStorageMigrate(yt yt.Client, path ypath.Path, l *logzap.Logger) (*TableStorage, error) {
+	err := ytprof.MigrateTables(yt, path)
 
 	if err != nil {
-		l.Error("migraton failed", log.Error(err), log.String("table_path", tableYTPath.String()))
+		l.Error("migraton failed", log.Error(err), log.String("table_path", path.String()))
 		return nil, err
 	}
 
-	storage := NewTableStorage(yt, tableYTPath, l)
+	storage := NewTableStorage(yt, path, l)
 
 	return storage, nil
 }

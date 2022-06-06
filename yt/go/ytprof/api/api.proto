@@ -9,20 +9,23 @@ option go_package = "a.yandex-team.ru/yt/go/ytprof/api";
 
 
 message TimePeriod {
-    google.protobuf.Timestamp PeriodStartTime = 1;
-    google.protobuf.Timestamp PeriodEndTime = 2;
-}
-
-message Path {
-    string Proxy = 1;
-    string TablePath = 2;
+    string PeriodStartTime = 1;
+    string PeriodEndTime = 2;
 }
 
 message Metaquery {
     TimePeriod TimePeriod = 1;
-    Path Path = 2;
-    string Query = 3;
-    int32 QueryLimit = 4;
+    string Query = 2;
+    int32 QueryLimit = 3;
+}
+
+message Metadata {
+    string ProfileType = 1;
+    string Host = 2;
+    string ArcRevision = 3;
+    string GUID = 4;
+    string Timestamp = 5;
+    map<string, string> UserTags = 6;
 }
 
 message ListRequest {
@@ -30,15 +33,15 @@ message ListRequest {
 }
 
 message ListResponse {
-    string Metadata = 1;
-    string error = 2;
+    repeated Metadata Metadata = 1;
 }
 
 
 service YTProfService {
     rpc List(ListRequest) returns (ListResponse) {
         option (google.api.http) = {
-            get: "/ytprof/api/list"
+            post: "/ytprof/api/list"
+            body: "*"
         };
     }
 }
