@@ -33,6 +33,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropUnavailableInputChunkCount)       (300902))
     ((ResourceOverdraftState)               (300903))
     ((ResourceOverdraftJobProxy)            (300904))
+    ((ResourceOverdraftJobId)               (300905))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

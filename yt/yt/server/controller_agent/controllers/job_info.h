@@ -118,6 +118,9 @@ public:
 
     i64 UserJobMemoryReserve = 0;
 
+    EPredecessorType PredecessorType = EPredecessorType::None;
+    TJobId PredecessorJobId;
+
     std::optional<TString> DiskRequestAccount;
 
     NChunkPools::TChunkStripeListPtr InputStripeList;

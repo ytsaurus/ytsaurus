@@ -3555,7 +3555,12 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
         .Item("probing").Value(joblet->CompetitionType == EJobCompetitionType::Probing)
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
-        .Item("task_name").Value(joblet->TaskName);
+        .Item("task_name").Value(joblet->TaskName)
+        .DoIf(joblet->PredecessorType != EPredecessorType::None, [&] (TFluentMap fluent) {
+            fluent
+                .Item("predecessor_type").Value(joblet->PredecessorType)
+                .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
+        });
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -3608,7 +3613,12 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
-        .Item("tree_id").Value(joblet->TreeId);
+        .Item("tree_id").Value(joblet->TreeId)
+        .DoIf(joblet->PredecessorType != EPredecessorType::None, [&] (TFluentMap fluent) {
+            fluent
+                .Item("predecessor_type").Value(joblet->PredecessorType)
+                .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
+        });
 }
 
 IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()

@@ -12,6 +12,11 @@ DEFINE_ENUM(EResourceOverdraftStatus,
     (MultipleTimes)
 )
 
+DEFINE_ENUM(EPredecessorType,
+    (None)
+    (ResourceOverdraft)
+)
+
 class TOperationControllerBase;
 
 DECLARE_REFCOUNTED_STRUCT(TFinishedJobInfo)
