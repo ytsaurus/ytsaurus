@@ -9,9 +9,11 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
 
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/ytprof/api"
+	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 
 	"encoding/json"
 	"os"
@@ -27,30 +29,41 @@ import (
 type App struct {
 	l          *zap.Logger
 	httpListen net.Listener
+	yt         yt.Client
+	ts         *storage.TableStorage
 }
 
 type Config struct {
 	HTTPEndpoint string `json:"http_endpoint" yaml:"http_endpoint"`
 	Proxy        string `json:"proxy" yaml:"proxy"`
+	TablePath    string `json:"table_path" yaml:"table_path"`
 }
 
 func NewApp(l *zap.Logger, config Config) *App {
 	ytConfig := yt.Config{
-		Proxy: config.Proxy,
-	}
-
-	_, err := ythttp.NewClient(&ytConfig)
-	if err != nil {
-		l.Fatal("error creating YT client", log.Error(err))
+		Proxy:             config.Proxy,
+		ReadTokenFromFile: true,
 	}
 
 	app := &App{
 		l: l,
 	}
 
+	var err error
+
+	app.yt, err = ythttp.NewClient(&ytConfig)
+	if err != nil {
+		l.Fatal("creating YT client falied", log.Error(err))
+	}
+
+	app.ts, err = storage.NewTableStorageMigrate(app.yt, ypath.Path(config.TablePath), l)
+	if err != nil {
+		l.Fatal("creating storage or migrating failed", log.Error(err))
+	}
+
 	app.httpListen, err = net.Listen("tcp", config.HTTPEndpoint)
 	if err != nil {
-		l.Fatal("error creating HTTP listener", log.Error(err))
+		l.Fatal("creating HTTP listener failed", log.Error(err))
 	}
 	l.Info("started HTTP listener", log.String("addr", app.httpListen.Addr().String()))
 
@@ -63,7 +76,7 @@ func NewApp(l *zap.Logger, config Config) *App {
 
 	err = Register(r, app)
 	if err != nil {
-		l.Fatal("error registering HTTP routes", log.Error(err))
+		l.Fatal("registering HTTP routes failed", log.Error(err))
 	}
 
 	go func() {
