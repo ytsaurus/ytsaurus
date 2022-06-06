@@ -2,9 +2,10 @@ import sbt.Keys.{TaskStreams, streams, test}
 import sbt._
 import sbt.plugins.JvmPlugin
 import sbtbuildinfo.BuildInfoPlugin
+import spyt.SparkPackagePlugin.autoImport.sparkAddCustomFiles
 import spyt.SparkPaths.sparkYtE2ETestPath
 import spyt.SpytPlugin.autoImport.{spytClientPythonVersion, spytClientVersion}
-import spyt.YtPublishPlugin
+import spyt.{SparkPackagePlugin, YtPublishPlugin}
 
 import java.time.Duration
 import java.util.UUID
@@ -13,7 +14,7 @@ import scala.sys.process.Process
 object E2ETestPlugin extends AutoPlugin {
   override def trigger = AllRequirements
 
-  override def requires = JvmPlugin && YtPublishPlugin && BuildInfoPlugin
+  override def requires = JvmPlugin && YtPublishPlugin && SparkPackagePlugin && BuildInfoPlugin
 
   object autoImport {
     lazy val e2eDirTTL = Duration.ofMinutes(60).toMillis
@@ -36,7 +37,7 @@ object E2ETestPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     e2eScalaTest := Def.sequential(publishYt, e2eScalaTestImpl).value,
     e2ePythonTest := Def.sequential(publishYt, e2ePythonTestImpl).value,
-    e2eTest := Def.sequential(publishYt, e2eScalaTestImpl, e2ePythonTestImpl).value,
+    e2eTest := Def.sequential(publishYt, sparkAddCustomFiles, e2eScalaTestImpl, e2ePythonTestImpl).value,
     e2eScalaTestImpl := (Test / test).value,
     e2ePythonTestImpl := {
       val command = "tox"
