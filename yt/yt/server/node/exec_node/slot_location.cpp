@@ -154,7 +154,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool sandboxTmpfs = WaitFor(BIND([=, this_ = MakeStrong(this)] {
+    bool sandboxInsideTmpfs = WaitFor(BIND([=, this_ = MakeStrong(this)] {
         for (const auto& tmpfsVolume : options.TmpfsVolumes) {
             // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
             // real path without filesystem access.
@@ -170,18 +170,18 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
     .Run())
     .ValueOrThrow();
 
-    bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxTmpfs);
+    bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxInsideTmpfs);
 
-    const auto& invoker = sandboxTmpfs
+    const auto& invoker = sandboxInsideTmpfs
         ? LightInvoker_
         : HeavyInvoker_;
 
     return BIND([=, this_ = MakeStrong(this)] {
         ValidateEnabled();
 
-        YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxTmpfs: %v)",
+        YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
             slotIndex,
-            sandboxTmpfs);
+            sandboxInsideTmpfs);
 
         if (shouldApplyQuota) {
             try {
@@ -814,7 +814,7 @@ bool TSlotLocation::IsInsideTmpfs(const TString& path) const
     auto it = TmpfsPaths_.lower_bound(path);
     if (it != TmpfsPaths_.begin()) {
         --it;
-        if (path.StartsWith(*it + "/")) {
+        if (path == *it || path.StartsWith(*it + "/")) {
             return true;
         }
     }
