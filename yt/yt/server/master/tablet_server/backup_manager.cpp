@@ -2,9 +2,12 @@
 #include "tablet.h"
 #include "private.h"
 #include "tablet_manager.h"
+#include "config.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -86,6 +89,11 @@ public:
         std::optional<TClusterTag> clockClusterTag,
         std::vector<TTableReplicaBackupDescriptor> replicaBackupDescriptors) override
     {
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
+        if (!config->EnableBackups) {
+            THROW_ERROR_EXCEPTION("Backups are disabled");
+        }
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %llx, "
             "BackupMode: %v, ClockClusterTag: %v, BackupableReplicaIds: %v)",

@@ -128,6 +128,7 @@ DEFINE_ENUM(EMasterReign,
     ((LetsRecomputeAccountResourceUsageAgainWhyNotItsNice)          (2026))  // gritukan
     ((BackupsMisc)                                                  (2027))  // ifsmirnov
     ((FixChunkWeightHistograms)                                     (2028))  // h0pless
+    ((PerClusterBackupFlag)                                         (2029))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
