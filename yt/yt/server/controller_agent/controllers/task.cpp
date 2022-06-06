@@ -504,6 +504,8 @@ void TTask::ScheduleJob(
     auto findIt = ResourceOverdraftedOutputCookieToState_.find(joblet->OutputCookie);
     if (findIt != ResourceOverdraftedOutputCookieToState_.end()) {
         const auto& state = findIt->second;
+        joblet->PredecessorJobId = state.LastJobId;
+        joblet->PredecessorType = EPredecessorType::ResourceOverdraft;
         if (state.DedicatedJobProxyMemoryReserveFactor > 0.0) {
             joblet->JobProxyMemoryReserveFactor = state.DedicatedJobProxyMemoryReserveFactor;
         } else {
@@ -1079,6 +1081,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
         auto multiplier = TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
         double userJobMemoryReserveUpperBound = 1.0;
         double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+        state.LastJobId = joblet->JobId;
         if (state.Status == EResourceOverdraftStatus::None) {
             state.Status = EResourceOverdraftStatus::Once;
             if (HasUserJob()) {
@@ -2041,6 +2044,9 @@ void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Status);
+    if (context.IsSave() || context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobId) {
+        Persist(context, LastJobId);
+    }
     Persist(context, DedicatedUserJobMemoryReserveFactor);
     if (context.GetVersion() >= ESnapshotVersion::ResourceOverdraftJobProxy) {
         Persist(context, DedicatedJobProxyMemoryReserveFactor);

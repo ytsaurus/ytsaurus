@@ -223,16 +223,23 @@ time.sleep(5.0)
         time.sleep(1)
         event_log = read_table("//sys/scheduler/event_log", verbose=False)
         memory_reserves = []
+        last_job_id = None
         for event in event_log:
             if event["event_type"] in ("job_aborted", "job_completed") and event["operation_id"] == op.id:
-                if "user_job" not in event["statistics"]:
-                    memory_reserves.append(0)
-                    continue
+                assert "user_job" in event["statistics"]
                 print_debug(
                     event["job_id"],
+                    event.get("predecessor_type"),
+                    event.get("predecessor_job_id"),
                     event["statistics"]["user_job"]["memory_reserve"]["sum"],
                     event["statistics"]["user_job"]["max_memory"]["sum"],
                 )
+
+                if last_job_id is not None:
+                    assert last_job_id == event["predecessor_job_id"]
+                    assert event["predecessor_type"] == "resource_overdraft"
+                last_job_id = event["job_id"]
+
                 memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
 
         print_debug("Memory reserves", memory_reserves)

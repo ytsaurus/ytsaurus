@@ -421,6 +421,7 @@ private:
     struct TResourceOverdraftState
     {
         EResourceOverdraftStatus Status = EResourceOverdraftStatus::None;
+        TJobId LastJobId;
         double DedicatedUserJobMemoryReserveFactor = 0;
         double DedicatedJobProxyMemoryReserveFactor = 0;
     
