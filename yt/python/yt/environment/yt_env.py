@@ -1269,9 +1269,10 @@ class YTInstance(object):
             self._validate_processes_are_running("node")
 
             nodes = self._list_nodes(pick_chaos=False)
-            target_state = "mixed" if self.yt_config.defer_secondary_cell_start else "online"
+            # "mixed" is for the first start, "online" is for potential later restarts.
+            target_states = ("mixed", "online") if self.yt_config.defer_secondary_cell_start else ("online")
             return len(nodes) == self.yt_config.node_count and \
-                all(node.attributes["state"] == target_state for node in nodes)
+                all(node.attributes["state"] in target_states for node in nodes)
 
         self._wait_or_skip(
             lambda:
