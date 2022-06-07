@@ -5,6 +5,8 @@ USER root
 
 RUN mkdir -p /home/sbtuser/.yt
 RUN echo non_valid_token > /home/sbtuser/.yt/token
+RUN systemctl start docker
+RUN systemctl enable docker
 # This image copies whole application from its context to avoid
 # exporting project from arc and mounting it as a volume
 COPY . /app
