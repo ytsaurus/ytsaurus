@@ -462,6 +462,10 @@ class TestTabletActions(TabletActionsBase):
     @authors("ifsmirnov")
     def test_finished_tablet_action_tablet_ids(self):
         sync_create_cells(1)
+        set(
+            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
+            False
+        )
         self._create_sorted_table("//tmp/t")
         sync_mount_table("//tmp/t")
         action_id = create(
