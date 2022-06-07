@@ -78,10 +78,17 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const TTabletReadOptions& options,
     const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys);
+
 TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
     const IConnectionPtr& connection,
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const TTabletReadOptions& options);
+
+TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
+    const IConnectionPtr& connection,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TTabletReadOptions& options,
+    THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>> cellIdToTabletIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 

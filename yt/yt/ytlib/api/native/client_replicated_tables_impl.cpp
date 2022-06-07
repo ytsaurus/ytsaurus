@@ -112,7 +112,7 @@ TSharedRange<TUnversionedRow> TClient::PermuteAndEvaluateKeys(
     return MakeSharedRange(evaluatedKeys, std::move(rowBuffer));
 }
 
-std::vector<TTableReplicaId> TClient::GetRepliatedTableInSyncReplicas(
+std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
     const TTableMountInfoPtr& tableInfo,
     const TNameTablePtr& nameTable,
     const TSharedRange<TLegacyKey>& keys,
@@ -137,6 +137,30 @@ std::vector<TTableReplicaId> TClient::GetRepliatedTableInSyncReplicas(
         for (auto capturedKey : evaluatedKeys) {
             registerTablet(tableInfo->GetTabletForRow(capturedKey));
         }
+    }
+
+    if (options.CachedSyncReplicasTimeout) {
+        TTabletReadOptions tabletReadOptions;
+        tabletReadOptions.CachedSyncReplicasTimeout = options.CachedSyncReplicasTimeout;
+        tabletReadOptions.Timeout = options.Timeout;
+
+        auto future = PickInSyncReplicas( 
+            Connection_,
+            tableInfo,
+            tabletReadOptions,
+            std::move(cellToTabletIds));
+
+        auto replicaInfoList = WaitFor(future)
+            .ValueOrThrow();
+
+        std::vector<TTableReplicaId> replicaIds;
+        replicaIds.reserve(replicaInfoList.size());
+
+        for (auto& replicaInfo : replicaInfoList) {
+            replicaIds.push_back(replicaInfo->ReplicaId);
+        }
+
+        return replicaIds;
     }
 
     std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> futures;
@@ -276,7 +300,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     } else {
         replicaIds = isChaos
             ? GetChaosTableInSyncReplicas(tableInfo, replicationCard, nameTable, keys, allKeys, options.Timestamp)
-            : GetRepliatedTableInSyncReplicas(tableInfo, nameTable, keys, allKeys, options);
+            : GetReplicatedTableInSyncReplicas(tableInfo, nameTable, keys, allKeys, options);
     }
 
     YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %llx)",

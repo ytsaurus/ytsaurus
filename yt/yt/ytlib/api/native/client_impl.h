@@ -867,7 +867,7 @@ private:
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys);
 
-    std::vector<NTabletClient::TTableReplicaId> GetRepliatedTableInSyncReplicas(
+    std::vector<NTabletClient::TTableReplicaId> GetReplicatedTableInSyncReplicas(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,

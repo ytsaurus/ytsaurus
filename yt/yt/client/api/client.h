@@ -175,6 +175,11 @@ struct TPrerequisiteOptions
     std::vector<TPrerequisiteRevisionConfigPtr> PrerequisiteRevisions;
 };
 
+struct TSyncReplicaCacheOptions
+{
+    std::optional<TDuration> CachedSyncReplicasTimeout;
+};
+
 struct TMountTableOptions
     : public TTimeoutOptions
     , public TMutatingOptions
@@ -261,6 +266,7 @@ struct TGetTablePivotKeysOptions
 
 struct TGetInSyncReplicasOptions
     : public TTimeoutOptions
+    , public TSyncReplicaCacheOptions
 {
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 };
@@ -542,10 +548,10 @@ struct TTransactionAbortOptions
 };
 
 struct TTabletReadOptionsBase
+    : public TSyncReplicaCacheOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
     std::optional<TDuration> RpcHedgingDelay;
-    std::optional<TDuration> CachedSyncReplicasTimeout;
 
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;

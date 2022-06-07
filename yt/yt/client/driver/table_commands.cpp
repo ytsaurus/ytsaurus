@@ -990,6 +990,8 @@ TGetInSyncReplicasCommand::TGetInSyncReplicasCommand()
     RegisterParameter("timestamp", Options.Timestamp);
     RegisterParameter("all_keys", AllKeys)
         .Default(false);
+    RegisterParameter("cached_sync_replicas_timeout", Options.CachedSyncReplicasTimeout)
+        .Optional();
 }
 
 void TGetInSyncReplicasCommand::DoExecute(ICommandContextPtr context)

@@ -3063,6 +3063,72 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
         for _ in range(10):
             assert lookup_rows("//tmp/t", keys, cached_sync_replicas_timeout=100) == rows
 
+    @authors("ngc224")
+    @pytest.mark.parametrize("keys_mode", ["nonempty", "empty", "all"])
+    def test_get_in_sync_replicas_cache(self, keys_mode):
+        self._create_cells()
+
+        self._create_replicated_table("//tmp/t")
+
+        replica_id = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r",
+            attributes={"mode": "sync"})
+
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": 1, "value1": "test", "value2": 10}]
+        insert_rows("//tmp/t", rows)
+
+        if keys_mode == "nonempty":
+            keys = [{"key": 1}]
+        elif keys_mode == "empty":
+            keys = []
+        elif keys_mode == "all":
+            keys = None
+        else:
+            assert False, "unknown keys mode: {!r}".format(keys_mode)
+
+        def check(timeout, expected_replica_ids):
+            for _ in range(10):
+                assert_items_equal(
+                    get_in_sync_replicas(
+                        "//tmp/t", keys,
+                        cached_sync_replicas_timeout=timeout,
+                        timestamp=SyncLastCommittedTimestamp,
+                    ),
+                    expected_replica_ids,
+                )
+
+        check(timeout=10000, expected_replica_ids=[replica_id])
+
+        replica_id2 = create_table_replica(
+            "//tmp/t",
+            self.REPLICA_CLUSTER_NAME,
+            "//tmp/r2",
+            attributes={"mode": "sync", "start_replication_row_indexes": [1]})
+
+        self._create_replica_table("//tmp/r2", replica_id2)
+        sync_enable_table_replica(replica_id2)
+
+        if keys_mode == "empty":
+            check(timeout=10000, expected_replica_ids=[replica_id, replica_id2])
+        else:
+            check(timeout=10000, expected_replica_ids=[replica_id])
+
+        check(timeout=0, expected_replica_ids=[replica_id, replica_id2])
+
+        sync_alter_table_replica_mode(replica_id2, "async")
+
+        check(timeout=10000, expected_replica_ids=[replica_id, replica_id2])
+
+        if keys_mode == "empty":
+            check(timeout=0, expected_replica_ids=[replica_id, replica_id2])
+        else:
+            check(timeout=0, expected_replica_ids=[replica_id])
+
 
 ##################################################################
 

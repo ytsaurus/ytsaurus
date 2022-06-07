@@ -617,6 +617,8 @@ message TReqGetInSyncReplicas
 
     optional uint64 timestamp = 2 [default = 0];
 
+    optional uint64 cached_sync_replicas_timeout = 3; // TDuration
+
     optional TRowsetDescriptor rowset_descriptor = 200;
 }
 
