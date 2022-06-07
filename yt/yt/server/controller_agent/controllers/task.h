@@ -101,6 +101,7 @@ public:
     virtual NScheduler::TCompositePendingJobCount GetPendingJobCount() const;
     NScheduler::TCompositePendingJobCount GetPendingJobCountDelta();
     bool HasNoPendingJobs() const;
+    bool HasNoPendingJobs(const TString& poolTree) const;
 
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
@@ -417,14 +418,13 @@ private:
     TReadRangeRegistry InputReadRangeRegistry_;
     TControllerFeatures ControllerFeatures_;
 
-    
+
     struct TResourceOverdraftState
     {
         EResourceOverdraftStatus Status = EResourceOverdraftStatus::None;
         TJobId LastJobId;
         double DedicatedUserJobMemoryReserveFactor = 0;
         double DedicatedJobProxyMemoryReserveFactor = 0;
-    
         void Persist(const TPersistenceContext& context);
     };
 

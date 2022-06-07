@@ -112,6 +112,21 @@ void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TCompositePendingJobCount::IsZero() const
+{
+    if (DefaultCount != 0) {
+        return false;
+    }
+
+    for (const auto& [_, count] : CountByPoolTree) {
+        if (count != 0) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 int TCompositePendingJobCount::GetJobCountFor(const TString& tree) const
 {
     auto it = CountByPoolTree.find(tree);

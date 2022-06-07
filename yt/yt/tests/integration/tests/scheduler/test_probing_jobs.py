@@ -9,8 +9,8 @@ from yt_env_setup import (
 from yt_helpers import create_custom_pool_tree_with_one_node
 
 from yt_commands import (
-    abort_job, authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get,
-    run_test_vanilla)
+    abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get,
+    run_test_vanilla, map)
 
 
 def get_sorted_jobs(op):
@@ -86,6 +86,39 @@ class TestProbingJobs(YTEnvSetup):
             "probing_ratio": 1,
             "probing_pool_tree": "cloud_tree",
         }, job_count=1)
+        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
+
+        counters = self.wait_for_running_and_get_counters(op, 2)
+        assert counters["running"] == 2
+        assert counters["aborted"] == 0
+        assert counters["completed"] == 0
+        assert counters["total"] == 2
+
+        release_breakpoint()
+        op.track()
+
+        counters = get(op.get_path() + "/@brief_progress/jobs")
+        assert counters["running"] == 0
+        assert counters["aborted"] == 1
+        assert counters["completed"] == 1
+        assert counters["total"] == 1
+
+    @authors("renadeen")
+    def test_simple_probing_map(self):
+        create_custom_pool_tree_with_one_node("cloud_tree")
+
+        create_test_tables()
+        op = map(
+            command=with_breakpoint("BREAKPOINT;cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "probing_ratio": 1,
+                "probing_pool_tree": "cloud_tree",
+            },
+            track=False,
+        )
         wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
         wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
