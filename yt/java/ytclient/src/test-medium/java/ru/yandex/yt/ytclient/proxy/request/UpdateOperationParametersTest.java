@@ -55,6 +55,6 @@ public class UpdateOperationParametersTest extends TestCase  {
                                 .buildMap()
                 )
                 .buildMap();
-        assertEquals(expected, updateOperationParameters.toYTreeNode());
+        assertEquals(expected, updateOperationParameters.toTreeParametersOnly());
     }
 }
