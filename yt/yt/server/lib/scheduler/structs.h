@@ -102,6 +102,7 @@ struct TCompositePendingJobCount
     THashMap<TString, int> CountByPoolTree = {};
 
     int GetJobCountFor(const TString& tree) const;
+    bool IsZero() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };

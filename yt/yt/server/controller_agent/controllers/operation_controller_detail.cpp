@@ -3082,7 +3082,7 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
                 jobSummary->UnreadInputDataSlices.size(),
                 jobSummary->ReadInputDataSlices.size());
         }
-        
+
         ParseAndEnrichStatistics(jobSummary.get(), joblet, joblet->StatisticsYson);
 
         const auto& statistics = *jobSummary->Statistics;
@@ -4507,7 +4507,7 @@ void TOperationControllerBase::TryScheduleJob(
             }
         }
 
-        if (task->HasNoPendingJobs()) {
+        if (task->HasNoPendingJobs(treeId)) {
             UpdateTask(task);
             continue;
         }

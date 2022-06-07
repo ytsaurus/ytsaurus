@@ -167,7 +167,12 @@ TCompositePendingJobCount TTask::GetPendingJobCountDelta()
 
 bool TTask::HasNoPendingJobs() const
 {
-    return GetPendingJobCount() == TCompositePendingJobCount{};
+    return GetPendingJobCount().IsZero();
+}
+
+bool TTask::HasNoPendingJobs(const TString& poolTree) const
+{
+    return GetPendingJobCount().GetJobCountFor(poolTree) == 0;
 }
 
 int TTask::GetTotalJobCount() const
