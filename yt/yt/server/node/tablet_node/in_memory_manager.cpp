@@ -30,6 +30,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -89,19 +91,33 @@ using TInMemorySessionId = TGuid;
 ////////////////////////////////////////////////////////////////////////////////
 
 TInMemoryChunkDataPtr CreateInMemoryChunkData(
-    TChunkId chunkId,
+    NChunkClient::TChunkId chunkId,
     NTabletClient::EInMemoryMode mode,
     int startBlockIndex,
-    std::vector<NChunkClient::TBlock> blocks,
-    const TCachedVersionedChunkMetaPtr& versionedChunkMeta,
+    std::vector<NChunkClient::TBlock> blocksWithCategory,
+    const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
     const TTabletSnapshotPtr& tabletSnapshot,
-    TMemoryUsageTrackerGuard memoryTrackerGuard)
+    const IBlockTrackerPtr& blockTracker,
+    const IMemoryUsageTrackerPtr& memoryTracker)
 {
-    for (auto& block : blocks) {
+    std::vector<NChunkClient::TBlock> blocks(blocksWithCategory.size());
+    for (int i = 0; i < std::ssize(blocks); ++i) {
+        blocks[i] = ResetCategory(
+            blocksWithCategory[i],
+            blockTracker,
+            std::nullopt);
+    }
+
+    for (auto& block: blocks) {
         block.Data = MarkUndumpable(block.Data);
     }
 
     NTableClient::IChunkLookupHashTablePtr lookupHashTable;
+
+    auto metaMemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
+        memoryTracker,
+        versionedChunkMeta->GetMemoryUsage(),
+        MemoryUsageGranularity);
 
     if (tabletSnapshot->HashTableSize > 0) {
         lookupHashTable = CreateChunkLookupHashTable(
@@ -112,19 +128,18 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
             tabletSnapshot->PhysicalSchema,
             tabletSnapshot->RowKeyComparer.UUComparer);
         if (lookupHashTable) {
-            memoryTrackerGuard.IncrementSize(lookupHashTable->GetByteSize());
+            metaMemoryTrackerGuard.IncrementSize(lookupHashTable->GetByteSize());
         }
     }
-
-    memoryTrackerGuard.IncrementSize(versionedChunkMeta->GetMemoryUsage());
 
     return New<TInMemoryChunkData>(
         mode,
         startBlockIndex,
-        blocks,
         versionedChunkMeta,
         lookupHashTable,
-        std::move(memoryTrackerGuard));
+        std::move(metaMemoryTrackerGuard),
+        std::move(blocks),
+        std::move(blocksWithCategory));
 }
 
 EBlockType MapInMemoryModeToBlockType(EInMemoryMode mode)
@@ -322,7 +337,8 @@ private:
                 readSessionId,
                 Bootstrap_->GetMemoryUsageTracker(),
                 CompressionInvoker_,
-                readerProfiler);
+                readerProfiler,
+                Bootstrap_->GetBlockTracker());
 
             VERIFY_INVOKERS_AFFINITY(std::vector{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
@@ -378,7 +394,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     TReadSessionId readSessionId,
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
-    const TReaderProfilerPtr& readerProfiler)
+    const TReaderProfilerPtr& readerProfiler,
+    const IBlockTrackerPtr& blockTracker)
 {
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     auto mode = mountConfig->InMemoryMode;
@@ -594,12 +611,17 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     readerProfiler->SetCodecStatistics(decompressionStatistics);
 
     i64 allocatedMemory = 0;
-    for (const auto& block : blocks) {
+    for (auto& block: blocks) {
         allocatedMemory += block.Size();
+
+        block = ResetCategory(
+            std::move(block),
+            blockTracker,
+            EMemoryCategory::TabletStatic);
     }
 
     if (memoryUsageGuard) {
-        memoryUsageGuard.SetSize(allocatedMemory);
+        memoryUsageGuard.SetSize(0);
     }
 
     auto chunkData = CreateInMemoryChunkData(
@@ -609,7 +631,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         std::move(blocks),
         versionedChunkMeta,
         tabletSnapshot,
-        std::move(memoryUsageGuard));
+        blockTracker,
+        memoryTracker->WithCategory(EMemoryCategory::TabletStatic));
 
     YT_LOG_INFO(
         "Store preload completed (MemoryUsage: %v, PreallocatedMemory: %v, LookupHashTable: %v)",

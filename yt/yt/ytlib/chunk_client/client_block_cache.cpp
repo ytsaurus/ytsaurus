@@ -4,6 +4,8 @@
 #include "config.h"
 #include "block_id.h"
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -52,8 +54,11 @@ public:
     using TAsyncCacheCookie = TAsyncSlruCacheBase<TBlockId, TAsyncBlockCacheEntry>::TInsertCookie;
 
 public:
-    explicit TCachedBlockCookie(TAsyncCacheCookie cookie)
+    explicit TCachedBlockCookie(
+        TAsyncCacheCookie cookie,
+        IBlockTrackerPtr blockTracker)
         : Cookie_(std::move(cookie))
+        , BlockTracker_(std::move(blockTracker))
     { }
 
     bool IsActive() const override
@@ -63,13 +68,23 @@ public:
 
     TFuture<TCachedBlock> GetBlockFuture() const override
     {
-        return Cookie_.GetValue().Apply(BIND([] (const TErrorOr<TIntrusivePtr<TAsyncBlockCacheEntry>>& entryOrError) -> TErrorOr<TCachedBlock> {
-            if (entryOrError.IsOK()) {
-                return entryOrError.Value()->GetCachedBlock();
-            } else {
-                return static_cast<TError>(entryOrError);
-            }
-        }));
+        return Cookie_.GetValue().Apply(BIND(
+            [blockTracker = BlockTracker_]
+            (const TErrorOr<TIntrusivePtr<TAsyncBlockCacheEntry>>& entryOrError) -> TErrorOr<TCachedBlock> {
+                if (entryOrError.IsOK()) {
+                    auto block = entryOrError.Value()->GetCachedBlock().Block;
+
+                    // Droping BlockCache category handler from block reference.
+                    block = ResetCategory(
+                        std::move(block),
+                        blockTracker,
+                        /*category*/ std::nullopt);
+
+                    return TCachedBlock(std::move(block));
+                } else {
+                    return static_cast<TError>(entryOrError);
+                }
+            }));
     }
 
     void SetBlock(TErrorOr<TCachedBlock> blockOrError) override
@@ -79,8 +94,17 @@ public:
         }
 
         if (blockOrError.IsOK()) {
-            const auto& block = blockOrError.Value();
-            auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), block);
+            auto block = blockOrError.Value().Block;
+
+            block = ResetCategory(
+                std::move(block),
+                BlockTracker_,
+                EMemoryCategory::BlockCache);
+
+            auto entry = New<TAsyncBlockCacheEntry>(
+                Cookie_.GetKey(),
+                TCachedBlock(std::move(block)));
+
             Cookie_.EndInsert(std::move(entry));
         } else {
             Cookie_.Cancel(static_cast<TError>(blockOrError));
@@ -90,6 +114,7 @@ public:
 private:
     TAsyncCacheCookie Cookie_;
     std::atomic<bool> BlockSet_ = false;
+    const IBlockTrackerPtr BlockTracker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,19 +122,19 @@ private:
 DECLARE_REFCOUNTED_CLASS(TPerTypeClientBlockCache)
 
 class TPerTypeClientBlockCache
-    : public TMemoryTrackingAsyncSlruCacheBase<TBlockId, TAsyncBlockCacheEntry>
+    : public TAsyncSlruCacheBase<TBlockId, TAsyncBlockCacheEntry>
 {
 public:
     TPerTypeClientBlockCache(
         EBlockType type,
         TSlruCacheConfigPtr config,
-        IMemoryUsageTrackerPtr memoryTracker,
-        const NProfiling::TProfiler& profiler)
-        : TMemoryTrackingAsyncSlruCacheBase(
+        const NProfiling::TProfiler& profiler,
+        IBlockTrackerPtr blockTracker)
+        : TAsyncSlruCacheBase(
             std::move(config),
-            std::move(memoryTracker),
             profiler)
         , Type_(type)
+        , BlockTracker_(std::move(blockTracker))
     { }
 
     void PutBlock(const TBlockId& id, const TBlock& block)
@@ -143,7 +168,7 @@ public:
             return {};
         }
 
-        auto block = TMemoryTrackingAsyncSlruCacheBase::Find(id);
+        auto block = TAsyncSlruCacheBase::Find(id);
         if (block) {
             YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",
                 id,
@@ -169,11 +194,11 @@ public:
         }
 
         auto cookie = BeginInsert(id);
-        return std::make_unique<TCachedBlockCookie>(std::move(cookie));
+        return std::make_unique<TCachedBlockCookie>(std::move(cookie), BlockTracker_);
     }
-
 private:
     const EBlockType Type_;
+    const IBlockTrackerPtr BlockTracker_;
 
     i64 GetWeight(const TAsyncBlockCacheEntryPtr& entry) const override
     {
@@ -195,9 +220,11 @@ public:
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
         IMemoryUsageTrackerPtr memoryTracker,
+        IBlockTrackerPtr blockTracker,
         const NProfiling::TProfiler& profiler)
-        : SupportedBlockTypes_(supportedBlockTypes)
+        : BlockTracker_(std::move(blockTracker))
         , MemoryTracker_(std::move(memoryTracker))
+        , SupportedBlockTypes_(supportedBlockTypes)
     {
         i64 capacity = 0;
         auto initType = [&] (EBlockType type, TSlruCacheConfigPtr config) {
@@ -205,8 +232,8 @@ public:
                 auto cache = New<TPerTypeClientBlockCache>(
                     type,
                     config,
-                    MemoryTracker_,
-                    profiler.WithPrefix("/" + FormatEnum(type)));
+                    profiler.WithPrefix("/" + FormatEnum(type)),
+                    BlockTracker_);
                 YT_VERIFY(PerTypeCaches_.emplace(type, cache).second);
                 capacity += cache->GetCapacity();
             }
@@ -224,7 +251,12 @@ public:
         const TBlock& data) override
     {
         if (const auto& cache = FindPerTypeCache(type)) {
-            cache->PutBlock(id, data);
+            cache->PutBlock(
+                id,
+                ResetCategory(
+                    data,
+                    BlockTracker_,
+                    EMemoryCategory::BlockCache));
         }
     }
 
@@ -233,7 +265,19 @@ public:
         EBlockType type) override
     {
         const auto& cache = FindPerTypeCache(type);
-        return cache ? cache->FindBlock(id) : TCachedBlock();
+        if (cache) {
+            auto block = cache->FindBlock(id).Block;
+
+            // Droping BlockCache category handler from block reference.
+            block = ResetCategory(
+                std::move(block),
+                BlockTracker_,
+                /*category*/ std::nullopt);
+
+            return TCachedBlock(std::move(block));
+        } else {
+            return TCachedBlock();
+        }
     }
 
     std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
@@ -268,8 +312,10 @@ public:
     }
 
 private:
-    const EBlockType SupportedBlockTypes_;
+    const IBlockTrackerPtr BlockTracker_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+
+    const EBlockType SupportedBlockTypes_;
 
     THashMap<EBlockType, TPerTypeClientBlockCachePtr> PerTypeCaches_;
 
@@ -285,12 +331,18 @@ IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
     IMemoryUsageTrackerPtr memoryTracker,
+    IBlockTrackerPtr blockTracker,
     const NProfiling::TProfiler& profiler)
 {
+    if (!memoryTracker) {
+        memoryTracker = GetNullMemoryUsageTracker();
+    }
+
     return New<TClientBlockCache>(
         std::move(config),
         supportedBlockTypes,
         std::move(memoryTracker),
+        std::move(blockTracker),
         profiler);
 }
 

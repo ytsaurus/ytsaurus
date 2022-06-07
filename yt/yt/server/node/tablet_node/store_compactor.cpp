@@ -48,6 +48,8 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/hunks.h>
@@ -210,6 +212,9 @@ private:
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
         StoreWriterOptions_->ValidateResourceUsageIncrease = false;
         StoreWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
+        StoreWriterOptions_->MemoryTracker = Bootstrap_->GetMemoryUsageTracker()->WithCategory(NNodeTrackerClient::EMemoryCategory::Compaction);
+        StoreWriterOptions_->BlockTracker = Bootstrap_->GetBlockTracker();
+        StoreWriterOptions_->MemoryCategory = NNodeTrackerClient::EMemoryCategory::Compaction;
 
         HunkWriterConfig_ = CloneYsonSerializable(TabletSnapshot_->Settings.HunkWriterConfig);
         HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_);
@@ -1744,7 +1749,9 @@ private:
     {
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-            .ReadSessionId = TReadSessionId::Create()
+            .ReadSessionId = TReadSessionId::Create(),
+            .BlockTracker = Bootstrap_->GetBlockTracker(),
+            .MemoryCategory = NNodeTrackerClient::EMemoryCategory::Compaction
         };
 
         auto Logger = TabletNodeLogger

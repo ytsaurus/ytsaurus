@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/ytlib/memory_trackers/public.h>
+
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 
@@ -36,10 +38,17 @@ struct TInMemoryChunkData final
 {
     const NTabletClient::EInMemoryMode InMemoryMode;
     const int StartBlockIndex;
-    const std::vector<NChunkClient::TBlock> Blocks;
     const NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     const NTableClient::IChunkLookupHashTablePtr LookupHashTable;
-    const TMemoryUsageTrackerGuard MemoryTrackerGuard;
+
+    //! Guard that trackes non blocks memory usage [ChunkMeta + LookupHashTable]
+    const TMemoryUsageTrackerGuard BlockMetaMemoryTrackerGurard;
+
+    //! Blocks to serve
+    const std::vector<NChunkClient::TBlock> Blocks;
+
+    //! Blocks with block tracker category, should not use
+    const std::vector<NChunkClient::TBlock> BlockCategoryHolders;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
@@ -48,10 +57,11 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     NChunkClient::TChunkId chunkId,
     NTabletClient::EInMemoryMode mode,
     int startBlockIndex,
-    std::vector<NChunkClient::TBlock> blocks,
+    std::vector<NChunkClient::TBlock> blocksWithCategory,
     const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
     const TTabletSnapshotPtr& tabletSnapshot,
-    TMemoryUsageTrackerGuard memoryTrackerGuard);
+    const IBlockTrackerPtr& blockTracker,
+    const IMemoryUsageTrackerPtr& memoryTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +97,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     NChunkClient::TReadSessionId readSessionId,
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
-    const TReaderProfilerPtr& readerProfiler);
+    const TReaderProfilerPtr& readerProfiler,
+    const IBlockTrackerPtr& blockTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

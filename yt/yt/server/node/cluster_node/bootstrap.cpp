@@ -113,6 +113,7 @@
 
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/monitoring/http_integration.h>
@@ -526,6 +527,11 @@ public:
         return BlockCache_;
     }
 
+    const IBlockTrackerPtr& GetBlockTracker() const override
+    {
+        return BlockTracker_;
+    }
+
     const IClientBlockCachePtr& GetClientBlockCache() const override
     {
         return ClientBlockCache_;
@@ -717,6 +723,8 @@ private:
     IMasterConnectorPtr MasterConnector_;
     TLegacyMasterConnectorPtr LegacyMasterConnector_;
 
+    IBlockTrackerPtr BlockTracker_;
+
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
 
@@ -848,10 +856,13 @@ private:
             ClusterNodeProfiler.WithPrefix("/out_announce_chunk_replica_rps_throttler"));
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
+        BlockTracker_ = CreateBlockTracker(MemoryUsageTracker_);
+
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
             EBlockType::UncompressedData | EBlockType::CompressedData,
             MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
+            BlockTracker_,
             DataNodeProfiler.WithPrefix("/block_cache"));
 
         BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -1532,6 +1543,11 @@ const NRpc::IServerPtr& TBootstrapBase::GetRpcServer() const
 const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
 {
     return Bootstrap_->GetBlockCache();
+}
+
+const IBlockTrackerPtr& TBootstrapBase::GetBlockTracker() const
+{
+    return Bootstrap_->GetBlockTracker();
 }
 
 const IClientBlockCachePtr& TBootstrapBase::GetClientBlockCache() const

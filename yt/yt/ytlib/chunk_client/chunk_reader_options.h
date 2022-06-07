@@ -2,6 +2,10 @@
 
 #include "chunk_reader_statistics.h"
 
+#include <yt/yt/ytlib/memory_trackers/public.h>
+
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/client/misc/workload.h>
@@ -29,6 +33,10 @@ struct TClientChunkReadOptions
 
     // If non-null, |HedgingManager| determines hedging policy shared between various chunk readers.
     IHedgingManagerPtr HedgingManager;
+
+    IBlockTrackerPtr BlockTracker;
+
+    std::optional<NNodeTrackerClient::EMemoryCategory> MemoryCategory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
