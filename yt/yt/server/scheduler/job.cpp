@@ -12,7 +12,6 @@ using namespace NObjectClient;
 
 TJob::TJob(
     TJobId id,
-    EJobType type,
     TOperationId operationId,
     TIncarnationId incarnationId,
     TControllerEpoch controllerEpoch,
@@ -28,7 +27,6 @@ TJob::TJob(
     NNodeTrackerClient::TNodeId revivalNodeId,
     TString revivalNodeAddress)
     : Id_(id)
-    , Type_(type)
     , OperationId_(operationId)
     , IncarnationId_(incarnationId)
     , ControllerEpoch_(controllerEpoch)

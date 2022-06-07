@@ -590,7 +590,6 @@ void TTask::ScheduleJob(
     AddJobTypeToJoblet(joblet);
     scheduleJobResult->StartDescriptor.emplace(
         joblet->JobId,
-        joblet->JobType,
         neededResources,
         IsJobInterruptible());
 

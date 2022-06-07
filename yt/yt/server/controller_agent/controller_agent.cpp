@@ -1387,10 +1387,10 @@ private:
                 ToProto(protoResponse->mutable_job_id(), response.JobId);
                 ToProto(protoResponse->mutable_operation_id(), response.OperationId);
                 protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch);
+                protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
                 if (scheduleJobResult.StartDescriptor) {
                     const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
                     YT_ASSERT(response.JobId == startDescriptor.Id);
-                    protoResponse->set_job_type(static_cast<int>(startDescriptor.Type));
                     ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
                     protoResponse->set_interruptible(startDescriptor.Interruptible);
                 }

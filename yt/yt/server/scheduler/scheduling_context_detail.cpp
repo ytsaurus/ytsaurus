@@ -166,7 +166,6 @@ void TSchedulingContextBase::StartJob(
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
     auto job = New<TJob>(
         startDescriptor.Id,
-        startDescriptor.Type,
         operationId,
         incarnationId,
         controllerEpoch,

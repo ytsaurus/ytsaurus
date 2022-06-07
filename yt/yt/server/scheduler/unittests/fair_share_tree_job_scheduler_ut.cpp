@@ -677,7 +677,6 @@ protected:
     {
         return New<TJob>(
             jobId,
-            EJobType::Vanilla,
             operationId,
             /*incarnationId*/ TGuid::Create(),
             /*controllerEpoch*/ 0,
@@ -1194,7 +1193,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleJobResult>();
-                result->StartDescriptor.emplace(TGuid::Create(), EJobType::Vanilla, operationJobResources, /*interruptible*/ false);
+                result->StartDescriptor.emplace(TGuid::Create(), operationJobResources, /*interruptible*/ false);
                 return MakeFuture<TControllerScheduleJobResultPtr>(
                     TErrorOr<TControllerScheduleJobResultPtr>(result));
             }));

@@ -118,7 +118,6 @@ class TJob
 public:
     TJob(
         TJobId id,
-        EJobType type,
         TOperationId operationId,
         TIncarnationId incarnationId,
         TControllerEpoch controllerEpoch,
