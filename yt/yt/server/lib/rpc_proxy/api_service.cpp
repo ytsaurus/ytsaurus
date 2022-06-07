@@ -232,7 +232,7 @@ void FromProto(
         options->ReadFrom = CheckedEnumCast<NHydra::EPeerKind>(proto.read_from());
     }
     if (proto.has_cached_sync_replicas_timeout()) {
-        FromProto(&options->CachedSyncReplicasTimeout.emplace(), proto.cached_sync_replicas_timeout());
+        options->CachedSyncReplicasTimeout = FromProto<TDuration>(proto.cached_sync_replicas_timeout());
     }
 }
 
@@ -3498,6 +3498,10 @@ private:
         SetTimeoutOptions(&options, context.Get());
         if (request->has_timestamp()) {
             options.Timestamp = request->timestamp();
+        }
+
+        if (request->has_cached_sync_replicas_timeout()) {
+            options.CachedSyncReplicasTimeout = FromProto<TDuration>(request->cached_sync_replicas_timeout());
         }
 
         auto rowset = request->has_rowset_descriptor()

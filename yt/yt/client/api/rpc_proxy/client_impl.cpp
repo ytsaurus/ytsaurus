@@ -540,6 +540,10 @@ TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
         req->set_timestamp(options.Timestamp);
     }
 
+    if (options.CachedSyncReplicasTimeout) {
+        req->set_cached_sync_replicas_timeout(NYT::ToProto<i64>(*options.CachedSyncReplicasTimeout));
+    }
+
     req->set_path(path);
     req->Attachments() = SerializeRowset(nameTable, keys, req->mutable_rowset_descriptor());
 
@@ -560,6 +564,10 @@ TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
 
     if (options.Timestamp) {
         req->set_timestamp(options.Timestamp);
+    }
+
+    if (options.CachedSyncReplicasTimeout) {
+        req->set_cached_sync_replicas_timeout(NYT::ToProto<i64>(*options.CachedSyncReplicasTimeout));
     }
 
     req->set_path(path);
