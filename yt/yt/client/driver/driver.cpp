@@ -317,9 +317,7 @@ public:
 
     TFuture<void> Execute(const TDriverRequest& request) override
     {
-        auto traceContext = GetCurrentTraceContext()
-            ? GetCurrentTraceContext()->CreateChild("Driver")
-            : TTraceContext::NewRoot("Driver");
+        auto traceContext = CreateTraceContextFromCurrent("Driver");
         TTraceContextGuard guard(std::move(traceContext));
 
         auto it = CommandNameToEntry_.find(request.CommandName);
