@@ -13,25 +13,33 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yson.YsonTextWriter;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullFields
 @NonNullApi
-public class UpdateOperationParameters extends RequestBase<UpdateOperationParameters>
+public class UpdateOperationParameters extends OperationReq<UpdateOperationParameters>
         implements HighLevelRequest<TReqUpdateOperationParameters.Builder> {
-    private final GUID guid;
     @Nullable private List<String> owners;
     @Nullable private String pool;
     @Nullable private Map<String, SchedulingOptions> schedulingOptionsPerPoolTree;
+    @Nullable private Double weight;
 
     public UpdateOperationParameters(GUID guid) {
-        this.guid = guid;
+        super(guid, null);
+    }
+
+    UpdateOperationParameters(String alias) {
+        super(null, alias);
+    }
+
+    public static UpdateOperationParameters fromAlias(String alias) {
+        return new UpdateOperationParameters(alias);
     }
 
     public UpdateOperationParameters setOwners(List<String> owners) {
@@ -62,12 +70,17 @@ public class UpdateOperationParameters extends RequestBase<UpdateOperationParame
         return this;
     }
 
+    public UpdateOperationParameters setWeight(double weight) {
+        this.weight = weight;
+        return this;
+    }
+
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqUpdateOperationParameters.Builder, ?> requestBuilder) {
-        YTreeNode parameters = toYTreeNode();
-        requestBuilder.body()
-                .setOperationId(RpcUtil.toProto(guid))
-                .setParameters(ByteString.copyFrom(parameters.toBinary()));
+        TReqUpdateOperationParameters.Builder messageBuilder = requestBuilder.body();
+        writeOperationDescriptionToProto(messageBuilder::setOperationId, messageBuilder::setOperationAlias);
+        YTreeNode parameters = toTreeParametersOnly(YTree.mapBuilder()).buildMap();
+        messageBuilder.setParameters(ByteString.copyFrom(parameters.toBinary()));
     }
 
     @Nonnull
@@ -76,37 +89,49 @@ public class UpdateOperationParameters extends RequestBase<UpdateOperationParame
         return this;
     }
 
-    YTreeNode toYTreeNode() {
-        YTreeBuilder b = YTree.mapBuilder();
+    public YTreeBuilder toTree(YTreeBuilder builder) {
+        builder = super.toTree(builder);
+        builder = toTreeParametersOnly(builder.key("parameters").beginMap()).endMap();
+        return builder;
+    }
+
+    YTreeBuilder toTreeParametersOnly(YTreeBuilder builder) {
         if (owners != null) {
             YTreeBuilder lb = YTree.listBuilder();
             for (String owner : owners) {
                 lb.value(owner);
             }
-            b.key("owners").value(lb.buildList());
+            builder.key("owners").value(lb.buildList());
         }
         if (pool != null) {
-            b.key("pool").value(pool);
+            builder.key("pool").value(pool);
         }
         if (schedulingOptionsPerPoolTree != null) {
             YTreeBuilder mb = YTree.mapBuilder();
             for (Map.Entry<String, SchedulingOptions> entry : schedulingOptionsPerPoolTree.entrySet()) {
                 mb.key(entry.getKey()).value(entry.getValue().toYTreeNode());
             }
-            b.key("scheduling_options_per_pool_tree").value(mb.buildMap());
+            builder.key("scheduling_options_per_pool_tree").value(mb.buildMap());
         }
-        return b.buildMap();
+        if (weight != null) {
+            builder.key("weight").value(weight);
+        }
+        return builder;
+    }
+
+    YTreeMapNode toTreeParametersOnly() {
+        return toTreeParametersOnly(YTree.mapBuilder()).buildMap();
     }
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-        sb.append("Id: ").append(guid).append("; ");
+        super.writeArgumentsLogString(sb);
+        YTreeMapNode parameters = toTreeParametersOnly(YTree.mapBuilder()).buildMap();
         try (YsonTextWriter writer = new YsonTextWriter(sb)) {
             sb.append("Parameters: ");
-            YTreeNodeUtils.walk(toYTreeNode(), writer, false, true);
+            YTreeNodeUtils.walk(parameters, writer, false, true);
             sb.append("; ");
         }
-        super.writeArgumentsLogString(sb);
     }
 
     @Override
@@ -117,7 +142,6 @@ public class UpdateOperationParameters extends RequestBase<UpdateOperationParame
         sb.append(")");
         return sb.toString();
     }
-
 
     @NonNullFields
     @NonNullApi

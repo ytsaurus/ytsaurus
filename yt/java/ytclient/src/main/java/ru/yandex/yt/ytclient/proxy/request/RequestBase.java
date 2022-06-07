@@ -3,24 +3,27 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.time.Duration;
 import java.util.Optional;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.Message;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
+@NonNullApi
+@NonNullFields
 public abstract class RequestBase<T extends RequestBase<T>> {
-    private Duration timeout;
+    private @Nullable Duration timeout;
     private @Nullable GUID requestId;
     private @Nullable GUID traceId;
     private boolean traceSampled = false;
     private String userAgent = "yt/java/ytclient@";
 
-    Message additionalData;
+    @Nullable Message additionalData;
 
     protected RequestBase() {
     }
@@ -30,18 +33,19 @@ public abstract class RequestBase<T extends RequestBase<T>> {
         requestId = other.requestId;
         traceId = other.traceId;
         traceSampled = other.traceSampled;
+        userAgent = other.userAgent;
         additionalData = other.additionalData;
     }
 
-    protected abstract @Nonnull T self();
+    protected abstract T self();
 
     @SuppressWarnings("unused")
-    Message getAdditionalData() {
+    @Nullable Message getAdditionalData() {
         return additionalData;
     }
 
     @SuppressWarnings({"unused"})
-    T setAdditionalData(Message additionalData) {
+    T setAdditionalData(@Nullable Message additionalData) {
         this.additionalData = additionalData;
         return self();
     }
@@ -50,7 +54,6 @@ public abstract class RequestBase<T extends RequestBase<T>> {
         this.timeout = timeout;
         return self();
     }
-
 
     /**
      * Set User-Agent header value
@@ -145,6 +148,6 @@ public abstract class RequestBase<T extends RequestBase<T>> {
         return sb.toString();
     }
 
-    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+    protected void writeArgumentsLogString(StringBuilder sb) {
     }
 }
