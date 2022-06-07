@@ -900,7 +900,7 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
     add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
     add(ListComponent("cluster_nodes", "node"));
-    add(GetAttributes("//sys/cluster_nodes", GetInstances("//sys/cluster_nodes"), "job_proxy", "/orchid/job_controller/job_proxy_build"));
+    add(GetAttributes("//sys/cluster_nodes", GetInstances("//sys/exec_nodes"), "job_proxy", "/orchid/job_controller/job_proxy_build"));
     add(ListProxies("proxies", "http_proxy"));
     add(ListProxies("rpc_proxies", "rpc_proxy"));
 
