@@ -107,7 +107,6 @@ void FromProto(
     for (const auto& jobProto : resultProto.revived_jobs()) {
         auto job = New<TJob>(
             FromProto<TJobId>(jobProto.job_id()),
-            static_cast<EJobType>(jobProto.job_type()),
             operationId,
             incarnationId,
             resultProto.controller_epoch(),

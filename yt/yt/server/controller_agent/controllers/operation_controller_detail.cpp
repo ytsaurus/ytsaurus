@@ -1319,7 +1319,6 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     for (const auto& [jobId, joblet] : JobletMap) {
         result.RevivedJobs.push_back({
             joblet->JobId,
-            joblet->JobType,
             joblet->StartTime,
             joblet->ResourceLimits,
             joblet->DiskQuota,

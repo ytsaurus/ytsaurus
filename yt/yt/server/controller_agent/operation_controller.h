@@ -95,7 +95,6 @@ struct TOperationControllerReviveResult
     struct TRevivedJob
     {
         TJobId JobId;
-        EJobType JobType;
         TInstant StartTime;
         TJobResources ResourceLimits;
         NScheduler::TDiskQuota DiskQuota;

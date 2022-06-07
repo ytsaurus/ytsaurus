@@ -1104,10 +1104,9 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
         req->set_timeout(ToProto<i64>(*interruptTimeout));
         if (!job->GetNode()->GetSupportsInterruptionLogic().value_or(false)) {
             if (!job->GetInterruptible()) {
-                THROW_ERROR_EXCEPTION("Cannot interrupt job %v of type %Qlv "
-                    "because such job type does not support interruption or \"interruption_signal\" is not set",
-                    jobId,
-                    job->GetType());
+                THROW_ERROR_EXCEPTION("Cannot interrupt job %v "
+                    "because such job does not support interruption or \"interruption_signal\" is not set",
+                    jobId);
             }
         }
 
@@ -1369,15 +1368,14 @@ void TNodeShard::EndScheduleJob(const NProto::TScheduleJobResponse& response)
         YT_LOG_DEBUG("Job schedule response received (OperationId: %v, JobId: %v, Success: %v, Duration: %v)",
             operationId,
             jobId,
-            response.has_job_type(),
+            response.success(),
             scheduleJobDuration.MilliSeconds());
     }
 
     auto result = New<TControllerScheduleJobResult>();
-    if (response.has_job_type()) {
+    if (response.success()) {
         result->StartDescriptor.emplace(
             jobId,
-            static_cast<EJobType>(response.job_type()),
             FromProto<TJobResourcesWithQuota>(response.resource_limits()),
             response.interruptible());
     }
@@ -1846,12 +1844,6 @@ void TNodeShard::ProcessHeartbeatJobs(
     i64 totalJobStatisticsSize = 0;
     i64 totalJobResultSize = 0;
     for (auto& jobStatus : *request->mutable_jobs()) {
-        YT_VERIFY(jobStatus.has_job_type());
-        auto jobType = EJobType(jobStatus.job_type());
-        // Skip jobs that are not issued by the scheduler.
-        if (jobType < FirstSchedulerJobType || jobType > LastSchedulerJobType) {
-            continue;
-        }
         if (jobStatus.has_statistics()) {
             totalJobStatisticsSize += std::size(jobStatus.statistics());
         }
@@ -2529,9 +2521,8 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
     YT_VERIFY(node->IdToJob().emplace(job->GetId(), job).second);
     ++ActiveJobCount_;
 
-    YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
+    YT_LOG_DEBUG("Job registered (JobId: %v, Revived: %v, OperationId: %v, ControllerEpoch: %v, SchedulingIndex: %v)",
         job->GetId(),
-        job->GetType(),
         job->IsRevived(),
         job->GetOperationId(),
         job->GetControllerEpoch(),

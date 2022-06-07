@@ -193,14 +193,13 @@ message TReviveOperationResult
     message TRevivedJob
     {
         required NYT.NProto.TGuid job_id = 1;
-        required int32 job_type = 2; // EJobType
-        required uint64 start_time = 3; // TInstant
-        required NScheduler.NProto.TJobResources resource_limits = 4;
-        required bool interruptible = 5;
-        required string tree_id = 6;
-        required uint32 node_id = 7;
-        required string node_address = 8;
-        required NScheduler.NProto.TDiskQuota disk_quota = 9;
+        required uint64 start_time = 2; // TInstant
+        required NScheduler.NProto.TJobResources resource_limits = 3;
+        required bool interruptible = 4;
+        required string tree_id = 5;
+        required uint32 node_id = 6;
+        required string node_address = 7;
+        required NScheduler.NProto.TDiskQuota disk_quota = 8;
     }
 
     required bytes attributes = 1; // YSON
