@@ -90,12 +90,21 @@ func (a *App) URL() string {
 	return fmt.Sprintf("http://%s", a.httpListen.Addr().String())
 }
 
+func (a *App) TableStorage() *storage.TableStorage {
+	return a.ts
+}
+
+func (a *App) Logger() *zap.Logger {
+	return a.l
+}
+
 func (a *App) Stop() error {
 	return a.httpListen.Close()
 }
 
 func Register(r chi.Router, client *App) error {
 	mux := runtime.NewServeMux(runtime.WithProtoErrorHandler(client.grpcErrorHandler))
+	runtime.SetHTTPBodyMarshaler(mux)
 	r.Mount("/ytprof/api", mux)
 	return api.RegisterYTProfServiceHandlerClient(context.Background(), mux, client)
 }

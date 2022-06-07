@@ -16,7 +16,6 @@ import (
 	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof"
 
-	//"a.yandex-team.ru/yt/go/ytprof/internal/metaquery"
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
