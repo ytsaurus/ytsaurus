@@ -37,6 +37,7 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NRpc;
 using namespace NHydra;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,8 +57,8 @@ TCommitterBase::TCommitterBase(
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
-    NLogging::TLogger logger,
-    NProfiling::TProfiler /*profiler*/)
+    TLogger logger,
+    TProfiler /*profiler*/)
     : Config_(std::move(config))
     , Options_(options)
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
@@ -113,8 +114,8 @@ TLeaderCommitter::TLeaderCommitter(
     IChangelogPtr changelog,
     TReachableState reachableState,
     TEpochContext* epochContext,
-    NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    TLogger logger,
+    TProfiler profiler)
     : TCommitterBase(
         std::move(config),
         options,
@@ -466,13 +467,18 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
     YT_VERIFY(peerState.InFlightMutationDataSize >= 0);
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
+        YT_LOG_EVENT(
+            Logger,
+            IsChannelFailureError(rspOrError) ? ELogLevel::Debug : ELogLevel::Warning,
+            rspOrError,
+            "Error logging mutations at follower (FollowerId: %v)",
             followerId);
 
         // TODO(aleksandra-zh): This might be an old reply.
         if (LastSnapshotInfo_ && LastSnapshotInfo_->SequenceNumber != -1) {
             OnSnapshotReply(followerId);
         }
+
         if (peerState.Mode == EAcceptMutationsMode::Fast) {
             YT_LOG_DEBUG("Accept mutations mode is set to slow (FollowerId: %v)",
                 followerId);
@@ -1035,8 +1041,8 @@ TFollowerCommitter::TFollowerCommitter(
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
-    NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    TLogger logger,
+    TProfiler profiler)
     : TCommitterBase(
         std::move(config),
         options,
