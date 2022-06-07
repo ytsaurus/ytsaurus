@@ -3,14 +3,12 @@ FROM registry.yandex.net/taxi-dmp-spark/spyt-test-base:${BASE_IMAGE_TAG:-latest}
 
 USER root
 
-RUN mkdir -p /home/sbtuser/.yt
-RUN echo non_valid_token > /home/sbtuser/.yt/token
-RUN systemctl start docker
-RUN systemctl enable docker
+RUN mkdir -p /root/.yt
+RUN echo non_valid_token > /root/.yt/token
 # This image copies whole application from its context to avoid
 # exporting project from arc and mounting it as a volume
 COPY . /app
 RUN chown -R sbtuser:sbtuser /app
 
-USER sbtuser
+USER root
 ENV USER=sbtuser
