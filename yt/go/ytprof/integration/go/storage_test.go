@@ -123,17 +123,17 @@ func TestDataExpr(t *testing.T) {
 
 	require.NoError(t, tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3"))
 
-	tlow := time.Now().Add(-time.Hour)
+	tLow := time.Now().Add(-time.Hour)
 	require.NoError(t, err)
-	thigh := time.Now().Add(time.Hour)
+	tHigh := time.Now().Add(time.Hour)
 	require.NoError(t, err)
 
 	metaquery := storage.Metaquery{
 		Query:      "Metadata['BinaryVersion'] == 'c2'",
 		QueryLimit: 10000,
 		Period: storage.TimestampPeriod{
-			Start: tlow,
-			End:   thigh,
+			Start: tLow,
+			End:   tHigh,
 		},
 	}
 
@@ -159,12 +159,12 @@ func TestMetadataIdsQuery(t *testing.T) {
 
 	require.NoError(t, tsData.PushData(env.Ctx, []*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3"))
 
-	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	tLow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
-	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	tHigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQuery(env.Ctx, tlow, thigh, 10000)
+	resultIDs, err := tsData.MetadataIdsQuery(env.Ctx, tLow, tHigh, 10000)
 	require.NoError(t, err)
 	require.NotEmpty(t, resultIDs)
 }
@@ -183,12 +183,12 @@ func TestMetadataQuery(t *testing.T) {
 
 	require.NoError(t, tsData.PushData(env.Ctx, []*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3"))
 
-	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
+	tLow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
-	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
+	tHigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	result, err := tsData.MetadataQuery(env.Ctx, tlow, thigh, 10000)
+	result, err := tsData.MetadataQuery(env.Ctx, tLow, tHigh, 10000)
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
 }

@@ -4,9 +4,11 @@ import (
 	"context"
 	"time"
 
+	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/grpc"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/api"
@@ -38,7 +40,7 @@ func storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {
 		ProfileType: sm.Metadata.MapData["ProfileType"],
 		Host:        sm.Metadata.MapData["Host"],
 		ArcRevision: sm.Metadata.MapData["ArcRevision"],
-		GUID:        ytprof.GUIDFormProfID(sm.ProfID()).String(),
+		ProfileID:   ytprof.GUIDFormProfID(sm.ProfID()).String(),
 		UserTags:    sm.Metadata.MapData,
 	}
 
@@ -76,4 +78,23 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 	}
 
 	return &api.ListResponse{Metadata: res}, nil
+}
+
+func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
+	profileGUID, err := guid.ParseString(in.ProfileID)
+	if err != nil {
+		a.l.Error("parsing guid failed", log.Error(err), log.String("guid", in.ProfileID))
+		return nil, err
+	}
+
+	resp, err := a.ts.FindData(ctx, ytprof.ProfIDFromGUID(profileGUID))
+	if err != nil {
+		a.l.Error("metaquery failed", log.Error(err))
+		return nil, err
+	}
+
+	return &httpbody.HttpBody{
+		ContentType: "application/pprof",
+		Data:        resp.Data,
+	}, nil
 }

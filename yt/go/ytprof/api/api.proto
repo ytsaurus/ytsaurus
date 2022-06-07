@@ -4,6 +4,8 @@ package api;
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "google/api/httpbody.proto";
+import "google/protobuf/empty.proto";
 
 option go_package = "a.yandex-team.ru/yt/go/ytprof/api";
 
@@ -23,13 +25,17 @@ message Metadata {
     string ProfileType = 1;
     string Host = 2;
     string ArcRevision = 3;
-    string GUID = 4;
+    string ProfileID = 4;
     string Timestamp = 5;
     map<string, string> UserTags = 6;
 }
 
 message ListRequest {
     Metaquery Metaquery = 1;
+}
+
+message GetRequest {
+    string ProfileID = 1;
 }
 
 message ListResponse {
@@ -42,6 +48,12 @@ service YTProfService {
         option (google.api.http) = {
             post: "/ytprof/api/list"
             body: "*"
+        };
+    }
+
+    rpc Get(GetRequest) returns (google.api.HttpBody) {
+        option (google.api.http) = {
+            get: "/ytprof/api/get"
         };
     }
 }
