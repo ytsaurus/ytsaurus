@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
@@ -44,7 +46,6 @@ static const auto& Logger = TabletNodeLogger;
 struct TChunkData final
 {
     std::vector<NChunkClient::TBlock> Blocks;
-    TMemoryUsageTrackerGuard MemoryTrackerGuard;
 };
 
 using TChunkDataPtr = TIntrusivePtr<TChunkData>;
@@ -80,8 +81,6 @@ public:
                 return guardOrError;
             }
 
-            data->MemoryTrackerGuard = std::move(guardOrError.Value());
-
             YT_LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
                 chunkId,
                 Mode_);
@@ -102,10 +101,10 @@ public:
         }
 
         YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
-        data->Blocks[id.BlockIndex] = block;
-        if (data->MemoryTrackerGuard) {
-            data->MemoryTrackerGuard.IncrementSize(block.Size());
-        }
+        data->Blocks[id.BlockIndex] = ResetCategory(
+            block,
+            Bootstrap_->GetBlockTracker(),
+            EMemoryCategory::TabletStatic);
 
         return TError();
     }
@@ -263,7 +262,8 @@ private:
                         chunkData->Blocks,
                         versionedChunkMeta,
                         tabletSnapshot,
-                        std::move(chunkData->MemoryTrackerGuard))
+                        Bootstrap_->GetBlockTracker(),
+                        Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletStatic))
                     .Apply(BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager(), chunkId));
 
                 asyncResults.push_back(std::move(asyncResult));

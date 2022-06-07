@@ -53,6 +53,9 @@ DEFINE_ENUM(EMemoryCategory,
     ((LookupRowsCache)            (13))
     ((AllocFragmentation)         (14))
     ((P2P)                        (15))
+    ((UnknownBlocks)              (17))
+    ((MixedBlocks)                (18))
+    ((Compaction)                 (19))
 );
 
 DEFINE_ENUM(EMemoryLimitType,

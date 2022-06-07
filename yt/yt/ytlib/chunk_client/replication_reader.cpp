@@ -21,6 +21,8 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
@@ -1550,6 +1552,7 @@ public:
             options,
             std::move(bandwidthThrottler),
             std::move(rpsThrottler))
+        , Options_(options)
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
     {
@@ -1574,6 +1577,8 @@ public:
     }
 
 private:
+    TClientChunkReadOptions Options_;
+
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
@@ -1940,6 +1945,14 @@ private:
         std::vector<int> receivedBlockIndexes;
 
         auto response = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
+
+        for (auto& block: response) {
+            block = AttachCategory(
+                std::move(block),
+                Options_.BlockTracker,
+                Options_.MemoryCategory);
+        }
+
         for (int index = 0; index < std::ssize(response); ++index) {
             const auto& block = response[index];
             if (!block) {

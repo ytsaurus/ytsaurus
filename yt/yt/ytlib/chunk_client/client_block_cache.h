@@ -2,6 +2,8 @@
 
 #include "block_cache.h"
 
+#include <yt/yt/ytlib/memory_trackers/public.h>
+
 #include <yt/yt/core/profiling/profiler.h>
 
 namespace NYT::NChunkClient {
@@ -31,7 +33,8 @@ DEFINE_REFCOUNTED_TYPE(IClientBlockCache)
 IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
-    IMemoryUsageTrackerPtr memoryTracker,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr,
+    IBlockTrackerPtr blockTracker = nullptr,
     const NProfiling::TProfiler& profiler = {});
 
 //! Returns an always-empty block cache.

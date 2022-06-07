@@ -4,6 +4,8 @@
 #include "chunk_writer.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -54,6 +56,13 @@ TEncodingWriter::TEncodingWriter(
 
 void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
 {
+    if (Options_->BlockTracker) {
+        block = AttachCategory(
+            std::move(block),
+            Options_->BlockTracker,
+            Options_->MemoryCategory);
+    }
+
     EnsureOpen();
 
     UncompressedSize_ += block.Size();
@@ -78,6 +87,13 @@ void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
 {
+    for (auto& part: vectorizedBlock) {
+        part = AttachCategory(
+            std::move(part),
+            Options_->BlockTracker,
+            Options_->MemoryCategory);
+    }
+
     EnsureOpen();
 
     for (const auto& part : vectorizedBlock) {
@@ -148,6 +164,11 @@ void TEncodingWriter::DoCompressBlock(
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
 
+    compressedBlock = AttachCategory(
+        std::move(compressedBlock),
+        Options_->BlockTracker,
+        Options_->MemoryCategory);
+
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
     }
@@ -199,6 +220,11 @@ void TEncodingWriter::DoCompressVector(
         });
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
+
+    compressedBlock = AttachCategory(
+        std::move(compressedBlock),
+        Options_->BlockTracker,
+        Options_->MemoryCategory);
 
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);

@@ -13,6 +13,7 @@
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/cache_reader.h>
+#include <yt/yt/ytlib/chunk_client/block_tracking_chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -320,10 +321,20 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             chunkReadOptions,
             /*workloadCategory*/ std::nullopt);
     }
-
+    
+    
     auto backendReaders = GetBackendReaders(workloadCategory);
+    auto chunkReader = backendReaders.ChunkReader;
+    
+    if (chunkReadOptions.BlockTracker) {
+        chunkReader = CreateBlockTrackingChunkReader(
+            chunkReader,
+            chunkReadOptions.BlockTracker,
+            chunkReadOptions.MemoryCategory);
+    }
+    
     auto chunkState = PrepareChunkState(
-        backendReaders.ChunkReader,
+        std::move(chunkReader),
         chunkReadOptions,
         enableNewScanReader);
 
@@ -398,6 +409,13 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
         auto chunkReader = CreateCacheReader(
             ChunkId_,
             chunkState->BlockCache);
+
+        if (chunkReadOptions.BlockTracker) {
+            chunkReader = CreateBlockTrackingChunkReader(
+                chunkReader,
+                chunkReadOptions.BlockTracker,
+                chunkReadOptions.MemoryCategory);
+        }
 
         return NNewTableClient::CreateVersionedChunkReader(
             std::move(ranges),
@@ -590,6 +608,13 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
         auto chunkReader = CreateCacheReader(
             ChunkId_,
             chunkState->BlockCache);
+
+        if (chunkReadOptions.BlockTracker) {
+            chunkReader = CreateBlockTrackingChunkReader(
+                chunkReader,
+                chunkReadOptions.BlockTracker,
+                chunkReadOptions.MemoryCategory);
+        }
 
         return NNewTableClient::CreateVersionedChunkReader(
             std::move(keys),

@@ -7,6 +7,8 @@
 #include "chunk_reader_memory_manager.h"
 #include "chunk_reader_statistics.h"
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -217,9 +219,17 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
                 cachedBlock.Size(),
                 std::memory_order_relaxed);
 
+            cachedBlock = AttachCategory(
+                std::move(cachedBlock),
+                ChunkReadOptions_.BlockTracker,
+                ChunkReadOptions_.MemoryCategory);
+
             TRef ref = cachedBlock.Data;
             windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
-            blockPromise.Set(TBlock(TSharedRef(ref, std::move(windowSlot.MemoryUsageGuard))));
+
+            cachedBlock = TBlock(TSharedRef(ref, std::move(windowSlot.MemoryUsageGuard)));
+
+            blockPromise.Set(std::move(cachedBlock));
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
         } else {
             TBlockDescriptor blockDescriptor{
@@ -300,24 +310,33 @@ void TBlockFetcher::DecompressBlocks(
                 Codec_->GetId());
         }
 
-        auto& windowSlot = Window_[windowIndex];
-        TRef ref = uncompressedBlock;
-        windowSlot.MemoryUsageGuard->CaptureBlock(uncompressedBlock);
-        GetBlockPromise(windowSlot).Set(TBlock(TSharedRef(
-            ref,
-            std::move(windowSlot.MemoryUsageGuard))));
-        if (windowSlot.RemainingFetches == 0) {
-            windowIndexesToRelease.push_back(windowIndex);
+        if (Config_->UseUncompressedBlockCache) {
+            BlockCache_->PutBlock(
+                blockId,
+                EBlockType::UncompressedData,
+                TBlock(uncompressedBlock));
         }
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;
 
-        if (Config_->UseUncompressedBlockCache) {
-            BlockCache_->PutBlock(
-                blockId,
-                EBlockType::UncompressedData,
-                TBlock(std::move(uncompressedBlock)));
+        auto& windowSlot = Window_[windowIndex];
+
+        uncompressedBlock = AttachCategory(
+            std::move(uncompressedBlock),
+            ChunkReadOptions_.BlockTracker,
+            ChunkReadOptions_.MemoryCategory);
+
+        TRef ref = uncompressedBlock;
+        windowSlot.MemoryUsageGuard->CaptureBlock(std::move(uncompressedBlock));
+
+        uncompressedBlock = TSharedRef(
+            ref,
+            std::move(windowSlot.MemoryUsageGuard));
+
+        GetBlockPromise(windowSlot).Set(TBlock(std::move(uncompressedBlock)));
+        if (windowSlot.RemainingFetches == 0) {
+            windowIndexesToRelease.push_back(windowIndex);
         }
     }
 
@@ -379,11 +398,20 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                     std::memory_order_relaxed);
 
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
+
+                cachedBlock = AttachCategory(
+                    std::move(cachedBlock),
+                    ChunkReadOptions_.BlockTracker,
+                    ChunkReadOptions_.MemoryCategory);
+
                 TRef ref = cachedBlock.Data;
                 windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
-                GetBlockPromise(windowSlot).Set(TBlock(TSharedRef(
+                cachedBlock = TBlock(TSharedRef(
                     ref,
-                    std::move(windowSlot.MemoryUsageGuard))));
+                    std::move(windowSlot.MemoryUsageGuard)));
+
+                GetBlockPromise(windowSlot).Set(std::move(cachedBlock));
+
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
@@ -510,6 +538,15 @@ void TBlockFetcher::OnGotBlocks(
         return;
     }
 
+    auto blocks = std::move(blocksOrError.Value());
+
+    for (auto& block: blocks) {
+        block = AttachCategory(
+            std::move(block),
+            ChunkReadOptions_.BlockTracker,
+            ChunkReadOptions_.MemoryCategory);
+    }
+
     auto chunkId = ChunkReaders_[readerIndex]->GetChunkId();
     YT_LOG_DEBUG("Got block group (ChunkId: %v, Blocks: %v)",
         chunkId,
@@ -518,13 +555,13 @@ void TBlockFetcher::OnGotBlocks(
     if (Codec_->GetId() == NCompression::ECodec::None) {
         DecompressBlocks(
             std::move(windowIndexes),
-            std::move(blocksOrError.Value()));
+            std::move(blocks));
     } else {
         CompressionInvoker_->Invoke(BIND(
             &TBlockFetcher::DecompressBlocks,
             MakeWeak(this),
             Passed(std::move(windowIndexes)),
-            Passed(std::move(blocksOrError.Value()))));
+            Passed(std::move(blocks))));
     }
 }
 

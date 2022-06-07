@@ -51,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteWriterOptions
-    : public virtual NYTree::TYsonStruct
+    : public virtual TMemoryTrackedWriterOptions
 {
 public:
     bool AllowAllocatingNewTargetNodes;

@@ -28,13 +28,13 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/misc/public.h>
-
 #include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/query_client/public.h>
+
+#include <yt/yt/ytlib/memory_trackers/public.h>
 
 #include <yt/yt/ytlib/monitoring/public.h>
 
@@ -120,6 +120,9 @@ struct IBootstrapBase
     // Servers.
     virtual const NHttp::IServerPtr& GetHttpServer() const = 0;
     virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
+
+    // Block tracker.
+    virtual const IBlockTrackerPtr& GetBlockTracker() const = 0;
 
     // Common node caches.
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
@@ -262,6 +265,8 @@ public:
 
     const NHttp::IServerPtr& GetHttpServer() const override;
     const NRpc::IServerPtr& GetRpcServer() const override;
+
+    const IBlockTrackerPtr& GetBlockTracker() const override;
 
     const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
     const NChunkClient::IClientBlockCachePtr& GetClientBlockCache() const override;
