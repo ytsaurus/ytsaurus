@@ -9,7 +9,7 @@ ARG SBT_VERSION
 ENV SBT_VERSION ${SBT_VERSION:-1.5.4}
 
 # add docker for dind tests
-RUN apt-get update && apt-get -y install docker.io default-jdk
+RUN apt-get update && apt-get -y install docker docker.io default-jdk
 
 RUN \
   curl -fsL "https://github.com/sbt/sbt/releases/download/v$SBT_VERSION/sbt-$SBT_VERSION.tgz" | tar xfz - -C /usr/share && \
