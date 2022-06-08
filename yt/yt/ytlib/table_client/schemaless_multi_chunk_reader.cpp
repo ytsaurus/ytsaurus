@@ -146,13 +146,12 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     int interruptDescriptorKeyLength)
 {
     // TODO(gritukan): Pass chunk fragment reader config and batch hunk reader config from controller.
-    auto nodeStatusDirectory = CreateTrivialNodeStatusDirectory();
     auto chunkFragmentReaderConfig = New<TChunkFragmentReaderConfig>();
     chunkFragmentReaderConfig->Postprocess();
     auto chunkFragmentReader = CreateChunkFragmentReader(
         std::move(chunkFragmentReaderConfig),
         client,
-        std::move(nodeStatusDirectory),
+        CreateTrivialNodeStatusDirectory(),
         /*profiler*/ {});
 
     std::vector<IReaderFactoryPtr> factories;

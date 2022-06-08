@@ -1131,7 +1131,7 @@ private:
                 }
 
                 int fragmentIndex = 0;
-                {
+                try {
                     for (int subrequestIndex = 0; subrequestIndex < request->subrequests_size(); ++subrequestIndex) {
                         const auto& subrequest = request->subrequests(subrequestIndex);
                         const auto& chunkRequestInfo = chunkRequestInfos[subrequestIndex];
@@ -1154,6 +1154,9 @@ private:
                             ++fragmentIndex;
                         }
                     }
+                } catch (const std::exception& ex) {
+                    context->Reply(ex);
+                    return;
                 }
 
                 response->Attachments().resize(fragmentIndex);

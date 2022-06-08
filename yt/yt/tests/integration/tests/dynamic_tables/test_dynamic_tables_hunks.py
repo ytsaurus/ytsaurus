@@ -7,7 +7,7 @@ from yt_commands import (
     lookup_rows, delete_rows, remount_table,
     alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
-    start_transaction, commit_transaction)
+    start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks)
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -1113,3 +1113,47 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
         wait(lambda: request_counter.get_delta() > 0)
+
+    @authors("babenko")
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_blob_hunk_read(self, erasure_codec):
+        PAYLOAD = b"abcdefghijklmnopqrstuvwxyz"
+        create("file", "//tmp/f", attributes={
+            "erasure_codec": erasure_codec,
+            "enable_striped_erasure": True
+        })
+        write_file("//tmp/f", PAYLOAD)
+        chunk_id = get_singular_chunk_id("//tmp/f")
+        requests = [
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": 26},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 5, "length": 0},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 10, "length": 3}
+        ]
+        if erasure_codec != "none":
+            for request in requests:
+                request["erasure_codec"] = erasure_codec
+                request["block_size"] = len(PAYLOAD)
+        responses = read_hunks(requests)
+        assert len(responses) == 3
+        assert responses[0]["payload"] == "abcdefghijklmnopqrstuvwxyz"
+        assert responses[1]["payload"] == ""
+        assert responses[2]["payload"] == "klm"
+
+    @authors("babenko")
+    def test_blob_hunk_read_failed(self):
+        PAYLOAD = b"abcdefghijklmnopqrstuvwxyz"
+        create("file", "//tmp/f")
+        write_file("//tmp/f", PAYLOAD)
+        chunk_id = get_singular_chunk_id("//tmp/f")
+        for request in [
+            {"chunk_id": "1-2-3-4", "block_index": 0, "block_offset": 0, "length": 0},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": -100, "length": 0},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": -1},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 100, "length": 1},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": 100},
+            # TODO(babenko,gritukan): consider failing these (zero-length!) requests.
+            # {"chunk_id": chunk_id, "block_index": 1, "block_offset": 0, "length": 0},
+            # {"chunk_id": chunk_id, "block_index": 0, "block_offset": 100, "length": 0},
+        ]:
+            with pytest.raises(YtError):
+                read_hunks([request])

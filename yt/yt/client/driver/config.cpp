@@ -28,13 +28,15 @@ TDriverConfig::TDriverConfig()
         .DefaultNew();
     RegisterParameter("fetcher", Fetcher)
         .DefaultNew();
+    RegisterParameter("chunk_fragment_reader", ChunkFragmentReader)
+        .DefaultNew();
 
     RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
-        .Default((i64) 10000);
+        .Default(10'000);
     RegisterParameter("read_buffer_size", ReadBufferSize)
-        .Default((i64) 1 * 1024 * 1024);
+        .Default(1_MB);
     RegisterParameter("write_buffer_size", WriteBufferSize)
-        .Default((i64) 1 * 1024 * 1024);
+        .Default(1_MB);
 
     RegisterParameter("client_cache", ClientCache)
         .DefaultNew();
@@ -49,6 +51,9 @@ TDriverConfig::TDriverConfig()
 
     RegisterParameter("proxy_discovery_cache", ProxyDiscoveryCache)
         .DefaultNew();
+
+    RegisterParameter("enable_internal_commands", EnableInternalCommands)
+        .Default(false);
 
     RegisterPreprocessor([&] {
         ClientCache->Capacity = 1024_KB;

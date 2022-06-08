@@ -2679,6 +2679,14 @@ def remove_area(id, **kwargs):
     remove("#" + id, **kwargs)
 
 
+def read_hunks(requests, **kwargs):
+    params = {}
+    params["requests"] = requests
+    if "driver" in kwargs:
+        params["driver"] = kwargs.pop("driver")
+    return execute_command("read_hunks", params, parse_yson=True)
+
+
 def sync_control_chunk_replicator(enabled):
     print_debug("Setting chunk replicator state to", enabled)
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)

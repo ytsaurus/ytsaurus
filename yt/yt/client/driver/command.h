@@ -28,6 +28,7 @@ struct ICommandContext
 {
     virtual const TDriverConfigPtr& GetConfig() const = 0;
     virtual const NApi::IClientPtr& GetClient() const = 0;
+    virtual NApi::IInternalClientPtr GetInternalClientOrThrow() const = 0;
     virtual const IDriverPtr& GetDriver() const = 0;
 
     virtual const TDriverRequest& Request() const = 0;

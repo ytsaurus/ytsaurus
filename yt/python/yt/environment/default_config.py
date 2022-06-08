@@ -698,6 +698,8 @@ def get_driver_config():
         expire_after_successful_update_time = 1000;
         expire_after_failed_update_time = 1000;
     };
+
+    enable_internal_commands = %true;
 }
 """)
 

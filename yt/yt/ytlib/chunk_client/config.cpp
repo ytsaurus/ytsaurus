@@ -146,52 +146,6 @@ TMediumDirectorySynchronizerConfig::TMediumDirectorySynchronizerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChunkFragmentReaderConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("peer_info_expiration_timeout", &TThis::PeerInfoExpirationTimeout)
-        .Default(TDuration::Minutes(30));
-
-    registrar.Parameter("seeds_expiration_timeout", &TThis::SeedsExpirationTimeout)
-        .Default(TDuration::Seconds(3));
-
-    registrar.Parameter("periodic_update_delay", &TThis::PeriodicUpdateDelay)
-        .GreaterThan(TDuration::Zero())
-        .Default(TDuration::Seconds(10));
-
-    registrar.Parameter("net_queue_size_factor", &TThis::NetQueueSizeFactor)
-        .Default(0.5);
-    registrar.Parameter("disk_queue_size_factor", &TThis::DiskQueueSizeFactor)
-        .Default(1.0);
-
-    registrar.Parameter("probe_chunk_set_rpc_timeout", &TThis::ProbeChunkSetRpcTimeout)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("get_chunk_fragment_set_rpc_timeout", &TThis::GetChunkFragmentSetRpcTimeout)
-        .Default(TDuration::Seconds(15));
-
-    registrar.Parameter("fragment_read_hedging_delay", &TThis::FragmentReadHedgingDelay)
-        .Default();
-
-    registrar.Parameter("retry_count_limit", &TThis::RetryCountLimit)
-        .GreaterThanOrEqual(1)
-        .Default(10);
-    registrar.Parameter("retry_backoff_time", &TThis::RetryBackoffTime)
-        .Default(TDuration::MilliSeconds(10));
-    registrar.Parameter("read_time_limit", &TThis::ReadTimeLimit)
-        .Default(TDuration::Seconds(15));
-
-    registrar.Parameter("chunk_info_cache_expiration_timeout", &TThis::ChunkInfoCacheExpirationTimeout)
-        .Default(TDuration::Seconds(30));
-
-    registrar.Parameter("suspicious_node_grace_period", &TThis::SuspiciousNodeGracePeriod)
-        .Default(TDuration::Minutes(5));
-
-    registrar.Parameter("use_direct_io", &TThis::UseDirectIO)
-        .Default(false)
-        .DontSerializeDefault();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TChunkReplicaCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("expiration_time", &TThis::ExpirationTime)

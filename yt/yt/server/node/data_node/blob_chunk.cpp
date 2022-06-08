@@ -247,15 +247,19 @@ void TBlobChunkBase::DoReadMeta(
             .ValueOrThrow();
     } catch (const std::exception& ex) {
         auto error = TError(ex);
-        if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileHeaderSignature)) {
-            YT_LOG_WARNING("Chunk meta has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
-                Id_,
-                Location_->GetId());
-
-            if (const auto& chunkStore = Location_->GetChunkStore()) {
-                chunkStore->RemoveChunk(this);
+        if (error.FindMatching(NChunkClient::EErrorCode::BrokenChunkFileMeta)) {
+            if (ShouldSyncOnClose()) {
+                Location_->Disable(error);
             } else {
-                ScheduleRemove();
+                YT_LOG_WARNING(error, "Error reading chunk meta, removing it (ChunkId: %v, LocationId: %v)",
+                    Id_,
+                    Location_->GetId());
+
+                if (const auto& chunkStore = Location_->GetChunkStore()) {
+                    chunkStore->RemoveChunk(this);
+                } else {
+                    ScheduleRemove();
+                }
             }
         } else if (error.FindMatching(NFS::EErrorCode::IOError)) {
             // Location is probably broken.

@@ -258,7 +258,7 @@ struct TGlobalRefHunkValue
     NErasure::ECodec ErasureCodec;
     int BlockIndex;
     i64 BlockOffset;
-    i64 BlockSize;
+    std::optional<i64> BlockSize;
     i64 Length;
 };
 

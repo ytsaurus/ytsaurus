@@ -961,6 +961,11 @@ private:
     bool HasErasureChunks_ = false;
 
 
+    static bool IsFatalError(const TError& error)
+    {
+        return error.FindMatching(NChunkClient::EErrorCode::MalformedReadRequest).has_value();
+    }
+
     void OnFatalError(TError error)
     {
         Promise_.TrySet(std::move(error));
@@ -1198,6 +1203,10 @@ private:
             }
         }
 
+        if (peerCount == 0) {
+            OnCompleted();
+        }
+
         RequestFragments(std::move(peerInfoToPlan), isHedged);
 
         if (!isHedged && peerCount > 0) {
@@ -1368,6 +1377,11 @@ private:
 
         const auto& peerInfo = plan->PeerInfo;
 
+        if (IsFatalError(rspOrError)) {
+            OnFatalError(rspOrError);
+            return;
+        }
+
         if (!rspOrError.IsOK()) {
             MaybeMarkNodeSuspicious(rspOrError, peerInfo);
             BanPeer(peerInfo);
@@ -1478,6 +1492,7 @@ public:
     TFuture<TReadFragmentsResponse> Run()
     {
         try {
+            Preprocess();
             DoRun();
         } catch (const std::exception& ex) {
             OnFatalError(ex);
@@ -1510,10 +1525,60 @@ private:
         Promise_.TrySet(std::move(State_->Response));
     }
 
-    void DoRun()
+    void Preprocess()
     {
         if (State_->Requests.empty()) {
             OnSuccess();
+            return;
+        }
+
+        for (int index = 0; index < std::ssize(State_->Requests); ++index) {
+            const auto& request = State_->Requests[index];
+            if (!IsPhysicalChunkType(TypeFromId(request.ChunkId))) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Invalid chunk id %v in fragment read request",
+                    request.ChunkId));
+                return;
+            }
+            if (request.Length < 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Negative length %v in fragment read request",
+                    request.Length));
+                return;
+            }
+            if (request.BlockIndex < 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Negative block index %v in fragment read request",
+                    request.BlockIndex));
+                return;
+            }
+            if (request.BlockOffset < 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Negative block offset %v in fragment read request",
+                    request.BlockOffset));
+                return;
+            }
+            if (IsErasureChunkId(request.ChunkId) && !request.BlockSize) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Missing block size in fragment read request for erasure chunk %v",
+                    request.ChunkId));
+                return;
+            }
+
+            if (request.Length == 0) {
+                State_->Response.Fragments[index] = TSharedMutableRef::MakeEmpty();
+            }
+        }
+    }
+
+    void DoRun()
+    {
+        if (Promise_.IsSet()) {
             return;
         }
 

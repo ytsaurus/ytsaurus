@@ -434,4 +434,56 @@ DEFINE_REFCOUNTED_TYPE(TEncodingWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkFragmentReaderConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Expiration timeout of corresponding sync expiring cache.
+    TDuration PeerInfoExpirationTimeout;
+
+    //! Minimal delay between sequential chunk replica locations.
+    TDuration SeedsExpirationTimeout;
+
+    //! Delay between background cache updates.
+    TDuration PeriodicUpdateDelay;
+
+    //! Factors to calculate peer load as linear combination of disk queue and net queue.
+    double NetQueueSizeFactor;
+    double DiskQueueSizeFactor;
+
+    //! RPC timeouts of ProbeChunkSet and GetChunkFragmentSet.
+    TDuration ProbeChunkSetRpcTimeout;
+    TDuration GetChunkFragmentSetRpcTimeout;
+
+    //! Delay before sending a hedged request. If null then hedging is disabled.
+    //! NB: This option may be overriden via hedging manager.
+    std::optional<TDuration> FragmentReadHedgingDelay;
+
+    //! Limit on retry count.
+    int RetryCountLimit;
+    //! Time between retries.
+    TDuration RetryBackoffTime;
+    //! Maximum time to serve fragments read request.
+    TDuration ReadTimeLimit;
+
+    //! Chunk that was not accessed for the time by user
+    //! will stop being accessed within periodic updates and then will be evicted via expiring cache logic.
+    TDuration ChunkInfoCacheExpirationTimeout;
+
+    //! Will locate new replicas from master
+    //! if node was suspicious for at least the period (unless null).
+    std::optional<TDuration> SuspiciousNodeGracePeriod;
+
+    //! Will open and read with DirectIO (unless already opened w/o DirectIO or disabled via location config).
+    bool UseDirectIO;
+
+    REGISTER_YSON_STRUCT(TChunkFragmentReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkFragmentReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

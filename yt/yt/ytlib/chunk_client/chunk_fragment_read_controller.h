@@ -18,7 +18,7 @@ struct TFragmentRequest
 {
     i64 Length;
     i64 BlockOffset;
-    i64 BlockSize;
+    std::optional<i64> BlockSize;
     int BlockIndex;
     int FragmentIndex;
 };

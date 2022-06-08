@@ -36,6 +36,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
+#include <yt/yt/client/api/internal_client.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -54,6 +56,7 @@ DECLARE_REFCOUNTED_CLASS(TClient)
 
 class TClient
     : public IClient
+    , public NApi::IInternalClient
 {
 public:
     TClient(
@@ -533,6 +536,11 @@ public:
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
         const TSyncAlienCellOptions& options),
         (alienCellDescriptors, options))
+
+    IMPLEMENT_METHOD(std::vector<TSharedRef>, ReadHunks, (
+        const std::vector<TReadHunkRequest>& requests,
+        const TReadHunksOptions& options),
+        (requests, options))
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1002,7 +1010,7 @@ private:
         const TPutFileToCacheOptions& options);
 
     //
-    // Security.
+    // Security
     //
 
     void DoAddMember(
@@ -1349,6 +1357,14 @@ private:
     void DoResumeCoordinator(
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options);
+
+    //
+    // Internal
+    //
+
+    std::vector<TSharedRef> DoReadHunks(
+        const std::vector<TReadHunkRequest>& requests,
+        const TReadHunksOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
