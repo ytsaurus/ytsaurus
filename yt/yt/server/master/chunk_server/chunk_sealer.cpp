@@ -161,7 +161,7 @@ public:
 
     void ScheduleSeal(TChunk* chunk) override
     {
-        YT_ASSERT(chunk->IsAlive());
+        YT_ASSERT(IsObjectAlive(chunk));
 
         if (IsSealNeeded(chunk)) {
             SealScanner_->EnqueueChunk(chunk);

@@ -59,7 +59,7 @@ inline int TObject::UnrefObject(int count)
 
 inline int TObject::EphemeralRefObject()
 {
-    YT_VERIFY(IsAlive());
+    YT_VERIFY(IsObjectAlive(this));
     return EphemeralRefCounter_.Increment(+1);
 }
 
@@ -70,7 +70,7 @@ inline int TObject::EphemeralUnrefObject()
 
 inline int TObject::WeakRefObject()
 {
-    YT_VERIFY(IsAlive());
+    YT_VERIFY(IsObjectAlive(this));
     YT_ASSERT(WeakRefCounter_ >= 0);
 
     return ++WeakRefCounter_;
@@ -129,11 +129,6 @@ inline bool TObject::IsBeingCreated() const
     return
         LifeStage_ == EObjectLifeStage::CreationStarted ||
         LifeStage_ == EObjectLifeStage::CreationPreCommitted;
-}
-
-inline bool TObject::IsAlive() const
-{
-    return RefCounter_ > 0;
 }
 
 inline bool TObject::IsBeingRemoved() const
@@ -232,7 +227,7 @@ inline TObjectId GetObjectId(const TObject* object)
 
 inline bool IsObjectAlive(const TObject* object)
 {
-    return object && object->IsAlive();
+    return object && object->GetObjectRefCounter() > 0;
 }
 
 template <class TObjectPtrs>

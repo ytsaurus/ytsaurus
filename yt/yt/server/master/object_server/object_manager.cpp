@@ -878,7 +878,7 @@ int TObjectManager::RefObject(TObject* object)
 int TObjectManager::UnrefObject(TObject* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_ASSERT(object->IsAlive());
+    YT_ASSERT(IsObjectAlive(object));
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
@@ -1654,7 +1654,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
-    if (!object->IsAlive()) {
+    if (!IsObjectAlive(object)) {
         return;
     }
 
@@ -1678,7 +1678,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     TObject* object,
     TCellTag cellTag)
 {
-    if (!object->IsAlive()) {
+    if (!IsObjectAlive(object)) {
         return;
     }
 
