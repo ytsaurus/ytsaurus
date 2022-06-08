@@ -18,7 +18,8 @@ message TimePeriod {
 message Metaquery {
     TimePeriod TimePeriod = 1;
     string Query = 2;
-    int32 QueryLimit = 3;
+    int32 ResultSkip = 3;
+    int32 ResultLimit = 4;
 }
 
 message Metadata {

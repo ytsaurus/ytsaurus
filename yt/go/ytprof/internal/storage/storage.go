@@ -33,9 +33,11 @@ type TimestampPeriod struct {
 }
 
 type Metaquery struct {
-	Period     TimestampPeriod
-	Query      string
-	QueryLimit int
+	Period      TimestampPeriod
+	Query       string
+	QueryLimit  int
+	ResultSkip  int
+	ResultLimit int
 }
 
 type TableStorage struct {
@@ -233,7 +235,19 @@ func (m *TableStorage) MetadataQueryExpr(ctx context.Context, metaquery Metaquer
 		}
 	}
 
-	return results, r.Err()
+	if r.Err() != nil {
+		return nil, r.Err()
+	}
+
+	if metaquery.ResultSkip >= len(results) {
+		return []ytprof.ProfileMetadata{}, nil
+	}
+
+	if metaquery.ResultSkip+metaquery.ResultLimit >= len(results) || metaquery.ResultLimit == 0 {
+		return results[metaquery.ResultSkip:], nil
+	}
+
+	return results[metaquery.ResultSkip : metaquery.ResultSkip+metaquery.ResultLimit], nil
 }
 
 func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, metaquery Metaquery) ([]ytprof.ProfID, error) {
@@ -272,7 +286,19 @@ func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, metaquery Metaq
 		}
 	}
 
-	return resultIDs, r.Err()
+	if r.Err() != nil {
+		return nil, r.Err()
+	}
+
+	if metaquery.ResultSkip >= len(resultIDs) {
+		return []ytprof.ProfID{}, nil
+	}
+
+	if metaquery.ResultSkip+metaquery.ResultLimit >= len(resultIDs) || metaquery.ResultLimit == 0 {
+		return resultIDs[metaquery.ResultSkip:], nil
+	}
+
+	return resultIDs[metaquery.ResultSkip : metaquery.ResultSkip+metaquery.ResultLimit], nil
 }
 
 func (m *TableStorage) FindAllData(ctx context.Context, profIDs []ytprof.ProfID) ([]ytprof.ProfileData, error) {

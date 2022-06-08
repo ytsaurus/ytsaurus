@@ -143,6 +143,53 @@ func TestDataExpr(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(resultData), 2)
 }
+func TestDataSkip(t *testing.T) {
+	l, err := ytlog.New()
+	require.NoError(t, err)
+
+	env := yttest.New(t, yttest.WithLogger(l.Structured()))
+
+	tmpPath := env.TmpPath()
+
+	tsData := storage.NewTableStorage(env.YT, tmpPath, l)
+
+	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
+
+	require.NoError(t, tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3"))
+
+	tlow := time.Now().Add(-time.Hour)
+	require.NoError(t, err)
+	thigh := time.Now().Add(time.Hour)
+	require.NoError(t, err)
+
+	metaquery1 := storage.Metaquery{
+		Query:      "Metadata['BinaryVersion'] == 'c2'",
+		QueryLimit: 10000,
+		Period: storage.TimestampPeriod{
+			Start: tlow,
+			End:   thigh,
+		},
+	}
+
+	metaquery2 := storage.Metaquery{
+		Query:      "Metadata['BinaryVersion'] == 'c2'",
+		QueryLimit: 1000,
+		Period: storage.TimestampPeriod{
+			Start: tlow,
+			End:   thigh,
+		},
+		ResultSkip: 1,
+	}
+
+	resultIDs1, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery1)
+	require.NoError(t, err)
+	resultIDs2, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery2)
+	require.NoError(t, err)
+
+	require.True(t, len(resultIDs1) == 2)
+	require.True(t, len(resultIDs2) == 1)
+	require.Equal(t, resultIDs1[1], resultIDs2[0])
+}
 
 func TestMetadataIdsQuery(t *testing.T) {
 	l, err := ytlog.New()
