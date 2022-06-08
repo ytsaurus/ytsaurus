@@ -95,21 +95,13 @@ void TCommit::Load(TLoadContext& context)
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        Load(context, PrepareOnlyParticipantCellIds_);
-    }
+    Load(context, PrepareOnlyParticipantCellIds_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 10) {
         Load(context, CellIdsToSyncWithBeforePrepare_);
     }
     Load(context, Distributed_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 5) {
-        Load(context, GeneratePrepareTimestamp_);
-    } else {
-        GeneratePrepareTimestamp_ = true;
-    }
+    Load(context, GeneratePrepareTimestamp_);
     Load(context, InheritCommitTimestamp_);
     // COMPAT(gritukan)
     if (context.GetVersion() >= 11) {
@@ -127,28 +119,13 @@ void TCommit::Load(TLoadContext& context)
     } else {
         CoordinatorPrepareMode_ = NApi::ETransactionCoordinatorPrepareMode::Early;
     }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 4) {
-        Load(context, CoordinatorCommitMode_);
-    } else {
-        CoordinatorCommitMode_ = NApi::ETransactionCoordinatorCommitMode::Eager;
-    }
+    Load(context, CoordinatorCommitMode_);
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= 11) {
         Load(context, MaxAllowedCommitTimestamp_);
     }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 6) {
-        // COMPAT(babenko)
-        Load(context, AuthenticationIdentity_.User);
-        if (context.GetVersion() >= 9) {
-            Load(context, AuthenticationIdentity_.UserTag);
-        } else {
-            AuthenticationIdentity_.UserTag = AuthenticationIdentity_.User;
-        }
-    } else {
-        AuthenticationIdentity_ = GetRootAuthenticationIdentity();
-    }
+    Load(context, AuthenticationIdentity_.User);
+    Load(context, AuthenticationIdentity_.UserTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
