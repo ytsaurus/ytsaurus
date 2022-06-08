@@ -389,10 +389,17 @@ public:
             }
         }
 
-        if (!devices.empty() && NFS::Exists("/dev/kvm")) {
-            devices.push_back(TDevice{
-                .DeviceName = "/dev/kvm",
-                .Enabled = true});
+        if (!devices.empty()) {
+            if (NFS::Exists("/dev/kvm")) {
+                devices.push_back(TDevice{
+                    .DeviceName = "/dev/kvm",
+                    .Enabled = true});
+            }
+            if (NFS::Exists("/dev/fuse")) {
+                devices.push_back(TDevice{
+                    .DeviceName = "/dev/fuse",
+                    .Enabled = true});
+            }
         }
 
         // Restrict access to devices, that are not explicitly granted.
