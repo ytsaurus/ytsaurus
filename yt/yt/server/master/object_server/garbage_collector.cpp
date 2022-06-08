@@ -168,7 +168,7 @@ int TGarbageCollector::EphemeralRefObject(TObject* object)
 {
     Bootstrap_->VerifyPersistentStateRead();
 
-    YT_ASSERT(object->IsAlive());
+    YT_ASSERT(IsObjectAlive(object));
     YT_ASSERT(object->IsTrunk());
 
     int ephemeralRefCounter = object->EphemeralRefObject();
@@ -203,7 +203,7 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object)
         if (object->IsGhost()) {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            YT_VERIFY(!object->IsAlive());
+            YT_VERIFY(!IsObjectAlive(object));
 
             YT_LOG_TRACE("Ephemeral ghost disposed (ObjectId: %v)",
                 object->GetId());
@@ -224,7 +224,7 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
 int TGarbageCollector::WeakRefObject(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_ASSERT(object->IsAlive());
+    YT_ASSERT(IsObjectAlive(object));
     YT_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakRefObject();
@@ -247,7 +247,7 @@ int TGarbageCollector::WeakUnrefObject(TObject* object)
         }
 
         if (object->IsGhost()) {
-            YT_VERIFY(!object->IsAlive());
+            YT_VERIFY(!IsObjectAlive(object));
 
             if (ephemeralRefCounter == 0) {
                 YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Weak ghost disposed (ObjectId: %v)",
@@ -269,7 +269,7 @@ int TGarbageCollector::WeakUnrefObject(TObject* object)
 void TGarbageCollector::RegisterZombie(TObject* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YT_ASSERT(!object->IsAlive());
+    YT_ASSERT(!IsObjectAlive(object));
 
     if (Zombies_.empty() && CollectPromise_ && CollectPromise_.IsSet()) {
         CollectPromise_ = NewPromise<void>();

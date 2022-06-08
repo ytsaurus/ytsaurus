@@ -106,8 +106,8 @@ void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
     Bootstrap_->VerifyPersistentStateRead();
 
     YT_VERIFY(FlushExecutor_);
+    YT_VERIFY(IsObjectAlive(trunkNode));
     YT_VERIFY(trunkNode->IsTrunk());
-    YT_VERIFY(trunkNode->IsAlive());
 
     auto* shard = GetShard(trunkNode);
     auto guard = Guard(shard->Lock);
@@ -133,8 +133,8 @@ void TAccessTracker::SetTouched(TCypressNode* trunkNode)
     Bootstrap_->VerifyPersistentStateRead();
 
     YT_VERIFY(FlushExecutor_);
+    YT_VERIFY(IsObjectAlive(trunkNode));
     YT_VERIFY(trunkNode->IsTrunk());
-    YT_VERIFY(trunkNode->IsAlive());
 
     auto* shard = GetShard(trunkNode);
     auto guard = Guard(shard->Lock);

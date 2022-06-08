@@ -1263,7 +1263,7 @@ void TNontemplateCypressNodeProxyBase::SetModified(EModificationType modificatio
         return;
     }
 
-    if (!TrunkNode_->IsAlive()) {
+    if (!IsObjectAlive(TrunkNode_)) {
         return;
     }
 
@@ -1286,7 +1286,7 @@ void TNontemplateCypressNodeProxyBase::SetAccessed()
         return;
     }
 
-    if (!TrunkNode_->IsAlive()) {
+    if (!IsObjectAlive(TrunkNode_)) {
         return;
     }
 
@@ -1305,7 +1305,7 @@ void TNontemplateCypressNodeProxyBase::SetTouched()
         return;
     }
 
-    if (!TrunkNode_->IsAlive()) {
+    if (!IsObjectAlive(TrunkNode_)) {
         return;
     }
 
