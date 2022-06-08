@@ -34,6 +34,31 @@ struct IClientBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionCounters
+{
+    TTransactionCounters() = default;
+    explicit TTransactionCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter TransactionCounter;
+    NProfiling::TCounter CommittedTransactionCounter;
+    NProfiling::TCounter AbortedTransactionCounter;
+
+    NProfiling::TCounter TabletSessionCommitCounter;
+    NProfiling::TCounter SuccessfulTabletSessionCommitCounter;
+    NProfiling::TCounter RetriedSuccessfulTabletSessionCommitCounter;
+    NProfiling::TCounter FailedTabletSessionCommitCounter;
+};
+
+struct TClientCounters
+{
+    TClientCounters() = default;
+    explicit TClientCounters(const NProfiling::TProfiler& profiler);
+
+    TTransactionCounters TransactionCounters;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSyncAlienCellOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
@@ -48,6 +73,9 @@ struct IClient
     virtual const TClientOptions& GetOptions() = 0;
     virtual const IConnectionPtr& GetNativeConnection() = 0;
     virtual const NTransactionClient::TTransactionManagerPtr& GetTransactionManager() = 0;
+
+    virtual const TClientCounters& GetCounters() const = 0;
+
     virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() = 0;
 

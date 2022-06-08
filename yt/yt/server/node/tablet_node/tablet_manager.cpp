@@ -26,6 +26,8 @@
 #include "table_puller.h"
 #include "backup_manager.h"
 
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/data_node/chunk_block_manager.h>
@@ -3667,10 +3669,15 @@ private:
         }
     }
 
-
     TCellId GetCellId() const override
     {
         return Slot_->GetCellId();
+    }
+
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        return dynamicConfigManager->GetConfig()->TabletNode;
     }
 };
 

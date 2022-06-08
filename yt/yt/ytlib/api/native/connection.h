@@ -36,7 +36,8 @@ namespace NYT::NApi::NNative {
 struct IConnection
     : public NApi::IConnection
 {
-    virtual const TConnectionConfigPtr& GetConfig() = 0;
+    virtual const TConnectionConfigPtr& GetConfig() const = 0;
+    virtual TConnectionDynamicConfigPtr GetDynamicConfig() const = 0;
 
     virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
 

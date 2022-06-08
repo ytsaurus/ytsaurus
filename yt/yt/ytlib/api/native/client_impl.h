@@ -69,6 +69,7 @@ public:
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
     const IConnectionPtr& GetNativeConnection() override;
     const NTransactionClient::TTransactionManagerPtr& GetTransactionManager() override;
+    const TClientCounters& GetCounters() const override;
     NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override;
     NQueryClient::TFunctionImplCachePtr GetFunctionImplCache() override;
 
@@ -559,6 +560,9 @@ private:
     const TClientOptions Options_;
 
     const NLogging::TLogger Logger;
+
+    const NProfiling::TProfiler Profiler_;
+    const TClientCounters Counters_;
 
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 

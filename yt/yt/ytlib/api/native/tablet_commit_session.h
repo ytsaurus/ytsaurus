@@ -2,11 +2,14 @@
 
 #include "public.h"
 
+#include "client.h"
 #include "tablet_request_batcher.h"
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/chaos_client/public.h>
+
+#include <yt/yt/core/misc/backoff_strategy_api.h>
 
 namespace NYT::NApi::NNative {
 
@@ -33,7 +36,7 @@ struct ITabletCommitSession
 
     virtual void PrepareRequests() = 0;
 
-    virtual TFuture<void> Invoke() = 0;
+    virtual TFuture<void> Invoke(int retryIndex = 0) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletCommitSession)
@@ -48,6 +51,14 @@ ITabletCommitSessionPtr CreateTabletCommitSession(
     NTabletClient::TTabletInfoPtr tabletInfo,
     NTabletClient::TTableMountInfoPtr tableInfo,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> CommitTabletSessions(
+    std::vector<ITabletCommitSessionPtr> sessions,
+    TSerializableExponentialBackoffOptionsPtr backoffOptions,
+    NLogging::TLogger logger,
+    TTransactionCounters counters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -98,6 +98,22 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        bool failBeforeExecution = false;
+        bool failAfterExecution = false;
+
+        if (auto failureProbability = GetDynamicConfig()->WriteFailureProbability) {
+            if (RandomNumber<double>() < *failureProbability) {
+                if (RandomNumber<ui32>() % 2 == 0) {
+                    failBeforeExecution = true;
+                } else {
+                    failAfterExecution = true;
+                }
+            }
+        }
+        if (failBeforeExecution) {
+            THROW_ERROR_EXCEPTION("Test error before write call execution");
+        }
+
         const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
         bool replicatorWrite = IsReplicatorWrite(identity);
 
@@ -302,6 +318,10 @@ public:
             }
 
             context.Error.ThrowOnError();
+        }
+
+        if (failAfterExecution) {
+            THROW_ERROR_EXCEPTION("Test error after write call execution");
         }
     }
 
@@ -1900,6 +1920,11 @@ private:
             tablets.pop_back();
             UnlockTablet(tablet);
         }
+    }
+
+    TTabletCellWriteManagerDynamicConfigPtr GetDynamicConfig() const
+    {
+        return Host_->GetDynamicConfig()->TabletCellWriteManager;
     }
 };
 

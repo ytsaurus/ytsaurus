@@ -57,6 +57,7 @@ public:
     void AdvanceReplicatedTrimmedRowCount(TTablet* /*tablet*/, TTransaction* /*transaction*/) override;
     const IBackupManagerPtr& GetBackupManager() const override;
     TCellId GetCellId() const override;
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override;
 
     TTablet* GetTablet();
 

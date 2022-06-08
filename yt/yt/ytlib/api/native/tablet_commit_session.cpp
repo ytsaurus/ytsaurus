@@ -13,8 +13,12 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+#include <yt/yt/core/misc/backoff_strategy_config.h>
+
 namespace NYT::NApi::NNative {
 
+using namespace NConcurrency;
 using namespace NLogging;
 using namespace NRpc;
 using namespace NTableClient;
@@ -90,17 +94,27 @@ public:
             ->RegisterRequests(batchCount);
     }
 
-    virtual TFuture<void> Invoke() override
+    // NB: Concurrent #Invoke calls with different retry indices are possible.
+    virtual TFuture<void> Invoke(int retryIndex) override
     {
-        YT_VERIFY(!Batches_.empty());
-        for (const auto& batch : Batches_) {
-            batch->Materialize(Config_->WriteRowsRequestCodec);
+        if (retryIndex == 0) {
+            YT_VERIFY(!Batches_.empty());
+            for (const auto& batch : Batches_) {
+                batch->Materialize(Config_->WriteRowsRequestCodec);
+            }
+
+            CalculateBatchSignatures();
         }
 
         auto cellId = TabletInfo_->CellId;
-        InvokeChannel_ = Client_->GetCellChannelOrThrow(cellId);
-        InvokeNextBatch();
-        return InvokePromise_;
+
+        auto commitContext = New<TCommitContext>();
+        commitContext->RetryIndex = retryIndex;
+        commitContext->CellChannel = Client_->GetCellChannelOrThrow(cellId);
+
+        InvokeNextBatch(commitContext);
+
+        return commitContext->CommitPromise;
     }
 
 private:
@@ -118,29 +132,50 @@ private:
 
     std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>> Batches_;
 
+    struct TBatchSignatures
+    {
+        TTransactionSignature PrepareSignature;
+        TTransactionSignature CommitSignature;
+    };
+    std::vector<TBatchSignatures> BatchSignatures_;
+
     bool IsVersioned_ = false;
 
-    IChannelPtr InvokeChannel_;
-    int InvokeBatchIndex_ = 0;
-    const TPromise<void> InvokePromise_ = NewPromise<void>();
+    struct TCommitContext final
+    {
+        int RetryIndex;
 
-    void InvokeNextBatch()
+        int BatchIndex = 0;
+
+        IChannelPtr CellChannel;
+
+        TPromise<void> CommitPromise = NewPromise<void>();
+    };
+    using TCommitContextPtr = TIntrusivePtr<TCommitContext>;
+
+    void InvokeNextBatch(TCommitContextPtr commitContext)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (InvokeBatchIndex_ >= std::ssize(Batches_)) {
-            InvokePromise_.Set(TError());
+        auto batchIndex = commitContext->BatchIndex;
+
+        if (batchIndex >= std::ssize(Batches_)) {
+            commitContext->CommitPromise.Set(TError());
             return;
         }
 
-        const auto& batch = Batches_[InvokeBatchIndex_++];
+        if (commitContext->CommitPromise.IsCanceled()) {
+            return;
+        }
+
+        const auto& batch = Batches_[batchIndex];
 
         auto transaction = Transaction_.Lock();
         if (!transaction) {
             return;
         }
 
-        TTabletServiceProxy proxy(InvokeChannel_);
+        TTabletServiceProxy proxy(commitContext->CellChannel);
         proxy.SetDefaultTimeout(Config_->WriteRowsTimeout);
         proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
@@ -155,11 +190,13 @@ private:
         ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
         req->set_mount_revision(TabletInfo_->MountRevision);
         req->set_durability(static_cast<int>(transaction->GetDurability()));
-        auto prepareSignature = CellCommitSession_
-            ->GetPrepareSignatureGenerator()
-            ->GenerateSignature();
-        req->set_prepare_signature(prepareSignature);
-        req->set_commit_signature(prepareSignature);
+
+        const auto& batchSignatures = BatchSignatures_[batchIndex];
+        req->set_prepare_signature(batchSignatures.PrepareSignature);
+        req->set_commit_signature(batchSignatures.CommitSignature);
+
+        req->set_generation(commitContext->RetryIndex);
+
         req->set_request_codec(static_cast<int>(Config_->WriteRowsRequestCodec));
         req->set_row_count(batch->RowCount);
         req->set_data_weight(batch->DataWeight);
@@ -179,7 +216,7 @@ private:
 
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
             "PrepareSignature: %x, CommitSignature: %x, Versioned: %v, UpstreamReplicaId: %v)",
-            InvokeBatchIndex_,
+            batchIndex,
             Batches_.size(),
             batch->RowCount,
             req->prepare_signature(),
@@ -188,10 +225,12 @@ private:
             Options_.UpstreamReplicaId);
 
         req->Invoke().Subscribe(
-            BIND(&TTabletCommitSession::OnResponse, MakeStrong(this)));
+            BIND(&TTabletCommitSession::OnResponse, MakeStrong(this), commitContext));
     }
 
-    void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
+    void OnResponse(
+        TCommitContextPtr commitContext,
+        const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             auto error = TError("Error sending transaction rows")
@@ -202,7 +241,7 @@ private:
             YT_LOG_DEBUG(error);
             const auto& tableMountCache = Client_->GetTableMountCache();
             tableMountCache->InvalidateOnError(error, /*forceRetry*/ true);
-            InvokePromise_.Set(error);
+            commitContext->CommitPromise.Set(error);
             return;
         }
 
@@ -212,10 +251,32 @@ private:
         }
 
         YT_LOG_DEBUG("Transaction rows sent successfully (BatchIndex: %v/%v)",
-            InvokeBatchIndex_,
+            commitContext->BatchIndex,
             Batches_.size());
 
-        InvokeNextBatch();
+        commitContext->BatchIndex++;
+        InvokeNextBatch(commitContext);
+    }
+
+    void CalculateBatchSignatures()
+    {
+        YT_VERIFY(BatchSignatures_.empty());
+        BatchSignatures_.resize(Batches_.size());
+
+        for (int batchIndex = 0; batchIndex < std::ssize(Batches_); ++batchIndex) {
+            auto& batchSignatures = BatchSignatures_[batchIndex];
+
+            auto prepareSignature = CellCommitSession_
+                ->GetPrepareSignatureGenerator()
+                ->GenerateSignature();
+            auto commitSignature = CellCommitSession_
+                ->GetCommitSignatureGenerator()
+                ->GenerateSignature();
+            batchSignatures = TBatchSignatures{
+                .PrepareSignature = prepareSignature,
+                .CommitSignature = commitSignature,
+            };
+        }
     }
 };
 
@@ -238,6 +299,130 @@ ITabletCommitSessionPtr CreateTabletCommitSession(
         std::move(tabletInfo),
         std::move(tableInfo),
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletSessionsCommitter
+    : public TRefCounted
+{
+public:
+    TTabletSessionsCommitter(
+        std::vector<ITabletCommitSessionPtr> sessions,
+        TSerializableExponentialBackoffOptionsPtr backoffOptions,
+        TLogger logger,
+        TTransactionCounters counters)
+        : Logger(std::move(logger))
+        , Counters_(std::move(counters))
+        , Sessions_(std::move(sessions))
+        , BackoffStrategy_(*backoffOptions)
+    { }
+
+    TFuture<void> Run()
+    {
+        Counters_.TabletSessionCommitCounter.Increment();
+
+        CommitSessions();
+        return Promise_;
+    }
+
+private:
+    const TLogger Logger;
+
+    const TTransactionCounters Counters_;
+
+    const std::vector<ITabletCommitSessionPtr> Sessions_;
+
+    TBackoffStrategy BackoffStrategy_;
+
+    const TPromise<void> Promise_ = NewPromise<void>();
+
+    std::vector<TError> Errors_;
+
+    void CommitSessions()
+    {
+        if (Promise_.IsCanceled()) {
+            return;
+        }
+
+        auto retryIndex = BackoffStrategy_.GetRetryIndex();
+
+        YT_LOG_DEBUG("Committing tablet sessions (AttemptIndex: %v/%v)",
+            retryIndex,
+            BackoffStrategy_.GetRetryCount());
+
+        DoCommitSessions(retryIndex)
+            .Apply(BIND(&TTabletSessionsCommitter::OnSessionsCommitted, MakeStrong(this)));
+    }
+
+    void OnSessionsCommitted(const TError& error)
+    {
+        auto retryIndex = BackoffStrategy_.GetRetryIndex();
+
+        if (error.IsOK()) {
+            YT_LOG_DEBUG("Tablet sessions committed (AttemptIndex: %v/%v)",
+                retryIndex,
+                BackoffStrategy_.GetRetryCount());
+
+            Counters_.SuccessfulTabletSessionCommitCounter.Increment();
+            if (retryIndex > 0) {
+                Counters_.RetriedSuccessfulTabletSessionCommitCounter.Increment();
+            }
+
+            Promise_.Set();
+            return;
+        }
+
+        Errors_.push_back(error);
+
+        YT_LOG_DEBUG(error, "Tablet sessions commit attempt failed (AttemptIndex: %v/%v)",
+            retryIndex,
+            BackoffStrategy_.GetRetryCount());
+
+        if (BackoffStrategy_.NextRetry()) {
+            auto backoff = BackoffStrategy_.GetBackoff();
+            YT_LOG_DEBUG("Waiting before next tablet sessions commit attempt (Backoff: %v)",
+                backoff);
+
+            auto backoffFuture = TDelayedExecutor::MakeDelayed(backoff);
+            backoffFuture.Apply(BIND(&TTabletSessionsCommitter::CommitSessions, MakeStrong(this)));
+        } else {
+            auto error = TError("Failed to commit tablet sessions")
+                << Errors_;
+            YT_LOG_DEBUG(error);
+
+            Counters_.FailedTabletSessionCommitCounter.Increment();
+
+            Promise_.Set(error);
+        }
+    }
+
+    TFuture<void> DoCommitSessions(int retryIndex)
+    {
+        std::vector<TFuture<void>> commitFutures;
+        commitFutures.reserve(Sessions_.size());
+        for (const auto& session : Sessions_) {
+            commitFutures.push_back(session->Invoke(retryIndex));
+        }
+
+        return AllSucceeded(std::move(commitFutures));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> CommitTabletSessions(
+    std::vector<ITabletCommitSessionPtr> sessions,
+    TSerializableExponentialBackoffOptionsPtr backoffOptions,
+    TLogger logger,
+    TTransactionCounters counters)
+{
+    auto committer = New<TTabletSessionsCommitter>(
+        std::move(sessions),
+        std::move(backoffOptions),
+        std::move(logger),
+        std::move(counters));
+    return committer->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

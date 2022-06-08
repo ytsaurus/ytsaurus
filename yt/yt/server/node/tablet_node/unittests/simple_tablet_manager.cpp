@@ -9,6 +9,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <library/cpp/yt/yson_string/string.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NHydra;
@@ -17,6 +19,8 @@ using namespace NCypressClient;
 using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -192,6 +196,14 @@ const IBackupManagerPtr& TSimpleTabletManager::GetBackupManager() const
 TCellId TSimpleTabletManager::GetCellId() const
 {
     return NullCellId;
+}
+
+TTabletNodeDynamicConfigPtr TSimpleTabletManager::GetDynamicConfig() const
+{
+    auto config = New<TTabletNodeDynamicConfig>();
+    YT_VERIFY(config->TabletCellWriteManager);
+    YT_VERIFY(!config->TabletCellWriteManager->WriteFailureProbability);
+    return config;
 }
 
 TTablet* TSimpleTabletManager::GetTablet()

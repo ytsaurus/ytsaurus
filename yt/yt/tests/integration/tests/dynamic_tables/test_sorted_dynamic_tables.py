@@ -10,7 +10,7 @@ from yt_commands import (
     lock_rows, alter_table, read_table, write_table, remount_table,
     generate_timestamp, wait_for_cells, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
-    sync_unfreeze_table, sorted_dicts,
+    sync_unfreeze_table, sorted_dicts, mount_table, update_nodes_dynamic_config,
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_cell_leader_address, get_tablet_leader_address,
     raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp)
@@ -1788,6 +1788,84 @@ class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+    @authors("gritukan")
+    def test_write_retries_stress(self):
+        set("//sys/rpc_proxies/@config", {
+            "cluster_connection": {
+                "tablet_write_backoff": {
+                    "retry_count": 5,
+                    "min_backoff": 10,
+                    "max_backoff": 50,
+                },
+            },
+        })
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "tablet_cell_write_manager": {
+                    "write_failure_probability": 0.2,
+                },
+            },
+        })
+
+        proxy_name = ls("//sys/rpc_proxies")[0]
+        def config_updated():
+            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config["cluster_connection"]["tablet_write_backoff"]["retry_count"] == 5
+        wait(config_updated)
+
+        cell_count = 5
+        sync_create_cells(cell_count)
+        cell_ids = ls("//sys/tablet_cells")
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "aggregate": "sum", "required": True},
+        ]
+        self._create_sorted_table("//tmp/t", schema=schema)
+        sync_reshard_table("//tmp/t", [[]] + [[i * 10] for i in range(cell_count - 1)])
+        for i in range(len(cell_ids)):
+            mount_table(
+                "//tmp/t",
+                first_tablet_index=i,
+                last_tablet_index=i,
+                cell_id=cell_ids[i],
+            )
+
+        key_count = 50
+        expected = [0] * 50
+
+        iterations = 100
+        for _ in range(iterations):
+            rows = []
+            if randint(1, 2) == 1:
+                # 1PC.
+                row_count = 1
+            else:
+                # 2PC.
+                row_count = randint(2, 4)
+
+            for _ in range(row_count):
+                rows.append({"key": randint(0, key_count - 1), "value": randint(0, 10**9)})
+
+            committed = False
+            try:
+                insert_rows("//tmp/t", rows, aggregate=True)
+                committed = True
+            except:
+                pass
+
+            if committed:
+                for row in rows:
+                    expected[row["key"]] += row["value"]
+
+        rows = lookup_rows("//tmp/t", [{"key": i} for i in range(key_count)])
+        actual = [0] * 50
+        for row in rows:
+            actual[row["key"]] = row["value"]
+
+        assert expected == actual
+
 
 ##################################################################
 

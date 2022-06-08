@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/core/misc/backoff_strategy_api.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +64,8 @@ class TConnectionDynamicConfig
 {
 public:
     NTabletClient::TTableMountCacheDynamicConfigPtr TableMountCache;
+
+    TSerializableExponentialBackoffOptionsPtr TabletWriteBackoff;
 
     TConnectionDynamicConfig();
 };

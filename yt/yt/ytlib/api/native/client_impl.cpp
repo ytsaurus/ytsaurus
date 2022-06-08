@@ -64,6 +64,7 @@ using namespace NYTree;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
+using namespace NProfiling;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -75,6 +76,28 @@ using namespace NHydra;
 
 using NNodeTrackerClient::CreateNodeChannelFactory;
 using NNodeTrackerClient::INodeChannelFactoryPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionCounters::TTransactionCounters(const TProfiler& profiler)
+{
+    #define XX(name) \
+        name ## Counter = profiler.Counter("/" + CamelCaseToUnderscoreCase(#name) + "s");
+
+        XX(Transaction)
+        XX(CommittedTransaction)
+        XX(AbortedTransaction)
+        XX(TabletSessionCommit)
+        XX(SuccessfulTabletSessionCommit)
+        XX(RetriedSuccessfulTabletSessionCommit)
+        XX(FailedTabletSessionCommit)
+
+    #undef XX
+}
+
+TClientCounters::TClientCounters(const TProfiler& profiler)
+    : TransactionCounters(profiler)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,6 +118,8 @@ TClient::TClient(
     : Connection_(std::move(connection))
     , Options_(options)
     , Logger(ApiLogger.WithTag("ClientId: %v", TGuid::Create()))
+    , Profiler_(TProfiler("/native_client").WithTag("connection_name", Connection_->GetConfig()->ConnectionName))
+    , Counters_(Profiler_)
     , TypeHandlers_{
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateReplicationCardTypeHandler(this),
@@ -177,6 +202,11 @@ const IConnectionPtr& TClient::GetNativeConnection()
 const TTransactionManagerPtr& TClient::GetTransactionManager()
 {
     return TransactionManager_;
+}
+
+const TClientCounters& TClient::GetCounters() const
+{
+    return Counters_;
 }
 
 IFunctionRegistryPtr TClient::GetFunctionRegistry()

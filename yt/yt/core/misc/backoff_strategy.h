@@ -48,6 +48,8 @@ public:
     bool NextRetry();
 
     int GetRetryIndex() const;
+    int GetRetryCount() const;
+
     TDuration GetBackoff() const;
 
 private:

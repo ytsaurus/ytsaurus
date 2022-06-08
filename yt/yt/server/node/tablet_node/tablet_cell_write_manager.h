@@ -18,6 +18,8 @@ namespace NYT::NTabletNode {
 struct ITabletCellWriteManagerHost
     : public virtual TRefCounted
 {
+    virtual TTabletNodeDynamicConfigPtr GetDynamicConfig() const = 0;
+
     virtual TCellId GetCellId() const = 0;
 
     //! This method is called whenever a (sorted) tablet row is being unlocked.

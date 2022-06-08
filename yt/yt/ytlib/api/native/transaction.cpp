@@ -95,6 +95,7 @@ public:
         , Logger(logger.WithTag("TransactionId: %v, ClusterTag: %v",
             GetId(),
             Client_->GetConnection()->GetClusterTag()))
+        , Counters_(Client_->GetCounters().TransactionCounters)
         , SerializedInvoker_(CreateSerializedInvoker(
             Client_->GetConnection()->GetInvoker()))
         , OrderedRequestsSlidingWindow_(
@@ -103,7 +104,10 @@ public:
             Client_,
             MakeWeak(Transaction_),
             Logger))
-    { }
+    {
+        SubscribeCommitted(BIND([counters = Counters_] { counters.CommittedTransactionCounter.Increment(); }));
+        SubscribeAborted(BIND([counters = Counters_] (const TError&) { counters.AbortedTransactionCounter.Increment(); }));
+    }
 
 
     NApi::IConnectionPtr GetConnection() override
@@ -154,6 +158,8 @@ public:
 
     TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
     {
+        Counters_.TransactionCounter.Increment();
+
         bool needsFlush;
         {
             auto guard = Guard(SpinLock_);
@@ -540,6 +546,8 @@ private:
     const NTransactionClient::TTransactionPtr Transaction_;
 
     const NLogging::TLogger Logger;
+
+    const TTransactionCounters Counters_;
 
     struct TNativeTransactionBufferTag
     { };
@@ -1389,16 +1397,27 @@ private:
 
     TFuture<void> SendRequests()
     {
-        std::vector<TFuture<void>> futures;
-        futures.reserve(std::ssize(TabletIdToSession_) + 1);
+        std::vector<TFuture<void>> futures = {
+            DoCommitTabletSessions(),
+            CellCommitSessionProvider_->InvokeAll(),
+        };
+        return AllSucceeded(std::move(futures));
+    }
 
+    TFuture<void> DoCommitTabletSessions()
+    {
+        std::vector<ITabletCommitSessionPtr> sessions;
+        sessions.reserve(TabletIdToSession_.size());
         for (const auto& [tabletId, session] : TabletIdToSession_) {
-            futures.push_back(session->Invoke());
+            sessions.push_back(session);
         }
 
-        futures.push_back(CellCommitSessionProvider_->InvokeAll());
-
-        return AllSucceeded(std::move(futures));
+        auto dynamicConfig = Client_->GetNativeConnection()->GetDynamicConfig();
+        return CommitTabletSessions(
+            std::move(sessions),
+            dynamicConfig->TabletWriteBackoff,
+            Logger,
+            Counters_);
     }
 
     void BuildAdjustedCommitOptions(const TTransactionCommitOptions& options)

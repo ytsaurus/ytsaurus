@@ -46,6 +46,11 @@ int TBackoffStrategy::GetRetryIndex() const
     return RetryIndex_;
 }
 
+int TBackoffStrategy::GetRetryCount() const
+{
+    return Options_.RetryCount;
+}
+
 TDuration TBackoffStrategy::GetBackoff() const
 {
     return BackoffWithJitter_;
