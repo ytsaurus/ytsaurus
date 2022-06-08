@@ -2,11 +2,6 @@
 #include "private.h"
 #include "job_detail.h"
 
-#include <yt/yt/client/api/client.h>
-#include <yt/yt/client/api/config.h>
-
-#include <yt/yt/client/chunk_client/data_statistics.h>
-
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -31,12 +26,17 @@
 
 #include <yt/yt/ytlib/object_client/helpers.h>
 
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+
+#include <yt/yt/client/api/client.h>
+#include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -370,11 +370,17 @@ private:
 
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
+        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
         auto inputReplicas = FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+
+        auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
 
         TDeferredChunkMetaPtr chunkMeta;
 
-        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
+        auto unavailablePartPolicy = repairChunk
+            ? EUnavailablePartPolicy::CreateNullReader
+            : EUnavailablePartPolicy::Crash;
+
         auto readers = CreateAllErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
@@ -384,11 +390,12 @@ private:
             erasureCodec,
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
+            unavailablePartPolicy,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
 
-        chunkMeta = GetChunkMeta(readers);
+        chunkMeta = GetChunkMeta(inputChunkId, readers);
 
         // We do not support node reallocation for erasure chunks.
         auto options = New<TRemoteWriterOptions>();
@@ -430,6 +437,9 @@ private:
         std::vector<TFuture<void>> copyFutures;
         copyFutures.reserve(readers.size());
         for (int index = 0; index < std::ssize(readers); ++index) {
+            const auto& reader = readers[index];
+            const auto& writer = writers[index];
+
             std::vector<i64> blockSizes;
             if (index < erasureCodec->GetDataPartCount()) {
                 int blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
@@ -447,14 +457,16 @@ private:
                 }
             }
 
-            auto copyFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
-                .AsyncVia(cancelableInvoker)
-                .Run(readers[index], writers[index], blockSizes);
-
-            copyFutures.push_back(copyFuture);
+            if (reader) {
+                auto copyFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
+                    .AsyncVia(cancelableInvoker)
+                    .Run(reader, writer, blockSizes);
+                copyFutures.push_back(copyFuture);
+            } else {
+                auto error = TError("Part %v is not available", index);
+                copyFutures.push_back(MakeFuture<void>(error));
+            }
         }
-
-        auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
 
         YT_LOG_INFO("Waiting for erasure parts data to be copied (RepairChunk: %v)",
             repairChunk);
@@ -631,10 +643,10 @@ private:
             Host_->GetClient(),
             outputSessionId.ChunkId,
             repairSeedReplicas,
-            erasureCodec,
             repairPartIndicies,
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
+            EUnavailablePartPolicy::Crash,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
@@ -711,7 +723,7 @@ private:
             Host_->GetInBandwidthThrottler(),
             Host_->GetOutRpsThrottler());
 
-        chunkMeta = GetChunkMeta({reader});
+        chunkMeta = GetChunkMeta(inputChunkId, {reader});
 
         auto writer = CreateReplicationWriter(
             WriterConfig_,
@@ -915,7 +927,9 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TDeferredChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderAllowingRepairPtr>& readers)
+    TDeferredChunkMetaPtr GetChunkMeta(
+        TChunkId chunkId,
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers)
     {
         TCurrentTraceContextGuard guard(InputTraceContext_);
 
@@ -924,15 +938,14 @@ private:
         std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncResults;
         asyncResults.reserve(readers.size());
         for (const auto& reader : readers) {
-            asyncResults.push_back(reader->GetMeta(ChunkReadOptions_));
+            if (reader) {
+                asyncResults.push_back(reader->GetMeta(ChunkReadOptions_));
+            }
         }
 
         auto result = WaitFor(AnySucceeded(asyncResults));
         if (!result.IsOK()) {
-            FailedChunkIds_.reserve(readers.size());
-            for (const auto& reader : readers) {
-                FailedChunkIds_.push_back(reader->GetChunkId());
-            }
+            FailedChunkIds_.push_back(chunkId);
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to get chunk meta");
         }
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
