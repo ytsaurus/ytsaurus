@@ -2,8 +2,7 @@
 
 #include "config.h"
 
-#include <yt/yt/ytlib/table_client/columnar.h>
-
+#include <yt/yt/client/table_client/columnar.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

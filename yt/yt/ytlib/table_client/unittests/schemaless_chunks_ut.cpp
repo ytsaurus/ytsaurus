@@ -1,5 +1,3 @@
-#include "helpers.h"
-
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -20,6 +18,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 #include <yt/yt/core/compression/public.h>
 

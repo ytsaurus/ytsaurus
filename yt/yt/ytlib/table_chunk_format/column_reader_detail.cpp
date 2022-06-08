@@ -1,6 +1,6 @@
 #include "column_reader_detail.h"
 
-#include <yt/yt/ytlib/table_client/columnar.h>
+#include <yt/yt/client/table_client/columnar.h>
 
 namespace NYT::NTableChunkFormat {
 

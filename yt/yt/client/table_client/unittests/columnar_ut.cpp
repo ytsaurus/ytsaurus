@@ -1,8 +1,7 @@
-#include "helpers.h"
-
-#include <yt/yt/ytlib/table_client/columnar.h>
-
+#include <yt/yt/client/table_client/columnar.h>
 #include <yt/yt/client/table_client/logical_type.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -404,8 +403,8 @@ class TBuildDictionaryIndexesFromRleDictionaryIndexesWithZeroNullTest
 protected:
     std::vector<ui32> DictionaryIndexes = {0, 1, 0,  2,  3};
     std::vector<ui64> RleIndexes        = {0, 3, 5, 10, 12};
-    
-    static constexpr ui32 Z = static_cast<ui32>(-1); 
+
+    static constexpr ui32 Z = static_cast<ui32>(-1);
     std::vector<ui32> Expected = {Z, Z, Z, 0, 0, Z, Z, Z, Z, Z, 1, 1, 2, 2, 2};
 };
 

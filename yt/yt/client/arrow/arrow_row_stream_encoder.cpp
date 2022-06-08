@@ -10,8 +10,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/ytlib/table_client/columnar.h>
+#include <yt/yt/client/table_client/columnar.h>
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/range.h>

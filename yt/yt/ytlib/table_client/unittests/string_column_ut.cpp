@@ -1,11 +1,12 @@
 #include "column_format_ut.h"
-#include "helpers.h"
 
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/table_chunk_format/string_column_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/string_column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/private.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 

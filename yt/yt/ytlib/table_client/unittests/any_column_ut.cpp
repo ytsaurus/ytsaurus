@@ -1,5 +1,4 @@
 #include "column_format_ut.h"
-#include "helpers.h"
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -10,6 +9,8 @@
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 namespace NYT::NTableClient {
 namespace {

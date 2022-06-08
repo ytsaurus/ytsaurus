@@ -9,18 +9,10 @@
 #include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
-
-static void PrintTo(ESchemaCompatibility typeCompatibility, std::ostream* stream)
-{
-    (*stream) << "ESchemaCompatibility::" << ToString(typeCompatibility).c_str();
-}
-
 namespace {
 
 using namespace NYson;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -521,7 +513,7 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
 
-TEST_F(TTableSchemaTest,CheckTableSchemaCompatibilityTest)
+TEST_F(TTableSchemaTest, CheckTableSchemaCompatibilityTest)
 {
     EXPECT_EQ(
         ESchemaCompatibility::Incompatible,
