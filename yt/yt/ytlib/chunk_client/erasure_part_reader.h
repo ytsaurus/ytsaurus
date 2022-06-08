@@ -19,16 +19,24 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Action to do if there are no available replicas for some part.
+DEFINE_ENUM(EUnavailablePartPolicy,
+    ((Crash)               (0))
+    ((CreateNullReader)    (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
     TChunkId chunkId,
     const TChunkReplicaList& seedReplicas,
-    const NErasure::ICodec* codec,
     const NErasure::TPartIndexList& partIndexList,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
+    EUnavailablePartPolicy unavailablePartPolicy,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
@@ -42,6 +50,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     const NErasure::ICodec* codec,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
+    EUnavailablePartPolicy unavailablePartPolicy,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());

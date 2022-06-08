@@ -41,20 +41,16 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     NNative::IClientPtr client,
     TChunkId chunkId,
     const TChunkReplicaList& replicas,
-    const ICodec* codec,
     const TPartIndexList& partIndexList,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
+    EUnavailablePartPolicy unavailablePartPolicy,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
     YT_VERIFY(IsErasureChunkId(chunkId));
     YT_VERIFY(std::is_sorted(partIndexList.begin(), partIndexList.end()));
-
-    auto totalPartCount = codec->GetTotalPartCount();
-    THashSet<int> partIndexSet(partIndexList.begin(), partIndexList.end());
-    YT_VERIFY(partIndexSet.size() == partIndexList.size());
 
     auto sortedReplicas = replicas;
     std::sort(
@@ -68,42 +64,52 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     partConfig->FailOnNoSeeds = true;
 
     std::vector<IChunkReaderAllowingRepairPtr> readers;
-    readers.reserve(partIndexSet.size());
+    readers.reserve(partIndexList.size());
 
-    {
-        auto it = sortedReplicas.begin();
-        while (it != sortedReplicas.end() && it->GetReplicaIndex() < totalPartCount) {
+    auto it = sortedReplicas.begin();
+
+    for (auto partIndex : partIndexList) {
+        while (it != sortedReplicas.end() && it->GetReplicaIndex() < partIndex) {
+            ++it;
+        }
+
+        if (it != sortedReplicas.end() && it->GetReplicaIndex() == partIndex) {
             auto jt = it;
-            while (jt != sortedReplicas.end() &&
-                   it->GetReplicaIndex() == jt->GetReplicaIndex())
-            {
+            while (jt != sortedReplicas.end() && jt->GetReplicaIndex() == partIndex) {
                 ++jt;
             }
 
-            if (partIndexSet.contains(it->GetReplicaIndex())) {
-                TChunkReplicaList partReplicas(it, jt);
-                auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
-                auto reader = CreateReplicationReader(
-                    partConfig,
-                    options,
-                    client,
-                    // Locality doesn't matter, since we typically have only one replica.
-                    /*localDescriptor*/ {},
-                    partChunkId,
-                    partReplicas,
-                    blockCache,
-                    chunkMetaCache,
-                    trafficMeter,
-                    /*nodeStatusDirectory*/ nullptr,
-                    bandwidthThrottler,
-                    rpsThrottler);
-                readers.push_back(reader);
-            }
+            TChunkReplicaList partReplicas(it, jt);
+            auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
+            auto reader = CreateReplicationReader(
+                partConfig,
+                options,
+                client,
+                // Locality doesn't matter, since we typically have only one replica.
+                /*localDescriptor*/ {},
+                partChunkId,
+                partReplicas,
+                blockCache,
+                chunkMetaCache,
+                trafficMeter,
+                /*nodeStatusDirectory*/ nullptr,
+                bandwidthThrottler,
+                rpsThrottler);
+            readers.push_back(reader);
 
             it = jt;
+        } else {
+            switch (unavailablePartPolicy) {
+                case EUnavailablePartPolicy::CreateNullReader:
+                    readers.push_back(nullptr);
+                    break;
+
+                case EUnavailablePartPolicy::Crash:
+                default:
+                    YT_ABORT();
+            }
         }
     }
-    YT_VERIFY(readers.size() == partIndexSet.size());
 
     return readers;
 }
@@ -117,6 +123,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     const ICodec* codec,
     IBlockCachePtr blockCache,
     IClientChunkMetaCachePtr chunkMetaCache,
+    EUnavailablePartPolicy unavailablePartPolicy,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
@@ -131,10 +138,10 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
         client,
         chunkId,
         seedReplicas,
-        codec,
         partIndexList,
         blockCache,
         chunkMetaCache,
+        unavailablePartPolicy,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler));
