@@ -455,6 +455,14 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTabletCellWriteManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("write_failure_probability", &TThis::WriteFailureProbability)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStoreFlusherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
@@ -665,6 +673,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("tablet_manager", &TThis::TabletManager)
+        .DefaultNew();
+
+    registrar.Parameter("tablet_cell_write_manager", &TThis::TabletCellWriteManager)
         .DefaultNew();
 
     registrar.Parameter("throttlers", &TThis::Throttlers)

@@ -371,6 +371,25 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletCellWriteManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Testing option.
+    //! If set, write request will fail with this probability.
+    //! In case of failure write request will be equiprobably
+    //! applied or not applied.
+    std::optional<double> WriteFailureProbability;
+
+    REGISTER_YSON_STRUCT(TTabletCellWriteManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletCellWriteManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreFlusherConfig
     : public NYTree::TYsonStruct
 {
@@ -670,6 +689,8 @@ public:
     std::optional<int> Slots;
 
     TTabletManagerDynamicConfigPtr TabletManager;
+
+    TTabletCellWriteManagerDynamicConfigPtr TabletCellWriteManager;
 
     TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;
 

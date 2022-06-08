@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/core/misc/backoff_strategy_config.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +36,14 @@ TConnectionDynamicConfig::TConnectionDynamicConfig()
 {
     RegisterParameter("table_mount_cache", TableMountCache)
         .DefaultNew();
+    RegisterParameter("tablet_write_backoff", TabletWriteBackoff)
+        .DefaultNew();
+
+    RegisterPreprocessor([&] {
+        // TODO(gritukan): Enable tablet retries by default one day.
+        TabletWriteBackoff = New<TSerializableExponentialBackoffOptions>();
+        TabletWriteBackoff->RetryCount = 1;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

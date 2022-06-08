@@ -74,6 +74,7 @@
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/helpers.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
@@ -350,9 +351,14 @@ public:
 
     // NNative::IConnection implementation.
 
-    const TConnectionConfigPtr& GetConfig() override
+    const TConnectionConfigPtr& GetConfig() const override
     {
         return Config_;
+    }
+
+    TConnectionDynamicConfigPtr GetDynamicConfig() const override
+    {
+        return DynamicConfig_.Load();
     }
 
     const TNetworkPreferenceList& GetNetworks() const override
@@ -591,10 +597,14 @@ public:
         SyncReplicaCache_->Reconfigure(Config_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(Config_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(Config_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
+
+        DynamicConfig_.Store(dynamicConfig);
     }
 
 private:
     const TConnectionConfigPtr Config_;
+    TAtomicObject<TConnectionDynamicConfigPtr> DynamicConfig_ = New<TConnectionDynamicConfig>();
+
     TConnectionOptions Options_;
 
     const TString LoggingTag_;
