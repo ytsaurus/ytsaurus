@@ -26,16 +26,18 @@ func apiTimePeriodToStorage(at *api.TimePeriod) (storage.TimestampPeriod, error)
 	return storage.TimestampPeriod{Start: time.Time(tmin), End: time.Time(tmax)}, err
 }
 
-func apiMetaqueryToStorage(am *api.Metaquery) (storage.Metaquery, error) {
+func (a *App) apiMetaqueryToStorage(am *api.Metaquery) (storage.Metaquery, error) {
 	period, err := apiTimePeriodToStorage(am.TimePeriod)
 	return storage.Metaquery{
-		Query:      am.Query,
-		QueryLimit: int(am.QueryLimit),
-		Period:     period,
+		Query:       am.Query,
+		QueryLimit:  int(a.config.QueryLimit),
+		Period:      period,
+		ResultSkip:  int(am.ResultSkip),
+		ResultLimit: int(am.ResultLimit),
 	}, err
 }
 
-func storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {
+func (a *App) storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {
 	am := &api.Metadata{
 		ProfileType: sm.Metadata.MapData["ProfileType"],
 		Host:        sm.Metadata.MapData["Host"],
@@ -55,7 +57,7 @@ func storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {
 }
 
 func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOption) (*api.ListResponse, error) {
-	metaquery, err := apiMetaqueryToStorage(in.Metaquery)
+	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
 	if err != nil {
 		a.l.Error("time convertion failed", log.Error(err))
 		return nil, err
@@ -70,7 +72,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 	res := make([]*api.Metadata, len(resp))
 
 	for id, metadata := range resp {
-		res[id], err = storageMatadataToAPI(metadata)
+		res[id], err = a.storageMatadataToAPI(metadata)
 		if err != nil {
 			a.l.Error("metadata convertion failed", log.Error(err))
 			return nil, err

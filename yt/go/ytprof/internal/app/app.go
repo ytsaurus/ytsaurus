@@ -26,17 +26,21 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
+const DefaultQueryLimit = 1000000
+
 type App struct {
 	l          *zap.Logger
 	httpListen net.Listener
 	yt         yt.Client
 	ts         *storage.TableStorage
+	config     Config
 }
 
 type Config struct {
 	HTTPEndpoint string `json:"http_endpoint" yaml:"http_endpoint"`
 	Proxy        string `json:"proxy" yaml:"proxy"`
 	TablePath    string `json:"table_path" yaml:"table_path"`
+	QueryLimit   int    `json:"query_limit" yaml:"query_limit"`
 }
 
 func NewApp(l *zap.Logger, config Config) *App {
@@ -46,7 +50,12 @@ func NewApp(l *zap.Logger, config Config) *App {
 	}
 
 	app := &App{
-		l: l,
+		l:      l,
+		config: config,
+	}
+
+	if app.config.QueryLimit == 0 {
+		app.config.QueryLimit = DefaultQueryLimit
 	}
 
 	var err error

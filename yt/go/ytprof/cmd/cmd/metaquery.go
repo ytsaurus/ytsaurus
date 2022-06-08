@@ -158,9 +158,11 @@ func getMetaquery(query string, l *zap.Logger) storage.Metaquery {
 	}
 
 	return storage.Metaquery{
-		Query:      flagMetaquery,
-		QueryLimit: flagQueryLimit,
-		Period:     period.storagePeriod(),
+		Query:       flagMetaquery,
+		QueryLimit:  flagQueryLimit,
+		ResultSkip:  0,
+		ResultLimit: 0,
+		Period:      period.storagePeriod(),
 	}
 }
 

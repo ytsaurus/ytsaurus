@@ -9,14 +9,13 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/google/pprof/profile"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 
 	"a.yandex-team.ru/library/go/core/log"
-	"a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/api"
 	"a.yandex-team.ru/yt/go/ytprof/internal/app"
+	"a.yandex-team.ru/yt/go/yttest"
 )
 
 var (
@@ -47,8 +46,8 @@ var (
 	}
 )
 
-func initApp(t *testing.T) *app.App {
-	l := &zap.Logger{L: zaptest.NewLogger(t)}
+func initApp(t *testing.T) (*app.App, func()) {
+	l, stop := yttest.NewLogger(t)
 
 	c := app.Config{
 		HTTPEndpoint: "localhost:0",
@@ -58,25 +57,25 @@ func initApp(t *testing.T) *app.App {
 
 	a := app.NewApp(l, c)
 
-	return a
+	return a, stop
 }
 
 func TestAppInitialization(t *testing.T) {
-	a := initApp(t)
+	a, stop := initApp(t)
 
 	require.NoError(t, a.Stop())
+	stop()
 }
 
 func TestAppList(t *testing.T) {
-	a := initApp(t)
+	a, stop := initApp(t)
 	l := a.Logger()
 
 	client := resty.New()
 
 	request := &api.ListRequest{
 		Metaquery: &api.Metaquery{
-			Query:      "true",
-			QueryLimit: 10000,
+			Query: "true",
 			TimePeriod: &api.TimePeriod{
 				PeriodStartTime: "2022-04-24T00:00:00.000000Z",
 				PeriodEndTime:   "2022-04-29T00:00:00.000000Z",
@@ -98,10 +97,11 @@ func TestAppList(t *testing.T) {
 	require.Equal(t, rsp.StatusCode(), 200, rsp.String())
 
 	require.NoError(t, a.Stop())
+	stop()
 }
 
 func TestAppGet(t *testing.T) {
-	a := initApp(t)
+	a, stop := initApp(t)
 	l := a.Logger()
 	ts := a.TableStorage()
 
@@ -134,4 +134,5 @@ func TestAppGet(t *testing.T) {
 	require.Equal(t, rsp.StatusCode(), 200, rsp.String())
 
 	require.NoError(t, a.Stop())
+	stop()
 }
