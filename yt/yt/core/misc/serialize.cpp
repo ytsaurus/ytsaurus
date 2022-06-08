@@ -1,5 +1,7 @@
 #include "serialize.h"
 
+#include <yt/yt/core/concurrency/fls.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
 namespace NYT {
@@ -7,25 +9,24 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 const std::array<ui8, ZeroBufferSize> ZeroBuffer{};
+static NConcurrency::TFls<int> CrashOnErrorDepth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TCrashOnDeserializationErrorGuard::TCrashOnDeserializationErrorGuard()
 {
-    ++CrashOnErrorDepth_;
+    ++*CrashOnErrorDepth;
 }
 
 TCrashOnDeserializationErrorGuard::~TCrashOnDeserializationErrorGuard()
 {
-    YT_VERIFY(--CrashOnErrorDepth_ >= 0);
+    YT_VERIFY(--*CrashOnErrorDepth >= 0);
 }
 
 void TCrashOnDeserializationErrorGuard::OnError()
 {
-    YT_VERIFY(CrashOnErrorDepth_ == 0);
+    YT_VERIFY(*CrashOnErrorDepth == 0);
 }
-
-thread_local int TCrashOnDeserializationErrorGuard::CrashOnErrorDepth_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
