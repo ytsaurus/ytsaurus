@@ -17,8 +17,16 @@ struct TEndpoint
     TString IP6Address;
     int Port;
 
-    //! Identifies whether this endpoint is ready to serve traffic
-    //! according to the provider.
+    //! Identifies whether this endpoint is ready to serve traffic according to the provider.
+    /*!
+     * Must not be used in runtime systems due to the following:
+     * - provider downtime (which is considered as a normal state by design) causes flag staleness;
+     * - difference in a network connectivity of (client <> endpoint) and (provider <> endpoint) makes flag useless for the client.
+     *
+     * Better use client-specific probes to identify ready and alive endpoints.
+     *
+     * See https://st.yandex-team.ru/YT-16705 for details.
+     */
     bool Ready;
 };
 
