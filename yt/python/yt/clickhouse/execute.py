@@ -29,7 +29,7 @@ def get_heavy_proxy_provider(client):
     return proxy_provider
 
 
-def execute(query, alias=None, raw=None, format=None, settings=None, client=None):
+def execute(query, alias=None, raw=None, format=None, settings=None, traceparent=None, client=None):
     """Executes ClickHouse query in given CHYT clique.
 
     :param query: Query to execute.
@@ -88,6 +88,9 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
         "X-Started-By": dumps(get_started_by_short()),
         "X-YT-Correlation-Id": generate_uuid(get_option("_random_generator", client))
     }
+
+    if traceparent is not None:
+        headers["traceparent"] = traceparent
 
     auth = TokenAuth(get_token(client=client))
 
