@@ -2255,11 +2255,6 @@ private:
     bool ValidateSnapshotVersion(int version) override
     {
         return
-            version ==  5 || // babenko
-            version ==  6 || // savrus: Add User to TCommit
-            version ==  7 || // savrus: Add tablet cell life stage
-            version ==  8 || // babenko: YT-12139: Add prepare only participants
-            version ==  9 || // babenko: YT-10869: Authentication identity in commit
             version == 10 || // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
             version == 11 || // ifsmirnov: YT-15025: MaxAllowedCommitTimestamp
             version == 12 || // gritukan: YT-16858: Coordinator prepare mode.
@@ -2342,12 +2337,7 @@ private:
     void LoadValues(TLoadContext& context)
     {
         PersistentCommitMap_.LoadValues(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= 7) {
-            Load(context, Decommissioned_);
-        } else {
-            Decommissioned_ = false;
-        }
+        Load(context, Decommissioned_);
     }
 };
 
