@@ -1114,7 +1114,10 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original);
 void FromProto(TDataSource* original, const NProto::TDataSource& serialized);
 
 TString InferName(TConstExpressionPtr expr, bool omitValues = false);
-TString InferName(TConstBaseQueryPtr query, bool omitValues = false, bool omitAliases = false);
+TString InferName(TConstBaseQueryPtr query,
+    bool omitValues = false,
+    bool omitAliases = false,
+    bool omitJoinPredicate = false);
 
 bool Compare(
     TConstExpressionPtr lhs,

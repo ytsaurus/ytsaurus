@@ -71,7 +71,7 @@ TString InferName(TConstExpressionPtr expr, bool omitValues)
     return builder.Flush();
 }
 
-TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases)
+TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases, bool omitJoinPredicate)
 {
     auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
         builder->AppendString(InferName(item.Expression, omitValues));
@@ -118,8 +118,8 @@ TString InferName(TConstBaseQueryPtr query, bool omitValues, bool omitAliases)
                 JoinToString(selfJoinEquation),
                 JoinToString(foreignJoinEquation)));
 
-            if (joinClause->Predicate) {
-                clauses.push_back("AND" + InferName(joinClause->Predicate, omitValues));
+            if (joinClause->Predicate && !omitJoinPredicate) {
+                clauses.push_back("AND " + InferName(joinClause->Predicate, omitValues));
             }
         }
 
