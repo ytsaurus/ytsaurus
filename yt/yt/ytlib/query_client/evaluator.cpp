@@ -173,7 +173,7 @@ private:
 
         auto Logger = MakeQueryLogger(query);
 
-        auto queryFingerprint = InferName(query, true, true);
+        auto queryFingerprint = InferName(query, true, true, true);
         auto compileWithLogging = [&] () {
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
 
