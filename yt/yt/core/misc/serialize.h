@@ -46,9 +46,6 @@ public:
     TCrashOnDeserializationErrorGuard(TCrashOnDeserializationErrorGuard&&) = delete;
 
     static void OnError();
-
-private:
-    static thread_local int CrashOnErrorDepth_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
