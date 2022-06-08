@@ -18,7 +18,7 @@
 #include <util/string/cast.h>
 #include <util/string/printf.h>
 
-#include <util/system/atomic.h>
+#include <library/cpp/deprecated/atomic/atomic.h>
 #include <util/system/compiler.h>
 #include <util/system/defaults.h>
 
