@@ -2268,7 +2268,7 @@ private:
 
     int GetCurrentSnapshotVersion() override
     {
-        return 11;
+        return 12;
     }
 
 
