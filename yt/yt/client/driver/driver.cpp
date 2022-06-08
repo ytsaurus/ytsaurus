@@ -10,6 +10,7 @@
 #include "scheduler_commands.h"
 #include "table_commands.h"
 #include "transaction_commands.h"
+#include "internal_commands.h"
 #include "proxy_discovery_cache.h"
 
 #include <yt/yt/client/api/transaction.h>
@@ -311,6 +312,10 @@ public:
         REGISTER_ALL(TSuspendCoordinatorCommand,           "suspend_coordinator",             Null,       Structured, false,  false);
         REGISTER_ALL(TResumeCoordinatorCommand,            "resume_coordinator",              Null,       Structured, false,  false);
 
+        if (Config_->EnableInternalCommands) {
+            REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );
+        }
+
 #undef REGISTER
 #undef REGISTER_ALL
     }
@@ -498,13 +503,13 @@ private:
             IDriverPtr driver,
             IClientPtr client,
             TDriverConfigPtr config,
-            const TCommandDescriptor& descriptor,
+            TCommandDescriptor descriptor,
             const TDriverRequest& request)
             : Driver_(std::move(driver))
             , Client_(std::move(client))
             , Config_(std::move(config))
-            , Descriptor_(descriptor)
-            , Request_(request)
+            , Descriptor_(std::move(descriptor))
+            , Request_(std::move(request))
         { }
 
         const TDriverConfigPtr& GetConfig() const override
@@ -515,6 +520,15 @@ private:
         const IClientPtr& GetClient() const override
         {
             return Client_;
+        }
+
+        IInternalClientPtr GetInternalClientOrThrow() const override
+        {
+            auto internalClient = DynamicPointerCast<IInternalClient>(Client_);
+            if (!internalClient) {
+                THROW_ERROR_EXCEPTION("Client does not support internal API");
+            }
+            return internalClient;
         }
 
         const IDriverPtr& GetDriver() const override

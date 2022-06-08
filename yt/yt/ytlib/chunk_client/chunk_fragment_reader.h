@@ -22,10 +22,11 @@ struct IChunkFragmentReader
     {
         TChunkId ChunkId;
         NErasure::ECodec ErasureCodec = NErasure::ECodec::None;
-        i64 Length;
-        int BlockIndex;
-        i64 BlockOffset;
-        i64 BlockSize;
+        i64 Length = -1;
+        int BlockIndex = -1;
+        i64 BlockOffset = -1;
+        // Only needed for erasure chunks.
+        std::optional<i64> BlockSize;
     };
 
     struct TReadFragmentsResponse

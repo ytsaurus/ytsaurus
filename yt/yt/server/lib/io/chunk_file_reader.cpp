@@ -209,13 +209,17 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     if (fragmentDescriptor.BlockIndex < 0 ||
         fragmentDescriptor.BlockIndex >= std::ssize(BlocksExt_->Blocks))
     {
-        THROW_ERROR_EXCEPTION("Invalid block index in fragment descriptor %v: expected in range [0,%v)",
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::MalformedReadRequest,
+            "Invalid block index in fragment descriptor %v: expected in range [0,%v)",
             fragmentDescriptor,
             BlocksExt_->Blocks.size());
     }
 
     if (fragmentDescriptor.Length < 0) {
-        THROW_ERROR_EXCEPTION("Invalid length in fragment descriptor %v",
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::MalformedReadRequest,
+            "Negative length in fragment descriptor %v",
             fragmentDescriptor,
             BlocksExt_->Blocks.size());
     }
@@ -224,7 +228,9 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     if (fragmentDescriptor.BlockOffset < 0 ||
         fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > blockInfo.Size)
     {
-        THROW_ERROR_EXCEPTION("Invalid block offset in fragment descriptor %v for block of size %v",
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::MalformedReadRequest,
+            "Invalid block offset in fragment descriptor %v for block of size %v",
             fragmentDescriptor,
             blockInfo.Size);
     }
@@ -319,7 +325,8 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
     int chunkBlockCount = std::ssize(blocksExt->Blocks);
     if (firstBlockIndex + blockCount > chunkBlockCount) {
-        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::BlockOutOfRange,
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::MalformedReadRequest,
             "Requested to read blocks [%v,%v] from chunk %v while only %v blocks exist",
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
@@ -374,7 +381,9 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
         FileName_);
 
     if (metaFileBlob.Size() < sizeof (TChunkMetaHeaderBase)) {
-        THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::BrokenChunkFileMeta,
+            "Chunk meta file %v is too short: at least %v bytes expected",
             metaFileName,
             sizeof (TChunkMetaHeaderBase));
     }
@@ -399,7 +408,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
 
         default:
             THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::IncorrectChunkFileHeaderSignature,
+                NChunkClient::EErrorCode::BrokenChunkFileMeta,
                 "Incorrect header signature %llx in chunk meta file %v",
                 metaHeaderBase->Signature,
                 metaFileName);
@@ -409,8 +418,8 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     if (checksum != metaHeader.Checksum) {
         DumpBrokenMeta(metaBlob);
         THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
-            "Incorrect checksum in chunk meta file %v: expected %v, actual %v",
+            NChunkClient::EErrorCode::BrokenChunkFileMeta,
+            "Incorrect checksum in chunk meta file %v: expected %llx, actual %llx",
             metaFileName,
             metaHeader.Checksum,
             checksum)

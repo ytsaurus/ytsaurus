@@ -280,7 +280,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));     // blockIndex
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockOffset));    // blockOffset
     if (IsErasureChunkId(value.ChunkId)) {
-        currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.BlockSize));  // blockSize
+        currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(*value.BlockSize));  // blockSize
     }
     pool->Free(currentPtr, endPtr);
     return TRef(beginPtr, currentPtr);
@@ -340,13 +340,14 @@ THunkValue ReadHunkValue(TRef input)
             ui64 blockOffset;
             ui64 blockSize = 0;
             currentPtr += ReadPod(currentPtr, &chunkId);
-            if (IsErasureChunkId(chunkId)) {
+            bool isErasure = IsErasureChunkId(chunkId);
+            if (isErasure) {
                 currentPtr += ReadVarInt32(currentPtr, &erasureCodec);
             }
             currentPtr += ReadVarUint64(currentPtr, &length);
             currentPtr += ReadVarUint32(currentPtr, &blockIndex);
             currentPtr += ReadVarUint64(currentPtr, &blockOffset);
-            if (IsErasureChunkId(chunkId)) {
+            if (isErasure) {
                 currentPtr += ReadVarUint64(currentPtr, &blockSize);
             }
             // TODO(babenko): better out-of-bounds check.
@@ -358,7 +359,7 @@ THunkValue ReadHunkValue(TRef input)
                 .ErasureCodec = static_cast<NErasure::ECodec>(erasureCodec),
                 .BlockIndex = static_cast<int>(blockIndex),
                 .BlockOffset = static_cast<i64>(blockOffset),
-                .BlockSize = static_cast<i64>(blockSize),
+                .BlockSize = isErasure ? std::make_optional<i64>(static_cast<i64>(blockSize)) : std::nullopt,
                 .Length = static_cast<i64>(length),
             };
         }
@@ -380,7 +381,7 @@ void DoGlobalizeHunkValue(
         const auto& hunkChunkRef = hunkChunkRefsExt.refs(localRefHunkValue->ChunkIndex);
         auto chunkId = FromProto<TChunkId>(hunkChunkRef.chunk_id());
 
-        i64 blockSize = 0;
+        std::optional<i64> blockSize;
         if (IsErasureChunkId(chunkId)) {
             const auto& hunkChunkMeta = hunkChunkMetasExt.metas(localRefHunkValue->ChunkIndex);
             YT_VERIFY(FromProto<TChunkId>(hunkChunkMeta.chunk_id()) == chunkId);
@@ -1051,13 +1052,15 @@ private:
         ref.HunkCount += 1;
         ref.TotalHunkLength += globalRefHunkValue.Length;
 
-        auto& meta = HunkChunkMetas_[chunkIndex];
-        auto& blockSizes = meta.BlockSizes;
-        auto blockIndex = globalRefHunkValue.BlockIndex;
-        if (std::ssize(blockSizes) <= blockIndex) {
-            blockSizes.resize(blockIndex + 1);
+        if (IsErasureChunkId(globalRefHunkValue.ChunkId)) {
+            auto& meta = HunkChunkMetas_[chunkIndex];
+            auto& blockSizes = meta.BlockSizes;
+            auto blockIndex = globalRefHunkValue.BlockIndex;
+            if (std::ssize(blockSizes) <= blockIndex) {
+                blockSizes.resize(blockIndex + 1);
+            }
+            blockSizes[blockIndex] = *globalRefHunkValue.BlockSize;
         }
-        blockSizes[blockIndex] = globalRefHunkValue.BlockSize;
 
         return chunkIndex;
     }

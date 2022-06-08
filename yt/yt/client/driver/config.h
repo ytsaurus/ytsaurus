@@ -4,6 +4,10 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt/client/table_client/public.h>
+
+#include <yt/yt/client/chunk_client/public.h>
+
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NDriver {
@@ -24,6 +28,7 @@ public:
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
     NChunkClient::TFetcherConfigPtr Fetcher;
+    NChunkClient::TChunkFragmentReaderConfigPtr ChunkFragmentReader;
     int ApiVersion;
 
     i64 ReadBufferRowCount;
@@ -35,6 +40,8 @@ public:
     std::optional<TString> Token;
 
     TAsyncExpiringCacheConfigPtr ProxyDiscoveryCache;
+
+    bool EnableInternalCommands;
 
     TDriverConfig();
 };

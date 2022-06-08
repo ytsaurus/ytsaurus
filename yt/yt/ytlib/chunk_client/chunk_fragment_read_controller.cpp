@@ -294,7 +294,7 @@ private:
             , Length(request.Length)
             , BlockIndex(request.BlockIndex)
             , BlockOffset(request.BlockOffset)
-            , BlockSize(request.BlockSize)
+            , BlockSize(*request.BlockSize)
             , BlockPartSize(DivCeil<i64>(BlockSize, codecDataPartCount))
             , FirstPartIndex(BlockOffset / BlockPartSize)
             , FirstPartStartOffset(BlockOffset % BlockPartSize)

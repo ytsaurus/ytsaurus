@@ -47,13 +47,13 @@ YT_DEFINE_ERROR_ENUM(
     ((NoSuchMedium)                          (719))
     ((OptimisticLockFailure)                 (720))
     ((InvalidBlockChecksum)                  (721))
-    ((BlockOutOfRange)                       (722))
+    ((MalformedReadRequest)                  (722))
     ((MissingExtension)                      (724))
     ((ReaderThrottlingFailed)                (725))
     ((ReaderTimeout)                         (726))
     ((NoSuchChunkView)                       (727))
     ((IncorrectChunkFileChecksum)            (728))
-    ((IncorrectChunkFileHeaderSignature)     (729))
+    ((BrokenChunkFileMeta)                   (729))
     ((IncorrectLayerFileSize)                (730))
     ((NoSpaceLeftOnDevice)                   (731))
     ((ConcurrentChunkUpdate)                 (732))
@@ -149,6 +149,7 @@ DECLARE_REFCOUNTED_CLASS(TErasureWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TEncodingWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TBlockReordererConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkFragmentReaderConfig)
 
 struct TCodecDuration;
 class TCodecStatistics;
