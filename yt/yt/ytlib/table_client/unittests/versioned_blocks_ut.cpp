@@ -1,11 +1,11 @@
-#include "helpers.h"
-
 #include <yt/yt/ytlib/table_client/versioned_block_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 

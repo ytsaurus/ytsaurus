@@ -1,5 +1,3 @@
-#include "helpers.h"
-
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/table_client/schemaless_block_reader.h>
@@ -7,6 +5,8 @@
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/logical_type.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 #include <yt/yt/core/compression/codec.h>
 
