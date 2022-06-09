@@ -419,6 +419,8 @@ void TChunk::SetOverlayed(bool value)
 
 void TChunk::SetRowCount(i64 rowCount)
 {
+    YT_VERIFY(IsJournalChunkType(GetType()));
+
     auto miscExt = ChunkMeta_->GetExtension<TMiscExt>();
     miscExt.set_row_count(rowCount);
 

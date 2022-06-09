@@ -448,6 +448,13 @@ public:
             MakeTransactionActionHandlerDescriptor(
                 NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NHiveServer::TTransactionAbortOptions&>()));
 
+        transactionManager->RegisterTransactionActionHandlers(
+            MakeTransactionActionHandlerDescriptor(BIND(&TChunkManager::HydraPrepareConfirmChunk, MakeStrong(this))),
+            MakeTransactionActionHandlerDescriptor(
+                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NHiveServer::TTransactionCommitOptions&>()),
+            MakeTransactionActionHandlerDescriptor(
+                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NHiveServer::TTransactionAbortOptions&>()));
+
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
             .WithDefaultDisabled()
@@ -606,27 +613,47 @@ public:
             }
         };
 
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         auto isCreateChunkRequestSequoia = [&] (const TCreateChunkRequest& request) {
-            const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+            auto account = FromProto<TString>(request.account());
+            if (account == NSecurityClient::SequoiaAccountName) {
+                return false;
+            }
+
             if (!config->SequoiaManager->Enable) {
                 return false;
             }
 
-            auto account = FromProto<TString>(request.account());
-            if (account == NSecurityClient::SequoiaAccountName) {
+            auto type = CheckedEnumCast<EObjectType>(request.type());
+            if (IsJournalChunkType(type)) {
                 return false;
             }
 
             auto probability = config->ChunkManager->SequoiaChunkProbability;
             return static_cast<int>(RandomNumber<ui32>() % 100) < probability;
         };
+
+        auto isConfirmChunkRequestSequoia = [&] (const TConfirmChunkRequest& request) {
+            auto chunkId = FromProto<TChunkId>(request.chunk_id());
+            if (!IsSequoiaId(chunkId)) {
+                return false;
+            }
+
+            return config->SequoiaManager->Enable;
+        };
+
         splitSubrequests(
             request.create_chunk_subrequests(),
             preparedRequest->MutationRequest.mutable_create_chunk_subrequests(),
             &preparedRequest->SequoiaRequest.CreateChunkSubrequests,
             &preparedRequest->IsCreateChunkSubrequestSequoia,
             isCreateChunkRequestSequoia);
-
+        splitSubrequests(
+            request.confirm_chunk_subrequests(),
+            preparedRequest->MutationRequest.mutable_confirm_chunk_subrequests(),
+            &preparedRequest->SequoiaRequest.ConfirmChunkSubrequests,
+            &preparedRequest->IsConfirmChunkSubrequestSequoia,
+            isConfirmChunkRequestSequoia);
         return preparedRequest;
     }
 
@@ -662,14 +689,20 @@ public:
             request->SequoiaResponse.CreateChunkSubresponses,
             response->mutable_create_chunk_subresponses(),
             request->IsCreateChunkSubrequestSequoia);
+        mergeSubresponses(
+            request->MutationResponse.confirm_chunk_subresponses(),
+            request->SequoiaResponse.ConfirmChunkSubresponses,
+            response->mutable_confirm_chunk_subresponses(),
+            request->IsConfirmChunkSubrequestSequoia);
     }
 
     TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) override
     {
         int createChunkSubrequestCount = request->SequoiaRequest.CreateChunkSubrequests.size();
+        int confirmChunkSubrequestCount = request->SequoiaRequest.ConfirmChunkSubrequests.size();
 
         std::vector<TFuture<void>> futures;
-        futures.reserve(createChunkSubrequestCount);
+        futures.reserve(createChunkSubrequestCount + confirmChunkSubrequestCount);
         request->SequoiaResponse.CreateChunkSubresponses.resize(createChunkSubrequestCount);
         for (int index = 0; index < createChunkSubrequestCount; ++index) {
             const auto& subrequest = request->SequoiaRequest.CreateChunkSubrequests[index];
@@ -677,6 +710,18 @@ public:
 
             auto future = CreateChunk(subrequest)
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const TCreateChunkResponse& response) {
+                    *subresponse = response;
+                }));
+            futures.push_back(future);
+        }
+
+        request->SequoiaResponse.ConfirmChunkSubresponses.resize(confirmChunkSubrequestCount);
+        for (int index = 0; index < confirmChunkSubrequestCount; ++index) {
+            const auto& subrequest = request->SequoiaRequest.ConfirmChunkSubrequests[index];
+            auto* subresponse = &request->SequoiaResponse.ConfirmChunkSubresponses[index];
+
+            auto future = ConfirmChunk(subrequest)
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TConfirmChunkResponse& response) {
                     *subresponse = response;
                 }));
             futures.push_back(future);
@@ -1010,6 +1055,96 @@ public:
         return chunk;
     }
 
+    TFuture<TConfirmChunkResponse> ConfirmChunk(const TConfirmChunkRequest& request) override
+    {
+        return GuardedConfirmChunk(request)
+            .Apply(BIND([] (const TErrorOr<TConfirmChunkResponse>& responseOrError) {
+                if (responseOrError.IsOK()) {
+                    return responseOrError.Value();
+                } else {
+                    TConfirmChunkResponse response;
+                    ToProto(response.mutable_error(), TError(responseOrError));
+                    return response;
+                }
+            }));
+    }
+
+    TChunkTreeStatistics ConstructChunkStatistics(
+        TChunkId chunkId,
+        const TMiscExt& miscExt,
+        const TChunkInfo& chunkInfo)
+    {
+        TChunkTreeStatistics statistics;
+        statistics.RowCount = miscExt.row_count();
+        statistics.LogicalRowCount = miscExt.row_count();
+        statistics.UncompressedDataSize = miscExt.uncompressed_data_size();
+        statistics.CompressedDataSize = miscExt.compressed_data_size();
+        statistics.DataWeight = miscExt.data_weight();
+        statistics.LogicalDataWeight = miscExt.data_weight();
+        if (IsErasureChunkId(chunkId)) {
+            statistics.ErasureDiskSpace = chunkInfo.disk_space();
+        } else {
+            statistics.RegularDiskSpace = chunkInfo.disk_space();
+        }
+        statistics.ChunkCount = 1;
+        statistics.LogicalChunkCount = 1;
+        statistics.Rank = 0;
+        return statistics;
+    }
+
+    TFuture<TConfirmChunkResponse> GuardedConfirmChunk(TConfirmChunkRequest request)
+    {
+        const auto& client = Bootstrap_->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+        auto transaction = CreateSequoiaTransaction(client, Logger);
+
+        auto chunkId = FromProto<TChunkId>(request.chunk_id());
+        YT_VERIFY(!IsJournalChunkId(chunkId));
+
+        const auto& chunkMeta = request.chunk_meta();
+        const auto& chunkInfo = request.chunk_info();
+
+        return transaction->Start(/*startOptions*/ {})
+            .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
+                const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+                TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
+                chunkMetaExtensionRow.Id = ToString(chunkId);
+                chunkMetaExtensionRow.MiscExt = ToString(miscExt);
+                if (auto hunkChunkMiscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(chunkMeta.extensions())) {
+                    chunkMetaExtensionRow.HunkChunkMiscExt = ToString(hunkChunkMiscExt);
+                }
+                if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
+                    chunkMetaExtensionRow.HunkChunkRefsExt = ToString(hunkChunkRefsExt);
+                }
+                if (auto boundaryKeysExt = FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkMeta.extensions())) {
+                    chunkMetaExtensionRow.BoundaryKeysExt = ToString(boundaryKeysExt);
+                }
+                if (auto heavyColumnStatisticsExt = FindProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkMeta.extensions())) {
+                    chunkMetaExtensionRow.HeavyColumnStatisticsExt = ToString(heavyColumnStatisticsExt);
+                }
+
+                transaction->WriteRow(chunkMetaExtensionRow);
+
+                transaction->AddTransactionAction(
+                    Bootstrap_->GetCellTag(),
+                    NTransactionClient::MakeTransactionActionData(request));
+
+                NApi::TTransactionCommitOptions commitOptions{
+                    .CoordinatorCellId = Bootstrap_->GetCellId(),
+                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                };
+
+                WaitFor(transaction->Commit(commitOptions))
+                    .ThrowOnError();
+
+                TConfirmChunkResponse response;
+                if (request.request_statistics()) {
+                    auto statistics = ConstructChunkStatistics(chunkId, miscExt, chunkInfo);
+                    *response.mutable_statistics() = statistics.ToDataStatistics();
+                }
+                return response;
+            }));
+    }
+
     TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request) override
     {
         return GuardedCreateChunk(request)
@@ -1077,6 +1212,19 @@ public:
         YT_VERIFY(options.LatePrepare);
 
         ExecuteCreateChunkSubrequest(
+            request,
+            /*response*/ nullptr);
+    }
+
+    void HydraPrepareConfirmChunk(
+        TTransaction* /*transaction*/,
+        TConfirmChunkRequest* request,
+        const NHiveServer::TTransactionPrepareOptions& options)
+    {
+        YT_VERIFY(options.Persistent);
+        YT_VERIFY(options.LatePrepare);
+
+        ExecuteConfirmChunkSubrequest(
             request,
             /*response*/ nullptr);
     }
