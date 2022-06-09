@@ -2814,7 +2814,7 @@ private:
         storeChunkIds.reserve(std::ssize(tablet->StoreIdMap()));
         for (const auto& [storeId, store] : tablet->StoreIdMap()) {
             if (store->IsChunk()) {
-                storeChunkIds.push_back(storeId);
+                storeChunkIds.push_back(store->AsChunk()->GetChunkId());
             }
         }
         auto hunkChunkIds = GetKeys(tablet->HunkChunkMap());
