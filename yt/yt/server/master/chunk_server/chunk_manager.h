@@ -74,14 +74,19 @@ struct IChunkManager
     using TCreateChunkRequest = NChunkClient::NProto::TReqExecuteBatch::TCreateChunkSubrequest;
     using TCreateChunkResponse = NChunkClient::NProto::TRspExecuteBatch::TCreateChunkSubresponse;
 
+    using TConfirmChunkRequest = NChunkClient::NProto::TReqExecuteBatch::TConfirmChunkSubrequest;
+    using TConfirmChunkResponse = NChunkClient::NProto::TRspExecuteBatch::TConfirmChunkSubresponse;
+
     struct TSequoiaExecuteBatchRequest
     {
         std::vector<TCreateChunkRequest> CreateChunkSubrequests;
+        std::vector<TConfirmChunkRequest> ConfirmChunkSubrequests;
     };
 
     struct TSequoiaExecuteBatchResponse
     {
         std::vector<TCreateChunkResponse> CreateChunkSubresponses;
+        std::vector<TConfirmChunkResponse> ConfirmChunkSubresponses;
     };
 
     struct TPreparedExecuteBatchRequest final
@@ -96,6 +101,7 @@ struct IChunkManager
 
         //! Original request split info.
         std::vector<bool> IsCreateChunkSubrequestSequoia;
+        std::vector<bool> IsConfirmChunkSubrequestSequoia;
     };
     using TPreparedExecuteBatchRequestPtr = TIntrusivePtr<TPreparedExecuteBatchRequest>;
 
@@ -109,6 +115,7 @@ struct IChunkManager
     virtual TFuture<void> ExecuteBatchSequoia(TPreparedExecuteBatchRequestPtr request) = 0;
 
     virtual TFuture<TCreateChunkResponse> CreateChunk(const TCreateChunkRequest& request) = 0;
+    virtual TFuture<TConfirmChunkResponse> ConfirmChunk(const TConfirmChunkRequest& request) = 0;
 
     using TCtxJobHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
