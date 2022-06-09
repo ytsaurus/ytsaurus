@@ -25,28 +25,31 @@ static const i64 InfiniteWeight = std::numeric_limits<i64>::max() / 4;
 IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition)
 {
     return CreateExplicitJobSizeConstraints(
-        /* canAdjustDataWeightPerJob */ false,
-        /* isExplicitJobCount */ false,
-        /* jobCount */ InfinitePartitionCount,
-        /* dataWeightPerJob */ dataWeightPerPartition,
-        /* primaryDataWeightPerJob */ InfiniteWeight,
-        /* maxDataSlicesPerJob */ InfiniteCount,
-        /* maxDataWeightPerJob */ InfiniteWeight,
-        /* primaryMaxDataWeightPerJob */ InfiniteWeight,
-        /* inputSliceDataWeight */ InfiniteWeight,
-        /* inputSliceRowCount */ InfiniteCount,
-        /* foreignSliceDataWeight */ 0,
-        /* samplingRate */ std::nullopt);
+        /*canAdjustDataWeightPerJob*/ false,
+        /*isExplicitJobCount*/ false,
+        /*jobCount*/ InfinitePartitionCount,
+        /*dataWeightPerJob*/ dataWeightPerPartition,
+        /*primaryDataWeightPerJob*/ InfiniteWeight,
+        /*maxDataSlicesPerJob*/ InfiniteCount,
+        /*maxDataWeightPerJob*/ InfiniteWeight,
+        /*primaryMaxDataWeightPerJob*/ InfiniteWeight,
+        /*inputSliceDataWeight*/ InfiniteWeight,
+        /*inputSliceRowCount*/ InfiniteCount,
+        /*foreignSliceDataWeight*/ 0,
+        /*samplingRate*/ std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkPoolPtr CreateChunkPool(EPartitionMode partitionMode, i64 dataWeightPerPartition, const TLogger& logger)
+IChunkPoolPtr CreateChunkPool(
+    ETablePartitionMode partitionMode,
+    i64 dataWeightPerPartition,
+    TLogger logger)
 {
     auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition);
 
     switch (partitionMode) {
-        case EPartitionMode::Ordered:
+        case ETablePartitionMode::Ordered:
             return CreateOrderedChunkPool(
                 TOrderedChunkPoolOptions{
                     .MaxTotalSliceCount = InfiniteCount,
@@ -55,19 +58,19 @@ IChunkPoolPtr CreateChunkPool(EPartitionMode partitionMode, i64 dataWeightPerPar
                     .OperationId = {},
                     .EnablePeriodicYielder = true,
                     .ShouldSliceByRowIndices = true,
-                    .Logger = logger,
+                    .Logger = std::move(logger),
                 },
                 TInputStreamDirectory());
 
-        case EPartitionMode::Sorted:
+        case ETablePartitionMode::Sorted:
             YT_UNIMPLEMENTED();
 
-        case EPartitionMode::Unordered:
+        case ETablePartitionMode::Unordered:
             return CreateUnorderedChunkPool(
                 TUnorderedChunkPoolOptions{
                     .JobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition),
                     .RowBuffer = New<TRowBuffer>(),
-                    .Logger = logger,
+                    .Logger = std::move(logger),
                 },
                 TInputStreamDirectory());
 

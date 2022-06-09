@@ -441,7 +441,7 @@ TPartitionTablesCommand::TPartitionTablesCommand()
 {
     RegisterParameter("paths", Paths);
     RegisterParameter("partition_mode", PartitionMode)
-        .Default(EPartitionMode::Unordered);
+        .Default(ETablePartitionMode::Unordered);
     RegisterParameter("data_weight_per_partition", DataWeightPerPartition);
     RegisterParameter("max_partition_count", MaxPartitionCount)
         .Default();

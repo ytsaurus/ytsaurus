@@ -109,7 +109,7 @@ public:
 
 private:
     std::vector<NYPath::TRichYPath> Paths;
-    NTableClient::EPartitionMode PartitionMode;
+    NTableClient::ETablePartitionMode PartitionMode;
     i64 DataWeightPerPartition;
     std::optional<int> MaxPartitionCount;
     bool EnableKeyGuarantee;

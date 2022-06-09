@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -114,13 +116,13 @@ TMultiTablePartitions TClient::DoPartitionTables(
     const TPartitionTablesOptions& options)
 {
     TMultiTablePartitioner partitioner(
-        /* client */ this,
+        /*client*/ this,
         paths,
         options,
-        Logger.WithTag("Name: Root").WithTag("OperationId: ???") // TODO(galtsev): OperationId
-    );
+        // TODO(galtsev): OperationId
+        Logger.WithTag("Name: Root").WithTag("OperationId: %v", NJobTrackerClient::NullOperationId));
 
-    return partitioner.DoPartitionTables();
+    return partitioner.PartitionTables();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
