@@ -23,6 +23,8 @@ Help
 
 ## <a name="s-API"></a> API
 
+Here is a [link](https://nanny.yandex-team.ru/ui/#/services/catalog/yt_ytprof) to the nanny service.
+
 ### HTTP Requsts
 
 * `/ytpfof/api/get`: get profile by ProfileID in the format of guid (type GET)
@@ -43,5 +45,3 @@ Run
 ```
 ./cmd/ytprof-api/ytprof-api --log-to-stderr --config-json '{"http_endpoint": "0.0.0.0:8080", "proxy": "freud", "table_path": "//sys/ytprof/testing"}'
 ```
-
-Here is [link](https://nanny.yandex-team.ru/ui/#/services/catalog/yt_ytprof) to the nanny service.
