@@ -21,6 +21,7 @@
 
 #include <yt/yt/server/lib/io/io_engine.h>
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_fragment.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>

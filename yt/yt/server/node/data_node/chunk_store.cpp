@@ -46,7 +46,7 @@ class TChunkStoreHost
     : public IChunkStoreHost
 {
 public:
-    TChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
+    explicit TChunkStoreHost(NClusterNode::IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -78,8 +78,13 @@ public:
         return Bootstrap_->GetMasterEpoch();
     }
 
+    INodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    {
+        return Bootstrap_->GetMemoryUsageTracker();
+    }
+
 private:
-    NClusterNode::IBootstrapBase* Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStoreHost)

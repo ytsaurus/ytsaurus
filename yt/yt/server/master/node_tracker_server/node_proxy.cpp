@@ -326,7 +326,7 @@ private:
                                 .Item("limit").Value(clusterNodeStatistics.memory().total_limit())
                             .EndMap()
                             .DoFor(clusterNodeStatistics.memory().categories(), [] (TFluentMap fluent, const TMemoryStatistics::TCategory& category) {
-                                fluent.Item(FormatEnum(EMemoryCategory(category.type())))
+                                fluent.Item(FormatEnum(static_cast<EMemoryCategory>(category.type())))
                                     .BeginMap()
                                         .DoIf(category.has_limit(), [&] (TFluentMap fluent) {
                                             fluent.Item("limit").Value(category.limit());

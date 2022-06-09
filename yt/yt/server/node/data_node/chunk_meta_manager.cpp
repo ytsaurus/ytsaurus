@@ -74,7 +74,7 @@ public:
         , BlocksExtCache_(New<TBlocksExtCache>(
             Config_->BlocksExtCache,
             memoryUsageTracker
-                ->WithCategory(EMemoryCategory::BlocksExt),
+                ->WithCategory(EMemoryCategory::ChunkBlocksExt),
             DataNodeProfiler.WithPrefix("/blocks_ext_cache")))
         , BlockMetaCache_(New<TBlockMetaCache>(
             Config_->BlockMetaCache,

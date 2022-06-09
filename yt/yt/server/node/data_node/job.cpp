@@ -13,8 +13,6 @@
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-
 #include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -22,6 +20,8 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/job_agent/job.h>
+
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -1205,7 +1205,7 @@ private:
 
         const auto& journalDispatcher = Bootstrap_->GetJournalDispatcher();
         const auto& location = journalChunk->GetStoreLocation();
-        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_))
+        auto changelog = WaitFor(journalDispatcher->OpenJournal(location, ChunkId_))
             .ValueOrThrow();
 
         i64 currentRowCount = changelog->GetRecordCount();

@@ -47,21 +47,6 @@ struct IBlocksExtCache
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkFragmentDescriptor
-{
-    //! Length of the fragment.
-    int Length;
-    //! Chunk-wise block index.
-    int BlockIndex;
-    //! Block-wise offset.
-    i64 BlockOffset;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TChunkFragmentDescriptor& descriptor, TStringBuf spec);
-TString ToString(const TChunkFragmentDescriptor& descriptor);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkFileReader
     : public virtual TRefCounted
 {
@@ -117,9 +102,9 @@ private:
     const EDirectIOPolicy UseDirectIO_;
     IBlocksExtCache* const BlocksExtCache_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileLock_);
-    TFuture<TIOEngineHandlePtr> DataFileFuture_;
-    TIOEngineHandlePtr DataFile_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, DataFileHandleLock_);
+    TFuture<TIOEngineHandlePtr> DataFileHandleFuture_;
+    TIOEngineHandlePtr DataFileHandle_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkFragmentReadsLock_);
     TFuture<void> ChunkFragmentReadsPreparedFuture_;

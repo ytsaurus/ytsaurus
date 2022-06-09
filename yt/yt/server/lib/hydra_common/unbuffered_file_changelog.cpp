@@ -1,4 +1,4 @@
-#include "file_changelog.h"
+#include "unbuffered_file_changelog.h"
 
 #include <yt/yt/server/lib/hydra_common/file_changelog_index.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -6,6 +6,7 @@
 #include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
+#include <yt/yt/server/lib/io/chunk_fragment.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
@@ -45,14 +46,16 @@ struct TUnbufferedFileChangelogWipeTag
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnbufferedFileChangelog
-    : public IFileChangelog
+    : public IUnbufferedFileChangelog
 {
 public:
     TUnbufferedFileChangelog(
         IIOEnginePtr ioEngine,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         TString fileName,
         TFileChangelogConfigPtr config)
         : IOEngine_(std::move(ioEngine))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , FileName_(std::move(fileName))
         , Config_(std::move(config))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
@@ -384,6 +387,19 @@ public:
         }
     }
 
+    IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const TChunkFragmentDescriptor& fragmentDescriptor) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        switch (Format_) {
+            case EFileChangelogFormat::V5:
+                return DoMakeChunkFragmentReadRequest<TChangelogRecordHeader_5>(fragmentDescriptor);
+            default:
+                YT_ABORT();
+        }
+    }
+
     void Truncate(int recordCount) override
     {
         Error_.ThrowOnError();
@@ -450,6 +466,7 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const TString FileName_;
     const TFileChangelogConfigPtr Config_;
     const NLogging::TLogger Logger;
@@ -499,6 +516,7 @@ private:
     {
         return New<TFileChangelogIndex>(
             IOEngine_,
+            MemoryUsageTracker_,
             std::move(fileName),
             Config_);
     }
@@ -548,7 +566,7 @@ private:
             if (++index >= MaxLockRetries) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::ChangelogIOError,
-                    "Cannot lock %Qv",
+                    "Cannot lock %v",
                     FileName_)
                     << error;
             }
@@ -741,6 +759,53 @@ private:
                 FileName_)
                 << ex);
         }
+    }
+
+    template <class TRecordHeader>
+    IIOEngine::TReadRequest DoMakeChunkFragmentReadRequest(const TChunkFragmentDescriptor& fragmentDescriptor)
+    {
+        auto makeErrorAttributes = [&] {
+            return std::vector{
+                TErrorAttribute("file_name", FileName_),
+                TErrorAttribute("block_index", fragmentDescriptor.BlockIndex),
+                TErrorAttribute("block_offset", fragmentDescriptor.BlockOffset),
+                TErrorAttribute("length", fragmentDescriptor.Length)
+            };
+        };
+
+        if (fragmentDescriptor.BlockIndex < 0) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MalformedReadRequest,
+                "Negative block index in fragment descriptor")
+                << makeErrorAttributes();
+        }
+
+        auto flushedRecordCount = Index_->GetFlushedDataRecordCount();
+        if (fragmentDescriptor.BlockIndex >= flushedRecordCount) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MissingJournalChunkRecord,
+                "Journal chunk record is missing")
+                << makeErrorAttributes()
+                << TErrorAttribute("flushed_record_count", flushedRecordCount);
+        }
+
+        auto range = Index_->GetRecordRange(fragmentDescriptor.BlockIndex);
+        auto recordLength = range.second - range.first - static_cast<i64>(sizeof(TRecordHeader));
+        if (fragmentDescriptor.BlockOffset < 0 ||
+            fragmentDescriptor.BlockOffset + fragmentDescriptor.Length > recordLength)
+        {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MalformedReadRequest,
+                "Fragment is out of record range")
+                << makeErrorAttributes()
+                << TErrorAttribute("record_length", recordLength);
+        }
+
+        return IIOEngine::TReadRequest{
+            .Handle = DataFileHandle_,
+            .Offset = range.first + static_cast<i64>(sizeof(TRecordHeader)) + fragmentDescriptor.BlockOffset,
+            .Size = fragmentDescriptor.Length
+        };
     }
 
     i64 GuessRecordReadSize(i64 offset, i64 dataFileLength)
@@ -967,13 +1032,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFileChangelogPtr CreateFileChangelog(
+IUnbufferedFileChangelogPtr CreateUnbufferedFileChangelog(
     IIOEnginePtr ioEngine,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     TString fileName,
     TFileChangelogConfigPtr config)
 {
     return New<TUnbufferedFileChangelog>(
         std::move(ioEngine),
+        std::move(memoryUsageTracker),
         std::move(fileName),
         std::move(config));
 }

@@ -1,10 +1,8 @@
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/format.h>
-#include <yt/yt/server/lib/hydra_common/file_helpers.h>
-#include <yt/yt/server/lib/hydra_common/file_changelog.h>
+#include <yt/yt/server/lib/hydra_common/unbuffered_file_changelog.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
@@ -30,7 +28,7 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileChangelogTest
+class TUnbufferedFileChangelogTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<EFileChangelogFormat>
 {
@@ -66,19 +64,23 @@ protected:
         TemporaryIndexFile.reset();
     }
 
-    IFileChangelogPtr CreateChangelog(int recordCount, TFileChangelogConfigPtr config = nullptr)
+    IUnbufferedFileChangelogPtr CreateChangelog(int recordCount, TFileChangelogConfigPtr config = nullptr)
     {
         if (!config) {
             config = DefaultFileChangelogConfig;
         }
 
-        auto changelog = CreateFileChangelog(IOEngine, TemporaryFile->Name(), config);
+        auto changelog = CreateUnbufferedFileChangelog(
+            IOEngine,
+            /*memoryUsageTracker*/ nullptr,
+            TemporaryFile->Name(),
+            config);
         changelog->Create(/*meta*/ {}, GetFormatParam());
         AppendRecords(changelog, 0, recordCount);
         return changelog;
     }
 
-    void AppendRecords(IFileChangelogPtr changelog, int firstRecordIndex, int recordCount)
+    void AppendRecords(IUnbufferedFileChangelogPtr changelog, int firstRecordIndex, int recordCount)
     {
         auto records = MakeRecords(firstRecordIndex, firstRecordIndex + recordCount);
         changelog->Append(firstRecordIndex, records);
@@ -117,19 +119,23 @@ protected:
         return file.GetLength();
     }
 
-    IFileChangelogPtr OpenChangelog(TFileChangelogConfigPtr config = nullptr)
+    IUnbufferedFileChangelogPtr OpenChangelog(TFileChangelogConfigPtr config = nullptr)
     {
         if (!config) {
             config = DefaultFileChangelogConfig;
         }
 
-        auto changelog = CreateFileChangelog(IOEngine, TemporaryFile->Name(), config);
+        auto changelog = CreateUnbufferedFileChangelog(
+            IOEngine,
+            /*memoryUsageTracker*/ nullptr,
+            TemporaryFile->Name(),
+            config);
         changelog->Open();
         return changelog;
     }
 
     static void CheckRead(
-        IFileChangelogPtr changelog,
+        IUnbufferedFileChangelogPtr changelog,
         int firstRecordIndex,
         int recordCount)
     {
@@ -142,7 +148,7 @@ protected:
         }
     }
 
-    static void CheckReads(IFileChangelogPtr changelog)
+    static void CheckReads(IUnbufferedFileChangelogPtr changelog)
     {
         auto totalRecordCount = changelog->GetRecordCount();
         for (int start = 0; start <= totalRecordCount; ++start) {
@@ -197,21 +203,29 @@ protected:
     }
 };
 
-TEST_P(TFileChangelogTest, Empty)
+TEST_P(TUnbufferedFileChangelogTest, Empty)
 {
     {
-        auto changelog = CreateFileChangelog(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
+        auto changelog = CreateUnbufferedFileChangelog(
+            IOEngine,
+            /*memoryUsageTracker*/ nullptr,
+            TemporaryFile->Name(),
+            New<TFileChangelogConfig>());
         changelog->Create(/*meta*/ {}, GetFormatParam());
         EXPECT_EQ(0, changelog->GetRecordCount());
     }
     {
-        auto changelog = CreateFileChangelog(IOEngine, TemporaryFile->Name(), New<TFileChangelogConfig>());
+        auto changelog = CreateUnbufferedFileChangelog(
+            IOEngine,
+            /*memoryUsageTracker*/ nullptr,
+            TemporaryFile->Name(),
+            New<TFileChangelogConfig>());
         changelog->Open();
         EXPECT_EQ(0, changelog->GetRecordCount());
     }
 }
 
-TEST_P(TFileChangelogTest, ReadWrite)
+TEST_P(TUnbufferedFileChangelogTest, ReadWrite)
 {
     constexpr int RecordCount = 16;
     {
@@ -226,7 +240,7 @@ TEST_P(TFileChangelogTest, ReadWrite)
     }
 }
 
-TEST_P(TFileChangelogTest, TestCorruptedDataFile)
+TEST_P(TUnbufferedFileChangelogTest, TestCorruptedDataFile)
 {
     constexpr int RecordCount = 1024;
     CreateChangelog(RecordCount);
@@ -238,7 +252,7 @@ TEST_P(TFileChangelogTest, TestCorruptedDataFile)
     TestCorruptedDataFile(fileSize + 50000, RecordCount, RecordCount);
 }
 
-TEST_P(TFileChangelogTest, TestCorruptedIndexFile)
+TEST_P(TUnbufferedFileChangelogTest, TestCorruptedIndexFile)
 {
     constexpr int RecordCount = 1024;
     CreateChangelog(RecordCount);
@@ -252,7 +266,7 @@ TEST_P(TFileChangelogTest, TestCorruptedIndexFile)
     TestCorruptedIndexFile(fileSize + 50000, RecordCount);
 }
 
-TEST_P(TFileChangelogTest, TruncateRead)
+TEST_P(TUnbufferedFileChangelogTest, TruncateRead)
 {
     constexpr int RecordCount = 16;
 
@@ -276,7 +290,7 @@ TEST_P(TFileChangelogTest, TruncateRead)
     }
 }
 
-TEST_P(TFileChangelogTest, RecoverFromMissingIndex)
+TEST_P(TUnbufferedFileChangelogTest, RecoverFromMissingIndex)
 {
     constexpr int RecordCount = 256;
 
@@ -294,14 +308,14 @@ TEST_P(TFileChangelogTest, RecoverFromMissingIndex)
     }
 }
 
-TEST_P(TFileChangelogTest, TruncateEmpty)
+TEST_P(TUnbufferedFileChangelogTest, TruncateEmpty)
 {
     auto changelog = CreateChangelog(0);
     changelog->Truncate(0);
     EXPECT_EQ(0, changelog->GetRecordCount());
 }
 
-TEST_P(TFileChangelogTest, TruncateWrite)
+TEST_P(TUnbufferedFileChangelogTest, TruncateWrite)
 {
     constexpr int RecordCount1 = 100;
     auto changelog = CreateChangelog(0);
@@ -320,7 +334,7 @@ TEST_P(TFileChangelogTest, TruncateWrite)
 
 INSTANTIATE_TEST_SUITE_P(
     TUnbufferedFileChangelogTest,
-    TFileChangelogTest,
+    TUnbufferedFileChangelogTest,
     ::testing::Values(
         EFileChangelogFormat::V5));
 

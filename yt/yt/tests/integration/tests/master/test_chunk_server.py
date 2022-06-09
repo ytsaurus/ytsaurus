@@ -181,7 +181,7 @@ class TestChunkServer(YTEnvSetup):
     @authors("babenko")
     def test_decommission_journal(self):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in range(0, 10)])
+        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
         self._test_decommission("//tmp/j", 3)
 
     @authors("babenko")
@@ -298,7 +298,7 @@ class TestChunkServer(YTEnvSetup):
     @pytest.mark.parametrize("service_to_restart", [NODES_SERVICE, MASTERS_SERVICE])
     def test_journal_chunk_replica_removal(self, service_to_restart):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"data": "payload" + str(i)} for i in range(0, 10)])
+        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
 
         self._wait_for_replicas_removal("//tmp/j", service_to_restart)
 

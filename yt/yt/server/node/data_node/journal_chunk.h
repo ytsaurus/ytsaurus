@@ -2,6 +2,8 @@
 
 #include "chunk_detail.h"
 
+#include <yt/yt/server/lib/hydra_common/public.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +39,13 @@ public:
         int blockCount,
         const TChunkReadOptions& options) override;
 
+    TFuture<void> PrepareToReadChunkFragments(
+        const NChunkClient::TClientChunkReadOptions& options,
+        bool useDirectIO) override;
+
+    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override;
+
     i64 GetFlushedRowCount() const;
     void UpdateFlushedRowCount(i64 rowCount);
 
@@ -56,6 +65,10 @@ private:
 
     std::atomic<bool> Sealed_ = false;
 
+    TWeakPtr<NHydra::IFileChangelog> WeakChangelog_;
+    NHydra::IFileChangelogPtr Changelog_;
+    TPromise<void> OpenChangelogPromise_;
+
     struct TReadBlockRangeSession
         : public TReadSessionBase
     {
@@ -69,6 +82,9 @@ private:
     TFuture<void> AsyncRemove() override;
 
     void DoReadBlockRange(const TReadBlockRangeSessionPtr& session);
+
+    NHydra::IFileChangelogPtr GetChangelog();
+    void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalChunk)

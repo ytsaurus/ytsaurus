@@ -29,6 +29,7 @@ protected:
     {
         return New<TFileChangelogIndex>(
             IOEngine_,
+            /*memoryUsageTracker*/ nullptr,
             TempFile_->Name(),
             New<TFileChangelogConfig>());
     }
@@ -42,7 +43,6 @@ protected:
             EXPECT_EQ(i, index->GetRecordCount());
             index->AppendRecord(i, {333 + i * 100, 433 + i * 100});
             EXPECT_EQ(i + 1, index->GetRecordCount());
-            EXPECT_EQ(333 + i * 100 + 100, index->GetDataFileLength());
         }
         index->SetFlushedDataRecordCount(startRecordIndex + recordCount);
     }

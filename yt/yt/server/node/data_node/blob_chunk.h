@@ -102,7 +102,6 @@ private:
     NIO::TChunkFileReaderPtr PreparedReader_;
 
     NIO::TChunkFileReaderPtr GetReader();
-
     void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
 
     void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);

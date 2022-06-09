@@ -18,29 +18,29 @@ struct IJournalDispatcher
 {
     //! Asynchronously opens (or returns a cached) changelog corresponding
     //! to a given journal chunk.
-    virtual TFuture<NHydra::IChangelogPtr> OpenChangelog(
+    virtual TFuture<NHydra::IFileChangelogPtr> OpenJournal(
         const TStoreLocationPtr& location,
         TChunkId chunkId) = 0;
 
     //! Asynchronously creates a new changelog corresponding to a given journal chunk.
-    virtual TFuture<NHydra::IChangelogPtr> CreateChangelog(
+    virtual TFuture<NHydra::IFileChangelogPtr> CreateJournal(
         const TStoreLocationPtr& location,
         TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor) = 0;
 
     //! Asynchronously removes files of a given journal chunk.
-    virtual TFuture<void> RemoveChangelog(
+    virtual TFuture<void> RemoveJournal(
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) = 0;
 
     //! Asynchronously checks if a given journal chunk is sealed.
-    virtual TFuture<bool> IsChangelogSealed(
+    virtual TFuture<bool> IsJournalSealed(
         const TStoreLocationPtr& location,
         TChunkId chunkId) = 0;
 
     //! Asynchronously marks a given journal chunk as sealed.
-    virtual TFuture<void> SealChangelog(TJournalChunkPtr chunk) = 0;
+    virtual TFuture<void> SealJournal(TJournalChunkPtr chunk) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJournalDispatcher)

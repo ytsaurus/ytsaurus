@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/journal_client/helpers.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/rpc/helpers.h>
@@ -1035,11 +1037,15 @@ private:
                     &State_->Response.Fragments);
             }
 
+            int blockHeaderSize = IsJournalChunkId(request.ChunkId) && IsErasureChunkId(request.ChunkId)
+                ? sizeof(NJournalClient::TErasureRowHeader)
+                : 0;
+
             auto& controller = *it->second.Controller;
             controller.RegisterRequest(TFragmentRequest{
                 .Length = request.Length,
-                .BlockOffset = request.BlockOffset,
-                .BlockSize = request.BlockSize,
+                .BlockOffset = request.BlockOffset + blockHeaderSize,
+                .BlockSize = request.BlockSize ? std::make_optional(*request.BlockSize + blockHeaderSize) : std::nullopt,
                 .BlockIndex = request.BlockIndex,
                 .FragmentIndex = index,
             });
@@ -1534,39 +1540,71 @@ private:
 
         for (int index = 0; index < std::ssize(State_->Requests); ++index) {
             const auto& request = State_->Requests[index];
+
+            auto makeErrorAttributes = [&] {
+                return std::vector{
+                    TErrorAttribute("chunk_id", request.ChunkId),
+                    TErrorAttribute("block_index", request.BlockIndex),
+                    TErrorAttribute("block_offset", request.BlockOffset),
+                    TErrorAttribute("length", request.Length)
+                };
+            };
+
             if (!IsPhysicalChunkType(TypeFromId(request.ChunkId))) {
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
-                    "Invalid chunk id %v in fragment read request",
-                    request.ChunkId));
+                    "Invalid chunk id in fragment read request")
+                    << makeErrorAttributes());
                 return;
             }
-            if (request.Length < 0) {
-                OnFatalError(TError(
-                    NChunkClient::EErrorCode::MalformedReadRequest,
-                    "Negative length %v in fragment read request",
-                    request.Length));
-                return;
-            }
-            if (request.BlockIndex < 0) {
-                OnFatalError(TError(
-                    NChunkClient::EErrorCode::MalformedReadRequest,
-                    "Negative block index %v in fragment read request",
-                    request.BlockIndex));
-                return;
-            }
-            if (request.BlockOffset < 0) {
-                OnFatalError(TError(
-                    NChunkClient::EErrorCode::MalformedReadRequest,
-                    "Negative block offset %v in fragment read request",
-                    request.BlockOffset));
-                return;
-            }
+
             if (IsErasureChunkId(request.ChunkId) && !request.BlockSize) {
                 OnFatalError(TError(
                     NChunkClient::EErrorCode::MalformedReadRequest,
-                    "Missing block size in fragment read request for erasure chunk %v",
-                    request.ChunkId));
+                    "Missing block size in fragment read request for erasure chunk")
+                    << makeErrorAttributes());
+                return;
+            }
+
+            if (request.BlockSize && request.BlockSize <= 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Non-positive block size in fragment read request")
+                    << makeErrorAttributes()
+                    << TErrorAttribute("block_size", *request.BlockSize));
+                return;
+            }
+
+            if (request.BlockIndex < 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Negative block index in fragment read request")
+                    << makeErrorAttributes());
+                return;
+            }
+
+            if (request.BlockOffset < 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Negative block offset in fragment read request")
+                    << makeErrorAttributes());
+                return;
+            }
+
+            if (request.Length < 0) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Negative length in fragment read request")
+                    << makeErrorAttributes());
+                return;
+            }
+
+            if (request.BlockSize && request.BlockOffset + request.Length > *request.BlockSize) {
+                OnFatalError(TError(
+                    NChunkClient::EErrorCode::MalformedReadRequest,
+                    "Fragment read request is out of block range")
+                    << makeErrorAttributes()
+                    << TErrorAttribute("block_size", *request.BlockSize));
                 return;
             }
 

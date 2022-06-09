@@ -20,14 +20,14 @@ struct IFileChangelogDispatcher
     virtual IInvokerPtr GetInvoker() = 0;
 
     //! Asynchronously creates a new changelog.
-    virtual TFuture<IChangelogPtr> CreateChangelog(
+    virtual TFuture<IFileChangelogPtr> CreateChangelog(
         int id,
         const TString& path,
         const NProto::TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config) = 0;
 
     //! Synchronously opens an existing changelog.
-    virtual TFuture<IChangelogPtr> OpenChangelog(
+    virtual TFuture<IFileChangelogPtr> OpenChangelog(
         int id,
         const TString& path,
         const TFileChangelogConfigPtr& config) = 0;
@@ -42,6 +42,7 @@ DEFINE_REFCOUNTED_TYPE(IFileChangelogDispatcher)
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
     TString threadName,
     NProfiling::TProfiler profiler);

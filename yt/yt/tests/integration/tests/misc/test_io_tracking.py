@@ -108,7 +108,7 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def generate_large_journal(self, row_len=10000, row_count=5):
         rnd = random.Random(42)
         # NB. The values are chosen in such a way so they cannot be compressed or deduplicated.
-        large_journal = [{"data": bytes(bytearray([rnd.randint(0, 255) for _ in range(row_len)]))} for _ in range(row_count)]
+        large_journal = [{"payload": bytes(bytearray([rnd.randint(0, 255) for _ in range(row_len)]))} for _ in range(row_count)]
         large_journal_size = row_count * row_len
         return large_journal, large_journal_size
 
@@ -279,7 +279,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_journal(self):
-        data = [{"data":  str(i)} for i in range(20)]
+        data = [{"payload":  str(i)} for i in range(20)]
 
         from_barrier = write_log_barrier(self.get_node_address())
         create("journal", "//tmp/journal")
@@ -376,7 +376,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_erasure_journal_chunks(self):
-        data = [{"data": str(i)} for i in range(20)]
+        data = [{"payload": str(i)} for i in range(20)]
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         create("journal", "//tmp/journal", attributes={

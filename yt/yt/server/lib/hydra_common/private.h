@@ -15,7 +15,7 @@ struct TRemoteSnapshotParams;
 DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogIndex)
 
-DECLARE_REFCOUNTED_STRUCT(IFileChangelog)
+DECLARE_REFCOUNTED_STRUCT(IUnbufferedFileChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 

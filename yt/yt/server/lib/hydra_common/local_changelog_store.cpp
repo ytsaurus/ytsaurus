@@ -1,12 +1,11 @@
-#include "private.h"
 #include "local_changelog_store.h"
+
+#include "private.h"
+#include "file_changelog.h"
 #include "file_changelog_dispatcher.h"
 #include "file_helpers.h"
 #include "changelog_store_helpers.h"
-
-#include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/config.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
+#include "config.h"
 
 #include <yt/yt/server/lib/io/io_engine.h>
 
@@ -305,6 +304,7 @@ public:
         , Config_(std::move(config))
         , Dispatcher_(CreateFileChangelogDispatcher(
             IOEngine_,
+            /*memoryUsageTracker*/ nullptr,
             Config_,
             threadName,
             profiler))
