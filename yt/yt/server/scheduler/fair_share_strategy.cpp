@@ -443,18 +443,6 @@ public:
         return Initialized_;
     }
 
-    void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        const auto& state = GetOperationState(operationId);
-        const auto& pools = state->TreeIdToPoolNameMap();
-
-        if (DefaultTreeId_ && pools.find(*DefaultTreeId_) != pools.end()) {
-            GetTree(*DefaultTreeId_)->BuildOperationAttributes(operationId, fluent);
-        }
-    }
-
     void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
@@ -552,6 +540,14 @@ public:
                     fluent
                         .Item("pool").Value(it->second.GetPool());
                 }
+            })
+            .Item("scheduling_info_per_tree").DoMapFor(pools, [&] (TFluentMap fluent, const auto& pair) {
+                const auto& [treeId, poolName] = pair;
+                auto tree = GetTree(treeId);
+                fluent
+                    .Item(treeId).BeginMap()
+                        .Do(std::bind(&IFairShareTree::BuildOperationAttributes, tree, operation->GetId(), std::placeholders::_1))
+                    .EndMap();
             })
             .Item("accumulated_resource_usage_per_tree").Value(accumulatedUsagePerTree);
     }

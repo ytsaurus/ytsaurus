@@ -888,15 +888,27 @@ public:
         return result;
     }
 
+    std::vector<TString> GetAncestorPoolNames(const TSchedulerOperationElement* element) const
+    {
+        std::vector<TString> result;
+        const auto* current = element->GetParent();
+        while (!current->IsRoot()) {
+            result.push_back(current->GetId());
+            current = current->GetParent();
+        }
+        std::reverse(result.begin(), result.end());
+        return result;
+    }
+
     void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        auto serializedParams = ConvertToAttributes(element->GetRuntimeParameters());
+
         fluent
-            .Items(*serializedParams)
-            .Item("pool").Value(element->GetParent()->GetId());
+            .Item("pool").Value(element->GetParent()->GetId())
+            .Item("ancestor_pools").Value(GetAncestorPoolNames(element.Get()));
     }
 
     void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) const override

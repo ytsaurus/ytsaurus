@@ -269,12 +269,6 @@ struct ISchedulerStrategy
     //! Updates current config used by strategy.
     virtual void UpdateConfig(const TFairShareStrategyConfigPtr& config) = 0;
 
-    //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
-    //! in Cypress during creation.
-    virtual void BuildOperationAttributes(
-        TOperationId operationId,
-        NYTree::TFluentMap fluent) = 0;
-
     //! Builds a YSON map fragment with strategy specific information about operation
     //! that used for event log.
     virtual void BuildOperationInfoForEventLog(
