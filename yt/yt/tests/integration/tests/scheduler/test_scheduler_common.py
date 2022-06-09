@@ -2260,7 +2260,8 @@ class TestEventLog(YTEnvSetup):
 
     @authors("ignat")
     def test_accumulated_usage(self):
-        create_pool("test_pool", pool_tree="default")
+        create_pool("parent_pool", pool_tree="default")
+        create_pool("test_pool", pool_tree="default", parent_name="parent_pool")
 
         scheduler_address = ls("//sys/scheduler/instances")[0]
         from_barrier = write_log_barrier(scheduler_address)
@@ -2280,7 +2281,9 @@ class TestEventLog(YTEnvSetup):
                 assert event["tree_id"] == "default"
                 assert "pools" in event
                 assert "test_pool" in event["pools"]
-                assert event["pools"]["test_pool"]["parent"] == "<Root>"
+                assert "parent_pool" in event["pools"]
+                assert event["pools"]["test_pool"]["parent"] == "parent_pool"
+                assert event["pools"]["parent_pool"]["parent"] == "<Root>"
 
                 assert "operations" in event
                 if op.id in event["operations"]:
@@ -2292,6 +2295,8 @@ class TestEventLog(YTEnvSetup):
 
             if event["event_type"] == "operation_completed":
                 assert event["operation_id"] == op.id
+                assert event["scheduling_info_per_tree"]["default"]["pool"] == "test_pool"
+                assert event["scheduling_info_per_tree"]["default"]["ancestor_pools"] == ["parent_pool", "test_pool"]
                 accumulated_usage += event["accumulated_resource_usage_per_tree"]["default"]["cpu"]
 
         assert accumulated_usage >= 5.0
