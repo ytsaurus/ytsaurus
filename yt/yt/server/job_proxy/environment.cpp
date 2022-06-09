@@ -393,12 +393,14 @@ public:
             if (NFS::Exists("/dev/kvm")) {
                 devices.push_back(TDevice{
                     .DeviceName = "/dev/kvm",
-                    .Enabled = true});
+                    .Enabled = true,
+                });
             }
             if (NFS::Exists("/dev/fuse")) {
                 devices.push_back(TDevice{
                     .DeviceName = "/dev/fuse",
-                    .Enabled = true});
+                    .Enabled = true,
+                });
             }
         }
 
