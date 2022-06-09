@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
+#include <yt/yt/server/lib/chaos_server/public.h>
+
 #include <yt/yt/core/misc/arithmetic_formula.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
@@ -23,6 +25,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TCellBundle*, CellBundle);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellBase*>, Cells);
     DEFINE_BYREF_RW_PROPERTY(TBooleanFormula, NodeTagFilter);
+    DEFINE_BYREF_RW_PROPERTY(NChaosServer::TChaosHydraConfigPtr, ChaosOptions);
 
 public:
     using TObject::TObject;

@@ -2,41 +2,39 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/chaos_server/config.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlienCellSynchronizerConfig
+class TChaosPeerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool Enable;
-    TDuration SyncPeriod;
-    TDuration FullSyncPeriod;
+    std::optional<TString> AlienCluster;
 
-    REGISTER_YSON_STRUCT(TAlienCellSynchronizerConfig);
+    REGISTER_YSON_STRUCT(TChaosPeerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TAlienCellSynchronizerConfig)
+DEFINE_REFCOUNTED_TYPE(TChaosPeerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChaosManagerConfig
+class TChaosHydraConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TAlienCellSynchronizerConfigPtr AlienCellSynchronizer;
+    std::vector<TChaosPeerConfigPtr> Peers;
 
-    REGISTER_YSON_STRUCT(TDynamicChaosManagerConfig);
+    REGISTER_YSON_STRUCT(TChaosHydraConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicChaosManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TChaosHydraConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

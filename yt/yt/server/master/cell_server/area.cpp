@@ -3,7 +3,11 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/lib/chaos_server/config.h>
+
 namespace NYT::NCellServer {
+
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +29,7 @@ void TArea::Save(NCellMaster::TSaveContext& context) const
     Save(context, Name_);
     Save(context, CellBundle_);
     Save(context, NodeTagFilter_);
+    TNullableIntrusivePtrSerializer<>::Save(context, ChaosOptions_);
 }
 
 void TArea::Load(NCellMaster::TLoadContext& context)
@@ -35,6 +40,9 @@ void TArea::Load(NCellMaster::TLoadContext& context)
     Load(context, Name_);
     Load(context, CellBundle_);
     Load(context, NodeTagFilter_);
+    if (context.GetVersion() >= EMasterReign::AreaChaosOptions) {
+        TNullableIntrusivePtrSerializer<>::Load(context, ChaosOptions_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

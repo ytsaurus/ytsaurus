@@ -24,7 +24,7 @@ class TChaosCellBundle
     : public NCellServer::TCellBundle
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TChaosHydraConfigPtr, ChaosOptions);
+    DEFINE_BYREF_RW_PROPERTY(TChaosHydraConfigPtr, ChaosOptions);
     DEFINE_BYVAL_RW_PROPERTY(TChaosCell*, MetadataCell);
 
 public:

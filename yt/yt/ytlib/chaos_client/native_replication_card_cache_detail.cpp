@@ -121,7 +121,19 @@ public:
             synchronizer->AddCellIds(replicationCard->CoordinatorCellIds);
 
             const auto& cellDirectory = connection->GetCellDirectory();
-            if (!cellDirectory->FindChannelByCellTag(CellTagFromId(Key_.CardId))) {
+            auto isSyncCell = [&] (auto cellId) {
+                return static_cast<bool>(cellDirectory->FindChannelByCellTag(CellTagFromId(cellId)));
+            };
+            auto isSyncCells = [&] (const std::vector<TCellId>& cellIds) {
+                for (auto cellId : cellIds) {
+                    if (!isSyncCell(cellId)) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            if (!isSyncCell(Key_.CardId) || !isSyncCells(replicationCard->CoordinatorCellIds)) {
                 YT_LOG_DEBUG("Synchronizing replication card chaos cells");
                 WaitFor(synchronizer->Sync())
                     .ThrowOnError();

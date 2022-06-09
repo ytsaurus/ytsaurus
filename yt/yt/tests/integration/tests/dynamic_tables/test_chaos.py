@@ -14,7 +14,7 @@ from yt_commands import (
     suspend_coordinator, resume_coordinator, reshard_table, alter_table,
     insert_rows, delete_rows, lookup_rows, select_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
-    build_snapshot, wait_for_cells, wait_for_chaos_cell,
+    build_snapshot, wait_for_cells, wait_for_chaos_cell, create_chaos_area,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id,
     get_in_sync_replicas, generate_timestamp, MaxTimestamp)
 
@@ -51,11 +51,11 @@ class ChaosTestBase(DynamicTablesBase):
             meta_cluster_names=meta_cluster_names,
             clock_cluster_tag=clock_cluster_tag)
 
-    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[]):
+    def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default"):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
         cell_id = generate_chaos_cell_id()
-        sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names)
+        sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names, area=area)
         return cell_id
 
     def _sync_create_chaos_bundle_and_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], clock_cluster_tag=None):
@@ -2076,3 +2076,81 @@ class TestChaosClockRpcProxy(ChaosClockBase):
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/crt", values)
         wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+
+##################################################################
+
+
+class TestChaosDedicated(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 3
+
+    def _create_dedicated_areas_and_cells(self, name="c"):
+        cluster_names = self.get_cluster_names()
+        meta_cluster_names = cluster_names[:-2] + cluster_names[-1:]
+        peer_cluster_names = cluster_names[-2:-1]
+        create_chaos_cell_bundle(
+            name,
+            peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            independent_peers=False)
+        default_cell_id = self._sync_create_chaos_cell(
+            name=name,
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names)
+
+        meta_cluster_names = cluster_names[:-1]
+        peer_cluster_names = cluster_names[-1:]
+        create_chaos_area(
+            "beta",
+            name,
+            peer_cluster_names,
+            meta_cluster_names=meta_cluster_names)
+        beta_cell_id = self._sync_create_chaos_cell(
+            name=name,
+            peer_cluster_names=peer_cluster_names,
+            meta_cluster_names=meta_cluster_names,
+            area="beta")
+
+        return [default_cell_id, beta_cell_id]
+
+    @authors("savrus")
+    def test_dedicated_areas(self):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        def _is_alien(cell, driver):
+            return "alien" in get("//sys/chaos_cells/{0}/@peers/0".format(cell), driver=driver)
+
+        assert _is_alien(cells[0], drivers[-1])
+        assert _is_alien(cells[1], drivers[-2])
+        assert not _is_alien(cells[0], drivers[-2])
+        assert not _is_alien(cells[1], drivers[-1])
+
+        areas = get("//sys/chaos_cell_bundles/c/@areas")
+        assert len(areas) == 2
+        assert all(area["cell_count"] == 1 for area in areas.values())
+
+        def _get_coordinators(cell, driver):
+            peer = get("//sys/chaos_cells/{0}/@peers/0/address".format(cell), driver=driver)
+            return get("//sys/cluster_nodes/{0}/orchid/chaos_cells/{1}/chaos_manager/coordinators".format(peer, cell), driver=driver)
+
+        assert len(_get_coordinators(cells[0], drivers[-2])) == 2
+        assert len(_get_coordinators(cells[1], drivers[-1])) == 2
+
+    @authors("savrus")
+    def test_dedicated_chaos_table(self):
+        cells = self._create_dedicated_areas_and_cells()
+        drivers = self._get_drivers()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/r1"}
+        ]
+        self._create_chaos_tables(cells[0], replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        assert lookup_rows("//tmp/t", [{"key": 0}]) == values
+        wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=drivers[2]) == values)
