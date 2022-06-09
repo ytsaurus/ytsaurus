@@ -2416,12 +2416,13 @@ def sync_create_cells(cell_count, driver=None, **attributes):
     return cell_ids
 
 
-def create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[]):
+def create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[], area="default"):
     params_pattern = {
         "type": "chaos_cell",
         "attributes": {
             "id": cell_id,
             "cell_bundle": cell_bundle,
+            "area": area,
         }
     }
 
@@ -2442,12 +2443,53 @@ def wait_for_chaos_cell(cell_id, peer_cluster_names):
     wait(check)
 
 
-def sync_create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[]):
-    create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names)
+def sync_create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[], area="default"):
+    create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names, area)
     wait_for_chaos_cell(cell_id, peer_cluster_names)
 
 
-def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[], clock_cluster_tag=None):
+def create_chaos_objects(params_pattern, peer_cluster_names, meta_cluster_names):
+    object_ids = []
+
+    def _create(cluster_name, params):
+        driver = get_driver(cluster=cluster_name)
+        params["driver"] = driver
+        result = execute_command("create", params)
+        object_id = yson.loads(result)["object_id"]
+        object_ids.append(object_id)
+        wait(
+            lambda: exists("#{}".format(object_id), driver=driver)
+            and get("#{}/@life_stage".format(object_id), driver=driver) == "creation_committed"
+        )
+
+    for peer_id, cluster_name in enumerate(peer_cluster_names):
+        params = pycopy.deepcopy(params_pattern)
+        del params["attributes"]["chaos_options"]["peers"][peer_id]["alien_cluster"]
+        _create(cluster_name, params)
+
+    for cluster_name in meta_cluster_names:
+        params = pycopy.deepcopy(params_pattern)
+        _create(cluster_name, params)
+
+    return object_ids
+
+
+def create_chaos_area(name, bundle, peer_cluster_names, meta_cluster_names=[]):
+    params_pattern = {
+        "type": "area",
+        "attributes": {
+            "name": name,
+            "cell_bundle": bundle,
+            "cellar_type": "chaos",
+            "chaos_options": {
+                "peers": [{"alien_cluster": cluster_name} for cluster_name in peer_cluster_names],
+            },
+        }
+    }
+    return create_chaos_objects(params_pattern, peer_cluster_names, meta_cluster_names)
+
+
+def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[], clock_cluster_tag=None, independent_peers=True):
     if not clock_cluster_tag:
         clock_cluster_tag = get("//sys/@primary_cell_tag")
     params_pattern = {
@@ -2461,35 +2503,12 @@ def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[], cl
                 "changelog_account": "sys",
                 "snapshot_account": "sys",
                 "peer_count": len(peer_cluster_names),
-                "independent_peers": True,
+                "independent_peers": independent_peers,
                 "clock_cluster_tag": clock_cluster_tag
             }
         }
     }
-
-    bundle_ids = []
-
-    def _create(cluster_name, params):
-        driver = get_driver(cluster=cluster_name)
-        params["driver"] = driver
-        result = execute_command("create", params)
-        bundle_id = yson.loads(result)["object_id"]
-        bundle_ids.append(bundle_id)
-        wait(
-            lambda: exists("#{}".format(bundle_id), driver=driver)
-            and get("#{}/@life_stage".format(bundle_id), driver=driver) == "creation_committed"
-        )
-
-    for peer_id, cluster_name in enumerate(peer_cluster_names):
-        params = pycopy.deepcopy(params_pattern)
-        del params["attributes"]["chaos_options"]["peers"][peer_id]["alien_cluster"]
-        _create(cluster_name, params)
-
-    for cluster_name in meta_cluster_names:
-        params = pycopy.deepcopy(params_pattern)
-        _create(cluster_name, params)
-
-    return bundle_ids
+    return create_chaos_objects(params_pattern, peer_cluster_names, meta_cluster_names)
 
 
 def wait_until_sealed(path, driver=None):

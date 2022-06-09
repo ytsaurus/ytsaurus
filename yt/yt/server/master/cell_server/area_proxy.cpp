@@ -15,14 +15,18 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/chaos_server/config.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NCellServer {
 
+using namespace NCellarClient;
+using namespace NChaosServer;
+using namespace NNodeTrackerServer;
+using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
-using namespace NObjectServer;
-using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +70,10 @@ private:
             .SetReplicated(true)
             .SetMandatory(true)
             .SetPresent(area->GetCellBundle()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosOptions)
+            .SetReplicated(true)
+            .SetMandatory(false)
+            .SetPresent(static_cast<bool>(area->ChaosOptions())));
         descriptors->push_back(EInternedAttributeKey::CellIds);
         descriptors->push_back(EInternedAttributeKey::Nodes);
     }
@@ -122,6 +130,16 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::ChaosOptions:
+                if (!area->ChaosOptions()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(area->ChaosOptions());
+                return true;
+
+
             default:
                 break;
         }
@@ -136,14 +154,17 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Name: {
-                auto newName = ConvertTo<TString>(value);
-                cellManager->RenameArea(area, newName);
+                cellManager->RenameArea(area, ConvertTo<TString>(value));
                 return true;
             }
 
             case EInternedAttributeKey::NodeTagFilter: {
-                auto formula = ConvertTo<TString>(value);
                 cellManager->SetAreaNodeTagFilter(area, ConvertTo<TString>(value));
+                return true;
+            }
+
+            case EInternedAttributeKey::ChaosOptions: {
+                UpdateChaosOptions(area, ConvertTo<TChaosHydraConfigPtr>(value));
                 return true;
             }
 
@@ -152,6 +173,21 @@ private:
         }
 
         return TBase::SetBuiltinAttribute(key, value);
+    }
+
+    void UpdateChaosOptions(TArea* area, TChaosHydraConfigPtr chaosOptions)
+    {
+        if (area->GetCellBundle()->GetCellarType() != ECellarType::Chaos) {
+            THROW_ERROR_EXCEPTION("Could not update area chaos options since cell bundle type is %Qlv",
+                area->GetCellBundle()->GetCellarType());
+        }
+
+        if (!area->Cells().empty()) {
+            THROW_ERROR_EXCEPTION("Could not update area chaos options since area contains %v cells",
+                std::ssize(area->Cells()));
+        }
+
+        area->ChaosOptions() = std::move(chaosOptions);
     }
 };
 

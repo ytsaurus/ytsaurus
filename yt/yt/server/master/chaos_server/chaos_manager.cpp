@@ -201,7 +201,7 @@ private:
         }
 
         auto* cell = cellBase->As<TChaosCell>();
-        const auto& chaosOptions = cell->GetCellBundle()->As<TChaosCellBundle>()->GetChaosOptions();
+        const auto& chaosOptions = cell->GetChaosOptions();
         THashSet<int> alienClusterIndexes;
 
         for (int peerId = 0; peerId < std::ssize(chaosOptions->Peers); ++peerId) {
@@ -278,7 +278,7 @@ private:
                         continue;
                     }
 
-                    const auto& options = cell->GetChaosCellBundle()->GetChaosOptions();
+                    const auto& options = cell->GetChaosOptions();
                     for (int peerId = 0; peerId < std::ssize(options->Peers); ++peerId) { 
                         const auto& alienCluster = options->Peers[peerId]->AlienCluster;
                         if (alienCluster && alienCluster == AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex)) {

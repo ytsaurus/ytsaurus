@@ -68,7 +68,7 @@ private:
         switch (key) {
             case EInternedAttributeKey::ChaosOptions:
                 BuildYsonFluently(consumer)
-                    .Value(cellBundle->GetChaosOptions());
+                    .Value(cellBundle->ChaosOptions());
                 return true;
 
             case EInternedAttributeKey::MetadataCellId:

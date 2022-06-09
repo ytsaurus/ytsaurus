@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cell_server/area.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -50,7 +52,7 @@ TChaosCellBundle* TChaosCell::GetChaosCellBundle() const
 
 bool TChaosCell::IsAlienPeer(int peerId) const
 {
-    const auto& options = GetChaosCellBundle()->GetChaosOptions();
+    const auto& options = GetChaosOptions();
     return options->Peers[peerId]->AlienCluster.has_value();
 }
 
@@ -67,7 +69,7 @@ TCellDescriptor TChaosCell::GetDescriptor() const
     // TODO(savrus) descriptor version is used for both cell directory and peer reconfiguration.
     // Need to differentiate them to avoid peer reconfiguration when alien peer is updated.
     descriptor.ConfigVersion = GetDescriptorConfigVersion();
-    const auto& chaosOptions = GetCellBundle()->As<TChaosCellBundle>()->GetChaosOptions();
+    const auto& chaosOptions = GetChaosOptions();
     for (int peerId = 0; peerId < std::ssize(chaosOptions->Peers); ++peerId) {
         auto peerDescriptor = TCellPeerDescriptor(Peers_[peerId].Descriptor, true);
         if (IsAlienPeer(peerId)) {
@@ -92,6 +94,13 @@ void TChaosCell::SetAlienConfigVersion(int alienClusterIndex, int version)
 {
     AlienConfigVersions_[alienClusterIndex] = version;
     CumulativeAlienConfigVersion_ += 1;
+}
+
+const TChaosHydraConfigPtr& TChaosCell::GetChaosOptions() const
+{
+    return GetArea()->ChaosOptions()
+        ? GetArea()->ChaosOptions()
+        : GetChaosCellBundle()->ChaosOptions();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

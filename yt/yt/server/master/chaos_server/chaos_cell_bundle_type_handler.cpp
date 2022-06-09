@@ -45,8 +45,7 @@ public:
         if (options->PeerCount != std::ssize(chaosOptions->Peers)) {
             THROW_ERROR_EXCEPTION("Peer descriptors size does not match peer count");
         }
-        options->IndependentPeers = true;
-        holder->SetChaosOptions(std::move(chaosOptions));
+        holder->ChaosOptions() = std::move(chaosOptions);
         return DoCreateObject(std::move(holder), attributes, std::move(options));
     }
 

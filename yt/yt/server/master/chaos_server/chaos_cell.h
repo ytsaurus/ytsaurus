@@ -53,6 +53,8 @@ public:
     int GetAlienConfigVersion(int alienClusterIndex) const;
     void SetAlienConfigVersion(int alienClusterIndex, int version);
 
+    const TChaosHydraConfigPtr& GetChaosOptions() const;
+
 private:
     int CumulativeAlienConfigVersion_ = 0;
 };
