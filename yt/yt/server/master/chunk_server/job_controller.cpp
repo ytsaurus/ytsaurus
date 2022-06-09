@@ -6,6 +6,8 @@
 
 namespace NYT::NChunkServer {
 
+////////////////////////////////////////////////////////////////////////////////
+
 static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,10 +33,10 @@ public:
                     YT_LOG_ERROR("Job throttler is overdrafted for job type, skipping job scheduling (Address: %v, JobType: %v)",
                         context->GetNode()->GetDefaultAddress(),
                         jobType);
-                } else {
-                    const auto& jobController = GetControllerForJobType(jobType);
-                    jobController->ScheduleJobs(context);
+                    continue;
                 }
+                const auto& jobController = GetControllerForJobType(jobType);
+                jobController->ScheduleJobs(context);
             }
         }
     }

@@ -5197,19 +5197,6 @@ private:
     std::vector<TError> GetAlerts() const
     {
         std::vector<TError> alerts;
-        if (JobRegistry_->IsOverdraft()) {
-            alerts.push_back(TError("Job registry throttler is overdrafted"));
-        }
-
-        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (IsMasterJobType(jobType)) {
-                if (JobRegistry_->IsOverdraft(jobType)) {
-                    alerts.push_back(TError("Job registry throttler is overdrafted for a job type")
-                        << TErrorAttribute("job_type", jobType));
-                }
-            }
-        }
-
         if (ChunkPlacement_) {
             auto chunkPlacementAlerts = ChunkPlacement_->GetAlerts();
             alerts.insert(alerts.end(), chunkPlacementAlerts.begin(), chunkPlacementAlerts.end());
