@@ -14,7 +14,7 @@ def running_app():
         port = pm.get_port()
 
         cmd = [
-            yatest.common.binary_path("yt/go/ytprof/cmd/app/app"),
+            yatest.common.binary_path("yt/go/ytprof/cmd/ytprof-api/ytprof-api"),
             "--config-json",
             json.dumps({
                 "http_endpoint": f"localhost:{port}",

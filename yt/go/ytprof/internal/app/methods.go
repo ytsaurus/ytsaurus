@@ -79,6 +79,8 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 		}
 	}
 
+	a.l.Error("list request succeded", log.Int("profiles found", len(res)))
+
 	return &api.ListResponse{Metadata: res}, nil
 }
 
@@ -94,6 +96,8 @@ func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOpti
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err
 	}
+
+	a.l.Error("get request succeded", log.String("ProfileID", in.ProfileID))
 
 	return &httpbody.HttpBody{
 		ContentType: "application/pprof",

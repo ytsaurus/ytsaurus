@@ -1,6 +1,6 @@
 {
     "cluster" = "freud";
-    "table_path" = "//home/kristevalex/ytprof/testing";
+    "table_path" = "//sys/ytprof/testing";
     "services" = [
         {
             "profile_type" = "cpu";
