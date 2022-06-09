@@ -1,4 +1,5 @@
 #include "chunk_file_reader.h"
+#include "chunk_fragment.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -27,21 +28,6 @@ using namespace NYTAlloc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = IOLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, const TChunkFragmentDescriptor& descriptor, TStringBuf /*spec*/)
-{
-    builder->AppendFormat("{%v,%v,%v}",
-        descriptor.Length,
-        descriptor.BlockIndex,
-        descriptor.BlockOffset);
-}
-
-TString ToString(const TChunkFragmentDescriptor& descriptor)
-{
-    return ToStringViaBuilder(descriptor);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,22 +192,30 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
 {
     YT_ASSERT(ChunkFragmentReadsPrepared_.load());
 
+    auto makeErrorAttributes = [&] {
+        return std::vector{
+            TErrorAttribute("chunk_id", ChunkId_),
+            TErrorAttribute("block_index", fragmentDescriptor.BlockIndex),
+            TErrorAttribute("block_offset", fragmentDescriptor.BlockOffset),
+            TErrorAttribute("length", fragmentDescriptor.Length)
+        };
+    };
+
     if (fragmentDescriptor.BlockIndex < 0 ||
         fragmentDescriptor.BlockIndex >= std::ssize(BlocksExt_->Blocks))
     {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
-            "Invalid block index in fragment descriptor %v: expected in range [0,%v)",
-            fragmentDescriptor,
-            BlocksExt_->Blocks.size());
+            "Invalid block index in fragment descriptor")
+            << makeErrorAttributes()
+            << TErrorAttribute("block_count", BlocksExt_->Blocks.size());
     }
 
     if (fragmentDescriptor.Length < 0) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
-            "Negative length in fragment descriptor %v",
-            fragmentDescriptor,
-            BlocksExt_->Blocks.size());
+            "Negative length in fragment descriptor %v")
+            << makeErrorAttributes();
     }
 
     const auto& blockInfo = BlocksExt_->Blocks[fragmentDescriptor.BlockIndex];
@@ -230,13 +224,13 @@ IIOEngine::TReadRequest TChunkFileReader::MakeChunkFragmentReadRequest(
     {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MalformedReadRequest,
-            "Invalid block offset in fragment descriptor %v for block of size %v",
-            fragmentDescriptor,
-            blockInfo.Size);
+            "Fragment is out of block range")
+            << makeErrorAttributes()
+            << TErrorAttribute("block_size", blockInfo.Size);
     }
 
     return IIOEngine::TReadRequest{
-        .Handle = DataFile_,
+        .Handle = DataFileHandle_,
         .Offset = blockInfo.Offset + fragmentDescriptor.BlockOffset,
         .Size = fragmentDescriptor.Length
     };
@@ -444,8 +438,8 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
 
 TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(bool useDirectIO)
 {
-    auto guard = Guard(DataFileLock_);
-    if (!DataFileFuture_) {
+    auto guard = Guard(DataFileHandleLock_);
+    if (!DataFileHandleFuture_) {
         YT_LOG_DEBUG("Started opening chunk data file (FileName: %v)",
             FileName_);
 
@@ -453,11 +447,11 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(bool useDirectIO)
         if (useDirectIO) {
             TIOEngineHandle::MarkOpenForDirectIO(&mode);
         }
-        DataFileFuture_ = IOEngine_->Open({FileName_, mode})
+        DataFileHandleFuture_ = IOEngine_->Open({FileName_, mode})
             .ToUncancelable()
             .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this)));
     }
-    return DataFileFuture_;
+    return DataFileHandleFuture_;
 }
 
 TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(const TIOEngineHandlePtr& file)
@@ -466,7 +460,7 @@ TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(const TIOEngineHandlePtr& 
         FileName_,
         static_cast<FHANDLE>(*file));
 
-    DataFile_ = file;
+    DataFileHandle_ = file;
 
     return file;
 }

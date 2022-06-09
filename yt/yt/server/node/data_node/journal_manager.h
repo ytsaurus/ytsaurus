@@ -15,49 +15,44 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages journal chunks stored at some specific location.
-class TJournalManager
+struct IJournalManager
     : public TRefCounted
 {
-public:
-    TJournalManager(
-        TDataNodeConfigPtr config,
-        TStoreLocation* location,
-        TChunkContextPtr chunkContext);
-    ~TJournalManager();
+    virtual void Initialize() = 0;
 
-    void Initialize();
+    virtual TFuture<NHydra::IFileChangelogPtr> OpenChangelog(
+        TChunkId chunkId) = 0;
 
-    TFuture<NHydra::IChangelogPtr> OpenChangelog(
-        TChunkId chunkId);
-
-    TFuture<NHydra::IChangelogPtr> CreateChangelog(
+    virtual TFuture<NHydra::IFileChangelogPtr> CreateChangelog(
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& workloadDescriptor);
+        const TWorkloadDescriptor& workloadDescriptor)  = 0;
 
-    TFuture<void> RemoveChangelog(
+    virtual TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
-        bool enableMultiplexing);
+        bool enableMultiplexing) = 0;
 
     // Returns true if some records were skipped.
-    TFuture<bool> AppendMultiplexedRecords(
+    virtual TFuture<bool> AppendMultiplexedRecords(
         TChunkId chunkId,
         int firstRecordId,
         TRange<TSharedRef> records,
-        TFuture<void> splitResult);
+        TFuture<void> splitResult)  = 0;
 
-    TFuture<bool> IsChangelogSealed(TChunkId chunkId);
+    virtual TFuture<bool> IsChangelogSealed(TChunkId chunkId) = 0;
 
-    TFuture<void> SealChangelog(const TJournalChunkPtr& chunk);
-
-private:
-    class TImpl;
-    typedef TIntrusivePtr<TImpl> TImplPtr;
-
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual TFuture<void> SealChangelog(const TJournalChunkPtr& chunk) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJournalManager)
+DEFINE_REFCOUNTED_TYPE(IJournalManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJournalManagerPtr CreateJournalManager(
+    TDataNodeConfigPtr config,
+    TStoreLocation* location,
+    TChunkContextPtr chunkContext,
+    INodeMemoryTrackerPtr nodeMemoryTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

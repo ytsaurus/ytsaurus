@@ -402,7 +402,7 @@ public:
     const TStoreLocationConfigPtr& GetConfig() const;
 
     //! Returns Journal Manager associated with this location.
-    const TJournalManagerPtr& GetJournalManager();
+    const IJournalManagerPtr& GetJournalManager();
 
     //! Returns the space reserved for low watermark.
     //! Never throws.
@@ -432,7 +432,7 @@ public:
 private:
     const TStoreLocationConfigPtr Config_;
 
-    const TJournalManagerPtr JournalManager_;
+    const IJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
 
     mutable std::atomic<bool> Full_ = false;

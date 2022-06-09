@@ -7,7 +7,8 @@ from yt_commands import (
     lookup_rows, delete_rows, remount_table,
     alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
-    start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks)
+    start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
+    write_journal)
 
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
@@ -1114,25 +1115,36 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         wait(lambda: request_counter.get_delta() > 0)
 
-    @authors("babenko")
-    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3"])
-    def test_blob_hunk_read(self, erasure_codec):
-        PAYLOAD = b"abcdefghijklmnopqrstuvwxyz"
+    BLOB_HUNK_PAYLOAD = [
+        {"payload": b"abcdefghijklmnopqrstuvwxyz"}
+    ]
+
+    def _write_blob_hunks(self, erasure_codec):
         create("file", "//tmp/f", attributes={
             "erasure_codec": erasure_codec,
             "enable_striped_erasure": True
         })
-        write_file("//tmp/f", PAYLOAD)
-        chunk_id = get_singular_chunk_id("//tmp/f")
+        assert len(self.BLOB_HUNK_PAYLOAD) == 1
+        write_file("//tmp/f", self.BLOB_HUNK_PAYLOAD[0]["payload"])
+        return get_singular_chunk_id("//tmp/f")
+
+    def _prepare_hunk_read_requests(self, requests, erasure_codec, payload):
+        if erasure_codec != "none":
+            for request in requests:
+                request["erasure_codec"] = erasure_codec
+                if "block_size" not in request:
+                    request["block_size"] = len(payload[request["block_index"]]["payload"])
+
+    @authors("babenko")
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_blob_hunk_read(self, erasure_codec):
+        chunk_id = self._write_blob_hunks(erasure_codec)
         requests = [
             {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": 26},
             {"chunk_id": chunk_id, "block_index": 0, "block_offset": 5, "length": 0},
             {"chunk_id": chunk_id, "block_index": 0, "block_offset": 10, "length": 3}
         ]
-        if erasure_codec != "none":
-            for request in requests:
-                request["erasure_codec"] = erasure_codec
-                request["block_size"] = len(PAYLOAD)
+        self._prepare_hunk_read_requests(requests, erasure_codec, self.BLOB_HUNK_PAYLOAD)
         responses = read_hunks(requests)
         assert len(responses) == 3
         assert responses[0]["payload"] == "abcdefghijklmnopqrstuvwxyz"
@@ -1140,12 +1152,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert responses[2]["payload"] == "klm"
 
     @authors("babenko")
-    def test_blob_hunk_read_failed(self):
-        PAYLOAD = b"abcdefghijklmnopqrstuvwxyz"
-        create("file", "//tmp/f")
-        write_file("//tmp/f", PAYLOAD)
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_blob_hunk_read_failed(self, erasure_codec):
+        chunk_id = self._write_blob_hunks(erasure_codec)
         chunk_id = get_singular_chunk_id("//tmp/f")
-        for request in [
+        requests = [
             {"chunk_id": "1-2-3-4", "block_index": 0, "block_offset": 0, "length": 0},
             {"chunk_id": chunk_id, "block_index": 0, "block_offset": -100, "length": 0},
             {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": -1},
@@ -1154,6 +1165,64 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             # TODO(babenko,gritukan): consider failing these (zero-length!) requests.
             # {"chunk_id": chunk_id, "block_index": 1, "block_offset": 0, "length": 0},
             # {"chunk_id": chunk_id, "block_index": 0, "block_offset": 100, "length": 0},
-        ]:
+        ]
+        self._prepare_hunk_read_requests(requests, erasure_codec, self.BLOB_HUNK_PAYLOAD)
+        for request in requests:
+            with pytest.raises(YtError):
+                read_hunks([request])
+
+    JOURNAL_HUNK_PAYLOAD = [
+        {"payload": "abcdefghijklmnopqrstuvwxyz"},
+        {"payload": "0123456789"},
+        {"payload": "abababababababab"}
+    ]
+
+    def _write_journal_hunks(self, erasure_codec, replication_factor, read_quorum, write_quorum):
+        create("journal", "//tmp/j", attributes={
+            "erasure_codec": erasure_codec,
+            "replication_factor": replication_factor,
+            "read_quorum": read_quorum,
+            "write_quorum": write_quorum
+        })
+        write_journal("//tmp/j", self.JOURNAL_HUNK_PAYLOAD)
+        return get_singular_chunk_id("//tmp/j")
+
+    @authors("babenko")
+    @pytest.mark.parametrize("erasure_codec,replication_factor,read_quorum,write_quorum",
+                             [("none", 3, 2, 2), ("isa_reed_solomon_3_3", 1, 4, 5)])
+    def test_journal_hunk_read(self, erasure_codec, replication_factor, read_quorum, write_quorum):
+        chunk_id = self._write_journal_hunks(erasure_codec, replication_factor, read_quorum, write_quorum)
+        requests = [
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": 26},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 3, "length": 4},
+            {"chunk_id": chunk_id, "block_index": 1, "block_offset": 2, "length": 5},
+            {"chunk_id": chunk_id, "block_index": 2, "block_offset": 1, "length": 1},
+            {"chunk_id": chunk_id, "block_index": 1, "block_offset": 7, "length": 0}
+        ]
+        self._prepare_hunk_read_requests(requests, erasure_codec, self.JOURNAL_HUNK_PAYLOAD)
+        responses = read_hunks(requests)
+        assert len(responses) == 5
+        assert responses[0]["payload"] == "abcdefghijklmnopqrstuvwxyz"
+        assert responses[1]["payload"] == "defg"
+        assert responses[2]["payload"] == "23456"
+        assert responses[3]["payload"] == "b"
+        assert responses[4]["payload"] == ""
+
+    @authors("babenko")
+    @pytest.mark.parametrize("erasure_codec,replication_factor,read_quorum,write_quorum",
+                             [("none", 3, 2, 2), ("isa_reed_solomon_3_3", 1, 4, 5)])
+    def test_journal_hunk_read_failed(self, erasure_codec, replication_factor, read_quorum, write_quorum):
+        chunk_id = self._write_journal_hunks(erasure_codec, replication_factor, read_quorum, write_quorum)
+        requests = [
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": -1, "length": 1},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 100, "length": 1},
+            {"chunk_id": chunk_id, "block_index": 0, "block_offset": 0, "length": -1},
+            {"chunk_id": chunk_id, "block_index": 100, "block_offset": 0, "length": 1, "block_size": 100},
+            # TODO(babenko,gritukan): consider failing these (zero-length!) requests.
+            # {"chunk_id": chunk_id, "block_index": 100, "block_offset": 0, "length": 0},
+            # {"chunk_id": chunk_id, "block_index": 0, "block_offset": 100, "length": 0},
+        ]
+        self._prepare_hunk_read_requests(requests, erasure_codec, self.JOURNAL_HUNK_PAYLOAD)
+        for request in requests:
             with pytest.raises(YtError):
                 read_hunks([request])

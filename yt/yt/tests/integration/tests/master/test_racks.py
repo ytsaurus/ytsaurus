@@ -20,7 +20,7 @@ class TestRacks(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
 
-    JOURNAL_DATA = [{"data": "payload" + str(i)} for i in range(0, 10)]
+    JOURNAL_DATA = [{"payload": "payload" + str(i)} for i in range(0, 10)]
     FILE_DATA = b"payload"
 
     def _get_replica_nodes(self, chunk_id):

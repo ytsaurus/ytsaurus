@@ -72,6 +72,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NodeProbeFailed)                       (745))
     ((WaitedForSchemaForTooLong)             (746))
     ((UnrecoverableRepairError)              (747))
+    ((MissingJournalChunkRecord)             (748))
 );
 
 using TChunkId = NObjectClient::TObjectId;

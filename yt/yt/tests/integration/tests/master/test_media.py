@@ -416,7 +416,7 @@ class TestMedia(YTEnvSetup):
     def test_journal_medium(self):
         create("journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
-        data = [{"data": "payload" + str(i)} for i in range(0, 10)]
+        data = [{"payload": "payload" + str(i)} for i in range(0, 10)]
         write_journal("//tmp/j", data)
         wait_until_sealed("//tmp/j")
         chunk_id = get_singular_chunk_id("//tmp/j")

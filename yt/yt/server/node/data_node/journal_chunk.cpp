@@ -24,6 +24,7 @@
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NClusterNode;
 using namespace NIO;
 using namespace NChunkClient;
@@ -192,8 +193,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 {
     try {
-        auto changelog = WaitFor(Context_->JournalDispatcher->OpenChangelog(StoreLocation_, Id_))
-            .ValueOrThrow();
+        auto changelog = GetChangelog();
 
         int firstBlockIndex = session->FirstBlockIndex;
         int lastBlockIndex = session->FirstBlockIndex + session->BlockCount - 1; // inclusive
@@ -207,11 +207,11 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         TWallTimer timer;
 
-        auto asyncBlocks = changelog->Read(
+        auto blocksFuture = changelog->Read(
             firstBlockIndex,
             std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
             Context_->DataNodeConfig->MaxBytesPerRead);
-        auto blocksOrError = WaitFor(asyncBlocks);
+        auto blocksOrError = WaitFor(blocksFuture);
         if (!blocksOrError.IsOK()) {
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
@@ -253,6 +253,65 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
     }
 }
 
+TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
+    const TClientChunkReadOptions& /*options*/,
+    bool /*useDirectIO*/)
+{
+    auto guard = ReaderGuard(LifetimeLock_);
+
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+
+    if (Changelog_) {
+        return {};
+    }
+
+    if (auto changelog = WeakChangelog_.Lock()) {
+        Changelog_ = std::move(changelog);
+        return {};
+    }
+
+    if (OpenChangelogPromise_) {
+        return OpenChangelogPromise_.ToFuture();
+    }
+
+    OpenChangelogPromise_ = NewPromise<void>();
+    auto future = OpenChangelogPromise_.ToFuture();
+
+    guard.Release();
+
+    OpenChangelogPromise_.SetFrom(
+        Context_->JournalDispatcher->OpenJournal(StoreLocation_, Id_)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
+                auto writerGuard = WriterGuard(LifetimeLock_);
+
+                OpenChangelogPromise_.Reset();
+
+                if (ReadLockCounter_.load() == 0) {
+                    return;
+                }
+
+                Changelog_ = changelog;
+                WeakChangelog_ = changelog;
+
+                writerGuard.Release();
+
+                YT_LOG_DEBUG("Changelog prepared to read fragments (ChunkId: %v, LocationId: %v)",
+                    Id_,
+                    Location_->GetId());
+            }).AsyncVia(Context_->StorageLightInvoker)));
+
+    return future;
+}
+
+IIOEngine::TReadRequest TJournalChunk::MakeChunkFragmentReadRequest(
+    const TChunkFragmentDescriptor& fragmentDescriptor)
+{
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+    YT_VERIFY(Changelog_);
+
+    return Changelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);
+}
+
 void TJournalChunk::SyncRemove(bool force)
 {
     Location_->RemoveChunkFiles(Id_, force);
@@ -262,7 +321,7 @@ TFuture<void> TJournalChunk::AsyncRemove()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Context_->JournalDispatcher->RemoveChangelog(this, true);
+    return Context_->JournalDispatcher->RemoveJournal(this, true);
 }
 
 i64 TJournalChunk::GetFlushedRowCount() const
@@ -304,12 +363,60 @@ TFuture<void> TJournalChunk::Seal()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Context_->JournalDispatcher->SealChangelog(this).Apply(
+    return Context_->JournalDispatcher->SealJournal(this).Apply(
         BIND([this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
                 Id_);
             Sealed_.store(true);
         }));
+}
+
+IFileChangelogPtr TJournalChunk::GetChangelog()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    YT_VERIFY(ReadLockCounter_.load() > 0);
+
+    {
+        auto guard = ReaderGuard(LifetimeLock_);
+
+        if (auto changelog = Changelog_) {
+            return changelog;
+        }
+
+        if (auto changelog = WeakChangelog_.Lock()) {
+            return changelog;
+        }
+    }
+
+    auto changelog = WaitFor(Context_->JournalDispatcher->OpenJournal(StoreLocation_, Id_))
+        .ValueOrThrow();
+
+    {
+        auto guard = WriterGuard(LifetimeLock_);
+
+        Changelog_ = changelog;
+        WeakChangelog_ = changelog;
+    }
+
+    return changelog;
+}
+
+void TJournalChunk::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard)
+{
+    VERIFY_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
+    YT_VERIFY(ReadLockCounter_.load() == 0);
+
+    if (!Changelog_) {
+        return;
+    }
+
+    auto changelog = std::exchange(Changelog_, nullptr);
+
+    writerGuard.Release();
+
+    YT_LOG_DEBUG("Changelog released (ChunkId: %v, LocationId: %v)",
+        Id_,
+        Location_->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

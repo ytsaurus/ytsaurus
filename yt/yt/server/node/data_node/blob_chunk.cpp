@@ -164,8 +164,9 @@ TChunkFileReaderPtr TBlobChunkBase::GetReader()
     {
         auto guard = WriterGuard(LifetimeLock_);
         CachedWeakReader_ = reader;
-        return reader;
     }
+
+    return reader;
 }
 
 void TBlobChunkBase::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard)
@@ -177,7 +178,7 @@ void TBlobChunkBase::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGu
         return;
     }
 
-    auto reader = std::move(PreparedReader_);
+    auto reader = std::exchange(PreparedReader_, nullptr);
 
     writerGuard.Release();
 
@@ -767,7 +768,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
     const TClientChunkReadOptions& options,
     bool useDirectIO)
 {
-    auto guard = ReaderGuard(LifetimeLock_);
+    auto readerGuard = ReaderGuard(LifetimeLock_);
 
     YT_VERIFY(ReadLockCounter_.load() > 0);
 
@@ -781,7 +782,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
         return {};
     }
 
-    guard.Release();
+    readerGuard.Release();
 
     if (!reader) {
         reader = Context_->BlobReaderCache->GetReader(this);

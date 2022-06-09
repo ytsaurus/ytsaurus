@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 #include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
 #include <yt/yt/server/lib/hydra_common/file_helpers.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
@@ -18,6 +18,9 @@
 #include <yt/yt/server/lib/hydra/private.h>
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/client/hydra/version.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -267,18 +270,18 @@ private:
             switch (record.Header.Type) {
                 case EMultiplexedRecordType::Skip:
                 case EMultiplexedRecordType::Append: {
-                    YT_VERIFY(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
+                    YT_VERIFY(!RemoveChunkIds_.contains(chunkId));
                     auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
                     if (it == ChunkIdToFirstRelevantVersion_.end()) {
-                        YT_VERIFY(ChunkIdToFirstRelevantVersion_.emplace(chunkId, version).second);
+                        EmplaceOrCrash(ChunkIdToFirstRelevantVersion_, chunkId, version);
                     }
                     AppendChunkIds_.insert(chunkId);
                     break;
                 }
 
                 case EMultiplexedRecordType::Create:
-                    YT_VERIFY(AppendChunkIds_.find(chunkId) == AppendChunkIds_.end());
-                    YT_VERIFY(CreateChunkIds_.find(chunkId) == CreateChunkIds_.end());
+                    YT_VERIFY(!AppendChunkIds_.contains(chunkId));
+                    YT_VERIFY(!CreateChunkIds_.contains(chunkId));
                     CreateChunkIds_.insert(chunkId);
                     RemoveChunkIds_.erase(chunkId);
                     ChunkIdToFirstRelevantVersion_[chunkId] = version;
@@ -459,9 +462,10 @@ private:
             return;
         }
 
-        YT_VERIFY(SplitMap_.emplace(
+        EmplaceOrCrash(
+            SplitMap_,
             chunkId,
-            TSplitEntry(chunkId, changelog)).second);
+            TSplitEntry(chunkId, changelog));
 
         YT_LOG_INFO("Replay created journal chunk (ChunkId: %v)",
             chunkId);
@@ -471,7 +475,7 @@ private:
     {
         auto chunkId = record.Header.ChunkId;
 
-        YT_VERIFY(SplitMap_.find(chunkId) == SplitMap_.end());
+        YT_VERIFY(!SplitMap_.contains(chunkId));
 
         if (!Callbacks_->RemoveSplitChangelog(chunkId))
             return;
@@ -571,7 +575,7 @@ public:
     {
         auto barrier = NewPromise<void>();
         auto guard = Guard(SpinLock_);
-        YT_VERIFY(Barriers_.insert(barrier).second);
+        InsertOrCrash(Barriers_, barrier);
         return barrier;
     }
 
@@ -761,14 +765,14 @@ private:
         auto changelog = WaitFor(MultiplexedChangelogDispatcher_->CreateChangelog(
             id,
             GetMultiplexedChangelogPath(id),
-            /* meta */ {},
+            /*meta*/ {},
             Config_))
             .ValueOrThrow();
 
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
-        YT_VERIFY(MultiplexedChangelogIdToCleanResult_.emplace(id, NewPromise<void>()).second);
+        EmplaceOrCrash(MultiplexedChangelogIdToCleanResult_, id, NewPromise<void>());
 
         return changelog;
     }
@@ -884,14 +888,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalManager::TImpl
-    : public TRefCounted
+class TJournalManager
+    : public IJournalManager
 {
 public:
-    TImpl(
+    TJournalManager(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        TChunkContextPtr chunkContext)
+        TChunkContextPtr chunkContext,
+        INodeMemoryTrackerPtr nodeMemoryTracker)
         : MultiplexedChangelogConfig_(UpdateYsonStruct(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
         , HighLatencySplitChangelogConfig_(UpdateYsonStruct(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
         , LowLatencySplitChangelogConfig_(UpdateYsonStruct(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
@@ -899,14 +904,20 @@ public:
         , ChunkContext_(chunkContext)
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
     {
+        auto journalIndexMemorTracker = nodeMemoryTracker
+            ? nodeMemoryTracker->WithCategory(NClusterNode::EMemoryCategory::ChunkJournalIndex)
+            : nullptr;
+
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
+            journalIndexMemorTracker,
             MultiplexedChangelogConfig_,
             "MFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = CreateFileChangelogDispatcher(
             Location_->GetIOEngine(),
+            journalIndexMemorTracker,
             MultiplexedChangelogConfig_,
             "SFlush:" + Location_->GetId(),
             Location_->GetProfiler().WithPrefix("/split_changelogs"));
@@ -919,7 +930,7 @@ public:
             Logger);
     }
 
-    void Initialize()
+    void Initialize() override
     {
         YT_LOG_INFO("Initializing journals");
 
@@ -937,50 +948,50 @@ public:
         YT_LOG_INFO("Journals initialized");
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(TChunkId chunkId)
+    TFuture<IFileChangelogPtr> OpenChangelog(TChunkId chunkId) override
     {
-        return BIND(Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)))
+        return BIND(Location_->DisableOnError(BIND(&TJournalManager::DoOpenChangelog, MakeStrong(this), chunkId)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run()
             .ToUncancelable();
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(
+    TFuture<IFileChangelogPtr> CreateChangelog(
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TWorkloadDescriptor& workloadDescriptor) override
     {
         auto creator = BIND(Location_->DisableOnError(
             BIND(
-                &TImpl::DoCreateChangelog,
+                &TJournalManager::DoCreateChangelog,
                 MakeStrong(this),
                 chunkId,
                 enableMultiplexing,
                 workloadDescriptor)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
 
-        TFuture<IChangelogPtr> asyncChangelog;
+        TFuture<IFileChangelogPtr> changelogFuture;
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
-            asyncChangelog = MultiplexedWriter_->WriteCreateRecord(chunkId)
+            changelogFuture = MultiplexedWriter_->WriteCreateRecord(chunkId)
                 .Apply(creator)
-                .Apply(BIND([=] (const TErrorOr<IChangelogPtr>& result) mutable {
+                .Apply(BIND([=] (const TErrorOr<IFileChangelogPtr>& result) mutable {
                     barrier.Set(result.IsOK() ? TError() : TError(result));
                     return result.ValueOrThrow();
                 }));
         } else {
-            asyncChangelog = creator.Run();
+            changelogFuture = creator.Run();
         }
-        return asyncChangelog.ToUncancelable();
+        return changelogFuture.ToUncancelable();
     }
 
     TFuture<void> RemoveChangelog(
         const TJournalChunkPtr& chunk,
-        bool enableMultiplexing)
+        bool enableMultiplexing) override
     {
         auto remover = BIND(Location_->DisableOnError(
             BIND(
-                &TImpl::DoRemoveChangelog,
+                &TJournalManager::DoRemoveChangelog,
                 MakeStrong(this),
                 chunk)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
@@ -1004,23 +1015,23 @@ public:
         TChunkId chunkId,
         int firstRecordId,
         TRange<TSharedRef> records,
-        TFuture<void> splitResult)
+        TFuture<void> splitResult) override
     {
         auto barrier = MultiplexedWriter_->RegisterBarrier();
         barrier.SetFrom(splitResult);
         return MultiplexedWriter_->WriteAppendRecords(chunkId, firstRecordId, records);
     }
 
-    TFuture<bool> IsChangelogSealed(TChunkId chunkId)
+    TFuture<bool> IsChangelogSealed(TChunkId chunkId) override
     {
-        return BIND(Location_->DisableOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId)))
+        return BIND(Location_->DisableOnError(BIND(&TJournalManager::DoIsChangelogSealed, MakeStrong(this), chunkId)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
 
-    TFuture<void> SealChangelog(const TJournalChunkPtr& chunk)
+    TFuture<void> SealChangelog(const TJournalChunkPtr& chunk) override
     {
-        return BIND(Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk)))
+        return BIND(Location_->DisableOnError(BIND(&TJournalManager::DoSealChangelog, MakeStrong(this), chunk)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run()
             .ToUncancelable();
@@ -1031,7 +1042,7 @@ private:
     const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
     const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
-    TChunkContextPtr ChunkContext_;
+    const TChunkContextPtr ChunkContext_;
 
     const NLogging::TLogger Logger;
 
@@ -1048,12 +1059,12 @@ private:
             : LowLatencySplitChangelogConfig_;
     }
 
-    IChangelogPtr DoCreateChangelog(
+    IFileChangelogPtr DoCreateChangelog(
         TChunkId chunkId,
         bool enableMultiplexing,
-        const TWorkloadDescriptor& /* workloadDescriptor */)
+        const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
-        IChangelogPtr changelog;
+        IFileChangelogPtr changelog;
 
         YT_LOG_DEBUG("Started creating journal chunk (ChunkId: %v)",
             chunkId);
@@ -1075,9 +1086,9 @@ private:
         return changelog;
     }
 
-    IChangelogPtr DoOpenChangelog(TChunkId chunkId)
+    IFileChangelogPtr DoOpenChangelog(TChunkId chunkId)
     {
-        IChangelogPtr changelog;
+        IFileChangelogPtr changelog;
 
         YT_LOG_DEBUG("Started opening journal chunk (ChunkId: %v)",
             chunkId);
@@ -1121,7 +1132,7 @@ private:
         : public IMultiplexedReplayerCallbacks
     {
     public:
-        explicit TMultiplexedReplayCallbacks(TImpl* impl)
+        explicit TMultiplexedReplayCallbacks(TJournalManager* impl)
             : Impl_(impl)
         { }
 
@@ -1154,16 +1165,16 @@ private:
                 TChunkDescriptor(chunkId));
 
             const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
-            auto asyncChangelog = dispatcher->CreateChangelog(
+            auto changelogFuture = dispatcher->CreateJournal(
                 chunk->GetStoreLocation(),
                 chunkId,
                 false,
                 TWorkloadDescriptor(EWorkloadCategory::SystemRepair));
-            auto changelog = WaitFor(asyncChangelog)
+            auto changelog = WaitFor(changelogFuture)
                 .ValueOrThrow();
 
-            YT_VERIFY(IdToChangelog_.emplace(chunkId, changelog).second);
-            chunkStore->RegisterNewChunk(chunk, /* session */ nullptr);
+            EmplaceOrCrash(IdToChangelog_, chunkId, changelog);
+            chunkStore->RegisterNewChunk(chunk, /*session*/ nullptr);
 
             return changelog;
         }
@@ -1178,10 +1189,11 @@ private:
 
             const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
             auto journalChunk = chunk->AsJournalChunk();
-            auto changelog = WaitFor(dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId))
+            auto changelogFuture = dispatcher->OpenJournal(journalChunk->GetStoreLocation(), chunkId);
+            auto changelog = WaitFor(changelogFuture)
                 .ValueOrThrow();
 
-            YT_VERIFY(IdToChangelog_.emplace(chunkId, changelog).second);
+            EmplaceOrCrash(IdToChangelog_, chunkId, changelog);
 
             return changelog;
         }
@@ -1194,7 +1206,7 @@ private:
                 return;
             }
 
-            auto changelog = GetChangelogById(chunkId);
+            auto changelog = GetOrCrash(IdToChangelog_, chunkId);
             WaitFor(changelog->Flush())
                 .ThrowOnError();
 
@@ -1215,7 +1227,7 @@ private:
             chunkStore->UnregisterChunk(chunk);
 
             const auto& dispatcher = Impl_->ChunkContext_->JournalDispatcher;
-            WaitFor(dispatcher->RemoveChangelog(journalChunk, false))
+            WaitFor(dispatcher->RemoveJournal(journalChunk, /*enableMultiplexing*/ false))
                 .ThrowOnError();
 
             return true;
@@ -1228,77 +1240,25 @@ private:
         }
 
     private:
-        TImpl* const Impl_;
+        TJournalManager* const Impl_;
 
         THashMap<TChunkId, IChangelogPtr> IdToChangelog_;
-
-        IChangelogPtr GetChangelogById(TChunkId chunkId)
-        {
-            auto it = IdToChangelog_.find(chunkId);
-            YT_VERIFY(it != IdToChangelog_.end());
-            return it->second;
-        }
     };
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJournalManager::TJournalManager(
+IJournalManagerPtr CreateJournalManager(
     TDataNodeConfigPtr config,
     TStoreLocation* location,
-    TChunkContextPtr chunkContext)
-    : Impl_(New<TImpl>(config, location, chunkContext))
-{ }
-
-TJournalManager::~TJournalManager() = default;
-
-void TJournalManager::Initialize()
+    TChunkContextPtr chunkContext,
+    INodeMemoryTrackerPtr nodeMemoryTracker)
 {
-    Impl_->Initialize();
-}
-
-TFuture<IChangelogPtr> TJournalManager::OpenChangelog(
-    TChunkId chunkId)
-{
-    return Impl_->OpenChangelog(chunkId);
-}
-
-TFuture<IChangelogPtr> TJournalManager::CreateChangelog(
-    TChunkId chunkId,
-    bool enableMultiplexing,
-    const TWorkloadDescriptor& workloadDescriptor)
-{
-    return Impl_->CreateChangelog(chunkId, enableMultiplexing, workloadDescriptor);
-}
-
-TFuture<void> TJournalManager::RemoveChangelog(
-    const TJournalChunkPtr& chunk,
-    bool enableMultiplexing)
-{
-    return Impl_->RemoveChangelog(chunk, enableMultiplexing);
-}
-
-TFuture<bool> TJournalManager::AppendMultiplexedRecords(
-    TChunkId chunkId,
-    int firstRecordId,
-    TRange<TSharedRef> records,
-    TFuture<void> splitResult)
-{
-    return Impl_->AppendMultiplexedRecords(
-        chunkId,
-        firstRecordId,
-        records,
-        std::move(splitResult));
-}
-
-TFuture<bool> TJournalManager::IsChangelogSealed(TChunkId chunkId)
-{
-    return Impl_->IsChangelogSealed(chunkId);
-}
-
-TFuture<void> TJournalManager::SealChangelog(const TJournalChunkPtr& chunk)
-{
-    return Impl_->SealChangelog(chunk);
+    return New<TJournalManager>(
+        std::move(config),
+        location,
+        std::move(chunkContext),
+        std::move(nodeMemoryTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

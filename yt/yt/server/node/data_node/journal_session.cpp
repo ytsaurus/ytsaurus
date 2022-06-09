@@ -9,7 +9,7 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
@@ -29,13 +29,13 @@ TFuture<void> TJournalSession::DoStart()
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->CreateChangelog(
+    auto changelogFuture = dispatcher->CreateJournal(
         Location_,
         GetChunkId(),
         Options_.EnableMultiplexing,
         Options_.WorkloadDescriptor);
 
-    return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
+    return changelogFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         Changelog_ = changelog;

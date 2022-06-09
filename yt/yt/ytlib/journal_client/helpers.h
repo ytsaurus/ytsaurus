@@ -78,6 +78,15 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#pragma pack(push, 1)
+
+struct TErasureRowHeader
+{
+    i8 PaddingSize;
+};
+
+#pragma pack(pop)
+
 std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
     NErasure::ICodec* codec,
     const std::vector<TSharedRef>& rows);

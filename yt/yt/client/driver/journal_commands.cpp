@@ -104,7 +104,7 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
         for (auto row : rows) {
             BuildYsonListFragmentFluently(consumer.get())
                 .Item().BeginMap()
-                    .Item("data").Value(TStringBuf(row.Begin(), row.Size()))
+                    .Item("payload").Value(TStringBuf(row.Begin(), row.Size()))
                 .EndMap();
         }
 
@@ -163,7 +163,7 @@ private:
     void OnStringScalar(TStringBuf value) override
     {
         if (State_ != EJournalConsumerState::AtData) {
-            ThrowMalformedData();
+            ThrowMalformedPayload();
         }
 
         auto row = TSharedRef::FromString(TString(value));
@@ -175,38 +175,38 @@ private:
 
     void OnInt64Scalar(i64 /*value*/) override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnUint64Scalar(ui64 /*value*/) override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnDoubleScalar(double /*value*/) override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnBooleanScalar(bool /*value*/) override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnEntity() override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnBeginList() override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnListItem() override
     {
         if (State_ != EJournalConsumerState::Root) {
-            ThrowMalformedData();
+            ThrowMalformedPayload();
         }
         State_ = EJournalConsumerState::AtItem;
     }
@@ -219,7 +219,7 @@ private:
     void OnBeginMap() override
     {
         if (State_ != EJournalConsumerState::AtItem) {
-            ThrowMalformedData();
+            ThrowMalformedPayload();
         }
         State_ = EJournalConsumerState::InsideMap;
     }
@@ -227,10 +227,10 @@ private:
     void OnKeyedItem(TStringBuf key) override
     {
         if (State_ != EJournalConsumerState::InsideMap) {
-            ThrowMalformedData();
+            ThrowMalformedPayload();
         }
-        if (key != TStringBuf("data")) {
-            ThrowMalformedData();
+        if (key != TStringBuf("payload")) {
+            ThrowMalformedPayload();
         }
         State_ = EJournalConsumerState::AtData;
     }
@@ -238,14 +238,14 @@ private:
     void OnEndMap() override
     {
         if (State_ != EJournalConsumerState::InsideMap) {
-            ThrowMalformedData();
+            ThrowMalformedPayload();
         }
         State_ = EJournalConsumerState::Root;
     }
 
     void OnBeginAttributes() override
     {
-        ThrowMalformedData();
+        ThrowMalformedPayload();
     }
 
     void OnEndAttributes() override
@@ -254,9 +254,9 @@ private:
     }
 
 
-    void ThrowMalformedData()
+    void ThrowMalformedPayload()
     {
-        THROW_ERROR_EXCEPTION("Malformed journal data");
+        THROW_ERROR_EXCEPTION("Malformed journal payload");
     }
 
     void MaybeFlush()

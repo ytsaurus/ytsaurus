@@ -11,7 +11,7 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -66,46 +66,46 @@ public:
         NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager)
         : TAsyncSlruCacheBase(
             dataNodeConfig->ChangelogReaderCache,
-            DataNodeProfiler.WithPrefix("/changelog_cache"))
+            DataNodeProfiler.WithPrefix("/changelog_reader_cache"))
     {
         dynamicConfigManager->SubscribeConfigChanged(BIND(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(
+    TFuture<IFileChangelogPtr> OpenJournal(
         const TStoreLocationPtr& location,
         TChunkId chunkId) override;
 
-    TFuture<IChangelogPtr> CreateChangelog(
+    TFuture<IFileChangelogPtr> CreateJournal(
         const TStoreLocationPtr& location,
         TChunkId chunkId,
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor) override;
 
-    TFuture<void> RemoveChangelog(
+    TFuture<void> RemoveJournal(
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing) override;
 
-    TFuture<bool> IsChangelogSealed(
+    TFuture<bool> IsJournalSealed(
         const TStoreLocationPtr& location,
         TChunkId chunkId) override;
 
-    TFuture<void> SealChangelog(TJournalChunkPtr chunk) override;
+    TFuture<void> SealJournal(TJournalChunkPtr chunk) override;
 
 private:
     friend class TCachedChangelog;
 
-    IChangelogPtr OnChangelogOpenedOrCreated(
+    IFileChangelogPtr OnChangelogOpenedOrCreated(
         TStoreLocationPtr location,
         TChunkId chunkId,
         bool enableMultiplexing,
         TInsertCookie cookie,
-        const TErrorOr<IChangelogPtr>& changelogOrError);
+        const TErrorOr<IFileChangelogPtr>& changelogOrError);
 
     void OnAdded(const TCachedChangelogPtr& changelog) override;
     void OnRemoved(const TCachedChangelogPtr& changelog) override;
 
     void OnDynamicConfigChanged(
-        const NClusterNode::TClusterNodeDynamicConfigPtr& /* oldNodeConfig */,
+        const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
         const auto& config = newNodeConfig->DataNode;
@@ -119,21 +119,21 @@ DEFINE_REFCOUNTED_TYPE(TJournalDispatcher)
 
 class TCachedChangelog
     : public TAsyncCacheValueBase<TCachedChangelogKey, TCachedChangelog>
-    , public IChangelog
+    , public IFileChangelog
 {
 public:
     TCachedChangelog(
         TJournalDispatcherPtr owner,
         TStoreLocationPtr location,
         TChunkId chunkId,
-        IChangelogPtr underlyingChangelog,
+        IFileChangelogPtr underlyingChangelog,
         bool enableMultiplexing)
         : TAsyncCacheValueBase({location, chunkId})
-        , Owner_(owner)
-        , Location_(location)
+        , Owner_(std::move(owner))
+        , Location_(std::move(location))
         , ChunkId_(chunkId)
         , EnableMultiplexing_(enableMultiplexing)
-        , UnderlyingChangelog_(underlyingChangelog)
+        , UnderlyingChangelog_(std::move(underlyingChangelog))
     { }
 
     ~TCachedChangelog()
@@ -145,10 +145,10 @@ public:
 
     int GetId() const override
     {
-        return -1;
+        return UnderlyingChangelog_->GetId();
     }
 
-    const TChangelogMeta& GetMeta() const override
+    const NHydra::NProto::TChangelogMeta& GetMeta() const override
     {
         return UnderlyingChangelog_->GetMeta();
     }
@@ -165,42 +165,34 @@ public:
 
     TFuture<void> Append(TRange<TSharedRef> records) override
     {
-        TFuture<void> future;
-        if (EnableMultiplexing_) {
-            int firstRecordId = UnderlyingChangelog_->GetRecordCount();
-            auto flushResult = UnderlyingChangelog_->Append(records);
-            const auto& journalManager = Location_->GetJournalManager();
-
-            auto multiplexedFlushResult = journalManager->AppendMultiplexedRecords(
-                ChunkId_,
-                firstRecordId,
-                records,
-                flushResult);
-
-            future = multiplexedFlushResult
-                .Apply(BIND([=, this_ = MakeStrong(this)] (bool skipped) {
-                    // We provide the most strong semantic possible.
-                    //
-                    // Concurrent Append()-s are permitted. Successful completetion of last append,
-                    // guarantees that all previous records are committed to disk.
-                    if (skipped) {
-                        RejectedMultiplexedAppends_++;
-                        flushResult.Apply(BIND([this, this_ = MakeStrong(this)] {
-                            RejectedMultiplexedAppends_--;
-                            YT_VERIFY(RejectedMultiplexedAppends_ >= 0);
-                        }));
-                    }
-
-                    if (RejectedMultiplexedAppends_) {
-                        return flushResult;
-                    } else {
-                        return VoidFuture;
-                    }
-                }));
-        } else {
-            future = UnderlyingChangelog_->Append(records);
+        int firstRecordId = UnderlyingChangelog_->GetRecordCount();
+        auto flushResult = UnderlyingChangelog_->Append(records);
+        if (!EnableMultiplexing_) {
+            return flushResult.ToUncancelable();
         }
-        return future.ToUncancelable();
+
+        const auto& journalManager = Location_->GetJournalManager();
+        auto multiplexedFlushResult = journalManager->AppendMultiplexedRecords(
+            ChunkId_,
+            firstRecordId,
+            records,
+            flushResult);
+
+        return multiplexedFlushResult
+            .Apply(BIND([=, this_ = MakeStrong(this)] (bool skipped) {
+                // We provide the most strong semantic possible.
+                // Concurrent Append()-s are permitted. Successful completetion of last append,
+                // guarantees that all previous records are committed to disk.
+                if (skipped) {
+                    ++RejectedMultiplexedAppends_;
+                    flushResult.Apply(BIND([=, this_ = MakeStrong(this)] {
+                        YT_VERIFY(--RejectedMultiplexedAppends_ >= 0);
+                    }));
+                }
+
+                return RejectedMultiplexedAppends_ ? flushResult : VoidFuture;
+            }))
+            .ToUncancelable();
     }
 
     TFuture<void> Flush() override
@@ -216,16 +208,21 @@ public:
         return UnderlyingChangelog_->Read(firstRecordId, maxRecords, maxBytes);
     }
 
-    TFuture<void> Truncate(int /*recordCount*/) override
+    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
     {
-        // NB: Truncate is incompatible with multiplexing.
-        YT_UNIMPLEMENTED();
+        return UnderlyingChangelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);
+    }
+
+    TFuture<void> Truncate(int recordCount) override
+    {
+        return UnderlyingChangelog_->Truncate(recordCount);
     }
 
     TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            Owner_->TryRemoveValue(this, /* forbidResurrection */ true);
+            Owner_->TryRemoveValue(this, /*forbidResurrection*/ true);
             return error;
         })).ToUncancelable();
     }
@@ -235,7 +232,7 @@ private:
     const TStoreLocationPtr Location_;
     const TChunkId ChunkId_;
     const bool EnableMultiplexing_;
-    const IChangelogPtr UnderlyingChangelog_;
+    const IFileChangelogPtr UnderlyingChangelog_;
 
     std::atomic<int> RejectedMultiplexedAppends_ = 0;
 };
@@ -244,13 +241,13 @@ DEFINE_REFCOUNTED_TYPE(TCachedChangelog)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
+TFuture<IFileChangelogPtr> TJournalDispatcher::OpenJournal(
     const TStoreLocationPtr& location,
     TChunkId chunkId)
 {
     auto cookie = BeginInsert({location, chunkId});
     if (!cookie.IsActive()) {
-        return cookie.GetValue().As<IChangelogPtr>();
+        return cookie.GetValue().As<IFileChangelogPtr>();
     }
 
     const auto& journalManager = location->GetJournalManager();
@@ -263,12 +260,12 @@ TFuture<IChangelogPtr> TJournalDispatcher::OpenChangelog(
         Passed(std::move(cookie))));
 }
 
-IChangelogPtr TJournalDispatcher::OnChangelogOpenedOrCreated(
+IFileChangelogPtr TJournalDispatcher::OnChangelogOpenedOrCreated(
     TStoreLocationPtr location,
     TChunkId chunkId,
     bool enableMultiplexing,
     TInsertCookie cookie,
-    const TErrorOr<IChangelogPtr>& changelogOrError)
+    const TErrorOr<IFileChangelogPtr>& changelogOrError)
 {
     if (!changelogOrError.IsOK()) {
         cookie.Cancel(changelogOrError);
@@ -286,7 +283,7 @@ IChangelogPtr TJournalDispatcher::OnChangelogOpenedOrCreated(
     return cachedChangelog;
 }
 
-TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
+TFuture<IFileChangelogPtr> TJournalDispatcher::CreateJournal(
     const TStoreLocationPtr& location,
     TChunkId chunkId,
     bool enableMultiplexing,
@@ -300,11 +297,11 @@ TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
         }
 
         const auto& journalManager = location->GetJournalManager();
-        auto asyncChangelog = journalManager->CreateChangelog(
+        auto changelogFuture = journalManager->CreateChangelog(
             chunkId,
             enableMultiplexing,
             workloadDescriptor);
-        return asyncChangelog.Apply(BIND(
+        return changelogFuture.Apply(BIND(
             &TJournalDispatcher::OnChangelogOpenedOrCreated,
             MakeStrong(this),
             location,
@@ -312,11 +309,11 @@ TFuture<IChangelogPtr> TJournalDispatcher::CreateChangelog(
             enableMultiplexing,
             Passed(std::move(cookie))));
     } catch (const std::exception& ex) {
-        return MakeFuture<IChangelogPtr>(ex);
+        return MakeFuture<IFileChangelogPtr>(ex);
     }
 }
 
-TFuture<void> TJournalDispatcher::RemoveChangelog(
+TFuture<void> TJournalDispatcher::RemoveJournal(
     const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
@@ -328,7 +325,7 @@ TFuture<void> TJournalDispatcher::RemoveChangelog(
     return journalManager->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<bool> TJournalDispatcher::IsChangelogSealed(
+TFuture<bool> TJournalDispatcher::IsJournalSealed(
     const TStoreLocationPtr& location,
     TChunkId chunkId)
 {
@@ -336,7 +333,7 @@ TFuture<bool> TJournalDispatcher::IsChangelogSealed(
     return journalManager->IsChangelogSealed(chunkId);
 }
 
-TFuture<void> TJournalDispatcher::SealChangelog(TJournalChunkPtr chunk)
+TFuture<void> TJournalDispatcher::SealJournal(TJournalChunkPtr chunk)
 {
     const auto& location = chunk->GetStoreLocation();
     const auto& journalManager = location->GetJournalManager();

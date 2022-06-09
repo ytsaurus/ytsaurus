@@ -14,7 +14,7 @@
 #include <yt/yt/server/node/data_node/journal_dispatcher.h>
 #include <yt/yt/server/node/data_node/journal_manager.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
@@ -50,12 +50,17 @@ struct TFakeChunkStoreHost
         return TGuid::FromString("1-2-3-4");
     }
 
-    void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> ) override
+    void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> /*callback*/) override
     { }
 
     NClusterNode::TMasterEpoch GetMasterEpoch() override
     {
         return 1;
+    }
+
+    INodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    {
+        return nullptr;
     }
 };
 

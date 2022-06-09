@@ -23,9 +23,9 @@ from time import sleep
 
 ##################################################################
 
-DATA = [
+PAYLOAD = [
     {
-        "data": "payload-"
+        "payload": "payload-"
         + str(i)
         + "-"
         + "".join(
@@ -70,9 +70,9 @@ class TestJournals(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
 
-    DATA = [
+    PAYLOAD = [
         {
-            "data": "payload-"
+            "payload": "payload-"
             + str(i)
             + "-"
             + "".join(
@@ -227,7 +227,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "max_batch_row_count": 4,
@@ -239,7 +239,7 @@ class TestJournals(YTEnvSetup):
 
         write_journal(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={"dont_close": True},
         )
@@ -252,7 +252,7 @@ class TestJournals(YTEnvSetup):
         for i in range(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
-                DATA,
+                PAYLOAD,
                 enable_chunk_preallocation=enable_chunk_preallocation,
                 journal_writer={
                     "max_batch_row_count": 4,
@@ -269,10 +269,10 @@ class TestJournals(YTEnvSetup):
         assert chunk_count <= 10 * (3 + (1 if enable_chunk_preallocation else 0))
 
         for i in range(0, 10):
-            assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == DATA * (10 - i)
+            assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == PAYLOAD * (10 - i)
 
         for i in range(0, 9):
-            assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (DATA * (10 - i))[5:]
+            assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (PAYLOAD * (10 - i))[5:]
 
         assert read_journal("//tmp/j[#200:]") == []
 
@@ -282,7 +282,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
@@ -302,7 +302,7 @@ class TestJournals(YTEnvSetup):
         for i in range(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
-                DATA,
+                PAYLOAD,
                 enable_chunk_preallocation=enable_chunk_preallocation,
             )
 
@@ -316,7 +316,7 @@ class TestJournals(YTEnvSetup):
         for i in range(0, 10):
             self._write_and_wait_until_sealed(
                 "//tmp/j",
-                DATA,
+                PAYLOAD,
                 enable_chunk_preallocation=enable_chunk_preallocation,
             )
             self._truncate_and_check("//tmp/j", (i + 1) * 3)
@@ -330,7 +330,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
@@ -351,7 +351,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
         )
 
@@ -375,7 +375,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j")
 
-        rows = DATA * 100
+        rows = PAYLOAD * 100
 
         self._write_slowly(
             "//tmp/j",
@@ -406,7 +406,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j")
         write_journal(
-            "//tmp/j", DATA,
+            "//tmp/j", PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={"dont_close": True}
         )
@@ -419,7 +419,7 @@ class TestJournals(YTEnvSetup):
         wait(lambda: get_account_committed_disk_space("tmp") == 0)
 
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", DATA)
+        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
 
         chunk_id = get_singular_chunk_id("//tmp/j")
 
@@ -443,10 +443,10 @@ class TestJournals(YTEnvSetup):
     @authors("babenko")
     def test_move(self):
         create("journal", "//tmp/j1")
-        self._write_and_wait_until_sealed("//tmp/j1", DATA)
+        self._write_and_wait_until_sealed("//tmp/j1", PAYLOAD)
 
         move("//tmp/j1", "//tmp/j2")
-        assert read_journal("//tmp/j2") == DATA
+        assert read_journal("//tmp/j2") == PAYLOAD
 
     @authors("babenko")
     def test_no_storage_change_after_creation(self):
@@ -470,7 +470,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         write_journal(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=enable_chunk_preallocation,
             journal_writer={
                 "dont_close": True,
@@ -480,7 +480,7 @@ class TestJournals(YTEnvSetup):
             },
         )
 
-        assert read_journal("//tmp/j") == DATA
+        assert read_journal("//tmp/j") == PAYLOAD
 
     @authors("babenko")
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
@@ -491,7 +491,7 @@ class TestJournals(YTEnvSetup):
 
         create("journal", "//tmp/j")
 
-        rows = DATA * 100
+        rows = PAYLOAD * 100
 
         self._write_slowly(
             "//tmp/j",
@@ -519,7 +519,7 @@ class TestJournals(YTEnvSetup):
     @authors("ifsmirnov")
     def test_data_node_orchid(self):
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", DATA)
+        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
         chunk_id = get("//tmp/j/@chunk_ids/0")
         replica = get("#{}/@last_seen_replicas/0".format(chunk_id))
         orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
@@ -555,7 +555,7 @@ class TestJournals(YTEnvSetup):
 
             rows = []
             for i in range(row_count):
-                rows.append(DATA[i % len(DATA)])
+                rows.append(PAYLOAD[i % len(PAYLOAD)])
 
             self._write_slowly(
                 "//tmp/j",
@@ -634,7 +634,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_slowly(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             replica_lag_limit=123456,
         )
 
@@ -646,9 +646,9 @@ class TestJournals(YTEnvSetup):
     @authors("gritukan")
     def test_copy_journal(self):
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", DATA)
+        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
         copy("//tmp/j", "//tmp/j2")
-        assert read_journal("//tmp/j2") == DATA
+        assert read_journal("//tmp/j2") == PAYLOAD
 
     @authors("gritukan")
     def test_unsealed_journal_copy_forbidden(self):
@@ -657,7 +657,7 @@ class TestJournals(YTEnvSetup):
         create("journal", "//tmp/j")
         self._write_slowly(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=True,
             journal_writer={
                 "dont_close": False,
@@ -689,7 +689,7 @@ class TestJournalsPortal(TestJournalsMulticell):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", DATA)
+        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)
 
         with pytest.raises(YtError, match="Cross-cell copying of journal is not supported"):
             copy("//tmp/j", "//portals/p/j")
@@ -708,14 +708,14 @@ class TestJournalsChangeMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
-    DATA = [{"data": "payload" + str(i)} for i in range(0, 10)]
+    PAYLOAD = [{"payload": "payload" + str(i)} for i in range(0, 10)]
 
     @authors("ilpauzner", "shakurov")
     def test_journal_replica_changes_medium_yt_8669(self):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", DATA, journal_writer={"dont_close": True})
+        write_journal("//tmp/j1", PAYLOAD, journal_writer={"dont_close": True})
 
         assert not get("//tmp/j1/@sealed")
         chunk_id = get_singular_chunk_id("//tmp/j1")
@@ -836,29 +836,29 @@ class TestErasureJournals(TestJournals):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         N = 3
         for i in range(N):
-            self._write_and_wait_until_sealed("//tmp/j", DATA, journal_writer={"dont_close": True})
+            self._write_and_wait_until_sealed("//tmp/j", PAYLOAD, journal_writer={"dont_close": True})
             self._wait_until_last_chunk_sealed("//tmp/j")
 
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@quorum_row_count") == len(DATA) * N
+        assert get("//tmp/j/@quorum_row_count") == len(PAYLOAD) * N
         assert get("//tmp/j/@chunk_count") == N
-        assert read_journal("//tmp/j") == DATA * N
+        assert read_journal("//tmp/j") == PAYLOAD * N
 
     @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @pytest.mark.parametrize("enable_chunk_preallocation", [False, True])
     @authors("babenko")
     def test_repair_jobs(self, erasure_codec, enable_chunk_preallocation):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
-        write_journal("//tmp/j", DATA, enable_chunk_preallocation=enable_chunk_preallocation)
+        write_journal("//tmp/j", PAYLOAD, enable_chunk_preallocation=enable_chunk_preallocation)
 
-        self._check_repair_jobs("//tmp/j", DATA)
+        self._check_repair_jobs("//tmp/j", PAYLOAD)
 
     def _test_critical_erasure_state(self, state, n):
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_lrc_12_2_2"])
-        write_journal("//tmp/j", DATA, journal_writer={"dont_close": True})
+        write_journal("//tmp/j", PAYLOAD, journal_writer={"dont_close": True})
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         chunk_id = chunk_ids[-1]
@@ -889,20 +889,20 @@ class TestErasureJournals(TestJournals):
             pytest.skip()
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
-        self._write_and_wait_until_sealed("//tmp/j", DATA, enable_chunk_preallocation=enable_chunk_preallocation)
+        self._write_and_wait_until_sealed("//tmp/j", PAYLOAD, enable_chunk_preallocation=enable_chunk_preallocation)
 
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@quorum_row_count") == len(DATA)
+        assert get("//tmp/j/@quorum_row_count") == len(PAYLOAD)
         if not enable_chunk_preallocation:
             assert get("//tmp/j/@chunk_count") == 1
 
         def check():
-            for i in range(0, len(DATA)):
-                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [DATA[i]]
-            for i in range(0, len(DATA)):
-                assert read_journal("//tmp/j[#" + str(i) + ":]") == DATA[i:]
-            for i in range(0, len(DATA)):
-                assert read_journal("//tmp/j[:#" + str(i) + "]") == DATA[:i]
+            for i in range(0, len(PAYLOAD)):
+                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [PAYLOAD[i]]
+            for i in range(0, len(PAYLOAD)):
+                assert read_journal("//tmp/j[#" + str(i) + ":]") == PAYLOAD[i:]
+            for i in range(0, len(PAYLOAD)):
+                assert read_journal("//tmp/j[:#" + str(i) + "]") == PAYLOAD[:i]
 
         check()
 
@@ -920,7 +920,7 @@ class TestErasureJournals(TestJournals):
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_reed_solomon_3_3"])
 
-        rows = DATA * 20
+        rows = PAYLOAD * 20
 
         self._write_slowly(
             "//tmp/j",
@@ -981,7 +981,7 @@ class TestChunkAutotomizer(YTEnvSetup):
     def _write_simple_journal(self):
         write_journal(
             "//tmp/j",
-            DATA,
+            PAYLOAD,
             enable_chunk_preallocation=True,
             replica_lag_limit=4,
             journal_writer={
@@ -1005,7 +1005,7 @@ class TestChunkAutotomizer(YTEnvSetup):
         assert get("#{}/@row_count".format(chunk_ids[0])) == 6
         assert get("#{}/@row_count".format(chunk_ids[1])) == 4
 
-        assert read_journal("//tmp/j") == DATA
+        assert read_journal("//tmp/j") == PAYLOAD
         return True
 
     def _set_fail_jobs(self, fail_jobs):
@@ -1040,7 +1040,7 @@ class TestChunkAutotomizer(YTEnvSetup):
 
         success_counters = get_chunk_owner_master_cell_counters("//tmp/j", "chunk_server/chunk_autotomizer/successful_autotomies")
 
-        rows = DATA
+        rows = PAYLOAD
 
         write_journal(
             "//tmp/j",
@@ -1086,7 +1086,7 @@ class TestChunkAutotomizer(YTEnvSetup):
 
         create("journal", "//tmp/j", attributes=ERASURE_JOURNAL_ATTRIBUTES[erasure_codec])
 
-        rows = DATA
+        rows = PAYLOAD
         write_journal(
             "//tmp/j",
             rows,
@@ -1185,7 +1185,7 @@ class TestChunkAutotomizer(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/j")
         wait(lambda: get("#{}/@sealed".format(chunk_id)))
-        assert read_journal("//tmp/j") == DATA
+        assert read_journal("//tmp/j") == PAYLOAD
         wait(lambda: sum(counter.get_delta() for counter in unsuccess_counters) == 1)
 
     @authors("gritukan")

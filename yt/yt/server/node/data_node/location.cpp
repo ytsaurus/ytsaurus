@@ -16,7 +16,7 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/lib/hydra_common/changelog.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 #include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
@@ -1164,10 +1164,11 @@ TStoreLocation::TStoreLocation(
         chunkContext,
         chunkStoreHost)
     , Config_(config)
-    , JournalManager_(New<TJournalManager>(
+    , JournalManager_(CreateJournalManager(
         chunkContext->DataNodeConfig,
         this,
-        chunkContext))
+        chunkContext,
+        ChunkStoreHost_->GetMemoryUsageTracker()))
     , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", id)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
@@ -1207,7 +1208,7 @@ const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
     return Config_;
 }
 
-const TJournalManagerPtr& TStoreLocation::GetJournalManager()
+const IJournalManagerPtr& TStoreLocation::GetJournalManager()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1522,13 +1523,13 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
     if (hasData) {
         const auto& dispatcher = ChunkContext_->JournalDispatcher;
         // NB: This also creates the index file, if missing.
-        auto changelog = WaitFor(dispatcher->OpenChangelog(this, chunkId))
+        auto changelog = WaitFor(dispatcher->OpenJournal(this, chunkId))
             .ValueOrThrow();
         TChunkDescriptor descriptor;
         descriptor.Id = chunkId;
         descriptor.DiskSpace = changelog->GetDataSize();
         descriptor.RowCount = changelog->GetRecordCount();
-        descriptor.Sealed = WaitFor(dispatcher->IsChangelogSealed(this, chunkId))
+        descriptor.Sealed = WaitFor(dispatcher->IsJournalSealed(this, chunkId))
             .ValueOrThrow();
         return descriptor;
 

@@ -86,14 +86,7 @@ void ValidateJournalAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 1)
-
-struct TErasureRowHeader
-{
-    i8 PaddingSize;
-};
-
-#pragma pack(pop)
+namespace {
 
 i64 GetPaddingSize(i64 size, i64 alignment)
 {
@@ -105,6 +98,8 @@ i64 AlignSize(i64 size, i64 alignment)
 {
     return size + GetPaddingSize(size, alignment);
 }
+
+} // namespace
 
 class TJournalErasureBuffer
 {

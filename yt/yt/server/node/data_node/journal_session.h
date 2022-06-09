@@ -19,7 +19,7 @@ public:
 
 private:
     TJournalChunkPtr Chunk_;
-    NHydra::IChangelogPtr Changelog_;
+    NHydra::IFileChangelogPtr Changelog_;
     TChunkUpdateGuard ChunkUpdateGuard_;
     TFuture<void> LastAppendResult_ = VoidFuture;
     i64 LastDataSize_ = 0;

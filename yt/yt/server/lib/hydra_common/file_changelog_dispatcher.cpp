@@ -1,10 +1,9 @@
-#include "private.h"
-#include "file_changelog.h"
 #include "file_changelog_dispatcher.h"
-#include "changelog.h"
-#include "config.h"
 
-#include "yt/yt/library/profiling/sensor.h"
+#include "private.h"
+#include "unbuffered_file_changelog.h"
+#include "file_changelog.h"
+#include "config.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -15,6 +14,9 @@
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 
 #include <atomic>
 
@@ -34,11 +36,11 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcher)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogQueue)
 DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 
-IChangelogPtr CreateFileChangelog(
+IFileChangelogPtr CreateFileChangelog(
     int id,
     TFileChangelogDispatcherPtr dispatcher,
     TFileChangelogConfigPtr config,
-    IFileChangelogPtr changelog);
+    IUnbufferedFileChangelogPtr unbufferedChangelog);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +49,7 @@ class TFileChangelogQueue
 {
 public:
     TFileChangelogQueue(
-        IFileChangelogPtr changelog,
+        IUnbufferedFileChangelogPtr changelog,
         const TProfiler& profiler,
         const IInvokerPtr& invoker)
         : Changelog_(std::move(changelog))
@@ -66,7 +68,7 @@ public:
             Changelog_->GetFileName());
     }
 
-    const IFileChangelogPtr& GetChangelog()
+    const IUnbufferedFileChangelogPtr& GetChangelog()
     {
         return Changelog_;
     }
@@ -161,14 +163,14 @@ public:
         int needRecords = maxRecords;
         i64 needBytes = maxBytes;
 
-        auto appendRecord = [&] (const TSharedRef& record) {
-            records.push_back(record);
+        auto appendRecord = [&] (TSharedRef record) {
             --needRecords;
             ++currentRecordId;
             needBytes -= record.Size();
+            records.push_back(std::move(record));
         };
 
-        auto needMore = [&] () {
+        auto needMore = [&] {
             return needRecords > 0 && needBytes > 0;
         };
 
@@ -180,18 +182,19 @@ public:
 
                 TEventTimerGuard guard(ChangelogReadIOTimer_);
                 auto diskRecords = Changelog_->Read(currentRecordId, needRecords, needBytes);
-                for (const auto& record : diskRecords) {
+                for (auto&& record : diskRecords) {
                     appendRecord(record);
                 }
             } else {
                 // Read from memory, w/ spinlock.
 
                 auto readFromMemory = [&] (const std::vector<TSharedRef>& memoryRecords, int firstMemoryRecordId) {
-                    if (!needMore())
+                    if (!needMore()) {
                         return;
+                    }
                     int memoryIndex = currentRecordId - firstMemoryRecordId;
                     YT_VERIFY(memoryIndex >= 0);
-                    while (memoryIndex < static_cast<int>(memoryRecords.size()) && needMore()) {
+                    while (memoryIndex < std::ssize(memoryRecords) && needMore()) {
                         appendRecord(memoryRecords[memoryIndex++]);
                     }
                 };
@@ -200,12 +203,18 @@ public:
                 readFromMemory(FlushQueue_, FlushedRecordCount_);
                 readFromMemory(AppendQueue_, FlushedRecordCount_ + FlushQueue_.size());
 
-                // Break since we don't except more records beyond this point.
+                // Break since we don't expect more records beyond this point.
                 break;
             }
         }
 
         return records;
+    }
+
+    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor)
+    {
+        return Changelog_->MakeChunkFragmentReadRequest(fragmentDescriptor);
     }
 
     const IInvokerPtr& GetInvoker()
@@ -236,7 +245,7 @@ public:
     }
 
 private:
-    const IFileChangelogPtr Changelog_;
+    const IUnbufferedFileChangelogPtr Changelog_;
     const TProfiler Profiler;
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
@@ -315,10 +324,12 @@ class TFileChangelogDispatcher
 public:
     TFileChangelogDispatcher(
         NIO::IIOEnginePtr ioEngine,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         TFileChangelogDispatcherConfigPtr config,
         TString threadName,
         TProfiler profiler)
         : IOEngine_(std::move(ioEngine))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Config_(std::move(config))
         , ProcessQueuesCallback_(BIND(&TFileChangelogDispatcher::ProcessQueues, MakeWeak(this)))
         , ActionQueue_(New<TActionQueue>(std::move(threadName)))
@@ -349,7 +360,7 @@ public:
         return ActionQueue_->GetInvoker();
     }
 
-    TFuture<IChangelogPtr> CreateChangelog(
+    TFuture<IFileChangelogPtr> CreateChangelog(
         int id,
         const TString& path,
         const TChangelogMeta& meta,
@@ -361,7 +372,7 @@ public:
             .ToUncancelable();
     }
 
-    TFuture<IChangelogPtr> OpenChangelog(
+    TFuture<IFileChangelogPtr> OpenChangelog(
         int id,
         const TString& path,
         const TFileChangelogConfigPtr& config) override
@@ -381,7 +392,7 @@ public:
     }
 
 
-    TFileChangelogQueuePtr CreateQueue(IFileChangelogPtr changelog)
+    TFileChangelogQueuePtr CreateQueue(IUnbufferedFileChangelogPtr changelog)
     {
         return New<TFileChangelogQueue>(std::move(changelog), Profiler, ActionQueue_->GetInvoker());
     }
@@ -446,6 +457,7 @@ public:
 
 private:
     const NIO::IIOEnginePtr IOEngine_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
@@ -533,25 +545,25 @@ private:
         changelog->Close();
     }
 
-    IChangelogPtr DoCreateChangelog(
+    IFileChangelogPtr DoCreateChangelog(
         int id,
         const TString& path,
         const TChangelogMeta& meta,
         const TFileChangelogConfigPtr& config)
     {
-        auto changelog = CreateFileChangelog(IOEngine_, path, config);
-        changelog->Create(meta);
-        return CreateFileChangelog(id, this, config, changelog);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        unbufferedChangelog->Create(meta);
+        return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
 
-    IChangelogPtr DoOpenChangelog(
+    IFileChangelogPtr DoOpenChangelog(
         int id,
         const TString& path,
         const TFileChangelogConfigPtr& config)
     {
-        auto changelog = CreateFileChangelog(IOEngine_, path, config);
-        changelog->Open();
-        return CreateFileChangelog(id, this, config, changelog);
+        auto unbufferedChangelog = CreateUnbufferedFileChangelog(IOEngine_, MemoryUsageTracker_, path, config);
+        unbufferedChangelog->Open();
+        return CreateFileChangelog(id, this, config, unbufferedChangelog);
     }
 
     TFuture<void> DoFlushChangelogs()
@@ -569,20 +581,20 @@ DEFINE_REFCOUNTED_TYPE(TFileChangelogDispatcher)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileChangelog
-    : public IChangelog
+    : public IFileChangelog
 {
 public:
     TFileChangelog(
         int id,
         TFileChangelogDispatcherPtr dispatcher,
         TFileChangelogConfigPtr config,
-        IFileChangelogPtr changelog)
+        IUnbufferedFileChangelogPtr unbufferedChangelog)
         : Id_(id)
         , Dispatcher_(std::move(dispatcher))
         , Config_(std::move(config))
-        , Queue_(Dispatcher_->CreateQueue(changelog))
-        , RecordCount_(changelog->GetRecordCount())
-        , DataSize_(changelog->GetDataSize())
+        , Queue_(Dispatcher_->CreateQueue(unbufferedChangelog))
+        , RecordCount_(unbufferedChangelog->GetRecordCount())
+        , DataSize_(unbufferedChangelog->GetDataSize())
     {
         Dispatcher_->RegisterQueue(Queue_);
     }
@@ -644,6 +656,12 @@ public:
             maxBytes);
     }
 
+    NIO::IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
+        const NIO::TChunkFragmentDescriptor& fragmentDescriptor) override
+    {
+        return Queue_->MakeChunkFragmentReadRequest(fragmentDescriptor);
+    }
+
     TFuture<void> Truncate(int recordCount) override
     {
         YT_VERIFY(recordCount <= RecordCount_);
@@ -679,29 +697,31 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TFileChangelog)
 
-IChangelogPtr CreateFileChangelog(
+IFileChangelogPtr CreateFileChangelog(
     int id,
     TFileChangelogDispatcherPtr dispatcher,
     TFileChangelogConfigPtr config,
-    IFileChangelogPtr changelog)
+    IUnbufferedFileChangelogPtr unbufferedChangelog)
 {
     return New<TFileChangelog>(
         id,
         std::move(dispatcher),
         std::move(config),
-        std::move(changelog));
+        std::move(unbufferedChangelog));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     NIO::IIOEnginePtr ioEngine,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
     TString threadName,
     TProfiler profiler)
 {
     return New<TFileChangelogDispatcher>(
         std::move(ioEngine),
+        std::move(memoryUsageTracker),
         std::move(config),
         std::move(threadName),
         std::move(profiler));

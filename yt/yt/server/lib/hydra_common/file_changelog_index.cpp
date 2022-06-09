@@ -13,21 +13,29 @@
 namespace NYT::NHydra {
 
 using namespace NConcurrency;
+using namespace NThreading;
 using namespace NIO;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileChangelogIndexTag
+struct TFileChangelogIndexScratchTag
 { };
+
+struct TFileChangelogIndexRecordsTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TFileChangelogIndex::TFileChangelogIndex(
     IIOEnginePtr ioEngine,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     TString fileName,
     TFileChangelogConfigPtr config)
     : IOEngine_(std::move(ioEngine))
     , FileName_(std::move(fileName))
     , Config_(std::move(config))
     , Logger(HydraLogger.WithTag("Path: %v", FileName_))
+    , MemoryUsageTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(memoryUsageTracker, 0))
 { }
 
 EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
@@ -57,7 +65,7 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
             {{.Handle = handle, .Offset = 0, .Size = handle->GetLength()}},
             // TODO(babenko): better workload category?
             EWorkloadCategory::UserBatch,
-            GetRefCountedTypeCookie<TFileChangelogIndexTag>()))
+            GetRefCountedTypeCookie<TFileChangelogIndexScratchTag>()))
         .ValueOrThrow()
         .OutputBuffers[0];
 
@@ -90,7 +98,7 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
             .ThrowOnError();
 
         YT_LOG_DEBUG("Changelog index file truncated (RecordCount: %v, IndexFilePosition: %v, DataFileLength: %v)",
-            RecordOffsets_.size(),
+            GetRecordCount(),
             IndexFilePosition_,
             DataFileLength_);
 
@@ -102,13 +110,15 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
         IndexFilePosition_ = current - buffer.Begin();
 
         YT_LOG_DEBUG("Changelog index file opened (RecordCount: %v, IndexFilePosition: %v, DataFileLength: %v)",
-            RecordOffsets_.size(),
+            GetRecordCount(),
             IndexFilePosition_,
             DataFileLength_);
 
         Handle_ = std::move(handle);
         return EFileChangelogIndexOpenResult::ExistingOpened;
     };
+
+    int recordIndex = 0;
 
     while (current != end) {
         if (current + sizeof(TChangelogIndexSegmentHeader) > end) {
@@ -145,14 +155,36 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
             const auto* record = reinterpret_cast<const TChangelogIndexRecord*>(current);
             YT_VERIFY(DataFileLength_ < 0 || DataFileLength_ == record->Offset);
             YT_VERIFY(record->Length >= 0);
-            RecordOffsets_.push_back(record->Offset);
-            DataFileLength_ = record->Offset + record->Length;
+            AppendRecord(recordIndex, {record->Offset, record->Offset + record->Length});
+            ++recordIndex;
             current += sizeof(TChangelogIndexRecord);
         }
-        FlushedIndexRecordCount_ = std::ssize(RecordOffsets_);
+
+        FlushedIndexRecordCount_ = GetRecordCount();
     }
 
     return finish();
+}
+
+void TFileChangelogIndex::Create()
+{
+    Clear();
+
+    auto handle = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | CreateAlways}))
+        .ValueOrThrow();
+
+    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(sizeof(TChangelogIndexHeader), /*intializeStorage*/ false);
+
+    auto* header = reinterpret_cast<TChangelogIndexHeader*>(buffer.Begin());
+    header->Signature = TChangelogIndexHeader::ExpectedSignature;
+
+    WaitFor(IOEngine_->Write({.Handle = handle, .Offset = 0, .Buffers = {std::move(buffer)}}))
+        .ThrowOnError();
+
+    Handle_ = std::move(handle);
+    IndexFilePosition_ = sizeof(TChangelogIndexHeader);
+
+    YT_LOG_DEBUG("Changelog index file created");
 }
 
 void TFileChangelogIndex::Close()
@@ -168,23 +200,21 @@ void TFileChangelogIndex::Close()
 
 int TFileChangelogIndex::GetRecordCount() const
 {
-    return std::ssize(RecordOffsets_);
+    return RecordCount_.load();
 }
 
-i64 TFileChangelogIndex::GetDataFileLength() const
+int TFileChangelogIndex::GetFlushedDataRecordCount() const
 {
-    return DataFileLength_;
+    return FlushedDataRecordCount_.load();
 }
 
-std::pair<i64, i64> TFileChangelogIndex::GetRecordRange(int index) const
+std::pair<i64, i64> TFileChangelogIndex::GetRecordRange(int recordIndex) const
 {
-    auto recordCount = GetRecordCount();
-    auto dataFileLength = GetDataFileLength();
-    YT_VERIFY(index >= 0 && index < recordCount);
-    YT_VERIFY(dataFileLength >= 0);
+    auto guard = ReaderGuard(ChunkListLock_);
+
     return {
-        RecordOffsets_[index],
-        index == recordCount - 1 ? dataFileLength : RecordOffsets_[index + 1]
+        GetRecordOffset(recordIndex),
+        GetRecordOffset(recordIndex + 1)
     };
 }
 
@@ -193,16 +223,17 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
     int maxRecords,
     i64 maxBytes) const
 {
+    auto guard = ReaderGuard(ChunkListLock_);
+
     auto recordCount = GetRecordCount();
-    auto dataFileLength = GetDataFileLength();
 
     YT_VERIFY(firstRecordIndex >= 0 && firstRecordIndex <= recordCount);
-    YT_VERIFY(recordCount == 0 || dataFileLength >= 0);
+    YT_VERIFY(recordCount == 0 || DataFileLength_ >= 0);
 
-    auto startOffset = firstRecordIndex == recordCount ? dataFileLength : RecordOffsets_[firstRecordIndex];
+    auto startOffset = GetRecordOffset(firstRecordIndex);
     i64 endOffset = -1;
     for (int endRecordIndex = firstRecordIndex; endRecordIndex <= recordCount; ++endRecordIndex) {
-        endOffset = endRecordIndex == recordCount ? dataFileLength : RecordOffsets_[endRecordIndex];
+        endOffset = GetRecordOffset(endRecordIndex);
         auto totalRecords = endRecordIndex - firstRecordIndex;
         auto totalBytes = endOffset - startOffset;
         if (totalRecords >= maxRecords) {
@@ -215,40 +246,53 @@ std::pair<i64, i64> TFileChangelogIndex::GetRecordsRange(
     return {startOffset, endOffset};
 }
 
-void TFileChangelogIndex::AppendRecord(int index, std::pair<i64, i64> range)
+void TFileChangelogIndex::AppendRecord(int recordIndex, std::pair<i64, i64> range)
 {
-    YT_VERIFY(std::ssize(RecordOffsets_) == index);
+    YT_VERIFY(RecordCount_.load() == recordIndex);
     YT_VERIFY(DataFileLength_ < 0 || DataFileLength_ == range.first);
 
-    RecordOffsets_.push_back(range.first);
+    auto [chunkIndex, perChunkIndex] = GetRecordChunkIndexes(recordIndex);
+
+    if (perChunkIndex == 0) {
+        auto chunk = AllocateChunk();
+        auto guard = WriterGuard(ChunkListLock_);
+        ChunkList_.push_back(std::move(chunk));
+    }
+
+    // NB: no synchronization needed since we're the only writer.
+    auto& chunk = ChunkList_[chunkIndex];
+    chunk[perChunkIndex].Offset = range.first;
+
     DataFileLength_ = range.second;
+    ++RecordCount_;
 }
 
 void TFileChangelogIndex::SetFlushedDataRecordCount(int count)
 {
-    YT_VERIFY(count >= FlushedDataRecordCount_);
+    YT_VERIFY(count >= FlushedDataRecordCount_.load());
     YT_VERIFY(count >= FlushedIndexRecordCount_);
 
-    FlushedDataRecordCount_ = count;
+    FlushedDataRecordCount_.store(count);
 }
 
 TFuture<void> TFileChangelogIndex::Flush()
 {
-    auto recordCount = FlushedDataRecordCount_ - FlushedIndexRecordCount_;
-    auto size = sizeof(TChangelogIndexSegmentHeader) + sizeof(TChangelogIndexRecord) * recordCount;
-    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexTag>(size, /*intializeStorage*/ false);
+    auto flushRecordCount = FlushedDataRecordCount_.load() - FlushedIndexRecordCount_;
+    auto size = sizeof(TChangelogIndexSegmentHeader) + sizeof(TChangelogIndexRecord) * flushRecordCount;
+    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexScratchTag>(size, /*intializeStorage*/ false);
 
     auto* current = buffer.Begin();
     auto* header = reinterpret_cast<TChangelogIndexSegmentHeader*>(current);
-    header->RecordCount = recordCount;
+    header->RecordCount = flushRecordCount;
     header->Padding = 0;
     current += sizeof(TChangelogIndexSegmentHeader);
 
-    for (int index = FlushedIndexRecordCount_; index < std::ssize(RecordOffsets_); ++index) {
+    for (int index = FlushedIndexRecordCount_; index < FlushedIndexRecordCount_ + flushRecordCount; ++index) {
+        auto currentOffset = GetRecordOffset(index);
+        auto nextOffset = GetRecordOffset(index + 1);
         auto* record = reinterpret_cast<TChangelogIndexRecord*>(current);
-        auto nextOffset = index == std::ssize(RecordOffsets_) - 1 ? DataFileLength_ : RecordOffsets_[index + 1];
-        record->Offset = RecordOffsets_[index];
-        record->Length = nextOffset - record->Offset;
+        record->Offset = currentOffset;
+        record->Length = nextOffset - currentOffset;
         current += sizeof(TChangelogIndexRecord);
     }
 
@@ -256,14 +300,14 @@ TFuture<void> TFileChangelogIndex::Flush()
 
     YT_LOG_DEBUG("Started flushing changelog file index segment (FirstRecordIndex: %v, RecordCount: %v, IndexFilePosition: %v)",
         FlushedIndexRecordCount_,
-        recordCount,
+        flushRecordCount,
         IndexFilePosition_);
 
     YT_VERIFY(!Flushing_.exchange(true));
 
     auto currentPosition = IndexFilePosition_;
     IndexFilePosition_ += size;
-    FlushedIndexRecordCount_ += recordCount;
+    FlushedIndexRecordCount_ += flushRecordCount;
 
     auto future = IOEngine_->Write({.Handle = Handle_, .Offset = currentPosition, .Buffers = {std::move(buffer)}, .Flush = Config_->EnableSync})
         .Apply(BIND([=, this_ = MakeStrong(this)] {
@@ -283,32 +327,51 @@ bool TFileChangelogIndex::CanFlush() const
 void TFileChangelogIndex::Clear()
 {
     IndexFilePosition_ = 0;
-    RecordOffsets_.clear();
-    FlushedDataRecordCount_ = 0;
+    RecordCount_.store(0);
+    FlushedDataRecordCount_.store(0);
     FlushedIndexRecordCount_ = 0;
     DataFileLength_ = -1;
+    MemoryUsageTrackerGuard_.Release();
+
+    {
+        auto guard = WriterGuard(ChunkListLock_);
+        ChunkList_.clear();
+    }
 }
 
-void TFileChangelogIndex::Create()
+TFileChangelogIndex::TChunk TFileChangelogIndex::AllocateChunk()
 {
-    Clear();
-
-    auto handle = WaitFor(IOEngine_->Open({.Path = FileName_, .Mode = RdWr | CreateAlways}))
-        .ValueOrThrow();
-
-    auto buffer = TSharedMutableRef::Allocate<TFileChangelogIndexTag>(sizeof(TChangelogIndexHeader), /*intializeStorage*/ false);
-
-    auto* header = reinterpret_cast<TChangelogIndexHeader*>(buffer.Begin());
-    header->Signature = TChangelogIndexHeader::ExpectedSignature;
-
-    WaitFor(IOEngine_->Write({.Handle = handle, .Offset = 0, .Buffers = {std::move(buffer)}}))
-        .ThrowOnError();
-
-    Handle_ = std::move(handle);
-    IndexFilePosition_ = sizeof(TChangelogIndexHeader);
-
-    YT_LOG_DEBUG("Changelog index file created");
+    auto size = sizeof(TRecord) * RecordsPerChunk;
+    auto buffer = TSharedMutableRef::Allocate(size, /*initializeStorage*/ false);
+    auto holder = MakeCompositeHolder(buffer);
+    auto chunk = TChunk(reinterpret_cast<TRecord*>(buffer.Begin()), RecordsPerChunk, std::move(holder));
+    std::uninitialized_default_construct(chunk.Begin(), chunk.End());
+    MemoryUsageTrackerGuard_.IncrementSize(std::ssize(buffer));
+    return chunk;
 }
+
+std::pair<int, int> TFileChangelogIndex::GetRecordChunkIndexes(int recordIndex)
+{
+    // NB: "unsigned" produces bit shift and mask.
+    return {
+        static_cast<unsigned>(recordIndex) / RecordsPerChunk,
+        static_cast<unsigned>(recordIndex) % RecordsPerChunk
+    };
+}
+
+i64 TFileChangelogIndex::GetRecordOffset(int recordIndex) const
+{
+    auto recordCount = GetRecordCount();
+    if (recordIndex == recordCount) {
+        return DataFileLength_;
+    }
+
+    YT_VERIFY(recordIndex >= 0 && recordIndex < recordCount);
+    auto [chunkIndex, perChunkIndex] = GetRecordChunkIndexes(recordIndex);
+    const auto& chunk = ChunkList_[chunkIndex];
+    return chunk[perChunkIndex].Offset;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
