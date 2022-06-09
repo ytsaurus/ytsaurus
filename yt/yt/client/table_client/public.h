@@ -174,7 +174,7 @@ DEFINE_ENUM(EColumnarStatisticsFetcherMode,
     ((Fallback)              (2))
 );
 
-DEFINE_ENUM(EPartitionMode,
+DEFINE_ENUM(ETablePartitionMode,
     ((Sorted)       (0))
     ((Ordered)      (1))
     ((Unordered)    (2))

@@ -970,7 +970,7 @@ struct TPartitionTablesOptions
 {
     NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig;
     NChunkClient::TFetcherConfigPtr FetcherConfig;
-    NTableClient::EPartitionMode PartitionMode = NTableClient::EPartitionMode::Unordered;
+    NTableClient::ETablePartitionMode PartitionMode = NTableClient::ETablePartitionMode::Unordered;
     i64 DataWeightPerPartition;
     std::optional<int> MaxPartitionCount;
     bool EnableKeyGuarantee = false;

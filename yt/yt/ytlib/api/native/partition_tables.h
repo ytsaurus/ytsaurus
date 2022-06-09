@@ -17,25 +17,26 @@ public:
         const TPartitionTablesOptions& options,
         const NLogging::TLogger& logger);
 
-    TMultiTablePartitions DoPartitionTables();
+    TMultiTablePartitions PartitionTables();
 
 private:
+    const IClientPtr Client_;
+    const std::vector<NYPath::TRichYPath> Paths_;
+    const TPartitionTablesOptions Options_;
+    const NLogging::TLogger Logger;
+
+    NChunkPools::IChunkPoolPtr ChunkPool_;
+    const NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_ = New<NChunkClient::TDataSourceDirectory>();
+    TMultiTablePartitions Partitions_;
+
     void InitializeChunkPool();
     void CollectInput();
     void BuildPartitions();
 
     bool IsDataSourcesReady();
-    void AddDataSource(size_t tableIndex, const NQueryClient::TTableSchemaPtr& schema, bool dynamic);
-    std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(const NChunkPools::TChunkStripeListPtr& chunkStripeList);
-
-    const IClientPtr& Client_;
-    const std::vector<NYPath::TRichYPath>& Paths_;
-    const TPartitionTablesOptions& Options_;
-    const NLogging::TLogger Logger;
-
-    NChunkPools::IChunkPoolPtr ChunkPool_ = nullptr;
-    NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_ = New<NChunkClient::TDataSourceDirectory>();
-    TMultiTablePartitions Partitions_;
+    void AddDataSource(int tableIndex, const NQueryClient::TTableSchemaPtr& schema, bool dynamic);
+    std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> ConvertChunkStripeListIntoDataSliceDescriptors(
+        const NChunkPools::TChunkStripeListPtr& chunkStripeList);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

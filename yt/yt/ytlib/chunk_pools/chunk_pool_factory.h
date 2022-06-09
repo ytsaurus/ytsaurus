@@ -12,7 +12,10 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkPoolPtr CreateChunkPool(NTableClient::EPartitionMode partitionMode, i64 dataWeightPerPartition, const NLogging::TLogger& logger);
+IChunkPoolPtr CreateChunkPool(
+    NTableClient::ETablePartitionMode partitionMode,
+    i64 dataWeightPerPartition,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

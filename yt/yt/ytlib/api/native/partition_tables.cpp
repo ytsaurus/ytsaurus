@@ -44,9 +44,11 @@ TMultiTablePartitioner::TMultiTablePartitioner(
     , Logger(logger)
 { }
 
-TMultiTablePartitions TMultiTablePartitioner::DoPartitionTables()
+TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
 {
-    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, MaxPartitionCount: %v)", Options_.DataWeightPerPartition, Options_.MaxPartitionCount);
+    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, MaxPartitionCount: %v)",
+        Options_.DataWeightPerPartition,
+        Options_.MaxPartitionCount);
 
     InitializeChunkPool();
     CollectInput();
@@ -66,24 +68,30 @@ void TMultiTablePartitioner::CollectInput()
 
     YT_VERIFY(ChunkPool_);
 
-    size_t totalChunkCount = 0;
+    int totalChunkCount = 0;
 
     for (const auto& [tableIndex, path] : Enumerate(Paths_)) {
         auto rowBuffer = New<TRowBuffer>();
         auto transactionId = path.GetTransactionId();
 
-        auto [inputChunks, schema, dynamic] = CollectTableInputChunks( // TODO(galtsev): make these requests asynchronously; see https://a.yandex-team.ru/review/2564596/details#comment-3570976
+        // TODO(galtsev): make these requests asynchronously; see https://a.yandex-team.ru/review/2564596/details#comment-3570976
+        auto [inputChunks, schema, dynamic] = CollectTableInputChunks(
             path,
             Client_,
-            /* nodeDirectory */ nullptr,
+            /*nodeDirectory*/ nullptr,
             Options_.FetchChunkSpecConfig,
             transactionId
                 ? *transactionId
                 : Options_.TransactionId,
-            /* fetchHeavyColumnStatisticsExt */ false, // TODO(galtsev): use columnar statistics; see https://a.yandex-team.ru/review/2564596/details#comment-3570985
+            // TODO(galtsev): use columnar statistics; see https://a.yandex-team.ru/review/2564596/details#comment-3570985
+            /*fetchHeavyColumnStatisticsExt*/ false,
             Logger);
 
-        YT_LOG_DEBUG("Input chunks fetched (TableIndex: %v, Path: %v, Schema: %v, ChunkCount: %v)", tableIndex, path, schema, inputChunks.size());
+        YT_LOG_DEBUG("Input chunks fetched (TableIndex: %v, Path: %v, Schema: %v, ChunkCount: %v)",
+            tableIndex,
+            path,
+            schema,
+            inputChunks.size());
 
         AddDataSource(tableIndex, schema, dynamic);
 
@@ -150,10 +158,10 @@ bool TMultiTablePartitioner::IsDataSourcesReady()
     return DataSourceDirectory_->DataSources().size() == Paths_.size();
 }
 
-void TMultiTablePartitioner::AddDataSource(size_t tableIndex, const TTableSchemaPtr& schema, bool dynamic)
+void TMultiTablePartitioner::AddDataSource(int tableIndex, const TTableSchemaPtr& schema, bool dynamic)
 {
     YT_VERIFY(!IsDataSourcesReady());
-    YT_VERIFY(tableIndex == DataSourceDirectory_->DataSources().size());
+    YT_VERIFY(tableIndex == std::ssize(DataSourceDirectory_->DataSources()));
 
     auto& dataSource = DataSourceDirectory_->DataSources().emplace_back();
     auto& path = Paths_[tableIndex];
@@ -163,18 +171,19 @@ void TMultiTablePartitioner::AddDataSource(size_t tableIndex, const TTableSchema
             path.GetPath(),
             schema,
             path.GetColumns(),
-            /* omittedInaccessibleColumns */ {},
+            /*omittedInaccessibleColumns*/ {},
             path.GetTimestamp().value_or(NTransactionClient::AsyncLastCommittedTimestamp));
     } else {
         dataSource = MakeUnversionedDataSource(
             path.GetPath(),
             schema,
             path.GetColumns(),
-            /* omittedInaccessibleColumns */ {});
+            /*omittedInaccessibleColumns*/ {});
     }
 }
 
-std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> TMultiTablePartitioner::ConvertChunkStripeListIntoDataSliceDescriptors(const TChunkStripeListPtr& chunkStripeList)
+std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> TMultiTablePartitioner::ConvertChunkStripeListIntoDataSliceDescriptors(
+    const TChunkStripeListPtr& chunkStripeList)
 {
     YT_VERIFY(IsDataSourcesReady());
 
