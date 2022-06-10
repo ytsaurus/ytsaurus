@@ -213,7 +213,7 @@ void TProgram::PrintBuildAndExit()
 {
     if (UseYson_) {
         TYsonWriter writer(&Cout, EYsonFormat::Pretty);
-        BuildBuildAttributes(&writer);
+        Serialize(BuildBuildAttributes(), &writer);
         Cout << Endl;
     } else {
         Cout << "Build Time: " << GetBuildTime() << Endl;
