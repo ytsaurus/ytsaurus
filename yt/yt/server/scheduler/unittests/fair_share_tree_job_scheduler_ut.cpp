@@ -287,7 +287,7 @@ public:
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig), (override));
 
-    MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason, const TString&, TControllerEpoch), (override));
+    MOCK_METHOD(void, OnNonscheduledJobAborted, (TJobId, EAbortReason, TControllerEpoch), (override));
 
     TCompositeNeededResources GetNeededResources() const override
     {

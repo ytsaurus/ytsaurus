@@ -69,7 +69,7 @@ void FromProto(TOperationInfo* operationInfo, const NProto::TOperationInfo& oper
         for (const auto& protoAlert : operationInfoProto.alerts().alerts()) {
             alertMap[EOperationAlertType(protoAlert.type())] = FromProto<TError>(protoAlert.error());
         }
-        operationInfo->AlertMap = alertMap;
+        operationInfo->AlertMap = std::move(alertMap);
     }
 
     if (operationInfoProto.has_suspicious_jobs()) {
@@ -631,29 +631,43 @@ public:
                 response->mutable_scheduler_to_agent_job_events(),
                 [] (auto* protoEvent, const auto& event) {
                     ToProto(protoEvent->mutable_operation_id(), event.OperationId);
+                    ToProto(protoEvent->mutable_job_id(), event.JobId);
+
                     protoEvent->set_event_type(static_cast<int>(event.EventType));
-                    protoEvent->set_log_and_profile(event.LogAndProfile);
-                    protoEvent->mutable_status()->CopyFrom(*event.Status);
-                    protoEvent->set_start_time(ToProto<ui64>(event.StartTime));
-                    protoEvent->set_tree_id(event.TreeId);
-                    if (event.FinishTime) {
-                        protoEvent->set_finish_time(ToProto<ui64>(*event.FinishTime));
+
+                    auto valueOrCrash = [] (const auto& maybeValue) {
+                        YT_VERIFY(maybeValue);
+                        return *maybeValue;
+                    };
+
+                    if (event.EventType == ESchedulerToAgentJobEventType::Started) {
+                        protoEvent->set_start_time(ToProto<ui64>(valueOrCrash(event.StartTime)));
+                        return;
                     }
-                    if (event.AbortReason) {
-                        protoEvent->set_abort_reason(static_cast<int>(*event.AbortReason));
-                    }
-                    if (event.InterruptReason) {
-                        protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
-                    }
-                    if (event.AbortedByScheduler) {
-                        protoEvent->set_aborted_by_scheduler(*event.AbortedByScheduler);
-                    }
-                    if (event.PreemptedFor) {
-                        ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
-                    }
-                    protoEvent->set_preempted(event.Preempted);
-                    if (event.PreemptionReason) {
-                        ToProto(protoEvent->mutable_preemption_reason(), *event.PreemptionReason);
+
+                    protoEvent->set_finish_time(ToProto<ui64>(valueOrCrash(event.FinishTime)));
+
+                    if (event.EventType == ESchedulerToAgentJobEventType::Finished) {
+                        protoEvent->set_job_execution_completed(valueOrCrash(event.JobExecutionCompleted));
+
+                        if (event.InterruptReason) {
+                            protoEvent->set_interrupt_reason(static_cast<int>(*event.InterruptReason));
+                        }
+                        if (event.PreemptedFor) {
+                            ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
+                        }
+                        protoEvent->set_preempted(valueOrCrash(event.Preempted));
+                        if (event.PreemptionReason) {
+                            ToProto(protoEvent->mutable_preemption_reason(), *event.PreemptionReason);
+                        }
+                        protoEvent->set_get_spec_failed(event.GetSpecFailed);
+                    } else {
+                        YT_VERIFY(event.EventType == ESchedulerToAgentJobEventType::AbortedByScheduler);
+                        if (event.AbortReason) {
+                            protoEvent->set_abort_reason(static_cast<int>(*event.AbortReason));
+                        }
+                        ToProto(protoEvent->mutable_error(), valueOrCrash(event.Error));
+                        protoEvent->set_scheduled(valueOrCrash(event.Scheduled));
                     }
                 },
                 Config_->MaxMessageJobEventCount);

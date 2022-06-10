@@ -24,11 +24,6 @@ void BuildMutableOperationAttributes(TOperationPtr operation, NYTree::TFluentMap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EAbortReason GetAbortReason(const TError& resultError);
-TJobStatus JobStatusFromError(const TError& error);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TString MakeOperationCodicilString(TOperationId operationId);
 TCodicilGuard MakeOperationCodicilGuard(TOperationId operationId);
 

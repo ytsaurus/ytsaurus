@@ -105,11 +105,9 @@ DEFINE_ENUM(EAgentToSchedulerJobEventType,
 );
 
 DEFINE_ENUM(ESchedulerToAgentJobEventType,
-    ((Started)   (0))
-    ((Completed) (1))
-    ((Failed)    (2))
-    ((Aborted)   (3))
-    ((Running)   (4))
+    ((Started)            (0))
+    ((Finished)           (1))
+    ((AbortedByScheduler) (2))
 );
 
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,

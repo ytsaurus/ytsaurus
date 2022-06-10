@@ -27,20 +27,14 @@ static const auto& Logger = SchedulerSimulatorLogger;
 
 namespace {
 
-NScheduler::NProto::TSchedulerToAgentJobEvent BuildSchedulerToAgentCompletedJobEvent(const TJobPtr& job)
+std::unique_ptr<TCompletedJobSummary> BuildCompletedJobSummary(const TJobPtr& job)
 {
-    NScheduler::NProto::TSchedulerToAgentJobEvent jobEvent;
-    jobEvent.set_event_type(static_cast<int>(ESchedulerToAgentJobEventType::Completed));
-    ToProto(jobEvent.mutable_operation_id(), job->GetOperationId());
-    ToProto(jobEvent.mutable_status()->mutable_job_id(), job->GetId());
-    ToProto(jobEvent.mutable_status()->mutable_operation_id(), job->GetOperationId());
-    jobEvent.set_log_and_profile(true);
-    // It is needed here, because TCompletedJobSummary verifies job state.
-    jobEvent.mutable_status()->set_state(static_cast<int>(EJobState::Completed));
-    jobEvent.set_start_time(ToProto<ui64>(job->GetStartTime()));
-    jobEvent.set_finish_time(ToProto<ui64>(TInstant::Now()));
-    jobEvent.set_interrupt_reason(static_cast<int>(EInterruptReason::None));
-    return jobEvent;
+    TCompletedJobSummary jobSummary;
+    jobSummary.Id = job->GetId();
+    jobSummary.State = EJobState::Completed;
+    jobSummary.FinishTime = TInstant::Now();
+
+    return std::make_unique<TCompletedJobSummary>(std::move(jobSummary));
 }
 
 } // namespace
@@ -217,7 +211,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         PreemptJob(job, Config_->EnableFullEventLog);
         auto operation = RunningOperationsMap_->Get(job->GetOperationId());
         auto controller = operation->GetControllerStrategyHost();
-        controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::Preemption, job->GetTreeId(), TControllerEpoch{});
+        controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::Preemption, TControllerEpoch{});
 
         // Update stats
         OperationStatistics_->OnJobPreempted(job->GetOperationId(), duration);
@@ -284,12 +278,12 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
         LogFinishedJobFluently(ELogEventType::JobCompleted, job);
     }
 
-    auto jobEvent = BuildSchedulerToAgentCompletedJobEvent(job);
+    auto jobSummary = BuildCompletedJobSummary(job);
 
     // Notify scheduler.
     auto operation = RunningOperationsMap_->Get(job->GetOperationId());
     auto operationController = operation->GetController();
-    operationController->OnJobCompleted(std::make_unique<TCompletedJobSummary>(&jobEvent));
+    operationController->OnJobCompleted(std::move(jobSummary));
     if (operationController->IsOperationCompleted()) {
         operation->SetState(EOperationState::Completed);
     }
@@ -381,6 +375,7 @@ const NLogging::TLogger* TSimulatorNodeShard::GetEventLogger()
 NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedJobFluently(ELogEventType eventType, const TJobPtr& job)
 {
     YT_LOG_INFO("Logging job event");
+
     return LogEventFluently(StrategyHost_->GetEventLogger(), eventType)
         .Item("job_id").Value(job->GetId())
         .Item("operation_id").Value(job->GetOperationId())

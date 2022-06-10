@@ -304,19 +304,14 @@ public:
         Underlying_->OnJobStarted(std::move(jobSummary));
     }
 
-    void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override
+    void OnJobFinishedEventReceivedFromScheduler(TFinishedJobSummary&& finishedJobSummary) override
     {
-        Underlying_->OnJobCompleted(std::move(jobSummary));
+        Underlying_->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobSummary));
     }
 
-    void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override
+    void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) override
     {
-        Underlying_->OnJobFailed(std::move(jobSummary));
-    }
-
-    void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler) override
-    {
-        Underlying_->OnJobAborted(std::move(jobSummary), byScheduler);
+        Underlying_->OnJobAbortedEventReceivedFromScheduler(std::move(eventSummary));
     }
 
     void OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary) override

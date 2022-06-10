@@ -55,11 +55,11 @@ public:
     void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId,
         TControllerEpoch jobEpoch) override;
-    void AbortJob(
+    void OnJobAborted(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) override;
+        const TError& error) override;
+    
     TFuture<void> AbandonJob(TOperationId operationId, TJobId jobId) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
@@ -122,18 +122,24 @@ private:
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
     void EnqueueScheduleJobRequest(TScheduleJobRequestPtr&& event);
 
-    TSchedulerToAgentJobEvent BuildEvent(
-        ESchedulerToAgentJobEventType eventType,
-        const TJobPtr& job,
-        bool logAndProfile,
-        NJobTrackerClient::NProto::TJobStatus* status);
-
     // TODO(ignat): move to inl
     template <class TResponse, class TRequest>
     TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
         const TIntrusivePtr<TRequest>& request);
 
     void ProcessControllerAgentError(const TError& error);
+
+    void OnJobAborted(
+        const TJobPtr& job,
+        const TError& error,
+        bool scheduled,
+        std::optional<EAbortReason> abortReason);
+    void OnJobAborted(
+        TJobId jobId,
+        const TError& error,
+        const bool scheduled,
+        std::optional<EAbortReason> abortReason,
+        TControllerEpoch jobEpoch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

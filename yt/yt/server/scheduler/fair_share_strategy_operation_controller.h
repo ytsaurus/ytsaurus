@@ -50,7 +50,6 @@ public:
     void AbortJob(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId,
         TControllerEpoch jobEpoch);
 
     void OnScheduleJobFailed(

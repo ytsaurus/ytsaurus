@@ -165,21 +165,15 @@ private: \
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
-        OnJobCompleted,
-        (std::unique_ptr<TCompletedJobSummary> jobSummary),
-        (std::move(jobSummary)),
+        OnJobFinishedEventReceivedFromScheduler,
+        (TFinishedJobSummary&& finishedJobSummary),
+        (std::move(finishedJobSummary)),
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
-        OnJobFailed,
-        (std::unique_ptr<TFailedJobSummary> jobSummary),
-        (std::move(jobSummary)),
-        true)
-    IMPLEMENT_SAFE_METHOD(
-        void,
-        OnJobAborted,
-        (std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler),
-        (std::move(jobSummary), byScheduler),
+        OnJobAbortedEventReceivedFromScheduler,
+        (TAbortedBySchedulerJobSummary&& abortedJobSummary),
+        (std::move(abortedJobSummary)),
         true)
     IMPLEMENT_SAFE_METHOD(
         void,
@@ -1244,7 +1238,7 @@ private:
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;
 
-    THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
+    THashMap<TJobId, TFinishedJobInfoPtr> JobsWaitingForFinalization_;
 
     struct TLivePreviewChunkDescriptor
     {
@@ -1318,7 +1312,7 @@ private:
     void FinalizeJoblet(
         const TJobletPtr& joblet,
         TJobSummary* jobSummary,
-        bool updateMemoryReserveFactor = true);
+        bool scheduled = true);
 
     NEventLog::TFluentLogEvent LogFinishedJobFluently(
         NScheduler::ELogEventType eventType,
@@ -1394,15 +1388,12 @@ private:
         TTransactionIdFunc tableToTransactionId,
         TCellTagFunc tableToCellTag) const;
 
-    void StartWaitingJobInfoFromNode(std::unique_ptr<TJobSummary> jobSummary);
+    void StartWaitingJobInfoFromNode(TFinishedJobSummary&& finishedJobSummary);
+    void OnFinishedJobInfoFullyReceived(std::unique_ptr<TJobSummary> nodeJobSummary, TFinishedJobSummary&& schedulerJobSummary);
 
-    void ProcessJobSummaryFromScheduler(std::unique_ptr<TJobSummary> jobSummary);
-    bool HasFullFinishedJobInfo(TJobId jobId) const noexcept;
-    template <class TJobSummaryType>
-    std::unique_ptr<TJobSummaryType> ReleaseFullJobSummary(TJobId jobId) noexcept;
-    void RemoveFinishedJobInfo(TJobId jobId) noexcept;
+    void RemoveJobWaitingForFinalization(TJobId jobId);
 
-    TFinishedJobInfoPtr FindFinishedJobInfo(TJobId jobId) const noexcept;
+    TFinishedJobInfoPtr FindJobWaitingForFinalization(TJobId jobId) const noexcept;
 
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.
@@ -1415,12 +1406,15 @@ private:
     void UpdateRunningJobStatistics(TJobletPtr joblet, std::unique_ptr<TRunningJobSummary> jobStatus);
 
     template <class TJobSummaryType>
-    std::unique_ptr<TJobSummaryType> MergeJobSummariesIfNeeded(
-        std::unique_ptr<TJobSummary> schedulerJobSummary,
+    std::unique_ptr<TJobSummaryType> MergeJobSummaries(
         std::unique_ptr<TJobSummary> nodeJobSummary,
-        bool needMerge);
+        TFinishedJobSummary&& schedulerJobSummary);
 
     NYTree::IYPathServicePtr BuildZombieOrchid();
+
+    void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary);
+    void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
+    void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
 
     //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
     class TSink

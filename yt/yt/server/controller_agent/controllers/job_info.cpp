@@ -171,10 +171,32 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFinishedJobInfo::TFinishedJobInfo(ECombinationState combinationState, std::unique_ptr<TJobSummary> jobSummary)
-    : JobSummary(std::move(jobSummary))
-    , CombinationState(combinationState)
+TFinishedJobInfo::TFinishedJobInfo(std::unique_ptr<TJobSummary> nodeJobSummary)
+    : NodeJobSummary(std::move(nodeJobSummary))
 { }
+
+TFinishedJobInfo::TFinishedJobInfo(TFinishedJobSummary&& schedulerJobSummary)
+    : SchedulerJobSummary(std::move(schedulerJobSummary))
+{ }
+
+void TFinishedJobInfo::StartRemoving()
+{
+    YT_VERIFY(!IsRemoving_);
+    IsRemoving_ = true;
+}
+
+bool TFinishedJobInfo::IsRemoving() const noexcept
+{
+    return IsRemoving_;
+}
+
+TFinishedJobInfoPtr TFinishedJobInfo::CreateRemovingInfo() noexcept
+{
+    auto result = New<TFinishedJobInfo>();
+    result->StartRemoving();
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

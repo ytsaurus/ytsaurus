@@ -451,7 +451,6 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
     return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
 }
 
-
 bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -460,7 +459,13 @@ bool TOperationControllerImpl::OnJobStarted(const TJobPtr& job)
         return false;
     }
 
-    auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
+    TSchedulerToAgentJobEvent event{
+        .OperationId = OperationId_,
+        .JobId = job->GetId(),
+        .EventType = ESchedulerToAgentJobEventType::Started,
+        .StartTime = job->GetStartTime()
+    };
+
     JobEventsOutbox_->Enqueue(std::move(event));
     YT_LOG_TRACE("Job start notification enqueued (JobId: %v)",
         job->GetId());
@@ -474,110 +479,41 @@ void TOperationControllerImpl::OnJobFinished(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    YT_VERIFY(status);
+
     if (ShouldSkipJobEvent(job)) {
         return;
     }
+    
+    TSchedulerToAgentJobEvent event{
+        .OperationId = OperationId_,
+        .JobId = job->GetId(),
+        .EventType = ESchedulerToAgentJobEventType::Finished,
+        .FinishTime = TInstant::Now(),
+        .JobExecutionCompleted = status->job_execution_completed(),
+        .InterruptReason = job->GetInterruptReason(),
+        .PreemptedFor = job->GetPreemptedFor(),
+        .Preempted = job->GetPreempted(),
+        .PreemptionReason = job->GetPreemptionReason(),
+    };
 
-    switch (EJobState{status->state()})
+    if (auto error = FromProto<TError>(status->result().error()); 
+        error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
     {
-        case EJobState::Completed:
-            OnJobCompleted(job, status);
-            break;
-        case EJobState::Aborted:
-            OnJobAborted(job, status, /*byScheduler*/ false);
-            break;
-        case EJobState::Failed:
-            OnJobFailed(job, status);
-            break;
-        default:
-            YT_ABORT();
-    }
-}
-
-void TOperationControllerImpl::OnJobCompleted(
-    const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YT_VERIFY(status);
-
-    if (ShouldSkipJobEvent(job)) {
-        return;
+        event.GetSpecFailed = true;
     }
 
-    status->set_state(static_cast<int>(EJobState::Completed));
-
-    auto event = BuildEvent(ESchedulerToAgentJobEventType::Completed, job, true, status);
-    event.InterruptReason = job->GetInterruptReason();
     auto result = EnqueueJobEvent(std::move(event));
-    YT_LOG_TRACE("Job completion notification %v (JobId: %v)",
-        result ? "enqueued" : "dropped",
-        job->GetId());
-}
-
-void TOperationControllerImpl::OnJobFailed(
-    const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (ShouldSkipJobEvent(job)) {
-        return;
-    }
-
-    YT_VERIFY(status);
-    status->set_state(static_cast<int>(EJobState::Failed));
-
-    auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
-    auto result = EnqueueJobEvent(std::move(event));
-    YT_LOG_TRACE("Job failure notification %v (JobId: %v)",
+    YT_LOG_TRACE("Job finish notification %v (JobId: %v)",
         result ? "enqueued" : "dropped",
         job->GetId());
 }
 
 void TOperationControllerImpl::OnJobAborted(
-    const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status,
-    bool byScheduler)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    if (ShouldSkipJobEvent(job)) {
-        return;
-    }
-
-    YT_VERIFY(status);
-    status->set_state(static_cast<int>(EJobState::Aborted));
-
-    auto error = FromProto<TError>(status->result().error());
-
-    if (job->GetPreempted() &&
-        (error.FindMatching(NExecNode::EErrorCode::AbortByScheduler) ||
-            error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)))
-    {
-        auto error = TError("Job preempted")
-            << TErrorAttribute("abort_reason", EAbortReason::Preemption)
-            << TErrorAttribute("preemption_reason", job->GetPreemptionReason());
-        ToProto(status->mutable_result()->mutable_error(), error);
-    }
-
-    auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
-    event.AbortReason = GetAbortReason(error);
-    event.AbortedByScheduler = byScheduler;
-    event.PreemptedFor = job->GetPreemptedFor();
-
-    auto result = EnqueueJobEvent(std::move(event));
-    YT_LOG_TRACE("Job abort notification %v (JobId: %v, ByScheduler: %v)",
-        result ? "enqueued" : "dropped",
-        job->GetId(),
-        byScheduler);
-}
-
-void TOperationControllerImpl::OnNonscheduledJobAborted(
     TJobId jobId,
-    EAbortReason abortReason,
-    const TString& treeId,
+    const TError& error,
+    bool scheduled,
+    std::optional<EAbortReason> abortReason,
     TControllerEpoch jobEpoch)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -586,36 +522,51 @@ void TOperationControllerImpl::OnNonscheduledJobAborted(
         return;
     }
 
-    auto status = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
-    ToProto(status->mutable_job_id(), jobId);
-    ToProto(status->mutable_operation_id(), OperationId_);
-    status->set_state(static_cast<int>(EJobState::Aborted));
     TSchedulerToAgentJobEvent event{
-        .EventType = ESchedulerToAgentJobEventType::Aborted,
         .OperationId = OperationId_,
-        .LogAndProfile = false,
-        .StartTime = {},
-        .FinishTime = {},
-        .TreeId = treeId,
-        .Status = std::move(status),
+        .JobId = jobId,
+        .EventType = ESchedulerToAgentJobEventType::AbortedByScheduler,
+        .FinishTime = TInstant::Now(),
         .AbortReason = abortReason,
-        .InterruptReason = {},
-        .AbortedByScheduler = {},
-        .PreemptedFor = {},
-        .Preempted = false,
-        .PreemptionReason = {},
+        .Error = error.Truncate(),
+        .Scheduled = scheduled,
     };
+
     auto result = EnqueueJobEvent(std::move(event));
-    YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
+    YT_LOG_TRACE("%v abort notification %v (JobId: %v)",
+        scheduled ? "Job" : "Nonscheduled job",
         result ? "enqueued" : "dropped",
         jobId);
 }
 
-void TOperationControllerImpl::AbortJob(
+void TOperationControllerImpl::OnJobAborted(
     const TJobPtr& job,
-    NJobTrackerClient::NProto::TJobStatus* status)
+    const TError& error,
+    bool scheduled,
+    std::optional<EAbortReason> abortReason)
 {
-    OnJobAborted(job, status, /*byScheduler*/ true);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    OnJobAborted(job->GetId(), error, scheduled, abortReason, job->GetControllerEpoch());
+}
+
+void TOperationControllerImpl::OnJobAborted(
+    const TJobPtr& job,
+    const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    OnJobAborted(job, error, /*scheduled*/ true, /*abortReason*/ std::nullopt);
+}
+
+void TOperationControllerImpl::OnNonscheduledJobAborted(
+    TJobId jobId,
+    EAbortReason abortReason,
+    TControllerEpoch jobEpoch)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    OnJobAborted(jobId, TError{}, false, abortReason, jobEpoch);
 }
 
 TFuture<void> TOperationControllerImpl::AbandonJob(TOperationId operationId, TJobId jobId)
@@ -880,39 +831,6 @@ void TOperationControllerImpl::EnqueueScheduleJobRequest(TScheduleJobRequestPtr&
 {
     YT_VERIFY(IncarnationId_);
     ScheduleJobRequestsOutbox_->Enqueue(std::move(event));
-}
-
-
-TSchedulerToAgentJobEvent TOperationControllerImpl::BuildEvent(
-    ESchedulerToAgentJobEventType eventType,
-    const TJobPtr& job,
-    bool logAndProfile,
-    NJobTrackerClient::NProto::TJobStatus* status)
-{
-    auto statusHolder = std::make_unique<NJobTrackerClient::NProto::TJobStatus>();
-    if (status) {
-        statusHolder->CopyFrom(*status);
-        auto truncatedError = FromProto<TError>(status->result().error()).Truncate();
-        ToProto(statusHolder->mutable_result()->mutable_error(), truncatedError);
-    }
-    ToProto(statusHolder->mutable_job_id(), job->GetId());
-    ToProto(statusHolder->mutable_operation_id(), job->GetOperationId());
-    statusHolder->set_job_type(static_cast<int>(job->GetType()));
-    return TSchedulerToAgentJobEvent{
-        .EventType = eventType,
-        .OperationId = OperationId_,
-        .LogAndProfile = logAndProfile,
-        .StartTime = job->GetStartTime(),
-        .FinishTime = TInstant::Now(),
-        .TreeId = job->GetTreeId(),
-        .Status = std::move(statusHolder),
-        .AbortReason = {},
-        .InterruptReason = {},
-        .AbortedByScheduler = {},
-        .PreemptedFor = {},
-        .Preempted = job->GetPreempted(),
-        .PreemptionReason = job->GetPreemptionReason(),
-    };
 }
 
 void TOperationControllerImpl::ProcessControllerAgentError(const TError& error)

@@ -90,36 +90,39 @@ message TAgentToSchedulerJobEvent
 
 message TSchedulerToAgentJobEvent
 {
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid job_id = 2;
+
+    required int32 event_type = 3; // ESchedulerToAgentJobEventType
+    
+    // For started job.
+    optional uint64 start_time = 4;
+
+    // For finished and aborted job.
+    optional uint64 finish_time = 5;
+
+    // For finished job.
     message TPreemptedFor
     {
         required NYT.NProto.TGuid operation_id = 1;
         required NYT.NProto.TGuid job_id = 2;
     }
 
-    required NYT.NProto.TGuid operation_id = 1;
-    required int32 event_type = 3; // ESchedulerToAgentJobEventType
-    required bool log_and_profile = 2;
-    required NYT.NJobTrackerClient.NProto.TJobStatus status = 4;
-    optional uint64 finish_time = 7;
+    required bool job_execution_completed = 6;
 
-    // for Started
-    optional uint64 start_time = 6;
+    // For job aborted on node.
+    optional TPreemptedFor preempted_for = 7;
+    optional bool preempted = 8;
+    optional string preemption_reason = 9;
+    // COMPAT(pogorelov)
+    optional bool get_spec_failed = 10;
+    // For completed job.
+    optional int32 interrupt_reason = 11;
 
-    // for profiling
-    optional string tree_id = 13;
-
-    // for Aborted
-    optional int32 abort_reason = 9;
-    optional TPreemptedFor preempted_for = 12;
-    optional bool preempted = 14;
-    optional string preemption_reason = 15;
-
-    // for Completed
-    optional int32 interrupt_reason = 10; // EInterruptReason
-
-    // for Aborted
-    optional bool aborted_by_scheduler = 11;
-
+    // For job aborted by scheduler
+    optional bool scheduled = 12;
+    optional int32 abort_reason = 13;
+    optional NYT.NProto.TError error = 14;
 }
 
 message TSchedulerToAgentOperationEvent

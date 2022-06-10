@@ -1513,6 +1513,7 @@ private:
         BuildOutcomingScheduleJobResponses(request);
 
         JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
+
         OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
         ScheduleJobRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_job_requests());
 
@@ -1699,45 +1700,56 @@ private:
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
-        THashMap<TOperationPtr, std::vector<NScheduler::NProto::TSchedulerToAgentJobEvent*>> groupedJobEvents;
+        struct TOperationJobEvents
+        {
+            std::vector<TStartedJobSummary> StartedJobEvents;
+            std::vector<TFinishedJobSummary> FinishedJobEvents;
+            std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
+        };
+
+        THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
         JobEventsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_job_events(),
             [&] (auto* protoEvent) {
                 auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto operation = this->FindOperation(operationId);
-                if (!operation) {
-                    return;
+                auto& operationJobEvents = jobEventsPerOperationId[operationId];
+                auto eventType = CheckedEnumCast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
+                switch (eventType) {
+                    case ESchedulerToAgentJobEventType::Started: {
+                        operationJobEvents.StartedJobEvents.emplace_back();
+                        FromProto(&operationJobEvents.StartedJobEvents.back(), protoEvent);
+                        break;
+                    }
+                    case ESchedulerToAgentJobEventType::Finished: {
+                        operationJobEvents.FinishedJobEvents.emplace_back();
+                        FromProto(&operationJobEvents.FinishedJobEvents.back(), protoEvent);
+                        break;
+                    }
+                    case ESchedulerToAgentJobEventType::AbortedByScheduler: {
+                        operationJobEvents.AbortedJobEvents.emplace_back();
+                        FromProto(&operationJobEvents.AbortedJobEvents.back(), protoEvent);
+                        break;
+                    }
                 }
-                groupedJobEvents[operation].push_back(protoEvent);
             });
+        
+        for (auto& [operationId, events] : jobEventsPerOperationId) {
+            auto operation = this->FindOperation(operationId);
+            if (!operation) {
+                continue;
+            }
 
-        for (auto& [operation, protoEvents] : groupedJobEvents) {
             auto controller = operation->GetController();
             controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
-                BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(protoEvents)] {
-                    for (auto* protoEvent : protoEvents) {
-                        const auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
-                        switch (eventType) {
-                            case ESchedulerToAgentJobEventType::Started:
-                                controller->OnJobStarted(std::make_unique<TStartedJobSummary>(protoEvent));
-                                break;
-                            case ESchedulerToAgentJobEventType::Completed:
-                                controller->OnJobCompleted(std::make_unique<TCompletedJobSummary>(protoEvent));
-                                break;
-                            case ESchedulerToAgentJobEventType::Failed:
-                                controller->OnJobFailed(std::make_unique<TFailedJobSummary>(protoEvent));
-                                break;
-                            case ESchedulerToAgentJobEventType::Aborted: {
-                                const bool abortedByScheduler = protoEvent->aborted_by_scheduler();
-                                controller->OnJobAborted(std::make_unique<TAbortedJobSummary>(protoEvent), abortedByScheduler);
-                                break;
-                            }
-                            case ESchedulerToAgentJobEventType::Running:
-                                controller->OnJobRunning(std::make_unique<TRunningJobSummary>(protoEvent));
-                                break;
-                            default:
-                                YT_ABORT();
-                        }
+                BIND([rsp, controller, this_ = MakeStrong(this), events = std::move(events)] () mutable {
+                    for (auto& startedJobSummary : events.StartedJobEvents) {
+                        controller->OnJobStarted(std::make_unique<TStartedJobSummary>(std::move(startedJobSummary)));
+                    }
+                    for (auto& finishedJobInfo : events.FinishedJobEvents) {
+                        controller->OnJobFinishedEventReceivedFromScheduler(std::move(finishedJobInfo));
+                    }
+                    for (auto& abortedJobInfo : events.AbortedJobEvents) {
+                        controller->OnJobAbortedEventReceivedFromScheduler(std::move(abortedJobInfo));
                     }
                 }));
         }
