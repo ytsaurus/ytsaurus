@@ -9,6 +9,12 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
+const (
+	CHYTBinaryDirectory       = "//sys/bin/ytserver-clickhouse"
+	LogTailerBinaryDirectory  = "//sys/bin/ytserver-log-tailer"
+	TrampolineBinaryDirectory = "//sys/bin/clickhouse-trampoline"
+)
+
 func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (target ypath.Path, err error) {
 	var nodeType yt.NodeType
 	err = c.ytc.GetNode(ctx, path.SuppressSymlink().Attr("type"), &nodeType, nil)
@@ -25,35 +31,63 @@ func (c *Controller) resolveSymlink(ctx context.Context, path ypath.Path) (targe
 	return
 }
 
-func (c *Controller) buildArtifact(ctx context.Context, key string, spec *ArtifactSpec, defaultPath ypath.Path) (path ypath.Rich, err error) {
-	path.FileName = key
-	if spec == nil || spec.Path == nil {
-		path.Path, err = c.resolveSymlink(ctx, defaultPath)
-	} else {
-		path.Path, err = c.resolveSymlink(ctx, *spec.Path)
+type simpleArtifact struct {
+	name string
+	path ypath.Path
+}
+
+type versionedArtifact struct {
+	name           string
+	directory      ypath.Path
+	version        *string
+	defaultVersion string
+}
+
+func (a versionedArtifact) toSimpleArtifact() simpleArtifact {
+	version := a.defaultVersion
+	if a.version != nil {
+		version = *a.version
 	}
+	return simpleArtifact{a.name, a.directory.Child(version)}
+}
+
+func (c *Controller) buildArtifact(ctx context.Context, artifact simpleArtifact) (path ypath.Rich, err error) {
+	path.FileName = artifact.name
+	path.Path, err = c.resolveSymlink(ctx, artifact.path)
 	return
 }
 
-type artifact struct {
-	name        string
-	spec        *ArtifactSpec
-	defaultPath ypath.Path
-}
-
 func (c *Controller) appendArtifacts(ctx context.Context, speclet *Speclet, filePaths *[]ypath.Rich, description *map[string]interface{}) (err error) {
-	artifacts := []artifact{
-		{"ytserver-clickhouse", speclet.YTServerClickHouse, "//sys/bin/ytserver-clickhouse/ytserver-clickhouse"},
-		{"ytserver-log-tailer", speclet.YTServerLogTailer, "//sys/bin/ytserver-log-tailer/ytserver-log-tailer"},
-		{"clickhouse-trampoline", speclet.ClickHouseTrampoline, "//sys/bin/clickhouse-trampoline/clickhouse-trampoline"},
-		{"geodata.tgz", speclet.GeoData, "//sys/clickhouse/geodata/geodata.tgz"},
+	versionedArtifacts := []versionedArtifact{
+		{"ytserver-clickhouse", CHYTBinaryDirectory, speclet.CHYTVersion, DefaultCHYTVersion},
+		{"ytserver-log-tailer", LogTailerBinaryDirectory, speclet.LogTailerVersion, DefaultLogTailerVersion},
+		{"clickhouse-trampoline", TrampolineBinaryDirectory, speclet.TrampolineVersion, DefaultTrampolineVersion},
+	}
+
+	artifacts := []simpleArtifact{}
+
+	for _, artifact := range versionedArtifacts {
+		artifacts = append(artifacts, artifact.toSimpleArtifact())
+	}
+
+	enableGeoData := DefaultEnableGeoData
+	if speclet.EnableGeoData != nil {
+		enableGeoData = true
+	}
+
+	if enableGeoData {
+		geodataPath := DefaultGeoDataPath
+		if speclet.GeoDataPath != nil {
+			geodataPath = *speclet.GeoDataPath
+		}
+		artifacts = append(artifacts, simpleArtifact{"geodata.gz", geodataPath})
 	}
 
 	var artifactDescription = map[string]yson.RawValue{}
 
 	for _, artifact := range artifacts {
 		var path ypath.Rich
-		path, err = c.buildArtifact(ctx, artifact.name, artifact.spec, artifact.defaultPath)
+		path, err = c.buildArtifact(ctx, artifact)
 		if err != nil {
 			return
 		}

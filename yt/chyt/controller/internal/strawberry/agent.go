@@ -36,7 +36,6 @@ type Oplet struct {
 	pendingUpdateOpParameters bool
 
 	acl       []yt.ACE
-	pool      *string
 	ytOpState yt.OperationState
 	err       error
 }
@@ -123,6 +122,14 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller Controller, 
 }
 
 func (a *Agent) restartOp(oplet *Oplet) {
+	var strawberrySpeclet Speclet
+	err := yson.Unmarshal(oplet.speclet, &strawberrySpeclet)
+	if err != nil {
+		oplet.l.Info("error parsing speclet", log.Error(err))
+		oplet.setError(err)
+		return
+	}
+
 	oplet.l.Info("restarting operation")
 	spec, description, annotations, err := oplet.c.Prepare(a.ctx, oplet.Alias, oplet.IncarnationIndex+1, oplet.speclet)
 
@@ -145,8 +152,8 @@ func (a *Agent) restartOp(oplet *Oplet) {
 	spec["annotations"] = annotations
 	spec["description"] = description
 	spec["alias"] = "*" + oplet.Alias
-	if oplet.pool != nil {
-		spec["pool"] = oplet.pool
+	if strawberrySpeclet.Pool != nil {
+		spec["pool"] = strawberrySpeclet.Pool
 	}
 	if oplet.acl != nil {
 		spec["acl"] = oplet.acl
@@ -440,7 +447,6 @@ loop:
 
 type CypressState struct {
 	ACL              []yt.ACE
-	Pool             *string
 	OperationID      yt.OperationID
 	IncarnationIndex int
 	Speclet          yson.RawValue
@@ -461,7 +467,6 @@ func (a *Agent) newOplet(alias string, controller Controller, cState CypressStat
 	opState := Oplet{
 		Alias:            alias,
 		acl:              cState.ACL,
-		pool:             cState.Pool,
 		IncarnationIndex: cState.IncarnationIndex,
 		YTOpID:           opID,
 		speclet:          cState.Speclet,
@@ -560,10 +565,6 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 	l.Debug("node attributes collected and validated")
 
 	if oplet != nil {
-		if !reflect.DeepEqual(oplet.pool, node.Pool) {
-			oplet.pool = node.Pool
-			oplet.setPendingRestart("Pool change")
-		}
 		if !reflect.DeepEqual(oplet.speclet, node.Speclet) {
 			oplet.speclet = node.Speclet
 			oplet.setPendingRestart("Speclet change")
@@ -586,7 +587,6 @@ func (a *Agent) updateFromAttrs(oplet *Oplet, alias string) error {
 			OperationID:      node.OperationID,
 			IncarnationIndex: node.IncarnationIndex,
 			Speclet:          node.Speclet,
-			Pool:             node.Pool,
 		})
 		a.registerOplet(&newOplet)
 	}
