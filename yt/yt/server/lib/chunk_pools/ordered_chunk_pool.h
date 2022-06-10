@@ -22,7 +22,6 @@ struct TOrderedChunkPoolOptions
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
-    NScheduler::TOperationId OperationId;
     bool EnablePeriodicYielder = false;
     bool KeepOutputOrder = false;
     bool ShouldSliceByRowIndices = false;

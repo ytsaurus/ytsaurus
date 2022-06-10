@@ -475,7 +475,6 @@ protected:
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.OperationId = OperationId;
         chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         chunkPoolOptions.Logger = Logger.WithTag("Name: Root");
