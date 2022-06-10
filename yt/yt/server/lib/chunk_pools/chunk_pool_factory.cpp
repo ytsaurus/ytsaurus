@@ -55,7 +55,6 @@ IChunkPoolPtr CreateChunkPool(
                     .MaxTotalSliceCount = InfiniteCount,
                     .MinTeleportChunkSize = InfiniteWeight,
                     .JobSizeConstraints = jobSizeConstraints,
-                    .OperationId = {},
                     .EnablePeriodicYielder = true,
                     .ShouldSliceByRowIndices = true,
                     .Logger = std::move(logger),

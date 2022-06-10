@@ -2225,7 +2225,6 @@ protected:
         if (ordered) {
             TOrderedChunkPoolOptions options;
             options.JobSizeConstraints = std::move(jobSizeConstraints);
-            options.OperationId = OperationId;
             options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
             options.EnablePeriodicYielder = true;
             options.ShouldSliceByRowIndices = true;
