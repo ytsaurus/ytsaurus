@@ -64,7 +64,6 @@ struct IBootstrap
     // NB: Might be null if node is not a Data Node.
     // TODO(gritukan): Remove it after node split.
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override = 0;
-    virtual const NDataNode::IChunkBlockManagerPtr& GetChunkBlockManager() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

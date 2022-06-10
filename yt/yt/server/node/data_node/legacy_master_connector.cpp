@@ -1,7 +1,6 @@
 #include "legacy_master_connector.h"
 #include "private.h"
 #include "artifact.h"
-#include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_store.h"
 #include "config.h"

@@ -4,7 +4,6 @@
 #include "private.h"
 #include "blob_chunk.h"
 #include "blob_session.h"
-#include "chunk_block_manager.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "journal_session.h"

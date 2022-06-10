@@ -2,7 +2,6 @@
 
 #include "bootstrap.h"
 #include "private.h"
-#include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_store.h"
 #include "config.h"
@@ -755,9 +754,7 @@ private:
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(ChunkId_, *meta);
         while (currentBlockIndex < blockCount) {
-            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-            auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
-                ChunkId_,
+            auto asyncReadBlocks = chunk->ReadBlockRange(
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
                 chunkReadOptions);

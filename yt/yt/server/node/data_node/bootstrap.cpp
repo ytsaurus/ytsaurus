@@ -2,7 +2,6 @@
 
 #include "ally_replica_manager.h"
 #include "blob_reader_cache.h"
-#include "chunk_block_manager.h"
 #include "chunk_meta_manager.h"
 #include "chunk_registry.h"
 #include "chunk_store.h"
@@ -91,8 +90,6 @@ public:
             GetControlInvoker(),
             TChunkContext::Create(this),
             CreateChunkStoreHost(this));
-
-        ChunkBlockManager_ = CreateChunkBlockManager(ClusterNodeBootstrap_->GetChunkRegistry());
 
         SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
 
@@ -298,11 +295,6 @@ public:
         return AllyReplicaManager_;
     }
 
-    const IChunkBlockManagerPtr& GetChunkBlockManager() const override
-    {
-        return ChunkBlockManager_;
-    }
-
     const TSessionManagerPtr& GetSessionManager() const override
     {
         return SessionManager_;
@@ -410,8 +402,6 @@ private:
 
     TChunkStorePtr ChunkStore_;
     IAllyReplicaManagerPtr AllyReplicaManager_;
-
-    IChunkBlockManagerPtr ChunkBlockManager_;
 
     TSessionManagerPtr SessionManager_;
 

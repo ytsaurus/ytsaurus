@@ -19,7 +19,6 @@
 
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
 #include <yt/yt/server/node/data_node/bootstrap.h>
-#include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/chunk_reader_sweeper.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>

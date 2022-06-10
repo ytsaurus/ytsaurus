@@ -30,7 +30,6 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>
 
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
@@ -3369,7 +3368,6 @@ private:
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     CreateBackendChunkReadersHolder(
                         Bootstrap_,
-                        Bootstrap_->GetChunkBlockManager(),
                         Bootstrap_->GetMasterClient(),
                         Bootstrap_->GetLocalDescriptor(),
                         Bootstrap_->GetChunkRegistry(),
@@ -3397,7 +3395,6 @@ private:
                     Bootstrap_->GetVersionedChunkMetaManager(),
                     CreateBackendChunkReadersHolder(
                         Bootstrap_,
-                        Bootstrap_->GetChunkBlockManager(),
                         Bootstrap_->GetMasterClient(),
                         Bootstrap_->GetLocalDescriptor(),
                         Bootstrap_->GetChunkRegistry(),

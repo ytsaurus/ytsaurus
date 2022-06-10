@@ -16,7 +16,6 @@
 
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/chunk.h>
-#include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_registry.h>
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
 
@@ -82,13 +81,11 @@ class TBackendChunkReadersHolder
 public:
     TBackendChunkReadersHolder(
         IBootstrap* bootstrap,
-        IChunkBlockManagerPtr chunkBlockManager,
         NNative::IClientPtr client,
         TNodeDescriptor localNodeDescriptor,
         IChunkRegistryPtr chunkRegistry,
         TTabletStoreReaderConfigPtr readerConfig)
         : Bootstrap_(bootstrap)
-        , ChunkBlockManager_(std::move(chunkBlockManager))
         , Client_(std::move(client))
         , LocalNodeDescriptor_(std::move(localNodeDescriptor))
         , ChunkRegistry_(std::move(chunkRegistry))
@@ -149,7 +146,6 @@ public:
                 CreateLocalChunkReader(
                     ReaderConfig_,
                     chunk,
-                    ChunkBlockManager_,
                     std::move(blockCache),
                     /*blockMetaCache*/ nullptr));
 
@@ -340,7 +336,6 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    const IChunkBlockManagerPtr ChunkBlockManager_;
     const NApi::NNative::IClientPtr Client_;
     const TNodeDescriptor LocalNodeDescriptor_;
     const IChunkRegistryPtr ChunkRegistry_;
@@ -371,7 +366,6 @@ private:
 
 IBackendChunkReadersHolderPtr CreateBackendChunkReadersHolder(
     IBootstrap* bootstrap,
-    IChunkBlockManagerPtr chunkBlockManager,
     NNative::IClientPtr client,
     TNodeDescriptor localNodeDescriptor,
     IChunkRegistryPtr chunkRegistry,
@@ -379,7 +373,6 @@ IBackendChunkReadersHolderPtr CreateBackendChunkReadersHolder(
 {
     return New<TBackendChunkReadersHolder>(
         bootstrap,
-        std::move(chunkBlockManager),
         std::move(client),
         std::move(localNodeDescriptor),
         std::move(chunkRegistry),

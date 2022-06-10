@@ -1,7 +1,6 @@
 #pragma once
 
 #include "artifact.h"
-#include "chunk_block_manager.h"
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
 

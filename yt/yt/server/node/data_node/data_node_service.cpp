@@ -2,7 +2,6 @@
 #include "bootstrap.h"
 #include "private.h"
 #include "ally_replica_manager.h"
-#include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_registry.h"
 #include "chunk_store.h"
@@ -843,12 +842,9 @@ private:
                 blocks = ReadBlocksFromP2P(chunkId, blockIndexes, chunkReaderStatistics);
                 readFromP2P = true;
             } else {
-                const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-                auto blocksFuture = chunkBlockManager->ReadBlockSet(
-                    chunkId,
+                auto blocksFuture = chunk->ReadBlockSet(
                     blockIndexes,
                     options);
-
                 blocks = WaitFor(blocksFuture)
                     .ValueOrThrow();
             }
@@ -971,18 +967,18 @@ private:
             options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
         }
 
-        const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-        auto blocksFuture = chunkBlockManager->ReadBlockRange(
-            chunkId,
-            firstBlockIndex,
-            blockCount,
-            options);
+        if (chunk) {
+            auto blocksFuture = chunk->ReadBlockRange(
+                firstBlockIndex,
+                blockCount,
+                options);
 
-        auto blocks = WaitFor(blocksFuture)
-            .ValueOrThrow();
+            auto blocks = WaitFor(blocksFuture)
+                .ValueOrThrow();
 
-        if (!netThrottling) {
-            SetRpcAttachedBlocks(response, blocks);
+            if (!netThrottling) {
+                SetRpcAttachedBlocks(response, blocks);
+            }
         }
 
         auto bytesReadFromDisk =
