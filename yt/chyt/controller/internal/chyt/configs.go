@@ -56,6 +56,11 @@ func getPatchedClickHouseConfig(speclet *Speclet) (config interface{}, err error
 		err = fmt.Errorf("invalid settings config: %v", err)
 		return
 	}
+	if speclet.QuerySettings != nil {
+		for name, value := range speclet.QuerySettings {
+			settings[name] = value
+		}
+	}
 	if _, ok := settings["max_threads"]; !ok {
 		settings["max_threads"] = *speclet.Resources.InstanceCPU
 	}

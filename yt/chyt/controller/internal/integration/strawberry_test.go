@@ -256,16 +256,16 @@ func TestReincarnations(t *testing.T) {
 	agent.Start()
 	createNode(t, env, "test5")
 	waitIncarnation(t, env, "test5", 1)
-	setAttr(t, env, "test5", "strawberry_pool", "foo")
+	setAttr(t, env, "test5", "strawberry_speclet/pool", "foo")
 	waitIncarnation(t, env, "test5", 2)
-	setAttr(t, env, "test5", "strawberry_pool", "bar")
+	setAttr(t, env, "test5", "strawberry_speclet/pool", "bar")
 	waitIncarnation(t, env, "test5", 3)
 	agent.Stop()
 	waitIncarnation(t, env, "test5", 3)
 	agent.Start()
 	time.Sleep(time.Second * 2)
 	waitIncarnation(t, env, "test5", 3)
-	setAttr(t, env, "test5", "strawberry_pool", "baz")
+	setAttr(t, env, "test5", "strawberry_speclet/pool", "baz")
 	waitIncarnation(t, env, "test5", 4)
 }
 
@@ -301,8 +301,8 @@ func TestControllerStage(t *testing.T) {
 
 	defaultAgent.Stop()
 
-	setAttr(t, env, "test7", "strawberry_pool", "another_pool")
-	setAttr(t, env, "test6", "strawberry_pool", "another_pool")
+	setAttr(t, env, "test7", "strawberry_speclet/pool", "another_pool")
+	setAttr(t, env, "test6", "strawberry_speclet/pool", "another_pool")
 
 	waitIncarnation(t, env, "test7", 2)
 	// Default agent is off.

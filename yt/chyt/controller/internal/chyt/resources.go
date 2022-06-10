@@ -28,7 +28,7 @@ const (
 
 	cpu = 16
 
-	defaultInstanceCount = 8
+	defaultInstanceCount = 1
 	maxInstanceCount     = 100
 )
 
@@ -54,7 +54,7 @@ type Resources struct {
 	// InstanceTotalMemory is a total instance memory; should not be less than
 	// memFootprint + memLogTailer. If set, all additive memory parts are
 	// scaled to fit into given total memory.
-	InstanceTotalMemory *uint64 `yson:"instance_memory"`
+	InstanceTotalMemory *uint64 `yson:"instance_total_memory"`
 
 	// InstanceMemory is the most detailed way to specify memory.
 	InstanceMemory *InstanceMemory `yson:"instance_memory"`
@@ -198,12 +198,12 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 }
 
 func (c *Controller) populateResources(speclet *Speclet) (err error) {
-	if speclet.Resources == nil {
-		speclet.Resources = buildResources(defaultInstanceCount, cpu, memDefault)
-	} else if speclet.Resources.CliqueCPU != nil || speclet.Resources.CliqueMemory != nil {
-		err = c.populateResourcesClique(speclet.Resources)
+	if speclet.CliqueCPU != nil || speclet.CliqueMemory != nil {
+		err = c.populateResourcesClique(&speclet.Resources)
+	} else if speclet.InstanceCPU != nil || speclet.InstanceTotalMemory != nil || speclet.InstanceMemory != nil {
+		err = c.populateResourcesInstance(&speclet.Resources)
 	} else {
-		err = c.populateResourcesInstance(speclet.Resources)
+		speclet.Resources = *buildResources(defaultInstanceCount, cpu, memDefault)
 	}
 
 	return
