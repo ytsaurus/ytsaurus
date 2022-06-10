@@ -672,7 +672,7 @@ public:
 
     const TString& GetLoggingTag() const;
 
-    std::optional<TString> GetPoolTagByMemoryCategory(NNodeTrackerClient::EMemoryCategory category) const;
+    std::optional<TString> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
     int GetEdenStoreCount() const;
 

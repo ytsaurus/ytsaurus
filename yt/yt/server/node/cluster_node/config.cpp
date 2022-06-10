@@ -83,18 +83,18 @@ void TResourceLimitsConfig::Register(TRegistrar registrar)
         auto lookupRowsCacheLimit = New<TMemoryLimit>();
         lookupRowsCacheLimit->Type = NNodeTrackerClient::EMemoryLimitType::Static;
         lookupRowsCacheLimit->Value = 0;
-        config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::LookupRowsCache] = lookupRowsCacheLimit;
+        config->MemoryLimits[EMemoryCategory::LookupRowsCache] = lookupRowsCacheLimit;
     });
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->UserJobs) {
-            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = config->UserJobs;
+            config->MemoryLimits[EMemoryCategory::UserJobs] = config->UserJobs;
         }
         if (config->TabletStatic) {
-            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = config->TabletStatic;
+            config->MemoryLimits[EMemoryCategory::TabletStatic] = config->TabletStatic;
         }
         if (config->TabletDynamic) {
-            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = config->TabletDynamic;
+            config->MemoryLimits[EMemoryCategory::TabletDynamic] = config->TabletDynamic;
         }
     });
 }
@@ -143,13 +143,13 @@ void TResourceLimitsDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->UserJobs) {
-            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs] = config->UserJobs;
+            config->MemoryLimits[EMemoryCategory::UserJobs] = config->UserJobs;
         }
         if (config->TabletStatic) {
-            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic] = config->TabletStatic;
+            config->MemoryLimits[EMemoryCategory::TabletStatic] = config->TabletStatic;
         }
         if (config->TabletDynamic) {
-            config->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic] = config->TabletDynamic;
+            config->MemoryLimits[EMemoryCategory::TabletDynamic] = config->TabletDynamic;
         }
     });
 }
@@ -327,13 +327,13 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 
         // COMPAT(gritukan): Drop this code after configs migration.
-        if (!config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs]) {
-            auto& memoryLimit = config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::UserJobs];
+        if (!config->ResourceLimits->MemoryLimits[EMemoryCategory::UserJobs]) {
+            auto& memoryLimit = config->ResourceLimits->MemoryLimits[EMemoryCategory::UserJobs];
             memoryLimit = New<TMemoryLimit>();
             memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::Dynamic;
         }
-        if (!config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic]) {
-            auto& memoryLimit = config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletStatic];
+        if (!config->ResourceLimits->MemoryLimits[EMemoryCategory::TabletStatic]) {
+            auto& memoryLimit = config->ResourceLimits->MemoryLimits[EMemoryCategory::TabletStatic];
             memoryLimit = New<TMemoryLimit>();
             if (config->TabletNode->ResourceLimits->TabletStaticMemory == std::numeric_limits<i64>::max()) {
                 memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::None;
@@ -342,8 +342,8 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
                 memoryLimit->Value = config->TabletNode->ResourceLimits->TabletStaticMemory;
             }
         }
-        if (!config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic]) {
-            auto& memoryLimit = config->ResourceLimits->MemoryLimits[NNodeTrackerClient::EMemoryCategory::TabletDynamic];
+        if (!config->ResourceLimits->MemoryLimits[EMemoryCategory::TabletDynamic]) {
+            auto& memoryLimit = config->ResourceLimits->MemoryLimits[EMemoryCategory::TabletDynamic];
             memoryLimit = New<TMemoryLimit>();
             if (config->TabletNode->ResourceLimits->TabletDynamicMemory == std::numeric_limits<i64>::max()) {
                 memoryLimit->Type = NNodeTrackerClient::EMemoryLimitType::None;

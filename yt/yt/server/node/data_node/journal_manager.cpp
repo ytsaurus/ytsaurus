@@ -905,7 +905,7 @@ public:
         , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
     {
         auto journalIndexMemorTracker = nodeMemoryTracker
-            ? nodeMemoryTracker->WithCategory(NClusterNode::EMemoryCategory::ChunkJournalIndex)
+            ? nodeMemoryTracker->WithCategory(EMemoryCategory::ChunkJournalIndex)
             : nullptr;
 
         MultiplexedChangelogDispatcher_ = CreateFileChangelogDispatcher(

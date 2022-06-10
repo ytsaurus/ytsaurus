@@ -413,7 +413,7 @@ public:
 
     IBlockTrackerPtr BlockTracker;
 
-    std::optional<NNodeTrackerClient::EMemoryCategory> MemoryCategory;
+    std::optional<EMemoryCategory> MemoryCategory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

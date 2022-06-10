@@ -22,7 +22,7 @@ class INodeMemoryTracker
     : public TRefCounted
 {
 public:
-    using ECategory = NNodeTrackerClient::EMemoryCategory;
+    using ECategory = EMemoryCategory;
     using TPoolTag = TString;
 
     virtual i64 GetTotalLimit() const = 0;
@@ -55,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
 INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     i64 totalLimit,
-    const std::vector<std::pair<NNodeTrackerClient::EMemoryCategory, i64>>& limits,
+    const std::vector<std::pair<EMemoryCategory, i64>>& limits,
     const NLogging::TLogger& logger = {},
     const NProfiling::TProfiler& profiler = {});
 

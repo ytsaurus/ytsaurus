@@ -396,7 +396,7 @@ public:
         , MemoryTracker_(
             Bootstrap_
                 ->GetMemoryUsageTracker()
-                ->WithCategory(NNodeTrackerClient::EMemoryCategory::Query))
+                ->WithCategory(EMemoryCategory::Query))
         , RejectUponThrottlerOverdraft_(Config_->RejectUponThrottlerOverdraft)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)

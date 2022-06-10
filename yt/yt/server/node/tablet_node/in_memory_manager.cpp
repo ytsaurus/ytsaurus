@@ -22,6 +22,7 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/block_category.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>

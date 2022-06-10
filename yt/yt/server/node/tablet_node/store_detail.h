@@ -86,7 +86,7 @@ protected:
     TLegacyOwningKey RowToKey(TUnversionedRow row) const;
     TLegacyOwningKey RowToKey(TSortedDynamicRow row) const;
 
-    virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const = 0;
+    virtual EMemoryCategory GetMemoryCategory() const = 0;
 
     void SetDynamicMemoryUsage(i64 value);
 
@@ -163,7 +163,7 @@ protected:
 
     virtual void OnSetPassive() = 0;
 
-    NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
+    EMemoryCategory GetMemoryCategory() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +281,7 @@ protected:
 
     void OnLocalReaderFailed();
 
-    NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const override;
+    EMemoryCategory GetMemoryCategory() const override;
 
     NTableClient::TChunkStatePtr FindPreloadedChunkState();
 

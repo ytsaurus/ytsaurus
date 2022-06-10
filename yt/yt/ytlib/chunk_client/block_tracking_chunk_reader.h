@@ -2,7 +2,7 @@
 
 #include "chunk_reader.h"
 
-#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+#include <yt/yt/ytlib/memory_trackers/public.h>
 
 namespace NYT::NChunkClient {
 
@@ -11,7 +11,7 @@ namespace NYT::NChunkClient {
 IChunkReaderPtr CreateBlockTrackingChunkReader(
     IChunkReaderPtr underlying,
     IBlockTrackerPtr tracker,
-    std::optional<NNodeTrackerClient::EMemoryCategory> category);
+    std::optional<EMemoryCategory> category);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,7 @@
 #include <yt/yt/ytlib/chunk_client/block.h>
 
 #include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -12,16 +13,15 @@ namespace NYT {
 namespace {
 
 using NChunkClient::TBlock;
-using NNodeTrackerClient::EMemoryCategory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlock CreateBlock(i64 size)
+TSharedRef CreateBlock(i64 size)
 {
     TString s;
     s.resize(size, '*');
 
-    auto output = TBlock(TSharedRef::FromString(s));
+    auto output = TSharedRef::FromString(s);
     YT_ASSERT(static_cast<i64>(output.Size()) == size);
     return output;
 }
@@ -211,12 +211,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(Helpers, BlockCreation)
+TEST(TBlockTrackerHelpersTest, BlockCreation)
 {
     CreateBlock(239);
 }
 
-TEST(Helpers, Tracker)
+TEST(TBlockTrackerHelpersTest, Tracker)
 {
     auto tracker = New<TMockNodeMemoryTracker>();
     auto category = EMemoryCategory::BlockCache;
@@ -227,7 +227,7 @@ TEST(Helpers, Tracker)
     EXPECT_FALSE(tracker->IsEmpty());
 }
 
-TEST(BlockTracker, Register)
+TEST(TBlockTrackerTest, Register)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
     auto blockTracker = CreateBlockTracker(memoryTracker);
@@ -243,7 +243,7 @@ TEST(BlockTracker, Register)
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(BlockTracker, Acquire)
+TEST(TBlockTrackerTest, Acquire)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
     auto blockTracker = CreateBlockTracker(memoryTracker);
@@ -254,16 +254,16 @@ TEST(BlockTracker, Acquire)
         block = blockTracker->RegisterBlock(std::move(block));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::P2P);
+        blockTracker->AcquireCategory(block, EMemoryCategory::P2P);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::MasterCache);
+        blockTracker->AcquireCategory(block, EMemoryCategory::MasterCache);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
     }
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(BlockTracker, AcquireRelease)
+TEST(TBlockTrackerTest, AcquireRelease)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
     auto blockTracker = CreateBlockTracker(memoryTracker);
@@ -274,22 +274,22 @@ TEST(BlockTracker, AcquireRelease)
         block = blockTracker->RegisterBlock(std::move(block));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::P2P);
+        blockTracker->AcquireCategory(block, EMemoryCategory::P2P);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::MasterCache);
+        blockTracker->AcquireCategory(block, EMemoryCategory::MasterCache);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
 
-        blockTracker->ReleaseCategory(block.Data, EMemoryCategory::P2P);
+        blockTracker->ReleaseCategory(block, EMemoryCategory::P2P);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MasterCache, 1));
 
-        blockTracker->ReleaseCategory(block.Data, EMemoryCategory::MasterCache);
+        blockTracker->ReleaseCategory(block, EMemoryCategory::MasterCache);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
     }
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(BlockTracker, BlockCache)
+TEST(TBlockTrackerTest, BlockCache)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
     auto blockTracker = CreateBlockTracker(memoryTracker);
@@ -300,25 +300,25 @@ TEST(BlockTracker, BlockCache)
         block = blockTracker->RegisterBlock(std::move(block));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::UnknownBlocks, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::BlockCache);
+        blockTracker->AcquireCategory(block, EMemoryCategory::BlockCache);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::BlockCache, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::P2P);
+        blockTracker->AcquireCategory(block, EMemoryCategory::P2P);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
 
-        blockTracker->AcquireCategory(block.Data, EMemoryCategory::MasterCache);
+        blockTracker->AcquireCategory(block, EMemoryCategory::MasterCache);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MixedBlocks, 1));
 
-        blockTracker->ReleaseCategory(block.Data, EMemoryCategory::P2P);
+        blockTracker->ReleaseCategory(block, EMemoryCategory::P2P);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MasterCache, 1));
 
-        blockTracker->ReleaseCategory(block.Data, EMemoryCategory::MasterCache);
+        blockTracker->ReleaseCategory(block, EMemoryCategory::MasterCache);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::BlockCache, 1));
     }
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(BlockTracker, ResetCategory)
+TEST(TBlockTrackerTest, ResetCategory)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
     auto blockTracker = CreateBlockTracker(memoryTracker);
@@ -334,7 +334,7 @@ TEST(BlockTracker, ResetCategory)
     EXPECT_TRUE(memoryTracker->IsEmpty());
 }
 
-TEST(BlockTracker, AttachCategory)
+TEST(TBlockTrackerTest, AttachCategory)
 {
     auto memoryTracker = New<TMockNodeMemoryTracker>();
     auto blockTracker = CreateBlockTracker(memoryTracker);
@@ -353,5 +353,4 @@ TEST(BlockTracker, AttachCategory)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-
 } // namespace NYT
