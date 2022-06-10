@@ -1,5 +1,4 @@
 #include "local_chunk_reader.h"
-#include "chunk_block_manager.h"
 #include "chunk_store.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -32,12 +31,10 @@ public:
     TLocalChunkReader(
         TReplicationReaderConfigPtr config,
         IChunkPtr chunk,
-        IChunkBlockManagerPtr chunkBlockManager,
         IBlockCachePtr blockCache,
         TBlockMetaCachePtr blockMetaCache)
         : Config_(std::move(config))
         , Chunk_(std::move(chunk))
-        , ChunkBlockManager_(std::move(chunkBlockManager))
         , BlockCache_(std::move(blockCache))
         , BlockMetaCache_(std::move(blockMetaCache))
     { }
@@ -45,7 +42,7 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> /* estimatedSize */) override
+        std::optional<i64> /*estimatedSize*/) override
     {
         auto session = New<TReadBlockSetSession>();
         static_cast<TClientChunkReadOptions&>(session->Options) = options;
@@ -63,15 +60,14 @@ public:
         const TClientChunkReadOptions& clientOptions,
         int firstBlockIndex,
         int blockCount,
-        std::optional<i64> /* estimatedSize */) override
+        std::optional<i64> /*estimatedSize*/) override
     {
         TChunkReadOptions options;
         static_cast<TClientChunkReadOptions&>(options) = clientOptions;
         options.BlockCache = BlockCache_;
         options.PopulateCache = Config_->PopulateCache;
 
-        auto asyncResult = ChunkBlockManager_->ReadBlockRange(
-            Chunk_->GetId(),
+        auto asyncResult = Chunk_->ReadBlockRange(
             firstBlockIndex,
             blockCount,
             options);
@@ -132,7 +128,6 @@ public:
 private:
     const TReplicationReaderConfigPtr Config_;
     const IChunkPtr Chunk_;
-    const IChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
     const TBlockMetaCachePtr BlockMetaCache_;
 
@@ -144,7 +139,6 @@ private:
         std::vector<TBlock> Blocks;
         const TPromise<std::vector<TBlock>> Promise = NewPromise<std::vector<TBlock>>();
     };
-
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
 
     void RequestBlockSet(const TReadBlockSetSessionPtr& session)
@@ -164,11 +158,9 @@ private:
                 return;
             }
 
-            auto asyncResult = ChunkBlockManager_->ReadBlockSet(
-                Chunk_->GetId(),
+            auto asyncResult = Chunk_->ReadBlockSet(
                 blockIndexes,
                 session->Options);
-
             asyncResult.Subscribe(
                 BIND(&TLocalChunkReader::OnBlockSetRead, MakeStrong(this), session, localIndexes));
         } catch (const std::exception& ex) {
@@ -190,7 +182,7 @@ private:
             for (int responseIndex = 0; responseIndex < std::ssize(blocks); ++responseIndex) {
                 const auto& block = blocks[responseIndex];
                 int localIndex = localIndexes[responseIndex];
-                int blockIndex =  session->BlockIndexes[localIndex];
+                int blockIndex = session->BlockIndexes[localIndex];
                 if (!block) {
                     ThrowError(TError("Block %v cannot be read",
                         TBlockId(Chunk_->GetId(), blockIndex)));
@@ -214,17 +206,17 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IChunkReaderPtr CreateLocalChunkReader(
     TReplicationReaderConfigPtr config,
     IChunkPtr chunk,
-    IChunkBlockManagerPtr chunkBlockManager,
     IBlockCachePtr blockCache,
     TBlockMetaCachePtr blockMetaCache)
 {
     return New<TLocalChunkReader>(
         std::move(config),
         std::move(chunk),
-        std::move(chunkBlockManager),
         std::move(blockCache),
         std::move(blockMetaCache));
 }

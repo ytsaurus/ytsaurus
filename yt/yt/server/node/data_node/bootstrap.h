@@ -20,8 +20,6 @@ struct IBootstrap
     virtual const TChunkStorePtr& GetChunkStore() const = 0;
     virtual const IAllyReplicaManagerPtr& GetAllyReplicaManager() const = 0;
 
-    virtual const IChunkBlockManagerPtr& GetChunkBlockManager() const = 0;
-
     // Session stuff.
     virtual const TSessionManagerPtr& GetSessionManager() const = 0;
 

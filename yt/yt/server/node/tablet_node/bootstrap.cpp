@@ -352,18 +352,6 @@ public:
         }
     }
 
-    const IChunkBlockManagerPtr& GetChunkBlockManager() const override
-    {
-        if (ClusterNodeBootstrap_->IsDataNode()) {
-            return ClusterNodeBootstrap_
-                ->GetDataNodeBootstrap()
-                ->GetChunkBlockManager();
-        } else {
-            const static IChunkBlockManagerPtr NullChunkBlockManager;
-            return NullChunkBlockManager;
-        }
-    }
-
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 

@@ -204,13 +204,12 @@ private:
         auto chunkReader = CreateLocalChunkReader(
             readerConfig,
             chunk,
-            Bootstrap_->GetChunkBlockManager(),
             Bootstrap_->GetBlockCache(),
             Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
         auto chunkState = New<TChunkState>(Bootstrap_->GetBlockCache());
         chunkState->TableSchema = New<TTableSchema>();
-    
+
         auto schemalessReader = CreateSchemalessRangeChunkReader(
             chunkState,
             New<TColumnarChunkMeta>(*chunkMeta),

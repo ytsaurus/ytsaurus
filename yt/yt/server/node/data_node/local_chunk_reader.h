@@ -20,11 +20,9 @@ namespace NYT::NDataNode {
 NChunkClient::IChunkReaderPtr CreateLocalChunkReader(
     NChunkClient::TReplicationReaderConfigPtr config,
     IChunkPtr chunk,
-    IChunkBlockManagerPtr chunkBlockManager,
     NChunkClient::IBlockCachePtr blockCache,
     NTableClient::TBlockMetaCachePtr blockMetaCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode
-

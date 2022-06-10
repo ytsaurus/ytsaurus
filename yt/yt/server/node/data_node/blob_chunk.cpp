@@ -2,7 +2,6 @@
 
 #include "private.h"
 #include "blob_reader_cache.h"
-#include "chunk_block_manager.h"
 #include "location.h"
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"

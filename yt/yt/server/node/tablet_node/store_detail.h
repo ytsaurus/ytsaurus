@@ -375,7 +375,6 @@ DEFINE_REFCOUNTED_TYPE(IBackendChunkReadersHolder)
 
 IBackendChunkReadersHolderPtr CreateBackendChunkReadersHolder(
     IBootstrap* bootstrap,
-    NDataNode::IChunkBlockManagerPtr chunkBlockManager,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDescriptor localNodeDescriptor,
     NDataNode::IChunkRegistryPtr chunkRegistry,

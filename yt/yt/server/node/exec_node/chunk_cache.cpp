@@ -7,7 +7,6 @@
 #include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/blob_chunk.h>
 #include <yt/yt/server/node/data_node/blob_reader_cache.h>
-#include <yt/yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/legacy_master_connector.h>

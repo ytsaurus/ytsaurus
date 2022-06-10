@@ -91,7 +91,6 @@ TLookupSession::TLookupSession(
     UnderlyingChunkReader_ = CreateLocalChunkReader(
         New<TReplicationReaderConfig>(),
         Chunk_,
-        Bootstrap_->GetChunkBlockManager(),
         Bootstrap_->GetBlockCache(),
         Bootstrap_->GetChunkMetaManager()->GetBlockMetaCache());
 
