@@ -78,6 +78,8 @@ struct TProtobufMessageOptions
     EProtobufFieldSortOrder FieldSortOrder = EProtobufFieldSortOrder::ByFieldNumber;
 };
 
+TString GetColumnName(const ::google::protobuf::FieldDescriptor& field);
+
 TProtobufFieldOptions GetFieldOptions(
     const ::google::protobuf::FieldDescriptor* fieldDescriptor,
     const TMaybe<TProtobufFieldOptions>& defaultFieldOptions = {});
