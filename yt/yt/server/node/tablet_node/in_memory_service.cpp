@@ -12,6 +12,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/block_category.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
@@ -36,8 +37,6 @@ using namespace NRpc;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTabletClient;
-
-using NNodeTrackerClient::EMemoryCategory;
 
 static const auto& Logger = TabletNodeLogger;
 

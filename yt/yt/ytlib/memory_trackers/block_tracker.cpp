@@ -14,7 +14,6 @@
 namespace NYT {
 
 using NChunkClient::TBlock;
-using NNodeTrackerClient::EMemoryCategory;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -26,11 +25,6 @@ TBlockId GetBlockId(TRef ref)
 {
     YT_VERIFY(ref);
     return TBlockId(ref.Begin());
-}
-
-TBlockId GetBlockId(const TBlock &block)
-{
-    return GetBlockId(block.Data);
 }
 
 } // namespace NDetail
@@ -69,14 +63,14 @@ public:
         : MemoryTracker_(std::move(memoryTracker))
     { }
 
-    NChunkClient::TBlock RegisterBlock(NChunkClient::TBlock block) override
+    TSharedRef RegisterBlock(TSharedRef block) override
     {
-        if (!block.Data) {
+        if (!block) {
             return block;
         }
 
         auto blockId = NDetail::GetBlockId(block);
-        auto blockRef = TRef(block.Data);
+        auto blockRef = TRef(block);
 
         TSharedRef oldBlock;
 
@@ -85,12 +79,13 @@ public:
 
             auto guard = Guard(SpinLock_);
 
-            if (BlockIdToState_.contains(blockId)) {
-                auto holder = BlockIdToState_[blockId].Holder.Lock();
+            auto it = BlockIdToState_.find(blockId);
+            if (it != BlockIdToState_.end()) {
+                auto holder = it->second.Holder.Lock();
                 if (holder) {
-                    // Old block.Data should be destructed outside of critical section
-                    oldBlock = std::move(block.Data);
-                    block.Data = TSharedRef(static_cast<TRef>(oldBlock), std::move(holder));
+                    // Old block.Data should be destructed outside of critical section.
+                    oldBlock = std::move(block);
+                    block = TSharedRef(static_cast<TRef>(oldBlock), std::move(holder));
 
                     guard.Release();
                     return block;
@@ -107,40 +102,42 @@ public:
 
             auto guard = Guard(SpinLock_);
 
-            if (BlockIdToState_.contains(blockId)) {
-                auto holder = BlockIdToState_[blockId].Holder.Lock();
+            auto it = BlockIdToState_.find(blockId);
+            if (it != BlockIdToState_.end()) {
+                auto& blockState = it->second;
+                auto holder = blockState.Holder.Lock();
 
-                // Old block.Data should be destructed outside of critical section
-                oldBlock = std::move(block.Data);
+                // Old block.Data should be destructed outside of critical section.
+                oldBlock = std::move(block);
 
                 if (holder) {
-                    block.Data = TSharedRef(static_cast<TRef>(oldBlock), std::move(holder));
+                    block = TSharedRef(static_cast<TRef>(oldBlock), std::move(holder));
                 } else {
                     holder = New<NDetail::TBlockHolder>(this, blockRef);
-                    BlockIdToState_[blockId].Holder = holder;
-                    block.Data = TSharedRef(blockRef, std::move(holder));
+                    blockState.Holder = holder;
+                    block = TSharedRef(blockRef, std::move(holder));
                 }
             } else {
                 auto& blockState = BlockIdToState_[blockId];
 
-                blockState.Data = std::move(block.Data);
+                blockState.Data = std::move(block);
                 blockState.MemoryGuard = std::move(memoryGuard);
 
                 auto holder = New<NDetail::TBlockHolder>(this, blockRef);
                 blockState.Holder = holder;
-                block.Data = TSharedRef(blockRef, std::move(holder));
+                block = TSharedRef(blockRef, std::move(holder));
             }
         }
 
         return block;
     }
 
-    void AcquireCategory(TRef ref, NNodeTrackerClient::EMemoryCategory category) override
+    void AcquireCategory(TRef ref, EMemoryCategory category) override
     {
         DoChangeCategoryUsage(ref, category, 1);
     }
 
-    void ReleaseCategory(TRef ref, NNodeTrackerClient::EMemoryCategory category) override
+    void ReleaseCategory(TRef ref, EMemoryCategory category) override
     {
         DoChangeCategoryUsage(ref, category, -1);
     }
@@ -152,12 +149,15 @@ public:
         auto blockId = NDetail::GetBlockId(ref);
 
         auto guard = Guard(SpinLock_);
-        if (!BlockIdToState_.contains(blockId)) {
+
+        auto it = BlockIdToState_.find(blockId);
+
+        if (it == BlockIdToState_.end()) {
             return;
         }
 
-        if (BlockIdToState_[blockId].Holder.IsExpired()) {
-            BlockIdToState_.erase(blockId);
+        if (it->second.Holder.IsExpired()) {
+            BlockIdToState_.erase(it);
         }
     }
 
@@ -170,12 +170,12 @@ private:
         TMemoryUsageTrackerGuard MemoryGuard;
     };
 
-    THashMap<NDetail::TBlockId, TBlockState> BlockIdToState_;
     const INodeMemoryTrackerPtr MemoryTracker_;
+    THashMap<NDetail::TBlockId, TBlockState> BlockIdToState_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
-    void DoChangeCategoryUsage(TRef ref, NNodeTrackerClient::EMemoryCategory category, i64 delta)
+    void DoChangeCategoryUsage(TRef ref, EMemoryCategory category, i64 delta)
     {
         if (!ref) {
             return;
@@ -185,9 +185,7 @@ private:
 
         auto guard = Guard(SpinLock_);
 
-        YT_ASSERT(BlockIdToState_.contains(blockId));
-        auto& state = BlockIdToState_[blockId];
-
+        auto& state = GetOrCrash(BlockIdToState_, blockId);
         auto oldBlockCategory = GetCategoryByUsage(state.CategoryToUsage);
 
         if (state.CategoryToUsage.contains(category) &&
@@ -243,111 +241,6 @@ IBlockTrackerPtr CreateBlockTracker(INodeMemoryTrackerPtr tracker)
     return New<TBlockTracker>(std::move(tracker));
 }
 
-/////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-class TCategoryUsageGuard
-    : public TRefCounted
-    , public TNonCopyable
-{
-public:
-    explicit TCategoryUsageGuard(
-        IBlockTrackerPtr tracker,
-        TSharedRef holder,
-        NNodeTrackerClient::EMemoryCategory category)
-        : Tracker_(std::move(tracker))
-        , Holder_(std::move(holder))
-        , Category_(category)
-    {
-        YT_VERIFY(Tracker_);
-        YT_VERIFY(Holder_);
-
-        Tracker_->AcquireCategory(Holder_, Category_);
-    }
-
-    ~TCategoryUsageGuard() override
-    {
-        Tracker_->ReleaseCategory(Holder_, Category_);
-    }
-
-private:
-    const IBlockTrackerPtr Tracker_;
-    const TSharedRef Holder_;
-    const NNodeTrackerClient::EMemoryCategory Category_;
-};
-
-} // namespace NDetail
-
 ////////////////////////////////////////////////////////////////////////////////
-
-NChunkClient::TBlock ResetCategory(
-    NChunkClient::TBlock block,
-    IBlockTrackerPtr tracker,
-    std::optional<NNodeTrackerClient::EMemoryCategory> category)
-{
-    if (!tracker) {
-        return block;
-    }
-
-    if (!block.Data) {
-        return block;
-    }
-
-    block = tracker->RegisterBlock(std::move(block));
-
-    if (category) {
-        TRef ref = block.Data;
-        block.Data = TSharedRef(
-            ref,
-            New<NDetail::TCategoryUsageGuard>(
-                std::move(tracker),
-                std::move(block.Data),
-                *category));
-    }
-
-    return block;
-}
-
-TSharedRef ResetCategory(
-    TSharedRef block,
-    IBlockTrackerPtr tracker,
-    std::optional<NNodeTrackerClient::EMemoryCategory> category)
-{
-    return ResetCategory(
-        TBlock(std::move(block)),
-        std::move(tracker),
-        category)
-        .Data;
-}
-
-/////////////////////////////////////////////////////////////////////////////
-
-NChunkClient::TBlock AttachCategory(
-    NChunkClient::TBlock block,
-    IBlockTrackerPtr tracker,
-    std::optional<NNodeTrackerClient::EMemoryCategory> category)
-{
-    block.Data = AttachCategory(std::move(block.Data), std::move(tracker), category);
-
-    return block;
-}
-
-TSharedRef AttachCategory(
-    TSharedRef block,
-    IBlockTrackerPtr tracker,
-    std::optional<NNodeTrackerClient::EMemoryCategory> category)
-{
-    TSharedRef blockWithCategory = ResetCategory(block, std::move(tracker), category);
-
-    TRef ref = block;
-    return TSharedRef(
-        ref,
-        MakeCompositeHolder(
-            std::move(block),
-            std::move(blockWithCategory)));
-}
-
-/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

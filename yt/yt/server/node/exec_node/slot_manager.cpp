@@ -528,7 +528,7 @@ void TSlotManager::AsyncInitialize()
             Bootstrap_->GetDynamicConfigManager(),
             CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
             Bootstrap_->GetControlInvoker(),
-            Bootstrap_->GetMemoryUsageTracker()->WithCategory(NNodeTrackerClient::EMemoryCategory::TmpfsLayers),
+            Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
             Bootstrap_));
         if (volumeManagerOrError.IsOK()) {
             RootVolumeManager_.Store(volumeManagerOrError.Value());

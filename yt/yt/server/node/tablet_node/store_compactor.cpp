@@ -212,9 +212,9 @@ private:
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
         StoreWriterOptions_->ValidateResourceUsageIncrease = false;
         StoreWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
-        StoreWriterOptions_->MemoryTracker = Bootstrap_->GetMemoryUsageTracker()->WithCategory(NNodeTrackerClient::EMemoryCategory::Compaction);
+        StoreWriterOptions_->MemoryTracker = Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::Compaction);
         StoreWriterOptions_->BlockTracker = Bootstrap_->GetBlockTracker();
-        StoreWriterOptions_->MemoryCategory = NNodeTrackerClient::EMemoryCategory::Compaction;
+        StoreWriterOptions_->MemoryCategory = EMemoryCategory::Compaction;
 
         HunkWriterConfig_ = CloneYsonSerializable(TabletSnapshot_->Settings.HunkWriterConfig);
         HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_);
@@ -1751,7 +1751,7 @@ private:
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
             .ReadSessionId = TReadSessionId::Create(),
             .BlockTracker = Bootstrap_->GetBlockTracker(),
-            .MemoryCategory = NNodeTrackerClient::EMemoryCategory::Compaction
+            .MemoryCategory = EMemoryCategory::Compaction
         };
 
         auto Logger = TabletNodeLogger

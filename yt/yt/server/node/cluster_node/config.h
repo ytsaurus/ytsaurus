@@ -80,7 +80,7 @@ public:
     TMemoryLimitPtr TabletStatic;
     TMemoryLimitPtr TabletDynamic;
 
-    TEnumIndexedVector<NNodeTrackerClient::EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
+    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
 
     // COMPAT(gritukan): Drop optional after configs migration.
     std::optional<i64> FreeMemoryWatermark;
@@ -122,7 +122,7 @@ public:
     TMemoryLimitPtr TabletStatic;
     TMemoryLimitPtr TabletDynamic;
 
-    TEnumIndexedVector<NNodeTrackerClient::EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
+    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> MemoryLimits;
 
     std::optional<i64> FreeMemoryWatermark;
 

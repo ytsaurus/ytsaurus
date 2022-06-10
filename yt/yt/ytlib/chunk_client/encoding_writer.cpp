@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/memory_trackers/block_tracker.h>
 
+#include <yt/yt/ytlib/chunk_client/block_category.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/compression/codec.h>

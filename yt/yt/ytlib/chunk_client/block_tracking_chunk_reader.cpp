@@ -1,5 +1,9 @@
 #include "block_tracking_chunk_reader.h"
 
+#include <yt/yt/ytlib/memory_trackers/block_tracker.h>
+
+#include <yt/yt/ytlib/chunk_client/block_category.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +17,7 @@ public:
     TBlockTrackingChunkReader(
         IChunkReaderPtr underlying,
         IBlockTrackerPtr tracker,
-        std::optional<NNodeTrackerClient::EMemoryCategory> category)
+        std::optional<EMemoryCategory> category)
         : Underlying_(std::move(underlying))
         , BlockTracker_(std::move(tracker))
         , Category_(category)
@@ -27,7 +31,7 @@ public:
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize = {}) override
     {
-        return ApplyBlockTracking(Underlying_->ReadBlocks(options, blockIndexes, estimatedSize));
+        return TrackBlocks(Underlying_->ReadBlocks(options, blockIndexes, estimatedSize));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -36,7 +40,7 @@ public:
         int blockCount,
         std::optional<i64> estimatedSize = {}) override
     {
-        return ApplyBlockTracking(Underlying_->ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize));
+        return TrackBlocks(Underlying_->ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize));
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
@@ -60,18 +64,21 @@ public:
 private:
     const IChunkReaderPtr Underlying_;
     const IBlockTrackerPtr BlockTracker_;
-    const std::optional<NNodeTrackerClient::EMemoryCategory> Category_;
+    const std::optional<EMemoryCategory> Category_;
 
-    TFuture<std::vector<TBlock>> ApplyBlockTracking(const TFuture<std::vector<TBlock>>& future)
+    TFuture<std::vector<TBlock>> TrackBlocks(const TFuture<std::vector<TBlock>>& future)
     {
         return future.Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) {
             std::vector<TBlock> output(blocks.size());
-            for (int i = 0; i < std::ssize(blocks); ++i) {
-                output[i] = AttachCategory(
-                    blocks[i],
+            output.reserve(blocks.size());
+
+            for (const auto& block: blocks) {
+                output.push_back(AttachCategory(
+                    block,
                     BlockTracker_,
-                    Category_);
+                    Category_));
             }
+
             return output;
         }));
     }
@@ -82,9 +89,12 @@ DEFINE_REFCOUNTED_TYPE(TBlockTrackingChunkReader);
 IChunkReaderPtr CreateBlockTrackingChunkReader(
     IChunkReaderPtr underlying,
     IBlockTrackerPtr tracker,
-    std::optional<NNodeTrackerClient::EMemoryCategory> category)
+    std::optional<EMemoryCategory> category)
 {
-    return New<TBlockTrackingChunkReader>(std::move(underlying), std::move(tracker), category);
+    return New<TBlockTrackingChunkReader>(
+        std::move(underlying),
+        std::move(tracker),
+        category);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

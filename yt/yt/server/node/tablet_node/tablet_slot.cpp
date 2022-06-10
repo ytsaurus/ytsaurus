@@ -373,7 +373,7 @@ public:
             TMemoryUsageTrackerGuard::Acquire(
                 Bootstrap_
                 ->GetMemoryUsageTracker()
-                ->WithCategory(NNodeTrackerClient::EMemoryCategory::TabletDynamic),
+                ->WithCategory(EMemoryCategory::TabletDynamic),
                 0 /*size*/,
                 MemoryUsageGranularity),
             GetAutomatonInvoker());

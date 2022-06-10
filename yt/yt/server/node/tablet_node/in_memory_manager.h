@@ -41,13 +41,13 @@ struct TInMemoryChunkData final
     const NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     const NTableClient::IChunkLookupHashTablePtr LookupHashTable;
 
-    //! Guard that trackes non blocks memory usage [ChunkMeta + LookupHashTable]
+    //! Guard that trackes non blocks memory usage (ChunkMeta + LookupHashTable).
     const TMemoryUsageTrackerGuard BlockMetaMemoryTrackerGurard;
 
-    //! Blocks to serve
+    //! Blocks to serve.
     const std::vector<NChunkClient::TBlock> Blocks;
 
-    //! Blocks with block tracker category, should not use
+    //! Blocks with block tracker memory category holders attached.
     const std::vector<NChunkClient::TBlock> BlockCategoryHolders;
 };
 
