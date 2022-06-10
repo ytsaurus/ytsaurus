@@ -12,18 +12,42 @@ namespace NYT {
 using namespace NYTree;
 using namespace NYson;
 
+static const NLogging::TLogger Logger("Build");
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildBuildAttributes(IYsonConsumer* consumer, const char* serviceName)
+void TBuildInfo::Register(TRegistrar registrar)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .OptionalItem("name", serviceName)
-            .Item("version").Value(GetVersion())
-            .Item("build_host").Value(GetBuildHost())
-            .Item("build_time").Value(GetBuildTime())
-            .Item("start_time").Value(TInstant::Now())
-        .EndMap();
+    registrar.Parameter("name", &TThis::Name)
+        .Default();
+
+    registrar.Parameter("version", &TThis::Version)
+        .Default(GetVersion());
+
+    registrar.Parameter("build_host", &TThis::BuildHost)
+        .Default(GetBuildHost());
+
+    try {
+        auto buildTime = TInstant::ParseIso8601(GetBuildTime());
+        registrar.Parameter("build_time", &TThis::BuildTime)
+            .Default(buildTime);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error parsing build time");
+    }
+
+    registrar.Parameter("start_time", &TThis::StartTime)
+        .Default(TInstant::Now());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBuildInfoPtr BuildBuildAttributes(const char* serviceName)
+{
+    auto info = New<TBuildInfo>();
+    if (serviceName) {
+        info->Name = serviceName;
+    }
+    return info;
 }
 
 void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
@@ -35,9 +59,7 @@ void SetBuildAttributes(IYPathServicePtr orchidRoot, const char* serviceName)
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
-            .Do(BIND([=] (TFluentAnyWithoutAttributes fluent) {
-                BuildBuildAttributes(fluent.GetConsumer(), serviceName);
-            })));
+            .Value(BuildBuildAttributes(serviceName)));
     SyncYPathSet(
         orchidRoot,
         "/error_codes",

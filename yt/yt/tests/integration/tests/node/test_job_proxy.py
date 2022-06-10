@@ -5,7 +5,9 @@ from yt_helpers import profiler_factory
 from yt_commands import (ls, get, print_debug, authors, wait, run_test_vanilla)
 
 
+import datetime
 import os.path
+import re
 import shutil
 import requests
 
@@ -52,6 +54,22 @@ class TestJobProxyBinary(JobProxyTestBase):
             }
         }
     }
+
+    @authors("galtsev")
+    def test_orchid_build_info(self):
+        def check_iso8601_date(string):
+            date = datetime.datetime.fromisoformat(string.rstrip("Z"))
+            assert date > datetime.datetime.fromisoformat("2010-02-02")
+
+        n = ls("//sys/cluster_nodes")[0]
+        service_path = f"//sys/cluster_nodes/{n}/orchid/service/"
+
+        assert get(service_path + "name") == "node"
+        assert len(get(service_path + "build_host")) > 0
+        assert re.match(r"^[0-9]+\.[0-9]", get(service_path + "version"))
+
+        for time in ("build_time", "start_time"):
+            check_iso8601_date(get(service_path + time))
 
     @authors("max42")
     def test_job_proxy_build_info(self):

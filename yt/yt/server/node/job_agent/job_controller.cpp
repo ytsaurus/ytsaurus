@@ -36,6 +36,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/program/build_attributes.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -213,7 +215,7 @@ private:
 
     THashSet<int> FreePorts_;
 
-    TErrorOr<TYsonString> CachedJobProxyBuildInfo_;
+    TErrorOr<TBuildInfoPtr> CachedJobProxyBuildInfo_ = New<TBuildInfo>();
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -1689,15 +1691,7 @@ void TJobController::TImpl::UpdateJobProxyBuildInfo()
         auto result = jobProxy.Execute();
         result.Status.ThrowOnError();
 
-        TMemoryInput input(result.Output.begin(), result.Output.size());
-        TYsonInput ysonInput(&input);
-
-        TString ysonBytes;
-        TStringOutput outputStream(ysonBytes);
-        TYsonWriter writer(&outputStream);
-        ParseYson(ysonInput, &writer);
-
-        CachedJobProxyBuildInfo_ = TYsonString(ysonBytes);
+        CachedJobProxyBuildInfo_ = ConvertTo<TBuildInfoPtr>(TYsonString(result.Output));
     } catch (const std::exception& ex) {
         auto error = TError(NExecNode::EErrorCode::JobProxyUnavailable, "Failed to receive job proxy build info")
             << ex;
