@@ -104,7 +104,7 @@ void TCommit::Load(TLoadContext& context)
     Load(context, GeneratePrepareTimestamp_);
     Load(context, InheritCommitTimestamp_);
     // COMPAT(gritukan)
-    if (context.GetVersion() >= 11) {
+    if (context.GetVersion() >= 12) {
         Load(context, PrepareTimestamp_);
         Load(context, PrepareTimestampClusterTag_);
     } else {
