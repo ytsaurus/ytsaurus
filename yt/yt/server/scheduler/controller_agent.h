@@ -6,6 +6,7 @@
 #include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/server/lib/controller_agent/public.h>
+#include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -23,19 +24,25 @@ namespace NYT::NScheduler {
 
 struct TSchedulerToAgentJobEvent
 {
-    ESchedulerToAgentJobEventType EventType;
     TOperationId OperationId;
-    bool LogAndProfile;
-    TInstant StartTime;
+    TJobId JobId;
+
+    ESchedulerToAgentJobEventType EventType;
+    std::optional<TInstant> StartTime;
+
     std::optional<TInstant> FinishTime;
-    TString TreeId;
-    std::unique_ptr<NJobTrackerClient::NProto::TJobStatus> Status;
-    std::optional<EAbortReason> AbortReason;
+
+    std::optional<bool> JobExecutionCompleted;
     std::optional<EInterruptReason> InterruptReason;
-    std::optional<bool> AbortedByScheduler;
-    std::optional<TPreemptedFor> PreemptedFor;
-    bool Preempted;
+    std::optional<NScheduler::TPreemptedFor> PreemptedFor;
+    std::optional<bool> Preempted;
     std::optional<TString> PreemptionReason;
+    // COMPAT
+    bool GetSpecFailed = false;
+
+    std::optional<EAbortReason> AbortReason;
+    std::optional<TError> Error;
+    std::optional<bool> Scheduled;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

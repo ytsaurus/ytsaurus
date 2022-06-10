@@ -1400,7 +1400,6 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJobAtOperation(TSchedu
         element->AbortJob(
             startDescriptor.Id,
             EAbortReason::SchedulingOperationDisabled,
-            element->GetTreeId(),
             scheduleJobResult->ControllerEpoch);
         deactivateOperationElement(EDeactivationReason::OperationDisabled);
         decreaseHierarchicalResourceUsagePrecommit(precommittedResources, scheduleJobEpoch);
@@ -1562,7 +1561,6 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
                 element->AbortJob(
                     jobId,
                     EAbortReason::SchedulingResourceOvercommit,
-                    element->GetTreeId(),
                     scheduleJobResult->ControllerEpoch);
 
                 // Reset result.
@@ -1577,7 +1575,6 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
                 element->AbortJob(
                     jobId,
                     EAbortReason::SchedulingOperationIsNotAlive,
-                    element->GetTreeId(),
                     scheduleJobResult->ControllerEpoch);
 
                 scheduleJobResult = New<TControllerScheduleJobResult>();

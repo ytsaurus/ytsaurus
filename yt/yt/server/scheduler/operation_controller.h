@@ -46,7 +46,6 @@ struct IOperationControllerStrategyHost
     virtual void OnNonscheduledJobAborted(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId,
         TControllerEpoch jobEpoch) = 0;
 
     //! Returns the total resources that are additionally needed.
@@ -209,9 +208,9 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual void AbortJob(
+    virtual void OnJobAborted(
         const TJobPtr& job,
-        NJobTrackerClient::NProto::TJobStatus* status) = 0;
+        const TError& error) = 0;
     
     //! Called to proxy abandon job request to the controller agent.
     /*!

@@ -308,23 +308,17 @@ struct IOperationControllerSchedulerHost
      */
     virtual void OnJobStarted(std::unique_ptr<TStartedJobSummary> jobSummary) = 0;
 
-    //! Called during heartbeat processing to notify the controller that a job has completed.
+    //! Called during heartbeat processing to notify the controller that a job has finished.
     /*!
      *  \note Invoker affinity: cancellable Controller invoker
      */
-    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) = 0;
+    virtual void OnJobFinishedEventReceivedFromScheduler(TFinishedJobSummary&& finishedJobSummary) = 0;
 
-    //! Called during heartbeat processing to notify the controller that a job has failed.
+    //! Called when scheduler aborts job.
     /*!
-     *  \note Invoker affinity: cancelable Controller invoker
+     *  \note Invoker affinity: cancellable Controller invoker
      */
-    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) = 0;
-
-    //! Called during preemption to notify the controller that a job has been aborted.
-    /*!
-     *  \note Invoker affinity: cancelable Controller invoker
-     */
-    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler) = 0;
+    virtual void OnJobAbortedEventReceivedFromScheduler(TAbortedBySchedulerJobSummary&& eventSummary) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job is still running.
     /*!

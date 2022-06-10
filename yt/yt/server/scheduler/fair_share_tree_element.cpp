@@ -1927,10 +1927,9 @@ void TSchedulerOperationElement::OnScheduleJobFailed(
 void TSchedulerOperationElement::AbortJob(
     TJobId jobId,
     EAbortReason abortReason,
-    const TString& treeId,
     TControllerEpoch jobEpoch)
 {
-    Controller_->AbortJob(jobId, abortReason, treeId, jobEpoch);
+    Controller_->AbortJob(jobId, abortReason, jobEpoch);
 }
 
 EResourceTreeIncreaseResult TSchedulerOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(

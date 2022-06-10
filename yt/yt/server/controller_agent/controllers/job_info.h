@@ -160,22 +160,29 @@ DEFINE_REFCOUNTED_TYPE(TJoblet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ECombinationState,
-    (ReceivedFromNode)
-    (ReceivedFromScheduler)
-    (FullyReceived)
-    (Released)
-);
-
-struct TFinishedJobInfo
+class TFinishedJobInfo
     : public TRefCounted
 {
-    TFinishedJobInfo(ECombinationState combinationState, std::unique_ptr<TJobSummary> jobSummary);
+public:
+    explicit TFinishedJobInfo(std::unique_ptr<TJobSummary> nodeJobSummary);
+    explicit TFinishedJobInfo(TFinishedJobSummary&& schedulerJobSummary);
 
-    std::unique_ptr<TJobSummary> JobSummary;
+    TFinishedJobInfo(TFinishedJobInfo&& other) = default;
+
+    std::unique_ptr<TJobSummary> NodeJobSummary;
+    std::optional<TFinishedJobSummary> SchedulerJobSummary;
     NConcurrency::TDelayedExecutorCookie JobAbortCookie;
 
-    ECombinationState CombinationState;
+    void StartRemoving();
+    bool IsRemoving() const noexcept;
+
+    static TFinishedJobInfoPtr CreateRemovingInfo() noexcept;
+
+protected:
+    TFinishedJobInfo() = default;
+
+private:
+    bool IsRemoving_ = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)

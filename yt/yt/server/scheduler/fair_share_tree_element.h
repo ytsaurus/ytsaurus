@@ -806,7 +806,6 @@ public:
     void AbortJob(
         TJobId jobId,
         EAbortReason abortReason,
-        const TString& treeId,
         TControllerEpoch jobEpoch);
 
     //! Resource tree methods.

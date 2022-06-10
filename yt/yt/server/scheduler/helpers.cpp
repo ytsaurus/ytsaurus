@@ -52,10 +52,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void BuildMinimalOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
     fluent
@@ -112,26 +108,6 @@ void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
             fluent
                 .Items(initializationAttributes->Mutable);
         });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-EAbortReason GetAbortReason(const TError& resultError)
-{
-    try {
-        return resultError.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
-    } catch (const std::exception& ex) {
-        // Process unknown abort reason from node.
-        YT_LOG_WARNING(ex, "Found unknown abort_reason in job result");
-        return EAbortReason::Unknown;
-    }
-}
-
-TJobStatus JobStatusFromError(const TError& error)
-{
-    auto status = TJobStatus();
-    ToProto(status.mutable_result()->mutable_error(), error);
-    return status;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
