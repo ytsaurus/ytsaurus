@@ -133,7 +133,8 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "schedule_job_requests"),
-        MessageOffloadInvoker_);
+        MessageOffloadInvoker_,
+        /*supportTracing*/ true);
 }
 
 TMessageQueueInbox* TControllerAgent::GetOperationEventsInbox()
@@ -151,17 +152,17 @@ TMessageQueueInbox* TControllerAgent::GetScheduleJobResponsesInbox()
     return ScheduleJobResponsesInbox_.get();
 }
 
-const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>& TControllerAgent::GetJobEventsOutbox()
+const TSchedulerToAgentJobEventOutboxPtr& TControllerAgent::GetJobEventsOutbox()
 {
     return JobEventsOutbox_;
 }
 
-const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>& TControllerAgent::GetOperationEventsOutbox()
+const TSchedulerToAgentOperationEventOutboxPtr& TControllerAgent::GetOperationEventsOutbox()
 {
     return OperationEventsOutbox_;
 }
 
-const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& TControllerAgent::GetScheduleJobRequestsOutbox()
+const TScheduleJobRequestOutboxPtr& TControllerAgent::GetScheduleJobRequestsOutbox()
 {
     return ScheduleJobRequestsOutbox_;
 }

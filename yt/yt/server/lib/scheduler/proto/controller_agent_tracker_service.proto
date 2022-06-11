@@ -4,6 +4,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/core/tracing/proto/tracing_ext.proto";
 import "yt/ytlib/scheduler/proto/job.proto";
 import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
 
@@ -145,6 +146,8 @@ message TScheduleJobRequest
     optional string pool_path = 8;
     required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
     optional TScheduleJobSpec spec = 7;
+
+    optional NYT.NTracing.NProto.TTracingExt tracing_ext = 9;
 }
 
 message TScheduleJobResponse
@@ -163,6 +166,8 @@ message TScheduleJobResponse
     required uint64 duration = 6;
     required NYT.NProto.TGuid operation_id = 7;
     required int32 controller_epoch = 8 [default = -1];
+
+    optional NYT.NTracing.NProto.TTracingExt tracing_ext = 9;
 }
 
 message TEventQueueInbox
@@ -202,6 +207,7 @@ message TReqHeartbeat
         repeated TAgentToSchedulerJobEvent items = 2;
     }
 
+    // COMPAT(ignat)
     message TAgentToSchedulerScheduleJobResponsesOutbox
     {
         required int64 first_item_id = 1;
@@ -216,6 +222,7 @@ message TReqHeartbeat
 
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
     required TAgentToSchedulerJobEventsOutbox agent_to_scheduler_job_events = 8;
+    // COMPAT(ignat)
     required TAgentToSchedulerScheduleJobResponsesOutbox agent_to_scheduler_schedule_job_responses = 9;
 
     required TEventQueueInbox scheduler_to_agent_job_events = 10;

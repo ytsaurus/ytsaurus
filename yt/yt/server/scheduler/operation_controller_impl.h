@@ -103,9 +103,9 @@ private:
 
     std::atomic<TControllerEpoch> Epoch_;
 
-    TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
-    TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
-    TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
+    TSchedulerToAgentJobEventOutboxPtr JobEventsOutbox_;
+    TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
+    TScheduleJobRequestOutboxPtr ScheduleJobRequestsOutbox_;
 
     TPromise<TOperationControllerInitializeResult> PendingInitializeResult_;
     TPromise<TOperationControllerPrepareResult> PendingPrepareResult_;

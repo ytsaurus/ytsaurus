@@ -79,6 +79,13 @@ void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobReques
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TSchedulerToAgentJobEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>;
+using TSchedulerToAgentOperationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>;
+using TScheduleJobRequestOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 struct TControllerAgentMemoryStatistics
 {
     i64 Limit;
@@ -152,9 +159,9 @@ public:
     TMessageQueueInbox* GetJobEventsInbox();
     TMessageQueueInbox* GetScheduleJobResponsesInbox();
 
-    const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>>& GetJobEventsOutbox();
-    const TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>& GetOperationEventsOutbox();
-    const TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>>& GetScheduleJobRequestsOutbox();
+    const TSchedulerToAgentJobEventOutboxPtr& GetJobEventsOutbox();
+    const TSchedulerToAgentOperationEventOutboxPtr& GetOperationEventsOutbox();
+    const TScheduleJobRequestOutboxPtr& GetScheduleJobRequestsOutbox();
 
     void Cancel(const TError& error);
     const IInvokerPtr& GetCancelableInvoker();
@@ -184,9 +191,9 @@ private:
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleJobResponsesInbox_;
 
-    TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
-    TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
-    TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
+    TSchedulerToAgentJobEventOutboxPtr JobEventsOutbox_;
+    TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
+    TScheduleJobRequestOutboxPtr ScheduleJobRequestsOutbox_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;

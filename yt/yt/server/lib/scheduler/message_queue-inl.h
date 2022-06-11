@@ -8,16 +8,30 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template<class T, typename = void>
+struct THasProtoTracingExtension
+    : std::false_type
+{ };
+
+template<class T>
+struct THasProtoTracingExtension<T, decltype((void)T::tracing_ext, void())>
+    : std::true_type
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TItem>
 TMessageQueueOutbox<TItem>::TMessageQueueOutbox(
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler,
-    const IInvokerPtr& invoker)
+    const IInvokerPtr& invoker,
+    bool supportTracing)
     : Logger(logger)
     , EnqueuedItemsCounter_(profiler.WithTag("queue_type", "outbox").Counter("/message_queue/enqueued_items"))
     , HandledItemsCounter_(profiler.WithTag("queue_type", "outbox").Counter("/message_queue/handled_items"))
     , PendingItemsGauge_(profiler.WithTag("queue_type", "outbox").Gauge("/message_queue/pending_items"))
     , Invoker_(invoker)
+    , SupportTracing_(supportTracing)
 { }
 
 template <class TItem>
@@ -27,7 +41,10 @@ void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 
     EnqueuedItemsCounter_.Increment();
 
-    Stack_.Enqueue(std::move(item));
+    Stack_.Enqueue(TItemRequest{
+        std::move(item),
+        SupportTracing_ ? NTracing::GetCurrentTraceContext() : nullptr
+    });
 }
 
 template <class TItem>
@@ -37,7 +54,10 @@ void TMessageQueueOutbox<TItem>::Enqueue(std::vector<TItem>&& items)
 
     EnqueuedItemsCounter_.Increment(items.size());
 
-    Stack_.Enqueue(std::move(items));
+    Stack_.Enqueue(TItemsRequest{
+        std::move(items),
+        SupportTracing_ ? NTracing::GetCurrentTraceContext() : nullptr
+    });
 }
 
 template <class TItem>
@@ -55,13 +75,13 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
 
     Stack_.DequeueAll(true, [&] (TEntry& entry) {
         Visit(std::move(entry),
-            [&] (TItem&& item) {
-                Queue_.emplace(std::move(item));
+            [&] (TItemRequest&& itemRequest) {
+                Queue_.emplace(std::move(itemRequest));
                 ++NextItemId_;
             },
-            [&] (std::vector<TItem>&& items) {
-                for (auto& item : items) {
-                    Queue_.emplace(std::move(item));
+            [&] (TItemsRequest&& itemsRequest) {
+                for (auto& item : itemsRequest.Items) {
+                    Queue_.emplace(TItemRequest{std::move(item), itemsRequest.TraceContext});
                     ++NextItemId_;
                 }
             });
@@ -81,7 +101,16 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
 
     auto it = Queue_.begin();
     for (i64 iter = 0; iter < itemCount; ++iter) {
-        protoItemBuilder(message->add_items(), *it);
+        auto* newItem = message->add_items();
+        protoItemBuilder(newItem, it->Item);
+
+        using TProtoItem = typename std::remove_reference<decltype(*newItem)>::type;
+        if constexpr (THasProtoTracingExtension<TProtoItem>{}) {
+            if (it->TraceContext) {
+                auto* tracingExt = newItem->MutableExtension(TProtoItem::tracing_ext);
+                ToProto(tracingExt, it->TraceContext);
+            }
+        }
         Queue_.move_forward(it);
     }
     YT_LOG_DEBUG("Sending outbox items (ItemIds: %v-%v, ItemCount: %v, RetainedCount: %v)",

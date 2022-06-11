@@ -39,6 +39,7 @@ using namespace NRpc;
 using namespace NYson;
 using namespace NYTree;
 using namespace NControllerAgent;
+using namespace NTracing;
 
 using NJobTrackerClient::TReleaseJobFlags;
 
@@ -153,25 +154,36 @@ void ProcessScheduleJobResponses(
                     auto jobId = FromProto<TJobId>(protoResponse->job_id());
                     auto controllerEpoch = protoResponse->controller_epoch();
                     auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
-                    if (controllerEpoch != expectedControllerEpoch) {
-                        YT_LOG_DEBUG(
-                            "Received job schedule result with unexpected controller epoch; result is ignored "
-                            "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                            operationId,
-                            jobId,
-                            controllerEpoch,
-                            expectedControllerEpoch);
-                        continue;
+
+                    auto traceContext = TTraceContext::NewChildFromRpc(
+                        protoResponse->tracing_ext(),
+                        /*spanName*/ Format("ScheduleJob:%v", jobId),
+                        context->GetRequestId(),
+                        /*forceTracing*/ false);
+
+                    {
+                        TCurrentTraceContextGuard traceContextGuard(traceContext);
+
+                        if (controllerEpoch != expectedControllerEpoch) {
+                            YT_LOG_DEBUG(
+                                "Received job schedule result with unexpected controller epoch; result is ignored "
+                                "(OperationId: %v, JobId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
+                                operationId,
+                                jobId,
+                                controllerEpoch,
+                                expectedControllerEpoch);
+                            continue;
+                        }
+                        if (nodeShard->IsOperationControllerTerminated(operationId)) {
+                            YT_LOG_DEBUG(
+                                "Received job schedule result for operation whose controller is terminated; "
+                                "result is ignored (OperationId: %v, JobId: %v)",
+                                operationId,
+                                jobId);
+                            continue;
+                        }
+                        nodeShard->EndScheduleJob(*protoResponse);
                     }
-                    if (nodeShard->IsOperationControllerTerminated(operationId)) {
-                        YT_LOG_DEBUG(
-                            "Received job schedule result for operation whose controller is terminated; "
-                            "result is ignored (OperationId: %v, JobId: %v)",
-                            operationId,
-                            jobId);
-                        continue;
-                    }
-                    nodeShard->EndScheduleJob(*protoResponse);
                 }
             })
             .AsyncVia(nodeShardInvokers[shardId])

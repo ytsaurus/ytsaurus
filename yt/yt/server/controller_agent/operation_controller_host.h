@@ -90,6 +90,9 @@ struct TAgentToSchedulerJobEvent
     std::optional<NJobTrackerClient::TReleaseJobFlags> ReleaseFlags;
 };
 
+using TAgentToSchedulerJobEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>>;
+using TAgentToSchedulerOperationEventOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationControllerHost
@@ -100,8 +103,8 @@ public:
         TOperation* operation,
         IInvokerPtr cancelableControlInvoker,
         IInvokerPtr uncancelableControlInvoker,
-        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
-        TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
+        TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
+        TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
         TBootstrap* bootstrap);
 
     void Disconnect(const TError& error) override;
@@ -170,8 +173,8 @@ private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;
     const IInvokerPtr UncancelableControlInvoker_;
-    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
-    const TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
+    const TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
+    const TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
     TBootstrap* const Bootstrap_;
     const TIncarnationId IncarnationId_;
     const NScheduler::TControllerEpoch ControllerEpoch_;
