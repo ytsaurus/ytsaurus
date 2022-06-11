@@ -10,7 +10,11 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <type_traits>
 
 namespace NYT::NScheduler {
 
@@ -26,7 +30,8 @@ public:
     TMessageQueueOutbox(
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler,
-        const IInvokerPtr& invoker);
+        const IInvokerPtr& invoker,
+        bool supportTracing = false);
 
     /*
      * \note Thread affinity: any
@@ -64,10 +69,24 @@ private:
 
     const IInvokerPtr Invoker_;
 
-    using TEntry = std::variant<TItem, std::vector<TItem>>;
+    const bool SupportTracing_;
+
+    struct TItemRequest
+    {
+        TItem Item;
+        NTracing::TTraceContextPtr TraceContext = nullptr;
+    };
+    
+    struct TItemsRequest
+    {
+        std::vector<TItem> Items;
+        NTracing::TTraceContextPtr TraceContext = nullptr;
+    };
+
+    using TEntry = std::variant<TItemRequest, TItemsRequest>;
     TMpscStack<TEntry> Stack_;
 
-    TRingQueue<TItem> Queue_;
+    TRingQueue<TItemRequest> Queue_;
     TMessageQueueItemId FirstItemId_ = 0;
     TMessageQueueItemId NextItemId_ = 0;
 };

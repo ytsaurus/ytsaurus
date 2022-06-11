@@ -73,6 +73,7 @@ using namespace NEventLog;
 using namespace NProfiling;
 using namespace NYson;
 using namespace NRpc;
+using namespace NTracing;
 using namespace NTransactionClient;
 
 using NYT::FromProto;
@@ -90,6 +91,8 @@ struct TAgentToSchedulerScheduleJobResponse
     TOperationId OperationId;
     TControllerScheduleJobResultPtr Result;
 };
+
+using TAgentToSchedulerScheduleJobResponseOutboxPtr = TIntrusivePtr<NScheduler::TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>>;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1100,9 +1103,9 @@ private:
     TInstant LastOperationAlertsSendTime_;
     TInstant LastSuspiciousJobsSendTime_;
 
-    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> OperationEventsOutbox_;
-    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> JobEventsOutbox_;
-    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerScheduleJobResponse>> ScheduleJobResposesOutbox_;
+    TAgentToSchedulerOperationEventOutboxPtr OperationEventsOutbox_;
+    TAgentToSchedulerJobEventOutboxPtr JobEventsOutbox_;
+    TAgentToSchedulerScheduleJobResponseOutboxPtr ScheduleJobResposesOutbox_;
 
     std::unique_ptr<TMessageQueueInbox> JobEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
@@ -1269,7 +1272,8 @@ private:
             ControllerAgentLogger.WithTag("Kind: AgentToSchedulerScheduleJobResponses, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"),
-            Bootstrap_->GetControlInvoker());
+            Bootstrap_->GetControlInvoker(),
+            /*supportTracing*/ true);
 
         JobEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
@@ -1614,6 +1618,7 @@ private:
         }
 
         YT_LOG_DEBUG("Heartbeat succeeded");
+
         const auto& rsp = rspOrError.Value();
 
         OperationEventsOutbox_->HandleStatus(rsp->agent_to_scheduler_operation_events());
@@ -1622,7 +1627,7 @@ private:
 
         HandleJobEvents(rsp);
         HandleOperationEvents(rsp);
-        HandleScheduleJobRequests(rsp, GetExecNodeDescriptors({}));
+        HandleScheduleJobRequests(rsp, preparedRequest.RpcRequest->GetRequestId(), GetExecNodeDescriptors({}));
 
         if (rsp->has_exec_nodes()) {
             int onlineExecNodeCount = 0;
@@ -1695,7 +1700,7 @@ private:
 
         ScheduleJobResposesOutbox_->HandleStatus(rsp->agent_to_scheduler_schedule_job_responses());
 
-        HandleScheduleJobRequests(rsp, GetExecNodeDescriptors({}));
+        HandleScheduleJobRequests(rsp, req->GetRequestId(), GetExecNodeDescriptors({}));
     }
 
     void HandleJobEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
@@ -1783,7 +1788,10 @@ private:
     }
 
     template <class THeartbeatRspPtr>
-    void HandleScheduleJobRequests(const THeartbeatRspPtr& rsp, const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
+    void HandleScheduleJobRequests(
+        const THeartbeatRspPtr& rsp,
+        TRequestId requestId,
+        const TRefCountedExecNodeDescriptorMapPtr& execNodeDescriptors)
     {
         auto outbox = ScheduleJobResposesOutbox_;
 
@@ -1840,9 +1848,17 @@ private:
                 auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
+                auto traceContext = TTraceContext::NewChildFromRpc(
+                    protoRequest->tracing_ext(),
+                    /*spanName*/ Format("ScheduleJob:%v", jobId),
+                    requestId,
+                    /*forceTracing*/ false);
+
                 GuardedInvoke(
                     scheduleJobInvoker,
                     BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
+                        TCurrentTraceContextGuard traceContextGuard(traceContext);
+
                         auto controllerInvocationInstant = TInstant::Now();
 
                         YT_LOG_DEBUG("Processing schedule job in controller invoker (OperationId: %v, JobId: %v, InvocationWaitDuration: %v)",

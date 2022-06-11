@@ -154,6 +154,10 @@ def get_scheduler_config():
         warmup_time = 30000;
     };
 
+    rpc_server = {
+        tracing_mode = "force";
+    };
+
     scheduler = {
         lock_transaction_timeout = 10000;
         operations_update_period = 500;
@@ -257,6 +261,10 @@ def get_controller_agent_config():
     };
 
     cluster_connection = {
+    };
+
+    rpc_server = {
+        tracing_mode = "force";
     };
 
     controller_agent = {

@@ -187,8 +187,8 @@ TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
     IInvokerPtr uncancelableControlInvoker,
-    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>> operationEventsOutbox,
-    TIntrusivePtr<TMessageQueueOutbox<TAgentToSchedulerJobEvent>> jobEventsOutbox,
+    TAgentToSchedulerOperationEventOutboxPtr operationEventsOutbox,
+    TAgentToSchedulerJobEventOutboxPtr jobEventsOutbox,
     TBootstrap* bootstrap)
     : OperationId_(operation->GetId())
     , CancelableControlInvoker_(std::move(cancelableControlInvoker))
