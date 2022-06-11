@@ -2,6 +2,8 @@
 
 #include "chunk_meta_extensions.h"
 
+#include "memory_tracked_deferred_chunk_meta.h"
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -17,7 +19,7 @@ class TEncodingChunkWriter
     : public virtual TRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TDeferredChunkMetaPtr, Meta, New<TDeferredChunkMeta>());
+    DEFINE_BYVAL_RO_PROPERTY(TMemoryTrackedDeferredChunkMetaPtr, Meta, New<TMemoryTrackedDeferredChunkMeta>());
     DEFINE_BYREF_RW_PROPERTY(NProto::TMiscExt, MiscExt);
 
 public:

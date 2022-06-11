@@ -41,6 +41,8 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <atomic>
 #include <deque>
 
@@ -839,6 +841,9 @@ private:
 
         TDataNodeServiceProxy proxy(node->Channel);
         auto req = proxy.FinishChunk();
+
+        req->SetBlockTracker(Options_->BlockTracker);
+
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
 
@@ -854,6 +859,11 @@ private:
         }
 
         *req->mutable_chunk_meta() = *ChunkMeta_;
+
+        auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
+            Options_->MemoryTracker,
+            req->mutable_chunk_meta()->ByteSize());
+
         req->set_block_count(BlockCount_);
 
         auto rspOrError = WaitFor(req->Invoke());

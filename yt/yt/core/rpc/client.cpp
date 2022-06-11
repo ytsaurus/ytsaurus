@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/core/misc/block_tracker.h>
 #include <yt/yt/core/misc/cast.h>
 #include <yt/yt/core/misc/checksum.h>
 
@@ -103,7 +104,8 @@ TSharedRefArray TClientRequest::Serialize()
     auto headerlessMessage = GetHeaderlessMessage();
 
     if (!retry) {
-        return CreateRequestMessage(Header_, headerlessMessage);
+        auto output = CreateRequestMessage(Header_, headerlessMessage);
+        return SetRpcMemoryCategory(std::move(output));
     }
 
     if (StreamingEnabled_) {
@@ -112,7 +114,9 @@ TSharedRefArray TClientRequest::Serialize()
 
     auto patchedHeader = Header_;
     patchedHeader.set_retry(true);
-    return CreateRequestMessage(patchedHeader, headerlessMessage);
+
+    auto output = CreateRequestMessage(patchedHeader, headerlessMessage);
+    return SetRpcMemoryCategory(std::move(output));
 }
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
@@ -485,6 +489,26 @@ bool IsRequestSticky(const IClientRequestPtr& request)
     }
     const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
     return balancingExt.enable_stickiness();
+}
+
+TSharedRefArray TClientRequest::SetRpcMemoryCategory(TSharedRefArray array) const
+{
+    if (!BlockTracker_) {
+        return array;
+    }
+
+    std::vector<TSharedRef> output;
+    output.reserve(array.size());
+
+    for (const auto& block: array) {
+        output.push_back(
+            ResetCategory(
+                block,
+                BlockTracker_,
+                EMemoryCategory::Rpc));
+    }
+
+    return TSharedRefArray(std::move(output), TSharedRefArray::TMoveParts{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

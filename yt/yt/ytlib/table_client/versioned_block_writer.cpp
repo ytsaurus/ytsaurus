@@ -22,13 +22,16 @@ static const i64 NullValue = 0;
 struct TSimpleVersionedBlockWriterTag
 { };
 
-TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(TTableSchemaPtr schema)
+TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
+    TTableSchemaPtr schema,
+    TMemoryUsageTrackerGuard guard)
     : MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
     , Schema_(std::move(schema))
     , SchemaColumnCount_(Schema_->GetColumnCount())
     , KeyColumnCount_(Schema_->GetKeyColumnCount())
     , ColumnHunkFlags_(new bool[Schema_->GetColumnCount()])
+    , MemoryGuard_(std::move(guard))
     , KeyStream_(TSimpleVersionedBlockWriterTag())
     , ValueStream_(TSimpleVersionedBlockWriterTag())
     , TimestampStream_(TSimpleVersionedBlockWriterTag())
@@ -102,6 +105,10 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
 
     YT_ASSERT(static_cast<int>(KeyStream_.GetSize() - keyOffset) == GetKeySize(KeyColumnCount_, SchemaColumnCount_));
     WritePadding(KeyStream_, GetKeySize(KeyColumnCount_, SchemaColumnCount_));
+
+    if (MemoryGuard_) {
+        MemoryGuard_.SetSize(GetBlockSize());
+    }
 }
 
 TBlock TSimpleVersionedBlockWriter::FlushBlock()
@@ -141,6 +148,10 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
     TBlock block;
     block.Data.swap(blockParts);
     block.Meta.Swap(&meta);
+
+    if (MemoryGuard_) {
+        MemoryGuard_.SetSize(0);
+    }
 
     return block;
 }

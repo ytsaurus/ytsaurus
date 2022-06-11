@@ -78,6 +78,10 @@ TMemoryUsageTrackerGuard TMemoryUsageTrackerGuard::Acquire(
     i64 size,
     i64 granularity)
 {
+    if (!tracker) {
+        return {};
+    }
+
     YT_VERIFY(size >= 0);
     TMemoryUsageTrackerGuard guard;
     guard.Tracker_ = tracker;
@@ -96,6 +100,8 @@ TErrorOr<TMemoryUsageTrackerGuard> TMemoryUsageTrackerGuard::TryAcquire(
     i64 granularity)
 {
     YT_VERIFY(size >= 0);
+    YT_VERIFY(tracker);
+
     auto error = tracker->TryAcquire(size);
     if (!error.IsOK()) {
         return error;

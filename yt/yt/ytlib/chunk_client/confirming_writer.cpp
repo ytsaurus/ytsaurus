@@ -23,6 +23,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
 
@@ -317,6 +318,11 @@ private:
         ToProto(req->mutable_chunk_id(), SessionId_.ChunkId);
         *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
         *req->mutable_chunk_meta() = *ChunkMeta_;
+
+        auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
+            Options_->MemoryTracker,
+            req->mutable_chunk_meta()->ByteSize());
+
         FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
         req->set_request_statistics(true);
         ToProto(req->mutable_legacy_replicas(), replicas);

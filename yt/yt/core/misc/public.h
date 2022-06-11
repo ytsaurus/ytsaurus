@@ -203,6 +203,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((ChunkBlockMeta)             (10))
     ((ChunkBlocksExt)             (16))
     ((ChunkJournalIndex)          (20))
+    ((Rpc)                        (21))
     ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
