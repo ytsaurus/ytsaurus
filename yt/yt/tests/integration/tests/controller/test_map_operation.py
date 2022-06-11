@@ -1844,6 +1844,10 @@ class TestSchedulerMapCommandsShardedTxNoBoomerangs(TestSchedulerMapCommandsShar
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 
+class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsShardedTx):
+    USE_SEQUOIA = True
+
+
 ##################################################################
 
 

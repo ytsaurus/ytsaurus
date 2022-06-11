@@ -3,19 +3,15 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, get, get_singular_chunk_id, lookup_rows, write_table, read_table)
 
+import yt.yson as yson
+
+import yt_proto.yt.client.chunk_client.proto.chunk_meta_pb2 as chunk_meta_pb2
+
 ##################################################################
 
 
 class TestSequoiaObjects(YTEnvSetup):
     USE_SEQUOIA = True
-
-    def _parse_ext(self, ext):
-        ext = ext.split()
-        result = {}
-        for i in range(1, len(ext) - 1, 2):
-            result[ext[i][:-1]] = ext[i + 1]
-
-        return result
 
     @authors("gritukan")
     def test_estimated_creation_time(self):
@@ -47,5 +43,7 @@ class TestSequoiaObjects(YTEnvSetup):
 
         exts = lookup_rows("//sys/sequoia/chunk_meta_extensions", [{"id": chunk_id}])
         assert len(exts) == 1
-        misc = self._parse_ext(exts[0]["misc_ext"])
-        assert misc["row_count"] == "1"
+        raw_misc_ext = yson.get_bytes(exts[0]["misc_ext"])
+        misc_ext = chunk_meta_pb2.TMiscExt()
+        misc_ext.ParseFromString(raw_misc_ext)
+        assert misc_ext.row_count == 1

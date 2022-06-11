@@ -111,11 +111,16 @@ void FromProto(
 void ToProto(
     NChunkClient::NProto::TChunkMeta* protoMeta,
     const TImmutableChunkMetaPtr& meta,
-    const THashSet<int>* tags)
+    const THashSet<int>* tags,
+    bool setMetaExtensions)
 {
     protoMeta->set_type(ToProto<int>(meta->Type_));
     protoMeta->set_format(ToProto<int>(meta->Format_));
     protoMeta->set_features(ToProto<ui64>(meta->Features_));
+
+    if (!setMetaExtensions) {
+        return;
+    }
 
     for (const auto& descriptor : meta->ExtensionDescriptors_) {
         if (tags && !tags->contains(descriptor.Tag)) {

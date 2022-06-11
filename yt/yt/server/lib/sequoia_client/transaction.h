@@ -22,6 +22,18 @@ public:
 
     virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) = 0;
 
+    virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
+        ESequoiaTable table,
+        std::vector<NTableClient::TLegacyKey> keys,
+        NTransactionClient::TTimestamp timestamp,
+        const NTableClient::TColumnFilter& columnFilter) = 0;
+
+    template <class TRow>
+    TFuture<std::vector<TRow>> LookupRows(
+        std::vector<TRow> keys,
+        NTransactionClient::TTimestamp timestamp,
+        const NTableClient::TColumnFilter& columnFilter = {});
+
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,
         ESequoiaTable table,
@@ -67,6 +79,7 @@ public:
         NObjectClient::TCellTag cellTag) = 0;
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
+    virtual const NApi::NNative::IClientPtr& GetClient() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaTransaction)

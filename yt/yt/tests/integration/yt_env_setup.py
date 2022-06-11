@@ -1074,6 +1074,7 @@ class YTEnvSetup(object):
 
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
+            dynamic_master_config["sequoia_manager"]["fetch_chunk_meta_from_sequoia"] = True
 
         default_pool_tree_config = {
             "nodes_filter": "",

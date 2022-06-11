@@ -23,6 +23,7 @@ void BuildChunkSpec(
     const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
+    bool fetchMetaFromSequoia,
     const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NCellMaster::TBootstrap* bootstrap,
@@ -35,6 +36,18 @@ void BuildDynamicStoreSpec(
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NCellMaster::TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShouldFetchChunkMetaFromSequoia(
+    TChunk* chunk,
+    bool fetchMetaFromSequoia);
+
+TFuture<void> FetchChunkMetasFromSequoia(
+    bool fetchAllMetaExtensions,
+    const THashSet<int>& extensionTags,
+    std::vector<NChunkClient::NProto::TChunkSpec*> chunkSpecs,
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

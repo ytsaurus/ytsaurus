@@ -1108,18 +1108,18 @@ public:
                 const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
                 TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
                 chunkMetaExtensionRow.Id = ToString(chunkId);
-                chunkMetaExtensionRow.MiscExt = ToString(miscExt);
+                chunkMetaExtensionRow.MiscExt = SerializeProtoToString(miscExt);
                 if (auto hunkChunkMiscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.HunkChunkMiscExt = ToString(hunkChunkMiscExt);
+                    chunkMetaExtensionRow.HunkChunkMiscExt = SerializeProtoToString(*hunkChunkMiscExt);
                 }
                 if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.HunkChunkRefsExt = ToString(hunkChunkRefsExt);
+                    chunkMetaExtensionRow.HunkChunkRefsExt = SerializeProtoToString(*hunkChunkRefsExt);
                 }
                 if (auto boundaryKeysExt = FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.BoundaryKeysExt = ToString(boundaryKeysExt);
+                    chunkMetaExtensionRow.BoundaryKeysExt = SerializeProtoToString(*boundaryKeysExt);
                 }
                 if (auto heavyColumnStatisticsExt = FindProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.HeavyColumnStatisticsExt = ToString(heavyColumnStatisticsExt);
+                    chunkMetaExtensionRow.HeavyColumnStatisticsExt = SerializeProtoToString(*heavyColumnStatisticsExt);
                 }
 
                 transaction->WriteRow(chunkMetaExtensionRow);
