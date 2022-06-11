@@ -8,10 +8,10 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hive/transaction_detail.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
-#include <yt/yt/server/lib/hive/transaction_manager_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
@@ -48,6 +48,7 @@ using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NYson;
 
@@ -181,7 +182,7 @@ public:
 
     void PrepareTransactionAbort(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options) override
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -203,7 +204,7 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionCommitOptions& options) override
+        const NTransactionSupervisor::TTransactionCommitOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -245,7 +246,7 @@ public:
 
     void AbortTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options) override
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

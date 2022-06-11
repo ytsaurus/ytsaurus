@@ -7,10 +7,10 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
-#include <yt/yt/server/lib/hive/helpers.h>
-
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/access_log.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/master_tablet_service.h>
 
@@ -34,6 +34,7 @@ using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;

@@ -4,10 +4,9 @@
 #include "config.h"
 #include "transaction_manager.h"
 #include "transaction_participant_provider.h"
-#include "hive_manager.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/hive/proto/transaction_supervisor.pb.h>
+#include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
@@ -19,16 +18,18 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
-#include <yt/yt/ytlib/hive/transaction_participant_service_proxy.h>
 
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/ytlib/transaction_supervisor/transaction_participant_service_proxy.h>
+#include <yt/yt/ytlib/transaction_supervisor/transaction_supervisor_service_proxy.h>
+
 #include <yt/yt/ytlib/transaction_client/action.h>
 
 #include <yt/yt/client/hive/transaction_participant.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/connection.h>
 
@@ -44,7 +45,7 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -96,7 +97,7 @@ public:
         , SelfClockClusterTag_(selfClockClusterTag)
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
-        , Logger(HiveServerLogger.WithTag("CellId: %v", SelfCellId_))
+        , Logger(TransactionSupervisorLogger.WithTag("CellId: %v", SelfCellId_))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
     {
@@ -622,7 +623,7 @@ private:
                 owner->HydraManager_,
                 owner->HydraManager_->CreateGuardedAutomatonInvoker(owner->AutomatonInvoker_),
                 descriptor,
-                HiveServerLogger,
+                TransactionSupervisorLogger,
                 owner->SelfCellId_,
                 CreateHydraManagerUpstreamSynchronizer(owner->HydraManager_))
             , Owner_(owner)
@@ -662,7 +663,7 @@ private:
         }
 
     private:
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, CommitTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, CommitTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -783,7 +784,7 @@ private:
             context->ReplyFrom(asyncResponseMessage);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, AbortTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, AbortTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -807,7 +808,7 @@ private:
             context->ReplyFrom(asyncResponseMessage);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, PingTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, PingTransaction)
         {
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             bool pingAncestors = request->ping_ancestors();
@@ -824,7 +825,7 @@ private:
             context->Reply();
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionSupervisor, GetDownedParticipants)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionSupervisor, GetDownedParticipants)
         {
             auto cellIds = FromProto<std::vector<TCellId>>(request->cell_ids());
 
@@ -865,7 +866,7 @@ private:
         }
 
     private:
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, PrepareTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionParticipant, PrepareTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -880,7 +881,7 @@ private:
                 prepareTimestampClusterTag,
                 cellIdsToSyncWith);
 
-            NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
+            NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_prepare_timestamp(prepareTimestamp);
             hydraRequest.set_prepare_timestamp_cluster_tag(prepareTimestampClusterTag);
@@ -912,7 +913,7 @@ private:
             }
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, CommitTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionParticipant, CommitTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -925,7 +926,7 @@ private:
                 commitTimestamp,
                 commitTimestampClusterTag);
 
-            NHiveServer::NProto::TReqParticipantCommitTransaction hydraRequest;
+            NTransactionSupervisor::NProto::TReqParticipantCommitTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(commitTimestamp);
             hydraRequest.set_commit_timestamp_cluster_tag(commitTimestampClusterTag);
@@ -937,7 +938,7 @@ private:
             mutation->CommitAndReply(context);
         }
 
-        DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, AbortTransaction)
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionParticipant, AbortTransaction)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -946,7 +947,7 @@ private:
             context->SetRequestInfo("TransactionId: %v",
                 transactionId);
 
-            NHiveServer::NProto::TReqParticipantAbortTransaction hydraRequest;
+            NTransactionSupervisor::NProto::TReqParticipantAbortTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
@@ -1060,7 +1061,7 @@ private:
             ? TimestampProvider_->GetLatestTimestamp()
             : NullTimestamp;
 
-        NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
+        NTransactionSupervisor::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne request;
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
@@ -1114,7 +1115,7 @@ private:
             return asyncResponseMessage;
         }
 
-        NHiveServer::NProto::TReqCoordinatorAbortTransaction request;
+        NTransactionSupervisor::NProto::TReqCoordinatorAbortTransaction request;
         ToProto(request.mutable_transaction_id(), transactionId);
         ToProto(request.mutable_mutation_id(), mutationId);
         request.set_force(force);
@@ -1166,7 +1167,7 @@ private:
 
     // Hydra handlers.
 
-    void HydraCoordinatorCommitSimpleTransaction(NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction* request)
+    void HydraCoordinatorCommitSimpleTransaction(NTransactionSupervisor::NProto::TReqCoordinatorCommitSimpleTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -1234,7 +1235,7 @@ private:
         TryRemoveAbort(transactionId);
     }
 
-    void HydraCoordinatorCommitDistributedTransactionPhaseOne(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne* request)
+    void HydraCoordinatorCommitDistributedTransactionPhaseOne(NTransactionSupervisor::NProto::TReqCoordinatorCommitDistributedTransactionPhaseOne* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
@@ -1306,7 +1307,7 @@ private:
         ChangeCommitTransientState(commit, ECommitState::Prepare);
     }
 
-    void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo* request)
+    void HydraCoordinatorCommitDistributedTransactionPhaseTwo(NTransactionSupervisor::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
@@ -1354,7 +1355,7 @@ private:
         }
     }
 
-    void HydraCoordinatorAbortDistributedTransactionPhaseTwo(NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo* request)
+    void HydraCoordinatorAbortDistributedTransactionPhaseTwo(NTransactionSupervisor::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto error = FromProto<TError>(request->error());
@@ -1405,7 +1406,7 @@ private:
             NRpc::GetCurrentAuthenticationIdentity());
     }
 
-    void HydraCoordinatorAbortTransaction(NHiveServer::NProto::TReqCoordinatorAbortTransaction* request)
+    void HydraCoordinatorAbortTransaction(NTransactionSupervisor::NProto::TReqCoordinatorAbortTransaction* request)
     {
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -1447,7 +1448,7 @@ private:
         RemoveAbort(abort);
     }
 
-    void HydraCoordinatorFinishDistributedTransaction(NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction* request)
+    void HydraCoordinatorFinishDistributedTransaction(NTransactionSupervisor::NProto::TReqCoordinatorFinishDistributedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* commit = FindPersistentCommit(transactionId);
@@ -1473,7 +1474,7 @@ private:
             transactionId);
     }
 
-    void HydraParticipantPrepareTransaction(NHiveServer::NProto::TReqParticipantPrepareTransaction* request)
+    void HydraParticipantPrepareTransaction(NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
@@ -1506,7 +1507,7 @@ private:
             NRpc::GetCurrentAuthenticationIdentity());
     }
 
-    void HydraParticipantCommitTransaction(NHiveServer::NProto::TReqParticipantCommitTransaction* request)
+    void HydraParticipantCommitTransaction(NTransactionSupervisor::NProto::TReqParticipantCommitTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamp = request->commit_timestamp();
@@ -1536,7 +1537,7 @@ private:
             NRpc::GetCurrentAuthenticationIdentity());
     }
 
-    void HydraParticipantAbortTransaction(NHiveServer::NProto::TReqParticipantAbortTransaction* request)
+    void HydraParticipantAbortTransaction(NTransactionSupervisor::NProto::TReqParticipantAbortTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -1689,7 +1690,7 @@ private:
             commit->GetTransactionId(),
             commit->CommitTimestamps());
 
-        NHiveClient::NProto::NTransactionSupervisor::TRspCommitTransaction response;
+        NProto::NTransactionSupervisor::TRspCommitTransaction response;
         ToProto(response.mutable_commit_timestamps(), commit->CommitTimestamps());
 
         auto responseMessage = CreateResponseMessage(response);
@@ -1822,7 +1823,7 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction abort succeeded (TransactionId: %v)",
             abort->GetTransactionId());
 
-        NHiveClient::NProto::NTransactionSupervisor::TRspAbortTransaction response;
+        NProto::NTransactionSupervisor::TRspAbortTransaction response;
 
         auto responseMessage = CreateResponseMessage(response);
         SetAbortResponse(abort, std::move(responseMessage));
@@ -1945,7 +1946,7 @@ private:
         }
 
         if (commit->GetDistributed()) {
-            NHiveServer::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
+            NTransactionSupervisor::NProto::TReqCoordinatorCommitDistributedTransactionPhaseTwo request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
 
@@ -1953,7 +1954,7 @@ private:
             mutation->SetCurrentTraceContext();
             mutation->CommitAndLog(Logger);
         } else {
-            NHiveServer::NProto::TReqCoordinatorCommitSimpleTransaction request;
+            NTransactionSupervisor::NProto::TReqCoordinatorCommitSimpleTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
             ToProto(request.mutable_mutation_id(), commit->GetMutationId());
             ToProto(request.mutable_commit_timestamps(), commitTimestamps);
@@ -2037,7 +2038,7 @@ private:
                 break;
 
             case ECommitState::Aborting: {
-                NHiveServer::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo request;
+                NTransactionSupervisor::NProto::TReqCoordinatorAbortDistributedTransactionPhaseTwo request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
                 ToProto(request.mutable_error(), error);
 
@@ -2048,7 +2049,7 @@ private:
             }
 
             case ECommitState::Finishing: {
-                NHiveServer::NProto::TReqCoordinatorFinishDistributedTransaction request;
+                NTransactionSupervisor::NProto::TReqCoordinatorFinishDistributedTransaction request;
                 ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
 
                 auto mutation = CreateMutation(HydraManager_, request);
@@ -2374,4 +2375,4 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

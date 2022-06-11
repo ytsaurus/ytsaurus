@@ -8,9 +8,9 @@
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
-#include <yt/yt/server/lib/hive/transaction_manager_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
@@ -66,6 +66,7 @@ using namespace NHiveServer;
 using namespace NClusterNode;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
+using namespace NTransactionSupervisor;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,7 +401,7 @@ public:
 
     void PrepareTransactionAbort(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options)
+        const NTransactionSupervisor::TTransactionAbortOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -424,7 +425,7 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionCommitOptions& options)
+        const NTransactionSupervisor::TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
@@ -448,7 +449,7 @@ public:
 
     void DoCommitTransaction(
         TTransaction* transaction,
-        const NHiveServer::TTransactionCommitOptions& options)
+        const NTransactionSupervisor::TTransactionCommitOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
@@ -511,7 +512,7 @@ public:
 
     void AbortTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options)
+        const NTransactionSupervisor::TTransactionAbortOptions& options)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1344,21 +1345,21 @@ void TTransactionManager::PrepareTransactionCommit(
 
 void TTransactionManager::PrepareTransactionAbort(
     TTransactionId transactionId,
-    const NHiveServer::TTransactionAbortOptions& options)
+    const NTransactionSupervisor::TTransactionAbortOptions& options)
 {
     Impl_->PrepareTransactionAbort(transactionId, options);
 }
 
 void TTransactionManager::CommitTransaction(
     TTransactionId transactionId,
-    const NHiveServer::TTransactionCommitOptions& options)
+    const NTransactionSupervisor::TTransactionCommitOptions& options)
 {
     Impl_->CommitTransaction(transactionId, options);
 }
 
 void TTransactionManager::AbortTransaction(
     TTransactionId transactionId,
-    const NHiveServer::TTransactionAbortOptions& options)
+    const NTransactionSupervisor::TTransactionAbortOptions& options)
 {
     Impl_->AbortTransaction(transactionId, options);
 }

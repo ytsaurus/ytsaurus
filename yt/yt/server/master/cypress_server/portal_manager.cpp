@@ -22,8 +22,9 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
@@ -41,6 +42,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NYTree;
 

@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/hive/transaction_manager.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
@@ -17,7 +17,7 @@ namespace NYT::NChaosNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ITransactionManager
-    : public NHiveServer::ITransactionManager
+    : public NTransactionSupervisor::ITransactionManager
 {
     using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
         NChaosClient::NProto::TReqRegisterTransactionActions,
@@ -27,9 +27,9 @@ struct ITransactionManager
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void RegisterTransactionActionHandlers(
-        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) = 0;
+        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor) = 0;
 
     virtual std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context) = 0;

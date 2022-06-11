@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 using namespace NRpc;
 using namespace NHydra;
@@ -130,4 +130,4 @@ void TCommit::Load(TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

@@ -11,7 +11,7 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/group.h>
 
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
 

@@ -19,7 +19,7 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 
 #include <yt/yt/server/lib/hydra_common/mock/simple_hydra_manager_mock.h>
 
@@ -43,6 +43,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 using namespace NHydra;
 using namespace NHiveServer;
 using namespace NRpc;
@@ -115,7 +116,7 @@ public:
         TabletCellWriteManager_.Reset();
     }
 
-    const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() override
+    const ITransactionSupervisorPtr& GetTransactionSupervisor() override
     {
         // Lease checking is disabled, so transaction supervisor is not needed.
         YT_UNIMPLEMENTED();

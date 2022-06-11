@@ -16,7 +16,7 @@
 
 #include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/yt/server/lib/hive/transaction_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_detail.h>
 
 #include <yt/yt/server/lib/sequoia_client/write_set.h>
 
@@ -33,7 +33,7 @@ namespace NYT::NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHiveServer::TTransactionBase<NObjectServer::TObject>
+    : public NTransactionSupervisor::TTransactionBase<NObjectServer::TObject>
     , public TRefTracked<TTransaction>
 {
 public:

@@ -66,7 +66,7 @@ struct ITabletSlot
     virtual void CommitTabletMutation(const ::google::protobuf::MessageLite& message) = 0;
     virtual void PostMasterMessage(TTabletId tabletId, const ::google::protobuf::MessageLite& message) = 0;
 
-    virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
+    virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
     virtual const TTabletManagerPtr& GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;

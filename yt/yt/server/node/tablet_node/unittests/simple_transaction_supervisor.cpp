@@ -1,8 +1,8 @@
 #include "simple_transaction_supervisor.h"
 
-#include <yt/yt/server/lib/hive/transaction_manager.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 using namespace NHydra;
 using namespace NLogging;
@@ -122,4 +122,4 @@ void TSimpleTransactionSupervisor::HydraAbortTransaction(TReqAbortTransaction* r
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

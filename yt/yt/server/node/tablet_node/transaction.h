@@ -4,7 +4,7 @@
 #include "object_detail.h"
 #include "dynamic_store_bits.h"
 
-#include <yt/yt/server/lib/hive/transaction_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_detail.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -54,7 +54,7 @@ i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHiveServer::TTransactionBase<TObjectBase>
+    : public NTransactionSupervisor::TTransactionBase<TObjectBase>
     , public TRefTracked<TTransaction>
 {
 public:
@@ -88,7 +88,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TTransactionSignature, CommitSignature, InitialTransactionSignature);
 
-    DEFINE_BYREF_RW_PROPERTY(NHiveServer::TTransactionCommitOptions, CommitOptions);
+    DEFINE_BYREF_RW_PROPERTY(NTransactionSupervisor::TTransactionCommitOptions, CommitOptions);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, RowsPrepared, false);
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);

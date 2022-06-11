@@ -69,6 +69,8 @@
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -144,6 +146,7 @@ using namespace NTabletNode::NProto;
 using namespace NTabletNodeTrackerClient::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;

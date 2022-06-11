@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/election/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
@@ -761,7 +763,7 @@ public:
     NHiveServer::THiveManagerConfigPtr HiveManager;
 
     TTransactionManagerConfigPtr TransactionManager;
-    NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
+    NTransactionSupervisor::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     TTabletManagerConfigPtr TabletManager;
     TStoreFlusherConfigPtr StoreFlusher;

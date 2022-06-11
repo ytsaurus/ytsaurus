@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
 #include <yt/yt/core/rpc/config.h>
 
 #include <yt/yt/core/ytree/yson_serializable.h>
@@ -102,7 +104,7 @@ public:
 
     NHiveServer::THiveManagerConfigPtr HiveManager;
 
-    NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
+    NTransactionSupervisor::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 

@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,4 +49,4 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

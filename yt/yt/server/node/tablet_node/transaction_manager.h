@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/hive/transaction_manager.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
@@ -32,7 +32,7 @@ struct ITransactionManagerHost
     virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
     virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) = 0;
-    virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
+    virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
     virtual const TRuntimeTabletCellDataPtr& GetRuntimeData() = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() = 0;
     virtual NObjectClient::TCellTag GetNativeCellTag() = 0;
@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(ITransactionManagerHost)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager
-    : public NHiveServer::ITransactionManager
+    : public NTransactionSupervisor::ITransactionManager
 {
 public:
     //! Raised when a new transaction is started.
@@ -80,16 +80,16 @@ public:
         const std::vector<TCellId>& cellIdsToSyncWith) override;
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionPrepareOptions& options) override;
+        const NTransactionSupervisor::TTransactionPrepareOptions& options) override;
     void PrepareTransactionAbort(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options) override;
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
     void CommitTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionCommitOptions& options) override;
+        const NTransactionSupervisor::TTransactionCommitOptions& options) override;
     void AbortTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options) override;
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
     void PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) override;
@@ -99,7 +99,7 @@ public:
         TTransactionManagerConfigPtr config,
         ITransactionManagerHostPtr host,
         NApi::TClusterTag clockClusterTag,
-        NHiveServer::ITransactionLeaseTrackerPtr transactionLeaseTracker);
+        NTransactionSupervisor::ITransactionLeaseTrackerPtr transactionLeaseTracker);
     ~TTransactionManager();
 
     //! Finds transaction by id.
@@ -138,15 +138,15 @@ public:
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions);
 
     void RegisterTransactionActionHandlers(
-        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
+        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
     void RegisterTransactionActionHandlers(
-        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
-        const NHiveServer::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
+        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor,
+        const NTransactionSupervisor::TTransactionSerializeActionHandlerDescriptor<TTransaction>& serializeActionDescriptor);
 
     //! Increases transaction commit signature.
     // NB: After incrementing transaction may become committed and destroyed.

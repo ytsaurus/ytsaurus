@@ -20,15 +20,16 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
-#include <yt/yt/server/lib/hive/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
 #include <yt/yt/server/master/object_server/object.h>
@@ -89,6 +90,7 @@ using namespace NSecurityServer;
 using namespace NProfiling;
 using namespace NSequoiaClient;
 using namespace NSequoiaServer;
+using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

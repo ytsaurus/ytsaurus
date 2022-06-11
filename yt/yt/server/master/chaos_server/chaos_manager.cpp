@@ -27,7 +27,7 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
-#include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
@@ -304,13 +304,13 @@ private:
     void HydraPrepareCreateReplicationCard(
         TTransaction* /*transaction*/,
         NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
-        const NHiveServer::TTransactionPrepareOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionPrepareOptions& /*options*/)
     { }
 
     void HydraCommitCreateReplicationCard(
         TTransaction* /*transaction*/,
         NChaosClient::NProto::TReqCreateReplicationCard* request,
-        const NHiveServer::TTransactionCommitOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionCommitOptions& /*options*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->hint_id());
         auto tableId = FromProto<TTableId>(request->table_id());
@@ -346,7 +346,7 @@ private:
     void HydraAbortCreateReplicationCard(
         TTransaction* /*transaction*/,
         NChaosClient::NProto::TReqCreateReplicationCard* /*request*/,
-        const NHiveServer::TTransactionAbortOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
     { }
 
 

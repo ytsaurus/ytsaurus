@@ -42,6 +42,7 @@ using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NYson;
 
@@ -141,7 +142,7 @@ public:
         return TransactionManager_;
     }
 
-    NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() override
+    NTransactionSupervisor::ITransactionManagerPtr GetOccupierTransactionManager() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -154,7 +155,7 @@ public:
 
         return Occupant_->GetTimestampProvider();
     }
-    
+
     const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();

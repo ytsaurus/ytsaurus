@@ -13,7 +13,7 @@
 
 #include <variant>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,4 +106,4 @@ ITransactionLeaseTrackerPtr CreateNullTransactionLeaseTracker();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

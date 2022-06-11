@@ -8,10 +8,6 @@
 #include <yt/yt/server/lib/election/election_manager.h>
 #include <yt/yt/server/lib/election/distributed_election_manager.h>
 
-#include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/mailbox.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
@@ -34,8 +30,9 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/yt/server/lib/hive/transaction_participant_provider.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
@@ -68,6 +65,7 @@
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -96,6 +94,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NYson;
 

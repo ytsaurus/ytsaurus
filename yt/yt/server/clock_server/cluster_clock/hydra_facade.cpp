@@ -8,7 +8,6 @@
 #include <yt/yt/server/lib/election/distributed_election_manager.h>
 #include <yt/yt/server/lib/election/election_manager_thunk.h>
 
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -18,6 +17,8 @@
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/private.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 

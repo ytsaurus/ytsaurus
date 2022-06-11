@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +37,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor
 
 #define TRANSACTION_DETAIL_INL_H_
 #include "transaction_detail-inl.h"

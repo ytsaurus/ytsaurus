@@ -27,9 +27,10 @@
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/transaction_manager.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/yt/server/lib/hive/transaction_participant_provider.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
 
 #include <yt/yt/server/master/hive/cell_directory_synchronizer.h>
 
@@ -209,6 +210,7 @@ using namespace NTabletServer;
 using namespace NTimestampServer;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NCellServer;
 using namespace NDiscoveryServer;

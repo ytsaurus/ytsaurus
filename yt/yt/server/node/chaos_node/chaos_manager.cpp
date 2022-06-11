@@ -25,6 +25,8 @@
 
 #include <yt/yt/server/lib/hive/helpers.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
@@ -50,6 +52,7 @@ using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
+using namespace NTransactionSupervisor;
 
 using NYT::FromProto;
 using NYT::ToProto;
