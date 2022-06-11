@@ -30,6 +30,9 @@ message TReqSetCellNodeDescriptors
     {
         repeated TMediumStatistics medium_statistics = 1;
         required int64 destroyed_chunk_replica_count = 2;
+        required int64 chunk_push_replication_queues_size = 3;
+        required int64 chunk_pull_replication_queues_size = 4;
+        required int64 pull_replication_chunk_count = 5;
     }
 
     message TNodeDescriptor

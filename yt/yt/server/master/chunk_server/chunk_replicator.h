@@ -144,6 +144,9 @@ private:
 
         //! Any replica that violates failure domain placement.
         TNodePtrWithIndexes UnsafelyPlacedReplica;
+
+        //! Missing chunk replicas for CRP-enabled chunks.
+        TCompactVector<TNodePtrWithIndexes, TypicalReplicaCount> MissingReplicas;
     };
 
     struct TChunkStatistics
@@ -165,7 +168,7 @@ private:
 
     TEphemeralRequisitionRegistry TmpRequisitionRegistry_;
 
-    TInstant LastDestroyedReplicasProfilingTime_;
+    TInstant LastPerNodeProfilingTime_;
 
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -245,7 +248,8 @@ private:
         bool hasSealedReplica,
         bool totallySealed,
         TNodePtrWithIndexes unsafelyPlacedReplica,
-        TNodePtrWithIndexes inconsistentlyPlacedReplica);
+        TNodePtrWithIndexes inconsistentlyPlacedReplica,
+        const TNodePtrWithIndexesList& missingReplicas);
     void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
         const TChunk* chunk,
@@ -331,9 +335,12 @@ private:
 
     TMediumMap<TNodeList> GetChunkConsistentPlacementNodes(const TChunk* chunk);
 
+    void RemoveChunkFromPullQueue(const TJobPtr& job);
+
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
     bool IsConsistentChunkPlacementEnabled() const;
+    bool UsePullReplication(TChunk* chunk) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

@@ -335,6 +335,9 @@
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
     XX(ProxyKind, proxy_kind) \
+    XX(PullReplicationChunkCount, pull_replication_chunk_count) \
+    XX(PullReplicationQueueSize, pull_replication_queue_size) \
+    XX(PushReplicationQueueSize, push_replication_queue_size) \
     XX(QueueAgentObjectRevisions, queue_agent_object_revisions) \
     XX(QueueAgentStage, queue_agent_stage) \
     XX(QueueConsumerStatus, queue_consumer_status) \

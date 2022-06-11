@@ -774,6 +774,35 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 2)
         wait(lambda: self._are_chunks_collocated(chunk_ids))
 
+    @authors("aleksandra-zh")
+    def test_crp_replication(self):
+        set("//sys/@config/chunk_manager/consistent_replica_placement/enable_pull_replication", True)
+        self._create_table_with_two_consistently_placed_chunks("//tmp/t6")
+
+        chunk_ids = get("//tmp/t6/@chunk_ids")
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//tmp/t6/@replication_factor", 7)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 7)
+        wait(lambda: self._are_chunks_collocated(chunk_ids))
+
+        set("//tmp/t6/@replication_factor", 2)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 2)
+
+        set("//tmp/t6/@replication_factor", 7)
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_ids[0]))) == 7)
+
+        nodes = ls("//sys/cluster_nodes")
+        def queues_empty():
+            for node in nodes:
+                if get("//sys/cluster_nodes/{}/@pull_replication_queue_size".format(node)) > 0:
+                    return False
+                if get("//sys/cluster_nodes/{}/@pull_replication_chunk_count".format(node)) > 0:
+                    return False
+            return True
+        wait(queues_empty)
+
     @authors("shakurov")
     def test_rf_change_consistency(self):
         self._disable_token_redistribution()

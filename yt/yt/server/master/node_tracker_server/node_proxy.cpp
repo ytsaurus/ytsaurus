@@ -144,6 +144,12 @@ private:
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DestroyedChunkReplicaCount)
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PushReplicationQueueSize)
+            .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PullReplicationQueueSize)
+            .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PullReplicationChunkCount)
+            .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
         descriptors->push_back(EInternedAttributeKey::ConsistentReplicaPlacementTokenCount);
         descriptors->push_back(EInternedAttributeKey::ChunkLocations);
     }
@@ -505,6 +511,51 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(node->ComputeClusterStatistics().DestroyedChunkReplicaCount);
+                return true;
+            }
+
+            case EInternedAttributeKey::PushReplicationQueueSize: {
+                if (!isGood) {
+                    break;
+                }
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (!multicellManager->IsPrimaryMaster()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->ComputeClusterStatistics().ChunkPushReplicationQueuesSize);
+                return true;
+            }
+
+            case EInternedAttributeKey::PullReplicationQueueSize: {
+                if (!isGood) {
+                    break;
+                }
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (!multicellManager->IsPrimaryMaster()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->ComputeClusterStatistics().ChunkPullReplicationQueuesSize);
+                return true;
+            }
+
+            case EInternedAttributeKey::PullReplicationChunkCount: {
+                if (!isGood) {
+                    break;
+                }
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                if (!multicellManager->IsPrimaryMaster()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->ComputeClusterStatistics().PullReplicationChunkCount);
                 return true;
             }
 

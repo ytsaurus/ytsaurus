@@ -259,6 +259,9 @@ TDynamicConsistentReplicaPlacementConfig::TDynamicConsistentReplicaPlacementConf
     RegisterParameter("enable", Enable)
         .Default(false);
 
+    RegisterParameter("enable_pull_replication", EnablePullReplication)
+        .Default(false);
+
     RegisterParameter("token_distribution_bucket_count", TokenDistributionBucketCount)
         .Default(5)
         .GreaterThanOrEqual(1);
@@ -302,6 +305,9 @@ TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
     RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
         .Default(128);
     RegisterParameter("max_misscheduled_merge_jobs_per_heartbeat", MaxMisscheduledMergeJobsPerHeartbeat)
+        .Default(128);
+
+    RegisterParameter("max_running_replication_jobs_per_target_node", MaxRunningReplicationJobsPerTargetNode)
         .Default(128);
 
     RegisterParameter("min_chunk_balancing_fill_factor_diff", MinChunkBalancingFillFactorDiff)
