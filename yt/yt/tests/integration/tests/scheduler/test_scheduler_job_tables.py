@@ -29,7 +29,7 @@ import subprocess
 import time
 import threading
 import builtins
-from multiprocessing import Queue
+from queue import Queue
 
 TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
 YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
