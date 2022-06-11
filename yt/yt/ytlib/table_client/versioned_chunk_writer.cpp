@@ -70,8 +70,13 @@ public:
         IBlockCachePtr blockCache,
         const std::optional<NChunkClient::TDataSink>& dataSink)
         : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
+        , Options_(options)
         , Config_(config)
         , Schema_(schema)
+        , SamplesMemoryUsageGuard_(
+              TMemoryUsageTrackerGuard::Acquire(
+                  options->MemoryTracker,
+                  /*size*/ 0))
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(
             std::move(config),
             std::move(options),
@@ -179,8 +184,11 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
+    const TChunkWriterOptionsPtr Options_;
     const TChunkWriterConfigPtr Config_;
     const TTableSchemaPtr Schema_;
+
+    TMemoryUsageTrackerGuard SamplesMemoryUsageGuard_;
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
@@ -228,12 +236,15 @@ protected:
     {
         ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
-        auto meta = EncodingChunkWriter_->GetMeta();
+        const auto& meta = EncodingChunkWriter_->GetMeta();
+
         FillCommonMeta(meta.Get());
         SetProtoExtension(meta->mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
         SetProtoExtension(meta->mutable_extensions(), BlockMetaExt_);
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
         SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
+
+        meta->UpdateMemoryUsage();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(true);
@@ -252,7 +263,9 @@ protected:
     {
         auto mergedRow = SamplingRowMerger_.MergeRow(row);
         ToProto(SamplesExt_.add_entries(), mergedRow);
-        SamplesExtSize_ += SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
+        i64 rowSize = SamplesExt_.entries(SamplesExt_.entries_size() - 1).length();
+        SamplesExtSize_ += rowSize;
+        SamplesMemoryUsageGuard_.IncrementSize(rowSize);
     }
 
     static void ValidateRowsOrder(
@@ -296,7 +309,11 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             dataSink)
-        , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
+        , BlockWriter_(new TSimpleVersionedBlockWriter(
+              Schema_,
+              TMemoryUsageTrackerGuard::Acquire(
+                  Options_->MemoryTracker,
+                  /*size*/ 0)))
     { }
 
     i64 GetCompressedDataSize() const override
@@ -374,7 +391,11 @@ private:
         }
 
         FinishBlock(row.BeginKeys(), row.EndKeys());
-        BlockWriter_.reset(new TSimpleVersionedBlockWriter(Schema_));
+        BlockWriter_.reset(new TSimpleVersionedBlockWriter(
+            Schema_,
+            TMemoryUsageTrackerGuard::Acquire(
+                Options_->MemoryTracker,
+                /*size*/ 0)));
     }
 
     void FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
@@ -646,6 +667,7 @@ private:
         }
         *columnMetaExt.add_columns() = TimestampWriter_->ColumnMeta();
         SetProtoExtension(meta->mutable_extensions(), columnMetaExt);
+        meta->UpdateMemoryUsage();
     }
 
     void DoClose() override

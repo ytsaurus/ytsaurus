@@ -226,6 +226,8 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 DECLARE_REFCOUNTED_CLASS(TDeferredChunkMeta)
 
+DECLARE_REFCOUNTED_CLASS(TMemoryTrackedDeferredChunkMeta)
+
 // NB: TRefCountedBlocksExt needs weak pointers support.
 using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)

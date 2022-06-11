@@ -7,6 +7,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/memory_trackers/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -25,7 +27,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
 
 public:
-    explicit TSimpleVersionedBlockWriter(TTableSchemaPtr schema);
+    explicit TSimpleVersionedBlockWriter(
+        TTableSchemaPtr schema,
+        TMemoryUsageTrackerGuard guard = {});
 
     void WriteRow(TVersionedRow row);
 
@@ -47,6 +51,8 @@ private:
     const int SchemaColumnCount_;
     const int KeyColumnCount_;
     const std::unique_ptr<bool[]> ColumnHunkFlags_;
+
+    TMemoryUsageTrackerGuard MemoryGuard_;
 
     TChunkedOutputStream KeyStream_;
     TBitmapOutput KeyNullFlags_;
