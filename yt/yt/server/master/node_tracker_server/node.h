@@ -33,6 +33,9 @@ struct TCellNodeStatistics
 {
     NChunkClient::TMediumMap<i64> ChunkReplicaCount;
     i64 DestroyedChunkReplicaCount = 0;
+    i64 ChunkPushReplicationQueuesSize = 0;
+    i64 ChunkPullReplicationQueuesSize = 0;
+    i64 PullReplicationChunkCount = 0;
 };
 
 TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatistics& rhs);
@@ -230,7 +233,10 @@ public:
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
     using TChunkReplicationQueues = std::vector<THashMap<TChunkPtrWithIndexes, TMediumIndexSet>>;
-    DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkReplicationQueues);
+    DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkPushReplicationQueues);
+    DEFINE_BYREF_RW_PROPERTY(TChunkReplicationQueues, ChunkPullReplicationQueues);
+    // A set of chunk ids with an ongoing replication to this node as a destination.
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TChunkId>, PullReplicationChunkIds);
 
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
@@ -361,7 +367,8 @@ public:
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndexes& replica);
 
-    void AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
+    void AddToChunkPushReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
+    void AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority);
     //! Handles the case |targetMediumIndex == AllMediaIndex| correctly.
     void RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex);
 

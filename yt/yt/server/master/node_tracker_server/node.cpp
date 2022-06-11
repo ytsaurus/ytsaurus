@@ -93,6 +93,9 @@ TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatist
         lhs.ChunkReplicaCount[mediumIndex] += chunkReplicaCount;
     }
     lhs.DestroyedChunkReplicaCount += rhs.DestroyedChunkReplicaCount;
+    lhs.ChunkPushReplicationQueuesSize += rhs.ChunkPushReplicationQueuesSize;
+    lhs.ChunkPullReplicationQueuesSize += rhs.ChunkPullReplicationQueuesSize;
+    lhs.PullReplicationChunkCount += rhs.PullReplicationChunkCount;
     return lhs;
 }
 
@@ -108,6 +111,9 @@ void ToProto(
         }
     }
     protoStatistics->set_destroyed_chunk_replica_count(statistics.DestroyedChunkReplicaCount);
+    protoStatistics->set_chunk_push_replication_queues_size(statistics.ChunkPushReplicationQueuesSize);
+    protoStatistics->set_chunk_pull_replication_queues_size(statistics.ChunkPullReplicationQueuesSize);
+    protoStatistics->set_pull_replication_chunk_count(statistics.PullReplicationChunkCount);
 }
 
 void FromProto(
@@ -121,6 +127,9 @@ void FromProto(
         statistics->ChunkReplicaCount[mediumIndex] = replicaCount;
     }
     statistics->DestroyedChunkReplicaCount = protoStatistics.destroyed_chunk_replica_count();
+    statistics->ChunkPushReplicationQueuesSize = protoStatistics.chunk_push_replication_queues_size();
+    statistics->ChunkPullReplicationQueuesSize = protoStatistics.chunk_pull_replication_queues_size();
+    statistics->PullReplicationChunkCount = protoStatistics.pull_replication_chunk_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,7 +151,8 @@ void FromProto(TCellNodeDescriptor* descriptor, const NProto::TReqSetCellNodeDes
 TNode::TNode(TObjectId objectId)
     : TObject(objectId)
 {
-    ChunkReplicationQueues_.resize(ReplicationPriorityCount);
+    ChunkPushReplicationQueues_.resize(ReplicationPriorityCount);
+    ChunkPullReplicationQueues_.resize(ReplicationPriorityCount);
     ClearSessionHints();
 }
 
@@ -737,15 +747,21 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
     }
 }
 
-void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
+void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
-    ChunkReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
+    ChunkPushReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
+}
+
+void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
+{
+    YT_ASSERT(ReportedDataNodeHeartbeat());
+    ChunkPullReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
 }
 
 void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex)
 {
-    for (auto& queue : ChunkReplicationQueues_) {
+    auto removeFromQueue = [&] (auto& queue) {
         auto it = queue.find(replica.ToGenericState());
         if (it != queue.end()) {
             if (targetMediumIndex == AllMediaIndex) {
@@ -757,7 +773,16 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int t
                 }
             }
         }
+    };
+
+    for (auto& queue : ChunkPushReplicationQueues_) {
+        removeFromQueue(queue);
     }
+    for (auto& queue : ChunkPullReplicationQueues_) {
+        removeFromQueue(queue);
+    }
+
+    PullReplicationChunkIds_.erase(replica.GetPtr()->GetId());
 }
 
 void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes replica)
@@ -874,9 +899,13 @@ void TNode::ShrinkHashTables()
     }
     ShrinkHashTable(&UnapprovedReplicas_);
     ShrinkHashTable(&IdToJob_);
-    for (auto& queue : ChunkReplicationQueues_) {
+    for (auto& queue : ChunkPushReplicationQueues_) {
         ShrinkHashTable(&queue);
     }
+    for (auto& queue : ChunkPullReplicationQueues_) {
+        ShrinkHashTable(&queue);
+    }
+    ShrinkHashTable(&PullReplicationChunkIds_);
     ShrinkHashTable(&ChunkRemovalQueue_);
     ShrinkHashTable(&ChunkSealQueue_);
 }
@@ -887,9 +916,13 @@ void TNode::Reset()
     ClearSessionHints();
     IdToJob_.clear();
     ChunkRemovalQueue_.clear();
-    for (auto& queue : ChunkReplicationQueues_) {
+    for (auto& queue : ChunkPushReplicationQueues_) {
         queue.clear();
     }
+    for (auto& queue : ChunkPullReplicationQueues_) {
+        queue.clear();
+    }
+    PullReplicationChunkIds_.clear();
     ChunkSealQueue_.clear();
     FillFactorIterators_.clear();
     LoadFactorIterators_.clear();
@@ -1245,7 +1278,14 @@ TCellNodeStatistics TNode::ComputeCellStatistics() const
     for (const auto& [mediumIndex, replicas] :  Replicas_) {
         result.ChunkReplicaCount[mediumIndex] = replicas.size();
     }
-    result.DestroyedChunkReplicaCount = DestroyedReplicas_.size();
+    result.DestroyedChunkReplicaCount = std::ssize(DestroyedReplicas_);
+    for (const auto& queue : ChunkPushReplicationQueues_) {
+        result.ChunkPushReplicationQueuesSize += std::ssize(queue);
+    }
+    for (const auto& queue : ChunkPullReplicationQueues_) {
+        result.ChunkPullReplicationQueuesSize += std::ssize(queue);
+    }
+    result.PullReplicationChunkCount += std::ssize(PullReplicationChunkIds_);
     return result;
 }
 

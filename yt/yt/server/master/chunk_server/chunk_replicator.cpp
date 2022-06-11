@@ -897,13 +897,26 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
     int totalReplicaCount = 0;
     int totalDecommissionedReplicaCount = 0;
 
+    TMediumMap<TNodePtrWithIndexesList> missingReplicas;
+
     TMediumSet hasSealedReplica;
     bool hasSealedReplicas = false;
     bool totallySealed = chunk->IsSealed();
 
     auto consistentPlacementNodes = GetChunkConsistentPlacementNodes(chunk);
+    auto storedReplicas = chunk->StoredReplicas();
 
-    for (auto replica : chunk->StoredReplicas()) {
+    for (const auto& [mediumIndex, consistentNodes] : consistentPlacementNodes) {
+        for (auto node : consistentNodes) {
+            TNodePtrWithIndexes nodePtrWithIndexes(node, GenericChunkReplicaIndex, mediumIndex);
+            // This is usually small, I'm fine with that.
+            if (std::find(storedReplicas.begin(), storedReplicas.end(), nodePtrWithIndexes) == storedReplicas.end()) {
+                missingReplicas[mediumIndex].push_back(nodePtrWithIndexes);
+            }
+        }
+    }
+
+    for (auto replica : storedReplicas) {
         auto* node = replica.GetPtr();
         auto mediumIndex = replica.GetMediumIndex();
 
@@ -997,7 +1010,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             hasSealedReplica[mediumIndex],
             totallySealed,
             unsafelyPlacedReplicas[mediumIndex],
-            inconsistentlyPlacedReplica[mediumIndex]);
+            inconsistentlyPlacedReplica[mediumIndex],
+            missingReplicas[mediumIndex]);
 
         allMediaTransient = allMediaTransient && mediumTransient;
 
@@ -1043,12 +1057,14 @@ void TChunkReplicator::ComputeRegularChunkStatisticsForMedium(
     bool hasSealedReplica,
     bool totallySealed,
     TNodePtrWithIndexes unsafelyPlacedReplica,
-    TNodePtrWithIndexes inconsistentlyPlacedReplica)
+    TNodePtrWithIndexes inconsistentlyPlacedReplica,
+    const TNodePtrWithIndexesList& missingReplicas)
 {
     auto replicationFactor = replicationPolicy.GetReplicationFactor();
 
     result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
     result.DecommissionedReplicaCount[GenericChunkReplicaIndex] = decommissionedReplicaCount;
+    result.MissingReplicas = missingReplicas;
 
     if (replicaCount + decommissionedReplicaCount == 0) {
         result.Status |= EChunkStatus::Lost;
@@ -1148,7 +1164,7 @@ void TChunkReplicator::OnNodeDisposed(TNode* node)
     YT_VERIFY(node->IdToJob().empty());
     YT_VERIFY(node->ChunkSealQueue().empty());
     YT_VERIFY(node->ChunkRemovalQueue().empty());
-    for (const auto& queue : node->ChunkReplicationQueues()) {
+    for (const auto& queue : node->ChunkPushReplicationQueues()) {
         YT_VERIFY(queue.empty());
     }
 }
@@ -1245,6 +1261,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
 
     TNodePtrWithIndexesList targetReplicas;
     for (auto* node : targetNodes) {
+        // TODO(aleksandra-zh): one of the nodes may still be overloaded, remove it from target list?
         targetReplicas.emplace_back(node, replicaIndex, targetMediumIndex);
     }
 
@@ -1497,10 +1514,37 @@ void TChunkReplicator::ScheduleJobs(IJobSchedulingContext* context)
             resourceUsage.removal_slots() < resourceLimits.removal_slots();
     };
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto hasSparePullReplicationResources = [&] {
+        return std::ssize(node->PullReplicationChunkIds()) < GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode;
+    };
 
+    // Move CRP-enabled chunks from pull to push queues.
+    auto& queues = node->ChunkPullReplicationQueues();
+    for (int priority = 0; priority < std::ssize(queues); ++priority) {
+        auto& queue = queues[priority];
+        auto it = queue.begin();
+        while (it != queue.end() && hasSparePullReplicationResources()) {
+            auto jt = it++;
+            auto chunkWithIndexes = jt->first;
+            auto* chunk = chunkWithIndexes.GetPtr();
+            auto& mediumIndexSet = jt->second;
+            for (const auto& replica : chunk->StoredReplicas()) {
+                auto* pushNode = replica.GetPtr();
+                for (int mediumIndex = 0; mediumIndex < std::ssize(mediumIndexSet); ++mediumIndex) {
+                    if (mediumIndexSet.test(mediumIndex)) {
+                        pushNode->AddToChunkPushReplicationQueue(chunkWithIndexes, mediumIndex, priority);
+                    }
+                }
+            }
+
+            node->PullReplicationChunkIds().insert(chunk->GetId());
+            queue.erase(jt);
+        }
+    }
+
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
     // Schedule replication jobs.
-    for (auto& queue : node->ChunkReplicationQueues()) {
+    for (auto& queue : node->ChunkPushReplicationQueues()) {
         auto it = queue.begin();
         while (it != queue.end() && hasSpareReplicationResources()) {
             auto jt = it++;
@@ -1766,31 +1810,46 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                     int replicaCount = statistics.ReplicaCount[replicaIndex];
                     int priority = std::max(std::min(replicaCount - 1, ReplicationPriorityCount - 1), 0);
 
-                    for (auto replica : chunk->StoredReplicas()) {
-                        if (chunk->IsJournal() && replica.GetState() != EChunkReplicaState::Sealed) {
-                            continue;
-                        }
+                    if (UsePullReplication(chunk)) {
+                        for (auto replica : statistics.MissingReplicas) {
+                            auto* node = replica.GetPtr();
+                            if (!node->ReportedDataNodeHeartbeat()) {
+                                YT_LOG_ALERT("Trying to place a chunk on a node that did not report a heartbeat (ChunkId: %v, NodeId: %v)",
+                                    chunk->GetId(),
+                                    node->GetId());
+                                continue;
+                            }
 
-                        if (replica.GetReplicaIndex() != replicaIndex) {
-                            continue;
+                            TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
+                            node->AddToChunkPullReplicationQueue(chunkWithIndexes, mediumIndex, priority);
                         }
+                    } else {
+                        for (auto replica : chunk->StoredReplicas()) {
+                            if (chunk->IsJournal() && replica.GetState() != EChunkReplicaState::Sealed) {
+                                continue;
+                            }
 
-                        // If chunk is lost on some media, don't match dst medium with
-                        // src medium: we want to be able to do cross-medium replication.
-                        bool mediumMatches =
-                            Any(allMediaStatistics.Status & ECrossMediumChunkStatus::MediumWiseLost) ||
-                            mediumIndex == replica.GetMediumIndex();
-                        if (!mediumMatches) {
-                            continue;
+                            if (replica.GetReplicaIndex() != replicaIndex) {
+                                continue;
+                            }
+
+                            // If chunk is lost on some media, don't match dst medium with
+                            // src medium: we want to be able to do cross-medium replication.
+                            bool mediumMatches =
+                                Any(allMediaStatistics.Status & ECrossMediumChunkStatus::MediumWiseLost) ||
+                                mediumIndex == replica.GetMediumIndex();
+                            if (!mediumMatches) {
+                                continue;
+                            }
+
+                            auto* node = replica.GetPtr();
+                            if (!node->ReportedDataNodeHeartbeat()) {
+                                continue;
+                            }
+
+                            TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
+                            node->AddToChunkPushReplicationQueue(chunkWithIndexes, mediumIndex, priority);
                         }
-
-                        auto* node = replica.GetPtr();
-                        if (!node->ReportedDataNodeHeartbeat()) {
-                            continue;
-                        }
-
-                        TChunkPtrWithIndexes chunkWithIndexes(chunk, replica.GetReplicaIndex(), replica.GetMediumIndex());
-                        node->AddToChunkReplicationQueue(chunkWithIndexes, mediumIndex, priority);
                     }
                 }
             }
@@ -2274,13 +2333,23 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
     }
 
     auto now = NProfiling::GetInstant();
-    if (now - LastDestroyedReplicasProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
+    if (now - LastPerNodeProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
+        i64 pullReplicationQueueSize = 0;
+        i64 pullReplicationChunkCount = 0;
         for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+            for (const auto& queue : node->ChunkPullReplicationQueues()) {
+                pullReplicationQueueSize += std::ssize(queue);
+            }
+            pullReplicationChunkCount += std::ssize(node->PullReplicationChunkIds());
+
             TWithTagGuard tagGuard(buffer, "node_address", node->GetDefaultAddress());
             buffer->AddGauge("/destroyed_replicas_size", node->DestroyedReplicas().size());
             buffer->AddGauge("/removal_queue_size", node->ChunkRemovalQueue().size());
         }
-        LastDestroyedReplicasProfilingTime_ = now;
+        buffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
+        buffer->AddGauge("/pull_replication_chunk_count", pullReplicationChunkCount);
+
+        LastPerNodeProfilingTime_ = now;
     }
 }
 
@@ -2304,16 +2373,34 @@ void TChunkReplicator::OnJobRunning(const TJobPtr& job, IJobControllerCallbacks*
     }
 }
 
-void TChunkReplicator::OnJobCompleted(const TJobPtr& /*job*/)
-{ }
+void TChunkReplicator::RemoveChunkFromPullQueue(const TJobPtr& job)
+{
+    if (job->GetType() != EJobType::ReplicateChunk) {
+        return;
+    }
+
+    auto chunkId = job->GetChunkIdWithIndexes().Id;
+    auto replicationJob = StaticPointerCast<TReplicationJob>(job);
+    for (const auto& replica : replicationJob->TargetReplicas()) {
+        auto* node = replica.GetPtr();
+        node->PullReplicationChunkIds().erase(chunkId);
+    }
+}
+
+void TChunkReplicator::OnJobCompleted(const TJobPtr& job)
+{
+    RemoveChunkFromPullQueue(job);
+}
 
 void TChunkReplicator::OnJobAborted(const TJobPtr& job)
 {
+    RemoveChunkFromPullQueue(job);
     TryRescheduleChunkRemoval(job);
 }
 
 void TChunkReplicator::OnJobFailed(const TJobPtr& job)
 {
+    RemoveChunkFromPullQueue(job);
     TryRescheduleChunkRemoval(job);
 }
 
@@ -2786,6 +2873,14 @@ void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig
 bool TChunkReplicator::IsConsistentChunkPlacementEnabled() const
 {
     return GetDynamicConfig()->ConsistentReplicaPlacement->Enable;
+}
+
+
+bool TChunkReplicator::UsePullReplication(TChunk* chunk) const
+{
+    return chunk->HasConsistentReplicaPlacementHash() &&
+        IsConsistentChunkPlacementEnabled() &&
+        GetDynamicConfig()->ConsistentReplicaPlacement->EnablePullReplication;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

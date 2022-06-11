@@ -129,8 +129,9 @@ DEFINE_ENUM(EMasterReign,
     ((BackupsMisc)                                                  (2027))  // ifsmirnov
     ((FixChunkWeightHistograms)                                     (2028))  // h0pless
     ((PerClusterBackupFlag)                                         (2029))  // ifsmirnov
-    ((SequoiaConfirmChunks)                                         (2030))   // aleksandra-zh
+    ((SequoiaConfirmChunks)                                         (2030))  // aleksandra-zh
     ((AreaChaosOptions)                                             (2031))  // savrus
+    ((CrpPullReplication)                                           (2032))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

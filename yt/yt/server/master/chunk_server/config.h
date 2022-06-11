@@ -278,6 +278,8 @@ class TDynamicConsistentReplicaPlacementConfig
 public:
     bool Enable;
 
+    bool EnablePullReplication;
+
     int TokenDistributionBucketCount;
 
     // NB: nullability is for testing purposes.
@@ -322,6 +324,10 @@ public:
     int MaxMisscheduledSealJobsPerHeartbeat;
     //! Controls the maximum number of unsuccessful attempts to schedule a merge job.
     int MaxMisscheduledMergeJobsPerHeartbeat;
+
+    //! Maximum number of running replication jobs for CRP chunks per target node
+    //! (where the chunk will be put).
+    int MaxRunningReplicationJobsPerTargetNode;
 
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinChunkBalancingFillFactorDiff;
