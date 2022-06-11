@@ -30,6 +30,8 @@
 
 #include <yt/yt/server/lib/timestamp_server/config.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/election/config.h>

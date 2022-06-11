@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/hive/proto/transaction_supervisor_service.pb.h>
+#include <yt/yt/ytlib/transaction_supervisor/proto/transaction_supervisor_service.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,4 +76,4 @@ DEFINE_REFCOUNTED_TYPE(ITransactionManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

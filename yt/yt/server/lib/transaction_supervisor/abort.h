@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +28,8 @@ public:
 
 private:
     TPromise<TSharedRefArray> ResponseMessagePromise_ = NewPromise<TSharedRefArray>();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

@@ -1,12 +1,10 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/ytlib/hive/proto/transaction_participant_service.pb.h>
+#include <yt/yt/ytlib/transaction_supervisor/proto/transaction_participant_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
-namespace NYT::NHiveClient {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,4 +25,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveClient
+} // namespace NYT::NTransactionSupervisor

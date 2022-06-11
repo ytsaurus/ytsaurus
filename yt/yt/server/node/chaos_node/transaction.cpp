@@ -15,6 +15,7 @@ using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

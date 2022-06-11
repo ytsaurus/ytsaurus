@@ -25,15 +25,15 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
-#include <yt/yt/server/lib/hive/transaction_lease_tracker.h>
 
 #include <yt/yt/server/lib/hydra_common/remote_changelog_store.h>
 #include <yt/yt/server/lib/hydra_common/remote_snapshot_store.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/yt/server/lib/hive/transaction_participant_provider.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -94,6 +94,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTabletClient::NProto;
 using namespace NTabletClient;
+using namespace NTransactionSupervisor;
 using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;

@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,4 +39,4 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

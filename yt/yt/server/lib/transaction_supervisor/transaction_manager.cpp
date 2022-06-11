@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,4 +16,4 @@ void TTransactionCommitOptions::Persist(const TStreamPersistenceContext& context
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

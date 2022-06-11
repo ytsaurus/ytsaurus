@@ -6,7 +6,7 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,4 +84,4 @@ void TTransactionBase<TBase>::Load(TStreamLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

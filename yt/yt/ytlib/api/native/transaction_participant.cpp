@@ -4,7 +4,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/yt/ytlib/hive/transaction_participant_service_proxy.h>
+
+#include <yt/yt/ytlib/transaction_supervisor/transaction_participant_service_proxy.h>
 
 #include <yt/yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -22,6 +23,7 @@ using namespace NHiveClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 

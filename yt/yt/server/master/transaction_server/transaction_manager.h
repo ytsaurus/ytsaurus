@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/lib/hive/transaction_manager.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
@@ -25,7 +25,7 @@ namespace NYT::NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager
-    : public NHiveServer::ITransactionManager
+    : public NTransactionSupervisor::ITransactionManager
 {
 public:
     //! Raised when a new transaction is started.
@@ -66,10 +66,10 @@ public:
         TTransactionId hintId);
     void CommitTransaction(
         TTransaction* transaction,
-        const NHiveServer::TTransactionCommitOptions& options);
+        const NTransactionSupervisor::TTransactionCommitOptions& options);
     void AbortTransaction(
         TTransaction* transaction,
-        const NHiveServer::TTransactionAbortOptions& options);
+        const NTransactionSupervisor::TTransactionAbortOptions& options);
     TTransactionId ExternalizeTransaction(
         TTransaction* transaction,
         NObjectClient::TCellTagList dstCellTags);
@@ -130,9 +130,9 @@ public:
         NObjectServer::TObject* object);
 
     void RegisterTransactionActionHandlers(
-        const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
-        const NHiveServer::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
-        const NHiveServer::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
+        const NTransactionSupervisor::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,
+        const NTransactionSupervisor::TTransactionCommitActionHandlerDescriptor<TTransaction>& commitActionDescriptor,
+        const NTransactionSupervisor::TTransactionAbortActionHandlerDescriptor<TTransaction>& abortActionDescriptor);
 
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,
@@ -175,16 +175,16 @@ private:
         const std::vector<NElection::TCellId>& cellIdsToSyncWith) override;
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionPrepareOptions& options) override;
+        const NTransactionSupervisor::TTransactionPrepareOptions& options) override;
     void PrepareTransactionAbort(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options) override;
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
     void CommitTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionCommitOptions& options) override;
+        const NTransactionSupervisor::TTransactionCommitOptions& options) override;
     void AbortTransaction(
         TTransactionId transactionId,
-        const NHiveServer::TTransactionAbortOptions& options) override;
+        const NTransactionSupervisor::TTransactionAbortOptions& options) override;
     void PingTransaction(
         TTransactionId transactionId,
         bool pingAncestors) override;

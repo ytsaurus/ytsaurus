@@ -12,11 +12,12 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_tracker.h>
-#include <yt/yt/ytlib/hive/transaction_supervisor_service_proxy.h>
-#include <yt/yt/ytlib/hive/transaction_participant_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
+
+#include <yt/yt/ytlib/transaction_supervisor/transaction_supervisor_service_proxy.h>
+#include <yt/yt/ytlib/transaction_supervisor/transaction_participant_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -49,6 +50,7 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTabletClient;
+using namespace NTransactionSupervisor;
 using namespace NYTree;
 
 using NYT::ToProto;

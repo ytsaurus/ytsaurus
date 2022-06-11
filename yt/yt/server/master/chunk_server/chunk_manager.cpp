@@ -50,6 +50,8 @@
 
 #include <yt/yt/server/lib/sequoia_client/transaction.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
+
 #include <yt/yt/server/master/node_tracker_server/config.h>
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -153,6 +155,7 @@ using namespace NSequoiaClient;
 using namespace NSequoiaServer;
 using namespace NTabletServer;
 using namespace NTabletClient;
+using namespace NTransactionSupervisor;
 
 using NChunkClient::TSessionId;
 
@@ -444,16 +447,16 @@ public:
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TChunkManager::HydraPrepareCreateChunk, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
-                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NHiveServer::TTransactionCommitOptions&>()),
+                MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
-                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NHiveServer::TTransactionAbortOptions&>()));
+                MakeEmptyTransactionActionHandler<TTransaction, TCreateChunkRequest, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TChunkManager::HydraPrepareConfirmChunk, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
-                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NHiveServer::TTransactionCommitOptions&>()),
+                MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
-                NHiveServer::MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NHiveServer::TTransactionAbortOptions&>()));
+                MakeEmptyTransactionActionHandler<TTransaction, TConfirmChunkRequest, const NTransactionSupervisor::TTransactionAbortOptions&>()));
 
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfiler
@@ -1206,7 +1209,7 @@ public:
     void HydraPrepareCreateChunk(
         TTransaction* /*transaction*/,
         TCreateChunkRequest* request,
-        const NHiveServer::TTransactionPrepareOptions& options)
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
@@ -1219,7 +1222,7 @@ public:
     void HydraPrepareConfirmChunk(
         TTransaction* /*transaction*/,
         TConfirmChunkRequest* request,
-        const NHiveServer::TTransactionPrepareOptions& options)
+        const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);

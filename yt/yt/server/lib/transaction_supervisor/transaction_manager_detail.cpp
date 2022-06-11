@@ -1,6 +1,6 @@
 #include "transaction_manager_detail.h"
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,4 +28,4 @@ bool TTransactionIdPool::IsRegistered(TTransactionId id) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

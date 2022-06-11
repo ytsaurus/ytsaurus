@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 
@@ -33,6 +35,7 @@ using namespace NHiveServer;
 using namespace NHydra;
 using namespace NChaosClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 
 using NYT::FromProto;
 using NYT::ToProto;

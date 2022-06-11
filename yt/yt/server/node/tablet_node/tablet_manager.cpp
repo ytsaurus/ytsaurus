@@ -35,7 +35,6 @@
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
@@ -49,6 +48,9 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/helpers.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -121,6 +123,7 @@ using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTableClient;
 using namespace NTransactionClient;
+using namespace NTransactionSupervisor;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
@@ -233,9 +236,9 @@ public:
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareAdvanceReplicationProgress, MakeStrong(this))),
             MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NHiveServer::TTransactionCommitOptions&>()),
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionCommitOptions&>()),
             MakeTransactionActionHandlerDescriptor(
-                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NHiveServer::TTransactionAbortOptions&>()),
+                MakeEmptyTransactionActionHandler<TTransaction, NProto::TReqAdvanceReplicationProgress, const NTransactionSupervisor::TTransactionAbortOptions&>()),
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraSerializeAdvanceReplicationProgress, MakeStrong(this))));
         transactionManager->RegisterTransactionActionHandlers(
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraPrepareUpdateTabletStores, MakeStrong(this))),
@@ -1563,7 +1566,7 @@ private:
     void HydraAbortUpdateTabletStores(
         TTransaction* transaction,
         TReqUpdateTabletStores* request,
-        const NHiveServer::TTransactionAbortOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1633,7 +1636,7 @@ private:
     void HydraCommitUpdateTabletStores(
         TTransaction* transaction,
         TReqUpdateTabletStores* request,
-        const NHiveServer::TTransactionCommitOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2100,7 +2103,7 @@ private:
     void HydraCommitWritePulledRows(
         TTransaction* transaction,
         TReqWritePulledRows* request,
-        const NHiveServer::TTransactionCommitOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         ui64 round = request->replication_round();
@@ -2162,7 +2165,7 @@ private:
     void HydraAbortWritePulledRows(
         TTransaction* transaction,
         TReqWritePulledRows* request,
-        const NHiveServer::TTransactionAbortOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2348,7 +2351,7 @@ private:
     void HydraCommitReplicateRows(
         TTransaction* transaction,
         TReqReplicateRows* request,
-        const NHiveServer::TTransactionCommitOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionCommitOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -2431,7 +2434,7 @@ private:
     void HydraAbortReplicateRows(
         TTransaction* transaction,
         TReqReplicateRows* request,
-        const NHiveServer::TTransactionAbortOptions& /*options*/)
+        const NTransactionSupervisor::TTransactionAbortOptions& /*options*/)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);

@@ -2,11 +2,11 @@
 
 #include <yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h>
 
-#include <yt/yt/server/lib/hive/public.h>
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,4 +49,4 @@ DECLARE_REFCOUNTED_CLASS(TSimpleTransactionSupervisor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra
+} // namespace NYT::NTransactionSupervisor

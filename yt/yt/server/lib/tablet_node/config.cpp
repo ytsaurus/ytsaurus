@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/election/config.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
 #include <yt/yt/ytlib/query_client/config.h>
 
 #include <yt/yt/core/rpc/config.h>

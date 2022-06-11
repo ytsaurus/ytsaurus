@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/misc/variant.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 using namespace NConcurrency;
 using namespace NTransactionServer;
@@ -473,4 +473,4 @@ ITransactionLeaseTrackerPtr CreateNullTransactionLeaseTracker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

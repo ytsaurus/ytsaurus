@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/logging/logger_owner.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +58,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor
 
 #define TRANSACTION_MANAGER_DETAIL_INL_H_
 #include "transaction_manager_detail-inl.h"

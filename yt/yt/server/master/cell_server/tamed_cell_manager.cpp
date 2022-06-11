@@ -114,6 +114,7 @@ using namespace NCellarNodeTrackerClient::NProto;
 using namespace NTabletServer::NProto;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;

@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/hydra_common/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -25,7 +27,7 @@ struct ICellarOccupier
 
     virtual void Configure(NHydra::IDistributedHydraManagerPtr hydraManager) = 0;
 
-    virtual NHiveServer::ITransactionManagerPtr GetOccupierTransactionManager() = 0;
+    virtual NTransactionSupervisor::ITransactionManagerPtr GetOccupierTransactionManager() = 0;
 
     virtual void Initialize() = 0;
     virtual void RegisterRpcServices() = 0;

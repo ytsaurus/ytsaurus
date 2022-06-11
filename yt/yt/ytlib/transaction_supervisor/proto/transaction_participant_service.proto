@@ -1,4 +1,4 @@
-package NYT.NHiveClient.NProto.NTransactionParticipant;
+package NYT.NTransactionSupervisor.NProto.NTransactionParticipant;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 

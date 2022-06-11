@@ -207,7 +207,7 @@ public:
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
-    NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
+    NTransactionSupervisor::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     TMulticellManagerConfigPtr MulticellManager;
 

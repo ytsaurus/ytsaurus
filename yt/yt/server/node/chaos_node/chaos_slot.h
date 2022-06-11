@@ -45,7 +45,7 @@ struct IChaosSlot
     virtual const NHydra::TCompositeAutomatonPtr& GetAutomaton() const = 0;
     virtual ITransactionManagerPtr GetTransactionManager() const = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const = 0;
-    virtual const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const = 0;
+    virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const = 0;
 
     // These methods are thread-safe.
     // They may return null invoker (see #GetNullInvoker) if the invoker of the requested type is not available.

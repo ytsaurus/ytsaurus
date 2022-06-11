@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/tablet_node/object_detail.h>
 
-#include <yt/yt/server/lib/hive/transaction_detail.h>
+#include <yt/yt/server/lib/transaction_supervisor/transaction_detail.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -22,7 +22,7 @@ namespace NYT::NChaosNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHiveServer::TTransactionBase<NTabletNode::TObjectBase>
+    : public NTransactionSupervisor::TTransactionBase<NTabletNode::TObjectBase>
     , public TRefTracked<TTransaction>
 {
 public:

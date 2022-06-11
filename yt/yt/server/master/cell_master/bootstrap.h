@@ -112,7 +112,7 @@ public:
     const NTabletServer::ITabletNodeTrackerPtr& GetTabletNodeTracker() const;
     const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
-    const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
+    const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
     const NCypressServer::IPortalManagerPtr& GetPortalManager() const;
     const IHydraFacadePtr& GetHydraFacade() const;
@@ -183,7 +183,7 @@ protected:
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
-    NHiveServer::ITransactionSupervisorPtr TransactionSupervisor_;
+    NTransactionSupervisor::ITransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::ICypressManagerPtr CypressManager_;
     NCypressServer::IPortalManagerPtr PortalManager_;
     IHydraFacadePtr HydraFacade_;

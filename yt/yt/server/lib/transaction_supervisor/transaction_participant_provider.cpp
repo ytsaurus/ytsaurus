@@ -12,7 +12,7 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 using namespace NApi;
 using namespace NHiveClient;
@@ -21,7 +21,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HiveServerLogger;
+static const auto& Logger = TransactionSupervisorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,4 +129,4 @@ ITransactionParticipantProviderPtr CreateTransactionParticipantProvider(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

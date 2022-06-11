@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-namespace NYT::NHiveServer {
+namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,4 +117,4 @@ void TTransactionManagerBase<TTransaction>::RunSerializeTransactionActions(TTran
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveServer
+} // namespace NYT::NTransactionSupervisor

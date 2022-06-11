@@ -1,4 +1,4 @@
-package NYT.NHiveClient.NProto.NTransactionSupervisor;
+package NYT.NTransactionSupervisor.NProto.NTransactionSupervisor;
 
 import "yt_proto/yt/client/hive/proto/timestamp_map.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
