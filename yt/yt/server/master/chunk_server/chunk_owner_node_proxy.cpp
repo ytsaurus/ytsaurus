@@ -19,8 +19,6 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
@@ -31,9 +29,15 @@
 #include <yt/yt/server/master/security_server/security_tags.h>
 #include <yt/yt/server/master/security_server/access_log.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
@@ -42,6 +46,8 @@
 #include <yt/yt/ytlib/file_client/file_chunk_writer.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/sequoia_client/tables.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -75,6 +81,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTableClient;
@@ -142,6 +149,7 @@ void BuildChunkSpec(
     const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
+    bool fetchMetaFromSequoia,
     const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     TBootstrap* bootstrap,
@@ -193,10 +201,12 @@ void BuildChunkSpec(
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
     chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
 
+    auto setMetaExtensions = !ShouldFetchChunkMetaFromSequoia(chunk, fetchMetaFromSequoia);
     ToProto(
         chunkSpec->mutable_chunk_meta(),
         chunk->ChunkMeta(),
-        fetchAllMetaExtensions ? nullptr : &extensionTags);
+        fetchAllMetaExtensions ? nullptr : &extensionTags,
+        setMetaExtensions);
 
     // Try to keep responses small -- avoid producing redundant limits.
     if (!lowerLimit.IsTrivial()) {
@@ -291,6 +301,56 @@ void BuildDynamicStoreSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool ShouldFetchChunkMetaFromSequoia(
+    TChunk* chunk,
+    bool fetchMetaFromSequoia)
+{
+    return chunk->IsSequoia() && fetchMetaFromSequoia;
+}
+
+TFuture<void> FetchChunkMetasFromSequoia(
+    bool fetchAllMetaExtensions,
+    const THashSet<int>& extensionTags,
+    std::vector<NChunkClient::NProto::TChunkSpec*> chunkSpecs,
+    TBootstrap* bootstrap)
+{
+    const auto& client = bootstrap->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+    auto transaction = CreateSequoiaTransaction(client, ChunkServerLogger);
+
+    TColumnFilter columnFilter;
+    if (!fetchAllMetaExtensions) {
+        auto table = DynamicPointerCast<TChunkMetaExtensionsTableDescriptor>(GetTableDescriptor(ESequoiaTable::ChunkMetaExtensions));
+        columnFilter = table->GetColumnFilter(extensionTags);
+    }
+
+    using TRow = TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow;
+    std::vector<TRow> keys;
+    for (auto* chunkSpec : chunkSpecs) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
+        TRow key{
+            .Id = ToString(chunkId),
+        };
+        keys.push_back(key);
+    }
+
+    auto asyncMetas = transaction->LookupRows(
+        std::move(keys),
+        NTransactionClient::SyncLastCommittedTimestamp,
+        columnFilter);
+    return asyncMetas.Apply(BIND([chunkSpecs = std::move(chunkSpecs)] (const std::vector<TRow>& rows) {
+        YT_VERIFY(rows.size() == chunkSpecs.size());
+
+        auto table = DynamicPointerCast<TChunkMetaExtensionsTableDescriptor>(GetTableDescriptor(ESequoiaTable::ChunkMetaExtensions));
+        for (int index = 0; index < std::ssize(rows); ++index) {
+            table->SetMetaExtensions(
+                rows[index],
+                chunkSpecs[index]->mutable_chunk_meta()->mutable_extensions());
+        }
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkOwnerNodeProxy::TFetchChunkVisitor
     : public IChunkVisitor
 {
@@ -314,6 +374,9 @@ public:
         if (!request.fetch_all_meta_extensions()) {
             ExtensionTags_.insert(request.extension_tags().begin(), request.extension_tags().end());
         }
+
+        const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+        FetchChunkMetaFromSequoia_ = sequoiaConfig->Enable && sequoiaConfig->FetchChunkMetaFromSequoia;
     }
 
     void Run()
@@ -338,6 +401,9 @@ private:
     int CurrentRangeIndex_ = 0;
 
     THashSet<int> ExtensionTags_;
+    bool FetchChunkMetaFromSequoia_ = false;
+    std::vector<NChunkClient::NProto::TChunkSpec*> ChunkSpecsToFetchMetaFromSequoia_;
+
     NNodeTrackerServer::TNodeDirectoryBuilder NodeDirectoryBuilder_;
     bool Finished_ = false;
 
@@ -412,6 +478,7 @@ private:
             modifier,
             FetchContext_.FetchParityReplicas,
             RpcContext_->Request().fetch_all_meta_extensions(),
+            FetchChunkMetaFromSequoia_,
             ExtensionTags_,
             &NodeDirectoryBuilder_,
             Bootstrap_,
@@ -422,6 +489,10 @@ private:
             chunk->GetId(),
             chunkSpec->chunk_meta().features(),
             FetchContext_.SupportedChunkFeatures);
+
+        if (ShouldFetchChunkMetaFromSequoia(chunk, FetchChunkMetaFromSequoia_)) {
+            ChunkSpecsToFetchMetaFromSequoia_.push_back(chunkSpec);
+        }
 
         return true;
     }
@@ -508,10 +579,30 @@ private:
 
         ++CurrentRangeIndex_;
         if (CurrentRangeIndex_ == std::ssize(FetchContext_.Ranges)) {
-            ReplySuccess();
+            FetchChunkMetasFromSequoia();
         } else {
             TraverseCurrentRange();
         }
+    }
+
+    void FetchChunkMetasFromSequoia()
+    {
+        if (ChunkSpecsToFetchMetaFromSequoia_.empty()) {
+            ReplySuccess();
+        }
+
+        auto fetchFuture = ::NYT::NChunkServer::FetchChunkMetasFromSequoia(
+            RpcContext_->Request().fetch_all_meta_extensions(),
+            ExtensionTags_,
+            std::move(ChunkSpecsToFetchMetaFromSequoia_),
+            Bootstrap_);
+        fetchFuture.Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (error.IsOK()) {
+                ReplySuccess();
+            } else {
+                ReplyError(error);
+            }
+        }));
     }
 };
 

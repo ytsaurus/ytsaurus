@@ -184,6 +184,11 @@ private:
             : NNodeTrackerClient::EAddressType::InternalRpc;
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
 
+        const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+        auto fetchChunkMetaFromSequoia = sequoiaConfig->Enable && sequoiaConfig->FetchChunkMetaFromSequoia;
+
+        std::vector<TFuture<void>> metaFetchFutures;
+
         for (const auto& protoStoreId : request->subrequests()) {
             auto storeId = FromProto<TDynamicStoreId>(protoStoreId);
             auto* subresponse = response->add_subresponses();
@@ -205,22 +210,32 @@ private:
                     auto rowIndex = dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;
+                    auto* spec = subresponse->mutable_chunk_spec();
                     BuildChunkSpec(
                         chunk,
                         rowIndex,
-                        {} /*tabletIndex*/,
-                        {} /*lowerLimit*/,
-                        {} /*upperLimit*/,
-                        {} /*timestampTransactionId*/,
-                        true /*fetchParityReplicas*/,
+                        /*tabletIndex*/ {},
+                        /*lowerLimit*/ {},
+                        /*upperLimit*/ {},
+                        /*timestampTransactionId*/ {},
+                        /*fetchParityReplicas*/ true,
                         request->fetch_all_meta_extensions(),
+                        fetchChunkMetaFromSequoia,
                         extensionTags,
                         &nodeDirectoryBuilder,
                         Bootstrap_,
-                        subresponse->mutable_chunk_spec());
+                        spec);
 
                     if (dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore) {
-                        subresponse->mutable_chunk_spec()->set_row_index_is_absolute(true);
+                        spec->set_row_index_is_absolute(true);
+                    }
+
+                    if (ShouldFetchChunkMetaFromSequoia(chunk, fetchChunkMetaFromSequoia)) {
+                        metaFetchFutures.push_back(FetchChunkMetasFromSequoia(
+                            request->fetch_all_meta_extensions(),
+                            extensionTags,
+                            {spec},
+                            Bootstrap_));
                     }
                 }
             } else {
@@ -236,6 +251,11 @@ private:
                 }
                 ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
             }
+        }
+
+        if (!metaFetchFutures.empty()) {
+            WaitFor(AllSucceeded(std::move(metaFetchFutures)))
+                .ThrowOnError();
         }
 
         context->Reply();
@@ -513,7 +533,7 @@ private:
                     context->Reply(error);
                     return VoidFuture;
                 }
-            }));
+            }).AsyncVia(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService)));
         }
     }
 

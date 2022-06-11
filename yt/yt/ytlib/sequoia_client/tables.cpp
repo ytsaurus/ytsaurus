@@ -1,5 +1,9 @@
 #include "tables.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
 #include <yt/yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -7,6 +11,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NSequoiaClient {
 
@@ -85,21 +91,22 @@ TUnversionedRow TChunkMetaExtensionsTableDescriptor::ToUnversionedRow(
 }
 
 TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow TChunkMetaExtensionsTableDescriptor::FromUnversionedRow(
-    TUnversionedRow row)
+    TUnversionedRow row,
+    const TNameTablePtr& nameTable)
 {
     TChunkMetaExtensionsRow chunkMetaExtensions;
     for (auto value : row) {
-        if (value.Id == Index_.Id) {
+        if (value.Id == nameTable->FindId("id")) {
             chunkMetaExtensions.Id = value.AsString();
-        } else if (value.Id == Index_.MiscExt) {
+        } else if (value.Id == nameTable->FindId("misc_ext")) {
             chunkMetaExtensions.MiscExt = value.AsString();
-        } else if (value.Id == Index_.HunkChunkRefsExt) {
+        } else if (value.Id == nameTable->FindId("hunk_chunk_refs_ext")) {
             chunkMetaExtensions.HunkChunkRefsExt = value.AsString();
-        } else if (value.Id == Index_.HunkChunkMiscExt) {
+        } else if (value.Id == nameTable->FindId("hunk_chunk_misc_ext")) {
             chunkMetaExtensions.HunkChunkMiscExt = value.AsString();
-        } else if (value.Id == Index_.BoundaryKeysExt) {
+        } else if (value.Id == nameTable->FindId("boundary_keys_ext")) {
             chunkMetaExtensions.BoundaryKeysExt = value.AsString();
-        } else if (value.Id == Index_.HeavyColumnStatisticsExt) {
+        } else if (value.Id == nameTable->FindId("heavy_column_statistics_ext")) {
             chunkMetaExtensions.HeavyColumnStatisticsExt = value.AsString();
         } else {
             YT_ABORT();
@@ -107,6 +114,59 @@ TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow TChunkMetaExtension
     }
 
     return chunkMetaExtensions;
+}
+
+int TChunkMetaExtensionsTableDescriptor::GetColumnId(int extensionTag)
+{
+    const auto& index = GetIndex();
+    switch (extensionTag) {
+        case TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value:
+            return index.MiscExt;
+        case TProtoExtensionTag<NTableClient::NProto::THunkChunkRefsExt>::Value:
+            return index.HunkChunkRefsExt;
+        case TProtoExtensionTag<NTableClient::NProto::THunkChunkMiscExt>::Value:
+            return index.HunkChunkMiscExt;
+        case TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value:
+            return index.BoundaryKeysExt;
+        case TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value:
+            return index.HeavyColumnStatisticsExt;
+        default:
+            YT_ABORT();
+    }
+}
+
+TColumnFilter TChunkMetaExtensionsTableDescriptor::GetColumnFilter(const THashSet<int>& extensionTags)
+{
+    std::vector<int> columnIds;
+    columnIds.reserve(extensionTags.size());
+    for (auto extensionTag : extensionTags) {
+        columnIds.push_back(GetColumnId(extensionTag));
+    }
+
+    return TColumnFilter(std::move(columnIds));
+}
+
+void TChunkMetaExtensionsTableDescriptor::SetMetaExtensions(
+    const TChunkMetaExtensionsRow& row,
+    NYT::NProto::TExtensionSet* extensions)
+{
+    auto addExtension = [&] (
+        int tag,
+        const TString& value)
+    {
+        if (!value) {
+            return;
+        }
+
+        auto* protoExtension = extensions->add_extensions();
+        protoExtension->set_tag(tag);
+        protoExtension->set_data(value);
+    };
+    addExtension(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value, row.MiscExt);
+    addExtension(TProtoExtensionTag<NTableClient::NProto::THunkChunkRefsExt>::Value, row.HunkChunkRefsExt);
+    addExtension(TProtoExtensionTag<NTableClient::NProto::THunkChunkMiscExt>::Value, row.HunkChunkMiscExt);
+    addExtension(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value, row.BoundaryKeysExt);
+    addExtension(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value, row.HeavyColumnStatisticsExt);
 }
 
 TTableSchemaPtr TChunkMetaExtensionsTableDescriptor::InitSchema()

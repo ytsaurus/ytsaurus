@@ -94,6 +94,27 @@ public:
                 .AsyncVia(SerializedInvoker_));
     }
 
+    TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
+        ESequoiaTable table,
+        std::vector<TLegacyKey> keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter) override
+    {
+        // TODO(gritukan): Default options.
+        NApi::TLookupRowsOptions options;
+        options.KeepMissingRows = true;
+        options.ColumnFilter = columnFilter;
+        options.Timestamp = timestamp;
+
+        const auto& tableDescriptor = GetTableDescriptor(table);
+
+        return Client_->LookupRows(
+            GetTablePath(table),
+            tableDescriptor->GetNameTable(),
+            MakeSharedRange(keys),
+            options);
+    }
+
     void DatalessLockRow(
         TCellTag masterCellTag,
         ESequoiaTable table,
@@ -140,7 +161,7 @@ public:
 
         auto guard = Guard(Lock_);
 
-        TWriteRowRequest request{ 
+        TWriteRowRequest request{
             .Row = row
         };
 
@@ -192,6 +213,11 @@ public:
     const TRowBufferPtr& GetRowBuffer() const override
     {
         return RowBuffer_;
+    }
+
+    const NApi::NNative::IClientPtr& GetClient() const override
+    {
+        return Client_;
     }
 
 private:
@@ -298,9 +324,7 @@ private:
         if (it == TableCommitSessions_.end()) {
             auto session = New<TTableCommitSession>();
 
-            const auto& sequoiaPath = Client_->GetNativeConnection()->GetConfig()->SequoiaPath;
-            const auto& tableDescriptor = GetTableDescriptor(table);
-            session->Path = sequoiaPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetName());
+            session->Path = GetTablePath(table);
             session->Table = table;
 
             EmplaceOrCrash(TableCommitSessions_, table, session);
@@ -507,6 +531,13 @@ private:
 
         Transaction_->ChooseCoordinator(options);
         return Transaction_->Commit(options).AsVoid();
+    }
+
+    TYPath GetTablePath(ESequoiaTable table) const
+    {
+        const auto& sequoiaPath = Client_->GetNativeConnection()->GetConfig()->SequoiaPath;
+        const auto& tableDescriptor = GetTableDescriptor(table);
+        return sequoiaPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetName());
     }
 };
 

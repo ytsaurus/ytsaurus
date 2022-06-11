@@ -74,7 +74,17 @@ public:
     NTableClient::TUnversionedRow ToUnversionedRow(
         const TChunkMetaExtensionsRow& chunkMetaExtensions,
         const NTableClient::TRowBufferPtr& rowBuffer);
-    TChunkMetaExtensionsRow FromUnversionedRow(NTableClient::TUnversionedRow row);
+    TChunkMetaExtensionsRow FromUnversionedRow(
+        NTableClient::TUnversionedRow row,
+        const NTableClient::TNameTablePtr& nameTable);
+
+    int GetColumnId(int extensionTag);
+
+    NTableClient::TColumnFilter GetColumnFilter(const THashSet<int>& extensionTags);
+
+    void SetMetaExtensions(
+        const TChunkMetaExtensionsRow& row,
+        ::NYT::NProto::TExtensionSet* extensions);
 
 private:
     const NTableClient::TTableSchemaPtr Schema_;

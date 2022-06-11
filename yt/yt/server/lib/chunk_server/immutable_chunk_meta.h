@@ -66,7 +66,8 @@ private:
     friend void ToProto(
         NChunkClient::NProto::TChunkMeta* protoMeta,
         const TImmutableChunkMetaPtr& meta,
-        const THashSet<int>* tags);
+        const THashSet<int>* tags,
+        bool setMetaExtensions);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +85,8 @@ void FromProto(
 void ToProto(
     NChunkClient::NProto::TChunkMeta* protoMeta,
     const TImmutableChunkMetaPtr& meta,
-    const THashSet<int>* tags = nullptr);
+    const THashSet<int>* tags = nullptr,
+    bool setMetaExtensions = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
