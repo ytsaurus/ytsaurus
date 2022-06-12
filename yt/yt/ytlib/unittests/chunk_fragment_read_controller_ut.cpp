@@ -90,9 +90,10 @@ TEST(ErasureChunkFragmentReadController, StressTest)
         auto chunkId = TGuid::FromString("0-0-66-0");
         auto controller = CreateChunkFragmentReadController(chunkId, CodecId, &responses);
 
-        TChunkReplicaInfoList replicas;
+        TReplicasWithRevision replicas;
+        replicas.Revision = NHydra::NullRevision;
         for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
-            replicas.push_back(TChunkReplicaInfo{
+            replicas.Replicas.push_back(TChunkReplicaInfo{
                 .ReplicaIndex = index
             });
         }

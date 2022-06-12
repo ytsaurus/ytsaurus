@@ -576,10 +576,14 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-            ToProto(response->mutable_ally_replicas(), allyReplicas);
-            YT_LOG_DEBUG("Ally replicas suggested (ChunkId: %v, Replicas: %v)",
-                chunkId,
-                allyReplicas.Replicas);
+            if (allyReplicas.Revision > request->ally_replicas_revision()) {
+                ToProto(response->mutable_ally_replicas(), allyReplicas);
+                YT_LOG_DEBUG("Ally replicas suggested "
+                    "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
+                    chunkId,
+                    allyReplicas,
+                    request->ally_replicas_revision());
+            }
         }
     }
 
@@ -674,11 +678,15 @@ private:
 
         ValidateOnline();
 
+        YT_VERIFY(
+            request->ally_replicas_revisions_size() == 0 ||
+            request->ally_replicas_revisions_size() == request->chunk_ids_size());
+
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
 
         int completeChunkCount = 0;
-        for (auto chunkIdProto : request->chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(chunkIdProto);
+        for (int chunkIndex = 0; chunkIndex < request->chunk_ids_size(); ++chunkIndex) {
+            auto chunkId = FromProto<TChunkId>(request->chunk_ids(chunkIndex));
 
             auto* subresponse = response->add_subresponses();
 
@@ -698,7 +706,21 @@ private:
 
             const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
             if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-                ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                // COMPAT(akozhikhov): Empty revision list.
+                if (request->ally_replicas_revisions_size() == 0 ||
+                    request->ally_replicas_revisions(chunkIndex) < allyReplicas.Revision)
+                {
+                    auto clientAllyReplicasRevision = request->ally_replicas_revisions_size() == 0
+                        ? std::nullopt
+                        : std::make_optional(request->ally_replicas_revisions(chunkIndex));
+
+                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                    YT_LOG_DEBUG("Ally replicas suggested "
+                        "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
+                        chunkId,
+                        allyReplicas,
+                        clientAllyReplicasRevision);
+                }
             }
         }
 
@@ -1068,7 +1090,14 @@ private:
 
                 const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
                 if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
-                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                    if (allyReplicas.Revision > subrequest.ally_replicas_revision()) {
+                        ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                        YT_LOG_DEBUG("Ally replicas suggested "
+                            "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
+                            chunkId,
+                            allyReplicas,
+                            subrequest.ally_replicas_revision());
+                    }
                 }
 
                 bool chunkAvailable = false;

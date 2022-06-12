@@ -321,6 +321,13 @@ void FromProto(
     TAllyReplicasInfo* allyReplicas,
     const NProto::TAllyReplicasInfo& protoAllyReplicas);
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAllyReplicasInfo& allyReplicas,
+    TStringBuf spec);
+TString ToString(
+    const TAllyReplicasInfo& allyReplicas);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

@@ -856,7 +856,7 @@ protected:
             return;
         }
 
-        if (!allyReplicas || SeedReplicas_.Revision >= allyReplicas.Revision) {
+        if (!allyReplicas) {
             return;
         }
 
@@ -1350,6 +1350,7 @@ private:
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->SetAcknowledgementTimeout(std::nullopt);
+        req->set_ally_replicas_revision(SeedReplicas_.Revision);
 
         if (peer.NodeSuspicionMarkTime) {
             return req->Invoke().Apply(BIND(
@@ -1889,6 +1890,7 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
+        req->set_ally_replicas_revision(SeedReplicas_.Revision);
 
         FillP2PBarriers(req->mutable_wait_barriers(), peers, blockIndexes);
 

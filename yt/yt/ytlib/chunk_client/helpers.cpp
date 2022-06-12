@@ -1060,6 +1060,22 @@ void FromProto(
     allyReplicas->Revision = protoAllyReplicas.revision();
 }
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAllyReplicasInfo& allyReplicas,
+    TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{Replicas: %v, Revision: %v}",
+        allyReplicas.Replicas,
+        allyReplicas.Revision);
+}
+
+TString ToString(const TAllyReplicasInfo& allyReplicas)
+{
+    return ToStringViaBuilder(allyReplicas);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
