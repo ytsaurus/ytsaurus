@@ -187,6 +187,12 @@ public:
     TError PromoteFlushedDynamicStores(TTablet* tablet);
     TError ApplyBackupCutoff(TTablet* tablet);
 
+    // COMPAT(gritukan): Remove after EMasterReign::ChunkListType reign drop and don't forget to make CopyChunkListIfShared private.
+    void CopyChunkListIfShared(
+        NTableServer::TTableNode* table,
+        NChunkServer::EChunkListContentType contentType,
+        int tabletIndex);
+
     DECLARE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
     DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId), ReplicatedTableDestroyed);
     DECLARE_SIGNAL_WITH_ACCESSOR(void(NTableClient::TTableId, TReplicatedTableOptionsPtr), ReplicatedTableOptionsUpdated);

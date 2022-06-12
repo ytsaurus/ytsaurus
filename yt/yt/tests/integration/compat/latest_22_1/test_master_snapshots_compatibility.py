@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
     ls, exists, get, set, authors, print_debug, build_master_snapshots, create, start_transaction,
-    remove, wait, create_user, make_ace,
+    remove, wait, create_user, make_ace, copy,
     commit_transaction, create_dynamic_table, sync_mount_table, insert_rows, sync_unmount_table,
     select_rows, lookup_rows, sync_create_cells, wait_for_cells)
 
@@ -107,6 +107,8 @@ def check_hunks():
     assert len(hunk_chunk_ids) == 1
     hunk_chunk_id = hunk_chunk_ids[0]
 
+    copy("//tmp/t", "//tmp/t_copy")
+
     assert get("#{}/@ref_counter".format(hunk_chunk_id)) == 2
 
     main_chunk_list_id = get("//tmp/t/@chunk_list_id")
@@ -120,14 +122,14 @@ def check_hunks():
 
     yield
 
-    assert get("#{}/@ref_counter".format(store_chunk_id)) == 1
-    assert get("#{}/@ref_counter".format(hunk_chunk_id)) == 2
+    assert get("#{}/@ref_counter".format(store_chunk_id)) == 2
+    assert get("#{}/@ref_counter".format(hunk_chunk_id)) == 3
 
-    assert get("#{}/@owning_nodes".format(store_chunk_id)) == ["//tmp/t"]
-    assert get("#{}/@owning_nodes".format(hunk_chunk_id)) == ["//tmp/t"]
+    assert_items_equal(get("#{}/@owning_nodes".format(store_chunk_id)), ["//tmp/t", "//tmp/t_copy"])
+    assert_items_equal(get("#{}/@owning_nodes".format(hunk_chunk_id)), ["//tmp/t", "//tmp/t_copy"])
 
     assert get("//tmp/t/@chunk_list_id") == main_chunk_list_id
-    assert get("#{}/@child_ids".format(main_chunk_list_id)) == [tablet_chunk_list_id]
+    tablet_chunk_list_id = get("#{}/@child_ids".format(main_chunk_list_id))[0]
     tablet_child_ids = get("#{}/@child_ids".format(tablet_chunk_list_id))
     assert [child_id for child_id in tablet_child_ids if _is_hunk_root(child_id)] == []
     hunk_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
@@ -137,6 +139,7 @@ def check_hunks():
         ok = True
         try:
             sync_mount_table("//tmp/t")
+            sync_mount_table("//tmp/t_copy")
         except:
             ok = False
         if ok:
@@ -146,7 +149,21 @@ def check_hunks():
     assert_items_equal(lookup_rows("//tmp/t", keys), rows)
     assert_items_equal(select_rows("* from [//tmp/t] where value = \"{}\"".format(rows[0]["value"])), [rows[0]])
 
+    assert_items_equal(lookup_rows("//tmp/t_copy", keys), rows)
+
+    def check_hunk_chunk_location(table):
+        hunk_chunk_list_id = get(f"{table}/@hunk_chunk_list_id")
+        hunk_tablet_chunk_list_ids = get(f"#{hunk_chunk_list_id}/@child_ids")
+        assert len(hunk_tablet_chunk_list_ids) == 1
+        hunk_tablet_chunk_list_id = hunk_tablet_chunk_list_ids[0]
+        hunk_chunks = get(f"#{hunk_tablet_chunk_list_id}/@child_ids")
+        assert hunk_chunks == [hunk_chunk_id]
+
+    check_hunk_chunk_location("//tmp/t")
+    check_hunk_chunk_location("//tmp/t_copy")
+
     remove("//tmp/t")
+    remove("//tmp/t_copy")
 
     wait(lambda: not exists("#{}".format(store_chunk_id)) and not exists("#{}".format(hunk_chunk_id)))
 

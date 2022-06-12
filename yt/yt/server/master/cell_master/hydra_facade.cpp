@@ -94,6 +94,11 @@ public:
 
         BIND([=] {
             NObjectServer::SetupAutomatonThread();
+
+            // COMPAT(gritukan): This is required for traverser during hunk chunk migration
+            // (EMasterReign::ChunkListType). Think of better way.
+            EpochContext_->EphemeralPtrUnrefInvoker = GetSyncInvoker();
+
             NObjectServer::SetupEpochContext(EpochContext_);
         })
             .AsyncVia(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default))

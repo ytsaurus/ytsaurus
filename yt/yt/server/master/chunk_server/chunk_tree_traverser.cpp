@@ -884,16 +884,22 @@ protected:
             case EObjectType::ChunkList: {
                 auto* childChunkList = child->AsChunkList();
                 auto childChunkListKind = childChunkList->GetKind();
-                if (childChunkListKind != EChunkListKind::SortedDynamicSubtablet &&
-                    childChunkListKind != EChunkListKind::Hunk)
-                {
+
+                // COMPAT(gritukan): Hunk roots are possible here only during
+                // EMasterReign::ChunkListType reign migration. After it, only hunk chunk lists
+                // are possible.
+                bool isHunkChunkList =
+                    childChunkListKind == EChunkListKind::Hunk ||
+                    childChunkListKind == EChunkListKind::HunkRoot;
+
+                if (childChunkListKind != EChunkListKind::SortedDynamicSubtablet && !isHunkChunkList) {
                     THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
                         childChunkList->GetId(),
                         childChunkListKind);
                 }
 
                 // Don't traverse hunks when bounds are enforced.
-                if (childChunkListKind != EChunkListKind::Hunk || !EnforceBounds_) {
+                if (!isHunkChunkList || !EnforceBounds_) {
                     PushFirstChild(childChunkList, childIndex, 0, tabletIndex, subtreeStartLimit, subtreeEndLimit);
                 }
                 break;
