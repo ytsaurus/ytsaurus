@@ -863,7 +863,7 @@ private:
             if (!chunk && options.FetchFromCache) {
                 blocks = ReadBlocksFromP2P(chunkId, blockIndexes, chunkReaderStatistics);
                 readFromP2P = true;
-            } else {
+            } else if (chunk) {
                 auto blocksFuture = chunk->ReadBlockSet(
                     blockIndexes,
                     options);
