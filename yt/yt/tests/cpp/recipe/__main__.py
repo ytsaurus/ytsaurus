@@ -41,7 +41,8 @@ OPTION_NAME_MAPPING = {
     "NUM_CONTROLLER_AGENTS": "controller_agent_count",
     "DELTA_MASTER_CONFIG": "master_config",
     "RPC_PROXY_COUNT": "rpc_proxy_count",
-    "RPC_PROXY_CONFIG": "rpc_proxy_config"
+    "RPC_PROXY_CONFIG": "rpc_proxy_config",
+    "HTTP_PROXY_COUNT": "http_proxy_count",
 }
 
 
@@ -80,6 +81,9 @@ def start(args):
 
     with open(RECIPE_INFO_FILE, "wb") as fout:
         yson.dump(recipe_info, fout)
+
+    if yt_instance.yt_config.http_proxy_count > 0:
+        set_env("YT_HTTP_PROXY_ADDRESS", yt_instance.get_http_proxy_address())
 
     if driver_backend == "native":
         set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["driver"])
