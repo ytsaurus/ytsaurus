@@ -6107,6 +6107,7 @@ private:
         }
     }
 
+public:
     void CopyChunkListIfShared(
         TTableNode* table,
         EChunkListContentType contentType,
@@ -6205,6 +6206,7 @@ private:
         }
     }
 
+private:
     static int GetFirstDynamicStoreIndex(const TChunkList* chunkList)
     {
         YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
@@ -8149,6 +8151,19 @@ TError TTabletManager::PromoteFlushedDynamicStores(TTablet* tablet)
 TError TTabletManager::ApplyBackupCutoff(TTablet* tablet)
 {
     return Impl_->ApplyBackupCutoff(tablet);
+}
+
+void TTabletManager::CopyChunkListIfShared(
+    TTableNode* table,
+    EChunkListContentType contentType,
+    int tabletIndex)
+{
+    return Impl_->CopyChunkListIfShared(
+        table,
+        contentType,
+        /*firstTabletIndex*/ tabletIndex,
+        /*lastTabletIndex*/ tabletIndex,
+        /*force*/ false);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)

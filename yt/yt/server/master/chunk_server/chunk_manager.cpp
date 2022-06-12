@@ -71,6 +71,9 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
+// COMPAT(gritukan)
+#include <yt/yt/server/master/tablet_server/tablet_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -4158,14 +4161,51 @@ private:
             THashMap<TChunkList*, TChunkList*> tabletChunkListToHunkChunkList;
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
+            const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+            auto isDynamicTable = [&] (TCypressNode* node) {
                 if (!IsTableType(node->GetType())) {
+                    return false;
+                }
+
+                auto* table = node->As<NTableServer::TTableNode>();
+                return table->IsDynamic() && !table->IsExternal() && table->IsTrunk();
+            };
+
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!isDynamicTable(node)) {
+                    continue;
+                }
+
+                auto* table = node->As<NTableServer::TTableNode>();
+
+                int tabletCount = std::ssize(table->GetChunkList()->Children());
+                for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
+                    auto* tabletChunkList = table->GetChunkList()->Children()[tabletIndex]->As<TChunkList>();
+                    bool hasHunkChunkList = false;
+                    for (auto* child : tabletChunkList->Children()) {
+                        if (IsObjectAlive(child) &&
+                            child->GetType() == EObjectType::ChunkList &&
+                            child->AsChunkList()->GetKind() == EChunkListKind::HunkRoot)
+                        {
+                            hasHunkChunkList = true;
+                            break;
+                        }
+                    }
+                    if (hasHunkChunkList) {
+                        tabletManager->CopyChunkListIfShared(
+                            table,
+                            EChunkListContentType::Main,
+                            tabletIndex);
+                    }
+                }
+            }
+
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!isDynamicTable(node)) {
                     continue;
                 }
                 auto* table = node->As<NTableServer::TTableNode>();
-                if (!table->IsDynamic() || table->IsExternal()) {
-                    continue;
-                }
                 auto* chunkList = table->GetChunkList();
                 if (!chunkListToHunkChunkList.contains(chunkList)) {
                     auto* hunkChunkList = CreateChunkList(EChunkListKind::HunkRoot);
@@ -4213,6 +4253,73 @@ private:
                 auto* hunkChunkList = GetOrCrash(chunkListToHunkChunkList, chunkList);
                 table->SetHunkChunkList(hunkChunkList);
                 hunkChunkList->AddOwningNode(table);
+            }
+
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!isDynamicTable(node)) {
+                    continue;
+                }
+
+                auto* table = node->As<NTableServer::TTableNode>();
+                int tabletCount = std::ssize(table->Tablets());
+                for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
+                    auto* tablet = table->Tablets()[tabletIndex];
+                    auto* tabletChunkList = tablet->GetChunkList();
+
+                    for (auto* child : tabletChunkList->Children()) {
+                        if (child && child->GetType() == EObjectType::ChunkList) {
+                            auto kind = child->AsChunkList()->GetKind();
+                            YT_VERIFY(kind != EChunkListKind::Hunk && kind != EChunkListKind::HunkRoot);
+                        }
+
+                        if (IsHunkChunk(child)) {
+                            YT_LOG_WARNING(
+                                "Found hunk chunk in tablet chunk list, preparing tablet for chunk move "
+                                "(TabletId: %v, ChunkId: %v, ChunkListId: %v)",
+                                tablet->GetId(),
+                                child->GetId(),
+                                tabletChunkList->GetId());
+
+                            tabletManager->CopyChunkListIfShared(
+                                table,
+                                EChunkListContentType::Main,
+                                tabletIndex);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!isDynamicTable(node)) {
+                    continue;
+                }
+
+                auto* table = node->As<NTableServer::TTableNode>();
+                int tabletCount = std::ssize(table->Tablets());
+                for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
+                    auto* tablet = table->Tablets()[tabletIndex];
+                    auto* tabletChunkList = tablet->GetChunkList();
+                    auto* hunkChunkList = tablet->GetHunkChunkList();
+
+                    std::vector<TChunkTree*> hunkChunksToMove;
+                    for (auto* child : tabletChunkList->Children()) {
+                        if (!IsHunkChunk(child)) {
+                            continue;
+                        }
+
+                        YT_LOG_WARNING("Found hunk chunk in tablet chunk list, moving it to hunk chunk list "
+                            "(ChunkId: %v, TabletId: %v, ChunkListId: %v, HunkChunkListId: %v)",
+                            child->GetId(),
+                            tablet->GetId(),
+                            tabletChunkList->GetId(),
+                            hunkChunkList->GetId());
+                       hunkChunksToMove.push_back(child);
+                    }
+
+                    AttachToChunkList(hunkChunkList, hunkChunksToMove);
+                    DetachFromChunkList(tabletChunkList, hunkChunksToMove, EChunkDetachPolicy::SortedTablet);
+                }
             }
         }
 
