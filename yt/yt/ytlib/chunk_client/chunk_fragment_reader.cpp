@@ -61,15 +61,21 @@ using TPeerInfoCachePtr = TIntrusivePtr<TPeerInfoCache>;
 
 struct TChunkProbingResult
 {
-    TChunkReplicaInfoList Replicas;
+    TReplicasWithRevision ReplicasWithRevision;
 };
 
 struct TPeerProbingInfo
 {
+    struct TReplicaProbingInfo
+    {
+        NHydra::TRevision Revision;
+        TChunkIdWithIndex ChunkIdWithIndex;
+    };
+
     TNodeId NodeId;
     TErrorOr<TPeerInfoPtr> PeerInfoOrError;
     std::vector<int> ChunkIndexes;
-    std::vector<TChunkIdWithIndex> ChunkIdsWithIndices;
+    std::vector<TReplicaProbingInfo> ReplicaProbingInfos;
     std::optional<TInstant> SuspicionMarkTime;
 };
 
@@ -79,7 +85,7 @@ struct TChunkInfo final
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock);
     TInstant LastAccessTime;
-    TChunkReplicaInfoList Replicas;
+    TReplicasWithRevision ReplicasWithRevision;
 };
 
 using TChunkInfoPtr = TIntrusivePtr<TChunkInfo>;
@@ -211,9 +217,11 @@ private:
 
         const auto& chunkInfo = it->second;
         auto entryGuard = Guard(chunkInfo->Lock);
-        EraseIf(chunkInfo->Replicas, [&] (const TChunkReplicaInfo& replicaInfo) {
-            return replicaInfo.PeerInfo->NodeId == peerInfo->NodeId;
-        });
+        EraseIf(
+            chunkInfo->ReplicasWithRevision.Replicas,
+            [&] (const TChunkReplicaInfo& replicaInfo) {
+                return replicaInfo.PeerInfo->NodeId == peerInfo->NodeId;
+            });
     }
 
     void RunPeriodicProbing();
@@ -295,11 +303,11 @@ private:
 
     std::vector<TFuture<TAllyReplicasInfo>> GetAllyReplicas()
     {
-        ReplicaInfoFutures_.reserve(ChunkIds_.size());
-        ChunkIdToReplicaInfoFuture_.reserve(ChunkIds_.size());
-
         const auto& chunkReplicaCache = Reader_->Client_->GetNativeConnection()->GetChunkReplicaCache();
         ReplicaInfoFutures_ = chunkReplicaCache->GetReplicas(ChunkIds_);
+        YT_VERIFY(ReplicaInfoFutures_.size() == ChunkIds_.size());
+
+        ChunkIdToReplicaInfoFuture_.reserve(ChunkIds_.size());
         for (int index = 0; index < std::ssize(ReplicaInfoFutures_); ++index) {
             EmplaceOrCrash(ChunkIdToReplicaInfoFuture_, ChunkIds_[index], ReplicaInfoFutures_[index]);
         }
@@ -406,8 +414,8 @@ private:
                             probingInfo.NodeId,
                             peerInfo->Address,
                             suspicionMarkTime);
-                        for (const auto& chunkIdWithIndex : probingInfo.ChunkIdsWithIndices) {
-                            TryDiscardChunkReplicas(chunkIdWithIndex.Id);
+                        for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
+                            TryDiscardChunkReplicas(replicaProbingInfo.ChunkIdWithIndex.Id);
                         }
                     }
                 }
@@ -449,7 +457,8 @@ private:
                 auto chunkIndex = probingInfo.ChunkIndexes[resultIndex];
                 const auto& subresponse = probingRsp->subresponses(resultIndex);
 
-                const auto& chunkIdWithIndex = probingInfo.ChunkIdsWithIndices[resultIndex];
+                const auto& replicaProbingInfo = probingInfo.ReplicaProbingInfos[resultIndex];
+                const auto& chunkIdWithIndex = replicaProbingInfo.ChunkIdWithIndex;
                 YT_VERIFY(chunkIdWithIndex.Id == ChunkIds_[chunkIndex]);
 
                 TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
@@ -468,8 +477,9 @@ private:
                         subresponse.disk_queue_size());
                 }
 
-                auto& probingResult = chunkIdToProbingResult[chunkIdWithIndex.Id];
-                probingResult.Replicas.push_back(TChunkReplicaInfo{
+                auto& replicasWithRevision = chunkIdToProbingResult[chunkIdWithIndex.Id].ReplicasWithRevision;
+                replicasWithRevision.Revision = ReplicaInfos_[chunkIndex].Revision;
+                replicasWithRevision.Replicas.push_back(TChunkReplicaInfo{
                     .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size()),
                     .PeerInfo = peerInfo,
                     .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
@@ -483,7 +493,7 @@ private:
         std::vector<TChunkId> lostChunkIds;
         for (auto it = chunkIdToProbingResult.begin(); it != chunkIdToProbingResult.end();) {
             auto& [chunkId, probingResult] = *it;
-            if (probingResult.Replicas.empty()) {
+            if (probingResult.ReplicasWithRevision.IsEmpty()) {
                 TryDiscardChunkReplicas(chunkId);
                 OnLostChunk(chunkId);
 
@@ -506,14 +516,11 @@ private:
     }
 
     template <typename TResponse>
-    void TryUpdateChunkReplicas(
-        TChunkId chunkId,
-        const TResponse& response)
+    void TryUpdateChunkReplicas(TChunkId chunkId, const TResponse& response)
     {
         VERIFY_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
 
-        auto it = ChunkIdToReplicaInfoFuture_.find(chunkId);
-        if (it == ChunkIdToReplicaInfoFuture_.end()) {
+        if (!ChunkIdToReplicaInfoFuture_.contains(chunkId)) {
             return;
         }
 
@@ -566,7 +573,10 @@ private:
                     nodeIds.push_back(nodeId);
                 }
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
-                probingInfos[it->second].ChunkIdsWithIndices.push_back(chunkIdWithIndex);
+                probingInfos[it->second].ReplicaProbingInfos.push_back({
+                    .Revision = allyReplicas.Revision,
+                    .ChunkIdWithIndex = chunkIdWithIndex,
+                });
             }
         }
 
@@ -602,8 +612,9 @@ private:
         auto req = proxy.ProbeChunkSet();
         req->SetResponseHeavy(true);
         SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
-        for (const auto& chunkIdWithIndex : probingInfo.ChunkIdsWithIndices) {
-            ToProto(req->add_chunk_ids(), EncodeChunkId(chunkIdWithIndex));
+        for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
+            ToProto(req->add_chunk_ids(), EncodeChunkId(replicaProbingInfo.ChunkIdWithIndex));
+            req->add_ally_replicas_revisions(replicaProbingInfo.Revision);
         }
         req->SetAcknowledgementTimeout(std::nullopt);
 
@@ -721,7 +732,7 @@ private:
 
                 const auto& chunkInfo = it->second;
                 auto entryGuard = Guard(chunkInfo->Lock);
-                chunkInfo->Replicas = std::move(probingResult.Replicas);
+                chunkInfo->ReplicasWithRevision = std::move(probingResult.ReplicasWithRevision);
             }
         }
 
@@ -857,7 +868,7 @@ private:
             auto mapGuard = WriterGuard(Reader_->ChunkIdToChunkInfoLock_);
 
             for (auto& [chunkId, probingResult] : chunkIdToProbingResult) {
-                YT_VERIFY(!probingResult.Replicas.empty());
+                YT_VERIFY(!probingResult.ReplicasWithRevision.IsEmpty());
 
                 auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
                 if (it == Reader_->ChunkIdToChunkInfo_.end()) {
@@ -872,7 +883,7 @@ private:
                 EmplaceOrCrash(ChunkIdToInfo_, chunkId, chunkInfo);
 
                 auto entryGuard = Guard(chunkInfo->Lock);
-                chunkInfo->Replicas = std::move(probingResult.Replicas);
+                chunkInfo->ReplicasWithRevision = std::move(probingResult.ReplicasWithRevision);
             }
         }
 
@@ -936,7 +947,7 @@ private:
 
     struct TChunkState
     {
-        TChunkReplicaInfoList Replicas;
+        TReplicasWithRevision ReplicasWithRevision;
         std::unique_ptr<IChunkFragmentReadController> Controller;
     };
 
@@ -1070,7 +1081,7 @@ private:
                 } else {
                     const auto& chunkInfo = it->second;
                     auto entryGuard = Guard(chunkInfo->Lock);
-                    chunkState.Replicas = chunkInfo->Replicas;
+                    chunkState.ReplicasWithRevision = chunkInfo->ReplicasWithRevision;
                     if (chunkInfo->LastAccessTime < now) {
                         chunkInfo->LastAccessTime = now;
                     }
@@ -1112,12 +1123,12 @@ private:
 
         // Take chunk replicas from just finished populating session.
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
-            if (!chunkState.Replicas.empty()) {
+            if (!chunkState.ReplicasWithRevision.IsEmpty()) {
                 continue;
             }
             if (auto chunkInfo = subsession->FindChunkInfo(chunkId)) {
                 auto entryGuard = Guard(chunkInfo->Lock);
-                chunkState.Replicas = chunkInfo->Replicas;
+                chunkState.ReplicasWithRevision = chunkInfo->ReplicasWithRevision;
             }
         }
 
@@ -1129,7 +1140,7 @@ private:
         // Construct the set of potential nodes we're about to contact during this session.
         std::vector<TNodeId> nodeIds;
         for (const auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
-            for (const auto& replica : chunkState.Replicas) {
+            for (const auto& replica : chunkState.ReplicasWithRevision.Replicas) {
                 nodeIds.push_back(replica.PeerInfo->NodeId);
             }
         }
@@ -1143,11 +1154,11 @@ private:
         // Sort replicas and feed them to controllers.
         THashMap<TNodeId, double> nodeIdToPenalty;
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
-            if (chunkState.Replicas.empty()) {
+            if (chunkState.ReplicasWithRevision.IsEmpty()) {
                 continue;
             }
 
-            for (auto& replica : chunkState.Replicas) {
+            for (auto& replica : chunkState.ReplicasWithRevision.Replicas) {
                 auto nodeId = replica.PeerInfo->NodeId;
                 if (auto it = nodeIdToPenalty.find(nodeId); it != nodeIdToPenalty.end()) {
                     replica.Penalty = it->second;
@@ -1161,7 +1172,7 @@ private:
                 }
             }
 
-            chunkState.Controller->SetReplicas(chunkState.Replicas);
+            chunkState.Controller->SetReplicas(chunkState.ReplicasWithRevision);
             ++PendingChunkCount_;
         }
 
@@ -1239,7 +1250,7 @@ private:
         // Request controllers to make their plans and group plans by nodes.
         THashMap<TPeerInfoPtr, TPerPeerPlanPtr> peerInfoToPlan;
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
-            if (chunkState.Replicas.empty()) {
+            if (chunkState.ReplicasWithRevision.IsEmpty()) {
                 continue;
             }
 

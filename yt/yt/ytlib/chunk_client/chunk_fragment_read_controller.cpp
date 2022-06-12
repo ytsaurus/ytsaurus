@@ -13,6 +13,13 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TReplicasWithRevision::IsEmpty() const
+{
+    return Replicas.empty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkFragmentReadControllerBase
     : public IChunkFragmentReadController
 {
@@ -54,15 +61,15 @@ public:
         FragmentRequests_.push_back(request);
     }
 
-    void SetReplicas(const TChunkReplicaInfoList& replicas) override
+    void SetReplicas(const TReplicasWithRevision& replicasWithRevision) override
     {
-        Replicas_ = replicas;
+        ReplicasWithRevision_ = replicasWithRevision;
 
-        SortBy(Replicas_, [] (const TChunkReplicaInfo& replicaInfo) {
+        SortBy(ReplicasWithRevision_.Replicas, [] (const TChunkReplicaInfo& replicaInfo) {
             return std::make_tuple(replicaInfo.Penalty, replicaInfo.PeerInfo->NodeId);
         });
 
-        for (int index = 0; index < std::min(static_cast<int>(Replicas_.size()), MaxPlans); ++index) {
+        for (int index = 0; index < std::min(std::ssize(ReplicasWithRevision_.Replicas), MaxPlans); ++index) {
             Plans_.push_back(TChunkFragmentReadControllerPlan{
                 .PeerIndices = {index}
             });
@@ -71,7 +78,7 @@ public:
 
     const TChunkReplicaInfo& GetReplica(int peerIndex) override
     {
-        return Replicas_[peerIndex];
+        return ReplicasWithRevision_.Replicas[peerIndex];
     }
 
     const TChunkFragmentReadControllerPlan* TryMakePlan() override
@@ -89,6 +96,7 @@ public:
         NChunkClient::NProto::TReqGetChunkFragmentSet_TSubrequest* subrequest) override
     {
         ToProto(subrequest->mutable_chunk_id(), ChunkId_);
+        subrequest->set_ally_replicas_revision(ReplicasWithRevision_.Revision);
         for (const auto& fragmentRequest : FragmentRequests_) {
             auto* fragment = subrequest->add_fragments();
             fragment->set_length(fragmentRequest.Length);
@@ -123,10 +131,10 @@ public:
 
 private:
     int CurrentPlanIndex_ = 0;
-    static constexpr int MaxPlans = 2;
+    static constexpr i64 MaxPlans = 2;
     TCompactVector<TChunkFragmentReadControllerPlan, MaxPlans> Plans_;
 
-    TChunkReplicaInfoList Replicas_;
+    TReplicasWithRevision ReplicasWithRevision_;
 
     std::vector<TFragmentRequest> FragmentRequests_;
 };
@@ -153,11 +161,13 @@ public:
         Requests_.push_back(TRequest(request, DataPartCount_));
     }
 
-    void SetReplicas(const TChunkReplicaInfoList& replicas) override
+    void SetReplicas(const TReplicasWithRevision& replicasWithRevision) override
     {
+        ReplicasRevision_ = replicasWithRevision.Revision;
+
         std::fill(Replicas_.begin(), Replicas_.end(), std::nullopt);
 
-        for (const auto& replica : replicas) {
+        for (const auto& replica : replicasWithRevision.Replicas) {
             auto partIndex = replica.ReplicaIndex;
             auto& partReplica = Replicas_[partIndex];
             if (!partReplica || partReplica->Penalty > replica.Penalty) {
@@ -242,6 +252,7 @@ private:
     const int TotalPartCount_;
     const int DataPartCount_;
 
+    NHydra::TRevision ReplicasRevision_ = NHydra::NullRevision;
     TCompactVector<std::optional<TChunkReplicaInfo>, TypicalReplicaCount> Replicas_;
 
     TChunkFragmentReadControllerPlan RegularPlan_;
@@ -380,6 +391,7 @@ private:
         YT_ASSERT(partIndex >= 0 && partIndex < DataPartCount_);
 
         ToProto(subrequest->mutable_chunk_id(), ErasurePartIdFromChunkId(ChunkId_, partIndex));
+        subrequest->set_ally_replicas_revision(ReplicasRevision_);
 
         for (auto requestIndex : PartIndexToRegularRequestIndices_[partIndex]) {
             const auto& request = Requests_[requestIndex];
@@ -496,6 +508,7 @@ private:
         NChunkClient::NProto::TReqGetChunkFragmentSet_TSubrequest* subrequest)
     {
         ToProto(subrequest->mutable_chunk_id(), ErasurePartIdFromChunkId(ChunkId_, partIndex));
+        subrequest->set_ally_replicas_revision(ReplicasRevision_);
 
         for (const auto& repairFragment : RepairFragments_) {
             auto* fragment = subrequest->add_fragments();

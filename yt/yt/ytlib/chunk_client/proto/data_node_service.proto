@@ -159,6 +159,7 @@ message TReqProbeChunkSet
 {
     repeated NYT.NProto.TGuid chunk_ids = 1;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+    repeated uint64 ally_replicas_revisions = 4;
 }
 
 message TRspProbeChunkSet
@@ -187,6 +188,7 @@ message TReqProbeBlockSet
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+    optional uint64 ally_replicas_revision = 4;
 }
 
 message TRspProbeBlockSet
@@ -206,19 +208,19 @@ message TReqGetBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
-    reserved 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
     // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_cache = 7 [default = true];
     // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_disk = 8 [default = true];
-    reserved 9;
 
     repeated TP2PBarrier wait_barriers = 11;
     optional NYT.NProto.TGuid read_session_id = 12;
 
-    reserved 3;
+    optional uint64 ally_replicas_revision = 13;
+
+    reserved 3, 4, 9;
 }
 
 message TRspGetBlockSet
@@ -273,6 +275,7 @@ message TReqGetChunkFragmentSet
     message TSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
+        optional uint64 ally_replicas_revision = 3;
 
         message TFragment
         {

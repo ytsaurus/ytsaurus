@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
+#include <yt/yt/client/hydra/public.h>
+
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/rpc/helpers.h>
@@ -45,6 +47,14 @@ struct TChunkReplicaInfo
 
 using TChunkReplicaInfoList = TCompactVector<TChunkReplicaInfo, TypicalReplicaCount>;
 
+struct TReplicasWithRevision
+{
+    NHydra::TRevision Revision;
+    TChunkReplicaInfoList Replicas;
+
+    bool IsEmpty() const;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkFragmentReadControllerPlan
@@ -62,7 +72,7 @@ struct IChunkFragmentReadController
 
     virtual void RegisterRequest(const TFragmentRequest& request) = 0;
 
-    virtual void SetReplicas(const TChunkReplicaInfoList& replicas) = 0;
+    virtual void SetReplicas(const TReplicasWithRevision& replicasWithRevision) = 0;
     virtual const TChunkReplicaInfo& GetReplica(int peerIndex) = 0;
 
     virtual const TChunkFragmentReadControllerPlan* TryMakePlan() = 0;
