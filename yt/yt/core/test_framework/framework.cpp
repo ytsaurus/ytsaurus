@@ -48,16 +48,36 @@ TString GenerateRandomFileName(const char* prefix)
 
 void WaitForPredicate(
     std::function<bool()> predicate,
+    TWaitForPredicateOptions options)
+{
+    for (int iteration = 0; iteration < options.IterationCount; ++iteration) {
+        if (iteration > 0) {
+            NConcurrency::TDelayedExecutor::WaitForDuration(options.Period);
+        }
+        try {
+            if (predicate()) {
+                return;
+            }
+        } catch (...) {
+            if (!options.IgnoreExceptions || iteration + 1 == options.IterationCount) {
+                throw;
+            }
+        }
+    }
+    THROW_ERROR_EXCEPTION("Wait failed");
+}
+
+void WaitForPredicate(
+    std::function<bool()> predicate,
     int iterationCount,
     TDuration period)
 {
-    for (int iteration = 0; iteration < iterationCount; ++iteration) {
-        if (predicate()) {
-            return;
-        }
-        NConcurrency::TDelayedExecutor::WaitForDuration(period);
-    }
-    THROW_ERROR_EXCEPTION("Wait failed");
+    WaitForPredicate(
+        std::move(predicate),
+        TWaitForPredicateOptions{
+            .IterationCount = iterationCount,
+            .Period = period,
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

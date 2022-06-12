@@ -46,6 +46,17 @@ TString GenerateRandomFileName(const char* prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWaitForPredicateOptions
+{
+    int IterationCount = 300;
+    TDuration Period = TDuration::MilliSeconds(100);
+    bool IgnoreExceptions = false;
+};
+
+void WaitForPredicate(
+    std::function<bool()> predicate,
+    TWaitForPredicateOptions options);
+
 void WaitForPredicate(
     std::function<bool()> predicate,
     int iterationCount = 300,
