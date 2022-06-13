@@ -26,8 +26,6 @@ DEFINE_ENUM(EJobMetricName,
 
     (AggregatedSmoothedCpuUsageX100)
     (AggregatedMaxCpuUsageX100)
-    // COMPAT(eshcherbin)
-    (AggregatedPreemptableCpuX100)
     (AggregatedPreemptibleCpuX100)
     (AggregatedPreemptedCpuX100)
 
