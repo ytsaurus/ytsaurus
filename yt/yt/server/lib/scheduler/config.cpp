@@ -202,6 +202,14 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTreeTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_inside_fair_share_update", &TThis::DelayInsideFairShareUpdate)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("nodes_filter", &TThis::NodesFilter)
@@ -430,6 +438,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("check_operation_for_liveness_in_preschedule", &TThis::CheckOperationForLivenessInPreschedule)
         .Default(true);
+
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
 
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {

@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "packing.h"
+#include "fair_share_tree_element.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
@@ -57,7 +58,7 @@ public:
 
     void OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons();
-    void ResetDeactivationReasonsFromLastNonStarvingTime();
+    void ProcessUpdatedStarvationStatus(EStarvationStatus status);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime();
 
     TInstant GetLastScheduleJobSuccessTime() const;
@@ -78,6 +79,9 @@ public:
 
 private:
     const ISchedulerStrategyHost* StrategyHost_;
+
+    // This value is read and modified only during post update in fair share update invoker.
+    EStarvationStatus StarvationStatusAtLastUpdate_ = EStarvationStatus::NonStarving;
 
     // TODO(eshcherbin): Use TEnumIndexedVector<EJobPreemptionStatus, TJobIdList> here and below.
     using TJobIdList = std::list<TJobId>;

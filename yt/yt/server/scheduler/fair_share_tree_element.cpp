@@ -1763,7 +1763,6 @@ void TSchedulerOperationElement::SetStarvationStatus(EStarvationStatus starvatio
             currentStarvationStatus,
             starvationStatus);
 
-        TreeElementHost_->OnOperationStarvationStatusChanged(OperationId_, currentStarvationStatus, starvationStatus);
         TSchedulerElement::SetStarvationStatus(starvationStatus);
     }
 }

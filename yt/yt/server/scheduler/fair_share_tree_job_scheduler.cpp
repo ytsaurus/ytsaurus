@@ -2237,16 +2237,6 @@ void TFairShareTreeJobScheduler::DisableOperation(TSchedulerOperationElement* el
     element->ReleaseResources(markAsNonAlive);
 }
 
-void TFairShareTreeJobScheduler::OnOperationStarvationStatusChanged(
-    TOperationId operationId,
-    EStarvationStatus oldStatus,
-    EStarvationStatus newStatus) const
-{
-    if (oldStatus == EStarvationStatus::NonStarving && newStatus != EStarvationStatus::NonStarving) {
-        GetOperationSharedState(operationId)->ResetDeactivationReasonsFromLastNonStarvingTime();
-    }
-}
-
 void TFairShareTreeJobScheduler::RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, const std::vector<TJobPtr>& jobs) const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2425,6 +2415,8 @@ void TFairShareTreeJobScheduler::PostUpdate(
     InitializeStaticAttributes(fairSharePostUpdateContext, postUpdateContext);
 
     PublishFairShareAndUpdatePreemptionAttributes(postUpdateContext->RootElement, postUpdateContext);
+
+    ProcessUpdatedStarvationStatuses(fairSharePostUpdateContext, postUpdateContext);
 
     auto cachedJobPreemptionStatusesUpdateDeadline =
         CachedJobPreemptionStatuses_.UpdateTime + fairSharePostUpdateContext->TreeConfig->CachedJobPreemptionStatusesUpdatePeriod;
@@ -2815,6 +2807,20 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributesAt
     const auto& operationSharedState = postUpdateContext->StaticAttributesList.AttributesOf(element).OperationSharedState;
     operationSharedState->SetPreemptible(currentPreemptibleValue);
     operationSharedState->UpdatePreemptibleJobsList(element);
+}
+
+void TFairShareTreeJobScheduler::ProcessUpdatedStarvationStatuses(
+    TFairSharePostUpdateContext* fairSharePostUpdateContext,
+    TJobSchedulerPostUpdateContext* postUpdateContext)
+{
+    auto processUpdatedStarvationStatuses = [&] (const auto& operationMap) {
+        for (const auto& [operationId, operationElement] : operationMap) {
+            GetOrCrash(postUpdateContext->OperationIdToSharedState, operationId)->ProcessUpdatedStarvationStatus(operationElement->GetStarvationStatus());
+        }
+    };
+
+    processUpdatedStarvationStatuses(fairSharePostUpdateContext->EnabledOperationIdToElement);
+    processUpdatedStarvationStatuses(fairSharePostUpdateContext->DisabledOperationIdToElement);
 }
 
 void TFairShareTreeJobScheduler::UpdateCachedJobPreemptionStatuses(

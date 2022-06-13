@@ -455,14 +455,6 @@ public:
         return ResourceTree_.Get();
     }
 
-    void OnOperationStarvationStatusChanged(
-        TOperationId /*operationId*/,
-        EStarvationStatus /*oldStatus*/,
-        EStarvationStatus /*newStatus*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void BuildElementLoggingStringAttributes(
         const TFairShareTreeSnapshotPtr& /*treeSnapshot*/,
         const TSchedulerElement* /*element*/,

@@ -206,6 +206,21 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTreeTestingOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> DelayInsideFairShareUpdate;
+
+    REGISTER_YSON_STRUCT(TTreeTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTreeTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonStruct
 {
@@ -364,6 +379,8 @@ public:
 
     //! Check that operation is alive in preschedule phase.
     bool CheckOperationForLivenessInPreschedule;
+
+    TTreeTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
