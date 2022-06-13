@@ -39,15 +39,11 @@ void TCpuMonitor::FillStatistics(TStatistics& statistics) const
 {
     if (SmoothedUsage_) {
         statistics.AddSample("/job_proxy/smoothed_cpu_usage_x100", static_cast<i64>(*SmoothedUsage_ * 100));
-        // COMPAT(eshcherbin)
-        statistics.AddSample("/job_proxy/preemptable_cpu_x100", static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
         statistics.AddSample("/job_proxy/preemptible_cpu_x100", static_cast<i64>((HardLimit_ - SoftLimit_) * 100));
 
         statistics.AddSample("/job_proxy/aggregated_smoothed_cpu_usage_x100", static_cast<i64>(AggregatedSmoothedCpuUsage_ * 100));
         statistics.AddSample("/job_proxy/aggregated_max_cpu_usage_x100", static_cast<i64>(AggregatedMaxCpuUsage_ * 100));
         const auto preemptibleCpu = static_cast<i64>(AggregatedPreemptibleCpu_ * 100);
-        // COMPAT(eshcherbin)
-        statistics.AddSample("/job_proxy/aggregated_preemptable_cpu_x100", preemptibleCpu);
         statistics.AddSample("/job_proxy/aggregated_preemptible_cpu_x100", preemptibleCpu);
         statistics.AddSample("/job_proxy/aggregated_preempted_cpu_x100", Config_->EnableCpuReclaim ? preemptibleCpu : 0);
     }
