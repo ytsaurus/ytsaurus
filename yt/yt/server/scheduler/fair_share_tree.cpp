@@ -18,6 +18,7 @@
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -1307,8 +1308,12 @@ private:
                     updateExecutor.Run();
 
                     rootElement->PostUpdate(&fairSharePostUpdateContext);
+                    rootElement->UpdateStarvationStatuses(now, fairSharePostUpdateContext.TreeConfig->EnablePoolStarvation);
+
                     TreeScheduler_->PostUpdate(&fairSharePostUpdateContext, &jobSchedulerPostUpdateContext);
                 }
+
+                MaybeDelay(fairSharePostUpdateContext.TreeConfig->TestingOptions->DelayInsideFairShareUpdate, EDelayType::Sync);
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
             .Run();
@@ -1328,9 +1333,6 @@ private:
                 << TErrorAttribute("pool_tree", TreeId_)
                 << std::move(updateContext.Errors);
         }
-
-        // Update starvation flags for operations and pools.
-        rootElement->UpdateStarvationStatuses(now, Config_->EnablePoolStarvation);
 
         // Copy persistent attributes back to the original tree.
         for (const auto& [operationId, element] : fairSharePostUpdateContext.EnabledOperationIdToElement) {
@@ -1557,14 +1559,6 @@ private:
             state->GetHost()->GetId(),
             poolName,
             *slotIndex);
-    }
-
-    void OnOperationStarvationStatusChanged(
-        TOperationId operationId,
-        EStarvationStatus oldStatus,
-        EStarvationStatus newStatus) const override
-    {
-        TreeScheduler_->OnOperationStarvationStatusChanged(operationId, oldStatus, newStatus);
     }
 
     void BuildElementLoggingStringAttributes(

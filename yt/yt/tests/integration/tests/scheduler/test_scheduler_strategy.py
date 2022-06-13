@@ -3382,3 +3382,52 @@ class TestFifoPools(YTEnvSetup):
             time.sleep(0.1)
         for op in ops:
             op.track()
+
+
+##################################################################
+
+
+class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "allowed_node_resources_overcommit_duration": 0,
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestRaceBetweenOperationUnregistrationAndFairShareUpdate, self).setup_method(method)
+        update_pool_tree_config("default", {
+            "fair_share_starvation_timeout": 100000,
+            "preemptive_scheduling_backoff": 0,
+            "testing_options": {}
+        })
+
+    @authors("eshcherbin")
+    def test_race_between_operation_unregistration_and_fair_share_update(self):
+        # See YT-17137.
+        op = run_sleeping_vanilla()
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/starvation_status") == "non_starving")
+
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {"cpu": 0.5})
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu") == 0.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_status") == "below_fair_share")
+
+        update_pool_tree_config_option("default", "testing_options/delay_inside_fair_share_update", 5000)
+        time.sleep(1.0)
+        update_pool_tree_config_option("default", "fair_share_starvation_timeout", 0)
+        time.sleep(5.0)
+
+        op.abort()
+
+        def check():
+            path = scheduler_orchid_operation_path(op.id) + "/starvation_status"
+            return not exists(path) or get(path) == "starving"
+        wait(check)

@@ -547,11 +547,6 @@ public:
     void EnableOperation(const TSchedulerOperationElement* element) const;
     void DisableOperation(TSchedulerOperationElement* element, bool markAsNonAlive) const;
 
-    void OnOperationStarvationStatusChanged(
-        TOperationId operationId,
-        EStarvationStatus oldStatus,
-        EStarvationStatus newStatus) const;
-
     void RegisterJobsFromRevivedOperation(TSchedulerOperationElement* element, const std::vector<TJobPtr>& jobs) const;
     void ProcessUpdatedJob(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
@@ -678,6 +673,7 @@ private:
     void PublishFairShareAndUpdatePreemptionAttributesAtCompositeElement(TSchedulerCompositeElement* element, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void PublishFairShareAndUpdatePreemptionAttributesAtOperation(TSchedulerOperationElement* element, TJobSchedulerPostUpdateContext* postUpdateContext) const;
 
+    void ProcessUpdatedStarvationStatuses(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext);
     void UpdateCachedJobPreemptionStatuses(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext);
     void ComputeDynamicAttributesAtUpdateRecursively(TSchedulerElement* element, TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap) const;
     void BuildSchedulableIndices(TDynamicAttributesList* dynamicAttributesList, TChildHeapMap* childHeapMap, TJobSchedulerPostUpdateContext* context) const;

@@ -66,11 +66,6 @@ struct IFairShareTreeElementHost
 {
     virtual TResourceTree* GetResourceTree() = 0;
 
-    virtual void OnOperationStarvationStatusChanged(
-        TOperationId operationId,
-        EStarvationStatus oldStatus,
-        EStarvationStatus newStatus) const = 0;
-
     virtual void BuildElementLoggingStringAttributes(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerElement* element,

@@ -2767,7 +2767,7 @@ def update_pool_tree_config_option(tree, option, value, wait_for_orchid=True):
     set("//sys/pool_trees/{}/@config/{}".format(tree, option), value)
     if wait_for_orchid:
         path = yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)
-        wait(lambda: exists(path) and get(path) == value)
+        wait(lambda: get(path, default=None) == value)
 
 
 def update_pool_tree_config(tree, config, wait_for_orchid=True):
@@ -2775,7 +2775,7 @@ def update_pool_tree_config(tree, config, wait_for_orchid=True):
         update_pool_tree_config_option(tree, option, value, wait_for_orchid=False)
     if wait_for_orchid:
         for option, value in iteritems(config):
-            wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option)) == value)
+            wait(lambda: get(yt_scheduler_helpers.scheduler_orchid_pool_tree_config_path(tree) + "/{}".format(option), default=None) == value)
 
 
 def update_user_to_default_pool_map(user_to_default_pool):

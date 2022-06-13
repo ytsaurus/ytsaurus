@@ -1,5 +1,4 @@
 #include "fair_share_tree_job_scheduler_operation_shared_state.h"
-#include "fair_share_tree_element.h"
 
 namespace NYT::NScheduler {
 
@@ -472,19 +471,23 @@ TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeJobSchedulerOperation
     return result;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::ResetDeactivationReasonsFromLastNonStarvingTime()
+void TFairShareTreeJobSchedulerOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
-    int index = 0;
-    for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
-        invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
-            auto& shard = StateShards_[index];
-            for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-                shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0);
-                shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason] = 0;
-            }
-        }));
-        ++index;
+    if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
+        int index = 0;
+        for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
+            invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
+                auto& shard = StateShards_[index];
+                for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+                    shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0);
+                    shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason] = 0;
+                }
+            }));
+            ++index;
+        }
     }
+
+    StarvationStatusAtLastUpdate_ = status;
 }
 
 void TFairShareTreeJobSchedulerOperationSharedState::UpdateShardState()
