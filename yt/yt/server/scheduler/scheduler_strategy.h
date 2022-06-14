@@ -51,11 +51,9 @@ struct ISchedulerStrategyHost
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const = 0;
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const = 0;
-    virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
-    virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
-    virtual void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) = 0;
+    virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual TString FormatResourceUsage(
@@ -175,6 +173,20 @@ struct ISchedulerStrategy
     //! Stops all activities, resets all state.
     virtual void OnMasterDisconnected() = 0;
 
+    //! Registers or updates a node.
+    virtual TFuture<void> RegisterOrUpdateNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& tags) = 0;
+
+    //! Unregisters node.
+    virtual void UnregisterNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress) = 0;
+
+    // TODO(eshcherbin): Temporary until segments are moved inside strategy.
+    virtual const THashMap<TString, THashSet<NNodeTrackerClient::TNodeId>>& GetNodeIdsPerTree() const = 0;
+
     //! Validates that operation can be started.
     /*!
      *  In particular, the following checks are performed:
@@ -239,8 +251,6 @@ struct ISchedulerStrategy
     //! TODO(ignat): is it really needed.
     //! Used only to make a decision about loading persistent state.
     virtual bool IsInitialized() = 0;
-
-    virtual std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 

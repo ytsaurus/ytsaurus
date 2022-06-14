@@ -53,16 +53,10 @@ public:
     NScheduler::TMemoryDistribution GetExecNodeMemoryDistribution(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
-        const NScheduler::TSchedulingTagFilter& filter) const override;
-
-    TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override;
-
     NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    void UpdateNodesOnChangedTrees(
-        const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter) override;
+    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
     const TString& GetMediumNameByIndex(int mediumIndex) const override;

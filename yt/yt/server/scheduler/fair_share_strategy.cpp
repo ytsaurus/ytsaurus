@@ -139,6 +139,10 @@ public:
         IdToTree_.clear();
         Initialized_ = false;
         DefaultTreeId_.reset();
+        NodeIdToDescriptor_.clear();
+        NodeAddresses_.clear();
+        NodeIdsPerTree_.clear();
+        NodeIdsWithoutTree_.clear();
     }
 
     void OnFairShareProfiling()
@@ -371,7 +375,7 @@ public:
             UpdateTreesConfigs(poolsMap, idToTree, &errors, &updatedTreeIds);
 
             // Update node at scheduler.
-            UpdateNodesOnChangedTrees(idToTree);
+            UpdateNodesOnChangedTrees(idToTree, treeIdsToAdd, treeIdsToRemove);
 
             // Remove trees from operation states.
             RemoveTreesFromOperationStates(treeIdsToRemove, &orphanedOperationIds, &changedOperationIds);
@@ -1024,19 +1028,49 @@ public:
         }
     }
 
-    std::vector<TString> GetNodeTreeIds(const TBooleanFormulaTags& tags) override
+    TFuture<void> RegisterOrUpdateNode(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& tags) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return BIND(&TFairShareStrategy::DoRegisterOrUpdateNode, MakeStrong(this))
+            .AsyncVia(Host->GetControlInvoker(EControlQueue::NodeTracker))
+            .Run(nodeId, nodeAddress, tags);
+    }
+
+    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        Host->GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
+            BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
+                // NOTE: If node is unregistered from node shard before it becomes online
+                // then its id can be missing in the map.
+                auto it = NodeIdToDescriptor_.find(nodeId);
+                if (it == NodeIdToDescriptor_.end()) {
+                    YT_LOG_WARNING("Node is not registered at strategy (Address: %v)", nodeAddress);
+                } else {
+                    if (auto treeId = it->second.TreeId) {
+                        auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, *treeId);
+                        EraseOrCrash(treeNodeIds, nodeId);
+                    }
+
+                    EraseOrCrash(NodeAddresses_, nodeAddress);
+                    NodeIdToDescriptor_.erase(it);
+
+                    YT_LOG_INFO("Node unregistered from strategy (Address: %v)", nodeAddress);
+                }
+                NodeIdsWithoutTree_.erase(nodeId);
+            }));
+    }
+
+    const THashMap<TString, THashSet<TNodeId>>& GetNodeIdsPerTree() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        std::vector<TString> treeIds;
-
-        for (const auto& [treeId, tree] : IdToTree_) {
-            if (tree->GetNodesFilter().CanSchedule(tags)) {
-                treeIds.push_back(treeId);
-            }
-        }
-
-        return treeIds;
+        return NodeIdsPerTree_;
     }
 
     TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
@@ -1264,6 +1298,18 @@ private:
     TInstant ConnectionTime_;
     TInstant LastMeteringStatisticsUpdateTime_;
     TMeteringMap MeteringStatistics_;
+
+    struct TStrategyExecNodeDescriptor
+    {
+        TBooleanFormulaTags Tags;
+        TString Address;
+        std::optional<TString> TreeId;
+    };
+
+    THashMap<TNodeId, TStrategyExecNodeDescriptor> NodeIdToDescriptor_;
+    THashSet<TString> NodeAddresses_;
+    THashMap<TString, THashSet<TNodeId>> NodeIdsPerTree_;
+    THashSet<TNodeId> NodeIdsWithoutTree_;
 
     struct TPoolTreeDescription
     {
@@ -1611,13 +1657,12 @@ private:
 
     bool CheckTreesConfiguration(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter, std::vector<TError>* errors) const
     {
-        THashMap<NNodeTrackerClient::TNodeId, THashSet<TString>> nodeIdToTreeSet;
-
-        for (const auto& [treeId, filter] : treeIdToFilter) {
-            auto nodes = Host->GetExecNodeIds(filter);
-
-            for (const auto& node : nodes) {
-                nodeIdToTreeSet[node].insert(treeId);
+        THashMap<TNodeId, std::vector<TString>> nodeIdToTreeSet;
+        for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
+            for (const auto& [treeId, filter] : treeIdToFilter) {
+                if (filter.CanSchedule(descriptor.Tags)) {
+                    nodeIdToTreeSet[nodeId].push_back(treeId);
+                }
             }
         }
 
@@ -1627,7 +1672,7 @@ private:
                     TError("Cannot update fair-share trees since there is node that belongs to multiple trees")
                         << TErrorAttribute("node_id", nodeId)
                         << TErrorAttribute("matched_trees", treeIds)
-                        << TErrorAttribute("node_address", Host->GetExecNodeAddress(nodeId)));
+                        << TErrorAttribute("node_address", GetOrCrash(NodeIdToDescriptor_, nodeId).Address));
                 return false;
             }
         }
@@ -1747,13 +1792,175 @@ private:
         }
     }
 
-    void UpdateNodesOnChangedTrees(const TFairShareTreeMap& idToTree)
+    void DoRegisterOrUpdateNode(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& tags)
     {
-        THashMap<TString, TSchedulingTagFilter> treeIdToFilter;
-        for (const auto& [treeId, tree] : idToTree) {
-            treeIdToFilter.emplace(treeId, tree->GetNodesFilter());
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        std::vector<TString> treeIds;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            if (tree->GetNodesFilter().CanSchedule(tags)) {
+                treeIds.push_back(treeId);
+            }
         }
-        Host->UpdateNodesOnChangedTrees(treeIdToFilter);
+
+        std::optional<TString> treeId;
+        if (treeIds.size() == 0) {
+            NodeIdsWithoutTree_.insert(nodeId);
+        } else if (treeIds.size() == 1) {
+            NodeIdsWithoutTree_.erase(nodeId);
+            treeId = treeIds[0];
+        } else {
+            THROW_ERROR_EXCEPTION("Node belongs to more than one fair share tree")
+                    << TErrorAttribute("matched_pool_trees", treeIds);
+        }
+
+        auto it = NodeIdToDescriptor_.find(nodeId);
+        if (it == NodeIdToDescriptor_.end()) {
+            THROW_ERROR_EXCEPTION_IF(NodeAddresses_.contains(nodeAddress),
+                "Duplicate node address found (Address: %v, NewNodeId: %v)",
+                nodeAddress,
+                nodeId);
+
+            EmplaceOrCrash(
+                NodeIdToDescriptor_,
+                nodeId,
+                TStrategyExecNodeDescriptor{
+                    .Tags = tags,
+                    .Address = nodeAddress,
+                    .TreeId = treeId,
+                });
+            NodeAddresses_.insert(nodeAddress);
+
+            if (treeId) {
+                auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, *treeId);
+                InsertOrCrash(treeNodeIds, nodeId);
+            }
+
+            YT_LOG_INFO("Node is registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
+                nodeId,
+                nodeAddress,
+                tags,
+                treeId);
+        } else {
+            auto& currentDescriptor = it->second;
+            if (treeId != currentDescriptor.TreeId) {
+                OnNodeChangedFairShareTree(nodeId, treeId);
+            }
+
+            currentDescriptor.Tags = tags;
+            currentDescriptor.Address = nodeAddress;
+
+            YT_LOG_INFO("Node was updated at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
+                nodeId,
+                nodeAddress,
+                tags,
+                treeId);
+        }
+
+        ProcessNodesWithoutPoolTreeAlert();
+    }
+
+    void UpdateNodesOnChangedTrees(
+        const TFairShareTreeMap& idToTree,
+        const THashSet<TString> treeIdsToAdd,
+        const THashSet<TString> treeIdsToRemove)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& treeId : treeIdsToAdd) {
+            EmplaceOrCrash(NodeIdsPerTree_, treeId, THashSet<TNodeId>{});
+        }
+
+        // NB(eshcherbin): |OnNodeChangedFairShareTree| requires both trees to be present in |NodeIdsPerTree_|.
+        // This is why we add new trees before this cycle and remove old trees after it.
+        for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
+            std::optional<TString> newTreeId;
+            for (const auto& [treeId, tree] : idToTree) {
+                if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
+                    YT_VERIFY(!newTreeId);
+                    newTreeId = treeId;
+                }
+            }
+            if (newTreeId) {
+                NodeIdsWithoutTree_.erase(nodeId);
+            } else {
+                NodeIdsWithoutTree_.insert(nodeId);
+            }
+            if (newTreeId != descriptor.TreeId) {
+                OnNodeChangedFairShareTree(nodeId, newTreeId);
+            }
+        }
+
+        for (const auto& treeId : treeIdsToRemove) {
+            const auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, treeId);
+            YT_VERIFY(treeNodeIds.empty());
+            NodeIdsPerTree_.erase(treeId);
+        }
+
+        ProcessNodesWithoutPoolTreeAlert();
+    }
+
+    void OnNodeChangedFairShareTree(
+        TNodeId nodeId,
+        const std::optional<TString>& newTreeId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = NodeIdToDescriptor_.find(nodeId);
+        YT_VERIFY(it != NodeIdToDescriptor_.end());
+
+        auto& currentDescriptor = it->second;
+        YT_VERIFY(newTreeId != currentDescriptor.TreeId);
+
+        YT_LOG_INFO("Node has changed pool tree (NodeId: %v, Address: %v, OldTreeId: %v, NewTreeId: %v)",
+            nodeId,
+            currentDescriptor.Address,
+            currentDescriptor.TreeId,
+            newTreeId);
+
+        if (auto oldTreeId = currentDescriptor.TreeId) {
+            auto& oldTreeNodeIds = GetOrCrash(NodeIdsPerTree_, *oldTreeId);
+            EraseOrCrash(oldTreeNodeIds, nodeId);
+        }
+        if (newTreeId) {
+            auto& newTreeNodeIds = GetOrCrash(NodeIdsPerTree_, *newTreeId);
+            InsertOrCrash(newTreeNodeIds, nodeId);
+        }
+
+        currentDescriptor.TreeId = newTreeId;
+
+        Host->AbortJobsAtNode(nodeId, EAbortReason::NodeFairShareTreeChanged);
+    }
+
+    void ProcessNodesWithoutPoolTreeAlert()
+    {
+        if (NodeIdsWithoutTree_.empty()) {
+            Host->SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
+            return;
+        }
+
+        std::vector<TString> nodeAddresses;
+        int nodeCount = 0;
+        bool truncated = false;
+        for (auto nodeId : NodeIdsWithoutTree_) {
+            ++nodeCount;
+            if (nodeCount > MaxNodesWithoutPoolTreeToAlert) {
+                truncated = true;
+                break;
+            }
+
+            nodeAddresses.push_back(GetOrCrash(NodeIdToDescriptor_, nodeId).Address);
+        }
+
+        Host->SetSchedulerAlert(
+            ESchedulerAlertType::NodesWithoutPoolTree,
+            TError("Found nodes that do not match any pool tree")
+                << TErrorAttribute("node_addresses", nodeAddresses)
+                << TErrorAttribute("truncated", truncated)
+                << TErrorAttribute("node_count", NodeIdsWithoutTree_.size()));
     }
 
     void BuildTreeOrchid(

@@ -915,7 +915,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
-            auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
+            auto updateResult = WaitFor(Host_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")
                     << TErrorAttribute("node_id", nodeId)
@@ -1662,7 +1662,7 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     const auto& address = node->GetDefaultAddress();
 
-    Host_->UnregisterNode(node->GetId(), address);
+    Host_->GetStrategy()->UnregisterNode(node->GetId(), address);
 
     YT_LOG_INFO("Node unregistered (Address: %v)", address);
 }
