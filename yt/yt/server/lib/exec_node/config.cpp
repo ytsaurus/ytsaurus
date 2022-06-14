@@ -48,6 +48,9 @@ void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_exec_from_layer", &TThis::UseExecFromLayer)
         .Default(false);
+    
+    registrar.Parameter("allow_mount_fuse_device", &TThis::AllowMountFuseDevice)
+        .Default(true);
 
     registrar.Parameter("container_destruction_backoff", &TThis::ContainerDestructionBackoff)
         .Default(TDuration::Seconds(60));

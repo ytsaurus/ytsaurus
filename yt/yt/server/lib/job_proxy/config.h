@@ -244,6 +244,8 @@ public:
 
     bool AbortOnUncaughtException;
 
+    NYTree::INodePtr JobEnvironment;
+
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);

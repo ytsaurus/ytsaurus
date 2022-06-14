@@ -200,6 +200,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("abort_on_uncaught_exception", &TThis::AbortOnUncaughtException)
         .Default(false);
+
+    registrar.Parameter("job_environment", &TThis::JobEnvironment)
+        .Default(nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
