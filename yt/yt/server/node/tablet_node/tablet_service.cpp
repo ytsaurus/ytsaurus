@@ -21,6 +21,8 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -77,6 +79,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Trim));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendTabletCell));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeTabletCell));
 
         DeclareServerFeature(ETabletServiceFeatures::WriteGenerations);
     }
@@ -321,6 +325,23 @@ private:
         context->ReplyFrom(std::move(future));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, SuspendTabletCell)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& hydraManager = Slot_->GetHydraManager();
+        auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqSuspendTabletCell());
+        mutation->CommitAndReply(context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, ResumeTabletCell)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        const auto& hydraManager = Slot_->GetHydraManager();
+        auto mutation = CreateMutation(hydraManager, NTabletServer::NProto::TReqResumeTabletCell());
+        mutation->CommitAndReply(context);
+    }
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(
         TTabletId tabletId,

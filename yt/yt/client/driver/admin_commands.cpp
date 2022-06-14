@@ -129,4 +129,34 @@ void TResumeCoordinatorCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSuspendTabletCellsCommand::TSuspendTabletCellsCommand()
+{
+    RegisterParameter("cell_ids", CellIds_);
+}
+
+void TSuspendTabletCellsCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->SuspendTabletCells(CellIds_, Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResumeTabletCellsCommand::TResumeTabletCellsCommand()
+{
+    RegisterParameter("cell_ids", CellIds_);
+}
+
+void TResumeTabletCellsCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->ResumeTabletCells(CellIds_, Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

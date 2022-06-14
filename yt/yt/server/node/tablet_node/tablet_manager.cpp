@@ -168,6 +168,10 @@ public:
             Slot_->GetAutomatonInvoker(),
             BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
             Config_->TabletCellDecommissionCheckPeriod))
+        , SuspensionCheckExecutor_(New<TPeriodicExecutor>(
+            Slot_->GetAutomatonInvoker(),
+            BIND(&TImpl::OnCheckTabletCellSuspension, MakeWeak(this)),
+            Config_->TabletCellSuspensionCheckPeriod))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
         , BackupManager_(CreateBackupManager(
             Slot_,
@@ -216,7 +220,10 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCell, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSuspendTabletCell, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraResumeTabletCell, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissioned, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletCellSuspended, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnDynamicStoreAllocated, Unretained(this)));
     }
 
@@ -692,6 +699,7 @@ private:
     TTabletContext TabletContext_;
     TEntityMap<TTablet, TTabletMapTraits> TabletMap_;
     ETabletCellLifeStage CellLifeStage_ = ETabletCellLifeStage::Running;
+    bool Suspending_ = false;
 
     TRingQueue<TTablet*> PrelockedTablets_;
 
@@ -699,6 +707,7 @@ private:
     THashMap<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
+    const TPeriodicExecutorPtr SuspensionCheckExecutor_;
 
     const IYPathServicePtr OrchidService_;
 
@@ -718,6 +727,7 @@ private:
 
         TabletMap_.SaveValues(context);
         Save(context, CellLifeStage_);
+        Save(context, Suspending_);
     }
 
     TCallback<void(TSaveContext&)> SaveAsync()
@@ -755,6 +765,13 @@ private:
         TabletMap_.LoadValues(context);
 
         Load(context, CellLifeStage_);
+
+        // COMPAT(gritukan)
+        if (context.GetVersion() >= ETabletReign::SuspendTabletCells) {
+            Load(context, Suspending_);
+        } else {
+            Suspending_ = false;
+        }
 
         Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
     }
@@ -804,7 +821,6 @@ private:
         OrphanedTablets_.clear();
     }
 
-
     void OnLeaderRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -826,8 +842,8 @@ private:
         }
 
         DecommissionCheckExecutor_->Start();
+        SuspensionCheckExecutor_->Start();
     }
-
 
     void OnStopLeading() override
     {
@@ -838,8 +854,8 @@ private:
         StopEpoch();
 
         DecommissionCheckExecutor_->Stop();
+        SuspensionCheckExecutor_->Stop();
     }
-
 
     void OnFollowerRecoveryComplete() override
     {
@@ -859,7 +875,6 @@ private:
         StopEpoch();
     }
 
-
     void StartEpoch()
     {
         for (auto [tabletId, tablet] : TabletMap_) {
@@ -873,7 +888,6 @@ private:
             StopTabletEpoch(tablet);
         }
     }
-
 
     void HydraMountTablet(TReqMountTablet* request)
     {
@@ -2474,8 +2488,49 @@ private:
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet cell is decommissioning");
 
         CellLifeStage_ = ETabletCellLifeStage::DecommissioningOnNode;
-        Slot_->GetTransactionManager()->Decommission();
-        Slot_->GetTransactionSupervisor()->Decommission();
+        SetTabletCellSuspend(/*suspend*/ true);
+    }
+
+    void HydraSuspendTabletCell(TReqSuspendTabletCell* /*request*/)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Suspending tablet cell");
+
+        SetTabletCellSuspend(/*suspend*/ true);
+        Suspending_ = true;
+    }
+
+    void HydraResumeTabletCell(TReqResumeTabletCell* /*request*/)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Resuming tablet cell");
+
+        SetTabletCellSuspend(/*suspend*/ false);
+        Suspending_ = false;
+
+        PostTabletCellSuspensionToggledMessage(/*suspended*/ false);
+    }
+
+    void SetTabletCellSuspend(bool suspend)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        Slot_->GetTransactionManager()->SetDecommission(suspend);
+        Slot_->GetTransactionSupervisor()->SetDecommission(suspend);
+    }
+
+    void PostTabletCellSuspensionToggledMessage(bool suspended)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        const auto& hiveManager = Slot_->GetHiveManager();
+        auto* mailbox = Slot_->GetMasterMailbox();
+        TRspOnTabletCellSuspensionToggled response;
+        ToProto(response.mutable_cell_id(), Slot_->GetCellId());
+        response.set_suspended(suspended);
+        hiveManager->PostMessage(mailbox, response);
     }
 
     void OnCheckTabletCellDecommission()
@@ -2528,6 +2583,47 @@ private:
         hiveManager->PostMessage(mailbox, response);
     }
 
+    void OnCheckTabletCellSuspension()
+    {
+        if (!Suspending_) {
+            return;
+        }
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+            "Checking if tablet cell is suspended"
+            "(TransactionManagerDecommissined: %v, TransactionSupervisorDecommissioned: %v)",
+            Slot_->GetTransactionManager()->IsDecommissioned(),
+            Slot_->GetTransactionSupervisor()->IsDecommissioned());
+
+        if (Slot_->GetTransactionManager()->IsDecommissioned() &&
+            Slot_->GetTransactionSupervisor()->IsDecommissioned())
+        {
+            CreateMutation(Slot_->GetHydraManager(), TReqOnTabletCellSuspended())
+                ->CommitAndLog(Logger);
+        }
+    }
+
+    void HydraOnTabletCellSuspended(TReqOnTabletCellSuspended* /*request*/)
+    {
+        YT_VERIFY(HasHydraContext());
+
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
+            "Tablet cell is suspended (Suspending: %v, TransactionManagerDecommissioned: %v, TransactionSupervisorDecommissioned: %v)",
+            Suspending_,
+            Slot_->GetTransactionManager()->IsDecommissioned(),
+            Slot_->GetTransactionSupervisor()->IsDecommissioned());
+
+        // Double check.
+        if (!Suspending_ ||
+            !Slot_->GetTransactionManager()->IsDecommissioned() ||
+            !Slot_->GetTransactionSupervisor()->IsDecommissioned())
+        {
+            return;
+        }
+
+        Suspending_ = false;
+        PostTabletCellSuspensionToggledMessage(/*suspended*/ true);
+    }
 
     template <class TRequest>
     void PopulateDynamicStoreIdPool(TTablet* tablet, const TRequest* request)

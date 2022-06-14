@@ -24,7 +24,8 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
-    AsyncLastCommittedTimestamp, create_medium, raises_yt_error, get_tablet_errors)
+    AsyncLastCommittedTimestamp, create_medium, raises_yt_error, get_tablet_errors,
+    suspend_tablet_cells, resume_tablet_cells)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
@@ -2847,6 +2848,28 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert dict(provided_extra) == {"unrecognized": [2, "foo", {}]}
 
+    @authors("gritukan")
+    def test_suspend_tablet_cell(self):
+        sync_create_cells(1)
+        cell_id = ls("//sys/tablet_cells")[0]
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert not get(f"#{cell_id}/@suspended")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "x"}])
+
+        suspend_tablet_cells([cell_id])
+        wait(lambda: get(f"#{cell_id}/@suspended"))
+        with raises_yt_error("is decommissioned"):
+            insert_rows("//tmp/t", [{"key": 1, "value": "y"}])
+
+        resume_tablet_cells([cell_id])
+        wait(lambda: not get(f"#{cell_id}/@suspended"))
+        insert_rows("//tmp/t", [{"key": 2, "value": "z"}])
+
+        expected = [{"key": 0, "value": "x"}, {"key": 2, "value": "z"}]
+        assert_items_equal(select_rows("* from [//tmp/t]"), expected)
 
 ##################################################################
 
@@ -3095,6 +3118,11 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+    @authors("gritukan")
+    def test_suspend_tablet_cell(self):
+        # Tablet cell suspension via RPC proxies is not supported.
+        pass
 
 
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):

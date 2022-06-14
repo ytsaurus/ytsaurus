@@ -39,6 +39,7 @@ DEFINE_ENUM(ETabletReign,
     ((MountConfig)                        (100502)) // ifsmirnov
     ((BackupsReplicated)                  (100503)) // ifsmirnov
     ((PersistLastReadLockTimestamp)       (100504)) // gritukan
+    ((SuspendTabletCells)                 (100505)) // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

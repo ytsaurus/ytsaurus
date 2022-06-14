@@ -111,6 +111,7 @@ void TCellProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxSnapshotId)
         .SetOpaque(true));
+    descriptors->push_back(EInternedAttributeKey::Suspended);
 }
 
 bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer)
@@ -246,6 +247,11 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                 .Value(maxId);
             return true;
         }
+
+        case EInternedAttributeKey::Suspended:
+            BuildYsonFluently(consumer)
+                .Value(cell->GetSuspended());
+            return true;
 
         default:
             break;

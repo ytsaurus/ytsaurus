@@ -28,7 +28,11 @@ struct ITransactionSupervisor
         TTransactionId transactionId,
         bool force = false) = 0;
 
-    virtual void Decommission() = 0;
+    virtual void SetDecommission(bool decommission) = 0;
+
+    //! Returns true if transaction supervisor is decommissioned
+    //! and there are no more alive transactions in it, so it can
+    //! be safely removed.
     virtual bool IsDecommissioned() const = 0;
 };
 

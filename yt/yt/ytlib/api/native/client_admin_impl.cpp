@@ -23,6 +23,8 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -313,6 +315,46 @@ void TClient::DoResumeCoordinator(
     SetMutationId(req, options);
 
     WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoSuspendTabletCells(
+    const std::vector<TCellId>& cellIds,
+    const TSuspendTabletCellsOptions& options)
+{
+    std::vector<TFuture<void>> futures;
+    futures.reserve(cellIds.size());
+
+    for (auto cellId : cellIds) {
+        auto channel = GetCellChannelOrThrow(cellId);
+        TTabletServiceProxy proxy(std::move(channel));
+
+        auto req = proxy.SuspendTabletCell();
+        req->SetTimeout(options.Timeout);
+        futures.push_back(req->Invoke().AsVoid());
+    }
+
+    return WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+}
+
+void TClient::DoResumeTabletCells(
+    const std::vector<TCellId>& cellIds,
+    const TResumeTabletCellsOptions& options)
+{
+    std::vector<TFuture<void>> futures;
+    futures.reserve(cellIds.size());
+
+    for (auto cellId : cellIds) {
+        auto channel = GetCellChannelOrThrow(cellId);
+        TTabletServiceProxy proxy(std::move(channel));
+
+        auto req = proxy.ResumeTabletCell();
+        req->SetTimeout(options.Timeout);
+        futures.push_back(req->Invoke().AsVoid());
+    }
+
+    return WaitFor(AllSucceeded(std::move(futures)))
         .ThrowOnError();
 }
 

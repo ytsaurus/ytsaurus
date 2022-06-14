@@ -205,6 +205,14 @@ public:
         NObjectClient::TCellId coordinatorCellid,
         const TResumeCoordinatorOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, SuspendTabletCells, (
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendTabletCellsOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, ResumeTabletCells, (
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeTabletCellsOptions& options), (override));
+
     // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;

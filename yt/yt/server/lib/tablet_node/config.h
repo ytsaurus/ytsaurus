@@ -341,6 +341,7 @@ public:
     TDuration ReplicatorHardBackoffTime;
 
     TDuration TabletCellDecommissionCheckPeriod;
+    TDuration TabletCellSuspensionCheckPeriod;
 
     //! Testing option. Time to (synchronously) sleep before sending a hive message to master.
     std::optional<TDuration> SleepBeforePostToMaster;

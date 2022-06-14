@@ -21,9 +21,11 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, Write);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);
     DEFINE_RPC_PROXY_METHOD(NProto, Trim);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, SuspendTabletCell);
+    DEFINE_RPC_PROXY_METHOD(NProto, ResumeTabletCell);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient
-

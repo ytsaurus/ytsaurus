@@ -1492,6 +1492,20 @@ TFuture<void> TClient::ResumeCoordinator(
     return req->Invoke().As<void>();
 }
 
+TFuture<void> TClient::SuspendTabletCells(
+    const std::vector<TCellId>& /*cellIds*/,
+    const TSuspendTabletCellsOptions& /*options*/)
+{
+    ThrowUnimplemented("SuspendTabletCells");
+}
+
+TFuture<void> TClient::ResumeTabletCells(
+    const std::vector<TCellId>& /*cellIds*/,
+    const TResumeTabletCellsOptions& /*options*/)
+{
+    ThrowUnimplemented("ResumeTabletCells");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy
