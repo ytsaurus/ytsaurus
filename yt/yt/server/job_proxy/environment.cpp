@@ -396,7 +396,7 @@ public:
                     .Enabled = true,
                 });
             }
-            if (NFS::Exists("/dev/fuse")) {
+            if (Config_->AllowMountFuseDevice && NFS::Exists("/dev/fuse")) {
                 devices.push_back(TDevice{
                     .DeviceName = "/dev/fuse",
                     .Enabled = true,

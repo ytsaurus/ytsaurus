@@ -71,6 +71,9 @@ public:
 
     //! For testing purposes only.
     bool UseExecFromLayer;
+    
+    //! Allow mounting /dev/fuse to user job conatiners.
+    bool AllowMountFuseDevice;
 
     //! Backoff time between container destruction attempts.
     TDuration ContainerDestructionBackoff;
