@@ -2201,6 +2201,7 @@ message TOperation
 
     optional bytes brief_spec = 9; // YSON
     optional bytes spec = 10; // YSON
+    optional bytes provided_spec = 27; // YSON
     optional bytes full_spec = 11; // YSON
     optional bytes unrecognized_spec = 12; // YSON
     reserved 13;

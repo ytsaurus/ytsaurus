@@ -123,6 +123,7 @@ class TestGetOperation(YTEnvSetup):
                 "type",
                 # COMPAT(levysotsky): Old name for "type"
                 "operation_type",
+                "provided_spec",
                 "result",
                 "start_time",
                 "state",
@@ -158,6 +159,12 @@ class TestGetOperation(YTEnvSetup):
         for key in res_get_operation_archive.keys():
             if key in res_cypress:
                 assert res_get_operation_archive[key] == res_cypress_finished[key]
+
+        res_get_operation_archive_raw = _get_operation_from_archive(op.id)
+
+        for key in res_get_operation_archive_raw.keys():
+            if key in res_cypress and key not in ["start_time", "finish_time"]:
+                assert res_get_operation_archive_raw[key] == res_cypress_finished[key]
 
     # Check that operation that has not been saved by operation cleaner
     # is reported correctly (i.e. "No such operation").

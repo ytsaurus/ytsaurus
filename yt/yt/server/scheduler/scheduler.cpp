@@ -703,7 +703,8 @@ public:
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
             spec->Alias,
-            std::move(preprocessedSpec.ExperimentAssignments));
+            std::move(preprocessedSpec.ExperimentAssignments),
+            std::move(preprocessedSpec.ProvidedSpecString));
 
         IdToStartingOperation_.emplace(operationId, operation);
 
@@ -1165,15 +1166,15 @@ public:
 
         WaitFor(ValidateOperationAccess(user, operationId, EPermissionSet(EPermission::Manage)))
             .ThrowOnError();
-        
+
         YT_LOG_DEBUG("Abandoning job by user request (JobId: %v, OperationId: %v, User: %v)",
             jobId,
             operationId,
             user);
-        
+
         WaitFor(controller->AbandonJob(operationId, jobId))
             .ThrowOnError();
-        
+
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::AbandonJob, nodeShard, jobId)
             .AsyncVia(nodeShard->GetInvoker())
@@ -4324,6 +4325,8 @@ private:
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
         auto specNode = ConvertSpecStringToNode(specString);
+        auto providedSpecNode = CloneNode(specNode)->AsMap();
+        providedSpecNode->RemoveChild("secure_vault");
 
         auto experimentAssignments = ExperimentsAssigner_.Assign(type, user, specNode);
 
@@ -4342,6 +4345,7 @@ private:
         TPreprocessedSpec result;
         ParseSpec(std::move(specNode), specTemplate, type, /*operationId*/ std::nullopt, &result);
         result.ExperimentAssignments = std::move(experimentAssignments);
+        result.ProvidedSpecString = ConvertToYsonString(providedSpecNode);
 
         return result;
     }

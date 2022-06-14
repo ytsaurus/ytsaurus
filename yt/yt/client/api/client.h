@@ -1253,6 +1253,7 @@ struct TOperation
 
     NYson::TYsonString BriefSpec;
     NYson::TYsonString Spec;
+    NYson::TYsonString ProvidedSpec;
     NYson::TYsonString ExperimentAssignments;
     NYson::TYsonString ExperimentAssignmentNames;
     NYson::TYsonString FullSpec;

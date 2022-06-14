@@ -56,6 +56,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "operation_type",
     "progress",
     "spec",
+    "provided_spec",
     "experiment_assignments",
     "experiment_assignment_names",
     "full_spec",
@@ -667,7 +668,17 @@ TOperation TClient::DoGetOperation(
     const auto retryInterval = Connection_->GetConfig()->DefaultGetOperationRetryInterval;
     while (true) {
         try {
-            return DoGetOperationImpl(operationId, deadline, options);
+            auto operation = DoGetOperationImpl(operationId, deadline, options);
+
+            // COMPAT(gepardo): this must be preserved until the operations without provided_spec (i.e. started before mid-2022)
+            // are no longer in the operations archive.
+            if ((!options.Attributes || options.Attributes->contains("provided_spec")) &&
+                !operation.ProvidedSpec)
+            {
+                operation.ProvidedSpec = operation.Spec;
+            }
+
+            return operation;
         } catch (const TErrorException& error) {
             YT_LOG_DEBUG(error, "Failed to get operation (OperationId: %v)",
                 operationId);
@@ -943,6 +954,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
     auto briefSpecIndex = columnFilter.FindPosition(tableIndex.BriefSpec);
     auto fullSpecIndex = columnFilter.FindPosition(tableIndex.FullSpec);
     auto specIndex = columnFilter.FindPosition(tableIndex.Spec);
+    auto providedSpecIndex = columnFilter.FindPosition(tableIndex.ProvidedSpec);
     auto experimentAssignmentNames = columnFilter.FindPosition(tableIndex.ExperimentAssignmentNames);
     auto experimentAssignments = columnFilter.FindPosition(tableIndex.ExperimentAssignments);
     auto unrecognizedSpecIndex = columnFilter.FindPosition(tableIndex.UnrecognizedSpec);
@@ -1000,6 +1012,7 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
         TryFromUnversionedValue(operation.TaskNames, row, taskNamesIndex);
         TryFromUnversionedValue(operation.ExperimentAssignments, row, experimentAssignments);
         TryFromUnversionedValue(operation.ExperimentAssignmentNames, row, experimentAssignmentNames);
+        TryFromUnversionedValue(operation.ProvidedSpec, row, providedSpecIndex);
         TryFromUnversionedValue(operation.ControllerFeatures, row, controllerFeaturesIndex);
         TryFromUnversionedValue(operation.AlertEvents, row, alertEventsIndex);
 
@@ -1398,6 +1411,16 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         result.TypeCounts = std::move(countingFilter.TypeCounts);
         result.FailedJobsCount = countingFilter.FailedJobsCount;
         result.PoolTreeCounts = std::move(countingFilter.PoolTreeCounts);
+    }
+
+    // COMPAT(gepardo): this must be preserved until the operations without provided_spec (i.e. started before mid-2022)
+    // are no longer in the operations archive.
+    if (!options.Attributes || options.Attributes->contains("provided_spec")) {
+        for (auto& operation : operations) {
+            if (!operation.ProvidedSpec) {
+                operation.ProvidedSpec = operation.Spec;
+            }
+        }
     }
 
     return result;

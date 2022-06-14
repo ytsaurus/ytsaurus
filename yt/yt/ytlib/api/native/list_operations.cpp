@@ -195,6 +195,11 @@ public:
         TransferAndGetYson("spec", Operation_.Spec, cursor);
     }
 
+    void OnProvidedSpec(TYsonPullParserCursor* cursor)
+    {
+        TransferAndGetYson("provided_spec", Operation_.ProvidedSpec, cursor);
+    }
+
     void OnFullSpec(TYsonPullParserCursor* cursor)
     {
         TransferAndGetYson("full_spec", Operation_.FullSpec, cursor);
@@ -332,6 +337,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == TStringBuf("spec")) {
             cursor->Next();
             consumer->OnSpec(cursor);
+        } else if (key == TStringBuf("provided_spec")) {
+            cursor->Next();
+            consumer->OnProvidedSpec(cursor);
         } else if (key == TStringBuf("experiment_assignments")) {
             cursor->Next();
             consumer->OnExperimentAssignments(cursor);
@@ -544,6 +552,11 @@ public:
     }
 
     void OnSpec(TYsonPullParserCursor* cursor)
+    {
+        cursor->SkipComplexValue();
+    }
+
+    void OnProvidedSpec(TYsonPullParserCursor* cursor)
     {
         cursor->SkipComplexValue();
     }
