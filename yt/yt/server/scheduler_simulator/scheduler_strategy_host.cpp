@@ -139,29 +139,6 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     return distribution;
 }
 
-std::vector<NNodeTrackerClient::TNodeId> TSchedulerStrategyHost::GetExecNodeIds(
-    const TSchedulingTagFilter& filter) const
-{
-    std::vector<NNodeTrackerClient::TNodeId> result;
-    for (const auto& execNode : *ExecNodes_) {
-        if (execNode->CanSchedule(filter)) {
-            result.push_back(execNode->GetId());
-        }
-    }
-    return result;
-}
-
-TString TSchedulerStrategyHost::GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const
-{
-    for (const auto& execNode : *ExecNodes_) {
-        if (execNode->GetId() == nodeId) {
-            return execNode->GetDefaultAddress();
-        }
-    }
-
-    YT_ABORT();
-}
-
 TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDescriptors(
     const TSchedulingTagFilter& filter) const
 {
@@ -176,8 +153,7 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
     return result;
 }
 
-void TSchedulerStrategyHost::UpdateNodesOnChangedTrees(
-    const THashMap<TString, NScheduler::TSchedulingTagFilter>& /*treeIdToFilter*/)
+void TSchedulerStrategyHost::AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.
 }

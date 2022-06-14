@@ -49,15 +49,6 @@ struct INodeShardHost
         const TJobResources& limits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
 
-    virtual TFuture<void> RegisterOrUpdateNode(
-        NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& tags) = 0;
-
-    virtual void UnregisterNode(
-        NNodeTrackerClient::TNodeId nodeId,
-        const TString& nodeAddress) = 0;
-
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
     virtual TFuture<void> ValidateOperationAccess(

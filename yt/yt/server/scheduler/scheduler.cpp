@@ -1452,27 +1452,6 @@ public:
             .Item("operation_id").Value(operation->GetId());
     }
 
-    std::vector<TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        std::vector<TNodeId> result;
-        for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
-            if (filter.CanSchedule(descriptor.Tags)) {
-                result.push_back(nodeId);
-            }
-        }
-
-        return result;
-    }
-
-    TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return GetOrCrash(NodeIdToDescriptor_, nodeId).Address;
-    }
-
     IInvokerPtr GetControlInvoker(EControlQueue queue) const override
     {
         return Bootstrap_->GetControlInvoker(queue);
@@ -1681,180 +1660,6 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return nodeId % static_cast<int>(NodeShards_.size());
-    }
-
-    TFuture<void> RegisterOrUpdateNode(
-        TNodeId nodeId,
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& tags) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return BIND(&TImpl::DoRegisterOrUpdateNode, MakeStrong(this))
-            .AsyncVia(GetControlInvoker(EControlQueue::NodeTracker))
-            .Run(nodeId, nodeAddress, tags);
-    }
-
-    void UnregisterNode(TNodeId nodeId, const TString& nodeAddress) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
-            BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
-                // NOTE: If node is unregistered from node shard before it becomes online
-                // then its id can be missing in the map.
-                auto it = NodeIdToDescriptor_.find(nodeId);
-                if (it == NodeIdToDescriptor_.end()) {
-                    YT_LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
-                } else {
-                    EraseOrCrash(NodeAddresses_, nodeAddress);
-                    NodeIdToDescriptor_.erase(it);
-                    YT_LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
-                }
-                NodeIdsWithoutTree_.erase(nodeId);
-            }));
-    }
-
-    void ProcessNodesWithoutPoolTreeAlert()
-    {
-        if (NodeIdsWithoutTree_.empty()) {
-            SetSchedulerAlert(ESchedulerAlertType::NodesWithoutPoolTree, TError());
-        } else {
-            std::vector<TString> nodeAddresses;
-            int nodeCount = 0;
-            bool truncated = false;
-            for (auto nodeId : NodeIdsWithoutTree_) {
-                nodeCount++;
-                if (nodeCount > MaxNodesWithoutPoolTreeToAlert) {
-                    truncated = true;
-                    break;
-                }
-                nodeAddresses.push_back(GetOrCrash(NodeIdToDescriptor_, nodeId).Address);
-            }
-
-            SetSchedulerAlert(
-                ESchedulerAlertType::NodesWithoutPoolTree,
-                TError("Found nodes that do not match any pool tree")
-                    << TErrorAttribute("node_addresses", nodeAddresses)
-                    << TErrorAttribute("truncated", truncated)
-                    << TErrorAttribute("node_count", NodeIdsWithoutTree_.size()));
-        }
-    }
-
-    void OnNodeChangedFairShareTree(
-        TNodeId nodeId,
-        std::optional<TString> treeId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto it = NodeIdToDescriptor_.find(nodeId);
-        YT_VERIFY(it != NodeIdToDescriptor_.end());
-
-        auto& currentDescriptor = it->second;
-        YT_VERIFY(treeId != currentDescriptor.TreeId);
-
-        YT_LOG_INFO("Node has changed pool tree (NodeId: %v, Address: %v, OldTreeId: %v, NewTreeId: %v)",
-            nodeId,
-            currentDescriptor.Address,
-            currentDescriptor.TreeId,
-            treeId);
-
-        currentDescriptor.CancelableContext->Cancel(
-            TError("Node has changed fair share tree")
-                << TErrorAttribute("old_pool_tree", currentDescriptor.TreeId)
-                << TErrorAttribute("new_pool_tree", treeId));
-
-        currentDescriptor.CancelableContext = New<TCancelableContext>();
-        currentDescriptor.TreeId = treeId;
-
-        auto nodeShard = GetNodeShard(nodeId);
-        BIND(&TNodeShard::AbortJobsAtNode, GetNodeShard(nodeId), nodeId, EAbortReason::NodeFairShareTreeChanged)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
-    }
-
-    // Implementation for INodeShardHost interface.
-    void DoRegisterOrUpdateNode(
-        TNodeId nodeId,
-        const TString& nodeAddress,
-        const TBooleanFormulaTags& tags)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto treeIds = Strategy_->GetNodeTreeIds(tags);
-
-        std::optional<TString> treeId;
-        if (treeIds.size() == 0) {
-            NodeIdsWithoutTree_.insert(nodeId);
-        } else if (treeIds.size() == 1) {
-            NodeIdsWithoutTree_.erase(nodeId);
-            treeId = treeIds[0];
-        } else {
-            THROW_ERROR_EXCEPTION("Node belongs to more than one fair-share tree")
-                << TErrorAttribute("matched_pool_trees", treeIds);
-        }
-
-        auto it = NodeIdToDescriptor_.find(nodeId);
-        if (it == NodeIdToDescriptor_.end()) {
-            if (NodeAddresses_.find(nodeAddress) != NodeAddresses_.end()) {
-                THROW_ERROR_EXCEPTION("Duplicate node address found (Address: %v, NewNodeId: %v)",
-                    nodeAddress,
-                    nodeId);
-            }
-            YT_VERIFY(NodeIdToDescriptor_.emplace(
-                nodeId,
-                TExecNodeSchedulerDescriptor{tags, nodeAddress, treeId, New<TCancelableContext>()}
-            ).second);
-            YT_VERIFY(NodeAddresses_.insert(nodeAddress).second);
-            YT_LOG_INFO("Node is registered at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
-                nodeId,
-                nodeAddress,
-                tags,
-                treeId);
-        } else {
-            auto& currentDescriptor = it->second;
-            if (treeId != currentDescriptor.TreeId) {
-                OnNodeChangedFairShareTree(nodeId, treeId);
-                currentDescriptor.CancelableContext->Cancel(
-                    TError("Node has changed fair share tree")
-                        << TErrorAttribute("old_pool_tree", currentDescriptor.TreeId)
-                        << TErrorAttribute("new_pool_tree", treeId));
-            }
-            currentDescriptor.Tags = tags;
-            currentDescriptor.Address = nodeAddress;
-            YT_LOG_INFO("Node was updated at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
-                nodeId,
-                nodeAddress,
-                tags,
-                treeId);
-        }
-
-        ProcessNodesWithoutPoolTreeAlert();
-    }
-
-    void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        for (auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
-            std::optional<TString> newTreeId;
-            for (const auto& [treeId, filter] : treeIdToFilter) {
-                if (filter.CanSchedule(descriptor.Tags)) {
-                    YT_VERIFY(!newTreeId);
-                    newTreeId = treeId;
-                }
-            }
-            if (newTreeId) {
-                NodeIdsWithoutTree_.erase(nodeId);
-            } else {
-                NodeIdsWithoutTree_.insert(nodeId);
-            }
-            if (newTreeId != descriptor.TreeId) {
-                OnNodeChangedFairShareTree(nodeId, newTreeId);
-            }
-        }
-
-        ProcessNodesWithoutPoolTreeAlert();
     }
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
@@ -2099,13 +1904,6 @@ private:
     std::vector<TNodeShardPtr> NodeShards_;
     std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
-    struct TExecNodeSchedulerDescriptor
-    {
-        TBooleanFormulaTags Tags;
-        TString Address;
-        std::optional<TString> TreeId;
-        TCancelableContextPtr CancelableContext;
-    };
 
     struct TOperationProgress
     {
@@ -2113,10 +1911,6 @@ private:
         NYson::TYsonString BriefProgress;
         NYson::TYsonString Alerts;
     };
-
-    THashMap<TNodeId, TExecNodeSchedulerDescriptor> NodeIdToDescriptor_;
-    THashSet<TString> NodeAddresses_;
-    THashSet<TNodeId> NodeIdsWithoutTree_;
 
     // Special map to support node consistency between node shards YT-11381.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeIdLock_);
@@ -2495,9 +2289,6 @@ private:
 
     void DoCleanup()
     {
-        NodeIdToDescriptor_.clear();
-        NodeAddresses_.clear();
-
         TotalResourceLimitsProfiler_.Reset();
         TotalResourceUsageProfiler_.Reset();
         NodeSchedulingSegmentManager_.SetProfilingEnabled(false);
@@ -3096,6 +2887,14 @@ private:
         }
 
         return result;
+    }
+
+    void AbortJobsAtNode(TNodeId nodeId, EAbortReason reason) override
+    {
+        auto nodeShard = GetNodeShard(nodeId);
+        BIND(&TNodeShard::AbortJobsAtNode, GetNodeShard(nodeId), nodeId, reason)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run();
     }
 
     void DoStartOperation(const TOperationPtr& operation)
@@ -4702,16 +4501,16 @@ private:
         context.NodeShardHost = this;
         context.StrategySegmentsState = Strategy_->GetStrategySchedulingSegmentsState();
         context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
-        for (const auto& [nodeId, _] : *context.ExecNodeDescriptors) {
-            auto it = NodeIdToDescriptor_.find(nodeId);
-            if (it == NodeIdToDescriptor_.end()) {
-                continue;
+
+        for (const auto& [treeId, nodeIds] : Strategy_->GetNodeIdsPerTree()) {
+            std::vector<TNodeId> nodeIdsWithDescriptors;
+            for (auto nodeId : nodeIds) {
+                if (context.ExecNodeDescriptors->contains(nodeId)) {
+                    nodeIdsWithDescriptors.push_back(nodeId);
+                }
             }
 
-            const auto& descriptor = it->second;
-            if (const auto& treeId = descriptor.TreeId) {
-                context.NodeIdsPerTree[*treeId].emplace_back(nodeId);
-            }
+            EmplaceOrCrash(context.NodeIdsPerTree, treeId, std::move(nodeIdsWithDescriptors));
         }
 
         NodeSchedulingSegmentManager_.ManageNodeSegments(&context);

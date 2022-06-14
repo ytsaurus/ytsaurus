@@ -141,8 +141,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdateNodesOnChangedTrees(
-        const THashMap<TString, NScheduler::TSchedulingTagFilter>& /*treeIdToFilter*/) override
+    void AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -153,17 +152,6 @@ public:
     }
     
     const TString& GetMediumNameByIndex(int /*mediumIndex*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
-        const TSchedulingTagFilter& /*filter*/) const override
-    {
-        return {};
-    }
-
-    TString GetExecNodeAddress(NNodeTrackerClient::TNodeId /*nodeId*/) const override
     {
         YT_UNIMPLEMENTED();
     }
