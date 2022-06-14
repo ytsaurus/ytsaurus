@@ -98,6 +98,8 @@ public:
     //! Last time when leader was changed.
     DEFINE_BYREF_RW_PROPERTY(TInstant, LastLeaderChangeTime);
 
+    DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
+
 public:
     using TObject::TObject;
 

@@ -33,6 +33,18 @@ message TRspDecommissionTabletCellOnNode
     required NYT.NProto.TGuid cell_id = 1;
 }
 
+message TReqSuspendTabletCell
+{ }
+
+message TReqResumeTabletCell
+{ }
+
+message TRspOnTabletCellSuspensionToggled
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    required bool suspended = 2;
+}
+
 message TReqSetTabletCellConfigVersion
 {
     required NYT.NProto.TGuid cell_id = 1;

@@ -438,6 +438,8 @@ void TTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("tablet_cell_decommission_check_period", &TThis::TabletCellDecommissionCheckPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("tablet_cell_suspension_check_period", &TThis::TabletCellSuspensionCheckPeriod)
+        .Default(TDuration::Seconds(10));
 
     registrar.Parameter("sleep_before_post_to_master", &TThis::SleepBeforePostToMaster)
         .Default();

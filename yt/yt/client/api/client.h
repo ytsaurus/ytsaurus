@@ -1444,6 +1444,16 @@ struct TResumeCoordinatorOptions
     , public TMutatingOptions
 { };
 
+struct TSuspendTabletCellsOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
+struct TResumeTabletCellsOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{ };
+
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 struct TTableBackupManifest
@@ -1969,6 +1979,14 @@ struct IClient
     virtual TFuture<void> ResumeCoordinator(
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options = {}) = 0;
+
+    virtual TFuture<void> SuspendTabletCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendTabletCellsOptions& options = {}) = 0;
+
+    virtual TFuture<void> ResumeTabletCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeTabletCellsOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

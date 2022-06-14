@@ -460,6 +460,15 @@ public:
     TFuture<void> ResumeCoordinator(
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options = {}) override;
+
+    TFuture<void> SuspendTabletCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendTabletCellsOptions& options = {}) override;
+
+    TFuture<void> ResumeTabletCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeTabletCellsOptions& options = {}) override;
+
 protected:
     const IClientPtr Underlying_;
 };

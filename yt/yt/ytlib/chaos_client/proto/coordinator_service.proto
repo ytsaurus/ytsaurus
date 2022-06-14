@@ -47,6 +47,6 @@ message TReqGetReplicationCardEra
 message TRspGetReplicationCardEra
 {
     required uint64 replication_era = 1;
-}   
+}
 
 ////////////////////////////////////////////////////////////////////////////////

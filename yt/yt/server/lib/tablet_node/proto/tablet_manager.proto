@@ -319,6 +319,9 @@ message TReqReplicateRows
 message TReqOnTabletCellDecommissioned
 { }
 
+message TReqOnTabletCellSuspended
+{ }
+
 message TRspAllocateDynamicStore
 {
     required NYT.NProto.TGuid tablet_id = 1;

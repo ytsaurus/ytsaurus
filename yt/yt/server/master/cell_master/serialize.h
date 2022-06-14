@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaConfirmChunks)                                         (2030))  // aleksandra-zh
     ((AreaChaosOptions)                                             (2031))  // savrus
     ((CrpPullReplication)                                           (2032))  // aleksandra-zh
+    ((SuspendTabletCell)                                            (2033))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

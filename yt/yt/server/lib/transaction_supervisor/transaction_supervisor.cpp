@@ -172,11 +172,21 @@ public:
                 force));
     }
 
-    void Decommission() override
+    void SetDecommission(bool decommission) override
     {
-        YT_LOG_DEBUG("Decommissioning transaction supervisor");
+        YT_VERIFY(HasHydraContext());
 
-        Decommissioned_ = true;
+        if (decommission == Decommissioned_) {
+            return;
+        }
+
+        if (decommission) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Decommissioning transaction supervisor");
+        } else {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Transaction supervisor is no longer decommissioned");
+        }
+
+        Decommissioned_ = decommission;
     }
 
     bool IsDecommissioned() const override

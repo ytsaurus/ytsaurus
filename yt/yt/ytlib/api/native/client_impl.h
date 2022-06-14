@@ -532,6 +532,14 @@ public:
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options),
         (coordinatorCellId, options))
+    IMPLEMENT_METHOD(void, SuspendTabletCells, (
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendTabletCellsOptions& options),
+        (cellIds, options))
+    IMPLEMENT_METHOD(void, ResumeTabletCells, (
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeTabletCellsOptions& options),
+        (cellIds, options))
 
     IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
@@ -542,6 +550,7 @@ public:
         const std::vector<TReadHunkRequest>& requests,
         const TReadHunksOptions& options),
         (requests, options))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1361,6 +1370,12 @@ private:
     void DoResumeCoordinator(
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options);
+    void DoSuspendTabletCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TSuspendTabletCellsOptions& options);
+    void DoResumeTabletCells(
+        const std::vector<NObjectClient::TCellId>& cellIds,
+        const TResumeTabletCellsOptions& options);
 
     //
     // Internal

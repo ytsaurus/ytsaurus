@@ -1999,6 +1999,16 @@ def create_chaos_table_replica(cluster_name, replica_path, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
+def suspend_tablet_cells(cell_ids, **kwargs):
+    kwargs["cell_ids"] = cell_ids
+    return execute_command("suspend_tablet_cells", kwargs)
+
+
+def resume_tablet_cells(cell_ids, **kwargs):
+    kwargs["cell_ids"] = cell_ids
+    return execute_command("resume_tablet_cells", kwargs)
+
+
 #########################################
 # Helpers:
 

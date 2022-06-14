@@ -87,4 +87,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSuspendTabletCellsCommand
+    : public TTypedCommand<NApi::TSuspendTabletCellsOptions>
+{
+public:
+    TSuspendTabletCellsCommand();
+
+private:
+    std::vector<NObjectClient::TCellId> CellIds_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResumeTabletCellsCommand
+    : public TTypedCommand<NApi::TResumeTabletCellsOptions>
+{
+public:
+    TResumeTabletCellsCommand();
+
+private:
+    std::vector<NObjectClient::TCellId> CellIds_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

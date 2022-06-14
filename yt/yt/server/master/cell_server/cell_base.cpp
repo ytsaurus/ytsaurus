@@ -119,6 +119,7 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, GossipStatus_);
     Save(context, PeerCount_);
     Save(context, LastLeaderChangeTime_);
+    Save(context, Suspended_);
 }
 
 void TCellBase::Load(TLoadContext& context)
@@ -136,6 +137,13 @@ void TCellBase::Load(TLoadContext& context)
     Load(context, GossipStatus_);
     Load(context, PeerCount_);
     Load(context, LastLeaderChangeTime_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::SuspendTabletCell) {
+        Load(context, Suspended_);
+    } else {
+        Suspended_ = false;
+    }
 }
 
 TPeerId TCellBase::FindPeerId(const TString& address) const

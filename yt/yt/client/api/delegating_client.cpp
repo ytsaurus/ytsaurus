@@ -735,6 +735,21 @@ TFuture<void> TDelegatingClient::ResumeCoordinator(
 {
     return Underlying_->ResumeCoordinator(coordinatorCellId, options);
 }
+
+TFuture<void> TDelegatingClient::SuspendTabletCells(
+    const std::vector<NObjectClient::TCellId>& cellIds,
+    const TSuspendTabletCellsOptions& options)
+{
+    return Underlying_->SuspendTabletCells(cellIds, options);
+}
+
+TFuture<void> TDelegatingClient::ResumeTabletCells(
+    const std::vector<NObjectClient::TCellId>& cellIds,
+    const TResumeTabletCellsOptions& options)
+{
+    return Underlying_->ResumeTabletCells(cellIds, options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi

@@ -182,6 +182,7 @@ public:
         RegisterMethod(BIND(&TTamedCellManager::HydraDecommissionCellOnMaster, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraOnCellDecommissionedOnNode, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraOnCellDecommissionedOnMaster, Unretained(this)));
+        RegisterMethod(BIND(&TTamedCellManager::HydraOnCellSuspensionToggled, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraSetCellConfigVersion, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND(&TTamedCellManager::HydraUpdateCellHealth, Unretained(this)));
@@ -957,6 +958,32 @@ public:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cell decommissioned (CellId: %v)",
             cell->GetId());
+    }
+
+    void HydraOnCellSuspensionToggled(TRspOnTabletCellSuspensionToggled* response)
+    {
+        auto cellId = FromProto<TTamedCellId>(response->cell_id());
+        auto* cell = FindCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+
+        auto suspended = response->suspended();
+        if (suspended == cell->GetSuspended()) {
+            return;
+        }
+
+        if (suspended) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Tablet cell is suspended (CellId: %v)",
+                cellId);
+        } else {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Tablet cell is resumed (CellId: %v)",
+                cellId);
+        }
+
+        cell->SetSuspended(suspended);
     }
 
     const THashSet<TCellBundle*>& CellBundles(ECellarType cellarType) override

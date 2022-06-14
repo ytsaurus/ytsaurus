@@ -592,11 +592,21 @@ public:
         return MinCommitTimestamp_.value_or(Host_->GetLatestTimestamp());
     }
 
-    void Decommission()
+    void SetDecommission(bool decommission)
     {
-        YT_LOG_DEBUG("Decommission transaction manager");
+        YT_VERIFY(HasHydraContext());
 
-        Decommissioned_ = true;
+        if (decommission == Decommissioned_) {
+            return;
+        }
+
+        if (decommission) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Decommission transaction manager");
+        } else {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Transaction manager is no longer decommissioned");
+        }
+
+        Decommissioned_ = decommission;
     }
 
     bool IsDecommissioned() const
@@ -1384,9 +1394,9 @@ TTimestamp TTransactionManager::GetMinCommitTimestamp()
     return Impl_->GetMinCommitTimestamp();
 }
 
-void TTransactionManager::Decommission()
+void TTransactionManager::SetDecommission(bool decommission)
 {
-    Impl_->Decommission();
+    Impl_->SetDecommission(decommission);
 }
 
 bool TTransactionManager::IsDecommissioned() const

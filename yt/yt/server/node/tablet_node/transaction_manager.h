@@ -155,7 +155,10 @@ public:
     TTimestamp GetMinPrepareTimestamp();
     TTimestamp GetMinCommitTimestamp();
 
-    void Decommission();
+    void SetDecommission(bool decommission);
+
+    //! Returns true if transaction manager is decommissioned and threre are
+    //! no alive transactions in it, so tablet cell can be safely removed.
     bool IsDecommissioned() const;
 
     NYTree::IYPathServicePtr GetOrchidService();

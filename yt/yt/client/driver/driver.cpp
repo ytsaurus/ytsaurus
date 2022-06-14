@@ -312,6 +312,9 @@ public:
         REGISTER_ALL(TSuspendCoordinatorCommand,           "suspend_coordinator",             Null,       Structured, false,  false);
         REGISTER_ALL(TResumeCoordinatorCommand,            "resume_coordinator",              Null,       Structured, false,  false);
 
+        REGISTER_ALL(TSuspendTabletCellsCommand,           "suspend_tablet_cells",            Null,       Structured, false,  false);
+        REGISTER_ALL(TResumeTabletCellsCommand,            "resume_tablet_cells",             Null,       Structured, false,  false);
+
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );
         }
