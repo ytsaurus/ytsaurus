@@ -677,6 +677,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             "start_time",
             "type",
             "brief_spec",
+            "provided_spec",
             "finish_time",
             "progress",
         ]

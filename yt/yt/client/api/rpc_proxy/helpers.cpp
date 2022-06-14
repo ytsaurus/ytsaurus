@@ -647,6 +647,9 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.Spec) {
         protoOperation->set_spec(operation.Spec.ToString());
     }
+    if (operation.ProvidedSpec) {
+        protoOperation->set_provided_spec(operation.ProvidedSpec.ToString());
+    }
     if (operation.ExperimentAssignments) {
         protoOperation->set_experiment_assignments(operation.ExperimentAssignments.ToString());
     }
@@ -750,6 +753,11 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->Spec = TYsonString(protoOperation.spec());
     } else {
         operation->Spec = TYsonString();
+    }
+    if (protoOperation.has_provided_spec()) {
+        operation->ProvidedSpec = TYsonString(protoOperation.provided_spec());
+    } else {
+        operation->ProvidedSpec = TYsonString();
     }
     if (protoOperation.has_full_spec()) {
         operation->FullSpec = TYsonString(protoOperation.full_spec());

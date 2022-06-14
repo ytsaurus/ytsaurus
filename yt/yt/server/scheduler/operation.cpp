@@ -152,6 +152,7 @@ TOperation::TOperation(
     IInvokerPtr controlInvoker,
     const std::optional<TString>& alias,
     std::vector<TExperimentAssignmentPtr> experimentAssignments,
+    NYson::TYsonString providedSpecString,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended,
@@ -164,6 +165,7 @@ TOperation::TOperation(
     , SecureVault_(std::move(secureVault))
     , Events_(events)
     , Spec_(std::move(spec))
+    , ProvidedSpecString_(std::move(providedSpecString))
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , BaseAcl_(std::move(baseAcl))

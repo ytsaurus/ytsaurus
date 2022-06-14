@@ -93,6 +93,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     TaskNames = ConvertToYsonString(operation->GetTaskNames(), EYsonFormat::Binary);
     ExperimentAssignments = ConvertToYsonString(operation->ExperimentAssignments(), EYsonFormat::Binary);
     ExperimentAssignmentNames = ConvertToYsonString(operation->GetExperimentAssignmentNames(), EYsonFormat::Binary);
+    ProvidedSpec = operation->ProvidedSpecString();
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializeAttributes;
@@ -128,6 +129,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "task_names",
         "experiment_assignments",
         "controller_features",
+        "provided_spec",
     };
 
     return attributeKeys;
@@ -169,6 +171,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
         ExperimentAssignmentNames = ConvertToYsonString(experimentAssignmentNames, EYsonFormat::Binary);
     }
 
+    ProvidedSpec = attributes.FindYson("provided_spec");
     BriefSpec = attributes.FindYson("brief_spec");
     Result = attributes.GetYson("result");
     Events = attributes.GetYson("events");
@@ -376,6 +379,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
 
     if (version >= 42 && request.ControllerFeatures) {
         builder.AddValue(MakeUnversionedAnyValue(request.ControllerFeatures.AsStringBuf(), index.ControllerFeatures));
+    }
+
+    if (version >= 46 && request.ProvidedSpec) {
+        builder.AddValue(MakeUnversionedAnyValue(request.ProvidedSpec.AsStringBuf(), index.ProvidedSpec));
     }
 
     return rowBuffer->CaptureRow(builder.GetRow());

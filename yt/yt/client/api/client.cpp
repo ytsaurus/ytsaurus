@@ -244,6 +244,7 @@ void Serialize(
             .OptionalItem("brief_spec", operation.BriefSpec)
             .OptionalItem("full_spec", operation.FullSpec)
             .OptionalItem("spec", operation.Spec)
+            .OptionalItem("provided_spec", operation.ProvidedSpec)
             .OptionalItem("experiment_assignments", operation.ExperimentAssignments)
             .OptionalItem("experiment_assignment_names", operation.ExperimentAssignmentNames)
             .OptionalItem("unrecognized_spec", operation.UnrecognizedSpec)
@@ -315,6 +316,7 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attribut
     setField(operation.AuthenticatedUser, "authenticated_user");
     setField(operation.BriefSpec, "brief_spec");
     setField(operation.Spec, "spec");
+    setField(operation.ProvidedSpec, "provided_spec");
     setField(operation.ExperimentAssignments, "experiment_assignments");
     setField(operation.ExperimentAssignmentNames, "experiment_assignment_names");
     setField(operation.FullSpec, "full_spec");

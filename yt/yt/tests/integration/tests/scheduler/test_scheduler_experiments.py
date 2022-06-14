@@ -114,7 +114,7 @@ class TestSchedulerExperiments(YTEnvSetup):
                  track=False,
                  spec={"experiment_overrides": ["exp_a1.treatment"]})
         wait_breakpoint()
-        info = get_operation(op.id, attributes=["experiment_assignments", "experiment_assignment_names", "spec"])
+        info = get_operation(op.id, attributes=["experiment_assignments", "experiment_assignment_names", "spec", "provided_spec"])
         assert info["experiment_assignment_names"] == ["exp_a1.treatment"]
         assert info["experiment_assignments"] == [{
             "experiment": "exp_a1",
@@ -135,6 +135,8 @@ class TestSchedulerExperiments(YTEnvSetup):
         }]
         assert info["spec"]["foo_spec_template"] == "exp_a1.treatment"
         assert info["spec"]["foo_spec"] == "exp_a1.treatment"
+        assert "foo_spec" not in info["provided_spec"]
+        assert "foo_spec_template" not in info["provided_spec"]
 
     @authors("max42")
     def test_scheduler_spec_patches(self):
@@ -145,9 +147,11 @@ class TestSchedulerExperiments(YTEnvSetup):
                  command="exit 0",
                  spec={"experiment_overrides": ["exp_a1"]})
 
-        info = get_operation(op.id, attributes=["spec"])
+        info = get_operation(op.id, attributes=["spec", "provided_spec"])
         assert info["spec"]["foo_spec"] == "exp_a1.treatment"
         assert info["spec"]["foo_spec_template"] == "exp_a1.treatment"
+        assert "foo_spec" not in info["provided_spec"]
+        assert "foo_spec_template" not in info["provided_spec"]
 
         op = map(
             in_=["//tmp/t_in"],
@@ -159,9 +163,11 @@ class TestSchedulerExperiments(YTEnvSetup):
                 "foo_spec_template": "custom",
             })
 
-        info = get_operation(op.id, attributes=["spec"])
+        info = get_operation(op.id, attributes=["spec", "provided_spec"])
         assert info["spec"]["foo_spec"] == "exp_a1.treatment"
         assert info["spec"]["foo_spec_template"] == "custom"
+        assert info["provided_spec"]["foo_spec"] == "custom"
+        assert info["provided_spec"]["foo_spec_template"] == "custom"
 
     @authors("max42")
     def test_controller_agent_tag(self):

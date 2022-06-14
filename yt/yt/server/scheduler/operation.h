@@ -140,7 +140,7 @@ struct IOperationStrategyHost
     virtual TStrategyOperationSpecPtr GetStrategySpecForTree(const TString& treeId) const = 0;
 
     virtual const NYson::TYsonString& GetSpecString() const = 0;
-    
+
     virtual const NYson::TYsonString& GetTrimmedAnnotations() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
@@ -244,6 +244,9 @@ public:
     //! Operation spec.
     DEFINE_BYREF_RO_PROPERTY(TOperationSpecBasePtr, Spec);
 
+    //! Operation spec provided by user.
+    DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, ProvidedSpecString);
+
     //! If this operation needs revive, the corresponding revive descriptor is provided
     //! by Master Connector.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TOperationRevivalDescriptor>, RevivalDescriptor);
@@ -293,7 +296,7 @@ public:
 
     //! Returns operation spec as a yson string.
     const NYson::TYsonString& GetSpecString() const override;
-    
+
     //! Returns operation annotations used for structured logging.
     const NYson::TYsonString& GetTrimmedAnnotations() const override;
 
@@ -408,6 +411,7 @@ public:
         IInvokerPtr controlInvoker,
         const std::optional<TString>& alias,
         std::vector<TExperimentAssignmentPtr> experimentAssignments,
+        NYson::TYsonString providedSpecString,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
@@ -462,6 +466,7 @@ struct TPreprocessedSpec
 {
     TOperationSpecBasePtr Spec;
     NYson::TYsonString SpecString;
+    NYson::TYsonString ProvidedSpecString;
     NYson::TYsonString TrimmedAnnotations;
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;

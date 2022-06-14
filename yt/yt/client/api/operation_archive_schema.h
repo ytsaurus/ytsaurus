@@ -42,6 +42,7 @@ struct TOrderedByIdTableDescriptor
         const int ExperimentAssignmentNames;
         const int ControllerFeatures;
         const int AlertEvents;
+        const int ProvidedSpec;
     };
 
     const NTableClient::TNameTablePtr NameTable;

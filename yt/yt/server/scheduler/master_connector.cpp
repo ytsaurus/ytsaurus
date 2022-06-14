@@ -1053,6 +1053,7 @@ private:
                 "initial_aggregated_min_needed_resources",
                 "registration_index",
                 "alerts",
+                "provided_spec",
             };
             const int operationsCount = static_cast<int>(OperationIds_.size());
 
@@ -1198,6 +1199,13 @@ private:
             const IInvokerPtr& cancelableOperationInvoker)
         {
             auto specString = attributes.GetYson("spec");
+            auto providedSpecString = attributes.FindYson("provided_spec");
+
+            // COMPAT(gepardo): can be removed when all the running operation will have provided_spec field.
+            if (!providedSpecString) {
+                providedSpecString = specString;
+            }
+
             auto specNode = ConvertSpecStringToNode(specString);
             auto operationType = attributes.Get<EOperationType>("operation_type");
             TPreprocessedSpec preprocessedSpec;
@@ -1248,6 +1256,7 @@ private:
                 cancelableOperationInvoker,
                 spec->Alias,
                 std::move(preprocessedSpec.ExperimentAssignments),
+                providedSpecString,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 attributes.Get<bool>("suspended", false),
@@ -1493,7 +1502,7 @@ private:
 
             YT_LOG_INFO("Fetched operation transaction ids, starting to ping them (OperationCount: %v)",
                 operations.size());
-            
+
             std::vector<TFuture<void>> futures;
             for (const auto& operation : operations) {
                 auto operationId = operation->GetId();
@@ -1530,7 +1539,7 @@ private:
                 operationsToFetchCommittedFlag.push_back(operation);
             }
         }
-        
+
         YT_LOG_INFO("Fetching committed flags (OperationCount: %v)",
             operationsToFetchCommittedFlag.size());
 
