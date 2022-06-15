@@ -3,6 +3,7 @@
 #include "client.h"
 #include "operation_helpers.h"
 #include "operation_tracker.h"
+#include "transaction.h"
 #include "prepare_operation.h"
 #include "retry_heavy_write_request.h"
 #include "skiff.h"
@@ -933,25 +934,26 @@ TString AddModeToTitleIfDebug(const TString& title) {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TOperationId DoExecuteMap(
-    TOperationPreparer& preparer,
+void DoExecuteMap(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TSimpleOperationIo& operationIo,
     TMapOperationSpecBase<T> spec,
-    const IJob& mapper,
+    const IJobPtr& mapper,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer);
+        CreateDebugOutputTables(spec, *preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer, operationIo.Inputs);
-        CreateOutputTables(preparer, operationIo.Outputs);
+        CheckInputTablesExist(*preparer, operationIo.Inputs);
+        CreateOutputTables(*preparer, operationIo.Outputs);
     }
 
     TJobPreparer map(
-        preparer,
+        *preparer,
         spec.MapperSpec_,
-        mapper,
+        *mapper,
         operationIo.Outputs.size(),
         operationIo.JobFiles,
         options);
@@ -987,44 +989,57 @@ TOperationId DoExecuteMap(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "map",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        operationIo,
+        mapper
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "map", spec);
 
-    LogJob(operationId, &mapper, "mapper");
-    LogYPaths(operationId, operationIo.Inputs, "input");
-    LogYPaths(operationId, operationIo.Outputs, "output");
+        LogJob(operationId, mapper.Get(), "mapper");
+        LogYPaths(operationId, operationIo.Inputs, "input");
+        LogYPaths(operationId, operationIo.Outputs, "output");  
 
-    return operationId;
+        return operationId;
+    };
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteMap(
-    TOperationPreparer& preparer,
+void ExecuteMap(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMapOperationSpec& spec,
-    const IStructuredJob& mapper,
+    const ::TIntrusivePtr<IStructuredJob>& mapper,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting map operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    return DoExecuteMap(
+        preparer->GetPreparationId());
+    auto operationIo = CreateSimpleOperationIo(*mapper, *preparer, spec, options, /* allowSkiff = */ true);
+    DoExecuteMap(
+        operation,
         preparer,
-        CreateSimpleOperationIo(mapper, preparer, spec, options, /* allowSkiff = */ true),
+        operationIo,
         spec,
         mapper,
         options);
 }
 
-TOperationId ExecuteRawMap(
-    TOperationPreparer& preparer,
+void ExecuteRawMap(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawMapOperationSpec& spec,
-    const IRawJob& mapper,
+    const ::TIntrusivePtr<IRawJob>& mapper,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting raw map operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    return DoExecuteMap(
+        preparer->GetPreparationId());
+    auto operationIo = CreateSimpleOperationIo(*mapper, *preparer, spec);
+    DoExecuteMap(
+        operation,
         preparer,
-        CreateSimpleOperationIo(mapper, preparer, spec),
+        operationIo,
         spec,
         mapper,
         options);
@@ -1033,25 +1048,26 @@ TOperationId ExecuteRawMap(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TOperationId DoExecuteReduce(
-    TOperationPreparer& preparer,
+void DoExecuteReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TSimpleOperationIo& operationIo,
     TReduceOperationSpecBase<T> spec,
-    const IJob& reducer,
+    const IJobPtr& reducer,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer);
+        CreateDebugOutputTables(spec, *preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer, operationIo.Inputs);
-        CreateOutputTables(preparer, operationIo.Outputs);
+        CheckInputTablesExist(*preparer, operationIo.Inputs);
+        CreateOutputTables(*preparer, operationIo.Outputs);
     }
 
     TJobPreparer reduce(
-        preparer,
+        *preparer,
         spec.ReducerSpec_,
-        reducer,
+        *reducer,
         operationIo.Outputs.size(),
         operationIo.JobFiles,
         options);
@@ -1096,44 +1112,58 @@ TOperationId DoExecuteReduce(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "reduce",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        operationIo,
+        reducer
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "reduce", spec);
 
-    LogJob(operationId, &reducer, "reducer");
-    LogYPaths(operationId, operationIo.Inputs, "input");
-    LogYPaths(operationId, operationIo.Outputs, "output");
+        LogJob(operationId, reducer.Get(), "reducer");
+        LogYPaths(operationId, operationIo.Inputs, "input");
+        LogYPaths(operationId, operationIo.Outputs, "output");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteReduce(
-    TOperationPreparer& preparer,
+void ExecuteReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TReduceOperationSpec& spec,
-    const IStructuredJob& reducer,
+    const ::TIntrusivePtr<IStructuredJob>& reducer,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting reduce operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    return DoExecuteReduce(
+        preparer->GetPreparationId());
+    auto operationIo = CreateSimpleOperationIo(*reducer, *preparer, spec, options, /* allowSkiff = */ false);
+    DoExecuteReduce(
+        operation,
         preparer,
-        CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
+        operationIo,
         spec,
         reducer,
         options);
 }
 
-TOperationId ExecuteRawReduce(
-    TOperationPreparer& preparer,
+void ExecuteRawReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawReduceOperationSpec& spec,
-    const IRawJob& reducer,
+    const ::TIntrusivePtr<IRawJob>& reducer,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting raw reduce operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    return DoExecuteReduce(
+        preparer->GetPreparationId());
+    auto operationIo = CreateSimpleOperationIo(*reducer, *preparer, spec);
+    DoExecuteReduce(
+        operation,
         preparer,
-        CreateSimpleOperationIo(reducer, preparer, spec),
+        operationIo,
         spec,
         reducer,
         options);
@@ -1142,25 +1172,26 @@ TOperationId ExecuteRawReduce(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TOperationId DoExecuteJoinReduce(
-    TOperationPreparer& preparer,
+void DoExecuteJoinReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TSimpleOperationIo& operationIo,
     TJoinReduceOperationSpecBase<T> spec,
-    const IJob& reducer,
+    const IJobPtr& reducer,
     const TOperationOptions& options)
 {
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer);
+        CreateDebugOutputTables(spec, *preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer, operationIo.Inputs);
-        CreateOutputTables(preparer, operationIo.Outputs);
+        CheckInputTablesExist(*preparer, operationIo.Inputs);
+        CreateOutputTables(*preparer, operationIo.Outputs);
     }
 
     TJobPreparer reduce(
-        preparer,
+        *preparer,
         spec.ReducerSpec_,
-        reducer,
+        *reducer,
         operationIo.Outputs.size(),
         operationIo.JobFiles,
         options);
@@ -1195,44 +1226,58 @@ TOperationId DoExecuteJoinReduce(
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "join_reduce",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        reducer,
+        operationIo
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "join_reduce", spec);
 
-    LogJob(operationId, &reducer, "reducer");
-    LogYPaths(operationId, operationIo.Inputs, "input");
-    LogYPaths(operationId, operationIo.Outputs, "output");
+        LogJob(operationId, reducer.Get(), "reducer");
+        LogYPaths(operationId, operationIo.Inputs, "input");
+        LogYPaths(operationId, operationIo.Outputs, "output");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteJoinReduce(
-    TOperationPreparer& preparer,
+void ExecuteJoinReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TJoinReduceOperationSpec& spec,
-    const IStructuredJob& reducer,
+    const ::TIntrusivePtr<IStructuredJob>& reducer,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting join reduce operation (PreparationId: %v)",
-        preparer.GetPreparationId());
+        preparer->GetPreparationId());
+    auto operationIo = CreateSimpleOperationIo(*reducer, *preparer, spec, options, /* allowSkiff = */ false);
     return DoExecuteJoinReduce(
+        operation,
         preparer,
-        CreateSimpleOperationIo(reducer, preparer, spec, options, /* allowSkiff = */ false),
+        operationIo,
         spec,
         reducer,
         options);
 }
 
-TOperationId ExecuteRawJoinReduce(
-    TOperationPreparer& preparer,
+void ExecuteRawJoinReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawJoinReduceOperationSpec& spec,
-    const IRawJob& reducer,
+    const ::TIntrusivePtr<IRawJob>& reducer,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting raw join reduce operation (PreparationId: %v)",
-        preparer.GetPreparationId());
+        preparer->GetPreparationId());
+    auto operationIo = CreateSimpleOperationIo(*reducer, *preparer, spec);
     return DoExecuteJoinReduce(
+        operation,
         preparer,
-        CreateSimpleOperationIo(reducer, preparer, spec),
+        operationIo,
         spec,
         reducer,
         options);
@@ -1241,13 +1286,14 @@ TOperationId ExecuteRawJoinReduce(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TOperationId DoExecuteMapReduce(
-    TOperationPreparer& preparer,
+void DoExecuteMapReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMapReduceOperationIo& operationIo,
     TMapReduceOperationSpecBase<T> spec,
-    const IJob* mapper,
-    const IJob* reduceCombiner,
-    const IJob& reducer,
+    const IJobPtr& mapper,
+    const IJobPtr& reduceCombiner,
+    const IJobPtr& reducer,
     const TOperationOptions& options)
 {
     TVector<TRichYPath> allOutputs;
@@ -1255,11 +1301,11 @@ TOperationId DoExecuteMapReduce(
     allOutputs.insert(allOutputs.end(), operationIo.Outputs.begin(), operationIo.Outputs.end());
 
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer);
+        CreateDebugOutputTables(spec, *preparer);
     }
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer, operationIo.Inputs);
-        CreateOutputTables(preparer, allOutputs);
+        CheckInputTablesExist(*preparer, operationIo.Inputs);
+        CreateOutputTables(*preparer, allOutputs);
     }
 
     TSortColumns sortBy = spec.SortBy_;
@@ -1275,9 +1321,9 @@ TOperationId DoExecuteMapReduce(
     TVector<TRichYPath> files;
 
     TJobPreparer reduce(
-        preparer,
+        *preparer,
         spec.ReducerSpec_,
-        reducer,
+        *reducer,
         operationIo.Outputs.size(),
         operationIo.ReducerJobFiles,
         options);
@@ -1288,7 +1334,7 @@ TOperationId DoExecuteMapReduce(
     .BeginMap().Item("spec").BeginMap()
         .DoIf(hasMapper, [&] (TFluentMap fluent) {
             TJobPreparer map(
-                preparer,
+                *preparer,
                 spec.MapperSpec_,
                 *mapper,
                 1 + operationIo.MapOutputs.size(),
@@ -1306,7 +1352,7 @@ TOperationId DoExecuteMapReduce(
         })
         .DoIf(hasCombiner, [&] (TFluentMap fluent) {
             TJobPreparer combine(
-                preparer,
+                *preparer,
                 spec.ReduceCombinerSpec_,
                 *reduceCombiner,
                 size_t(1),
@@ -1377,35 +1423,47 @@ TOperationId DoExecuteMapReduce(
     BuildIntermediateDataPart(spec, &specNode["spec"]);
     BuildDataSizePerSortJobPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "map_reduce",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        mapper,
+        reduceCombiner,
+        reducer,
+        inputs=operationIo.Inputs,
+        allOutputs
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "map_reduce", spec);
 
-    LogJob(operationId, mapper, "mapper");
-    LogJob(operationId, reduceCombiner, "reduce_combiner");
-    LogJob(operationId, &reducer, "reducer");
-    LogYPaths(operationId, operationIo.Inputs, "input");
-    LogYPaths(operationId, allOutputs, "output");
+        LogJob(operationId, mapper.Get(), "mapper");
+        LogJob(operationId, reduceCombiner.Get(), "reduce_combiner");
+        LogJob(operationId, reducer.Get(), "reducer");
+        LogYPaths(operationId, inputs, "input");
+        LogYPaths(operationId, allOutputs, "output");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteMapReduce(
-    TOperationPreparer& preparer,
+void ExecuteMapReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMapReduceOperationSpec& spec_,
-    const IStructuredJob* mapper,
-    const IStructuredJob* reduceCombiner,
-    const IStructuredJob& reducer,
+    const ::TIntrusivePtr<IStructuredJob>& mapper,
+    const ::TIntrusivePtr<IStructuredJob>& reduceCombiner,
+    const ::TIntrusivePtr<IStructuredJob>& reducer,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting map-reduce operation (PreparationId: %v)",
-        preparer.GetPreparationId());
+        preparer->GetPreparationId());
     TMapReduceOperationSpec spec = spec_;
 
     TMapReduceOperationIo operationIo;
-    auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
-    auto structuredMapOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredMapOutputs());
-    auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
+    auto structuredInputs = CanonizeStructuredTableList(preparer->GetAuth(), spec.GetStructuredInputs());
+    auto structuredMapOutputs = CanonizeStructuredTableList(preparer->GetAuth(), spec.GetStructuredMapOutputs());
+    auto structuredOutputs = CanonizeStructuredTableList(preparer->GetAuth(), spec.GetStructuredOutputs());
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
 
@@ -1430,9 +1488,9 @@ TOperationId ExecuteMapReduce(
     VerifyHasElements(structuredInputs, "inputs");
 
     TFormatBuilder formatBuilder(
-        preparer.GetClientRetryPolicy(),
-        preparer.GetAuth(),
-        preparer.GetTransactionId(),
+        preparer->GetClientRetryPolicy(),
+        preparer->GetAuth(),
+        preparer->GetTransactionId(),
         options);
 
     if (mapper) {
@@ -1454,9 +1512,9 @@ TOperationId ExecuteMapReduce(
             TOperationPreparationContext(
                 structuredInputs,
                 mapperOutput,
-                preparer.GetAuth(),
-                preparer.GetClientRetryPolicy(),
-                preparer.GetTransactionId()),
+                preparer->GetAuth(),
+                preparer->GetClientRetryPolicy(),
+                preparer->GetTransactionId()),
             &structuredInputs,
             /* outputs */ nullptr,
             hints);
@@ -1523,9 +1581,9 @@ TOperationId ExecuteMapReduce(
                 TOperationPreparationContext(
                     inputs,
                     outputs,
-                    preparer.GetAuth(),
-                    preparer.GetClientRetryPolicy(),
-                    preparer.GetTransactionId()),
+                    preparer->GetAuth(),
+                    preparer->GetClientRetryPolicy(),
+                    preparer->GetTransactionId()),
                 &inputs,
                 /* outputs */ nullptr,
                 hints);
@@ -1584,19 +1642,19 @@ TOperationId ExecuteMapReduce(
     TVector<TTableSchema> reducerInferenceResult;
     if (isFirstStep) {
         reducerInferenceResult = PrepareOperation(
-            reducer,
+            *reducer,
             TOperationPreparationContext(
                 structuredInputs,
                 structuredOutputs,
-                preparer.GetAuth(),
-                preparer.GetClientRetryPolicy(),
-                preparer.GetTransactionId()),
+                preparer->GetAuth(),
+                preparer->GetClientRetryPolicy(),
+                preparer->GetTransactionId()),
             &structuredInputs,
             &structuredOutputs,
             hints);
     } else {
         reducerInferenceResult = PrepareOperation<TStructuredJobTableList>(
-            reducer,
+            *reducer,
             TSpeculativeOperationPreparationContext(
                 currentInferenceResult,
                 reducerInputs,
@@ -1607,7 +1665,7 @@ TOperationId ExecuteMapReduce(
     }
 
     auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
-        reducer,
+        *reducer,
         EIODirection::Input,
         reducerInputs,
         hints.InputFormatHints_,
@@ -1615,7 +1673,7 @@ TOperationId ExecuteMapReduce(
         /* allowFormatFromTableAttribute = */ isFirstStep);
 
     auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
-        reducer,
+        *reducer,
         EIODirection::Output,
         ToStructuredJobTableList(spec.GetStructuredOutputs()),
         hints.OutputFormatHints_,
@@ -1632,7 +1690,7 @@ TOperationId ExecuteMapReduce(
     operationIo.Inputs = GetPathList(
         ApplyProtobufColumnFilters(
             structuredInputs,
-            preparer,
+            *preparer,
             GetColumnsUsedInOperation(spec),
             options),
         /* jobSchemaInferenceResult */ Nothing(),
@@ -1646,6 +1704,7 @@ TOperationId ExecuteMapReduce(
     VerifyHasElements(operationIo.Outputs, "outputs");
 
     return DoExecuteMapReduce(
+        operation,
         preparer,
         operationIo,
         spec,
@@ -1655,20 +1714,21 @@ TOperationId ExecuteMapReduce(
         options);
 }
 
-TOperationId ExecuteRawMapReduce(
-    TOperationPreparer& preparer,
+void ExecuteRawMapReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawMapReduceOperationSpec& spec,
-    const IRawJob* mapper,
-    const IRawJob* reduceCombiner,
-    const IRawJob& reducer,
+    const ::TIntrusivePtr<IRawJob>& mapper,
+    const ::TIntrusivePtr<IRawJob>& reduceCombiner,
+    const ::TIntrusivePtr<IRawJob>& reducer,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting raw map-reduce operation (PreparationId: %v)",
-        preparer.GetPreparationId());
+        preparer->GetPreparationId());
     TMapReduceOperationIo operationIo;
-    operationIo.Inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs());
-    operationIo.MapOutputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetMapOutputs());
-    operationIo.Outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetOutputs());
+    operationIo.Inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.GetInputs());
+    operationIo.MapOutputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.GetMapOutputs());
+    operationIo.Outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.GetOutputs());
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
@@ -1697,6 +1757,7 @@ TOperationId ExecuteRawMapReduce(
     operationIo.ReducerOutputFormat = getFormatOrDefault(spec.ReducerOutputFormat_, spec.ReducerFormat_, "reducer output format");
 
     return DoExecuteMapReduce(
+        operation,
         preparer,
         operationIo,
         spec,
@@ -1706,19 +1767,20 @@ TOperationId ExecuteRawMapReduce(
         options);
 }
 
-TOperationId ExecuteSort(
-    TOperationPreparer& preparer,
+void ExecuteSort(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting sort operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
-    auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
+        preparer->GetPreparationId());
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer->GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer, inputs);
-        CreateOutputTable(preparer, output);
+        CheckInputTablesExist(*preparer, inputs);
+        CreateOutputTable(*preparer, output);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1736,29 +1798,38 @@ TOperationId ExecuteSort(
     BuildPartitionJobCountOperationPart(spec, &specNode["spec"]);
     BuildIntermediateDataPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "sort",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        inputs,
+        output
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "sort", spec);
 
-    LogYPaths(operationId, inputs, "input");
-    LogYPath(operationId, output, "output");
+        LogYPaths(operationId, inputs, "input");
+        LogYPath(operationId, output, "output");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteMerge(
-    TOperationPreparer& preparer,
+void ExecuteMerge(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting merge operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
-    auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
+        preparer->GetPreparationId());
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer->GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CheckInputTablesExist(preparer, inputs);
-        CreateOutputTable(preparer, output);
+        CheckInputTablesExist(*preparer, inputs);
+        CreateOutputTable(*preparer, output);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1777,24 +1848,33 @@ TOperationId ExecuteMerge(
 
     BuildJobCountOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "merge",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        inputs,
+        output
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "merge", spec);
 
-    LogYPaths(operationId, inputs, "input");
-    LogYPath(operationId, output, "output");
+        LogYPaths(operationId, inputs, "input");
+        LogYPath(operationId, output, "output");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteErase(
-    TOperationPreparer& preparer,
+void ExecuteErase(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting erase operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    auto tablePath = CanonizeYPath(nullptr, preparer.GetAuth(), spec.TablePath_);
+        preparer->GetPreparationId());
+    auto tablePath = CanonizeYPath(nullptr, preparer->GetAuth(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -1806,27 +1886,35 @@ TOperationId ExecuteErase(
         .Do(std::bind(BuildCommonOperationPart<TEraseOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
-    auto operationId = preparer.StartOperation(
-        "erase",
-        MergeSpec(std::move(specNode), options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(std::move(specNode), options),
+        preparer,
+        tablePath
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "erase", spec);
 
-    LogYPath(operationId, tablePath, "table_path");
+        LogYPath(operationId, tablePath, "table_path");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteRemoteCopy(
-    TOperationPreparer& preparer,
+void ExecuteRemoteCopy(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRemoteCopyOperationSpec& spec,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting remote copy operation (PreparationId: %v)",
-        preparer.GetPreparationId());
-    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
-    auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
+        preparer->GetPreparationId());
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer->GetAuth(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer->GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
-        CreateOutputTable(preparer, output);
+        CreateOutputTable(*preparer, output);
     }
 
     Y_ENSURE_EX(!spec.ClusterName_.empty(), TApiUsageError() << "ClusterName parameter is required");
@@ -1852,23 +1940,32 @@ TOperationId ExecuteRemoteCopy(
         .Do(std::bind(BuildCommonOperationPart<TRemoteCopyOperationSpec>, spec, options, std::placeholders::_1))
     .EndMap().EndMap();
 
-    auto operationId = preparer.StartOperation(
-        "remote_copy",
-        MergeSpec(specNode, options));
+    auto startOperation = [
+        operation=operation.Get(),
+        spec=MergeSpec(specNode, options),
+        preparer,
+        inputs,
+        output
+    ] () {
+        auto operationId = preparer->StartOperation(operation, "remote_copy", spec);
 
-    LogYPaths(operationId, inputs, "input");
-    LogYPath(operationId, output, "output");
+        LogYPaths(operationId, inputs, "input");
+        LogYPath(operationId, output, "output");
 
-    return operationId;
+        return operationId;
+    };
+
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
-TOperationId ExecuteVanilla(
-    TOperationPreparer& preparer,
+void ExecuteVanilla(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
     YT_LOG_DEBUG("Starting vanilla operation (PreparationId: %v)",
-        preparer.GetPreparationId());
+        preparer->GetPreparationId());
 
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         Y_VERIFY(task.Job_.Get());
@@ -1876,7 +1973,7 @@ TOperationId ExecuteVanilla(
             Y_ENSURE_EX(task.Outputs_.empty(),
                 TApiUsageError() << "Vanilla task with void IVanillaJob doesn't expect output tables");
             TJobPreparer jobPreparer(
-                preparer,
+                *preparer,
                 task.Spec_,
                 *task.Job_,
                 /* outputTableCount */ 0,
@@ -1896,17 +1993,17 @@ TOperationId ExecuteVanilla(
         } else {
             auto operationIo = CreateSimpleOperationIo(
                 *task.Job_,
-                preparer,
+                *preparer,
                 task,
                 options,
                 false);
             Y_ENSURE_EX(operationIo.Outputs.size() > 0,
                 TApiUsageError() << "Vanilla task with IVanillaJob that has table writer expects output tables");
             if (options.CreateOutputTables_) {
-                CreateOutputTables(preparer, operationIo.Outputs);
+                CreateOutputTables(*preparer, operationIo.Outputs);
             }
             TJobPreparer jobPreparer(
-                preparer,
+                *preparer,
                 task.Spec_,
                 *task.Job_,
                 operationIo.Outputs.size(),
@@ -1937,7 +2034,7 @@ TOperationId ExecuteVanilla(
     };
 
     if (options.CreateDebugOutputTables_) {
-        CreateDebugOutputTables(spec, preparer);
+        CreateDebugOutputTables(spec, *preparer);
     }
 
     TNode specNode = BuildYsonNodeFluently()
@@ -1948,12 +2045,12 @@ TOperationId ExecuteVanilla(
 
     BuildCommonUserOperationPart(spec, &specNode["spec"]);
 
-    auto operationId = preparer.StartOperation(
-        "vanilla",
-        MergeSpec(std::move(specNode), options),
-        /* useStartOperationRequest */ true);
+    auto startOperation = [operation=operation.Get(), spec=MergeSpec(std::move(specNode), options), preparer] () {
+        auto operationId = preparer->StartOperation(operation, "vanilla", spec, /* useStartOperationRequest */ true);
+        return operationId;
+    };
 
-    return operationId;
+    operation->SetDelayedStartFunction(std::move(startOperation));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1965,15 +2062,42 @@ public:
     TOperationImpl(
         IClientRetryPolicyPtr clientRetryPolicy,
         TAuth auth,
-        const TOperationId& operationId)
+        const TMaybe<TOperationId>& operationId = {})
         : ClientRetryPolicy_(clientRetryPolicy)
         , Auth_(std::move(auth))
         , Id_(operationId)
-    { }
+        , PreparedPromise_(NThreading::NewPromise<void>())
+        , StartedPromise_(NThreading::NewPromise<void>())
+    {
+        if (Id_) {
+            PreparedPromise_.SetValue();
+            StartedPromise_.SetValue();
+        } else {
+            PreparedPromise_.GetFuture().Subscribe([this_=::TIntrusivePtr(this)] (const NThreading::TFuture<void>& preparedResult) {
+                try {
+                    preparedResult.GetValue();
+                } catch (...) {
+                    this_->StartedPromise_.SetException(std::current_exception());
+                    return;
+                }
+            });
+        }
+    }
 
     const TOperationId& GetId() const;
     TString GetWebInterfaceUrl() const;
-    NThreading::TFuture<void> Watch(TYtPoller& ytPoller);
+
+    void OnPrepared();
+    void SetDelayedStartFunction(std::function<TOperationId()> start);
+    void Start();
+    void OnPreparationException(std::exception_ptr e);    
+
+    TString GetStatus();
+    void OnStatusUpdated(const TString& newStatus);
+
+    NThreading::TFuture<void> GetPreparedFuture();
+    NThreading::TFuture<void> GetStartedFuture();
+    NThreading::TFuture<void> Watch(TClientPtr client);
 
     EOperationBriefState GetBriefState();
     TMaybe<TYtError> GetError();
@@ -1994,17 +2118,27 @@ public:
     void AnalyzeUnrecognizedSpec(TNode unrecognizedSpec);
 
 private:
+    void OnStarted(const TOperationId& operationId);
+
     void UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func);
 
     void SyncFinishOperationImpl(const TOperationAttributes&);
     static void* SyncFinishOperationProc(void* );
 
+    void ValidateOperationStarted() const;
+
 private:
     IClientRetryPolicyPtr ClientRetryPolicy_;
     const TAuth Auth_;
-    const TOperationId Id_;
+    TMaybe<TOperationId> Id_;
     TMutex Lock_;
+
+    NThreading::TPromise<void> PreparedPromise_;
+    NThreading::TPromise<void> StartedPromise_;
     TMaybe<NThreading::TPromise<void>> CompletePromise_;
+
+    std::function<TOperationId()> DelayedStartFunction_;
+    TString Status_;
     TOperationAttributes Attributes_;
 };
 
@@ -2073,44 +2207,139 @@ private:
 
 const TOperationId& TOperation::TOperationImpl::GetId() const
 {
-    return Id_;
+    ValidateOperationStarted();
+    return *Id_;
 }
 
 TString TOperation::TOperationImpl::GetWebInterfaceUrl() const
 {
-    return GetOperationWebInterfaceUrl(Auth_.ServerName, Id_);
+    ValidateOperationStarted();
+    return GetOperationWebInterfaceUrl(Auth_.ServerName, *Id_);
 }
 
-NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
+void TOperation::TOperationImpl::OnPrepared()
+{
+    Y_VERIFY(!PreparedPromise_.HasException() && !PreparedPromise_.HasValue());
+    PreparedPromise_.SetValue();
+}
+
+void TOperation::TOperationImpl::SetDelayedStartFunction(std::function<TOperationId()> start)
+{
+    DelayedStartFunction_ = std::move(start);
+}
+
+void TOperation::TOperationImpl::Start()
+{
+    {
+        auto guard = Guard(Lock_);
+        if (Id_) {
+            ythrow TApiUsageError() << "Start() should not be called on running operations";
+        }
+    }
+    GetPreparedFuture().GetValueSync();
+
+    std::function<TOperationId()> startStuff;
+    {
+        auto guard = Guard(Lock_);
+        startStuff.swap(DelayedStartFunction_);
+    }
+    if (!startStuff) {
+        ythrow TApiUsageError() << "Seems that Start() was called multiple times. If not, contact yt@";
+    }
+
+    TOperationId operationId;
+    try {
+        operationId = startStuff();
+    } catch (...) {
+        auto exception = std::current_exception();
+        StartedPromise_.SetException(exception);
+        std::rethrow_exception(exception);
+    }
+    OnStarted(operationId);
+}
+
+void TOperation::TOperationImpl::OnPreparationException(std::exception_ptr e)
+{
+    Y_VERIFY(!PreparedPromise_.HasValue() && !PreparedPromise_.HasException());
+    PreparedPromise_.SetException(e);
+}
+
+TString TOperation::TOperationImpl::GetStatus()
+{
+    {
+        auto guard = Guard(Lock_);
+        if (!Id_) {
+            return Status_;
+        }
+    }
+    TMaybe<TString> state;
+    UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
+        Y_VERIFY(attributes.Result);
+        state = attributes.State;
+    });
+
+    return "On YT cluster: " + state.GetOrElse("undefined state");
+}
+
+void TOperation::TOperationImpl::OnStatusUpdated(const TString& newStatus)
 {
     auto guard = Guard(Lock_);
-    if (CompletePromise_) {
-        return *CompletePromise_;
-    }
-    CompletePromise_ = NThreading::NewPromise<void>();
-    ytPoller.Watch(::MakeIntrusive<TOperationPollerItem>(this));
+    Status_ = newStatus;
+}
 
-    auto operationId = GetId();
-    TAbortableRegistry::Get()->Add(
-        operationId,
-        ::MakeIntrusive<TOperationAbortable>(ClientRetryPolicy_, Auth_, operationId));
-    auto registry = TAbortableRegistry::Get();
-    // We have to own an IntrusivePtr to registry to prevent use-after-free
-    auto removeOperation = [registry, operationId](const NThreading::TFuture<void>&) {
-        registry->Remove(operationId);
-    };
-    CompletePromise_->GetFuture().Subscribe(removeOperation);
+NThreading::TFuture<void> TOperation::TOperationImpl::GetPreparedFuture()
+{
+    return PreparedPromise_.GetFuture();
+}
+
+NThreading::TFuture<void> TOperation::TOperationImpl::GetStartedFuture()
+{
+    return StartedPromise_.GetFuture();
+}
+
+NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TClientPtr client)
+{
+    {
+        auto guard = Guard(Lock_);
+        if (CompletePromise_) {
+            return *CompletePromise_;
+        }
+        CompletePromise_ = NThreading::NewPromise<void>();
+    }
+    GetStartedFuture().Subscribe([
+        this_=::TIntrusivePtr(this),
+        client=std::move(client)
+    ] (const NThreading::TFuture<void>& startedResult) {
+        try {
+            startedResult.GetValue();
+        } catch (...) {
+            this_->CompletePromise_->SetException(std::current_exception());
+            return;
+        }
+        client->GetYtPoller().Watch(::MakeIntrusive<TOperationPollerItem>(this_));
+        auto operationId = this_->GetId();
+        auto registry = TAbortableRegistry::Get();
+        registry->Add(
+            operationId,
+            ::MakeIntrusive<TOperationAbortable>(this_->ClientRetryPolicy_, this_->Auth_, operationId));
+        // We have to own an IntrusivePtr to registry to prevent use-after-free
+        auto removeOperation = [registry, operationId] (const NThreading::TFuture<void>&) {
+            registry->Remove(operationId);
+        };
+        this_->CompletePromise_->GetFuture().Subscribe(removeOperation);
+    });
 
     return *CompletePromise_;
 }
 
 EOperationBriefState TOperation::TOperationImpl::GetBriefState()
 {
+    ValidateOperationStarted();
     EOperationBriefState result = EOperationBriefState::InProgress;
     UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
         Y_VERIFY(attributes.BriefState,
             "get_operation for operation %s has not returned \"state\" field",
-            GetGuidAsString(Id_).Data());
+            GetGuidAsString(*Id_).Data());
         result = *attributes.BriefState;
     });
     return result;
@@ -2118,6 +2347,7 @@ EOperationBriefState TOperation::TOperationImpl::GetBriefState()
 
 TMaybe<TYtError> TOperation::TOperationImpl::GetError()
 {
+    ValidateOperationStarted();
     TMaybe<TYtError> result;
     UpdateAttributesAndCall(false, [&] (const TOperationAttributes& attributes) {
         Y_VERIFY(attributes.Result);
@@ -2128,6 +2358,7 @@ TMaybe<TYtError> TOperation::TOperationImpl::GetError()
 
 TJobStatistics TOperation::TOperationImpl::GetJobStatistics()
 {
+    ValidateOperationStarted();
     TJobStatistics result;
     UpdateAttributesAndCall(true, [&] (const TOperationAttributes& attributes) {
         if (attributes.Progress) {
@@ -2139,6 +2370,7 @@ TJobStatistics TOperation::TOperationImpl::GetJobStatistics()
 
 TMaybe<TOperationBriefProgress> TOperation::TOperationImpl::GetBriefProgress()
 {
+    ValidateOperationStarted();
     {
         auto g = Guard(Lock_);
         if (CompletePromise_.Defined()) {
@@ -2194,9 +2426,22 @@ void TOperation::TOperationImpl::AnalyzeUnrecognizedSpec(TNode unrecognizedSpec)
         YT_LOG_INFO(
             "WARNING! Unrecognized spec for operation %s is not empty "
             "(fields added by the YT API library are excluded): %s",
-            GetGuidAsString(Id_).Data(),
+            GetGuidAsString(*Id_).Data(),
             NodeToYsonString(unrecognizedSpec).Data());
     }
+}
+
+void TOperation::TOperationImpl::OnStarted(const TOperationId& operationId)
+{
+    auto guard = Guard(Lock_);
+    Y_VERIFY(!Id_,
+        "OnStarted() called with operationId = %s for operation with id %s",
+        GetGuidAsString(operationId).Data(),
+        GetGuidAsString(*Id_).Data());
+    Id_ = operationId;
+
+    Y_VERIFY(!StartedPromise_.HasValue() && !StartedPromise_.HasException());
+    StartedPromise_.SetValue();
 }
 
 void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics, std::function<void(const TOperationAttributes&)> func)
@@ -2215,7 +2460,7 @@ void TOperation::TOperationImpl::UpdateAttributesAndCall(bool needJobStatistics,
     TOperationAttributes attributes = NDetail::GetOperation(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         Auth_,
-        Id_,
+        *Id_,
         TGetOperationOptions().AttributeFilter(TOperationAttributeFilter()
             .Add(EOperationAttribute::Result)
             .Add(EOperationAttribute::Progress)
@@ -2238,41 +2483,50 @@ void TOperation::TOperationImpl::FinishWithException(std::exception_ptr e)
 
 void TOperation::TOperationImpl::AbortOperation()
 {
-    NYT::NDetail::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_);
+    ValidateOperationStarted();
+    NYT::NDetail::AbortOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_);
 }
 
 void TOperation::TOperationImpl::CompleteOperation()
 {
-    NYT::NDetail::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_);
+    ValidateOperationStarted();
+    NYT::NDetail::CompleteOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_);
 }
 
 void TOperation::TOperationImpl::SuspendOperation(const TSuspendOperationOptions& options)
 {
-    NYT::NDetail::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
+    ValidateOperationStarted();
+    NYT::NDetail::SuspendOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
 }
 
 void TOperation::TOperationImpl::ResumeOperation(const TResumeOperationOptions& options)
 {
-    NYT::NDetail::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
+    ValidateOperationStarted();
+    NYT::NDetail::ResumeOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
 }
 
-TOperationAttributes TOperation::TOperationImpl::GetAttributes(const TGetOperationOptions& options) {
-    return NYT::NDetail::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
+TOperationAttributes TOperation::TOperationImpl::GetAttributes(const TGetOperationOptions& options)
+{
+    ValidateOperationStarted();
+    return NYT::NDetail::GetOperation(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
 }
 
 void TOperation::TOperationImpl::UpdateParameters(const TUpdateOperationParametersOptions& options)
 {
-    return NYT::NDetail::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
+    ValidateOperationStarted();
+    return NYT::NDetail::UpdateOperationParameters(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
 }
 
 TJobAttributes TOperation::TOperationImpl::GetJob(const TJobId& jobId, const TGetJobOptions& options)
 {
-    return NYT::NDetail::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, jobId, options);
+    ValidateOperationStarted();
+    return NYT::NDetail::GetJob(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, jobId, options);
 }
 
 TListJobsResult TOperation::TOperationImpl::ListJobs(const TListJobsOptions& options)
 {
-    return NYT::NDetail::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, Id_, options);
+    ValidateOperationStarted();
+    return NYT::NDetail::ListJobs(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, *Id_, options);
 }
 
 struct TAsyncFinishOperationsArgs
@@ -2301,9 +2555,13 @@ void* TOperation::TOperationImpl::SyncFinishOperationProc(void* pArgs)
 
 void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttributes& attributes)
 {
+    {
+        auto guard = Guard(Lock_);
+        Y_VERIFY(Id_);
+    }
     Y_VERIFY(attributes.BriefState,
         "get_operation for operation %s has not returned \"state\" field",
-        GetGuidAsString(Id_).Data());
+        GetGuidAsString(*Id_).Data());
     Y_VERIFY(*attributes.BriefState != EOperationBriefState::InProgress);
 
     {
@@ -2326,7 +2584,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         Y_VERIFY(attributes.Result && attributes.Result->Error);
         const auto& error = *attributes.Result->Error;
         YT_LOG_ERROR("Operation %v is `%v' with error: %v",
-            Id_,
+            *Id_,
             ToString(*attributes.BriefState),
             error.FullDescription());
 
@@ -2334,7 +2592,7 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
         TVector<TFailedJobInfo> failedJobStderrInfo;
         if (*attributes.BriefState == EOperationBriefState::Failed) {
             try {
-                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(ClientRetryPolicy_, Auth_, Id_, TGetFailedJobInfoOptions());
+                failedJobStderrInfo = NYT::NDetail::GetFailedJobInfo(ClientRetryPolicy_, Auth_, *Id_, TGetFailedJobInfoOptions());
             } catch (const yexception& e) {
                 additionalExceptionText = "Cannot get job stderrs: ";
                 additionalExceptionText += e.what();
@@ -2346,13 +2604,27 @@ void TOperation::TOperationImpl::SyncFinishOperationImpl(const TOperationAttribu
                     *attributes.BriefState == EOperationBriefState::Failed
                         ? TOperationFailedError::Failed
                         : TOperationFailedError::Aborted,
-                    Id_,
+                    *Id_,
                     error,
                     failedJobStderrInfo) << additionalExceptionText));
     }
 }
 
+void TOperation::TOperationImpl::ValidateOperationStarted() const
+{
+    auto guard = Guard(Lock_);
+    if (!Id_) {
+        ythrow TApiUsageError() << "Operation is not started";
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TOperation::TOperation(TClientPtr client)
+    : Client_(std::move(client))
+    , Impl_(::MakeIntrusive<TOperationImpl>(Client_->GetRetryPolicy(), Client_->GetAuth()))
+{
+}
 
 TOperation::TOperation(TOperationId id, TClientPtr client)
     : Client_(std::move(client))
@@ -2370,9 +2642,49 @@ TString TOperation::GetWebInterfaceUrl() const
     return Impl_->GetWebInterfaceUrl();
 }
 
+void TOperation::OnPrepared()
+{
+    Impl_->OnPrepared();
+}
+
+void TOperation::SetDelayedStartFunction(std::function<TOperationId()> start)
+{
+    Impl_->SetDelayedStartFunction(std::move(start));
+}
+
+void TOperation::Start()
+{
+    Impl_->Start();
+}
+
+void TOperation::OnPreparationException(std::exception_ptr e)
+{
+    Impl_->OnPreparationException(std::move(e));
+}
+
+TString TOperation::GetStatus() const
+{
+    return Impl_->GetStatus();
+}
+
+void TOperation::OnStatusUpdated(const TString& newStatus)
+{
+    Impl_->OnStatusUpdated(newStatus);
+}
+
+NThreading::TFuture<void> TOperation::GetPreparedFuture()
+{
+    return Impl_->GetPreparedFuture();
+}
+
+NThreading::TFuture<void> TOperation::GetStartedFuture()
+{
+    return Impl_->GetStartedFuture();
+}
+
 NThreading::TFuture<void> TOperation::Watch()
 {
-    return Impl_->Watch(Client_->GetYtPoller());
+    return Impl_->Watch(Client_);
 }
 
 TVector<TFailedJobInfo> TOperation::GetFailedJobInfo(const TGetFailedJobInfoOptions& options)
@@ -2442,12 +2754,59 @@ TListJobsResult TOperation::ListJobs(const TListJobsOptions& options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options)
+struct TAsyncPrepareAndStartOperationArgs
+{
+    std::function<void()> PrepareAndStart;
+};
+
+void* SyncPrepareAndStartOperation(void* pArgs)
+{
+    THolder<TAsyncPrepareAndStartOperationArgs> args(static_cast<TAsyncPrepareAndStartOperationArgs*>(pArgs));
+    args->PrepareAndStart();
+    return nullptr;
+}
+
+::TIntrusivePtr<TOperation> ProcessOperation(
+    NYT::NDetail::TClientPtr client,
+    std::function<void()> prepare,
+    ::TIntrusivePtr<TOperation> operation,
+    const TOperationOptions& options)
+{
+    auto prepareAndStart = [prepare = std::move(prepare), operation, mode = options.StartOperationMode_] () {
+        try {
+            prepare();
+            operation->OnPrepared();
+        } catch (...) {
+            operation->OnPreparationException(std::current_exception());
+        }
+        if (mode >= TOperationOptions::EStartOperationMode::AsyncStart) {
+            try {
+                operation->Start();
+            } catch (...) { }
+        }
+    };
+    if (options.StartOperationMode_ >= TOperationOptions::EStartOperationMode::SyncStart) {
+        prepareAndStart();
+        WaitIfRequired(operation, client, options);
+    } else {
+        auto args = new TAsyncPrepareAndStartOperationArgs;
+        args->PrepareAndStart = std::move(prepareAndStart);
+
+        TThread thread(TThread::TParams(SyncPrepareAndStartOperation, args).SetName("prepare and start operation"));
+        thread.Start();
+        thread.Detach();
+    }
+    return operation;
+}
+
+void WaitIfRequired(const TOperationPtr& operation, const TClientPtr& client, const TOperationOptions& options)
 {
     auto retryPolicy = client->GetRetryPolicy();
     auto auth = client->GetAuth();
-    auto operation = ::MakeIntrusive<TOperation>(operationId, std::move(client));
-    if (options.Wait_) {
+    if (options.StartOperationMode_ >= TOperationOptions::EStartOperationMode::SyncStart) {
+        operation->GetStartedFuture().GetValueSync();
+    }
+    if (options.StartOperationMode_ == TOperationOptions::EStartOperationMode::SyncWait) {
         auto finishedFuture = operation->Watch();
         TWaitProxy::Get()->WaitFuture(finishedFuture);
         finishedFuture.GetValue();
@@ -2460,7 +2819,6 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
             }
         }
     }
-    return operation;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

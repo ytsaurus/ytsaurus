@@ -273,13 +273,22 @@ IOperationPtr TClientBase::DoMap(
     ::TIntrusivePtr<IStructuredJob> mapper,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteMap(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_ = ::TIntrusivePtr(this),
+        operation,
         spec,
-        *mapper,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        mapper,
+        options
+    ] () {
+        ExecuteMap(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            mapper,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::RawMap(
@@ -287,13 +296,22 @@ IOperationPtr TClientBase::RawMap(
     ::TIntrusivePtr<IRawJob> mapper,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteRawMap(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        *mapper,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        mapper,
+        options
+    ] () {
+        ExecuteRawMap(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            mapper,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::DoReduce(
@@ -301,13 +319,22 @@ IOperationPtr TClientBase::DoReduce(
     ::TIntrusivePtr<IStructuredJob> reducer,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteReduce(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        *reducer,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        reducer,
+        options
+    ] () {
+        ExecuteReduce(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            reducer,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::RawReduce(
@@ -315,13 +342,22 @@ IOperationPtr TClientBase::RawReduce(
     ::TIntrusivePtr<IRawJob> reducer,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteRawReduce(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        *reducer,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        reducer,
+        options
+    ] () {
+        ExecuteRawReduce(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            reducer,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::DoJoinReduce(
@@ -329,13 +365,22 @@ IOperationPtr TClientBase::DoJoinReduce(
     ::TIntrusivePtr<IStructuredJob> reducer,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteJoinReduce(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        *reducer,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        reducer,
+        options
+    ] () {
+        ExecuteJoinReduce(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            reducer,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::RawJoinReduce(
@@ -343,13 +388,22 @@ IOperationPtr TClientBase::RawJoinReduce(
     ::TIntrusivePtr<IRawJob> reducer,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteRawJoinReduce(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        *reducer,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        reducer,
+        options
+    ] () {
+        ExecuteRawJoinReduce(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            reducer,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::DoMapReduce(
@@ -359,15 +413,26 @@ IOperationPtr TClientBase::DoMapReduce(
     ::TIntrusivePtr<IStructuredJob> reducer,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteMapReduce(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        mapper.Get(),
-        reduceCombiner.Get(),
-        *reducer,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        mapper,
+        reduceCombiner,
+        reducer,
+        options
+    ] () {
+        ExecuteMapReduce(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            mapper,
+            reduceCombiner,
+            reducer,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::RawMapReduce(
@@ -377,75 +442,126 @@ IOperationPtr TClientBase::RawMapReduce(
     ::TIntrusivePtr<IRawJob> reducer,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteRawMapReduce(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_=::TIntrusivePtr(this),
+        operation,
         spec,
-        mapper.Get(),
-        reduceCombiner.Get(),
-        *reducer,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        mapper,
+        reduceCombiner,
+        reducer,
+        options
+    ] () {
+        ExecuteRawMapReduce(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            mapper,
+            reduceCombiner,
+            reducer,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::Sort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteSort(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_ = ::TIntrusivePtr(this),
+        operation,
         spec,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        options
+    ] () {
+        ExecuteSort(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::Merge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteMerge(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_ = ::TIntrusivePtr(this),
+        operation,
         spec,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        options
+    ] () {
+        ExecuteMerge(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::Erase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteErase(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_ = ::TIntrusivePtr(this),
+        operation,
         spec,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        options
+    ] () {
+        ExecuteErase(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::RemoteCopy(
     const TRemoteCopyOperationSpec& spec,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteRemoteCopy(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_ = ::TIntrusivePtr(this),
+        operation,
         spec,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        options
+    ] () {
+        ExecuteRemoteCopy(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::RunVanilla(
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options)
 {
-    TOperationPreparer preparer(GetParentClientImpl(), TransactionId_);
-    auto operationId = ExecuteVanilla(
-        preparer,
+    auto operation = ::MakeIntrusive<TOperation>(GetParentClientImpl());
+    auto prepareOperation = [
+        this_ = ::TIntrusivePtr(this),
+        operation,
         spec,
-        options);
-    return CreateOperationAndWaitIfRequired(operationId, GetParentClientImpl(), options);
+        options
+    ] () {
+        ExecuteVanilla(
+            operation,
+            ::MakeIntrusive<TOperationPreparer>(this_->GetParentClientImpl(), this_->TransactionId_),
+            spec,
+            options);
+    };
+    return ProcessOperation(GetParentClientImpl(), std::move(prepareOperation), std::move(operation), options);
 }
 
 IOperationPtr TClientBase::AttachOperation(const TOperationId& operationId)

@@ -2,7 +2,7 @@
 
 #include "init.h"
 #include "file_writer.h"
-#include "file_writer.h"
+#include "operation.h"
 #include "operation_helpers.h"
 #include "operation_tracker.h"
 #include "transaction.h"
@@ -79,6 +79,57 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperationForwardingRequestRetryPolicy
+    : public IRequestRetryPolicy
+{
+public:
+    TOperationForwardingRequestRetryPolicy(const IRequestRetryPolicyPtr& underlying, const TOperationPtr& operation)
+        : Underlying_(underlying)
+        , Operation_(operation)
+    { }
+
+    void NotifyNewAttempt() override
+    {
+        Underlying_->NotifyNewAttempt();
+    }
+
+    TMaybe<TDuration> OnGenericError(const yexception& e) override
+    {
+        UpdateOperationStatus(e);
+        return Underlying_->OnGenericError(e);
+    }
+
+    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
+    {
+        UpdateOperationStatus(e);
+        return Underlying_->OnRetriableError(e);
+    }
+
+    void OnIgnoredError(const TErrorResponse& e) override
+    {
+        Underlying_->OnIgnoredError(e);
+    }
+
+    TString GetAttemptDescription() const override
+    {
+        return Underlying_->GetAttemptDescription();
+    }
+
+private:
+    void UpdateOperationStatus(const yexception& e)
+    {
+        Y_VERIFY(Operation_);
+        Operation_->OnStatusUpdated(
+            ::TStringBuilder() << "Retriable error during operation start: " << e.AsStrBuf());
+    }
+
+private:
+    IRequestRetryPolicyPtr Underlying_;
+    TOperationPtr Operation_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transactionId)
     : Client_(std::move(client))
     , TransactionId_(transactionId)
@@ -112,6 +163,7 @@ const IClientRetryPolicyPtr& TOperationPreparer::GetClientRetryPolicy() const
 }
 
 TOperationId TOperationPreparer::StartOperation(
+    TOperation* operation,
     const TString& operationType,
     const TNode& spec,
     bool useStartOperationRequest)
@@ -127,7 +179,9 @@ TOperationId TOperationPreparer::StartOperation(
 
     auto ysonSpec = NodeToYsonString(spec);
     auto responseInfo = RetryRequestWithPolicy(
-        ClientRetryPolicy_->CreatePolicyForStartOperationRequest(),
+        ::MakeIntrusive<TOperationForwardingRequestRetryPolicy>(
+            ClientRetryPolicy_->CreatePolicyForStartOperationRequest(),
+            TOperationPtr(operation)),
         GetAuth(),
         header,
         ysonSpec);
