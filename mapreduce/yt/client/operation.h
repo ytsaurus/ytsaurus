@@ -24,10 +24,23 @@ public:
     class TOperationImpl;
 
 public:
+    explicit TOperation(TClientPtr client);
     TOperation(TOperationId id, TClientPtr client);
     virtual const TOperationId& GetId() const override;
     virtual TString GetWebInterfaceUrl() const override;
+
+    void OnPrepared();
+    void SetDelayedStartFunction(std::function<TOperationId()> start);
+    virtual void Start() override;
+    void OnPreparationException(std::exception_ptr e);
+
+    virtual TString GetStatus() const override;
+    void OnStatusUpdated(const TString& newStatus);
+
+    virtual NThreading::TFuture<void> GetPreparedFuture() override;
+    virtual NThreading::TFuture<void> GetStartedFuture() override;
     virtual NThreading::TFuture<void> Watch() override;
+
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
     virtual EOperationBriefState GetBriefState() override;
     virtual TMaybe<TYtError> GetError() override;
@@ -74,80 +87,93 @@ TSimpleOperationIo CreateSimpleOperationIoHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationId ExecuteMap(
-    TOperationPreparer& preparer,
+void ExecuteMap(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMapOperationSpec& spec,
-    const IStructuredJob& mapper,
+    const ::TIntrusivePtr<IStructuredJob>& mapper,
     const TOperationOptions& options);
 
-TOperationId ExecuteRawMap(
-    TOperationPreparer& preparer,
+void ExecuteRawMap(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawMapOperationSpec& spec,
-    const IRawJob& mapper,
+    const ::TIntrusivePtr<IRawJob>& mapper,
     const TOperationOptions& options);
 
-TOperationId ExecuteReduce(
-    TOperationPreparer& preparer,
+void ExecuteReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TReduceOperationSpec& spec,
-    const IStructuredJob& reducer,
+    const ::TIntrusivePtr<IStructuredJob>& reducer,
     const TOperationOptions& options);
 
-TOperationId ExecuteRawReduce(
-    TOperationPreparer& preparer,
+void ExecuteRawReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawReduceOperationSpec& spec,
-    const IRawJob& reducer,
+    const ::TIntrusivePtr<IRawJob>& reducer,
     const TOperationOptions& options);
 
-TOperationId ExecuteJoinReduce(
-    TOperationPreparer& preparer,
+void ExecuteJoinReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TJoinReduceOperationSpec& spec,
-    const IStructuredJob& reducer,
+    const ::TIntrusivePtr<IStructuredJob>& reducer,
     const TOperationOptions& options);
 
-TOperationId ExecuteRawJoinReduce(
-    TOperationPreparer& preparer,
+void ExecuteRawJoinReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawJoinReduceOperationSpec& spec,
-    const IRawJob& reducer,
+    const ::TIntrusivePtr<IRawJob>& reducer,
     const TOperationOptions& options);
 
-TOperationId ExecuteMapReduce(
-    TOperationPreparer& preparer,
+void ExecuteMapReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMapReduceOperationSpec& spec,
-    const IStructuredJob* mapper,
-    const IStructuredJob* reduceCombiner,
-    const IStructuredJob& reducer,
+    const ::TIntrusivePtr<IStructuredJob>& mapper,
+    const ::TIntrusivePtr<IStructuredJob>& reduceCombiner,
+    const ::TIntrusivePtr<IStructuredJob>& reducer,
     const TOperationOptions& options);
 
-TOperationId ExecuteRawMapReduce(
-    TOperationPreparer& preparer,
+void ExecuteRawMapReduce(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRawMapReduceOperationSpec& spec,
-    const IRawJob* mapper,
-    const IRawJob* reduceCombiner,
-    const IRawJob& reducer,
+    const ::TIntrusivePtr<IRawJob>& mapper,
+    const ::TIntrusivePtr<IRawJob>& reduceCombiner,
+    const ::TIntrusivePtr<IRawJob>& reducer,
     const TOperationOptions& options);
 
-TOperationId ExecuteSort(
-    TOperationPreparer& preparer,
+void ExecuteSort(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TSortOperationSpec& spec,
     const TOperationOptions& options);
 
-TOperationId ExecuteMerge(
-    TOperationPreparer& preparer,
+void ExecuteMerge(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TMergeOperationSpec& spec,
     const TOperationOptions& options);
 
-TOperationId ExecuteErase(
-    TOperationPreparer& preparer,
+void ExecuteErase(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
-TOperationId ExecuteRemoteCopy(
-    TOperationPreparer& preparer,
+void ExecuteRemoteCopy(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TRemoteCopyOperationSpec& spec,
     const TOperationOptions& options);
 
-TOperationId ExecuteVanilla(
-    TOperationPreparer& preparer,
+void ExecuteVanilla(
+    const TOperationPtr& operation,
+    const TOperationPreparerPtr& preparer,
     const TVanillaOperationSpec& spec,
     const TOperationOptions& options);
 
@@ -163,7 +189,13 @@ void WaitForOperation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options);
+::TIntrusivePtr<TOperation> ProcessOperation(
+    NYT::NDetail::TClientPtr client,
+    std::function<void()> prepare,
+    ::TIntrusivePtr<TOperation> operation,
+    const TOperationOptions& options);
+
+void WaitIfRequired(const TOperationPtr& operation, const TClientPtr& client, const TOperationOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

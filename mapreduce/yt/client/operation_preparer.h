@@ -9,7 +9,10 @@ namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TOperation;
+
 class TOperationPreparer
+    : public TThrRefBase
 {
 public:
     TOperationPreparer(TClientPtr client, TTransactionId transactionId);
@@ -22,6 +25,7 @@ public:
     void LockFiles(TVector<TRichYPath>* paths);
 
     TOperationId StartOperation(
+        TOperation* operation,
         const TString& operationType,
         const TNode& spec,
         bool useStartOperationRequest = false);
@@ -38,6 +42,8 @@ private:
 private:
     void CheckValidity() const;
 };
+
+using TOperationPreparerPtr = ::TIntrusivePtr<TOperationPreparer>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

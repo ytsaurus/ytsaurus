@@ -1387,8 +1387,38 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TNode, Spec);
 
     ///
+    /// @brief Start operation mode.
+    enum class EStartOperationMode : int
+    {
+        ///
+        /// @brief Prepare operation asynchronously. Call IOperation::Start() to start operation.
+        AsyncPrepare,
+
+        ///
+        /// @brief Prepare and start operation asynchronously. Don't wait for operation completion.
+        AsyncStart,
+
+        ///
+        /// @brief Prepare and start operation synchronously. Don't wait for operation completion.
+        SyncStart,
+
+        ///
+        /// @brief Prepare, start and wait for operation completion synchronously.
+        SyncWait,
+    };
+
+    ///
+    /// @brief Start operation mode.
+    FLUENT_FIELD_DEFAULT(EStartOperationMode, StartOperationMode, EStartOperationMode::SyncWait);
+
+    ///
     /// @brief Wait for operation finish synchronously.
-    FLUENT_FIELD_DEFAULT(bool, Wait, true);
+    ///
+    /// @deprecated Use StartOperationMode() instead.
+    TSelf& Wait(bool value) {
+        StartOperationMode_ = value ? EStartOperationMode::SyncWait : EStartOperationMode::SyncStart;
+        return static_cast<TSelf&>(*this);
+    }
 
     ///
     ///
@@ -2874,6 +2904,34 @@ struct IOperation
     ///
     /// @brief Get URL of the operation in YT Web UI.
     virtual TString GetWebInterfaceUrl() const = 0;
+
+    ///
+    /// @brief Get last error for not started operations. Get state on YT cluster for started operations.
+    ///
+    /// For not started operations last error is an error that's being retried during operation
+    /// preparation/start (e.g. lock files, start operation request).
+    virtual TString GetStatus() const = 0;
+
+    ///
+    /// @brief Get preparation future.
+    ///
+    /// @return future that is set when operation is prepared.
+    virtual ::NThreading::TFuture<void> GetPreparedFuture() = 0;
+
+    ///
+    /// @brief Start operation synchronously.
+    ///
+    /// @note: Do NOT call this method twice.
+    ///
+    /// If operation is not prepared yet, Start() will block waiting for preparation finish.
+    /// Be ready to catch exception if operation preparation or start failed.
+    virtual void Start() = 0;
+
+    ///
+    /// @brief Get start future.
+    ///
+    /// @return future that is set when operation is started.
+    virtual ::NThreading::TFuture<void> GetStartedFuture() = 0;
 
     ///
     /// @brief Start watching operation.

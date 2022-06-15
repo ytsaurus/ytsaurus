@@ -3859,4 +3859,189 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
     }
 
+    Y_UNIT_TEST(FuturesAfterPreparationFailed)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        for (auto mode : {
+            TOperationOptions::EStartOperationMode::AsyncPrepare,
+            TOperationOptions::EStartOperationMode::AsyncStart,
+        }) {
+            auto operation = client->Map(
+                new TIdMapper,
+                {workingDir + "/non-existent-table"},
+                {},
+                TMapOperationSpec(),
+                TOperationOptions().StartOperationMode(mode));
+            UNIT_ASSERT_EXCEPTION(operation->GetPreparedFuture().GetValueSync(), TErrorResponse);
+            UNIT_ASSERT_EXCEPTION(operation->GetStartedFuture().GetValueSync(), TErrorResponse);
+            UNIT_ASSERT_EXCEPTION(operation->Watch().GetValueSync(), TErrorResponse);
+            if (mode == TOperationOptions::EStartOperationMode::AsyncPrepare) {
+                UNIT_ASSERT_EXCEPTION(operation->Start(), TErrorResponse);
+            }
+        }
+    }
+
+    Y_UNIT_TEST(FuturesAfterStartFailed)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->StartOperationRetryCount = 3;
+        TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
+
+        CreateTableWithFooColumn(client, workingDir + "/input");
+
+        for (auto mode : {
+            TOperationOptions::EStartOperationMode::AsyncPrepare,
+            TOperationOptions::EStartOperationMode::AsyncStart,
+        }) {
+            auto outage = TAbortableHttpResponse::StartOutage("/map");
+            auto operation = client->Map(
+                new TIdMapper,
+                {workingDir + "/input"},
+                {workingDir + "/output"},
+                TMapOperationSpec(),
+                TOperationOptions().StartOperationMode(mode));
+            operation->GetPreparedFuture().GetValueSync();
+            if (mode == TOperationOptions::EStartOperationMode::AsyncPrepare) {
+                UNIT_ASSERT_EXCEPTION(operation->Start(), TAbortedForTestPurpose);
+            }
+            UNIT_ASSERT_EXCEPTION(operation->GetStartedFuture().GetValueSync(), TAbortedForTestPurpose);
+            UNIT_ASSERT_EXCEPTION(operation->Watch().GetValueSync(), TAbortedForTestPurpose);
+        }
+    }
+
+    Y_UNIT_TEST(FuturesAfterOperationFailed)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto writer = client->CreateTableWriter<TNode>(inputTable);
+        writer->AddRow(TNode()("key", 1));
+        writer->Finish();
+
+        for (auto mode : {
+            TOperationOptions::EStartOperationMode::AsyncPrepare,
+            TOperationOptions::EStartOperationMode::AsyncStart,
+            TOperationOptions::EStartOperationMode::SyncStart,
+        }) {
+            auto operation = client->Map(
+                new TSleepingMapper(TDuration::Seconds(3)),
+                {inputTable},
+                {workingDir + "/output"},
+                TMapOperationSpec().TimeLimit(TDuration::Seconds(2)),
+                TOperationOptions().StartOperationMode(mode));
+            operation->GetPreparedFuture().GetValueSync();
+            if (mode == TOperationOptions::EStartOperationMode::AsyncPrepare) {
+                operation->Start();
+            }
+            operation->GetStartedFuture().GetValueSync();
+            UNIT_ASSERT_EXCEPTION_CONTAINS(
+                operation->Watch().GetValueSync(),
+                TOperationFailedError,
+                "Operation is running for too long");
+        }
+    }
+
+    Y_UNIT_TEST(FuturesOfAttachedOperation)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
+            writer->AddRow(TNode()("foo", "baz"));
+            writer->Finish();
+        }
+
+        TOperationId operationId;
+
+        {
+            auto operation = client->Map(
+                TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+                new TSleepingMapper(TDuration::Seconds(100)),
+                TOperationOptions().Wait(false));
+            operationId = operation->GetId();
+        }
+
+        auto attached = client->AttachOperation(operationId);
+        attached->GetPreparedFuture().GetValueSync();
+        attached->GetStartedFuture().GetValueSync();
+
+        attached->AbortOperation();
+        UNIT_ASSERT_EXCEPTION(attached->Watch().GetValueSync(), TOperationFailedError);
+    }
+
+    Y_UNIT_TEST(StartOperationModes)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("key", 1));
+            writer->Finish();
+        }
+
+        for (auto mode : {
+            TOperationOptions::EStartOperationMode::AsyncPrepare,
+            TOperationOptions::EStartOperationMode::AsyncStart,
+            TOperationOptions::EStartOperationMode::SyncStart,
+            TOperationOptions::EStartOperationMode::SyncWait,
+        }) {
+            auto operation = client->Map(
+                new TIdMapper,
+                {inputTable},
+                {workingDir + "/output"},
+                TMapOperationSpec(),
+                TOperationOptions().StartOperationMode(mode));
+            operation->GetPreparedFuture().GetValueSync();
+            if (mode == TOperationOptions::EStartOperationMode::AsyncPrepare) {
+                operation->Start();
+            }
+            operation->GetStartedFuture().GetValueSync();
+            operation->Watch().GetValueSync();
+        }
+    }
+
+    Y_UNIT_TEST(GetStatus)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->StartOperationRetryCount = 5;
+        TConfig::Get()->StartOperationRetryInterval = TDuration::Seconds(1);
+
+        CreateTableWithFooColumn(client, workingDir + "/input");
+
+        auto outage = TAbortableHttpResponse::StartOutage("/map");
+        auto operation = client->Map(
+            new TIdMapper,
+            {workingDir + "/input"},
+            {workingDir + "/output"},
+            TMapOperationSpec(),
+            TOperationOptions().StartOperationMode(TOperationOptions::EStartOperationMode::AsyncStart));
+
+        while (!operation->GetStatus().StartsWith("Retriable error during operation start")) {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+        outage.Stop();
+        operation->Watch().GetValueSync();
+        UNIT_ASSERT_VALUES_EQUAL(operation->GetStatus(), "On YT cluster: completed");
+    }
+
 } // Y_UNIT_TEST_SUITE(Operations)
