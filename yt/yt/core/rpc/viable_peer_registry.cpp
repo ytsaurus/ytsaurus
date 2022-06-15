@@ -59,7 +59,12 @@ public:
             HashToActiveChannel_.erase(std::make_pair(hash, address));
         });
 
-        PriorityToActivePeers_[activePeerIt->second].Erase(address);
+        auto activePeersForPriorityIt = PriorityToActivePeers_.find(activePeerIt->second);
+        YT_VERIFY(activePeersForPriorityIt != PriorityToActivePeers_.end());
+        activePeersForPriorityIt->second.Erase(address);
+        if (activePeersForPriorityIt->second.Size() == 0) {
+            PriorityToActivePeers_.erase(activePeersForPriorityIt);
+        }
 
         ActivePeerToPriority_.Erase(address);
 
@@ -159,7 +164,7 @@ public:
         }
 
         const auto& viablePeers = PriorityToActivePeers_.begin()->second;
-
+        YT_VERIFY(viablePeers.Size() != 0);
         int peerIndex = RandomNumber<size_t>(viablePeers.Size());
 
         IChannelPtr channel;
