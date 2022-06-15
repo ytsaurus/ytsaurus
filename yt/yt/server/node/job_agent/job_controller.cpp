@@ -399,18 +399,23 @@ void TJobController::TImpl::Initialize()
         ReservedMappedMemoryChecker_->Start();
     }
 
+    // Do not set period initially to defer start.
     JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
-        BIND(&TImpl::UpdateJobProxyBuildInfo, MakeWeak(this)),
-        Config_->JobProxyBuildInfoUpdatePeriod);
+        BIND(&TImpl::UpdateJobProxyBuildInfo, MakeWeak(this)));
+    // Start nominally.
     JobProxyBuildInfoUpdater_->Start();
-    // Fetch initial job proxy build info immediately.
-    JobProxyBuildInfoUpdater_->ScheduleOutOfBand();
+
+    // Get ready event before actual start.
+    auto buildInfoReadyEvent = JobProxyBuildInfoUpdater_->GetExecutedEvent();
+
+    // Actual start and fetch initial job proxy build info immediately. No need to call ScheduleOutOfBand.
+    JobProxyBuildInfoUpdater_->SetPeriod(Config_->JobProxyBuildInfoUpdatePeriod);
 
     // Wait synchronously for one update in order to get some reasonable value in CachedJobProxyBuildInfo_.
     // Note that if somebody manages to request orchid before this field is set, this will result to nullptr
     // dereference.
-    WaitFor(JobProxyBuildInfoUpdater_->GetExecutedEvent())
+    WaitFor(buildInfoReadyEvent)
         .ThrowOnError();
 
     const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -1367,7 +1372,7 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
 
     for (const auto& protoJobToAbort : response->jobs_to_abort()) {
         auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
-        
+
         if (auto job = FindJob(jobToAbort.JobId)) {
             AbortJob(job, std::move(jobToAbort));
         } else {

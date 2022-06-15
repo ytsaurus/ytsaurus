@@ -55,7 +55,7 @@ public:
     TNodeGroupConfigBase()
     {
         RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
-            .Default(5)
+            .Default(20)
             .GreaterThanOrEqual(0);
     }
 };
@@ -131,10 +131,10 @@ public:
             .Default(TDuration::Minutes(1));
 
         RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
-            .Default(5)
+            .Default(20)
             .GreaterThanOrEqual(0);
         RegisterParameter("max_concurrent_node_unregistrations", MaxConcurrentNodeUnregistrations)
-            .Default(5)
+            .Default(20)
             .GreaterThan(0);
 
         RegisterParameter("max_concurrent_cluster_node_heartbeats", MaxConcurrentClusterNodeHeartbeats)

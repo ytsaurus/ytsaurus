@@ -352,6 +352,8 @@ class YTEnvSetup(object):
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
 
+        yt.logger.info("Creating cluster instance")
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             use_native_client=True,
