@@ -80,11 +80,13 @@ public:
             ZSTD_freeCCtx(context);
         });
 
-        output.Reserve(output.Size() + MaxZstdFrameLength + ZstdSyncTagLength);
+        auto frameLength = ZSTD_COMPRESSBOUND(std::min<i64>(MaxZstdFrameUncompressedLength, input.Size()));
+
+        output.Reserve(output.Size() + frameLength + ZstdSyncTagLength);
         size_t size = ZSTD_compressCCtx(
             context,
             output.Data() + output.Size(),
-            MaxZstdFrameLength,
+            frameLength,
             input.Data(),
             input.Size(),
             CompressionLevel_);

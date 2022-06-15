@@ -585,6 +585,8 @@ def get_chaos_node_config():
     ];
 
     data_node = {
+        incremental_heartbeat_period = 200;
+        incremental_heartbeat_period_splay = 50;
         block_cache = {
             compressed_data = {
                 capacity = 0;

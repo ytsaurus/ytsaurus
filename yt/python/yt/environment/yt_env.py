@@ -14,7 +14,7 @@ from .init_cluster import _initialize_world
 from .local_cypress import _synchronize_cypress_with_local_dir
 from .local_cluster_configuration import modify_cluster_configuration
 
-from yt.common import YtError, remove_file, makedirp, update, get_value, which
+from yt.common import YtError, remove_file, makedirp, update, get_value, which, to_native_str
 from yt.wrapper.common import flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -88,11 +88,18 @@ def _get_yt_versions(custom_paths):
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
                 "ytserver-tablet-balancer"]
-    for binary in binaries:
-        binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
-        if binary_path is not None:
-            version_string = subprocess.check_output([binary_path, "--version"])
-            result[binary] = _parse_version(version_string)
+
+    binary_paths = [(binary, _get_yt_binary_path(binary, custom_paths=custom_paths)) for binary in binaries]
+
+    # It is important to run processes simultaneously to reduce delay when reading output.
+    processes = [(name, subprocess.Popen([path, "--version"], stdout=subprocess.PIPE)) for
+                 name, path in binary_paths if path is not None]
+
+    for name, process in processes:
+        stdout, stderr = process.communicate()
+        process.poll()
+        result[name] = _parse_version(to_native_str(stdout))
+
     return result
 
 
@@ -182,6 +189,8 @@ class YTInstance(object):
         else:
             self.custom_paths = None
 
+        logger.info("Getting versions of binaries")
+
         with push_front_env_path(self.bin_path):
             self._binary_to_version = _get_yt_versions(custom_paths=self.custom_paths)
 
@@ -192,6 +201,7 @@ class YTInstance(object):
 
         abi_versions = set(imap(lambda v: v.abi, self._binary_to_version.values()))
         self.abi_version = abi_versions.pop()
+        logger.info("Abi version is {}".format(self.abi_version))
 
         self._lock = RLock()
 
@@ -313,10 +323,13 @@ class YTInstance(object):
             logger.warning("Master count is zero. Instance is not prepared.")
             return
 
+        logger.info("Preparing directories")
         dirs = self._prepare_directories()
 
+        logger.info("Building configs")
         cluster_configuration = build_configs(self.yt_config, ports_generator, dirs, self.logs_path)
 
+        logger.info("Modifying configs")
         modify_cluster_configuration(self.yt_config, cluster_configuration)
 
         if modify_configs_func:
@@ -324,6 +337,7 @@ class YTInstance(object):
 
         self._cluster_configuration = cluster_configuration
 
+        logger.info("Preparing server configs")
         if self.yt_config.master_count + self.yt_config.secondary_cell_count > 0:
             self._prepare_masters(cluster_configuration["master"])
         if self.yt_config.clock_count > 0:
@@ -353,11 +367,13 @@ class YTInstance(object):
         if self.yt_config.tablet_balancer_count > 0:
             self._prepare_tablet_balancers(cluster_configuration["tablet_balancer"])
 
+        logger.info("Preparing driver configs")
         self._prepare_drivers(
             cluster_configuration["driver"],
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
             cluster_configuration["clock"])
+        logger.info("Finished preparing driver configs")
 
     def _make_service_dirs(self, service_name, count, in_tmpfs=False):
         if in_tmpfs:
