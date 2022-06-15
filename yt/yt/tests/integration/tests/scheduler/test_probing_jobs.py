@@ -1,4 +1,6 @@
 import datetime
+import time
+
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -339,6 +341,24 @@ class TestProbingJobs(YTEnvSetup):
         assert counters["aborted"] == 3
         assert counters["completed"] == 1
         assert counters["total"] == 1
+
+    @authors("renadeen")
+    def test_request_speculative_and_probing_but_agent_launches_only_one_of_them(self):
+        create_custom_pool_tree_with_one_node("cloud_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={
+            "probing_ratio": 1,
+            "probing_pool_tree": "cloud_tree",
+            "testing": {"testing_speculative_launch_mode": "always"}
+        }, job_count=1)
+        wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+
+        time.sleep(2)
+        assert get(op.get_path() + "/@brief_progress/jobs")["running"] == 2
+        # We don't care whether probing or speculative were launched.
+
+        release_breakpoint()
+        op.track()
 
     def run_vanilla_with_probing_job(self):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={

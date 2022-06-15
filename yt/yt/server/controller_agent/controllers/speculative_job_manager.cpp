@@ -25,6 +25,7 @@ TSpeculativeJobManager::TSpeculativeJobManager(
 void TSpeculativeJobManager::OnJobScheduled(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
+        BanCookie(joblet->OutputCookie);
         return;
     }
 

@@ -37,6 +37,7 @@ TProbingJobManager::TProbingJobManager(
 void TProbingJobManager::OnJobScheduled(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet)) {
+        BanCookie(joblet->OutputCookie);
         return;
     }
 
