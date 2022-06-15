@@ -428,6 +428,28 @@ TEST(TPreferLocalViablePeerRegistryTest, Simple)
     }
 }
 
+TEST(TPreferLocalViablePeerRegistryTest, DoNotCrashIfNoLocalPeers)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(EPeerPriorityStrategy::PreferLocal, channelFactory, 3);
+
+    auto finally = Finally([oldLocalHostName = NNet::GetLocalHostName()] {
+        NNet::WriteLocalHostName(oldLocalHostName);
+    });
+    NNet::WriteLocalHostName("home.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b.sas.yp-c.yandex.net"));
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a.man.yp-c.yandex.net"));
+
+    auto req = CreateRequest();
+    auto localChannel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
+    EXPECT_EQ(localChannel->GetEndpointDescription(), "a.man.yp-c.yandex.net");
+
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("a.man.yp-c.yandex.net"));
+    auto otherChannel = viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
+    EXPECT_EQ(otherChannel->GetEndpointDescription(), "b.sas.yp-c.yandex.net");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
