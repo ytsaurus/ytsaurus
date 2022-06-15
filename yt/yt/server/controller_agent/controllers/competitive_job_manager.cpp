@@ -26,19 +26,22 @@ TCompetitiveJobManagerBase::TCompetitiveJobManagerBase(
 
 bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
 {
+    auto Logger = this->Logger
+        .WithTag("JobId: %v", joblet->JobId)
+        .WithTag("Cookie: %v", joblet->OutputCookie);
+
     if (!IsRelevant(joblet)) {
-        YT_LOG_DEBUG("Ignoring competitive job request; job is not relevant (JobId: %v, Cookie: %v)",
-            joblet->JobId,
-            joblet->OutputCookie);
+        YT_LOG_DEBUG("Ignoring competitive job request; job is not relevant");
+        return false;
+    }
+
+    if (BannedCookies_.contains(joblet->OutputCookie)) {
+        YT_LOG_DEBUG("Ignoring competitive job request; cookie is banned");
         return false;
     }
 
     auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
     std::optional<TString> rejectReason;
-
-    auto Logger = this->Logger
-        .WithTag("JobId: %v", joblet->JobId)
-        .WithTag("Cookie: %v", joblet->OutputCookie);
 
     if (JobCounter_->GetTotal() >= MaxCompetitiveJobCount_) {
         YT_LOG_DEBUG("Ignoring competitive job request; competitive job limit reached (Limit: %v)", MaxCompetitiveJobCount_);
@@ -168,6 +171,19 @@ void TCompetitiveJobManagerBase::MarkCompetitionAsCompleted(const TJobletPtr& jo
     }
 }
 
+void TCompetitiveJobManagerBase::BanCookie(IChunkPoolOutput::TCookie cookie)
+{
+    YT_LOG_DEBUG("Competitive manager is banning cookie (Cookie: %v)", cookie);
+    BannedCookies_.insert(cookie);
+
+    if (auto it = CompetitionCandidates_.find(cookie); it != CompetitionCandidates_.end()) {
+        auto competition = GetOrCrash(CookieToCompetition_, cookie);
+        PendingDataWeight_ -= competition->PendingDataWeight;
+        CompetitionCandidates_.erase(it);
+        competition->ProgressCounterGuard.SetCategory(EProgressCategory::None);
+    }
+}
+
 i64 TCompetitiveJobManagerBase::GetPendingCandidatesDataWeight() const
 {
     return PendingDataWeight_;
@@ -214,6 +230,9 @@ void TCompetitiveJobManagerBase::Persist(const TPersistenceContext& context)
     Persist(context, MaxCompetitiveJobCount_);
     Persist(context, CompetitionType_);
     Persist(context, Logger);
+    if (context.GetVersion() >= ESnapshotVersion::ProbingJobsFix) {
+        Persist(context, BannedCookies_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

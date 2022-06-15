@@ -35,6 +35,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ResourceOverdraftJobProxy)            (300904))
     ((ResourceOverdraftJobId)               (300905))
     ((DropLogAndProfile)                    (300906))
+    ((ProbingJobsFix)                       (300907))
     // 22.3 start here
     ((DropUnusedOperationId)                (301001))
 );
