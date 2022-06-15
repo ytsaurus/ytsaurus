@@ -124,7 +124,9 @@ class YtOutputCommitter(jobId: String,
   }
 
   override def commitTask(taskContext: TaskAttemptContext): FileCommitProtocol.TaskCommitMessage = {
-    new FileCommitProtocol.TaskCommitMessage(taskContext.getConfiguration.ytConf(Transaction))
+    val transactionId = taskContext.getConfiguration.ytConf(Transaction)
+    muteTransaction(transactionId)
+    new FileCommitProtocol.TaskCommitMessage(transactionId)
   }
 
   override def deleteWithJob(fs: FileSystem, path: Path, recursive: Boolean): Boolean = {
@@ -192,6 +194,12 @@ object YtOutputCommitter {
       case e: Throwable =>
         abortTransaction(transaction.getId.toString)
         throw e
+    }
+  }
+
+  def muteTransaction(transaction: String): Unit = {
+    pingFutures.get(transaction).foreach { transaction =>
+      transaction.stopPing()
     }
   }
 
