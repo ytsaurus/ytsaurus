@@ -1,10 +1,13 @@
 #include "thread_pool_detail.h"
+#include "private.h"
 
 #include <yt/yt/core/actions/invoker_util.h>
 
 #include <algorithm>
 
 namespace NYT::NConcurrency {
+
+static const auto& Logger = ConcurrencyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,10 +116,14 @@ void TThreadPoolBase::Resize()
 {
     decltype(Threads_) threadsToStart;
     decltype(Threads_) threadsToStop;
+
+    int threadCount;
+    int oldThreadCount;
     {
         auto guard = Guard(SpinLock_);
+        oldThreadCount = std::ssize(Threads_);
 
-        int threadCount = ThreadCount_.load();
+        threadCount = ThreadCount_.load();
 
         while (std::ssize(Threads_) < threadCount) {
             auto thread = SpawnThread(std::ssize(Threads_));
@@ -129,6 +136,10 @@ void TThreadPoolBase::Resize()
             Threads_.pop_back();
         }
     }
+
+    YT_LOG_DEBUG("Thread pool reconfigured (ThreadPoolSize: %v -> %v)",
+        oldThreadCount,
+        threadCount);
 
     for (const auto& thread : threadsToStop) {
         thread->Stop();
