@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/ytlib/program/build_attributes.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
