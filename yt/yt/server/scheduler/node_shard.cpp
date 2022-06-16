@@ -1,4 +1,5 @@
 #include "node_shard.h"
+#include "node_manager.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "operation_controller.h"
@@ -140,10 +141,12 @@ TNodeShard::TNodeShard(
     int id,
     TSchedulerConfigPtr config,
     INodeShardHost* host,
+    INodeManagerHost* managerHost,
     TBootstrap* bootstrap)
     : Id_(id)
     , Config_(std::move(config))
     , Host_(host)
+    , ManagerHost_(managerHost)
     , Bootstrap_(bootstrap)
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , CachedExecNodeDescriptorsRefresher_(New<TPeriodicExecutor>(
@@ -482,7 +485,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
-        Host_->FormatHeartbeatResourceUsage(
+        ManagerHost_->FormatHeartbeatResourceUsage(
             ToJobResources(resourceUsage),
             ToJobResources(resourceLimits),
             request->disk_resources()
@@ -559,7 +562,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         SoftConcurrentHeartbeatLimitReachedCounter_.Increment();
     }
 
-    response->set_operation_archive_version(Host_->GetOperationArchiveVersion());
+    response->set_operation_archive_version(ManagerHost_->GetOperationArchiveVersion());
 
     BeginNodeHeartbeatProcessing(node);
     auto finallyGuard = Finally([&, cancelableContext = CancelableContext_] {
@@ -607,7 +610,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
                 address,
                 job->GetId(),
                 job->GetOperationId());
-            
+
             OnJobAborted(job, error);
         }
     }
@@ -632,7 +635,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             }
         }
         if (hasGracefulPreemptionCandidates) {
-            Host_->GetStrategy()->PreemptJobsGracefully(schedulingContext);
+            ManagerHost_->GetStrategy()->PreemptJobsGracefully(schedulingContext);
         }
     }
 
@@ -649,7 +652,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     if (!skipScheduleJobs) {
         YT_PROFILE_TIMING("/scheduler/schedule_time") {
             HeartbeatWithScheduleJobsCounter_.Increment();
-            Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
+            Y_UNUSED(WaitFor(ManagerHost_->GetStrategy()->ScheduleJobs(schedulingContext)));
         }
 
         const auto& statistics = schedulingContext->GetSchedulingStatistics();
@@ -915,7 +918,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
-            auto updateResult = WaitFor(Host_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
+            auto updateResult = WaitFor(ManagerHost_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")
                     << TErrorAttribute("node_id", nodeId)
@@ -1021,7 +1024,7 @@ void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TSt
 
     auto job = GetJobOrThrow(jobId);
 
-    WaitFor(Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Read)))
+    WaitFor(ManagerHost_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Read)))
         .ThrowOnError();
 
     YT_LOG_DEBUG("Saving input contexts (JobId: %v, OperationId: %v, Path: %v, User: %v)",
@@ -1046,7 +1049,7 @@ void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TSt
     auto chunkIds = FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     YT_VERIFY(chunkIds.size() == 1);
 
-    auto asyncResult = Host_->AttachJobContext(path, chunkIds.front(), job->GetOperationId(), jobId, user);
+    auto asyncResult = ManagerHost_->AttachJobContext(path, chunkIds.front(), job->GetOperationId(), jobId, user);
     WaitFor(asyncResult)
         .ThrowOnError();
 
@@ -1080,7 +1083,7 @@ void TNodeShard::AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> in
 
     auto job = GetJobOrThrow(jobId);
 
-    WaitFor(Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage)))
+    WaitFor(ManagerHost_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage)))
         .ThrowOnError();
 
     if (auto allocationState = job->GetAllocationState();
@@ -1662,7 +1665,7 @@ void TNodeShard::DoUnregisterNode(const TExecNodePtr& node)
 
     const auto& address = node->GetDefaultAddress();
 
-    Host_->GetStrategy()->UnregisterNode(node->GetId(), address);
+    ManagerHost_->GetStrategy()->UnregisterNode(node->GetId(), address);
 
     YT_LOG_INFO("Node unregistered (Address: %v)", address);
 }
@@ -1951,7 +1954,7 @@ void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std:
 {
     // TODO(eshcherbin): Think about how to partially move this logic to tree job scheduler.
     auto cachedJobPreemptionStatuses =
-        Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
+        ManagerHost_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
     TRunningJobStatistics runningJobStatistics;
     for (const auto& job : runningJobs) {
         // Technically it's an overestimation of the job's duration, however, we feel it's more fair this way.
@@ -1975,7 +1978,7 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
 {
     // TODO(eshcherbin): Think about how to partially move this logic to tree job scheduler.
     auto cachedJobPreemptionStatuses =
-        Host_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
+        ManagerHost_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
     for (const auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& jobs = ongoingJobsByAllocationState[allocationState];
 
@@ -2436,7 +2439,7 @@ void TNodeShard::SubmitJobsToStrategy()
             std::vector<TJobId> jobsToAbort;
             std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
             auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
-            Host_->GetStrategy()->ProcessJobUpdates(
+            ManagerHost_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
                 &jobsToRemove,
                 &jobsToAbort);
@@ -2784,7 +2787,7 @@ TJobPtr TNodeShard::GetJobOrThrow(TJobId jobId)
 TJobProberServiceProxy TNodeShard::CreateJobProberProxy(const TJobPtr& job)
 {
     auto addressWithNetwork = job->GetNode()->NodeDescriptor().GetAddressWithNetworkOrThrow(Bootstrap_->GetLocalNetworks());
-    return Host_->CreateJobProberProxy(addressWithNetwork);
+    return ManagerHost_->CreateJobProberProxy(addressWithNetwork);
 }
 
 TNodeShard::TOperationState* TNodeShard::FindOperationState(TOperationId operationId) noexcept

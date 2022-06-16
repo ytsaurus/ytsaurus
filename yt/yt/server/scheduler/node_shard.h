@@ -38,34 +38,6 @@ struct INodeShardHost
     virtual ~INodeShardHost() = default;
 
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
-
-    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
-    virtual TString FormatResourceUsage(
-        const TJobResources& usage,
-        const TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
-    virtual TString FormatHeartbeatResourceUsage(
-        const TJobResources& usage,
-        const TJobResources& limits,
-        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
-
-    virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
-
-    virtual TFuture<void> ValidateOperationAccess(
-        const TString& user,
-        TOperationId operationId,
-        NYTree::EPermission permission) = 0;
-
-    virtual TFuture<void> AttachJobContext(
-        const NYTree::TYPath& path,
-        NChunkClient::TChunkId chunkId,
-        TOperationId operationId,
-        TJobId jobId,
-        const TString& user) = 0;
-
-    virtual NJobProberClient::TJobProberServiceProxy CreateJobProberProxy(const NRpc::TAddressWithNetwork& addressWithNetwork) = 0;
-
-    virtual int GetOperationArchiveVersion() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,6 +95,7 @@ public:
         int id,
         TSchedulerConfigPtr config,
         INodeShardHost* host,
+        INodeManagerHost* managerHost,
         TBootstrap* bootstrap);
 
     int GetId() const;
@@ -208,6 +181,7 @@ private:
     const int Id_;
     TSchedulerConfigPtr Config_;
     INodeShardHost* const Host_;
+    INodeManagerHost* const ManagerHost_;
     TBootstrap* const Bootstrap_;
 
     const NConcurrency::TActionQueuePtr ActionQueue_;

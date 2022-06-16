@@ -2,7 +2,7 @@
 #include "bootstrap.h"
 #include "controller_agent_tracker.h"
 #include "helpers.h"
-#include "node_shard.h"
+#include "node_manager.h"
 #include "private.h"
 #include "scheduler.h"
 
@@ -702,9 +702,9 @@ TFuture<TControllerScheduleJobResultPtr> TOperationControllerImpl::ScheduleJob(
     auto cellTag = Bootstrap_->GetMasterClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     auto jobId = GenerateJobId(cellTag, nodeId);
 
-    const auto& scheduler = Bootstrap_->GetScheduler();
-    const auto shardId = scheduler->GetNodeShardId(nodeId);
-    const auto& nodeShard = scheduler->GetNodeShards()[shardId];
+    const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
+    const auto shardId = nodeManager->GetNodeShardId(nodeId);
+    const auto& nodeShard = nodeManager->GetNodeShards()[shardId];
 
     if (!nodeShard->IsOperationRegistered(OperationId_)) {
         YT_LOG_DEBUG("Job schedule request cannot be served since operation is not registered at node shard (JobId: %v)",

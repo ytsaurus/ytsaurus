@@ -3,7 +3,7 @@
 #include "scheduler_strategy.h"
 #include "controller_agent.h"
 #include "operation.h"
-#include "node_shard.h"
+#include "node_manager.h"
 #include "operation_controller_impl.h"
 #include "scheduling_context.h"
 #include "master_connector.h"
@@ -95,7 +95,7 @@ template <class TCtxHeartbeatPtr>
 void ProcessScheduleJobMailboxes(
     TCtxHeartbeatPtr context,
     const TControllerAgentPtr& agent,
-    const TSchedulerPtr& scheduler,
+    const TNodeManagerPtr& nodeManager,
     std::vector<std::vector<const NProto::TScheduleJobResponse*>>& groupedScheduleJobResponses)
 {
     auto* request = &context->Request();
@@ -110,7 +110,7 @@ void ProcessScheduleJobMailboxes(
         request->mutable_agent_to_scheduler_schedule_job_responses(),
         [&] (auto* protoEvent) {
             auto jobId = FromProto<TJobId>(protoEvent->job_id());
-            auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+            auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
             groupedScheduleJobResponses[shardId].push_back(protoEvent);
         });
     agent->GetScheduleJobResponsesInbox()->ReportStatus(
@@ -621,17 +621,17 @@ public:
 
         scheduler->GetStrategy()->ApplyJobMetricsDelta(std::move(operationIdToOperationJobMetrics));
 
-        const auto& nodeShards = scheduler->GetNodeShards();
+        auto nodeManager = scheduler->GetNodeManager();
+        std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeManager->GetNodeShardCount());
+        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeManager->GetNodeShardCount());
 
-        std::vector<std::vector<const NProto::TAgentToSchedulerJobEvent*>> groupedJobEvents(nodeShards.size());
-        std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
-
+        // TODO(eshcherbin): Capturing by reference is dangerous, should fix this.
         RunInMessageOffloadInvoker(agent, [&] {
             agent->GetJobEventsInbox()->HandleIncoming(
                 request->mutable_agent_to_scheduler_job_events(),
                 [&] (auto* protoEvent) {
                     auto jobId = FromProto<TJobId>(protoEvent->job_id());
-                    auto shardId = scheduler->GetNodeShardId(NodeIdFromJobId(jobId));
+                    auto shardId = nodeManager->GetNodeShardId(NodeIdFromJobId(jobId));
                     groupedJobEvents[shardId].push_back(protoEvent);
                 });
             agent->GetJobEventsInbox()->ReportStatus(
@@ -693,7 +693,7 @@ public:
                     ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                 });
 
-            ProcessScheduleJobMailboxes(context, agent, scheduler, groupedScheduleJobResponses);
+            ProcessScheduleJobMailboxes(context, agent, nodeManager, groupedScheduleJobResponses);
         });
 
         agent->GetOperationEventsInbox()->HandleIncoming(
@@ -841,8 +841,8 @@ public:
 
         RunInMessageOffloadInvoker(agent, [
             context,
-            nodeShards = std::move(nodeShards),
-            nodeShardInvokers = scheduler->GetNodeShardInvokers(),
+            nodeShards = nodeManager->GetNodeShards(),
+            nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
             groupedJobEvents = std::move(groupedJobEvents),
             groupedScheduleJobResponses = std::move(groupedScheduleJobResponses),
             dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
@@ -851,6 +851,7 @@ public:
                 .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
             YT_LOG_DEBUG("Processing job events");
+
             for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
                 nodeShardInvokers[shardId]->Invoke(
                     BIND([
@@ -918,8 +919,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& scheduler = Bootstrap_->GetScheduler();
-
         auto* request = &context->Request();
         const auto& agentId = request->agent_id();
         auto incarnationId = FromProto<NControllerAgent::TIncarnationId>(request->incarnation_id());
@@ -948,19 +947,23 @@ public:
 
         SwitchTo(agent->GetCancelableInvoker());
 
-        const auto& nodeShards = scheduler->GetNodeShards();
-
+        const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
         RunInMessageOffloadInvoker(agent, [
             context,
             agent,
-            scheduler,
-            nodeShards = std::move(nodeShards),
-            nodeShardInvokers = scheduler->GetNodeShardInvokers(),
+            nodeManager,
+            nodeShards = nodeManager->GetNodeShards(),
+            nodeShardInvokers = nodeManager->GetNodeShardInvokers(),
             dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
         ] {
-            std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeShards.size());
-            ProcessScheduleJobMailboxes(context, agent, scheduler, groupedScheduleJobResponses);
-            ProcessScheduleJobResponses(context, nodeShards, nodeShardInvokers, std::move(groupedScheduleJobResponses), dtorInvoker);
+            std::vector<std::vector<const NProto::TScheduleJobResponse*>> groupedScheduleJobResponses(nodeManager->GetNodeShardCount());
+            ProcessScheduleJobMailboxes(context, agent, nodeManager, groupedScheduleJobResponses);
+            ProcessScheduleJobResponses(
+                context,
+                nodeShards,
+                nodeShardInvokers,
+                std::move(groupedScheduleJobResponses),
+                dtorInvoker);
         });
 
         context->SetResponseInfo("IncarnationId: %v", incarnationId);
