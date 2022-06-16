@@ -9,6 +9,8 @@ message TReqHeartbeat
     required int32 node_id = 1;
 
     required NNodeTrackerClient.NProto.TExecNodeStatistics statistics = 2;
+
+    optional string job_proxy_build_version = 3;
 }
 
 message TRspHeartbeat

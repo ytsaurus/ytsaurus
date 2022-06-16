@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
+#include <yt/yt/ytlib/program/build_attributes.h>
+
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -171,6 +173,8 @@ public:
         auto heartbeatProcessor = New<T>(this, bootstrap);
         RegisterHeartbeatProcessor(jobObjectType, std::move(heartbeatProcessor));
     }
+
+    TBuildInfoPtr GetBuildInfo() const;
 
 private:
     class TImpl;

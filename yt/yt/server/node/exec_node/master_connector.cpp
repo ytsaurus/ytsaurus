@@ -74,6 +74,10 @@ public:
             locationStatistics->set_medium_index(location->GetMediumDescriptor().Index);
         }
 
+        if (auto buildInfo = Bootstrap_->GetJobController()->GetBuildInfo()) {
+            heartbeat.set_job_proxy_build_version(buildInfo->Version);
+        }
+
         return heartbeat;
     }
 

@@ -152,6 +152,8 @@ public:
     bool IsJobProxyProfilingDisabled() const;
     NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const;
 
+    TBuildInfoPtr GetBuildInfo() const;
+
 private:
     friend class TJobController::TJobHeartbeatProcessorBase;
 
@@ -1463,6 +1465,15 @@ NJobProxy::TJobProxyDynamicConfigPtr TJobController::TImpl::GetJobProxyDynamicCo
     return config ? config->JobProxy : New<NJobProxy::TJobProxyDynamicConfig>();
 }
 
+TBuildInfoPtr TJobController::TImpl::GetBuildInfo() const
+{
+    if (CachedJobProxyBuildInfo_.IsOK()) {
+        return CachedJobProxyBuildInfo_.Value();
+    } else {
+        return nullptr;
+    }
+}
+
 TFuture<void> TJobController::TImpl::RequestJobSpecsAndStartJobs(std::vector<TJobStartInfo> jobStartInfos)
 {
     THashMap<TControllerAgentDescriptor, std::vector<TJobStartInfo>> groupedStartInfos;
@@ -2003,6 +2014,11 @@ NJobProxy::TJobProxyDynamicConfigPtr TJobController::GetJobProxyDynamicConfig() 
 double TJobController::GetCpuToVCpuFactor() const
 {
     return Impl_->GetCpuToVCpuFactor();
+}
+
+TBuildInfoPtr TJobController::GetBuildInfo() const
+{
+    return Impl_->GetBuildInfo();
 }
 
 void TJobController::RegisterHeartbeatProcessor(
