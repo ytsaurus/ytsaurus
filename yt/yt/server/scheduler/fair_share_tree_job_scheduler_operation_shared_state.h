@@ -10,7 +10,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Maybe rename it to TFairShareJobSchedulerOperationState?
 class TFairShareTreeJobSchedulerOperationSharedState
     : public TRefCounted
 {

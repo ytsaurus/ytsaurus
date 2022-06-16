@@ -1150,9 +1150,6 @@ private:
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
-    THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
-
     TSchedulerRootElementPtr RootElement_;
 
     class TOperationsByPoolOrchidService
@@ -2239,10 +2236,10 @@ private:
         StrategyHost_->LogAccumulatedUsageEventFluently(TInstant::Now())
             .Item(EventLogPoolTreeKey).Value(TreeId_)
             .Item("pools").BeginMap()
-                .Do(BIND(&TFairShareTree::DoBuildPoolsStructureInfo, Unretained(this), treeSnapshot))
+                .Do(BIND(&TFairShareTree::DoBuildPoolsStructureInfo, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap()
             .Item("operations").BeginMap()
-                .Do(BIND(&TFairShareTree::DoBuildOperationsAccumulatedUsageInfo, Unretained(this), treeSnapshot))
+                .Do(BIND(&TFairShareTree::DoBuildOperationsAccumulatedUsageInfo, Unretained(this), ConstRef(treeSnapshot)))
             .EndMap();
     }
 
@@ -2257,7 +2254,7 @@ private:
             StrategyHost_->LogFairShareEventFluently(now)
                 .Item(EventLogPoolTreeKey).Value(TreeId_)
                 .Item("tree_snapshot_id").Value(treeSnapshot->GetId())
-                .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), treeSnapshot));
+                .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), ConstRef(treeSnapshot)));
         }
 
         {
@@ -2382,12 +2379,11 @@ private:
         YT_LOG_DEBUG("Started building serialized fair share info (MaxOperationBatchSize: %v)",
             maxOperationBatchSize);
 
-        // TODO(eshcherbin): Wrap tree snapshot with ConstRef.
         TSerializedFairShareInfo fairShareInfo;
         fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("pool_count").Value(treeSnapshot->PoolMap().size())
             .Item("pools").BeginMap()
-                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), treeSnapshot, TFieldsFilter{}))
+                .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), ConstRef(treeSnapshot), TFieldsFilter{}))
             .EndMap()
             .Finish();
         fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -2451,7 +2447,6 @@ private:
                     fluent
                         .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
                 }))
-                // TODO(eshcherbin): Change to BIND?
                 .Do(std::bind(&TFairShareTree::DoBuildElementYson, treeSnapshot, element, filter, std::placeholders::_1));
         };
 

@@ -24,7 +24,6 @@ using TNonOwningJobSet = THashSet<TJob*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(eshcherbin): Think about naming of TStaticAttributes and TDynamicAttributes?
 struct TStaticAttributes
 {
     int SchedulingIndex = UndefinedSchedulingIndex;
