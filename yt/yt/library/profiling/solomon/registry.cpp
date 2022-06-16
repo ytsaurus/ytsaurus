@@ -21,7 +21,7 @@ TSolomonRegistry::TSolomonRegistry()
 { }
 
 template <class TBase, class TSimple, class TPerCpu, class TFn>
-TIntrusivePtr<TBase> selectImpl(bool hot, const TFn& fn)
+TIntrusivePtr<TBase> SelectImpl(bool hot, const TFn& fn)
 {
     if (!hot) {
         auto counter = New<TSimple>();
@@ -39,7 +39,7 @@ ICounterImplPtr TSolomonRegistry::RegisterCounter(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    return selectImpl<ICounterImpl, TSimpleCounter, TPerCpuCounter>(options.Hot, [&, this] (const auto& counter) {
+    return SelectImpl<ICounterImpl, TSimpleCounter, TPerCpuCounter>(options.Hot, [&, this] (const auto& counter) {
         DoRegister([this, name, tags, options, counter] () {
             auto reader = [ptr = counter.Get()] {
                 return ptr->GetValue();
@@ -56,7 +56,7 @@ ITimeCounterImplPtr TSolomonRegistry::RegisterTimeCounter(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    return selectImpl<ITimeCounterImpl, TSimpleTimeCounter, TPerCpuTimeCounter>(
+    return SelectImpl<ITimeCounterImpl, TSimpleTimeCounter, TPerCpuTimeCounter>(
         options.Hot,
         [&, this] (const auto& counter) {
             DoRegister([this, name, tags, options, counter] () {
@@ -71,7 +71,7 @@ IGaugeImplPtr TSolomonRegistry::RegisterGauge(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    return selectImpl<IGaugeImpl, TSimpleGauge, TPerCpuGauge>(options.Hot, [&, this] (const auto& gauge) {
+    return SelectImpl<IGaugeImpl, TSimpleGauge, TPerCpuGauge>(options.Hot, [&, this] (const auto& gauge) {
         if (options.DisableDefault) {
             gauge->Update(std::numeric_limits<double>::quiet_NaN());
         }
@@ -111,7 +111,7 @@ ISummaryImplPtr TSolomonRegistry::RegisterSummary(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    return selectImpl<ISummaryImpl, TSimpleSummary<double>, TPerCpuSummary<double>>(options.Hot, [&, this] (const auto& summary) {
+    return SelectImpl<ISummaryImpl, TSimpleSummary<double>, TPerCpuSummary<double>>(options.Hot, [&, this] (const auto& summary) {
         DoRegister([this, name, tags, options, summary] () {
             auto set = FindSet(name, options);
             set->AddSummary(New<TSummaryState>(summary, Tags_.Encode(tags), tags));
@@ -152,7 +152,7 @@ ITimerImplPtr TSolomonRegistry::RegisterTimerSummary(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    return selectImpl<ITimerImpl, TSimpleSummary<TDuration>, TPerCpuSummary<TDuration>>(
+    return SelectImpl<ITimerImpl, TSimpleSummary<TDuration>, TPerCpuSummary<TDuration>>(
         options.Hot,
         [&, this] (const auto& timer) {
             DoRegister([this, name, tags, options, timer] () {
