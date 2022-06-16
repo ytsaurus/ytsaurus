@@ -123,7 +123,7 @@ public:
         NObjectClient::TCellTag destinationCellTag);
 
     //! Registers and references the object with the transaction.
-    //! The reference is dropped if the transaction aborts or aborts.
+    //! The reference is dropped if the transaction aborts or commits.
     //! The same object as be exported more than once.
     void ImportObject(
         TTransaction* transaction,
