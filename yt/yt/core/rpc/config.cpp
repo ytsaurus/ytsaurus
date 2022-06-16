@@ -63,6 +63,8 @@ TServiceConfig::TServiceConfig()
         .Optional();
     RegisterParameter("pending_payloads_timeout", PendingPayloadsTimeout)
         .Optional();
+    RegisterParameter("pooled", Pooled)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +88,8 @@ TMethodConfig::TMethodConfig()
     RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)
         .Optional();
     RegisterParameter("tracing_mode", TracingMode)
+        .Optional();
+    RegisterParameter("pooled", Pooled)
         .Optional();
 }
 
