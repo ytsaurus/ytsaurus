@@ -254,8 +254,7 @@ void TNodeSchedulingSegmentManager::ResetTree(TManageNodeSchedulingSegmentsConte
         const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
         if (node.SchedulingSegment != ESchedulingSegment::Default) {
             // NB(eshcherbin): Nodes with frozen segments won't be moved to the default segment by this.
-            auto nodeShardId = context->NodeShardHost->GetNodeShardId(nodeId);
-            context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
+            context->MovedNodes.push_back(TSetNodeSchedulingSegmentOptions{
                 .NodeId = nodeId,
                 .Segment = ESchedulingSegment::Default
             });
@@ -419,10 +418,10 @@ void TNodeSchedulingSegmentManager::RebalanceSegmentsInTree(
             auto resourceAmountOnNode = GetNodeResourceLimit(*nextAvailableNode, keyResource);
             auto oldSegment = nextAvailableNode->SchedulingSegment;
 
-            auto nodeShardId = context->NodeShardHost->GetNodeShardId(nextAvailableNode->Id);
-            context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
+            context->MovedNodes.push_back(TSetNodeSchedulingSegmentOptions{
                 .NodeId = nextAvailableNode->Id,
-                .Segment = segment});
+                .Segment = segment
+            });
             movedNodes.emplace_back(TNodeWithMovePenalty{nextAvailableNode, nextAvailableNodeMovePenalty}, segment);
             totalPenalty += nextAvailableNodeMovePenalty;
 

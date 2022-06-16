@@ -4,7 +4,7 @@
 #include "helpers.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
-#include "node_shard.h"
+#include "node_manager.h"
 #include "scheduler_strategy.h"
 #include "controller_agent.h"
 #include "operation_controller.h"
@@ -152,7 +152,7 @@ struct TPoolTreeKeysHolder
 class TScheduler::TImpl
     : public TRefCounted
     , public ISchedulerStrategyHost
-    , public INodeShardHost
+    , public INodeManagerHost
     , public IOperationsCleanerHost
     , public TEventLogHostBase
 {
@@ -175,20 +175,12 @@ public:
             GetControlInvoker(EControlQueue::UserRequest),
             SchedulerLogger,
             SchedulerProfiler))
+        , NodeManager_(New<TNodeManager>(Config_, this, Bootstrap_))
         , ExperimentsAssigner_(Config_->Experiments)
     {
         YT_VERIFY(config);
         YT_VERIFY(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(EControlQueue::Default), ControlThread);
-
-        for (int index = 0; index < Config_->NodeShardCount; ++index) {
-            NodeShards_.push_back(New<TNodeShard>(
-                index,
-                Config_,
-                this,
-                Bootstrap_));
-            CancelableNodeShardInvokers_.push_back(GetNullInvoker());
-        }
 
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
@@ -408,18 +400,11 @@ public:
         return Config_;
     }
 
-    const std::vector<TNodeShardPtr>& GetNodeShards() const
+    const TNodeManagerPtr& GetNodeManager() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return NodeShards_;
-    }
-
-    const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return CancelableNodeShardInvokers_[shardId];
+        return NodeManager_;
     }
 
     bool IsConnected() const
@@ -843,14 +828,7 @@ public:
                 operation->GetState()));
         }
 
-        std::vector<TFuture<void>> resumeFutures;
-        for (const auto& nodeShard : NodeShards_) {
-            resumeFutures.push_back(BIND(&TNodeShard::ResumeOperationJobs, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(operation->GetId()));
-        }
-        WaitFor(AllSucceeded(resumeFutures))
-            .ThrowOnError();
+        NodeManager_->ResumeOperationJobs(operation->GetId());
 
         operation->SetSuspended(false);
         DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, TError());
@@ -968,13 +946,7 @@ public:
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
         ++operation->ControllerEpoch();
 
-        for (const auto& nodeShard : NodeShards_) {
-            nodeShard->GetInvoker()->Invoke(BIND(
-                &TNodeShard::StartOperationRevival,
-                nodeShard,
-                operation->GetId(),
-                operation->ControllerEpoch()));
-        }
+        NodeManager_->StartOperationRevival(operation->GetId(), operation->ControllerEpoch());
 
         AddOperationToTransientQueue(operation);
     }
@@ -985,22 +957,9 @@ public:
             operation->GetId(),
             treeId);
 
-        std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
-        for (auto jobId : jobIds) {
-            auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
-            jobIdsByShardId[shardId].emplace_back(jobId);
-        }
-        for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
-            if (jobIdsByShardId[shardId].empty()) {
-                continue;
-            }
-            NodeShards_[shardId]->GetInvoker()->Invoke(
-                BIND(&TNodeShard::AbortJobs,
-                    NodeShards_[shardId],
-                    jobIdsByShardId[shardId],
-                    TError("Job was in banned tentative pool tree")
-                        << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree)));
-        }
+        auto error = TError("Job was in banned tentative pool tree")
+            << TErrorAttribute("abort_reason", EAbortReason::BannedInTentativeTree);
+        NodeManager_->AbortJobs(jobIds, error);
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::OperationBannedInTree)
             .Item("operation_id").Value(operation->GetId())
@@ -1130,18 +1089,12 @@ public:
 
     TFuture<void> DumpInputContext(TJobId jobId, const TYPath& path, const TString& user)
     {
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::DumpJobInputContext, nodeShard, jobId, path, user)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
+        return NodeManager_->DumpJobInputContext(jobId, path, user);
     }
 
     TFuture<TNodeDescriptor> GetJobNode(TJobId jobId)
     {
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::GetJobNode, nodeShard, jobId)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
+        return NodeManager_->GetJobNode(jobId);
     }
 
     TFuture<void> AbandonJob(TJobId jobId, const TString& user)
@@ -1175,67 +1128,19 @@ public:
         WaitFor(controller->AbandonJob(operationId, jobId))
             .ThrowOnError();
 
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::AbandonJob, nodeShard, jobId)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
+        return NodeManager_->AbandonJob(jobId);
     }
 
     TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user)
     {
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return
-            BIND(
-                &TNodeShard::AbortJobByUserRequest,
-                nodeShard,
-                jobId,
-                interruptTimeout,
-                user)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
+        return NodeManager_->AbortJobByUserRequest(jobId, interruptTimeout, user);
     }
 
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto* request = &context->Request();
-        auto nodeId = request->node_id();
-
-        if (nodeId == InvalidNodeId) {
-            THROW_ERROR_EXCEPTION("Cannot process a heartbeat with invalid node id");
-        }
-
-        auto unregisterFuture = VoidFuture;
-
-        {
-            auto guard = Guard(NodeAddressToNodeIdLock_);
-
-            auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-            const auto& address = descriptor.GetDefaultAddress();
-            auto it = NodeAddressToNodeId_.find(address);
-            if (it != NodeAddressToNodeId_.end()) {
-                int oldNodeId = it->second;
-                if (nodeId != oldNodeId) {
-                    auto nodeShard = GetNodeShard(oldNodeId);
-                    unregisterFuture =
-                        BIND(&TNodeShard::UnregisterAndRemoveNodeById, GetNodeShard(oldNodeId), oldNodeId)
-                            .AsyncVia(nodeShard->GetInvoker())
-                            .Run();
-                }
-            }
-            NodeAddressToNodeId_[address] = nodeId;
-        }
-
-        unregisterFuture.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            if (!error.IsOK()) {
-                context->Reply(error);
-                return;
-            }
-
-            const auto& nodeShard = GetNodeShard(nodeId);
-            nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
-        }));
+        NodeManager_->ProcessNodeHeartbeat(context);
     }
 
     // ISchedulerStrategyHost implementation
@@ -1243,10 +1148,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TJobResources resourceLimits;
-        for (const auto& nodeShard : NodeShards_) {
-            resourceLimits += nodeShard->GetResourceLimits(filter);
-        }
+        auto resourceLimits = NodeManager_->GetResourceLimits(filter);
 
         {
             auto value = std::make_pair(GetCpuInstant(), resourceLimits);
@@ -1265,12 +1167,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        TJobResources resourceUsage;
-        for (const auto& nodeShard : NodeShards_) {
-            resourceUsage += nodeShard->GetResourceUsage(filter);
-        }
-
-        return resourceUsage;
+        return NodeManager_->GetResourceUsage(filter);
     }
 
     void MarkOperationAsRunningInStrategy(TOperationId operationId) override
@@ -1328,7 +1225,7 @@ public:
             asyncMaterializeResult = operation->GetController()->Materialize();
             futures.push_back(asyncMaterializeResult.AsVoid());
 
-            futures.push_back(ResetOperationRevival(operation));
+            futures.push_back(NodeManager_->ResetOperationRevival(operation));
         }
 
         auto scheduleOperationInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
@@ -1485,7 +1382,7 @@ public:
 
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
-        return CancelableNodeShardInvokers_;
+        return NodeManager_->GetNodeShardInvokers();
     }
 
     IYsonConsumer* GetControlEventLogConsumer()
@@ -1655,14 +1552,6 @@ public:
             now);
     }
 
-    // INodeShardHost implementation
-    int GetNodeShardId(TNodeId nodeId) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return nodeId % static_cast<int>(NodeShards_.size());
-    }
-
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
     {
         const auto& mediumDirectory = Bootstrap_
@@ -1819,10 +1708,7 @@ public:
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId, bool considerFinished) const
     {
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId, considerFinished)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
+        return NodeManager_->FindOperationIdByJobId(jobId, considerFinished);
     }
 
     const TResponseKeeperPtr& GetOperationServiceResponseKeeper() const
@@ -1853,6 +1739,8 @@ private:
     NRpc::TResponseKeeperPtr OperationServiceResponseKeeper_;
 
     std::optional<TString> ClusterName_;
+
+    const TNodeManagerPtr NodeManager_;
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1902,20 +1790,12 @@ private:
 
     TString ServiceAddress_;
 
-    std::vector<TNodeShardPtr> NodeShards_;
-    std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
-
-
     struct TOperationProgress
     {
         NYson::TYsonString Progress;
         NYson::TYsonString BriefProgress;
         NYson::TYsonString Alerts;
     };
-
-    // Special map to support node consistency between node shards YT-11381.
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, NodeAddressToNodeIdLock_);
-    THashMap<TString, int> NodeAddressToNodeId_;
 
     mutable THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
@@ -2055,61 +1935,6 @@ private:
         }
     }
 
-
-    const TNodeShardPtr& GetNodeShard(TNodeId nodeId) const
-    {
-        return NodeShards_[GetNodeShardId(nodeId)];
-    }
-
-    const TNodeShardPtr& GetNodeShardByJobId(TJobId jobId) const
-    {
-        auto nodeId = NodeIdFromJobId(jobId);
-        return GetNodeShard(nodeId);
-    }
-
-
-    int GetExecNodeCount() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        int execNodeCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-            execNodeCount += nodeShard->GetExecNodeCount();
-        }
-        return execNodeCount;
-    }
-
-    int GetTotalNodeCount() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        int totalNodeCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-            totalNodeCount += nodeShard->GetTotalNodeCount();
-        }
-        return totalNodeCount;
-    }
-
-    int GetSubmitToStrategyJobCount() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        int submitToStrategyJobCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-            submitToStrategyJobCount += nodeShard->GetSubmitToStrategyJobCount();
-        }
-        return submitToStrategyJobCount;
-    }
-
-    int GetActiveJobCount()
-    {
-        int activeJobCount = 0;
-        for (const auto& nodeShard : NodeShards_) {
-            activeJobCount += nodeShard->GetActiveJobCount();
-        }
-        return activeJobCount;
-    }
-
     void OnProfiling()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2124,8 +1949,8 @@ private:
 
         if (IsConnected()) {
             LogEventFluently(&SchedulerEventLogger, ELogEventType::ClusterInfo)
-                .Item("exec_node_count").Value(GetExecNodeCount())
-                .Item("total_node_count").Value(GetTotalNodeCount())
+                .Item("exec_node_count").Value(NodeManager_->GetExecNodeCount())
+                .Item("total_node_count").Value(NodeManager_->GetTotalNodeCount())
                 .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
                 .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter));
         }
@@ -2139,25 +1964,10 @@ private:
             return;
         }
 
-        std::vector<TFuture<TYsonString>> nodeListFutures;
-        for (const auto& nodeShard : NodeShards_) {
-            nodeListFutures.push_back(
-                BIND([nodeShard] () {
-                    return BuildYsonStringFluently<EYsonType::MapFragment>()
-                        .Do(BIND(&TNodeShard::BuildNodesYson, nodeShard))
-                        .Finish();
-                })
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
-        }
-
-        auto nodeLists = WaitFor(AllSucceeded(nodeListFutures)).ValueOrThrow();
-
         LogEventFluently(&SchedulerEventLogger, ELogEventType::NodesInfo)
-            .Item("nodes")
-                .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
-                    fluent.Items(nodeList);
-                });
+            .Item("nodes").BeginMap()
+                .Do(std::bind(&TNodeManager::BuildNodesYson, NodeManager_, _1))
+            .EndMap();
     }
 
 
@@ -2182,36 +1992,13 @@ private:
         ValidateConfig();
 
         {
-            YT_LOG_INFO("Connecting node shards");
+            YT_LOG_INFO("Connecting node manager");
 
             auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
             NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
 
-            auto nodeShardResult = New<TNodeShardMasterHandshakeResult>();
-            nodeShardResult->InitialSchedulingSegmentsState = result.SchedulingSegmentsState;
-            nodeShardResult->SchedulingSegmentInitializationDeadline = segmentsInitializationDeadline;
-            nodeShardResult->OperationIds.reserve(std::size(result.Operations));
-            for (const auto& operation : result.Operations) {
-                nodeShardResult->OperationIds.insert(operation->GetId());
-            }
-
-            std::vector<TFuture<IInvokerPtr>> asyncInvokers;
-            for (const auto& nodeShard : NodeShards_) {
-                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard, nodeShardResult)
-                    .AsyncVia(nodeShard->GetInvoker())
-                    .Run());
-            }
-
-            auto invokerOrError = WaitFor(AllSucceeded(asyncInvokers));
-            if (!invokerOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error connecting node shards")
-                    << invokerOrError;
-            }
-
-            const auto& invokers = invokerOrError.Value();
-            for (size_t index = 0; index < NodeShards_.size(); ++index) {
-                CancelableNodeShardInvokers_[index] = invokers[index];
-            }
+            // TODO(eshcherbin): Rename to OnMasterHandshake?
+            NodeManager_->OnMasterConnected(result, segmentsInitializationDeadline);
         }
 
         {
@@ -2270,16 +2057,16 @@ private:
         NodeSchedulingSegmentManager_.SetProfilingEnabled(true);
 
         SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
-            return GetActiveJobCount();
+            return NodeManager_->GetActiveJobCount();
         });
         SchedulerProfiler.AddFuncGauge("/jobs/submit_to_strategy_count", MakeStrong(this), [this] {
-            return GetSubmitToStrategyJobCount();
+            return NodeManager_->GetSubmitToStrategyJobCount();
         });
         SchedulerProfiler.AddFuncGauge("/exec_node_count", MakeStrong(this), [this] {
-            return GetExecNodeCount();
+            return NodeManager_->GetExecNodeCount();
         });
         SchedulerProfiler.AddFuncGauge("/total_node_count", MakeStrong(this), [this] {
-            return GetTotalNodeCount();
+            return NodeManager_->GetTotalNodeCount();
         });
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::MasterConnected)
@@ -2358,20 +2145,11 @@ private:
         DoCleanup();
 
         {
-            YT_LOG_INFO("Started disconnecting node shards");
+            YT_LOG_INFO("Started disconnecting node manager");
 
-            std::vector<TFuture<void>> asyncResults;
-            for (const auto& nodeShard : NodeShards_) {
-                asyncResults.push_back(BIND(&TNodeShard::OnMasterDisconnected, nodeShard)
-                    .AsyncVia(nodeShard->GetInvoker())
-                    .Run());
-            }
+            NodeManager_->OnMasterDisconnected();
 
-            // XXX(babenko): fiber switch is forbidden here; do we actually need to wait for these results?
-            AllSucceeded(asyncResults)
-                .Get();
-
-            YT_LOG_INFO("Finished disconnecting node shards");
+            YT_LOG_INFO("Finished disconnecting node manager");
         }
 
         YT_LOG_INFO("Master disconnected for scheduler");
@@ -2522,54 +2300,8 @@ private:
                 nodesList = std::move(execNodesList);
             }
 
-            std::vector<std::vector<std::pair<TString, INodePtr>>> nodesForShard(NodeShards_.size());
-            std::vector<std::vector<TString>> nodeAddressesForShard(NodeShards_.size());
-
-            for (const auto& child : nodesList->GetChildren()) {
-                auto address = child->GetValue<TString>();
-                auto objectId = child->Attributes().Get<TObjectId>("id");
-                auto nodeId = NodeIdFromObjectId(objectId);
-                auto nodeShardId = GetNodeShardId(nodeId);
-                nodeAddressesForShard[nodeShardId].push_back(address);
-                nodesForShard[nodeShardId].emplace_back(address, child);
-            }
-
-            std::vector<TFuture<void>> removeFutures;
-            for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
-                auto& nodeShard = NodeShards_[i];
-                removeFutures.push_back(
-                    BIND(&TNodeShard::RemoveMissingNodes, nodeShard)
-                        .AsyncVia(nodeShard->GetInvoker())
-                        .Run(std::move(nodeAddressesForShard[i])));
-            }
-            WaitFor(AllSucceeded(removeFutures))
-                .ThrowOnError();
-
-            std::vector<TFuture<std::vector<TError>>> handleFutures;
-            for (int i = 0 ; i < std::ssize(NodeShards_); ++i) {
-                auto& nodeShard = NodeShards_[i];
-                handleFutures.push_back(
-                    BIND(&TNodeShard::HandleNodesAttributes, nodeShard)
-                        .AsyncVia(nodeShard->GetInvoker())
-                        .Run(std::move(nodesForShard[i])));
-            }
-            auto handleErrors = WaitFor(AllSucceeded(handleFutures))
-                .ValueOrThrow();
-
-            std::vector<TError> allErrors;
-            for (auto& errors : handleErrors) {
-                for (auto& error : errors) {
-                    allErrors.emplace_back(std::move(error));
-                }
-            }
-
-            if (allErrors.empty()) {
-                SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed, TError());
-            } else {
-                SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed,
-                    TError("Failed to update some nodes")
-                        << allErrors);
-            }
+            auto error = NodeManager_->HandleNodesAttributes(nodesList);
+            SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed, error);
 
             YT_LOG_INFO("Exec nodes information updated");
         } catch (const std::exception& ex) {
@@ -2662,10 +2394,7 @@ private:
 
             SpecTemplate_ = CloneNode(Config_->SpecTemplate);
 
-            for (const auto& nodeShard : NodeShards_) {
-                nodeShard->GetInvoker()->Invoke(
-                    BIND(&TNodeShard::UpdateConfig, nodeShard, Config_));
-            }
+            NodeManager_->UpdateConfig(Config_);
 
             ReconfigureSingletons(Bootstrap_->GetConfig(), Config_);
 
@@ -2781,37 +2510,17 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
-        std::vector<TFuture<TRefCountedExecNodeDescriptorMapPtr>> shardDescriptorsFutures;
-        for (const auto& nodeShard : NodeShards_) {
-            shardDescriptorsFutures.push_back(BIND(&TNodeShard::GetExecNodeDescriptors, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
-        }
-
-        auto shardDescriptors = WaitFor(AllSucceeded(shardDescriptorsFutures))
-            .ValueOrThrow();
-
-        auto result = New<TRefCountedExecNodeDescriptorMap>();
-        for (const auto& descriptors : shardDescriptors) {
-            for (const auto& pair : *descriptors) {
-                YT_VERIFY(result->insert(pair).second);
-            }
-        }
-
+        auto execNodeDescriptors = NodeManager_->GetExecNodeDescriptors();
         {
             auto guard = WriterGuard(ExecNodeDescriptorsLock_);
-            std::swap(CachedExecNodeDescriptors_, result);
+            std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
         }
     }
 
     void CheckJobReporterIssues()
     {
-        int writeFailures = 0;
-        int queueIsTooLargeNodeCount = 0;
-        for (const auto& shard : NodeShards_) {
-            writeFailures += shard->ExtractJobReporterWriteFailuresCount();
-            queueIsTooLargeNodeCount += shard->GetJobReporterQueueIsTooLargeNodeCount();
-        }
+        int writeFailures = NodeManager_->ExtractJobReporterWriteFailuresCount();
+        int queueIsTooLargeNodeCount = NodeManager_->GetJobReporterQueueIsTooLargeNodeCount();
 
         std::vector<TError> errors;
         if (writeFailures > Config_->JobReporterWriteFailuresAlertThreshold) {
@@ -2892,10 +2601,7 @@ private:
 
     void AbortJobsAtNode(TNodeId nodeId, EAbortReason reason) override
     {
-        auto nodeShard = GetNodeShard(nodeId);
-        BIND(&TNodeShard::AbortJobsAtNode, GetNodeShard(nodeId), nodeId, reason)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
+        NodeManager_->AbortJobsAtNode(nodeId, reason);
     }
 
     void DoStartOperation(const TOperationPtr& operation)
@@ -3158,18 +2864,6 @@ private:
         TryStartOperationMaterialization(operation);
     }
 
-    TFuture<void> ResetOperationRevival(const TOperationPtr& operation)
-    {
-        std::vector<TFuture<void>> asyncResults;
-        for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
-            auto asyncResult = BIND(&TNodeShard::ResetOperationRevival, NodeShards_[shardId])
-                .AsyncVia(NodeShards_[shardId]->GetInvoker())
-                .Run(operation->GetId());
-            asyncResults.emplace_back(std::move(asyncResult));
-        }
-        return AllSucceeded(asyncResults);
-    }
-
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
     {
         auto jobs = std::move(operation->RevivedJobs());
@@ -3184,21 +2878,8 @@ private:
         // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
         Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
 
-        // Second, register jobs on the corresponding node shards.
-        std::vector<std::vector<TJobPtr>> jobsByShardId(NodeShards_.size());
-        for (auto& job : jobs) {
-            auto shardId = GetNodeShardId(NodeIdFromJobId(job->GetId()));
-            jobsByShardId[shardId].push_back(std::move(job));
-        }
-
-        std::vector<TFuture<void>> asyncResults;
-        for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
-            auto asyncResult = BIND(&TNodeShard::FinishOperationRevival, NodeShards_[shardId])
-                .AsyncVia(NodeShards_[shardId]->GetInvoker())
-                .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
-            asyncResults.emplace_back(std::move(asyncResult));
-        }
-        return AllSucceeded(asyncResults);
+        // Second, register jobs at the node manager.
+        return NodeManager_->FinishOperationRevival(operation->GetId(), std::move(jobs));
     }
 
     void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)
@@ -3279,15 +2960,11 @@ private:
             operation->GetId(),
             unknownTreeIds);
 
-        for (const auto& nodeShard : NodeShards_) {
-            nodeShard->GetInvoker()->Invoke(BIND(
-                &TNodeShard::RegisterOperation,
-                nodeShard,
-                operation->GetId(),
-                operation->ControllerEpoch(),
-                operation->GetController(),
-                jobsReady));
-        }
+        NodeManager_->RegisterOperation(
+            operation->GetId(),
+            operation->ControllerEpoch(),
+            operation->GetController(),
+            jobsReady);
 
         MasterConnector_->RegisterOperation(operation);
 
@@ -3328,12 +3005,7 @@ private:
         }
         operation->SetController(nullptr);
 
-        for (const auto& nodeShard : NodeShards_) {
-            nodeShard->GetInvoker()->Invoke(BIND(
-                &TNodeShard::UnregisterOperation,
-                nodeShard,
-                operation->GetId()));
-        }
+        NodeManager_->UnregisterOperation(operation->GetId());
 
         Strategy_->UnregisterOperation(operation.Get());
 
@@ -3348,15 +3020,7 @@ private:
 
     void AbortOperationJobs(const TOperationPtr& operation, const TError& error, bool terminated)
     {
-        std::vector<TFuture<void>> abortFutures;
-        for (const auto& nodeShard : NodeShards_) {
-            abortFutures.push_back(BIND(&TNodeShard::AbortOperationJobs, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run(operation->GetId(), error, terminated));
-        }
-
-        WaitFor(AllSucceeded(abortFutures))
-            .ThrowOnError();
+        NodeManager_->AbortOperationJobs(operation->GetId(), error, terminated);
 
         YT_LOG_INFO(error,
             "All operations jobs aborted at scheduler (OperationId: %v)",
@@ -3985,8 +3649,8 @@ private:
                 .Item("cluster").BeginMap()
                     .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
                     .Item("resource_usage").Value(GetResourceUsage(EmptySchedulingTagFilter))
-                    .Item("exec_node_count").Value(GetExecNodeCount())
-                    .Item("total_node_count").Value(GetTotalNodeCount())
+                    .Item("exec_node_count").Value(NodeManager_->GetExecNodeCount())
+                    .Item("total_node_count").Value(NodeManager_->GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
                     .Item("resource_limits_by_tags")
                         .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
@@ -4006,15 +3670,7 @@ private:
                     .Items(BuildSuspiciousJobsYson())
                 .EndMap()
                 .Item("nodes").BeginMap()
-                    .Do([=] (TFluentMap fluent) {
-                        for (const auto& nodeShard : NodeShards_) {
-                            auto asyncResult = WaitFor(
-                                BIND(&TNodeShard::BuildNodesYson, nodeShard, fluent)
-                                    .AsyncVia(nodeShard->GetInvoker())
-                                    .Run());
-                            asyncResult.ThrowOnError();
-                        }
-                    })
+                    .Do(std::bind(&TNodeManager::BuildNodesYson, NodeManager_, _1))
                 .EndMap()
                 .Item("user_to_default_pool").Value(UserToDefaultPoolMap_)
                 .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
@@ -4395,7 +4051,7 @@ private:
                     nodeCount)
                 .AsyncVia(Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity))
                 .Run());
-            
+
             YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while nodes with unsupported interruption alert setting");
         };
 
@@ -4405,35 +4061,12 @@ private:
             return;
         }
 
-        std::vector<TFuture<std::vector<TString>>> nodeShardFutures;
-        nodeShardFutures.reserve(std::size(NodeShards_));
-        for (const auto& nodeShard : NodeShards_) {
-            nodeShardFutures.push_back(BIND(&TNodeShard::GetNodeAddressesWithUnsupportedInterruption, nodeShard)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
-        }
+        auto nodesWithUnsupportedInterruption = NodeManager_->GetNodeAddressesWithUnsupportedInterruption();
 
-        auto nodesWithUnsupportedInterruptionByShard = WaitFor(AllSucceeded(nodeShardFutures))
-            .ValueOrThrow();
-
-        int nodeWithUnsupportedInterruptionCount = 0;
-        for (const auto& nodes : nodesWithUnsupportedInterruptionByShard) {
-            nodeWithUnsupportedInterruptionCount += std::ssize(nodes);
-        }
-
-        constexpr int nodeSampleMaxSize = 15;
-        std::vector<TString> nodesWithUnsupportedInterruption;
-        nodesWithUnsupportedInterruption.reserve(nodeSampleMaxSize);
-        for (auto& nodes : nodesWithUnsupportedInterruptionByShard) {
-            int nodeToAddCount = std::min(nodeSampleMaxSize - std::ssize(nodesWithUnsupportedInterruption), std::ssize(nodes));
-            nodesWithUnsupportedInterruption.insert(
-                std::end(nodesWithUnsupportedInterruption),
-                std::make_move_iterator(std::begin(nodes)),
-                std::make_move_iterator(std::begin(nodes) + nodeToAddCount));
-            
-            if (std::ssize(nodesWithUnsupportedInterruption) == nodeSampleMaxSize) {
-                break;
-            }
+        constexpr int NodeSampleMaxSize = 15;
+        int nodeWithUnsupportedInterruptionCount = std::ssize(nodesWithUnsupportedInterruption);
+        if (nodeWithUnsupportedInterruptionCount > NodeSampleMaxSize) {
+            nodesWithUnsupportedInterruption.resize(NodeSampleMaxSize);
         }
 
         if (std::empty(nodesWithUnsupportedInterruption)) {
@@ -4453,7 +4086,7 @@ private:
         int nodeCount)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        
+
         TError error;
         if (!std::empty(nodeSample)) {
             error = TError("Found nodes that do not support interruption handling")
@@ -4502,7 +4135,6 @@ private:
 
         TManageNodeSchedulingSegmentsContext context;
         context.Now = TInstant::Now();
-        context.NodeShardHost = this;
         context.StrategySegmentsState = Strategy_->GetStrategySchedulingSegmentsState();
         context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
 
@@ -4526,27 +4158,11 @@ private:
         }
         SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
 
-        int totalMovedNodeCount = 0;
-        for (const auto& movedNodesInShard : context.MovedNodesPerNodeShard) {
-            totalMovedNodeCount += movedNodesInShard.size();
-        }
-
-        if (totalMovedNodeCount > 0) {
+        if (!context.MovedNodes.empty()) {
             YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
-                totalMovedNodeCount);
+                std::ssize(context.MovedNodes));
 
-            std::vector<TFuture<void>> futures;
-            for (int nodeShardId = 0; nodeShardId < std::ssize(NodeShards_); ++nodeShardId) {
-                const auto& nodeShard = NodeShards_[nodeShardId];
-                const auto& movedNodesWithSegments = context.MovedNodesPerNodeShard[nodeShardId];
-
-                futures.push_back(BIND(&TNodeShard::SetSchedulingSegmentsForNodes, nodeShard, movedNodesWithSegments)
-                    .AsyncVia(nodeShard->GetInvoker())
-                    .Run());
-            }
-
-            WaitFor(AllSet(futures))
-                .ThrowOnError();
+            NodeManager_->SetSchedulingSegmentsForNodes(std::move(context.MovedNodes));
 
             // We want to update the descriptors after moving nodes between segments to send the most recent state to master.
             UpdateExecNodeDescriptorsExecutor_->ScheduleOutOfBand();
@@ -4816,29 +4432,14 @@ const TSchedulerConfigPtr& TScheduler::GetConfig() const
     return Impl_->GetConfig();
 }
 
-int TScheduler::GetNodeShardId(TNodeId nodeId) const
-{
-    return Impl_->GetNodeShardId(nodeId);
-}
-
-const IInvokerPtr& TScheduler::GetCancelableNodeShardInvoker(int shardId) const
-{
-    return Impl_->GetCancelableNodeShardInvoker(shardId);
-}
-
-const std::vector<IInvokerPtr>& TScheduler::GetNodeShardInvokers() const
-{
-    return Impl_->GetNodeShardInvokers();
-}
-
 IInvokerPtr TScheduler::GetBackgroundInvoker() const
 {
     return Impl_->GetBackgroundInvoker();
 }
 
-const std::vector<TNodeShardPtr>& TScheduler::GetNodeShards() const
+const TNodeManagerPtr& TScheduler::GetNodeManager() const
 {
-    return Impl_->GetNodeShards();
+    return Impl_->GetNodeManager();
 }
 
 bool TScheduler::IsConnected() const

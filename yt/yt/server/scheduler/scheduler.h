@@ -63,21 +63,12 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const;
-
-    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const;
-
-    const IInvokerPtr& GetCancelableNodeShardInvoker(int shardId) const;
-
-    /*!
-     *  \note Thread affinity: any
-     */
     IInvokerPtr GetBackgroundInvoker() const;
 
     /*!
      *  \note Thread affinity: any
      */
-    const std::vector<TNodeShardPtr>& GetNodeShards() const;
+    const TNodeManagerPtr& GetNodeManager() const;
 
     /*!
      *  \note Thread affinity: any
@@ -150,6 +141,7 @@ public:
 
     int GetOperationArchiveVersion() const;
 
+    // TODO(eshcherbin): Do we need these methods in the header?
     TString FormatResources(const TJobResourcesWithQuota& resources) const;
     TString FormatResourceUsage(
         const TJobResources& usage,

@@ -14,18 +14,15 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TNodeShardIdToMovedNodes = std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount>;
-
 struct TManageNodeSchedulingSegmentsContext
 {
     TInstant Now;
-    INodeShardHost* NodeShardHost;
     TStrategySchedulingSegmentsState StrategySegmentsState;
     TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
     THashMap<TString, std::vector<NNodeTrackerClient::TNodeId>> NodeIdsPerTree;
 
     std::vector<TError> Errors;
-    TNodeShardIdToMovedNodes MovedNodesPerNodeShard;
+    TSetNodeSchedulingSegmentOptionsList MovedNodes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
