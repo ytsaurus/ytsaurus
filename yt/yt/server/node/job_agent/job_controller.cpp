@@ -1366,8 +1366,6 @@ void TJobController::TImpl::ProcessHeartbeatCommonResponsePart(const TRspHeartbe
         }
     }
 
-    YT_VERIFY(response->jobs_to_interrupt_size() == 0 || response->old_jobs_to_interrupt_size() == 0);
-
     for (const auto& jobToInterrupt : response->jobs_to_interrupt()) {
         auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
         auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
