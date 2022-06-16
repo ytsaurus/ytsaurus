@@ -94,6 +94,7 @@ public:
     THashMap<TString, TMethodConfigPtr> Methods;
     std::optional<int> AuthenticationQueueSizeLimit;
     std::optional<TDuration> PendingPayloadsTimeout;
+    std::optional<bool> Pooled;
 
     TServiceConfig();
 };
@@ -114,6 +115,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
     std::optional<ERequestTracingMode> TracingMode;
+    std::optional<bool> Pooled;
 
     TMethodConfig();
 };

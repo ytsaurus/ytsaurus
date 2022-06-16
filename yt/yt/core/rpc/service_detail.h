@@ -343,10 +343,6 @@ protected:
             this->UnderlyingContext_->ResponseAttachments() = std::move(responseAttachments);
         }
         this->UnderlyingContext_->Reply(error);
-        if (UnderlyingContext_->IsPooled()) {
-            this->Request_.reset();
-            this->Response_.reset();
-        }
     }
 };
 
@@ -644,6 +640,7 @@ protected:
         NLogging::TLoggingAnchor* const ResponseLoggingAnchor;
 
         std::atomic<bool> Heavy = false;
+        std::atomic<bool> Pooled = true;
 
         std::atomic<int> QueueSizeLimit = 0;
         std::atomic<int> ConcurrencyLimit = 0;

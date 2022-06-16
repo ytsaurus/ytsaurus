@@ -344,7 +344,7 @@ public:
 
     bool IsPooled() const override
     {
-        return RuntimeInfo_->Descriptor.Pooled;
+        return RuntimeInfo_->Pooled.load();
     }
 
     TTcpDispatcherStatistics GetBusStatistics() const override
@@ -2308,6 +2308,7 @@ void TServiceBase::DoConfigure(
             runtimeInfo->ConcurrencyLimit.store(methodConfig->ConcurrencyLimit.value_or(descriptor.ConcurrencyLimit));
             runtimeInfo->LogLevel.store(methodConfig->LogLevel.value_or(descriptor.LogLevel));
             runtimeInfo->LoggingSuppressionTimeout.store(methodConfig->LoggingSuppressionTimeout.value_or(descriptor.LoggingSuppressionTimeout));
+            runtimeInfo->Pooled.store(methodConfig->Pooled.value_or(config->Pooled.value_or(descriptor.Pooled)));
 
             {
                 auto guard = Guard(runtimeInfo->RequestQueuesLock);
