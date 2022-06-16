@@ -352,6 +352,7 @@ class TestProbingJobs(YTEnvSetup):
             "testing": {"testing_speculative_launch_mode": "always"}
         }, job_count=1)
         wait_breakpoint(job_count=2, timeout=datetime.timedelta(seconds=15))
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["running"] == 2)
 
         time.sleep(2)
         assert get(op.get_path() + "/@brief_progress/jobs")["running"] == 2
