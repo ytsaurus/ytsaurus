@@ -519,6 +519,7 @@ void TBlockFetcher::RequestBlocks(
             static_cast<i64>(uncompressedSize * CompressionRatio_));
 
         // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.
+        YT_VERIFY(readerIndexToWindowIndices[readerIndex].size() == blockIndices.size());
         future.SubscribeUnique(
             BIND(
                 &TBlockFetcher::OnGotBlocks,
@@ -541,6 +542,9 @@ void TBlockFetcher::OnGotBlocks(
     }
 
     auto blocks = std::move(blocksOrError.Value());
+
+    YT_VERIFY(blocks.size() == blockIndexes.size());
+    YT_VERIFY(blocks.size() == windowIndexes.size());
 
     for (auto& block: blocks) {
         block = AttachCategory(
