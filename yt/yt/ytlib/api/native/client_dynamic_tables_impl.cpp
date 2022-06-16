@@ -2207,6 +2207,46 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     return tabletActions;
 }
 
+NQueueClient::TQueueRowsetPtr TClient::DoPullQueue(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    THROW_ERROR_EXCEPTION_IF(offset < 0, "Cannot read table %v at a negative offset %v", queuePath, offset);
+
+    auto rowsToRead = NQueueClient::ComputeRowsToRead(rowBatchReadOptions);
+
+    auto readResult = DoSelectRows(
+        Format(
+            "* from [%v] where [$tablet_index] = %v and [$row_index] between %v and %v",
+            queuePath,
+            partitionIndex,
+            offset,
+            offset + rowsToRead - 1),
+        options);
+
+    if (readResult.Rowset->GetRows().Empty()) {
+        readResult = DoSelectRows(
+            Format(
+                "* from [%v] where [$tablet_index] = %v and [$row_index] >= %v limit %v",
+                queuePath,
+                partitionIndex,
+                offset,
+                rowsToRead),
+            options);
+    }
+
+    auto startOffset = offset;
+
+    if (!readResult.Rowset->GetRows().Empty()) {
+        startOffset = NQueueClient::GetStartOffset(readResult.Rowset);
+    }
+
+    return New<NQueueClient::TQueueRowset>(readResult.Rowset, startOffset);
+}
+
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
     const std::vector<TAlienCellDescriptorLite>& alienCellDescriptors,
     const TSyncAlienCellOptions& options)

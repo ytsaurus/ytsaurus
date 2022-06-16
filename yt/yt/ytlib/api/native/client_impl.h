@@ -236,6 +236,14 @@ public:
         const TUpdateChaosTableReplicaProgressOptions& options = {}),
         (replicaId, options))
 
+    IMPLEMENT_METHOD(NQueueClient::TQueueRowsetPtr, PullQueue, (
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options = {}),
+        (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
+
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
         const TGetNodeOptions& options),
@@ -902,6 +910,17 @@ private:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         bool allKeys,
         NTransactionClient::TTimestamp userTimestamp = NTransactionClient::NullTimestamp);
+
+    //
+    // Queues
+    //
+
+    NQueueClient::TQueueRowsetPtr DoPullQueue(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options);
 
     //
     // Chaos

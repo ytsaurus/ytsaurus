@@ -59,6 +59,13 @@ public:
         const TString& query,
         const TSelectRowsOptions& options), (override));
 
+    MOCK_METHOD(TFuture<NQueueClient::TQueueRowsetPtr>, PullQueue, (
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options), (override));
+
     MOCK_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
         const TExplainQueryOptions& options), (override));

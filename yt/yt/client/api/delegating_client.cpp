@@ -80,6 +80,16 @@ TFuture<ITableWriterPtr> TDelegatingClient::CreateTableWriter(
     return Underlying_->CreateTableWriter(path, options);
 }
 
+TFuture<NQueueClient::TQueueRowsetPtr> TDelegatingClient::PullQueue(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    return Underlying_->PullQueue(queuePath, offset, partitionIndex, rowBatchReadOptions, options);
+}
+
 TFuture<NYson::TYsonString> TDelegatingClient::GetNode(
     const NYPath::TYPath& path,
     const TGetNodeOptions& options)

@@ -60,6 +60,14 @@ public:
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = {}) override;
 
+    // Queues
+    virtual TFuture<NQueueClient::TQueueRowsetPtr> PullQueue(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options = {}) override;
+
     // Cypress
     TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
