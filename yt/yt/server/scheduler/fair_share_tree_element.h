@@ -368,7 +368,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
     // Used for profiling in snapshotted version.
-    // TODO(eshcherbin): Remove in favor of std::ssize(SchedulableChildren).
     DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);
 
     // Computed in fair share update and used in schedule jobs.

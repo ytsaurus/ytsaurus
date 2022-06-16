@@ -813,7 +813,6 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
         }
 
         if (jobStartedUsingPreemption) {
-            // TODO(eshcherbin): Rethink preemption reason format to allow more variable attributes easily.
             TStringBuilder preemptionReasonBuilder;
             preemptionReasonBuilder.AppendFormat(
                 "Preempted to start job %v of operation %v; "
