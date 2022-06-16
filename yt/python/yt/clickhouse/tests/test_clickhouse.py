@@ -160,7 +160,6 @@ class TestClickhouseFromHost(ClickhouseTestBase):
         yt.write_table("//tmp/t", [{"a": 1, "b": "foo"},
                                    {"a": 2, "b": "bar"}])
 
-
         bin, args = bin_args
         alias = "*e1" if bin.endswith("chyt") else "*e2"
 
