@@ -559,6 +559,29 @@ message TRspSelectRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TRowBatchReadOptions
+{
+    optional int64 max_row_count = 1;
+    optional int64 max_data_weight = 2;
+    optional int64 data_weight_per_row_hint = 3;
+}
+
+message TReqPullQueue
+{
+    optional string queue_path = 1;
+    optional int64 offset = 2;
+    optional int32 partition_index = 3;
+    optional TRowBatchReadOptions row_batch_read_options = 4;
+}
+
+message TRspPullQueue
+{
+    optional TRowsetDescriptor rowset_descriptor = 1;
+    optional int64 start_offset = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqExplainQuery
 {
     required string query = 1;

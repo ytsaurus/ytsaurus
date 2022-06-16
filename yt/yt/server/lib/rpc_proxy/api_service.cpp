@@ -654,6 +654,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
+
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
 
@@ -3620,6 +3622,43 @@ private:
                     ToProto(response->add_replica_ids(), replicaId);
                     ToProto(response->add_replication_errors()->mutable_errors(), errors);
                 }
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PullQueue)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TPullQueueOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions;
+
+        rowBatchReadOptions.MaxRowCount = request->row_batch_read_options().max_row_count();
+        rowBatchReadOptions.MaxDataWeight = request->row_batch_read_options().max_data_weight();
+        if (request->row_batch_read_options().has_data_weight_per_row_hint()) {
+            rowBatchReadOptions.DataWeightPerRowHint = request->row_batch_read_options().data_weight_per_row_hint();
+        }
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PullQueue(
+                    request->queue_path(),
+                    request->offset(),
+                    request->partition_index(),
+                    rowBatchReadOptions,
+                    options);
+            },
+            [=, this_ = MakeStrong(this)] (const auto& context, const auto& queueRowset) {
+                auto* response = &context->Response();
+                response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
+                response->set_start_offset(queueRowset->GetStartOffset());
+
+                context->SetResponseInfo(
+                    "RowCount: %v, StartOffset: %v",
+                    queueRowset->GetRows().size(),
+                    queueRowset->GetStartOffset());
             });
     }
 

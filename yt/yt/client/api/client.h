@@ -27,6 +27,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/client/queue_client/queue_rowset.h>
+
 #include <yt/yt/client/table_client/columnar_statistics.h>
 
 #include <yt/yt/client/tablet_client/public.h>
@@ -954,6 +956,10 @@ struct TTableWriterOptions
     NTableClient::TTableWriterConfigPtr Config;
 };
 
+struct TPullQueueOptions
+    : public TSelectRowsOptions
+{ };
+
 struct TGetColumnarStatisticsOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
@@ -1794,6 +1800,14 @@ struct IClient
     virtual TFuture<TMultiTablePartitions> PartitionTables(
         const std::vector<NYPath::TRichYPath>& paths,
         const TPartitionTablesOptions& options) = 0;
+
+    // Queues
+    virtual TFuture<NQueueClient::TQueueRowsetPtr> PullQueue(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options = {}) = 0;
 
     // Journals
     virtual TFuture<void> TruncateJournal(

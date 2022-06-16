@@ -694,6 +694,37 @@ TFuture<void> TClient::UpdateChaosTableReplicaProgress(
     YT_UNIMPLEMENTED();
 }
 
+TFuture<NQueueClient::TQueueRowsetPtr> TClient::PullQueue(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.PullQueue();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_queue_path(), queuePath);
+    req->set_offset(offset);
+    req->set_partition_index(partitionIndex);
+
+    auto* protoOptions = req->mutable_row_batch_read_options();
+    protoOptions->set_max_row_count(rowBatchReadOptions.MaxRowCount);
+    protoOptions->set_max_data_weight(rowBatchReadOptions.MaxDataWeight);
+    if (rowBatchReadOptions.DataWeightPerRowHint) {
+        protoOptions->set_data_weight_per_row_hint(*rowBatchReadOptions.DataWeightPerRowHint);
+    }
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullQueuePtr& rsp) {
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            rsp->rowset_descriptor(),
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
+        return New<NQueueClient::TQueueRowset>(rowset, rsp->start_offset());
+    }));
+}
+
 TFuture<void> TClient::AddMember(
     const TString& group,
     const TString& member,

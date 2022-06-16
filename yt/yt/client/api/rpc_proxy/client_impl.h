@@ -124,6 +124,14 @@ public:
         NChaosClient::TReplicaId replicaId,
         const TUpdateChaosTableReplicaProgressOptions& options = {}) override;
 
+    // Queues.
+    TFuture<NQueueClient::TQueueRowsetPtr> PullQueue(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options = {}) override;
+
     // Files.
     TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,

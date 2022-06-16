@@ -18,6 +18,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/queue_client/queue_rowset.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -41,6 +43,7 @@ using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NQueueClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -739,6 +742,119 @@ TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
     actual = ToString(rows[3]);
     expected = ToString(YsonToSchemalessRow(
         "<id=0> 0; <id=1> 3; <id=2> 23; <id=3> 24; <id=4> 25;"));
+    EXPECT_EQ(expected, actual);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueApiTest
+    : public TOrderedDynamicTablesTest
+{
+public:
+    static void WaitForRowCount(i64 rowCount)
+    {
+        WaitForPredicate([rowCount] {
+            auto allRowsResult = WaitFor(Client_->SelectRows(Format("* from [%v]", Table_)))
+                .ValueOrThrow();
+
+            return std::ssize(allRowsResult.Rowset->GetRows()) == rowCount;
+        });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueueApiTest, TestQueueApi)
+{
+    WriteUnversionedRow(
+        {"v3", "v1", "v2"},
+        "<id=0> 15; <id=1> 13; <id=2> 14;");
+    WriteUnversionedRow(
+        {"v2", "v3", "v1"},
+        "<id=0> 24; <id=1> 25; <id=2> 23;");
+
+    auto options = TQueueRowBatchReadOptions{.MaxRowCount = 1};
+    auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 0);
+    EXPECT_EQ(res->GetFinishOffset(), 1);
+    auto rows = res->GetRows();
+    ASSERT_EQ(rows.Size(), 1u);
+
+    auto actual = ToString(rows[0]);
+    auto expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 0; <id=2> 13; <id=3> 14; <id=4> 15;"));
+    EXPECT_EQ(expected, actual);
+
+    WriteUnversionedRow(
+        {"v1", "v2", "v3"},
+        "<id=0> 123; <id=1> 124; <id=2> 125;");
+
+    options = TQueueRowBatchReadOptions{.MaxRowCount = 10};
+    res = WaitFor(Client_->PullQueue(Table_, 1, 0, options)).ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 1);
+    EXPECT_LE(res->GetFinishOffset(), 3);
+    rows = res->GetRows();
+    ASSERT_GE(rows.size(), 1u);
+    EXPECT_LE(rows.size(), 2u);
+
+    actual = ToString(rows[0]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 1; <id=2> 23; <id=3> 24; <id=4> 25;"));
+    EXPECT_EQ(expected, actual);
+
+    Client_->TrimTable(Table_, 0, 1);
+    WaitForRowCount(2);
+
+    WriteUnversionedRow(
+        {"v1", "v2", "v3"},
+        "<id=0> 1123; <id=1> 1124; <id=2> 1125;");
+
+    options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
+    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 1);
+    EXPECT_LE(res->GetFinishOffset(), 3);
+    rows = res->GetRows();
+    ASSERT_GE(rows.size(), 1u);
+    EXPECT_LE(rows.size(), 2u);
+
+    actual = ToString(rows[0]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 1; <id=2> 23; <id=3> 24; <id=4> 25;"));
+    EXPECT_EQ(expected, actual);
+
+    Client_->TrimTable(Table_, 0, 2);
+    WaitForRowCount(2);
+
+    options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
+    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 2);
+    EXPECT_LE(res->GetFinishOffset(), 4);
+    rows = res->GetRows();
+    ASSERT_GE(rows.size(), 1u);
+    EXPECT_LE(rows.size(), 2u);
+
+    actual = ToString(rows[0]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 2; <id=2> 123; <id=3> 124; <id=4> 125;"));
+    EXPECT_EQ(expected, actual);
+
+    options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
+    res = WaitFor(Client_->PullQueue(Table_, 10, 0, options)).ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 10);
+    EXPECT_EQ(res->GetFinishOffset(), 10);
+    rows = res->GetRows();
+    ASSERT_EQ(rows.size(), 0u);
+
+    options = TQueueRowBatchReadOptions{.MaxRowCount = 10, .MaxDataWeight = 5, .DataWeightPerRowHint = 3};
+    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 2);
+    EXPECT_EQ(res->GetFinishOffset(), 3);
+    rows = res->GetRows();
+    ASSERT_EQ(rows.size(), 1u);
+
+    actual = ToString(rows[0]);
+    expected = ToString(YsonToSchemalessRow(
+        "<id=0> 0; <id=1> 2; <id=2> 123; <id=3> 124; <id=4> 125;"));
     EXPECT_EQ(expected, actual);
 }
 
