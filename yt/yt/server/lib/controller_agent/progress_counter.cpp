@@ -295,10 +295,7 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
             .Item("pending").Value(counter->GetPending())
             .Item("suspended").Value(counter->GetSuspended())
             .Item("aborted").BeginMap()
-                // NB(ignat): temporaly output total aborted job count as scheduled aborted jobs count.
-                // Fix it when UI will start using scheduled aborted job count.
-                .Item("total").Value(counter->GetAbortedScheduled())
-                //.Item("total").Value(counter->GetAbortedTotal())
+                .Item("total").Value(counter->GetAbortedTotal())
                 .Item("non_scheduled").BeginMap()
                     .DoFor(TEnumTraits<EAbortReason>::GetDomainValues(), [&] (TFluentMap fluent, EAbortReason reason) {
                         if (IsJobAbsenceGuaranteed(reason)) {
