@@ -4,9 +4,11 @@ from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, set, create_pool, write_file, read_table, write_table, map, vanilla, get_job,
     update_nodes_dynamic_config, set_node_resource_targets, update_controller_agent_config,
-    run_test_vanilla)
+    run_test_vanilla, sync_create_cells)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
+
+import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import YtError
 
@@ -18,8 +20,24 @@ import builtins
 
 ###############################################################################################
 
-"""
-This test only works when suid bit is set.
+MEMORY_SCRIPT = """
+#!/usr/bin/python
+import time
+
+from random import randint
+def rndstr(n):
+    s = ''
+    for i in range(100):
+        s += chr(randint(ord('a'), ord('z')))
+    return s * (n // 100)
+
+{before_action}
+
+a = list()
+while len(a) * 100000 < {memory}:
+    a.append(rndstr(100000))
+
+{after_action}
 """
 
 
@@ -132,28 +150,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
         }
     }
 
-    SCRIPT = """
-#!/usr/bin/python
-import time
-
-from random import randint
-def rndstr(n):
-    s = ''
-    for i in range(100):
-        s += chr(randint(ord('a'), ord('z')))
-    return s * (n // 100)
-
-{before_action}
-
-a = list()
-while len(a) * 100000 < {memory}:
-    a.append(rndstr(100000))
-
-time.sleep(5.0)
-"""
-
     def _format_script(self, before_action="", memory=140 * 10 ** 6):
-        return self.SCRIPT.format(before_action=before_action, memory=memory).encode("ascii")
+        return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action="time.sleep(5.0)").encode("ascii")
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @authors("max42")
@@ -246,6 +244,125 @@ time.sleep(5.0)
         assert memory_reserves[0] == 160 * 10 ** 6
         assert memory_reserves[1] == 240 * 10 ** 6
         assert memory_reserves[2] == 400 * 10 ** 6
+
+
+###############################################################################################
+
+
+@pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+@pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
+class TestResourceOverdraftAbort(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2,
+                }
+            }
+        },
+        "resource_limits": {
+            # Each job proxy occupies about 100MB.
+            "user_jobs": {
+                "type": "static",
+                "value": 2000 * 10 ** 6,
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestResourceOverdraftAbort, self).setup_method(method)
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    # Actual situation when resource overdraft logic has an effect is following:
+    # 1. Some job B is within his memory reserver.
+    # 2. Other job A overdrafted memory reserve.
+    # 3. Job B has memory growth due to memory growth of Job Proxy.
+    # This test was an attempt to reproduce this situation.
+    @authors("ignat")
+    def DISABLED_test_abort_job_with_actual_overdraft(self):
+        create("file", "//tmp/script_500.py", attributes={"executable": True})
+        write_file(
+            "//tmp/script_500.py",
+            MEMORY_SCRIPT.format(before_action="time.sleep(1)", memory=500 * 10 ** 6, after_action="time.sleep(1000)").encode("ascii")
+        )
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 3
+
+        node = nodes[0]
+
+        op_a = run_test_vanilla(
+            track=False,
+            command=with_breakpoint(
+                "python script_500.py & BREAKPOINT; python script_500.py",
+                breakpoint_name="a",
+            ),
+            job_count=1,
+            spec={
+                "resource_limits": {"cpu": 1},
+                "max_failed_job_count": 1,
+                "scheduling_tag_filter": node,
+            },
+            task_patch={
+                "memory_limit": 1100 * 10 ** 6,
+                "user_job_memory_digest_default_value": 0.5,
+                "file_paths": ["//tmp/script_500.py"],
+            })
+
+        job_id_a, = wait_breakpoint(breakpoint_name="a")
+        print_debug("Job id for operation {}".format(op_a.id), job_id_a)
+
+        statistics = op_a.get_job_statistics(job_id_a)
+
+        max_memory_statistics = statistics["user_job"]["max_memory"]
+        assert max_memory_statistics["count"] == 1
+        assert max_memory_statistics["sum"] >= 500 * 10 ** 6
+
+        memory_reserve_statistics = statistics["user_job"]["memory_reserve"]
+        assert memory_reserve_statistics["count"] == 1
+        assert memory_reserve_statistics["sum"] == 550 * 10 ** 6
+
+        op_b = run_test_vanilla(
+            track=False,
+            command=with_breakpoint(
+                "python script_500.py & BREAKPOINT; python script_500.py",
+                breakpoint_name="b",
+            ),
+            job_count=1,
+            spec={
+                "resource_limits": {"cpu": 1},
+                "max_failed_job_count": 1,
+                "scheduling_tag_filter": node,
+            },
+            task_patch={
+                "memory_limit": 1100 * 10 ** 6,
+                "user_job_memory_digest_lower_bound": 1.0,
+                "file_paths": ["//tmp/script_500.py"],
+            })
+        job_id_b, = wait_breakpoint(breakpoint_name="b")
+        print_debug("Job id for operation {}".format(op_b.id), job_id_b)
+
+        release_breakpoint(breakpoint_name="a")
+        wait(lambda: op_a.get_job_statistics(job_id_a)["user_job"]["max_memory"]["sum"] >= 1000 * 10 ** 6)
+
+        release_breakpoint(breakpoint_name="b")
+        wait(lambda: get_job(op_a.id, job_id_a)["state"] == "aborted")
+
+        job_info = get_job(op_a.id, job_id_a)
+        assert job_info["error"]["attributes"]["abort_reason"] == "resource_overdraft"
+
+        assert get_job(op_b.id, job_id_b)["state"] == "running"
+
 
 ###############################################################################################
 

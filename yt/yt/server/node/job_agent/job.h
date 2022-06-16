@@ -74,6 +74,8 @@ struct IJob
 
     virtual void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) = 0;
 
+    virtual bool ResourceUsageOverdrafted() const = 0;
+
     virtual NJobTrackerClient::NProto::TJobResult GetResult() const = 0;
     virtual void SetResult(const NJobTrackerClient::NProto::TJobResult& result) = 0;
 

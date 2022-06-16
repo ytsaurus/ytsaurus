@@ -1134,17 +1134,38 @@ void TJobController::TImpl::RemoveJob(
     YT_LOG_INFO("Job removed (JobId: %v, Save: %v)", job->GetId(), shouldSave);
 }
 
-void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& job, const TNodeResources& resourceDelta)
+void TJobController::TImpl::OnResourcesUpdated(const TWeakPtr<IJob>& weakCurrentJob, const TNodeResources& resourceDelta)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (!CheckMemoryOverdraft(resourceDelta)) {
-        auto job_ = job.Lock();
-        if (job_) {
-            job_->Abort(TError(
-                NExecNode::EErrorCode::ResourceOverdraft,
-                "Failed to increase resource usage")
-                << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
+        auto currentJob = weakCurrentJob.Lock();
+        if (currentJob) {
+            if (currentJob->ResourceUsageOverdrafted()) {
+                currentJob->Abort(TError(
+                    NExecNode::EErrorCode::ResourceOverdraft,
+                    "Failed to increase resource usage")
+                    << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
+            } else {
+                bool foundJobToAbort = false;
+                for (const auto& job : GetJobs()) {
+                    if (job->GetState() == EJobState::Running && job->ResourceUsageOverdrafted()) {
+                        job->Abort(TError(
+                            NExecNode::EErrorCode::ResourceOverdraft,
+                            "Failed to increase resource usage on node by some other job with guarantee")
+                            << TErrorAttribute("resource_delta", FormatResources(resourceDelta))
+                            << TErrorAttribute("other_job_id", currentJob->GetId()));
+                        foundJobToAbort = true;
+                        break;
+                    }
+                }
+                if (!foundJobToAbort) {
+                    currentJob->Abort(TError(
+                        NExecNode::EErrorCode::NodeResourceOvercommit,
+                        "Fail to increase resource usage since resource usage on node overcommitted")
+                        << TErrorAttribute("resource_delta", FormatResources(resourceDelta)));
+                }
+            }
         }
         return;
     }

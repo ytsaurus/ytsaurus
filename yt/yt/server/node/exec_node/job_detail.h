@@ -120,6 +120,8 @@ public:
     double GetProgress() const override;
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage) override;
+    
+    bool ResourceUsageOverdrafted() const override;
 
     void SetProgress(double progress) override;
 
@@ -287,6 +289,7 @@ private:
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;
     bool GpuRequested_;
     double RequestedCpu_;
+    i64 RequestedMemory_;
     std::vector<int> Ports_;
 
     EJobState JobState_ = EJobState::Waiting;
