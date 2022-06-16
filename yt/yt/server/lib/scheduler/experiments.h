@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/orm/query_helpers/public.h>
+#include <yt/yt/orm/library/public.h>
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 
@@ -182,7 +182,7 @@ public:
     struct TPreparedExperiment final
     {
         TExperimentConfigPtr Config;
-        NOrm::NQueryHelpers::IFilterMatcherPtr FilterMatcher;
+        NOrm::NLibrary::IFilterMatcherPtr FilterMatcher;
     };
 
     struct TPreparedExperiments final
