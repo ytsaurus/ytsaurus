@@ -100,9 +100,6 @@ TCommandDescriptor IDriver::GetCommandDescriptorOrThrow(const TString& commandNa
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class TDriver;
-typedef TIntrusivePtr<TDriver> TDriverPtr;
-
 class TDriver
     : public IDriver
 {
