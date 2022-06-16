@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/orm/query_helpers/filter_matcher.h>
+#include <yt/yt/orm/library/filter_matcher.h>
 
 #include <random>
 
@@ -16,7 +16,6 @@ namespace NYT::NScheduler {
 
 using namespace NYson;
 using namespace NYTree;
-using namespace NOrm::NQueryHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,7 +104,7 @@ void TExperimentConfig::Register(TRegistrar registrar)
 
         // Check that query is well-formed.
         if (config->Filter) {
-            NOrm::NQueryHelpers::CreateFilterMatcher(*config->Filter);
+            NOrm::NLibrary::CreateFilterMatcher(*config->Filter);
         }
     });
 }
@@ -191,7 +190,8 @@ void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExper
         auto preparedExperiment = New<TPreparedExperiment>();
         preparedExperiment->Config = experimentConfig;
         if (experimentConfig->Filter) {
-            preparedExperiment->FilterMatcher = CreateFilterMatcher(*experimentConfig->Filter);
+            preparedExperiment->FilterMatcher = NOrm::NLibrary::CreateFilterMatcher(
+                *experimentConfig->Filter);
         }
         EmplaceOrCrash(preparedExperiments->Experiments, name, preparedExperiment);
     }
