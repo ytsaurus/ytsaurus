@@ -69,10 +69,10 @@ private:
     TFuture<std::vector<TBlock>> TrackBlocks(const TFuture<std::vector<TBlock>>& future)
     {
         return future.Apply(BIND([this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) {
-            std::vector<TBlock> output(blocks.size());
+            std::vector<TBlock> output;
             output.reserve(blocks.size());
 
-            for (const auto& block: blocks) {
+            for (const auto& block : blocks) {
                 output.push_back(AttachCategory(
                     block,
                     BlockTracker_,
