@@ -361,7 +361,7 @@ TJobResources TDynamicAttributesList::FillResourceUsageAtOperation(
         attributes.ResourceUsage = it != resourceUsageSnapshot->OperationIdToResourceUsage.end()
             ? it->second
             : TJobResources();
-        attributes.IsNotAlive = !resourceUsageSnapshot->AliveOperationIds.contains(operationId);
+        attributes.Alive = resourceUsageSnapshot->AliveOperationIds.contains(operationId);
     } else {
         ActualizeResourceUsageOfOperation(element, treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element));
     }
@@ -1632,7 +1632,7 @@ void TScheduleJobsContext::CheckForDeactivation(
     // Reset operation element activeness (it can be active after scheduling without preemption).
     attributes.Active = false;
 
-    if (attributes.IsNotAlive) {
+    if (!attributes.Alive) {
         OnOperationDeactivated(element, EDeactivationReason::IsNotAlive);
         return;
     }

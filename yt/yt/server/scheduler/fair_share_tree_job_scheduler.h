@@ -54,8 +54,7 @@ struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
     bool Active = false;
-    // TODO(eshcherbin): Change to IsAlive.
-    bool IsNotAlive = false;
+    bool Alive = true;
     TSchedulerOperationElement* BestLeafDescendant = nullptr;
     TJobResources ResourceUsage;
     NProfiling::TCpuInstant ResourceUsageUpdateTime;
