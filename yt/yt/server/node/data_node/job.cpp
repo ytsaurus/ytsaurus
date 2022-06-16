@@ -280,6 +280,11 @@ public:
         YT_ABORT();
     }
 
+    bool ResourceUsageOverdrafted() const override
+    {
+        return false;
+    }
+
     TJobResult GetResult() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);

@@ -147,6 +147,7 @@ TJob::TJob(
     , ResourceUsage_(resourceUsage)
     , GpuRequested_(ResourceUsage_.gpu() > 0)
     , RequestedCpu_(resourceUsage.cpu())
+    , RequestedMemory_(resourceUsage.user_memory())
     , TraceContext_(CreateTraceContextFromCurrent("Job"))
     , FinishGuard_(TraceContext_)
 {
@@ -729,6 +730,14 @@ void TJob::SetResourceUsage(const TNodeResources& newUsage)
         ResourceUsage_ = newUsage;
         ResourcesUpdated_.Fire(delta);
     }
+}
+
+bool TJob::ResourceUsageOverdrafted() const
+{
+    if (UserJobSpec_) {
+        return ResourceUsage_.user_memory() > RequestedMemory_;
+    }
+    return false;
 }
 
 void TJob::SetProgress(double progress)

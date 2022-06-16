@@ -1246,6 +1246,19 @@ class Operation(object):
 
         return get(self.get_path() + "/@state", **kwargs)
 
+    def get_job_statistics(self, job_id):
+        # It works only for tests with job archive.
+        def get_job_info_with_statistics():
+            return get_job(self.id, job_id, attributes=["statistics"], verbose=False)
+
+        def has_statistics(job_info):
+            if not job_info:
+                return False
+            return "statistics" in job_info
+
+        wait(lambda: has_statistics(get_job_info_with_statistics()))
+        return get_job_info_with_statistics()["statistics"]
+
     def wait_for_state(self, state, **kwargs):
         wait(lambda: self.get_state(**kwargs) == state)
 

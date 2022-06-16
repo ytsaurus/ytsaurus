@@ -43,6 +43,7 @@ YT_DEFINE_ERROR_ENUM(
     ((GpuCheckCommandFailed)         (1125))
     ((GpuCheckCommandIncorrect)      (1126))
     ((JobProxyUnavailable)           (1127))
+    ((NodeResourceOvercommit)        (1128))
 );
 
 DEFINE_ENUM(ESandboxKind,
