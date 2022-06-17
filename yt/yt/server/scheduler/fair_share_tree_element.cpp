@@ -1859,19 +1859,19 @@ TControllerEpoch TSchedulerOperationElement::GetControllerEpoch() const
     return Controller_->GetEpoch();
 }
 
-void TSchedulerOperationElement::IncreaseConcurrentScheduleJobCalls(int nodeShardId)
+void TSchedulerOperationElement::IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->IncreaseConcurrentScheduleJobCalls(nodeShardId);
+    Controller_->IncreaseConcurrentScheduleJobCalls(schedulingContext);
 }
 
-void TSchedulerOperationElement::IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId)
+void TSchedulerOperationElement::IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->IncreaseScheduleJobCallsSinceLastUpdate(nodeShardId);
+    Controller_->IncreaseScheduleJobCallsSinceLastUpdate(schedulingContext);
 }
 
-void TSchedulerOperationElement::DecreaseConcurrentScheduleJobCalls(int nodeShardId)
+void TSchedulerOperationElement::DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext)
 {
-    Controller_->DecreaseConcurrentScheduleJobCalls(nodeShardId);
+    Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext);
 }
 
 bool TSchedulerOperationElement::IsMaxScheduleJobCallsViolated() const

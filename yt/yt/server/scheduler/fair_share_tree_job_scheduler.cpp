@@ -1504,8 +1504,8 @@ std::optional<EDeactivationReason> TScheduleJobsContext::TryStartScheduleJob(
         return EDeactivationReason::IsNotAlive;
     }
 
-    element->IncreaseConcurrentScheduleJobCalls(SchedulingContext_->GetNodeShardId());
-    element->IncreaseScheduleJobCallsSinceLastUpdate(SchedulingContext_->GetNodeShardId());
+    element->IncreaseConcurrentScheduleJobCalls(SchedulingContext_);
+    element->IncreaseScheduleJobCallsSinceLastUpdate(SchedulingContext_);
 
     *precommittedResourcesOutput = minNeededResources;
     *availableResourcesOutput = Min(
@@ -1600,7 +1600,7 @@ TControllerScheduleJobResultPtr TScheduleJobsContext::DoScheduleJob(
 
 void TScheduleJobsContext::FinishScheduleJob(TSchedulerOperationElement* element)
 {
-    element->DecreaseConcurrentScheduleJobCalls(SchedulingContext_->GetNodeShardId());
+    element->DecreaseConcurrentScheduleJobCalls(SchedulingContext_);
 }
 
 EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriority(
