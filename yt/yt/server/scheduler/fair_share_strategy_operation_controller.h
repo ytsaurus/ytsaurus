@@ -30,13 +30,9 @@ public:
 
     void UpdateMinNeededJobResources();
 
-    void ComputeMaxConcurrentControllerScheduleJobCallsPerNodeShard();
-    int GetMaxConcurrentControllerScheduleJobCallsPerNodeShard() const;
+    void UpdateMaxConcurrentControllerScheduleJobCallsPerNodeShard(const TFairShareStrategyOperationControllerConfigPtr& config);
     void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
-    // TODO(eshcherbin): Remove unnecessary second argument.
-    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
-        const ISchedulingContextPtr& schedulingContext,
-        int maxConcurrentScheduleJobCallsPerNodeShard) const;
+    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
     bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
 
     TControllerScheduleJobResultPtr ScheduleJob(
@@ -83,7 +79,7 @@ private:
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
 
     const int NodeShardCount_;
-    int MaxConcurrentControllerScheduleJobCallsPerNodeShard;
+    std::atomic<int> MaxConcurrentControllerScheduleJobCallsPerNodeShard_;
     mutable int ScheduleJobCallsOverdraft_ = 0;
 
     std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;
