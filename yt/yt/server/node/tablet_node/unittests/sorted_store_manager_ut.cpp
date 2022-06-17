@@ -469,9 +469,8 @@ TEST_P(TBlockedWriteTest, WriteBlockedWrite)
         RotateStores();
     }
 
-    TWriteContext context;
+    auto context = transaction2->CreateWriteContext();
     context.Phase = EWritePhase::Prelock;
-    context.Transaction = transaction2.get();
 
     EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, TLockMask(), &context));
     EXPECT_EQ(rowRef1.Row, context.BlockedRow);
@@ -499,9 +498,8 @@ TEST_P(TBlockedWriteTest, WriteConflictingWrite)
         RotateStores();
     }
 
-    TWriteContext context;
+    auto context = transaction2->CreateWriteContext();
     context.Phase = EWritePhase::Prelock;
-    context.Transaction = transaction2.get();
 
     EXPECT_EQ(TSortedDynamicRowRef(), StoreManager_->ModifyRow(row, ERowModificationType::Write, TLockMask(), &context));
     EXPECT_FALSE(context.Error.IsOK());

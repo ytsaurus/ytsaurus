@@ -515,6 +515,7 @@ TTablet::TTablet(
     TTabletId tabletId,
     ITabletContext* context)
     : TObjectBase(tabletId)
+    , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , Context_(context)
     , LockManager_(New<TLockManager>())
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
@@ -559,6 +560,7 @@ TTablet::TTablet(
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(settings.MountConfig->EnableLookupHashTable ? settings.MountConfig->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(retainedTimestamp)
+    , TabletWriteManager_(CreateTabletWriteManager(this, context))
     , Context_(context)
     , LockManager_(New<TLockManager>())
     , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
@@ -695,6 +697,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
     Save(context, BackupMetadata_);
+    Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
 }
 
@@ -830,6 +833,11 @@ void TTablet::Load(TLoadContext& context)
         BackupMetadata_.SetBackupStage(Load<EBackupStage>(context));
     }
 
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= ETabletReign::TabletWriteManager) {
+        TabletWriteManager_->Load(context);
+    }
+
     Load(context, LastDiscardStoresRevision_);
 
     UpdateOverlappingStoreCount();
@@ -850,12 +858,15 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
         capturedPartitions.push_back(partition->AsyncSave());
     }
 
+    auto capturedTabletWriteManager = TabletWriteManager_->AsyncSave();
+
     return BIND(
         [
             snapshot = BuildSnapshot(nullptr),
             capturedStores = std::move(capturedStores),
             capturedEden = std::move(capturedEden),
-            capturedPartitions = std::move(capturedPartitions)
+            capturedPartitions = std::move(capturedPartitions),
+            capturedTabletWriteManager = std::move(capturedTabletWriteManager)
         ] (TSaveContext& context) {
             using NYT::Save;
 
@@ -887,6 +898,8 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
                 Save(context, storeId);
                 callback(context);
             }
+
+            capturedTabletWriteManager.Run(context);
         });
 }
 
@@ -942,6 +955,21 @@ void TTablet::AsyncLoad(TLoadContext& context)
             }
         }
     }
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= ETabletReign::TabletWriteManager) {
+        TabletWriteManager_->AsyncLoad(context);
+    }
+}
+
+void TTablet::Clear()
+{
+    TabletWriteManager_->Clear();
+}
+
+void TTablet::OnAfterSnapshotLoaded()
+{
+    TabletWriteManager_->OnAfterSnapshotLoaded();
 }
 
 const std::vector<std::unique_ptr<TPartition>>& TTablet::PartitionList() const

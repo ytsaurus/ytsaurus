@@ -113,7 +113,15 @@ public:
         bool transient,
         bool* fresh = nullptr);
 
-    TTransaction* FindPersistentTransaction(TTransactionId transactionId);
+    //! Finds a transaction by id.
+    //! If a persistent instance is found, just returns it.
+    //! If a transient instance is found or no transaction is found
+    //! returns |nullptr|.
+    TTransaction* FindPersistentTransaction(TTransactionId transcationId);
+
+    //! Finds a transaction by id.
+    //! If a persistent instance is found, just returns it.
+    //! Fails if a transient instance is found or no transaction is found.
     TTransaction* GetPersistentTransaction(TTransactionId transactionId);
 
     //! Finds a transaction by id.
@@ -160,6 +168,9 @@ public:
     //! Returns true if transaction manager is decommissioned and threre are
     //! no alive transactions in it, so tablet cell can be safely removed.
     bool IsDecommissioned() const;
+
+    // COMPAT(gritukan)
+    ETabletReign GetSnapshotReign() const;
 
     NYTree::IYPathServicePtr GetOrchidService();
 

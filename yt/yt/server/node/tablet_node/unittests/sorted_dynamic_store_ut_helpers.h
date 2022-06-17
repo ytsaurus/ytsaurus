@@ -8,7 +8,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedStoreTestBase
-    : public TTabletTestBase
+    : public TDynamicStoreTestBase
 {
 public:
     void SetupTablet() override

@@ -7,6 +7,7 @@
 #include "store.h"
 #include "sorted_dynamic_comparer.h"
 #include "tablet_profiling.h"
+#include "tablet_write_manager.h"
 #include "row_cache.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -328,6 +329,7 @@ struct ITabletContext
     virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() = 0;
     virtual IHedgingManagerRegistryPtr GetHedgingManagerRegistry() = 0;
+    virtual ITabletWriteManagerHostPtr GetTabletWriteManagerHost() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -530,6 +532,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TBackupMetadata, BackupMetadata);
 
+    DEFINE_BYVAL_RO_PROPERTY(ITabletWriteManagerPtr, TabletWriteManager);
+
     // Accessors for frequent fields of backup metadata.
     DECLARE_BYVAL_RW_PROPERTY(TTimestamp, BackupCheckpointTimestamp);
     DECLARE_BYVAL_RO_PROPERTY(NTabletClient::EBackupMode, BackupMode);
@@ -615,6 +619,9 @@ public:
 
     TCallback<void(TSaveContext&)> AsyncSave();
     void AsyncLoad(TLoadContext& context);
+
+    void Clear();
+    void OnAfterSnapshotLoaded();
 
     bool IsPhysicallySorted() const;
     bool IsPhysicallyOrdered() const;

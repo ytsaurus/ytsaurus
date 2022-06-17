@@ -144,7 +144,8 @@ using NYT::ToProto;
 
 class TTabletManager::TImpl
     : public TTabletAutomatonPart
-    , public ITabletCellWriteManagerHost
+    , public virtual ITabletCellWriteManagerHost
+    , public virtual ITabletWriteManagerHost
 {
 public:
     DEFINE_SIGNAL(void(TTablet*, const TTableReplicaInfo*), ReplicationTransactionFinished);
@@ -676,6 +677,11 @@ private:
             return Owner_->Bootstrap_->GetLocalDescriptor();
         }
 
+        ITabletWriteManagerHostPtr GetTabletWriteManagerHost() override
+        {
+            return Owner_;
+        }
+
     private:
         TImpl* const Owner_;
     };
@@ -803,6 +809,7 @@ private:
             InitializeTablet(tablet);
 
             tablet->Reconfigure(Slot_);
+            tablet->OnAfterSnapshotLoaded();
 
             Bootstrap_->GetStructuredLogger()->OnHeartbeatRequest(
                 Slot_->GetTabletManager(),
@@ -815,6 +822,10 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::Clear();
+
+        for (auto [tabletId, tablet] : TabletMap_) {
+            tablet->Clear();
+        }
 
         TabletMap_.Clear();
         OrphanedStores_.clear();
@@ -2209,7 +2220,7 @@ private:
                 tabletId);
         }
 
-        transaction->SetSerializationForced(true);
+        transaction->ForceSerialization(tabletId);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Prepared replication progress advance transaction (TabletId: %v, TransactionId: %v)",
             tabletId,
@@ -2762,6 +2773,11 @@ private:
     void OnTabletRowUnlocked(TTablet* tablet) override
     {
         CheckIfTabletFullyUnlocked(tablet);
+    }
+
+    ISimpleHydraManagerPtr GetHydraManager() const override
+    {
+        return Slot_->GetSimpleHydraManager();
     }
 
     void CheckIfTabletFullyUnlocked(TTablet* tablet)

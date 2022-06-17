@@ -94,15 +94,15 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
     Save(context, PrepareRevision_);
+    Save(context, PersistentAffectedTabletIds_);
+    Save(context, SerializingTabletIds_);
     Save(context, PersistentPrepareSignature_);
     Save(context, PersistentGeneration_);
     Save(context, CommitSignature_);
     Save(context, CommitOptions_);
-    Save(context, RowsPrepared_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
     Save(context, CommitTimestampClusterTag_);
-    Save(context, SerializationForced_);
     Save(context, TabletsToUpdateReplicationProgress_);
 }
 
@@ -121,6 +121,12 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, CommitTimestamp_);
     Load(context, PrepareRevision_);
 
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= ETabletReign::TabletWriteManager) {
+        Load(context, PersistentAffectedTabletIds_);
+        Load(context, SerializingTabletIds_);
+    }
+
     Load(context, PersistentPrepareSignature_);
     TransientPrepareSignature_ = PersistentPrepareSignature_;
 
@@ -134,37 +140,32 @@ void TTransaction::Load(TLoadContext& context)
     } else {
         CommitSignature_ = PersistentPrepareSignature_;
     }
-    Load(context, RowsPrepared_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() < ETabletReign::TabletWriteManager) {
+        Load(context, CompatRowsPrepared_);
+    }
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
     // COMPAT(savrus)
     if (context.GetVersion() >= ETabletReign::SerializeReplicationProgress) {
         Load(context, CommitTimestampClusterTag_);
-        Load(context, SerializationForced_);
+        // COMPAT(gritukan)
+        if (context.GetVersion() < ETabletReign::TabletWriteManager) {
+            Load(context, CompatSerializationForced_);
+        }
         Load(context, TabletsToUpdateReplicationProgress_);
     }
-}
-
-TCallback<void(TSaveContext&)> TTransaction::AsyncSave()
-{
-    return BIND([
-        immediateLockedWriteLogSnapshot = ImmediateLockedWriteLog_.MakeSnapshot(),
-        immediateLocklessWriteLogSnapshot = ImmediateLocklessWriteLog_.MakeSnapshot(),
-        delayedLocklessWriteLogSnapshot = DelayedLocklessWriteLog_.MakeSnapshot()
-    ] (TSaveContext& context) {
-        using NYT::Save;
-        Save(context, immediateLockedWriteLogSnapshot);
-        Save(context, immediateLocklessWriteLogSnapshot);
-        Save(context, delayedLocklessWriteLogSnapshot);
-    });
 }
 
 void TTransaction::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
-    Load(context, ImmediateLockedWriteLog_);
-    Load(context, ImmediateLocklessWriteLog_);
-    Load(context, DelayedLocklessWriteLog_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() <= ETabletReign::TabletWriteManager) {
+        Load(context, CompatImmediateLockedWriteLog_);
+        Load(context, CompatImmediateLocklessWriteLog_);
+        Load(context, CompatDelayedLocklessWriteLog_);
+    }
 }
 
 TFuture<void> TTransaction::GetFinished() const
@@ -193,6 +194,26 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
     }
 }
 
+THashSet<TTabletId> TTransaction::GetAffectedTabletIds() const
+{
+    THashSet<TTabletId> affectedTabletIds;
+    for (auto tabletId : TransientAffectedTabletIds()) {
+        affectedTabletIds.insert(tabletId);
+    }
+    for (auto tabletId : PersistentAffectedTabletIds()) {
+        affectedTabletIds.insert(tabletId);
+    }
+
+    return affectedTabletIds;
+}
+
+void TTransaction::ForceSerialization(TTabletId tabletId)
+{
+    YT_VERIFY(NHydra::HasHydraContext());
+
+    SerializingTabletIds_.insert(tabletId);
+}
+
 TInstant TTransaction::GetStartTime() const
 {
     return TimestampToInstant(StartTimestamp_).first;
@@ -200,7 +221,7 @@ TInstant TTransaction::GetStartTime() const
 
 bool TTransaction::IsSerializationNeeded() const
 {
-    return !DelayedLocklessWriteLog_.Empty() || !TabletsToUpdateReplicationProgress_.empty() || SerializationForced_;
+    return !SerializingTabletIds_.empty() || !TabletsToUpdateReplicationProgress_.empty();
 }
 
 TCellTag TTransaction::GetCellTag() const

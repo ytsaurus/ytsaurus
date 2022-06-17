@@ -8,6 +8,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <yt/yt/core/misc/ring_queue.h>
 
 #include <atomic>
 
@@ -542,6 +543,11 @@ struct TWriteContext
 
     int RowCount = 0;
     size_t DataWeight = 0;
+
+    bool Lockless = false;
+
+    TRingQueue<TSortedDynamicRowRef>* PrelockedRows = nullptr;
+    std::vector<TSortedDynamicRowRef>* LockedRows = nullptr;
 
     TSortedDynamicStorePtr BlockedStore;
     TSortedDynamicRow BlockedRow;

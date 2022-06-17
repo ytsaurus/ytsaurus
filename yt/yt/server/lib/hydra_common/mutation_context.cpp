@@ -39,6 +39,19 @@ TMutationContext::TMutationContext(
     , StateHash_(stateHash)
 { }
 
+TMutationContext::TMutationContext(TTestingTag)
+    : THydraContext(
+        TVersion(),
+        /*timestamp*/ TInstant::Zero(),
+        /*randomSeed*/ 0,
+        /*reign*/ 0)
+    , Parent_(nullptr)
+    , Request_(nullptr)
+    , PrevRandomSeed_(0)
+    , SequenceNumber_(0)
+    , StateHash_(0)
+{ }
+
 const TMutationRequest& TMutationContext::Request() const
 {
     return *Request_;

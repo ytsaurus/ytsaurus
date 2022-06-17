@@ -160,11 +160,17 @@ void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
     }
 
     // Do not forget to clear custom mutation handlers.
-    for (int sequenceNumber = AppliedSequenceNumber_; sequenceNumber < std::ssize(MutationRequests_); ++sequenceNumber)
-    {
+    for (int sequenceNumber = AppliedSequenceNumber_; sequenceNumber < std::ssize(MutationRequests_); ++sequenceNumber) {
         auto& mutationRequest = MutationRequests_[sequenceNumber];
         mutationRequest.Handler = TCallback<void(TMutationContext*)>();
     }
+
+    THydraContext context(
+        TVersion(),
+        /*timestamp*/ TInstant::Zero(),
+        /*randomSeed*/ 0,
+        /*automatonReign*/ 0);
+    THydraContextGuard guard(&context);
 
     Automaton_->PrepareState();
 }

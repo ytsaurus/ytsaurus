@@ -599,9 +599,9 @@ protected:
         EXPECT_EQ(1, HydraManager()->GetPendingMutationCount());
         HydraManager()->ApplyAll();
 
-        PrepareTransactionCommit(txId, /*persistent*/ !use2pc, 0x20);
+        PrepareTransactionCommit(txId, /*persistent*/ use2pc, 0x20);
         CommitTransaction(txId, 0x30);
-        EXPECT_EQ(2, HydraManager()->GetPendingMutationCount());
+        EXPECT_EQ(use2pc ? 2 : 1, HydraManager()->GetPendingMutationCount());
 
         HydraManager()->ApplyAll();
         {

@@ -28,6 +28,7 @@ struct TTabletOptions
 
 class TSimpleTabletManager
     : public ITabletCellWriteManagerHost
+    , public ITabletWriteManagerHost
     , public TTabletAutomatonPart
 {
 public:
@@ -58,6 +59,7 @@ public:
     const IBackupManagerPtr& GetBackupManager() const override;
     TCellId GetCellId() const override;
     TTabletNodeDynamicConfigPtr GetDynamicConfig() const override;
+    NHydra::ISimpleHydraManagerPtr GetHydraManager() const override;
 
     TTablet* GetTablet();
 
@@ -98,6 +100,7 @@ private:
     TCallback<void(TSaveContext&)> SaveAsync();
 
     void Clear() override;
+    void OnAfterSnapshotLoaded() override;
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleTabletManager)

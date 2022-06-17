@@ -371,12 +371,6 @@ public:
             TabletManager_->GetTabletCellWriteManagerHost(),
             hydraManager,
             GetAutomaton(),
-            TMemoryUsageTrackerGuard::Acquire(
-                Bootstrap_
-                ->GetMemoryUsageTracker()
-                ->WithCategory(EMemoryCategory::TabletDynamic),
-                0 /*size*/,
-                MemoryUsageGranularity),
             GetAutomatonInvoker());
     }
 

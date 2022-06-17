@@ -216,7 +216,7 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
     dynamicRowRef.LockMask = lockMask;
 
     if (atomic && (phase == EWritePhase::Prelock || phase == EWritePhase::Lock)) {
-        LockRow(context->Transaction, phase == EWritePhase::Prelock, dynamicRowRef);
+        LockRow(context, phase == EWritePhase::Prelock, dynamicRowRef);
     }
 
     return dynamicRowRef;
@@ -230,18 +230,18 @@ TSortedDynamicRowRef TSortedStoreManager::ModifyRow(
     return TSortedDynamicRowRef(ActiveStore_.Get(), this, dynamicRow);
 }
 
-void TSortedStoreManager::LockRow(TTransaction* transaction, bool prelock, const TSortedDynamicRowRef& rowRef)
+void TSortedStoreManager::LockRow(TWriteContext* context, bool prelock, const TSortedDynamicRowRef& rowRef)
 {
     if (prelock) {
-        transaction->PrelockedRows().push(rowRef);
+        context->PrelockedRows->push(rowRef);
     } else {
-        transaction->LockedRows().push_back(rowRef);
+        context->LockedRows->push_back(rowRef);
     }
 }
 
-void TSortedStoreManager::ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
+void TSortedStoreManager::ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef)
 {
-    transaction->LockedRows().push_back(rowRef);
+    context->LockedRows->push_back(rowRef);
 }
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)

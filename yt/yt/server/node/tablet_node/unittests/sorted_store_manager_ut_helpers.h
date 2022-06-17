@@ -36,26 +36,24 @@ protected:
     }
 
     TSortedDynamicRowRef WriteRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         TUnversionedRow row,
         bool prelock)
     {
-        TWriteContext context;
+        auto context = transaction->CreateWriteContext();
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
-        context.Transaction = transaction;
 
         return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, TLockMask(), &context);
     }
 
     TSortedDynamicRowRef WriteAndLockRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         TUnversionedRow row,
         TLockMask lockMask,
         bool prelock)
     {
-        TWriteContext context;
+        auto context = transaction->CreateWriteContext();
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
-        context.Transaction = transaction;
         return StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, lockMask, &context);
     }
 
@@ -63,9 +61,8 @@ protected:
     {
         auto transaction = StartTransaction();
 
-        TWriteContext context;
+        auto context = transaction->CreateWriteContext();
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
-        context.Transaction = transaction.get();
         auto rowRef = StoreManager_->ModifyRow(row, NApi::ERowModificationType::Write, TLockMask(), &context);
 
         if (prelock) {
@@ -88,13 +85,12 @@ protected:
     }
 
     TSortedDynamicRowRef DeleteRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         TUnversionedRow row,
         bool prelock)
     {
-        TWriteContext context;
+        auto context = transaction->CreateWriteContext();
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
-        context.Transaction = transaction;
 
         return StoreManager_->ModifyRow(row, ERowModificationType::Delete, TLockMask(), &context);
     }
@@ -137,9 +133,10 @@ protected:
         StoreManager_->AbortRow(transaction, rowRef);
     }
 
-    void ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
+    void ConfirmRow(TTestTransaction* transaction, const TSortedDynamicRowRef& rowRef)
     {
-        StoreManager_->ConfirmRow(transaction, rowRef);
+        auto writeContext = transaction->CreateWriteContext();
+        StoreManager_->ConfirmRow(&writeContext, rowRef);
     }
 
     using TSortedStoreTestBase::LookupRow;
