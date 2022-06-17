@@ -71,6 +71,20 @@ class TestJobProxyBinary(JobProxyTestBase):
         for time in ("build_time", "start_time"):
             check_iso8601_date(get(service_path + time))
 
+    @authors("galtsev")
+    def test_job_proxy_build_attribute(self):
+        n = ls("//sys/cluster_nodes")[0]
+        path = f"//sys/cluster_nodes/{n}"
+        attribute_name = "job_proxy_build_version"
+        attribute_path = f"{path}/@{attribute_name}"
+        orchid_path = f"{path}/orchid/job_controller/job_proxy_build/version"
+
+        assert attribute_name in ls(f"{path}/@")
+
+        assert get(attribute_path) == get(orchid_path)
+
+        assert re.match(r"^[0-9]+\.[0-9]", get(attribute_path))
+
     @authors("max42")
     def test_job_proxy_build_info(self):
         n = ls("//sys/cluster_nodes")[0]

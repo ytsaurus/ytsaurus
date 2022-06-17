@@ -85,19 +85,23 @@ private:
         auto nodeId = request->node_id();
         auto& statistics = *request->mutable_statistics();
 
+        auto jobProxyBuildVersion = YT_PROTO_OPTIONAL(*request, job_proxy_build_version);
+
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/node_tracker/exec_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, %v",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, JobProxyVersion: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
+                jobProxyBuildVersion,
                 statistics);
 
             nodeTracker->UpdateLastSeenTime(node);
+            node->JobProxyBuildVersion() = jobProxyBuildVersion;
 
             ProcessHeartbeat(node, request, response);
         }

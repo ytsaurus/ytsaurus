@@ -222,6 +222,7 @@
     XX(IOWeights, io_weights) \
     XX(IsBeingMerged, is_being_merged) \
     XX(Jobs, jobs) \
+    XX(JobProxyBuildVersion, job_proxy_build_version) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
