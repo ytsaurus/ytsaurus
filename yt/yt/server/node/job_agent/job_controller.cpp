@@ -1562,7 +1562,7 @@ void TJobController::TImpl::OnJobSpecsReceived(
 
     YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
     for (size_t index = 0; index < startInfos.size(); ++index) {
-        const auto& startInfo = startInfos[index];
+        auto& startInfo = startInfos[index];
         auto operationId = FromProto<TJobId>(startInfo.operation_id());
         auto jobId = FromProto<TJobId>(startInfo.job_id());
 
@@ -1581,12 +1581,13 @@ void TJobController::TImpl::OnJobSpecsReceived(
         TJobSpec spec;
         DeserializeProtoWithEnvelope(&spec, attachment);
 
-        const auto& resourceLimits = startInfo.resource_limits();
+        startInfo.mutable_resource_limits()->set_vcpu(
+            static_cast<double>(NVectorHdrf::TCpuResource(startInfo.resource_limits().cpu() * GetCpuToVCpuFactor())));
 
         CreateSchedulerJob(
             jobId,
             operationId,
-            resourceLimits,
+            startInfo.resource_limits(),
             std::move(spec),
             controllerAgentDescriptor);
     }
@@ -1664,6 +1665,7 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                     .Item("duration").Value(TInstant::Now() - job->GetStartTime())
                                     .OptionalItem("statistics", job->GetStatistics())
                                     .OptionalItem("operation_id", job->GetOperationId())
+                                    .Item("resource_usage").Value(job->GetResourceUsage())
                                     .Do(std::bind(&IJob::BuildOrchid, job, _1))
                                 .EndMap();
                         });
