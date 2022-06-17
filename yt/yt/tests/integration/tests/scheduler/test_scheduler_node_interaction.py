@@ -179,6 +179,13 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         assert node_resource_limits["cpu"] == 19.3
         assert node_resource_limits["vcpu"] == 23.35
 
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        for job_id in job_ids:
+            resource_usage = get(f"//sys/cluster_nodes/{node}/orchid/job_controller/active_jobs/scheduler/{job_id}/resource_usage")
+            assert resource_usage['cpu'] == 19.01
+            assert resource_usage['vcpu'] == 23.0
+
         release_breakpoint()
         op.track()
 
