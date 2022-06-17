@@ -1,5 +1,7 @@
 #include "pool_resources.h"
 
+#include <yt/yt/ytlib/scheduler/config.h>
+
 namespace NYT::NSchedulerPoolServer {
 
 using namespace NYson;
@@ -7,17 +9,17 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolResources::TPoolResources()
+void TPoolResources::Register(TRegistrar registrar)
 {
-    RegisterParameter("strong_guarantee_resources", StrongGuaranteeResources)
+    registrar.Parameter("strong_guarantee_resources", &TThis::StrongGuaranteeResources)
         .DefaultNew();
-    RegisterParameter("burst_guarantee_resources", BurstGuaranteeResources)
+    registrar.Parameter("burst_guarantee_resources", &TThis::BurstGuaranteeResources)
         .DefaultNew();
-    RegisterParameter("resource_flow", ResourceFlow)
+    registrar.Parameter("resource_flow", &TThis::ResourceFlow)
         .DefaultNew();
-    RegisterParameter("max_operation_count", MaxOperationCount)
+    registrar.Parameter("max_operation_count", &TThis::MaxOperationCount)
         .Default();
-    RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+    registrar.Parameter("max_running_operation_count", &TThis::MaxRunningOperationCount)
         .Default();
 }
 

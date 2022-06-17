@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/ytlib/distributed_throttler/config.h>
 
@@ -11,15 +11,14 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr UserThrottler;
-    TSecurityManagerConfig()
-    {
-        RegisterParameter("user_throttler", UserThrottler)
-            .DefaultNew();
-    }
+
+    REGISTER_YSON_STRUCT(TSecurityManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
@@ -27,7 +26,7 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicSecurityManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration AccountStatisticsGossipPeriod;
@@ -46,34 +45,9 @@ public:
 
     int MaxAccountSubtreeSize;
 
-    TDynamicSecurityManagerConfig()
-    {
-        RegisterParameter("account_statistics_gossip_period", AccountStatisticsGossipPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("request_rate_smoothing_period", RequestRateSmoothingPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("account_master_memory_usage_update_period", AccountMasterMemoryUsageUpdatePeriod)
-            .Default(TDuration::Seconds(60));
+    REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
-        RegisterParameter("enable_delayed_membership_closure_recomputation", EnableDelayedMembershipClosureRecomputation)
-            .Default(true);
-        RegisterParameter("membership_closure_recomputation_period", MembershipClosureRecomputePeriod)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("enable_access_log", EnableAccessLog)
-            .Default(true);
-        RegisterParameter("enable_master_memory_usage_validation", EnableMasterMemoryUsageValidation)
-            .Default(false);
-        RegisterParameter("enable_master_memory_usage_account_overcommit_validation", EnableMasterMemoryUsageAccountOvercommitValidation)
-            .Default(false);
-        RegisterParameter("enable_tablet_resource_validation", EnableTabletResourceValidation)
-            .Default(true);
-
-        RegisterParameter("enable_distributed_throttler", EnableDistributedThrottler)
-            .Default(false);
-
-        RegisterParameter("max_account_subtree_size", MaxAccountSubtreeSize)
-            .Default(1000);
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicSecurityManagerConfig)

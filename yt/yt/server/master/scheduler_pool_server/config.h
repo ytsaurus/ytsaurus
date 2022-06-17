@@ -2,22 +2,21 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicSchedulerPoolManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxSchedulerPoolSubtreeSize;
 
-    TDynamicSchedulerPoolManagerConfig() {
-        RegisterParameter("max_scheduler_pool_subtree_size", MaxSchedulerPoolSubtreeSize)
-            .Default(1000);
-    }
+    REGISTER_YSON_STRUCT(TDynamicSchedulerPoolManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicSchedulerPoolManagerConfig)

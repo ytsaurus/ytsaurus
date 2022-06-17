@@ -6,88 +6,88 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManagerConfig::TCypressManagerConfig()
+void TCypressManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("default_file_replication_factor", DefaultFileReplicationFactor)
+    registrar.Parameter("default_file_replication_factor", &TThis::DefaultFileReplicationFactor)
         .Default(3)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
-    RegisterParameter("default_table_replication_factor", DefaultTableReplicationFactor)
+    registrar.Parameter("default_table_replication_factor", &TThis::DefaultTableReplicationFactor)
         .Default(3)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
-    RegisterParameter("default_journal_erasure_codec", DefaultJournalErasureCodec)
+    registrar.Parameter("default_journal_erasure_codec", &TThis::DefaultJournalErasureCodec)
         .Default(NErasure::ECodec::None);
-    RegisterParameter("default_journal_replication_factor", DefaultJournalReplicationFactor)
+    registrar.Parameter("default_journal_replication_factor", &TThis::DefaultJournalReplicationFactor)
         .Default(3)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
-    RegisterParameter("default_journal_read_quorum", DefaultJournalReadQuorum)
+    registrar.Parameter("default_journal_read_quorum", &TThis::DefaultJournalReadQuorum)
         .Default(2)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
-    RegisterParameter("default_journal_write_quorum", DefaultJournalWriteQuorum)
+    registrar.Parameter("default_journal_write_quorum", &TThis::DefaultJournalWriteQuorum)
         .Default(2)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
 
-    RegisterPostprocessor([&] () {
+    registrar.Postprocessor([] (TThis* config) {
         NJournalClient::ValidateJournalAttributes(
-            DefaultJournalErasureCodec,
-            DefaultJournalReplicationFactor,
-            DefaultJournalReadQuorum,
-            DefaultJournalWriteQuorum);
+            config->DefaultJournalErasureCodec,
+            config->DefaultJournalReplicationFactor,
+            config->DefaultJournalReadQuorum,
+            config->DefaultJournalWriteQuorum);
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
+void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
+    registrar.Parameter("statistics_flush_period", &TThis::StatisticsFlushPeriod)
         .GreaterThan(TDuration())
         .Default(TDuration::Seconds(1));
-    RegisterParameter("max_node_child_count", MaxNodeChildCount)
+    registrar.Parameter("max_node_child_count", &TThis::MaxNodeChildCount)
         .GreaterThan(20)
         .Default(50000);
-    RegisterParameter("max_string_node_length", MaxStringNodeLength)
+    registrar.Parameter("max_string_node_length", &TThis::MaxStringNodeLength)
         .GreaterThan(256)
         .Default(65536);
-    RegisterParameter("max_attribute_size", MaxAttributeSize)
+    registrar.Parameter("max_attribute_size", &TThis::MaxAttributeSize)
         .GreaterThan(256)
         .Default(16_MB);
-    RegisterParameter("max_map_node_key_length", MaxMapNodeKeyLength)
+    registrar.Parameter("max_map_node_key_length", &TThis::MaxMapNodeKeyLength)
         .GreaterThan(256)
         .Default(4096);
 
-    RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
+    registrar.Parameter("expiration_check_period", &TThis::ExpirationCheckPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("max_expired_nodes_removals_per_commit", MaxExpiredNodesRemovalsPerCommit)
+    registrar.Parameter("max_expired_nodes_removals_per_commit", &TThis::MaxExpiredNodesRemovalsPerCommit)
         .Default(1000);
-    RegisterParameter("expiration_backoff_time", ExpirationBackoffTime)
+    registrar.Parameter("expiration_backoff_time", &TThis::ExpirationBackoffTime)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("enable_composite_node_expiration", EnableCompositeNodeExpiration)
+    registrar.Parameter("enable_composite_node_expiration", &TThis::EnableCompositeNodeExpiration)
         .Default(true);
 
-    RegisterParameter("tree_serialization_codec", TreeSerializationCodec)
+    registrar.Parameter("tree_serialization_codec", &TThis::TreeSerializationCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    RegisterParameter("forbid_set_command", ForbidSetCommand)
+    registrar.Parameter("forbid_set_command", &TThis::ForbidSetCommand)
         .Default(true);
-    RegisterParameter("enable_unlock_command", EnableUnlockCommand)
+    registrar.Parameter("enable_unlock_command", &TThis::EnableUnlockCommand)
         .Default(false);
 
-    RegisterParameter("recursive_resource_usage_cache_expiration_timeout", RecursiveResourceUsageCacheExpirationTimeout)
+    registrar.Parameter("recursive_resource_usage_cache_expiration_timeout", &TThis::RecursiveResourceUsageCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("default_external_cell_bias", DefaultExternalCellBias)
+    registrar.Parameter("default_external_cell_bias", &TThis::DefaultExternalCellBias)
         .Default(1.0)
         .DontSerializeDefault();
 
-    RegisterParameter("enable_revision_changing_for_builtin_attributes", EnableRevisionChangingForBuiltinAttributes)
+    registrar.Parameter("enable_revision_changing_for_builtin_attributes", &TThis::EnableRevisionChangingForBuiltinAttributes)
         .Default(false)
         .DontSerializeDefault();
 
-    RegisterParameter("enable_symlink_cyclicity_check", EnableSymlinkCyclicityCheck)
+    registrar.Parameter("enable_symlink_cyclicity_check", &TThis::EnableSymlinkCyclicityCheck)
         .Default(false);
 
-    RegisterParameter("portal_synchronization_period", PortalSynchronizationPeriod)
+    registrar.Parameter("portal_synchronization_period", &TThis::PortalSynchronizationPeriod)
         .Default(TDuration::Minutes(1));
 }
 

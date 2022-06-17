@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
 
@@ -11,7 +11,7 @@ namespace NYT::NNodeTrackerServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeDiscoveryManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration UpdatePeriod;
@@ -19,19 +19,9 @@ public:
     int MaxPeersPerRack;
     TBooleanFormula NodeTagFilter;
 
-    TNodeDiscoveryManagerConfig()
-    {
-        RegisterParameter("update_period", UpdatePeriod)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("peer_count", PeerCount)
-            .GreaterThanOrEqual(0)
-            .Default(10);
-        RegisterParameter("max_peers_per_rack", MaxPeersPerRack)
-            .GreaterThan(0)
-            .Default(1);
-        RegisterParameter("node_tag_filter", NodeTagFilter)
-            .Default();
-    }
+    REGISTER_YSON_STRUCT(TNodeDiscoveryManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManagerConfig)
@@ -39,25 +29,27 @@ DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTrackerConfig
-    : public NYTree::TYsonSerializable
-{ };
+    : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TNodeTrackerConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeGroupConfigBase
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxConcurrentNodeRegistrations;
 
-    TNodeGroupConfigBase()
-    {
-        RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
-            .Default(20)
-            .GreaterThanOrEqual(0);
-    }
+    REGISTER_YSON_STRUCT(TNodeGroupConfigBase);
+
+    static void Register(TRegistrar registrar);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,10 +60,9 @@ class TNodeGroupConfig
 public:
     TBooleanFormula NodeTagFilter;
 
-    TNodeGroupConfig()
-    {
-        RegisterParameter("node_tag_filter", NodeTagFilter);
-    }
+    REGISTER_YSON_STRUCT(TNodeGroupConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
@@ -79,7 +70,7 @@ DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicNodeTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     static constexpr auto DefaultProfilingPeriod = TDuration::Seconds(10);
@@ -117,66 +108,9 @@ public:
 
     TDuration ProfilingPeriod;
 
-    TDynamicNodeTrackerConfig()
-    {
-        RegisterParameter("node_groups", NodeGroups)
-            .Default();
+    REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
-        RegisterParameter("total_node_statistics_update_period", TotalNodeStatisticsUpdatePeriod)
-            .Default(TDuration::Seconds(60));
-
-        RegisterParameter("incremental_node_states_gossip_period", IncrementalNodeStatesGossipPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("full_node_states_gossip_period", FullNodeStatesGossipPeriod)
-            .Default(TDuration::Minutes(1));
-
-        RegisterParameter("max_concurrent_node_registrations", MaxConcurrentNodeRegistrations)
-            .Default(20)
-            .GreaterThanOrEqual(0);
-        RegisterParameter("max_concurrent_node_unregistrations", MaxConcurrentNodeUnregistrations)
-            .Default(20)
-            .GreaterThan(0);
-
-        RegisterParameter("max_concurrent_cluster_node_heartbeats", MaxConcurrentClusterNodeHeartbeats)
-            .Default(50)
-            .GreaterThan(0);
-        RegisterParameter("max_concurrent_exec_node_heartbeats", MaxConcurrentExecNodeHeartbeats)
-            .Default(50)
-            .GreaterThan(0);
-
-        RegisterParameter("max_concurrent_full_heartbeats", MaxConcurrentFullHeartbeats)
-            .Default(1)
-            .GreaterThan(0);
-        RegisterParameter("max_concurrent_incremental_heartbeats", MaxConcurrentIncrementalHeartbeats)
-            .Default(10)
-            .GreaterThan(0);
-
-        RegisterParameter("force_node_heartbeat_request_timeout", ForceNodeHeartbeatRequestTimeout)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("master_cache_manager", MasterCacheManager)
-            .DefaultNew();
-        RegisterParameter("timestamp_provider_manager", TimestampProviderManager)
-            .DefaultNew();
-
-        RegisterParameter("use_new_heartbeats", UseNewHeartbeats)
-            .Default(false);
-
-        RegisterParameter("preserve_rack_for_new_host", PreserveRackForNewHost)
-            .Default(false)
-            .DontSerializeDefault();
-
-        RegisterParameter("enable_structured_log", EnableStructuredLog)
-            .Default(false)
-            .DontSerializeDefault();
-
-        RegisterParameter("enable_node_cpu_statistics", EnableNodeCpuStatistics)
-            .Default(false)
-            .DontSerializeDefault();
-
-        RegisterParameter("profiling_period", ProfilingPeriod)
-            .Default(DefaultProfilingPeriod);
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicNodeTrackerConfig)

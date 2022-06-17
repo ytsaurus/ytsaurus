@@ -5,7 +5,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/optional.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -14,7 +14,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! A default value for an additional bound for the global replication
@@ -45,7 +45,9 @@ public:
     //! The number by which chunk repair queue weights are multiplied during decay.
     double RepairQueueBalancerWeightDecayFactor;
 
-    TChunkManagerConfig();
+    REGISTER_YSON_STRUCT(TChunkManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
@@ -53,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMediumConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! An additional bound for the global replication factor cap.
@@ -76,7 +78,9 @@ public:
     //! Default behavior for dynamic tables, living on this medium.
     bool PreferLocalHostForDynamicTables;
 
-    TMediumConfig();
+    REGISTER_YSON_STRUCT(TMediumConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumConfig)
@@ -84,7 +88,7 @@ DEFINE_REFCOUNTED_TYPE(TMediumConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChunkMergerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -118,7 +122,9 @@ public:
     //! Fraction (in percents) of shallow merge jobs for which validation is run.
     int ShallowMergeValidationProbability;
 
-    TDynamicChunkMergerConfig();
+    REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
@@ -126,14 +132,16 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicDataNodeTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxConcurrentFullHeartbeats;
 
     int MaxConcurrentIncrementalHeartbeats;
 
-    TDynamicDataNodeTrackerConfig();
+    REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
@@ -141,28 +149,45 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkTreeBalancerSettings
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
     int MaxChunkTreeRank = 32;
     int MinChunkListSize = 1024;
     int MaxChunkListSize = 2048;
     double MinChunkListToChunkRatio = 0.01;
 
-    using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
+    REGISTER_YSON_STRUCT(TChunkTreeBalancerSettings);
 
-    void RegisterParameters(
+    static void Register(TRegistrar)
+    { }
+
+protected:
+    static void RegisterParameters(
+        TRegistrar registrar,
         int maxChunkTreeRank,
         int minChunkListSize,
         int maxChunkListSize,
         double minChunkListToChunkRatio);
+};
 
-    static TChunkTreeBalancerSettingsPtr NewWithStrictDefaults();
+struct TStrictChunkTreeBalancerSettings
+    : public TChunkTreeBalancerSettings
+{
+    REGISTER_YSON_STRUCT(TStrictChunkTreeBalancerSettings);
 
-    static TChunkTreeBalancerSettingsPtr NewWithPermissiveDefaults();
+    static void Register(TRegistrar registrar);
+};
+
+struct TPermissiveChunkTreeBalancerSettings
+    : public TChunkTreeBalancerSettings
+{
+    REGISTER_YSON_STRUCT(TPermissiveChunkTreeBalancerSettings);
+
+    static void Register(TRegistrar registrar);
 };
 
 class TDynamicChunkTreeBalancerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
@@ -173,20 +198,11 @@ public:
     // COMPAT(shakurov)
     bool EnableRequisitionUpdateAfterRebalancing;
 
-    TDynamicChunkTreeBalancerConfig()
-    {
-        RegisterParameter("strict", StrictSettings)
-            .Default(TChunkTreeBalancerSettings::NewWithStrictDefaults());
-
-        RegisterParameter("permissive", PermissiveSettings)
-            .Default(TChunkTreeBalancerSettings::NewWithPermissiveDefaults());
-
-        RegisterParameter("enable_requisition_update_after_rebalancing", EnableRequisitionUpdateAfterRebalancing)
-            .Default(true)
-            .DontSerializeDefault();
-    }
-
     TChunkTreeBalancerSettingsPtr GetSettingsForMode(EChunkTreeBalancerMode mode);
+
+    REGISTER_YSON_STRUCT(TDynamicChunkTreeBalancerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkTreeBalancerConfig)
@@ -194,7 +210,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkTreeBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicAllyReplicaManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Enables scheduling of ally replica announce requests and endorsements.
@@ -218,7 +234,9 @@ public:
     //! Override of |SafeLostChunkCount| for replica announcements and endorsements.
     std::optional<int> SafeLostChunkCount;
 
-    TDynamicAllyReplicaManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicAllyReplicaManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicAllyReplicaManagerConfig)
@@ -226,7 +244,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicAllyReplicaManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChunkAutotomizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration TransactionUpdatePeriod;
@@ -251,7 +269,9 @@ public:
 
     bool ScheduleUrgentJobs;
 
-    TDynamicChunkAutotomizerConfig();
+    REGISTER_YSON_STRUCT(TDynamicChunkAutotomizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkAutotomizerConfig)
@@ -259,13 +279,15 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkAutotomizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChunkManagerTestingConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! If true, seal will always be unreliable.
     bool ForceUnreliableSeal;
 
-    TDynamicChunkManagerTestingConfig();
+    REGISTER_YSON_STRUCT(TDynamicChunkManagerTestingConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerTestingConfig)
@@ -273,7 +295,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerTestingConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicConsistentReplicaPlacementConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enable;
@@ -290,7 +312,9 @@ public:
     // Keep this larger than TokensPerNode * TokenDistributionBucketCount * maximum replication factor.
     int ReplicasPerChunk;
 
-    TDynamicConsistentReplicaPlacementConfig();
+    REGISTER_YSON_STRUCT(TDynamicConsistentReplicaPlacementConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicConsistentReplicaPlacementConfig)
@@ -298,7 +322,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConsistentReplicaPlacementConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChunkManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
@@ -476,7 +500,9 @@ public:
     //! Probability (in percents) that newly created chunk will be Sequoia.
     int SequoiaChunkProbability;
 
-    TDynamicChunkManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
@@ -484,7 +510,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicChunkServiceConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableMutationBoomerangs;
@@ -494,7 +520,9 @@ public:
     std::optional<double> ExecuteRequestWeightThrottlerLimit;
     std::optional<double> ExecuteRequestBytesThrottlerLimit;
 
-    TDynamicChunkServiceConfig();
+    REGISTER_YSON_STRUCT(TDynamicChunkServiceConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicChunkServiceConfig)

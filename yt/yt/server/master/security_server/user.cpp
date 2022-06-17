@@ -19,16 +19,16 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserRequestLimitsOptions::TUserRequestLimitsOptions()
+void TUserRequestLimitsOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("default", Default)
+    registrar.Parameter("default", &TThis::Default)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("per_cell", PerCell)
+    registrar.Parameter("per_cell", &TThis::PerCell)
         .Optional();
 
-    RegisterPostprocessor([&] () {
-        for (const auto& [cellTag, value] : PerCell) {
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& [cellTag, value] : config->PerCell) {
             if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
                 THROW_ERROR_EXCEPTION("Invalid cell tag %v",
                     cellTag);
@@ -63,16 +63,16 @@ std::optional<int> TUserRequestLimitsOptions::GetValue(NObjectServer::TCellTag c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserQueueSizeLimitsOptions::TUserQueueSizeLimitsOptions()
+void TUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("default", Default)
+    registrar.Parameter("default", &TThis::Default)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("per_cell", PerCell)
+    registrar.Parameter("per_cell", &TThis::PerCell)
         .Optional();
 
-    RegisterPostprocessor([&] () {
-        for (const auto& [cellTag, value] : PerCell) {
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& [cellTag, value] : config->PerCell) {
             if (cellTag < NObjectClient::MinValidCellTag || cellTag > NObjectClient::MaxValidCellTag) {
                 THROW_ERROR_EXCEPTION("Invalid cell tag %v",
                     cellTag);
@@ -103,23 +103,23 @@ int TUserQueueSizeLimitsOptions::GetValue(NObjectServer::TCellTag cellTag) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserRequestLimitsConfig::TUserRequestLimitsConfig()
+void TUserRequestLimitsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("read_request_rate", ReadRequestRateLimits)
+    registrar.Parameter("read_request_rate", &TThis::ReadRequestRateLimits)
         .DefaultNew();
-    RegisterParameter("write_request_rate", WriteRequestRateLimits)
+    registrar.Parameter("write_request_rate", &TThis::WriteRequestRateLimits)
         .DefaultNew();
-    RegisterParameter("request_queue_size", RequestQueueSizeLimits)
+    registrar.Parameter("request_queue_size", &TThis::RequestQueueSizeLimits)
         .DefaultNew();
 
-    RegisterPostprocessor([&] () {
-        if (!ReadRequestRateLimits) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->ReadRequestRateLimits) {
             THROW_ERROR_EXCEPTION("\"read_request_rate\" must be set");
         }
-        if (!WriteRequestRateLimits) {
+        if (!config->WriteRequestRateLimits) {
             THROW_ERROR_EXCEPTION("\"write_request_rate\" must be set");
         }
-        if (!RequestQueueSizeLimits) {
+        if (!config->RequestQueueSizeLimits) {
             THROW_ERROR_EXCEPTION("\"request_queue_size\" must be set");
         }
     });
@@ -127,22 +127,25 @@ TUserRequestLimitsConfig::TUserRequestLimitsConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableUserRequestLimitsOptions::TSerializableUserRequestLimitsOptions()
+void TSerializableUserRequestLimitsOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("default", Default_)
+    registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("per_cell", PerCell_)
+    registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
 }
 
-TSerializableUserRequestLimitsOptions::TSerializableUserRequestLimitsOptions(
+TSerializableUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::CreateFrom(
     const TUserRequestLimitsOptionsPtr& options,
     const NCellMaster::IMulticellManagerPtr& multicellManager)
-    : TSerializableUserRequestLimitsOptions()
 {
-    Default_ = options->Default;
-    PerCell_ = CellTagMapToCellNameMap(options->PerCell, multicellManager);
+    auto result = New<TSerializableUserRequestLimitsOptions>();
+
+    result->Default_ = options->Default;
+    result->PerCell_ = CellTagMapToCellNameMap(options->PerCell, multicellManager);
+
+    return result;
 }
 
 TUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const
@@ -155,22 +158,25 @@ TUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::ToLimitsOrTh
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSerializableUserQueueSizeLimitsOptions::TSerializableUserQueueSizeLimitsOptions()
+void TSerializableUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 {
-    RegisterParameter("default", Default_)
+    registrar.Parameter("default", &TThis::Default_)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("per_cell", PerCell_)
+    registrar.Parameter("per_cell", &TThis::PerCell_)
         .Optional();
 }
 
-TSerializableUserQueueSizeLimitsOptions::TSerializableUserQueueSizeLimitsOptions(
+TSerializableUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::CreateFrom(
     const TUserQueueSizeLimitsOptionsPtr& options,
     const NCellMaster::IMulticellManagerPtr& multicellManager)
-    : TSerializableUserQueueSizeLimitsOptions()
 {
-    Default_ = options->Default;
-    PerCell_ = CellTagMapToCellNameMap(options->PerCell, multicellManager);
+    auto result = New<TSerializableUserQueueSizeLimitsOptions>();
+
+    result->Default_ = options->Default;
+    result->PerCell_ = CellTagMapToCellNameMap(options->PerCell, multicellManager);
+
+    return result;
 }
 
 TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const
@@ -184,24 +190,27 @@ TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimits
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TSerializableUserRequestLimitsConfig::TSerializableUserRequestLimitsConfig()
+void TSerializableUserRequestLimitsConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("read_request_rate", ReadRequestRateLimits_)
+    registrar.Parameter("read_request_rate", &TThis::ReadRequestRateLimits_)
         .DefaultNew();
-    RegisterParameter("write_request_rate", WriteRequestRateLimits_)
+    registrar.Parameter("write_request_rate", &TThis::WriteRequestRateLimits_)
         .DefaultNew();
-    RegisterParameter("request_queue_size", RequestQueueSizeLimits_)
+    registrar.Parameter("request_queue_size", &TThis::RequestQueueSizeLimits_)
         .DefaultNew();
 }
 
-TSerializableUserRequestLimitsConfig::TSerializableUserRequestLimitsConfig(
-        const TUserRequestLimitsConfigPtr& config, 
+TSerializableUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::CreateFrom(
+        const TUserRequestLimitsConfigPtr& config,
         const NCellMaster::IMulticellManagerPtr& multicellManager)
-    : TSerializableUserRequestLimitsConfig()
 {
-    ReadRequestRateLimits_ = New<TSerializableUserRequestLimitsOptions>(config->ReadRequestRateLimits, multicellManager);
-    WriteRequestRateLimits_ = New<TSerializableUserRequestLimitsOptions>(config->WriteRequestRateLimits, multicellManager);
-    RequestQueueSizeLimits_ = New<TSerializableUserQueueSizeLimitsOptions>(config->RequestQueueSizeLimits, multicellManager);
+    auto result = New<TSerializableUserRequestLimitsConfig>();
+
+    result->ReadRequestRateLimits_ = TSerializableUserRequestLimitsOptions::CreateFrom(config->ReadRequestRateLimits, multicellManager);
+    result->WriteRequestRateLimits_ = TSerializableUserRequestLimitsOptions::CreateFrom(config->WriteRequestRateLimits, multicellManager);
+    result->RequestQueueSizeLimits_ = TSerializableUserQueueSizeLimitsOptions::CreateFrom(config->RequestQueueSizeLimits, multicellManager);
+
+    return result;
 }
 
 TUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::ToConfigOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const

@@ -37,14 +37,16 @@ using namespace NYTree;
 
 // COMPAT(savrus)
 class TTabletCellConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::vector<std::optional<TString>> Addresses;
 
-    TTabletCellConfig()
+    REGISTER_YSON_STRUCT(TTabletCellConfig);
+
+    static void Register(TRegistrar registrar)
     {
-        RegisterParameter("addresses", Addresses);
+        registrar.Parameter("addresses", &TThis::Addresses);
     }
 };
 

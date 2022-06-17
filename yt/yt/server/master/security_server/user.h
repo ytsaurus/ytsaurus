@@ -28,16 +28,18 @@ struct TUserWorkloadStatistics
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserRequestLimitsOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     std::optional<int> Default;
     THashMap<NObjectServer::TCellTag, int> PerCell;
 
-    TUserRequestLimitsOptions();
-
     void SetValue(NObjectServer::TCellTag cellTag, std::optional<int> value);
     std::optional<int> GetValue(NObjectServer::TCellTag cellTag) const;
+
+    REGISTER_YSON_STRUCT(TUserRequestLimitsOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsOptions)
@@ -45,16 +47,18 @@ DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserQueueSizeLimitsOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int Default;
     THashMap<NObjectServer::TCellTag, int> PerCell;
 
-    TUserQueueSizeLimitsOptions();
-
     void SetValue(NObjectServer::TCellTag cellTag, int value);
     int GetValue(NObjectServer::TCellTag cellTag) const;
+
+    REGISTER_YSON_STRUCT(TUserQueueSizeLimitsOptions);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserQueueSizeLimitsOptions)
@@ -62,14 +66,16 @@ DEFINE_REFCOUNTED_TYPE(TUserQueueSizeLimitsOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserRequestLimitsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TUserRequestLimitsOptionsPtr ReadRequestRateLimits;
     TUserRequestLimitsOptionsPtr WriteRequestRateLimits;
     TUserQueueSizeLimitsOptionsPtr RequestQueueSizeLimits;
 
-    TUserRequestLimitsConfig();
+    REGISTER_YSON_STRUCT(TUserRequestLimitsConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
@@ -78,15 +84,18 @@ DEFINE_REFCOUNTED_TYPE(TUserRequestLimitsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializableUserRequestLimitsOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    TSerializableUserRequestLimitsOptions();
-    TSerializableUserRequestLimitsOptions(
+    TUserRequestLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
+
+    static TSerializableUserRequestLimitsOptionsPtr CreateFrom(
         const TUserRequestLimitsOptionsPtr& options,
         const NCellMaster::IMulticellManagerPtr& multicellManager);
 
-    TUserRequestLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
+    REGISTER_YSON_STRUCT(TSerializableUserRequestLimitsOptions);
+
+    static void Register(TRegistrar registrar);
 
 private:
     std::optional<int> Default_;
@@ -98,15 +107,18 @@ DEFINE_REFCOUNTED_TYPE(TSerializableUserRequestLimitsOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializableUserQueueSizeLimitsOptions
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    TSerializableUserQueueSizeLimitsOptions();
-    TSerializableUserQueueSizeLimitsOptions(
+    static TSerializableUserQueueSizeLimitsOptionsPtr CreateFrom(
         const TUserQueueSizeLimitsOptionsPtr& options,
         const NCellMaster::IMulticellManagerPtr& multicellManager);
 
     TUserQueueSizeLimitsOptionsPtr ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
+
+    REGISTER_YSON_STRUCT(TSerializableUserQueueSizeLimitsOptions);
+
+    static void Register(TRegistrar registrar);
 
 private:
     int Default_;
@@ -118,15 +130,18 @@ DEFINE_REFCOUNTED_TYPE(TSerializableUserQueueSizeLimitsOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSerializableUserRequestLimitsConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
-    TSerializableUserRequestLimitsConfig();
-    TSerializableUserRequestLimitsConfig(
+    static TSerializableUserRequestLimitsConfigPtr CreateFrom(
         const TUserRequestLimitsConfigPtr& config,
         const NCellMaster::IMulticellManagerPtr& multicellManager);
 
     TUserRequestLimitsConfigPtr ToConfigOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const;
+
+    REGISTER_YSON_STRUCT(TSerializableUserRequestLimitsConfig);
+
+    static void Register(TRegistrar registrar);
 
 private:
     TSerializableUserRequestLimitsOptionsPtr ReadRequestRateLimits_;

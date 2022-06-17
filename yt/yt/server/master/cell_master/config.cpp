@@ -86,42 +86,50 @@ void TDiscoveryServersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMulticellManagerConfig::TMulticellManagerConfig()
+void TMulticellManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("master_connection", MasterConnection)
+    registrar.Parameter("master_connection", &TThis::MasterConnection)
         .DefaultNew();
-    RegisterParameter("upstream_sync_delay", UpstreamSyncDelay)
+    registrar.Parameter("upstream_sync_delay", &TThis::UpstreamSyncDelay)
         .Default(TDuration::MilliSeconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWorldInitializerConfig::TWorldInitializerConfig()
+void TWorldInitializerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("init_retry_period", InitRetryPeriod)
+    registrar.Parameter("init_retry_period", &TThis::InitRetryPeriod)
         .Default(TDuration::Seconds(3));
-    RegisterParameter("init_transaction_timeout", InitTransactionTimeout)
+    registrar.Parameter("init_transaction_timeout", &TThis::InitTransactionTimeout)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("update_period", UpdatePeriod)
+    registrar.Parameter("update_period", &TThis::UpdatePeriod)
         .Default(TDuration::Minutes(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicMulticellManagerConfig::TDynamicMulticellManagerConfig()
+void TMasterCellDescriptor::Register(TRegistrar registrar)
 {
-    RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
+    registrar.Parameter("name", &TThis::Name)
+        .Optional();
+    registrar.Parameter("roles", &TThis::Roles)
+        .Optional();
+}
+
+void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cell_statistics_gossip_period", &TThis::CellStatisticsGossipPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("cell_roles", CellRoles)
+    registrar.Parameter("cell_roles", &TThis::CellRoles)
         .Default();
 
-    RegisterParameter("cell_descriptors", CellDescriptors)
+    registrar.Parameter("cell_descriptors", &TThis::CellDescriptors)
         .Default();
 
-    RegisterPostprocessor([&] () {
-        for (const auto& [cellTag, cellRoles] : CellRoles) {
-            auto [it, inserted] = CellDescriptors.emplace(cellTag, New<TMasterCellDescriptor>());
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& [cellTag, cellRoles] : config->CellRoles) {
+            auto [it, inserted] = config->CellDescriptors.emplace(cellTag, New<TMasterCellDescriptor>());
             auto& roles = it->second->Roles;
             if (!roles) {
                 roles = cellRoles;
@@ -131,7 +139,7 @@ TDynamicMulticellManagerConfig::TDynamicMulticellManagerConfig()
         }
 
         THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
-        for (auto& [cellTag, descriptor] : CellDescriptors) {
+        for (auto& [cellTag, descriptor] : config->CellDescriptors) {
             if (descriptor->Roles && None(*descriptor->Roles)) {
                 THROW_ERROR_EXCEPTION("Cell %v has no roles",
                     cellTag);
@@ -266,50 +274,50 @@ void TDynamicCellMasterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicClusterConfig::TDynamicClusterConfig()
+void TDynamicClusterConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_safe_mode", EnableSafeMode)
+    registrar.Parameter("enable_safe_mode", &TThis::EnableSafeMode)
         .Default(false);
-    RegisterParameter("enable_descending_sort_order", EnableDescendingSortOrder)
+    registrar.Parameter("enable_descending_sort_order", &TThis::EnableDescendingSortOrder)
         .Default(false);
-    RegisterParameter("enable_descending_sort_order_dynamic", EnableDescendingSortOrderDynamic)
+    registrar.Parameter("enable_descending_sort_order_dynamic", &TThis::EnableDescendingSortOrderDynamic)
         .Default(false);
-    RegisterParameter("enable_table_column_renaming", EnableTableColumnRenaming)
+    registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
         .Default(false);
 
-    RegisterParameter("chunk_manager", ChunkManager)
+    registrar.Parameter("chunk_manager", &TThis::ChunkManager)
         .DefaultNew();
-    RegisterParameter("cell_manager", CellManager)
+    registrar.Parameter("cell_manager", &TThis::CellManager)
         .DefaultNew();
-    RegisterParameter("tablet_manager", TabletManager)
+    registrar.Parameter("tablet_manager", &TThis::TabletManager)
         .DefaultNew();
-    RegisterParameter("chaos_manager", ChaosManager)
+    registrar.Parameter("chaos_manager", &TThis::ChaosManager)
         .DefaultNew();
-    RegisterParameter("node_tracker", NodeTracker)
+    registrar.Parameter("node_tracker", &TThis::NodeTracker)
         .DefaultNew();
-    RegisterParameter("object_manager", ObjectManager)
+    registrar.Parameter("object_manager", &TThis::ObjectManager)
         .DefaultNew();
-    RegisterParameter("security_manager", SecurityManager)
+    registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
-    RegisterParameter("cypress_manager", CypressManager)
+    registrar.Parameter("cypress_manager", &TThis::CypressManager)
         .DefaultNew();
-    RegisterParameter("multicell_manager", MulticellManager)
+    registrar.Parameter("multicell_manager", &TThis::MulticellManager)
         .DefaultNew();
-    RegisterParameter("transaction_manager", TransactionManager)
+    registrar.Parameter("transaction_manager", &TThis::TransactionManager)
         .DefaultNew();
-    RegisterParameter("scheduler_pool_manager", SchedulerPoolManager)
+    registrar.Parameter("scheduler_pool_manager", &TThis::SchedulerPoolManager)
         .DefaultNew();
-    RegisterParameter("sequoia_manager", SequoiaManager)
+    registrar.Parameter("sequoia_manager", &TThis::SequoiaManager)
         .DefaultNew();
-    RegisterParameter("cell_master", CellMaster)
+    registrar.Parameter("cell_master", &TThis::CellMaster)
         .DefaultNew();
-    RegisterParameter("object_service", ObjectService)
+    registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
-    RegisterParameter("chunk_service", ChunkService)
+    registrar.Parameter("chunk_service", &TThis::ChunkService)
         .DefaultNew();
 
-    RegisterPostprocessor([&] {
-        if (EnableDescendingSortOrderDynamic && !EnableDescendingSortOrder) {
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableDescendingSortOrderDynamic && !config->EnableDescendingSortOrder) {
             THROW_ERROR_EXCEPTION(
                 "Setting enable_descending_sort_order_dynamic requires "
                 "enable_descending_sort_order to be set");

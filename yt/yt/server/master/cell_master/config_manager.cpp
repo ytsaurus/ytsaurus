@@ -101,7 +101,7 @@ private:
 
         Config_ = std::move(newConfig);
 
-        auto unrecognizedOptions = Config_->GetUnrecognizedRecursively();
+        auto unrecognizedOptions = Config_->GetRecursiveUnrecognized();
         if (unrecognizedOptions->GetChildCount() > 0) {
             UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
                 << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));

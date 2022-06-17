@@ -104,7 +104,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServersConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMulticellManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Applies to follower-to-leader forwarding and cross-cell interactions.
@@ -113,7 +113,9 @@ public:
     //! Maximum time to wait before syncing with upstream cells.
     TDuration UpstreamSyncDelay;
 
-    TMulticellManagerConfig();
+    REGISTER_YSON_STRUCT(TMulticellManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
@@ -121,7 +123,7 @@ DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TWorldInitializerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration InitRetryPeriod;
@@ -130,33 +132,34 @@ public:
 
     TDuration UpdatePeriod;
 
-    TWorldInitializerConfig();
+    REGISTER_YSON_STRUCT(TWorldInitializerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TWorldInitializerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMasterCellDescriptor
+    : public NYTree::TYsonStruct
+{
+    std::optional<TString> Name;
+    std::optional<EMasterCellRoles> Roles;
+
+    REGISTER_YSON_STRUCT(TMasterCellDescriptor);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicMulticellManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     TDuration CellStatisticsGossipPeriod;
 
-    struct TMasterCellDescriptor
-        : public NYTree::TYsonSerializable
-    {
-        TMasterCellDescriptor()
-        {
-            RegisterParameter("name", Name)
-                .Optional();
-            RegisterParameter("roles", Roles)
-                .Optional();
-        }
-
-        std::optional<TString> Name;
-        std::optional<EMasterCellRoles> Roles;
-    };
     using TMasterCellDescriptorPtr = TIntrusivePtr<TMasterCellDescriptor>;
 
     THashMap<NObjectServer::TCellTag, TMasterCellDescriptorPtr> CellDescriptors;
@@ -164,7 +167,9 @@ public:
     // COMPAT(aleksandra-zh)
     THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
 
-    TDynamicMulticellManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicMulticellManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMulticellManagerConfig)
@@ -261,7 +266,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellMasterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicClusterConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableSafeMode;
@@ -285,7 +290,9 @@ public:
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
 
-    TDynamicClusterConfig();
+    REGISTER_YSON_STRUCT(TDynamicClusterConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)

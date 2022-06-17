@@ -8,131 +8,131 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkManagerConfig::TChunkManagerConfig()
+void TChunkManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_replication_factor", MaxReplicationFactor)
+    registrar.Parameter("max_replication_factor", &TThis::MaxReplicationFactor)
         .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
         .Default(NChunkClient::MaxReplicationFactor);
-    RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
+    registrar.Parameter("max_replicas_per_rack", &TThis::MaxReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("max_regular_replicas_per_rack", MaxRegularReplicasPerRack)
+    registrar.Parameter("max_regular_replicas_per_rack", &TThis::MaxRegularReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("max_journal_replicas_per_rack", MaxJournalReplicasPerRack)
+    registrar.Parameter("max_journal_replicas_per_rack", &TThis::MaxJournalReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
+    registrar.Parameter("max_erasure_replicas_per_rack", &TThis::MaxErasureReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
 
-    RegisterParameter("allow_multiple_erasure_parts_per_node", AllowMultipleErasurePartsPerNode)
+    registrar.Parameter("allow_multiple_erasure_parts_per_node", &TThis::AllowMultipleErasurePartsPerNode)
         .Default(false);
 
-    RegisterParameter("replicator_enabled_check_period", ReplicatorEnabledCheckPeriod)
+    registrar.Parameter("replicator_enabled_check_period", &TThis::ReplicatorEnabledCheckPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("repair_queue_balancer_weight_decay_interval", RepairQueueBalancerWeightDecayInterval)
+    registrar.Parameter("repair_queue_balancer_weight_decay_interval", &TThis::RepairQueueBalancerWeightDecayInterval)
         .Default(TDuration::Seconds(60));
-    RegisterParameter("repair_queue_balancer_weight_decay_factor", RepairQueueBalancerWeightDecayFactor)
+    registrar.Parameter("repair_queue_balancer_weight_decay_factor", &TThis::RepairQueueBalancerWeightDecayFactor)
         .Default(0.5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMediumConfig::TMediumConfig()
+void TMediumConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_replication_factor", MaxReplicationFactor)
+    registrar.Parameter("max_replication_factor", &TThis::MaxReplicationFactor)
         .GreaterThanOrEqual(NChunkClient::DefaultReplicationFactor)
         .Default(NChunkClient::MaxReplicationFactor);
-    RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
+    registrar.Parameter("max_replicas_per_rack", &TThis::MaxReplicasPerRack)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("max_regular_replicas_per_rack", MaxRegularReplicasPerRack)
+    registrar.Parameter("max_regular_replicas_per_rack", &TThis::MaxRegularReplicasPerRack)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("max_journal_replicas_per_rack", MaxJournalReplicasPerRack)
+    registrar.Parameter("max_journal_replicas_per_rack", &TThis::MaxJournalReplicasPerRack)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("max_erasure_replicas_per_rack", MaxErasureReplicasPerRack)
+    registrar.Parameter("max_erasure_replicas_per_rack", &TThis::MaxErasureReplicasPerRack)
         .GreaterThanOrEqual(0)
         .Default(std::numeric_limits<int>::max());
-    RegisterParameter("prefer_local_host_for_dynamic_tables", PreferLocalHostForDynamicTables)
+    registrar.Parameter("prefer_local_host_for_dynamic_tables", &TThis::PreferLocalHostForDynamicTables)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicChunkMergerConfig::TDynamicChunkMergerConfig()
+void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
 
-    RegisterParameter("max_chunk_count", MaxChunkCount)
+    registrar.Parameter("max_chunk_count", &TThis::MaxChunkCount)
         .GreaterThan(1)
         .Default(20);
-    RegisterParameter("min_chunk_count", MinChunkCount)
+    registrar.Parameter("min_chunk_count", &TThis::MinChunkCount)
         .GreaterThan(1)
         .Default(2);
-    RegisterParameter("min_shallow_merge_chunk_count", MinShallowMergeChunkCount)
+    registrar.Parameter("min_shallow_merge_chunk_count", &TThis::MinShallowMergeChunkCount)
         .GreaterThan(1)
         .Default(5);
 
-    RegisterParameter("max_row_count", MaxRowCount)
+    registrar.Parameter("max_row_count", &TThis::MaxRowCount)
         .GreaterThan(0)
         .Default(1000000);
-    RegisterParameter("max_data_weight", MaxDataWeight)
+    registrar.Parameter("max_data_weight", &TThis::MaxDataWeight)
         .GreaterThan(0)
         .Default(1_GB);
-    RegisterParameter("max_uncompressed_data_size", MaxUncompressedDataSize)
+    registrar.Parameter("max_uncompressed_data_size", &TThis::MaxUncompressedDataSize)
         .GreaterThan(0)
         .Default(2_GB);
-    RegisterParameter("max_input_chunk_data_weight", MaxInputChunkDataWeight)
+    registrar.Parameter("max_input_chunk_data_weight", &TThis::MaxInputChunkDataWeight)
         .GreaterThan(0)
         .Default(512_MB);
 
-    RegisterParameter("max_block_count", MaxBlockCount)
+    registrar.Parameter("max_block_count", &TThis::MaxBlockCount)
         .GreaterThan(0)
         .Default(250);
-    RegisterParameter("max_jobs_per_chunk_list", MaxJobsPerChunkList)
+    registrar.Parameter("max_jobs_per_chunk_list", &TThis::MaxJobsPerChunkList)
         .GreaterThan(0)
         .Default(50);
 
-    RegisterParameter("schedule_period", SchedulePeriod)
+    registrar.Parameter("schedule_period", &TThis::SchedulePeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("create_chunks_period", CreateChunksPeriod)
+    registrar.Parameter("create_chunks_period", &TThis::CreateChunksPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("transaction_update_period", TransactionUpdatePeriod)
+    registrar.Parameter("transaction_update_period", &TThis::TransactionUpdatePeriod)
         .Default(TDuration::Minutes(10));
-    RegisterParameter("session_finalization_period", SessionFinalizationPeriod)
+    registrar.Parameter("session_finalization_period", &TThis::SessionFinalizationPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("create_chunks_batch_size", CreateChunksBatchSize)
+    registrar.Parameter("create_chunks_batch_size", &TThis::CreateChunksBatchSize)
         .GreaterThan(0)
         .Default(100);
-    RegisterParameter("session_finalization_batch_size", SessionFinalizationBatchSize)
+    registrar.Parameter("session_finalization_batch_size", &TThis::SessionFinalizationBatchSize)
         .GreaterThan(0)
         .Default(100);
 
-    RegisterParameter("queue_size_limit", QueueSizeLimit)
+    registrar.Parameter("queue_size_limit", &TThis::QueueSizeLimit)
         .GreaterThan(0)
         .Default(100000);
-    RegisterParameter("max_running_job_count", MaxRunningJobCount)
+    registrar.Parameter("max_running_job_count", &TThis::MaxRunningJobCount)
         .GreaterThan(1)
         .Default(100000);
 
-    RegisterParameter("shallow_merge_validation_probability", ShallowMergeValidationProbability)
+    registrar.Parameter("shallow_merge_validation_probability", &TThis::ShallowMergeValidationProbability)
         .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicDataNodeTrackerConfig::TDynamicDataNodeTrackerConfig()
+void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_concurrent_full_heartbeats", MaxConcurrentFullHeartbeats)
+    registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
         .Default(1)
         .GreaterThan(0);
-    RegisterParameter("max_concurrent_incremental_heartbeats", MaxConcurrentIncrementalHeartbeats)
+    registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
         .Default(10)
         .GreaterThan(0);
 }
@@ -142,37 +142,34 @@ TDynamicDataNodeTrackerConfig::TDynamicDataNodeTrackerConfig()
 using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
 
 void TChunkTreeBalancerSettings::RegisterParameters(
+    TRegistrar registrar,
     int maxChunkTreeRank,
     int minChunkListSize,
     int maxChunkListSize,
     double minChunkListToChunkRatio)
 {
-    RegisterParameter("max_chunk_tree_rank", MaxChunkTreeRank)
+    registrar.Parameter("max_chunk_tree_rank", &TThis::MaxChunkTreeRank)
         .GreaterThan(0)
         .Default(maxChunkTreeRank);
-    RegisterParameter("min_chunk_list_size", MinChunkListSize)
+    registrar.Parameter("min_chunk_list_size", &TThis::MinChunkListSize)
         .GreaterThan(0)
         .Default(minChunkListSize);
-    RegisterParameter("max_chunk_list_size", MaxChunkListSize)
+    registrar.Parameter("max_chunk_list_size", &TThis::MaxChunkListSize)
         .GreaterThan(0)
         .Default(maxChunkListSize);
-    RegisterParameter("min_chunk_list_to_chunk_ratio", MinChunkListToChunkRatio)
+    registrar.Parameter("min_chunk_list_to_chunk_ratio", &TThis::MinChunkListToChunkRatio)
         .GreaterThan(0)
         .Default(minChunkListToChunkRatio);
 }
 
-TChunkTreeBalancerSettingsPtr TChunkTreeBalancerSettings::NewWithStrictDefaults()
+void TStrictChunkTreeBalancerSettings::Register(TRegistrar registrar)
 {
-    auto result = New<TChunkTreeBalancerSettings>();
-    result->RegisterParameters(32, 1024, 2048, 0.01);
-    return result;
+    RegisterParameters(registrar, 32, 1024, 2048, 0.01);
 }
 
-TChunkTreeBalancerSettingsPtr TChunkTreeBalancerSettings::NewWithPermissiveDefaults()
+void TPermissiveChunkTreeBalancerSettings::Register(TRegistrar registrar)
 {
-    auto result = New<TChunkTreeBalancerSettings>();
-    result->RegisterParameters(64, 1024, 4096, 0.05);
-    return result;
+    RegisterParameters(registrar, 64, 1024, 4096, 0.05);
 }
 
 TChunkTreeBalancerSettingsPtr TDynamicChunkTreeBalancerConfig::GetSettingsForMode(EChunkTreeBalancerMode mode)
@@ -185,95 +182,108 @@ TChunkTreeBalancerSettingsPtr TDynamicChunkTreeBalancerConfig::GetSettingsForMod
     }
 }
 
+void TDynamicChunkTreeBalancerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("strict", &TThis::StrictSettings)
+        .DefaultCtor([] { return New<TStrictChunkTreeBalancerSettings>(); });
+
+    registrar.Parameter("permissive", &TThis::PermissiveSettings)
+        .DefaultCtor([] { return New<TPermissiveChunkTreeBalancerSettings>(); });
+
+    registrar.Parameter("enable_requisition_update_after_rebalancing", &TThis::EnableRequisitionUpdateAfterRebalancing)
+        .Default(true)
+        .DontSerializeDefault();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicAllyReplicaManagerConfig::TDynamicAllyReplicaManagerConfig()
+void TDynamicAllyReplicaManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_ally_replica_announcement", EnableAllyReplicaAnnouncement)
+    registrar.Parameter("enable_ally_replica_announcement", &TThis::EnableAllyReplicaAnnouncement)
         .Default(false);
 
-    RegisterParameter("enable_endorsements", EnableEndorsements)
+    registrar.Parameter("enable_endorsements", &TThis::EnableEndorsements)
         .Default(false);
 
-    RegisterParameter("underreplicated_chunk_announcement_request_delay", UnderreplicatedChunkAnnouncementRequestDelay)
+    registrar.Parameter("underreplicated_chunk_announcement_request_delay", &TThis::UnderreplicatedChunkAnnouncementRequestDelay)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+    registrar.Parameter("safe_online_node_count", &TThis::SafeOnlineNodeCount)
         .GreaterThanOrEqual(0)
         .Default();
 
-    RegisterParameter("safe_lost_chunk_count", SafeLostChunkCount)
+    registrar.Parameter("safe_lost_chunk_count", &TThis::SafeLostChunkCount)
         .GreaterThanOrEqual(0)
         .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicChunkAutotomizerConfig::TDynamicChunkAutotomizerConfig()
+void TDynamicChunkAutotomizerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("transaction_update_period", TransactionUpdatePeriod)
+    registrar.Parameter("transaction_update_period", &TThis::TransactionUpdatePeriod)
         .Default(TDuration::Minutes(10));
 
-    RegisterParameter("refresh_period", RefreshPeriod)
+    registrar.Parameter("refresh_period", &TThis::RefreshPeriod)
         .Default(TDuration::MilliSeconds(500));
 
-    RegisterParameter("chunk_unstage_period", ChunkUnstagePeriod)
+    registrar.Parameter("chunk_unstage_period", &TThis::ChunkUnstagePeriod)
         .Default(TDuration::Seconds(5));
 
-    RegisterParameter("tail_chunks_per_allocation", TailChunksPerAllocation)
+    registrar.Parameter("tail_chunks_per_allocation", &TThis::TailChunksPerAllocation)
         .Default(2);
 
-    RegisterParameter("max_chunks_per_unstage", MaxChunksPerUnstage)
+    registrar.Parameter("max_chunks_per_unstage", &TThis::MaxChunksPerUnstage)
         .Default(1000);
 
-    RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)
+    registrar.Parameter("max_chunks_per_refresh", &TThis::MaxChunksPerRefresh)
         .Default(5000);
-    RegisterParameter("max_changed_chunks_per_refresh", MaxChangedChunksPerRefresh)
+    registrar.Parameter("max_changed_chunks_per_refresh", &TThis::MaxChangedChunksPerRefresh)
         .Default(1000);
 
-    RegisterParameter("max_concurrent_jobs_per_chunk", MaxConcurrentJobsPerChunk)
+    registrar.Parameter("max_concurrent_jobs_per_chunk", &TThis::MaxConcurrentJobsPerChunk)
         .Default(3);
 
-    RegisterParameter("job_speculaltion_timeout", JobSpeculationTimeout)
+    registrar.Parameter("job_speculaltion_timeout", &TThis::JobSpeculationTimeout)
         .Default(TDuration::Seconds(3));
 
-    RegisterParameter("job_timeout", JobTimeout)
+    registrar.Parameter("job_timeout", &TThis::JobTimeout)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("schedule_urgent_jobs", ScheduleUrgentJobs)
+    registrar.Parameter("schedule_urgent_jobs", &TThis::ScheduleUrgentJobs)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicChunkManagerTestingConfig::TDynamicChunkManagerTestingConfig()
+void TDynamicChunkManagerTestingConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("force_unreliable_seal", ForceUnreliableSeal)
+    registrar.Parameter("force_unreliable_seal", &TThis::ForceUnreliableSeal)
         .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicConsistentReplicaPlacementConfig::TDynamicConsistentReplicaPlacementConfig()
+void TDynamicConsistentReplicaPlacementConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable", Enable)
+    registrar.Parameter("enable", &TThis::Enable)
         .Default(false);
 
-    RegisterParameter("enable_pull_replication", EnablePullReplication)
+    registrar.Parameter("enable_pull_replication", &TThis::EnablePullReplication)
         .Default(false);
 
-    RegisterParameter("token_distribution_bucket_count", TokenDistributionBucketCount)
+    registrar.Parameter("token_distribution_bucket_count", &TThis::TokenDistributionBucketCount)
         .Default(5)
         .GreaterThanOrEqual(1);
 
-    RegisterParameter("token_redistribution_period", TokenRedistributionPeriod)
+    registrar.Parameter("token_redistribution_period", &TThis::TokenRedistributionPeriod)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("tokens_per_node", TokensPerNode)
+    registrar.Parameter("tokens_per_node", &TThis::TokensPerNode)
         .Default(1)
         .GreaterThanOrEqual(1);
 
-    RegisterParameter("replicas_per_chunk", ReplicasPerChunk)
+    registrar.Parameter("replicas_per_chunk", &TThis::ReplicasPerChunk)
         .Default(DefaultConsistentReplicaPlacementReplicasPerChunk)
         .GreaterThanOrEqual(std::max(
             ChunkReplicaIndexBound,
@@ -282,234 +292,234 @@ TDynamicConsistentReplicaPlacementConfig::TDynamicConsistentReplicaPlacementConf
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicChunkManagerConfig::TDynamicChunkManagerConfig()
+void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
+    registrar.Parameter("enable_chunk_replicator", &TThis::EnableChunkReplicator)
         .Default(true);
 
-    RegisterParameter("enable_chunk_sealer", EnableChunkSealer)
+    registrar.Parameter("enable_chunk_sealer", &TThis::EnableChunkSealer)
         .Default(true);
 
-    RegisterParameter("enable_chunk_autotomizer", EnableChunkAutotomizer)
+    registrar.Parameter("enable_chunk_autotomizer", &TThis::EnableChunkAutotomizer)
         .Default(false);
 
-    RegisterParameter("replica_approve_timeout", ReplicaApproveTimeout)
+    registrar.Parameter("replica_approve_timeout", &TThis::ReplicaApproveTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("max_misscheduled_replication_jobs_per_heartbeat", MaxMisscheduledReplicationJobsPerHeartbeat)
+    registrar.Parameter("max_misscheduled_replication_jobs_per_heartbeat", &TThis::MaxMisscheduledReplicationJobsPerHeartbeat)
         .Default(128);
-    RegisterParameter("max_misscheduled_repair_jobs_per_heartbeat", MaxMisscheduledRepairJobsPerHeartbeat)
+    registrar.Parameter("max_misscheduled_repair_jobs_per_heartbeat", &TThis::MaxMisscheduledRepairJobsPerHeartbeat)
         .Default(128);
-    RegisterParameter("max_misscheduled_removal_jobs_per_heartbeat", MaxMisscheduledRemovalJobsPerHeartbeat)
+    registrar.Parameter("max_misscheduled_removal_jobs_per_heartbeat", &TThis::MaxMisscheduledRemovalJobsPerHeartbeat)
         .Default(128);
-    RegisterParameter("max_misscheduled_seal_jobs_per_heartbeat", MaxMisscheduledSealJobsPerHeartbeat)
+    registrar.Parameter("max_misscheduled_seal_jobs_per_heartbeat", &TThis::MaxMisscheduledSealJobsPerHeartbeat)
         .Default(128);
-    RegisterParameter("max_misscheduled_merge_jobs_per_heartbeat", MaxMisscheduledMergeJobsPerHeartbeat)
-        .Default(128);
-
-    RegisterParameter("max_running_replication_jobs_per_target_node", MaxRunningReplicationJobsPerTargetNode)
+    registrar.Parameter("max_misscheduled_merge_jobs_per_heartbeat", &TThis::MaxMisscheduledMergeJobsPerHeartbeat)
         .Default(128);
 
-    RegisterParameter("min_chunk_balancing_fill_factor_diff", MinChunkBalancingFillFactorDiff)
+    registrar.Parameter("max_running_replication_jobs_per_target_node", &TThis::MaxRunningReplicationJobsPerTargetNode)
+        .Default(128);
+
+    registrar.Parameter("min_chunk_balancing_fill_factor_diff", &TThis::MinChunkBalancingFillFactorDiff)
         .InRange(0.0, 1.0)
         .Default(0.2);
-    RegisterParameter("min_chunk_balancing_fill_factor", MinChunkBalancingFillFactor)
+    registrar.Parameter("min_chunk_balancing_fill_factor", &TThis::MinChunkBalancingFillFactor)
         .InRange(0.0, 1.0)
         .Default(0.1);
 
-    RegisterParameter("enable_chunk_refresh", EnableChunkRefresh)
+    registrar.Parameter("enable_chunk_refresh", &TThis::EnableChunkRefresh)
         .Default(true);
-    RegisterParameter("chunk_refresh_delay", ChunkRefreshDelay)
+    registrar.Parameter("chunk_refresh_delay", &TThis::ChunkRefreshDelay)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("chunk_refresh_period", ChunkRefreshPeriod)
+    registrar.Parameter("chunk_refresh_period", &TThis::ChunkRefreshPeriod)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("max_blob_chunks_per_refresh", MaxBlobChunksPerRefresh)
+    registrar.Parameter("max_blob_chunks_per_refresh", &TThis::MaxBlobChunksPerRefresh)
         .Default(8000)
         .Alias("max_chunks_per_refresh");
-    RegisterParameter("max_time_per_blob_chunk_refresh", MaxTimePerBlobChunkRefresh)
+    registrar.Parameter("max_time_per_blob_chunk_refresh", &TThis::MaxTimePerBlobChunkRefresh)
         .Default(TDuration::MilliSeconds(80))
         .Alias("max_time_per_refresh");
-    RegisterParameter("max_journal_chunks_per_refresh", MaxJournalChunksPerRefresh)
+    registrar.Parameter("max_journal_chunks_per_refresh", &TThis::MaxJournalChunksPerRefresh)
         .Default(6000);
-    RegisterParameter("max_time_per_journal_chunk_refresh", MaxTimePerJournalChunkRefresh)
+    registrar.Parameter("max_time_per_journal_chunk_refresh", &TThis::MaxTimePerJournalChunkRefresh)
         .Default(TDuration::MilliSeconds(60));
 
-    RegisterParameter("enable_chunk_requisition_update", EnableChunkRequisitionUpdate)
+    registrar.Parameter("enable_chunk_requisition_update", &TThis::EnableChunkRequisitionUpdate)
         .Default(true);
-    RegisterParameter("chunk_requisition_update_period", ChunkRequisitionUpdatePeriod)
+    registrar.Parameter("chunk_requisition_update_period", &TThis::ChunkRequisitionUpdatePeriod)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("max_blob_chunks_per_requisition_update", MaxBlobChunksPerRequisitionUpdate)
+    registrar.Parameter("max_blob_chunks_per_requisition_update", &TThis::MaxBlobChunksPerRequisitionUpdate)
         .Default(8000)
         .Alias("max_chunks_per_requisition_update");
-    RegisterParameter("max_time_per_blob_chunk_requisition_update", MaxTimePerBlobChunkRequisitionUpdate)
+    registrar.Parameter("max_time_per_blob_chunk_requisition_update", &TThis::MaxTimePerBlobChunkRequisitionUpdate)
         .Default(TDuration::MilliSeconds(80))
         .Alias("max_time_per_requisition_update");
-    RegisterParameter("max_journal_chunks_per_requisition_update", MaxJournalChunksPerRequisitionUpdate)
+    registrar.Parameter("max_journal_chunks_per_requisition_update", &TThis::MaxJournalChunksPerRequisitionUpdate)
         .Default(6000);
-    RegisterParameter("max_time_per_journal_chunk_requisition_update", MaxTimePerJournalChunkRequisitionUpdate)
+    registrar.Parameter("max_time_per_journal_chunk_requisition_update", &TThis::MaxTimePerJournalChunkRequisitionUpdate)
         .Default(TDuration::MilliSeconds(60));
 
-    RegisterParameter("finished_chunk_lists_requisition_traverse_flush_period", FinishedChunkListsRequisitionTraverseFlushPeriod)
+    registrar.Parameter("finished_chunk_lists_requisition_traverse_flush_period", &TThis::FinishedChunkListsRequisitionTraverseFlushPeriod)
         .Default(TDuration::Seconds(1));
 
-    RegisterParameter("chunk_seal_backoff_time", ChunkSealBackoffTime)
+    registrar.Parameter("chunk_seal_backoff_time", &TThis::ChunkSealBackoffTime)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("journal_rpc_timeout", JournalRpcTimeout)
+    registrar.Parameter("journal_rpc_timeout", &TThis::JournalRpcTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("quorum_session_delay", QuorumSessionDelay)
+    registrar.Parameter("quorum_session_delay", &TThis::QuorumSessionDelay)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("max_chunks_per_seal", MaxChunksPerSeal)
+    registrar.Parameter("max_chunks_per_seal", &TThis::MaxChunksPerSeal)
         .GreaterThan(0)
         .Default(10000);
-    RegisterParameter("max_concurrent_chunk_seals", MaxConcurrentChunkSeals)
+    registrar.Parameter("max_concurrent_chunk_seals", &TThis::MaxConcurrentChunkSeals)
         .GreaterThan(0)
         .Default(10);
 
-    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+    registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .GreaterThan(0)
         .Default(1000000);
-    RegisterParameter("max_cached_replicas_per_fetch", MaxCachedReplicasPerFetch)
+    registrar.Parameter("max_cached_replicas_per_fetch", &TThis::MaxCachedReplicasPerFetch)
         .GreaterThanOrEqual(0)
         .Default(20);
 
-    RegisterParameter("job_timeout", JobTimeout)
+    registrar.Parameter("job_timeout", &TThis::JobTimeout)
         .Default(TDuration::Minutes(5));
 
-    RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
+    registrar.Parameter("safe_online_node_count", &TThis::SafeOnlineNodeCount)
         .GreaterThanOrEqual(0)
         .Default(0);
-    RegisterParameter("safe_lost_chunk_fraction", SafeLostChunkFraction)
+    registrar.Parameter("safe_lost_chunk_fraction", &TThis::SafeLostChunkFraction)
         .InRange(0.0, 1.0)
         .Default(0.5);
-    RegisterParameter("safe_lost_chunk_count", SafeLostChunkCount)
+    registrar.Parameter("safe_lost_chunk_count", &TThis::SafeLostChunkCount)
         .GreaterThan(0)
         .Default(1000);
 
-    RegisterParameter("max_replication_write_sessions", MaxReplicationWriteSessions)
+    registrar.Parameter("max_replication_write_sessions", &TThis::MaxReplicationWriteSessions)
         .GreaterThanOrEqual(1)
         .Default(128);
 
-    RegisterParameter("repair_job_memory_usage", RepairJobMemoryUsage)
+    registrar.Parameter("repair_job_memory_usage", &TThis::RepairJobMemoryUsage)
         .Default(256_MB)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("job_throttler", JobThrottler)
+    registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultNew();
 
-    RegisterParameter("per_type_job_throttlers", JobTypeToThrottler)
+    registrar.Parameter("per_type_job_throttlers", &TThis::JobTypeToThrottler)
         .Default();
 
-    RegisterParameter("staged_chunk_expiration_timeout", StagedChunkExpirationTimeout)
+    registrar.Parameter("staged_chunk_expiration_timeout", &TThis::StagedChunkExpirationTimeout)
         .Default(TDuration::Hours(1))
         .GreaterThanOrEqual(TDuration::Minutes(10));
-    RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
+    registrar.Parameter("expiration_check_period", &TThis::ExpirationCheckPeriod)
         .Default(TDuration::Minutes(1));
-    RegisterParameter("max_expired_chunks_unstages_per_commit", MaxExpiredChunksUnstagesPerCommit)
+    registrar.Parameter("max_expired_chunks_unstages_per_commit", &TThis::MaxExpiredChunksUnstagesPerCommit)
         .Default(1000);
 
-    RegisterParameter("max_heavy_columns", MaxHeavyColumns)
+    registrar.Parameter("max_heavy_columns", &TThis::MaxHeavyColumns)
         .Default(30)
         .GreaterThanOrEqual(0);
 
-    RegisterParameter("deprecated_codec_ids", DeprecatedCodecIds)
+    registrar.Parameter("deprecated_codec_ids", &TThis::DeprecatedCodecIds)
         .Default();
 
-    RegisterParameter("deprecated_codec_name_to_alias", DeprecatedCodecNameToAlias)
+    registrar.Parameter("deprecated_codec_name_to_alias", &TThis::DeprecatedCodecNameToAlias)
         .Default();
 
-    RegisterParameter("max_oldest_part_missing_chunks", MaxOldestPartMissingChunks)
+    registrar.Parameter("max_oldest_part_missing_chunks", &TThis::MaxOldestPartMissingChunks)
         .Default(100);
 
-    RegisterParameter("chunk_removal_job_replicas_expiration_time", ChunkRemovalJobReplicasExpirationTime)
+    registrar.Parameter("chunk_removal_job_replicas_expiration_time", &TThis::ChunkRemovalJobReplicasExpirationTime)
         .Default(TDuration::Minutes(15));
 
-    RegisterParameter("data_node_tracker", DataNodeTracker)
+    registrar.Parameter("data_node_tracker", &TThis::DataNodeTracker)
         .DefaultNew();
 
-    RegisterParameter("chunk_tree_balancer", ChunkTreeBalancer)
+    registrar.Parameter("chunk_tree_balancer", &TThis::ChunkTreeBalancer)
         .DefaultNew();
 
-    RegisterParameter("chunk_merger", ChunkMerger)
+    registrar.Parameter("chunk_merger", &TThis::ChunkMerger)
         .DefaultNew();
 
-    RegisterParameter("ally_replica_manager", AllyReplicaManager)
+    registrar.Parameter("ally_replica_manager", &TThis::AllyReplicaManager)
         .DefaultNew();
 
-    RegisterParameter("consistent_replica_placement", ConsistentReplicaPlacement)
+    registrar.Parameter("consistent_replica_placement", &TThis::ConsistentReplicaPlacement)
         .DefaultNew();
 
-    RegisterParameter("locate_chunks_cached_replica_count_limit", LocateChunksCachedReplicaCountLimit)
+    registrar.Parameter("locate_chunks_cached_replica_count_limit", &TThis::LocateChunksCachedReplicaCountLimit)
         .Default(std::nullopt)
         .DontSerializeDefault();
 
-    RegisterParameter("destroyed_replicas_profiling_period", DestroyedReplicasProfilingPeriod)
+    registrar.Parameter("destroyed_replicas_profiling_period", &TThis::DestroyedReplicasProfilingPeriod)
         .Default(TDuration::Minutes(5))
         .DontSerializeDefault();
 
-    RegisterParameter("chunk_autotomizer", ChunkAutotomizer)
+    registrar.Parameter("chunk_autotomizer", &TThis::ChunkAutotomizer)
         .DefaultNew();
 
-    RegisterParameter("finished_jobs_queue_size", FinishedJobsQueueSize)
+    registrar.Parameter("finished_jobs_queue_size", &TThis::FinishedJobsQueueSize)
         .GreaterThanOrEqual(0)
         .Default(50'000);
 
-    RegisterParameter("enable_per_node_incremental_heartbeat_profiling", EnablePerNodeIncrementalHeartbeatProfiling)
+    registrar.Parameter("enable_per_node_incremental_heartbeat_profiling", &TThis::EnablePerNodeIncrementalHeartbeatProfiling)
         .Default(false)
         .DontSerializeDefault();
 
-    RegisterParameter("testing", Testing)
+    registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
 
-    RegisterParameter("use_data_center_aware_replicator", UseDataCenterAwareReplicator)
+    registrar.Parameter("use_data_center_aware_replicator", &TThis::UseDataCenterAwareReplicator)
         .Default(false)
         .DontSerializeDefault();
 
-    RegisterParameter("storage_data_centers", StorageDataCenters)
+    registrar.Parameter("storage_data_centers", &TThis::StorageDataCenters)
         .Default()
         .DontSerializeDefault();
 
-    RegisterParameter("banned_storage_data_centers", BannedStorageDataCenters)
+    registrar.Parameter("banned_storage_data_centers", &TThis::BannedStorageDataCenters)
         .Default()
         .DontSerializeDefault();
 
-    RegisterParameter("profiling_period", ProfilingPeriod)
+    registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
-    RegisterParameter("sequoia_chunk_probability", SequoiaChunkProbability)
+    registrar.Parameter("sequoia_chunk_probability", &TThis::SequoiaChunkProbability)
         .Default(0)
         .InRange(0, 100);
 
-    RegisterPreprocessor([&] {
+    registrar.Preprocessor([] (TThis* config) {
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {
-                auto jobThrottler = EmplaceOrCrash(JobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
+                auto jobThrottler = EmplaceOrCrash(config->JobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
                 jobThrottler->second->Limit = 10'000;
             }
         }
-        JobThrottler->Limit = 10'000;
+        config->JobThrottler->Limit = 10'000;
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicChunkServiceConfig::TDynamicChunkServiceConfig()
+void TDynamicChunkServiceConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
+    registrar.Parameter("enable_mutation_boomerangs", &TThis::EnableMutationBoomerangs)
         .Default(true);
 
-    RegisterParameter(
+    registrar.Parameter(
         "enable_alert_on_chunk_confirmation_without_location_uuid",
-        EnableAlertOnChunkConfirmationWithoutLocationUuid)
+        &TThis::EnableAlertOnChunkConfirmationWithoutLocationUuid)
         .Default(false)
         .DontSerializeDefault();
 
-    RegisterParameter("execute_request_weight_throttler_limit", ExecuteRequestWeightThrottlerLimit)
+    registrar.Parameter("execute_request_weight_throttler_limit", &TThis::ExecuteRequestWeightThrottlerLimit)
         .Default()
         .DontSerializeDefault();
 
-    RegisterParameter("execute_request_bytes_throttler_limit", ExecuteRequestBytesThrottlerLimit)
+    registrar.Parameter("execute_request_bytes_throttler_limit", &TThis::ExecuteRequestBytesThrottlerLimit)
         .Default()
         .DontSerializeDefault();
 }

@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/compression/public.h>
 
@@ -15,7 +15,7 @@ namespace NYT::NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int DefaultFileReplicationFactor;
@@ -25,7 +25,9 @@ public:
     int DefaultJournalReadQuorum;
     int DefaultJournalWriteQuorum;
 
-    TCypressManagerConfig();
+    REGISTER_YSON_STRUCT(TCypressManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressManagerConfig)
@@ -33,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCypressManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Period between Cypress access statistics commits.
@@ -72,7 +74,7 @@ public:
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 
     double DefaultExternalCellBias;
-    
+
     std::optional<TDuration> PortalSynchronizationPeriod;
 
     // COMPAT(kvk1920)
@@ -80,7 +82,9 @@ public:
 
     bool EnableSymlinkCyclicityCheck;
 
-    TDynamicCypressManagerConfig();
+    REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicCypressManagerConfig)

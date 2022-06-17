@@ -15,7 +15,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMutationIdempotizerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool Enabled;
@@ -23,17 +23,9 @@ public:
     TDuration ExpirationCheckPeriod;
     int MaxExpiredMutationIdRemovalsPerCommit;
 
-    TMutationIdempotizerConfig()
-    {
-        RegisterParameter("enabled", Enabled)
-            .Default(true);
-        RegisterParameter("expiration_time", ExpirationTime)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("max_expired_mutation_id_removals_per_commit", MaxExpiredMutationIdRemovalsPerCommit)
-            .Default(50000);
-    }
+    REGISTER_YSON_STRUCT(TMutationIdempotizerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
@@ -41,15 +33,20 @@ DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectManagerConfig
-    : public NYTree::TYsonSerializable
-{ };
+    : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TObjectManagerConfig);
+
+    static void Register(TRegistrar)
+    { }
+};
 
 DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicObjectManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(100);
@@ -76,24 +73,9 @@ public:
 
     TDuration ProfilingPeriod;
 
-    TDynamicObjectManagerConfig()
-    {
-        RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
-            .Default(100000);
-        RegisterParameter("gc_sweep_period", GCSweepPeriod)
-            .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("object_removal_cells_sync_period", ObjectRemovalCellsSyncPeriod)
-            .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("mutation_idempotizer", MutationIdempotizer)
-            .DefaultNew();
-        RegisterParameter("reserved_attributes", ReservedAttributes)
-            .Default();
-        RegisterParameter("yson_string_intern_length_threshold", YsonStringInternLengthThreshold)
-            .Default(DefaultYsonStringInternLengthThreshold)
-            .InRange(DefaultYsonStringInternLengthThreshold, 1_GB);
-        RegisterParameter("profiling_period", ProfilingPeriod)
-            .Default(DefaultProfilingPeriod);
-   }
+    REGISTER_YSON_STRUCT(TDynamicObjectManagerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
@@ -101,7 +83,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectServiceConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     //! Maximum amount of a single batch of Execute requests is allowed to occupy the automaton thread.
@@ -130,30 +112,9 @@ public:
 
     bool EnableLocalReadExecutor;
 
-    TObjectServiceConfig()
-    {
-        RegisterParameter("yield_timeout", YieldTimeout)
-            .Default(TDuration::MilliSeconds(10));
+    REGISTER_YSON_STRUCT(TObjectServiceConfig);
 
-        RegisterParameter("sticky_user_error_expire_time", StickyUserErrorExpireTime)
-            .Default(TDuration::Seconds(1));
-
-        RegisterParameter("cross_cell_sync_delay", CrossCellSyncDelay)
-            .Default(TDuration::MilliSeconds(10));
-
-        RegisterParameter("timeout_backoff_lead_time", TimeoutBackoffLeadTime)
-            .Default(TDuration::Seconds(3));
-        RegisterParameter("default_execute_timeout", DefaultExecuteTimeout)
-            .Default(TDuration::Seconds(30));
-        RegisterParameter("forwarded_request_timeout_reserve", ForwardedRequestTimeoutReserve)
-            .Default(TDuration::Seconds(3));
-
-        RegisterParameter("master_cache", MasterCache)
-            .DefaultNew();
-
-        RegisterParameter("enable_local_read_executor", EnableLocalReadExecutor)
-            .Default(false);
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
@@ -161,7 +122,7 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicObjectServiceConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableTwoLevelCache;
@@ -174,27 +135,9 @@ public:
 
     TDuration ProcessSessionsPeriod;
 
-    TDynamicObjectServiceConfig()
-    {
-        RegisterParameter("enable_two_level_cache", EnableTwoLevelCache)
-            .Default(true);
-        RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
-            .Default(true);
-        RegisterParameter("enable_local_read_executor", EnableLocalReadExecutor)
-            .Default(false);
-        RegisterParameter("local_read_worker_count", LocalReadWorkerCount)
-            .GreaterThan(0)
-            .Default(4);
-        RegisterParameter("schedule_reply_retry_backoff", ScheduleReplyRetryBackoff)
-            .Default(TDuration::MilliSeconds(100));
+    REGISTER_YSON_STRUCT(TDynamicObjectServiceConfig);
 
-        RegisterParameter("local_read_executor_quantum_duration", LocalReadExecutorQuantumDuration)
-            .Default(TDuration::MilliSeconds(10));
-
-        RegisterParameter("process_sessions_period", ProcessSessionsPeriod)
-            .Default(TDuration::MilliSeconds(10))
-            .DontSerializeDefault();
-    }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectServiceConfig)
