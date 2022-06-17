@@ -106,7 +106,7 @@ private:
             }
 
             for (auto [cellId, version] : idToVersion) {
-                if (IsCellType(TypeFromId(cellId))) {
+                if (IsCellType(TypeFromId(cellId)) && TypeFromId(cellId) != EObjectType::ChaosCell) {
                     CellDirectory_->UnregisterCell(cellId);
                 }
             }

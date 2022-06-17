@@ -175,11 +175,11 @@ public:
         return SelfCellId_;
     }
 
-    TMailbox* CreateMailbox(TCellId cellId)
+    TMailbox* CreateMailbox(TCellId cellId, bool allowResurrection = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (RemovedCellIds_.erase(cellId) != 0) {
+        if (RemovedCellIds_.erase(cellId) != 0 && !allowResurrection) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
                 cellId);
@@ -1686,9 +1686,9 @@ TCellId THiveManager::GetSelfCellId() const
     return Impl_->GetSelfCellId();
 }
 
-TMailbox* THiveManager::CreateMailbox(TCellId cellId)
+TMailbox* THiveManager::CreateMailbox(TCellId cellId, bool allowResurrection)
 {
-    return Impl_->CreateMailbox(cellId);
+    return Impl_->CreateMailbox(cellId, allowResurrection);
 }
 
 TMailbox* THiveManager::FindMailbox(TCellId cellId)
