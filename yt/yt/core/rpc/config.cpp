@@ -83,6 +83,8 @@ TMethodConfig::TMethodConfig()
         .Optional();
     RegisterParameter("request_bytes_throttler", RequestBytesThrottler)
         .Default();
+    RegisterParameter("request_weight_throttler", RequestWeightThrottler)
+        .Default();
     RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
         .Optional();
     RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)

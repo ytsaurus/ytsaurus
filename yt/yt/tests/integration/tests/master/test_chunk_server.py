@@ -6,7 +6,8 @@ from yt_commands import (
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
     multicell_sleep, update_nodes_dynamic_config, switch_leader,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle)
+    get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle,
+    print_debug)
 
 from yt_helpers import profiler_factory
 
@@ -15,10 +16,11 @@ from yt.common import YtError
 import yt.yson as yson
 
 import pytest
+from flaky import flaky
 
 import json
 import os
-from time import sleep
+from time import sleep, time
 
 ##################################################################
 
@@ -926,6 +928,7 @@ class TestConsistentChunkReplicaPlacementLeaderSwitch(TestConsistentChunkReplica
 
         assert self._are_chunk_replicas_collocated(replicas_before, replicas_after)
 
+
 ##################################################################
 
 
@@ -1040,3 +1043,36 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
 
         with pytest.raises(StopIteration):
             next(checker_state)
+
+
+class TestChunkCreationThrottler(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    @authors("kvk1920")
+    @flaky(max_runs=3)
+    def test_chunk_creation_throttler(self):
+        create("table", "//tmp/t")
+
+        write_chunk_count = 15
+
+        def measure_write_time():
+            start = time()
+            for _ in range(write_chunk_count):
+                write_table("<append=%true>//tmp/t", {"a": 1}, timeout=20)
+            return time() - start
+
+        # Warm up.
+        measure_write_time()
+        print_debug("warmed up")
+
+        usual_time = measure_write_time()
+        print_debug("usual time:", usual_time)
+        expected_time = usual_time * 5
+
+        print_debug("new limit:", write_chunk_count / expected_time, "chunks/sec")
+
+        set("//sys/@config/chunk_service/execute_request_weight_throttler_limit", write_chunk_count / expected_time)
+        assert measure_write_time() >= expected_time * .8
+        remove("//sys/@config/chunk_service/execute_request_weight_throttler_limit")
+        assert measure_write_time() < usual_time * 1.2

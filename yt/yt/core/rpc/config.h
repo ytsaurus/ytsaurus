@@ -113,6 +113,7 @@ public:
     std::optional<NLogging::ELogLevel> LogLevel;
     std::optional<TDuration> LoggingSuppressionTimeout;
     NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr RequestWeightThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
     std::optional<ERequestTracingMode> TracingMode;
     std::optional<bool> Pooled;

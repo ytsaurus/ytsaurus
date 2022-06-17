@@ -671,6 +671,8 @@ private:
                     batchReq->RequireServerFeature(EMasterFeature::OverlayedJournals);
                 }
 
+                // NB: It is too dangerous to throttle journals.
+                // Hence we omit setting logical_request_weight.
                 auto* req = batchReq->add_create_chunk_subrequests();
                 req->set_type(ToProto<int>(ErasureCodec_ == NErasure::ECodec::None ? EObjectType::JournalChunk : EObjectType::ErasureJournalChunk));
                 req->set_account(Account_);
