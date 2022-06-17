@@ -23,7 +23,7 @@ protected:
     }
 
 
-    void ConfirmRow(TTransaction* transaction, TSortedDynamicRow row)
+    void ConfirmRow(TTestTransaction* transaction, TSortedDynamicRow row)
     {
         transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, row));
     }
@@ -69,7 +69,7 @@ protected:
     }
 
     TSortedDynamicRowWithLock ModifyRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock,
         TLockMask lockMask)
@@ -86,7 +86,7 @@ protected:
             }
         }
 
-        TWriteContext context;
+        auto context = transaction->CreateWriteContext();
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
         context.Transaction = transaction;
         auto dynamicRow = Store_->ModifyRow(row, lockMask, false, &context);
@@ -98,7 +98,7 @@ protected:
     }
 
     TSortedDynamicRowWithLock ModifyRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock)
     {
@@ -108,7 +108,7 @@ protected:
     }
 
     TSortedDynamicRowWithLock LockRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock,
         TLockMask lockMask)
@@ -117,7 +117,7 @@ protected:
     }
 
     TSortedDynamicRowWithLock LockRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock,
         ELockType lockType = ELockType::SharedWeak)
@@ -128,7 +128,7 @@ protected:
     }
 
     TSortedDynamicRowWithLock WriteRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock,
         TLockMask lockMask)
@@ -137,7 +137,7 @@ protected:
     }
 
     TSortedDynamicRowWithLock WriteRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock)
     {
@@ -180,13 +180,12 @@ protected:
     }
 
     TSortedDynamicRowWithLock DeleteRow(
-        TTransaction* transaction,
+        TTestTransaction* transaction,
         const TLegacyOwningKey& key,
         bool prelock)
     {
-        TWriteContext context;
+        auto context = transaction->CreateWriteContext();
         context.Phase = prelock ? EWritePhase::Prelock : EWritePhase::Lock;
-        context.Transaction = transaction;
         TLockMask lockMask;
         lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
         auto dynamicRow = Store_->ModifyRow(key, lockMask, true, &context);
@@ -340,7 +339,7 @@ private:
         return value;
     }
 
-    void LockRow(TTransaction* transaction, bool prelock, TSortedDynamicRow row)
+    void LockRow(TTestTransaction* transaction, bool prelock, TSortedDynamicRow row)
     {
         auto rowRef = TSortedDynamicRowRef(Store_.Get(), nullptr, row);
         if (prelock) {
@@ -1216,9 +1215,8 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteNotBlocked)
     PrepareRow(transaction1.get(), dynamicRow);
 
     // Not blocked, write conflicted.
-    TWriteContext context;
+    auto context = transaction2->CreateWriteContext();
     context.Phase = EWritePhase::Prelock;
-    context.Transaction = transaction2.get();
     TLockMask lockMask;
     lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
     EXPECT_EQ(TSortedDynamicRow(), Store_->ModifyRow(row, lockMask, false, &context));
@@ -1239,9 +1237,8 @@ TEST_F(TSingleLockSortedDynamicStoreTest, WriteBlocked)
     auto transaction2 = StartTransaction();
 
     // Blocked, no value is written.
-    TWriteContext context;
+    auto context = transaction2->CreateWriteContext();
     context.Phase = EWritePhase::Prelock;
-    context.Transaction = transaction2.get();
     TLockMask lockMask;
     lockMask.Set(PrimaryLockIndex, ELockType::Exclusive);
     EXPECT_EQ(TSortedDynamicRow(), Store_->ModifyRow(row, lockMask, false, &context));

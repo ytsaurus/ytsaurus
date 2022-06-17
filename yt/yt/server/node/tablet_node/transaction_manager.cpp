@@ -136,10 +136,6 @@ public:
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
-        RegisterSaver(
-            EAsyncSerializationPriority::Default,
-            "TransactionManager.Async",
-            BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActionsCompat, Unretained(this)));
@@ -614,6 +610,11 @@ public:
         return Decommissioned_ && PersistentTransactionMap_.empty();
     }
 
+    ETabletReign GetSnapshotReign() const
+    {
+        return SnapshotReign_;
+    }
+
 private:
     const ITransactionManagerHostPtr Host_;
     const TTransactionManagerConfigPtr Config_;
@@ -662,11 +663,7 @@ private:
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
                     // Omit CommitTimestamp, it's typically null.
-                    .Item("locked_row_count").Value(transaction->LockedRows().size())
-                    .Item("prelocked_row_count").Value(transaction->PrelockedRows().size())
-                    .Item("immediate_locked_write_log_size").Value(transaction->ImmediateLockedWriteLog().Size())
-                    .Item("immediate_lockless_write_log_size").Value(transaction->ImmediateLocklessWriteLog().Size())
-                    .Item("delayed_write_log_size").Value(transaction->DelayedLocklessWriteLog().Size())
+                    // TODO: Tablets.
                 .EndMap();
         };
         BuildYsonFluently(consumer)
@@ -855,26 +852,6 @@ private:
         Save(context, LastSerializedCommitTimestamps_);
         Save(context, Decommissioned_);
     }
-
-    TCallback<void(TSaveContext&)> SaveAsync()
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        std::vector<std::pair<TTransactionId, TCallback<void(TSaveContext&)>>> capturedTransactions;
-        for (auto [transactionId, transaction] : PersistentTransactionMap_) {
-            capturedTransactions.push_back(std::make_pair(transaction->GetId(), transaction->AsyncSave()));
-        }
-
-        return BIND([capturedTransactions = std::move(capturedTransactions)] (TSaveContext& context) {
-                using NYT::Save;
-                // NB: This is not stable.
-                for (const auto& [transactionId, callback] : capturedTransactions) {
-                    Save(context, transactionId);
-                    callback.Run(context);
-                }
-            });
-    }
-
 
     void LoadKeys(TLoadContext& context)
     {
@@ -1402,6 +1379,11 @@ void TTransactionManager::SetDecommission(bool decommission)
 bool TTransactionManager::IsDecommissioned() const
 {
     return Impl_->IsDecommissioned();
+}
+
+ETabletReign TTransactionManager::GetSnapshotReign() const
+{
+    return Impl_->GetSnapshotReign();
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

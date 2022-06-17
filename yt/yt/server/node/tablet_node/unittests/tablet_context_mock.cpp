@@ -23,6 +23,10 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTabletContextMock::TTabletContextMock(ITabletWriteManagerHost* host)
+    : TabletWriteManagerHost_(host)
+{ }
+
 TMockBackendChunkReadersHolderPtr TTabletContextMock::GetBackendChunkReadersHolder() const
 {
     return BackendChunkReadersHolder_;
@@ -140,6 +144,11 @@ IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry()
 TString TTabletContextMock::GetLocalHostName()
 {
     return TString();
+}
+
+ITabletWriteManagerHostPtr TTabletContextMock::GetTabletWriteManagerHost()
+{
+    return MakeStrong(TabletWriteManagerHost_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

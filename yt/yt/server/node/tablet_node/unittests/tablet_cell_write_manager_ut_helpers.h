@@ -71,7 +71,7 @@ public:
         TransactionManager_ = New<TTransactionManager>(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());
         TransactionSupervisor_ = New<TSimpleTransactionSupervisor>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
         TabletManager_ = New<TSimpleTabletManager>(TransactionManager_, HydraManager_, Automaton_, AutomatonInvoker_);
-        TabletCellWriteManager_ = CreateTabletCellWriteManager(TabletManager_, HydraManager_, Automaton_, TMemoryUsageTrackerGuard(), AutomatonInvoker_);
+        TabletCellWriteManager_ = CreateTabletCellWriteManager(TabletManager_, HydraManager_, Automaton_, AutomatonInvoker_);
 
         TabletManager_->InitializeTablet(options);
         TabletCellWriteManager_->Initialize();

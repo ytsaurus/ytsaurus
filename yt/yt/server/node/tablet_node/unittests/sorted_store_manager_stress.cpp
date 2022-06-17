@@ -300,7 +300,7 @@ public:
         TSelf* Self;
 
         //! Tranasction owning this action.
-        TTransaction* Transaction = nullptr;
+        TTestTransaction* Transaction = nullptr;
 
         //! Was #ModifyRow called for this action?
         bool Applied = false;
@@ -428,11 +428,11 @@ public:
         }
     };
 
-    struct TTestTransaction
+    struct TTransactionState
     {
         TSelf* Self;
 
-        std::unique_ptr<TTransaction> Transaction;
+        std::unique_ptr<TTestTransaction> Transaction;
 
         std::vector<std::unique_ptr<TModification>> Modifications;
 
@@ -622,8 +622,8 @@ public:
                 : std::nullopt;
         }
     };
-    std::vector<std::unique_ptr<TTestTransaction>> Transactions_;
-    THashSet<TTestTransaction*> RunningTransactions_;
+    std::vector<std::unique_ptr<TTransactionState>> Transactions_;
+    THashSet<TTransactionState*> RunningTransactions_;
 
     // Naive implementations.
 
@@ -791,9 +791,9 @@ public:
     }
 
     bool CheckConflict(
-        TTestTransaction* tx1,
+        TTransactionState* tx1,
         TModification* modification1,
-        TTestTransaction* tx2,
+        TTransactionState* tx2,
         TModification* modification2,
         bool ignoreFirstLiveness = false)
     {
@@ -825,7 +825,7 @@ public:
                 inside(startTs2, commitTs2, commitTs1);
         };
 
-        auto checkAlive = [&] (TTestTransaction* tx, TModification* modification) {
+        auto checkAlive = [&] (TTransactionState* tx, TModification* modification) {
             if (tx->Aborted) {
                 return false;
             }
@@ -860,8 +860,8 @@ public:
 
             // Tx1 aims for exclusive lock and tx2 for shared weak.
             auto checkExclusiveVsSharedWeak = [&] (
-                const TTestTransaction* tx1,
-                const TTestTransaction* tx2)
+                const TTransactionState* tx1,
+                const TTransactionState* tx2)
             {
                 if (tx1->Committed && tx2->Committed) {
                     return false;
@@ -915,7 +915,7 @@ public:
     }
 
     bool CheckConflict(
-        TTestTransaction* tx,
+        TTransactionState* tx,
         TModification* modification,
         bool ignoreFirstLiveness = false)
     {
@@ -951,9 +951,9 @@ void TSortedStoreManagerStressTest::RunTest()
     StoreManager_.Reset();
     DoSetUp();
 
-    auto randomElement = [&] (const THashSet<TTestTransaction*>& set) {
-        std::vector<TTestTransaction*> elements(set.begin(), set.end());
-        SortBy(elements, [&] (TTestTransaction* transaction) {
+    auto randomElement = [&] (const THashSet<TTransactionState*>& set) {
+        std::vector<TTransactionState*> elements(set.begin(), set.end());
+        SortBy(elements, [&] (TTransactionState* transaction) {
             return transaction->Transaction->GetId();
         });
 
@@ -986,7 +986,7 @@ void TSortedStoreManagerStressTest::RunTest()
                 continue;
             }
 
-            auto transaction = std::make_unique<TTestTransaction>();
+            auto transaction = std::make_unique<TTransactionState>();
             transaction->Self = this;
 
             auto transactionId = MakeId(EObjectType::Transaction, 0x10, createdTransactions, 0x42);

@@ -128,7 +128,29 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletTestBase
+struct TTestTransaction
+    : public TTransaction
+{
+    using TTransaction::TTransaction;
+
+    // For sake of convenience we store locked and prelocked rows in transaction
+    // for single-tablet tests.
+    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);
+
+    TWriteContext CreateWriteContext()
+    {
+        return TWriteContext{
+            .Transaction = this,
+            .PrelockedRows = &PrelockedRows_,
+            .LockedRows = &LockedRows_,
+        };
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicStoreTestBase
     : public ::testing::Test
 {
 public:
@@ -140,7 +162,7 @@ public:
 
     void SetUp() override
     {
-        BIND(&TTabletTestBase::DoSetUp, Unretained(this))
+        BIND(&TDynamicStoreTestBase::DoSetUp, Unretained(this))
             .AsyncVia(TestQueue_->GetInvoker())
             .Run()
             .Get();
@@ -221,7 +243,7 @@ public:
         return CurrentTimestamp_++;
     }
 
-    std::unique_ptr<TTransaction> StartTransaction(
+    std::unique_ptr<TTestTransaction> StartTransaction(
         TTimestamp startTimestamp = NullTimestamp,
         TTransactionId transactionId = NullTransactionId)
     {
@@ -229,7 +251,7 @@ public:
             transactionId = TTransactionId::Create();
         }
 
-        auto transaction = std::make_unique<TTransaction>(transactionId);
+        auto transaction = std::make_unique<TTestTransaction>(transactionId);
         transaction->SetStartTimestamp(startTimestamp == NullTimestamp ? GenerateTimestamp() : startTimestamp);
         transaction->SetPersistentState(ETransactionState::Active);
         return transaction;

@@ -12,6 +12,8 @@ struct IBackupManager
     virtual void Initialize() = 0;
 
     virtual void ValidateReplicationTransactionCommit(TTablet* tablet, TTransaction* transaction) = 0;
+
+    virtual void OnReplicatorWriteTransactionFinished(TTablet* tablet) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBackupManager)

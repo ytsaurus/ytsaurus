@@ -208,10 +208,6 @@ public:
         transactionManager->SubscribeBeforeTransactionSerialized(
             BIND(&TBackupManager::OnBeforeTransactionSerialized, MakeStrong(this)));
 
-        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
-        tabletCellWriteManager->SubscribeReplicatorWriteTransactionFinished(
-            BIND(&TBackupManager::OnReplicatorWriteTransactionFinished, MakeStrong(this)));
-
         const auto& tabletManager = Slot_->GetTabletManager();
         tabletManager->SubscribeReplicationTransactionFinished(
             BIND(&TBackupManager::OnReplicationTransactionFinished, MakeStrong(this)));
@@ -1018,7 +1014,7 @@ private:
         }
     }
 
-    void OnReplicatorWriteTransactionFinished(TTablet* tablet)
+    void OnReplicatorWriteTransactionFinished(TTablet* tablet) override
     {
         if (!tablet->GetBackupCheckpointTimestamp()) {
             return;

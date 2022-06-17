@@ -37,6 +37,7 @@ TSimpleTabletManager::TSimpleTabletManager(
     , AutomatonInvoker_(std::move(automatonInvoker))
     , TransactionManager_(std::move(transactionManager))
     , TabletMap_(TTabletMapTraits(this))
+    , TabletContext_(this)
 {
     RegisterLoader(
         "SimpleTabletManager.Keys",
@@ -206,6 +207,11 @@ TTabletNodeDynamicConfigPtr TSimpleTabletManager::GetDynamicConfig() const
     return config;
 }
 
+ISimpleHydraManagerPtr TSimpleTabletManager::GetHydraManager() const
+{
+    return HydraManager_;
+}
+
 TTablet* TSimpleTabletManager::GetTablet()
 {
     return TabletMap_.Get(NullTabletId);
@@ -265,6 +271,15 @@ void TSimpleTabletManager::Clear()
         .AsyncVia(AutomatonInvoker_)
         .Run())
         .ThrowOnError();
+}
+
+void TSimpleTabletManager::OnAfterSnapshotLoaded()
+{
+    TCompositeAutomatonPart::OnAfterSnapshotLoaded();
+
+    for (auto [tabletId, tablet] : TabletMap_) {
+        tablet->OnAfterSnapshotLoaded();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

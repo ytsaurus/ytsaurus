@@ -11,6 +11,8 @@
 #include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/ref.h>
 
+#include <yt/yt/core/test_framework/testing_tag.h>
+
 #include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NHydra {
@@ -60,6 +62,8 @@ public:
         ui64 prevRandomSeed,
         i64 sequenceNumber,
         ui64 stateHash);
+
+    explicit TMutationContext(TTestingTag);
 
     const TMutationRequest& Request() const;
     ui64 GetPrevRandomSeed() const;

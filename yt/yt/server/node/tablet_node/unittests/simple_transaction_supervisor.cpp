@@ -53,6 +53,19 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
     bool persistent,
     TTimestamp prepareTimestamp)
 {
+    if (!persistent) {
+        return BIND([=, this_ = MakeStrong(this)] {
+            TTransactionPrepareOptions options{
+                .Persistent = persistent,
+                .PrepareTimestamp = prepareTimestamp,
+                .PrepareTimestampClusterTag = 0x42,
+            };
+            TransactionManager_->PrepareTransactionCommit(transactionId, options);
+        })
+            .AsyncVia(AutomatonInvoker_)
+            .Run();
+    }
+
     NProto::TReqPrepareTransactionCommit request;
     ToProto(request.mutable_transaction_id(), transactionId);
     request.set_persistent(persistent);

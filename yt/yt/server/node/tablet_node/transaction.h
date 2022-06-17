@@ -23,6 +23,7 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(gritukan): Move to tablet write manager.
 struct TTransactionWriteRecord
 {
     TTransactionWriteRecord() = default;
@@ -69,17 +70,19 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, PrepareRevision, NHydra::NullRevision);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, CommitTimestampClusterTag, NObjectClient::InvalidCellTag)
 
-    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, TransientAffectedTabletIds);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, PersistentAffectedTabletIds);
+
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, SerializingTabletIds);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTablet*>, LockedTablets);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletId>, TabletsToUpdateReplicationProgress);
-    DEFINE_BYVAL_RW_PROPERTY(bool, SerializationForced);
+    DEFINE_BYVAL_RW_PROPERTY(bool, CompatSerializationForced);
 
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLockedWriteLog);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, ImmediateLocklessWriteLog);
-    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, DelayedLocklessWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, CompatImmediateLockedWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, CompatImmediateLocklessWriteLog);
+    DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, CompatDelayedLocklessWriteLog);
 
     DEFINE_BYREF_RW_PROPERTY(TTransactionSignature, PersistentPrepareSignature, InitialTransactionSignature);
     DEFINE_BYREF_RW_PROPERTY(TTransactionSignature, TransientPrepareSignature, InitialTransactionSignature);
@@ -90,16 +93,18 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NTransactionSupervisor::TTransactionCommitOptions, CommitOptions);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, RowsPrepared, false);
+    DEFINE_BYVAL_RW_PROPERTY(bool, CompatRowsPrepared, false);
+
     DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
 
 public:
     explicit TTransaction(TTransactionId id);
 
+    virtual ~TTransaction() = default;
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
-    TCallback<void(TSaveContext&)> AsyncSave();
     void AsyncLoad(TLoadContext& context);
 
     TFuture<void> GetFinished() const;
@@ -107,6 +112,10 @@ public:
     void ResetFinished();
 
     TTimestamp GetPersistentPrepareTimestamp() const;
+
+    THashSet<TTabletId> GetAffectedTabletIds() const;
+
+    void ForceSerialization(TTabletId tabletId);
 
     TInstant GetStartTime() const;
 

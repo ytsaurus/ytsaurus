@@ -15,7 +15,8 @@ class TTabletContextMock
     : public ITabletContext
 {
 public:
-    TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
+    TTabletContextMock() = default;
+    explicit TTabletContextMock(ITabletWriteManagerHost* host);
 
     // ITabletContext implementation.
     TCellId GetCellId() override;
@@ -40,8 +41,12 @@ public:
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() override;
     TString GetLocalHostName() override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() override;
+    ITabletWriteManagerHostPtr GetTabletWriteManagerHost() override;
+    TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
 
 private:
+    ITabletWriteManagerHost* TabletWriteManagerHost_ = nullptr;
+
     const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_ =
         NQueryClient::CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>());
 
