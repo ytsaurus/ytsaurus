@@ -532,13 +532,14 @@ def _run_sort_optimizer(spec, client=None):
 
 def _run_reduce_optimizer(spec, client=None):
     operations_list = [("reduce", spec, [])]
-    are_sorted_output = False
-    for table in spec.get("output_table_paths", []):
-        table = TablePath(table)
-        if "sorted_by" in table.attributes:
-            are_sorted_output = True
 
     if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
+        are_sorted_output = False
+        for table in spec.get("output_table_paths", []):
+            table = TablePath(table)
+            if "sorted_by" in table.attributes:
+                are_sorted_output = True
+
         are_input_tables_not_properly_sorted = False
         for table in spec["input_table_paths"]:
             sorted_by = get_sorted_by(table, [], client=client)

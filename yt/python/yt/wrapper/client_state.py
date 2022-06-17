@@ -45,6 +45,7 @@ class ClientState(object):
         self._local_mode_proxy_address = None
 
         self._random_generator = SystemRandom()
+        self._generate_mutation_id = None
 
     def _copy_init_state(self, other):
         self.__dict__.update(deepcopy(other._as_dict()))
