@@ -144,6 +144,7 @@ private:
             CurrentBatch_->ContextsWithStates.emplace_back(context, TState());
             auto& state = CurrentBatch_->ContextsWithStates.back().second;
             BatchRequest(&context->Request(), CurrentBatch_->BatchRequest.Get(), &state);
+            UpdateLogicalRequestWeight(CurrentBatch_->BatchRequest, state);
 
             YT_LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
                 context->GetRequestId(),
@@ -184,6 +185,9 @@ private:
             const TResponseMessage* batchResponse,
             const TState& state) = 0;
         virtual int GetCost(const TRequestPtr& request) const = 0;
+
+        virtual void UpdateLogicalRequestWeight(const TRequestPtr& /*request*/, const TState& /*lastState*/) const
+        { }
 
 
         template <class T>
@@ -534,6 +538,13 @@ private:
                 request->confirm_chunk_subrequests_size() +
                 request->seal_chunk_subrequests_size() +
                 request->attach_chunk_trees_subrequests_size();
+        }
+
+        void UpdateLogicalRequestWeight(const TRequestPtr& request, const TExecuteBatchState& lastState) const override
+        {
+            auto& header = request->Header();
+            header.set_logical_request_weight(
+                header.logical_request_weight() + std::ssize(lastState.CreateIndexes));
         }
     };
 

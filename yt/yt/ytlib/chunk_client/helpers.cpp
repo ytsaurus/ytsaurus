@@ -242,6 +242,7 @@ TSessionId CreateChunk(
     SetSuppressUpstreamSync(&batchReq->Header(), true);
     // COMPAT(shakurov): prefer proto ext (above).
     batchReq->set_suppress_upstream_sync(true);
+    batchReq->Header().set_logical_request_weight(1);
 
     auto* req = batchReq->add_create_chunk_subrequests();
     ToProto(req->mutable_transaction_id(), transactionId);

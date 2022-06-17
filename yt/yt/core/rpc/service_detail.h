@@ -416,6 +416,15 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IRequestQueue
+    : public TRefCounted
+{
+    virtual void ConfigureWeightThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
+    virtual void ConfigureBytesThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRequestQueuePtr CreateRequestQueue(TString name);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,8 +628,6 @@ protected:
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
 
-    struct TRuntimeMethodInfo;
-
     //! Describes a service method and its runtime statistics.
     struct TRuntimeMethodInfo
         : public TRefCounted
@@ -629,6 +636,9 @@ protected:
             TServiceId serviceId,
             TMethodDescriptor descriptor,
             const NProfiling::TProfiler& profiler);
+
+        // TODO(kvk1920):Generalize asdefault queue provider.
+        IRequestQueue* GetDefaultRequestQueue();
 
         const TServiceId ServiceId;
         const TMethodDescriptor Descriptor;

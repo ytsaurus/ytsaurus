@@ -48,6 +48,13 @@ public:
         Reconfigure(config);
     }
 
+    TFuture<void> GetAvailableFuture() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DoThrottle(0);
+    }
+
     TFuture<void> Throttle(i64 count) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -58,57 +65,7 @@ public:
             return VoidFuture;
         }
 
-        ValueCounter_.Increment(count);
-        if (Limit_.load() < 0) {
-            return VoidFuture;
-        }
-
-        while (true) {
-            TryUpdateAvailable();
-
-            if (QueueTotalCount_ > 0) {
-                break;
-            }
-
-            auto available = Available_.load();
-            if (available <= 0) {
-                break;
-            }
-
-            if (Available_.compare_exchange_strong(available, available - count)) {
-                return VoidFuture;
-            }
-        }
-
-        // Slow lane.
-        auto guard = Guard(SpinLock_);
-
-        if (Limit_.load() < 0) {
-            return VoidFuture;
-        }
-
-        // Enqueue request to be executed later.
-        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
-        auto promise = NewPromise<void>();
-        auto request = New<TThrottlerRequest>(count);
-        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] (const TError& error) {
-            auto request = weakRequest.Lock();
-            if (request && !request->Set.test_and_set()) {
-                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
-                    << error);
-                QueueTotalCount_ -= count;
-                QueueSizeCounter_.Update(QueueTotalCount_);
-            }
-        }));
-
-        request->Promise = std::move(promise);
-        Requests_.push(request);
-        QueueTotalCount_ += count;
-        QueueSizeCounter_.Update(QueueTotalCount_);
-
-        ScheduleUpdate();
-
-        return request->Promise;
+        return DoThrottle(count);
     }
 
     bool TryAcquire(i64 count) override
@@ -253,6 +210,63 @@ private:
     TDelayedExecutorCookie UpdateCookie_;
 
     std::queue<TThrottlerRequestPtr> Requests_;
+
+    TFuture<void> DoThrottle(i64 count)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        ValueCounter_.Increment(count);
+        if (Limit_.load() < 0) {
+            return VoidFuture;
+        }
+
+        while (true) {
+            TryUpdateAvailable();
+
+            if (QueueTotalCount_ > 0) {
+                break;
+            }
+
+            auto available = Available_.load();
+            if (available <= 0) {
+                break;
+            }
+
+            if (Available_.compare_exchange_strong(available, available - count)) {
+                return VoidFuture;
+            }
+        }
+
+        // Slow lane.
+        auto guard = Guard(SpinLock_);
+
+        if (Limit_.load() < 0) {
+            return VoidFuture;
+        }
+
+        // Enqueue request to be executed later.
+        YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
+        auto promise = NewPromise<void>();
+        auto request = New<TThrottlerRequest>(count);
+        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] (const TError& error) {
+            auto request = weakRequest.Lock();
+            if (request && !request->Set.test_and_set()) {
+                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
+                    << error);
+                QueueTotalCount_ -= count;
+                QueueSizeCounter_.Update(QueueTotalCount_);
+            }
+        }));
+
+        request->Promise = std::move(promise);
+        Requests_.push(request);
+        QueueTotalCount_ += count;
+        QueueSizeCounter_.Update(QueueTotalCount_);
+
+        ScheduleUpdate();
+
+        return request->Promise;
+    }
 
     void DoReconfigure(std::optional<double> limit, TDuration period)
     {

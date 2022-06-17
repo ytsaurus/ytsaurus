@@ -66,6 +66,8 @@ message TRequestHeader
     repeated int32 declared_client_feature_ids = 36;
     repeated int32 required_server_feature_ids = 37;
 
+    optional int64 logical_request_weight = 38;
+
     extensions 100 to max;
     extend NRpc.NProto.TRequestHeader
     {

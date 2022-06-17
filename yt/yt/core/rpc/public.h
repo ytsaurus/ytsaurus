@@ -29,6 +29,7 @@ struct TStreamingFeedback;
 struct TServiceDescriptor;
 struct TMethodDescriptor;
 
+DECLARE_REFCOUNTED_STRUCT(IRequestQueue)
 DECLARE_REFCOUNTED_CLASS(TRequestQueue)
 
 using TRequestQueueProvider = TCallback<TRequestQueue*(const NRpc::NProto::TRequestHeader&)>;

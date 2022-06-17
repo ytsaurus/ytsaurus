@@ -93,6 +93,9 @@ public:
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000));
 
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
+            BIND(&TChunkService::OnDynamicConfigChanged, Unretained(this)));
+
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
     }
 
@@ -552,6 +555,18 @@ private:
 
         WaitFor(syncFuture)
             .ThrowOnError();
+    }
+
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    {
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+
+        auto* methodInfo = GetMethodInfoOrThrow(RPC_SERVICE_METHOD_DESC(ExecuteBatch).Method);
+        auto weightThrottlerConfig = New<TThroughputThrottlerConfig>(config->ChunkService->ExecuteRequestWeightThrottlerLimit);
+        auto bytesThrottlerConfig = New<TThroughputThrottlerConfig>(config->ChunkService->ExecuteRequestBytesThrottlerLimit);
+        auto* requestQueue = methodInfo->GetDefaultRequestQueue();
+        requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
+        requestQueue->ConfigureBytesThrottler(bytesThrottlerConfig);
     }
 };
 

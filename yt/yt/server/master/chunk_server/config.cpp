@@ -504,6 +504,14 @@ TDynamicChunkServiceConfig::TDynamicChunkServiceConfig()
         EnableAlertOnChunkConfirmationWithoutLocationUuid)
         .Default(false)
         .DontSerializeDefault();
+
+    RegisterParameter("execute_request_weight_throttler_limit", ExecuteRequestWeightThrottlerLimit)
+        .Default()
+        .DontSerializeDefault();
+
+    RegisterParameter("execute_request_bytes_throttler_limit", ExecuteRequestBytesThrottlerLimit)
+        .Default()
+        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -490,6 +490,10 @@ public:
     bool EnableMutationBoomerangs;
     bool EnableAlertOnChunkConfirmationWithoutLocationUuid;
 
+    // COMPAT(kvk1920): Replace with TThroughputThrottlerConfig.
+    std::optional<double> ExecuteRequestWeightThrottlerLimit;
+    std::optional<double> ExecuteRequestBytesThrottlerLimit;
+
     TDynamicChunkServiceConfig();
 };
 

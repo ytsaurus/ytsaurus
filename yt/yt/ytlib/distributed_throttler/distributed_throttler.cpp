@@ -76,6 +76,11 @@ public:
         return ThrottlerConfig_.Load();
     }
 
+    TFuture<void> GetAvailableFuture() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     TFuture<void> Throttle(i64 count) override
     {
         auto config = Config_.Load();

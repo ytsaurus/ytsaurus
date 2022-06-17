@@ -10,8 +10,6 @@
 #include "authentication_identity.h"
 #include "stream.h"
 
-#include <atomic>
-
 #include <yt/yt/core/bus/bus.h>
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -23,15 +21,15 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/core/net/address.h>
-#include <yt/yt/core/net/local_address.h>
-
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
+#include <yt/yt/core/net/address.h>
+#include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NRpc {
 
@@ -49,19 +47,22 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto DefaultRequestBytesThrottlerConfig = New<TThroughputThrottlerConfig>();
+static const auto DefaultRequestWeightThrottlerConfig = New<TThroughputThrottlerConfig>();
 static const auto DefaultLoggingSuppressionFailedRequestThrottlerConfig = New<TThroughputThrottlerConfig>(1'000);
 
 constexpr TDuration ServiceLivenessCheckPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_REFCOUNTED_TYPE(IRequestQueue)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRequestQueue
-    : public TRefCounted
+    : public IRequestQueue
 {
 public:
     explicit TRequestQueue(TString name);
-
-    const TString& GetName() const;
 
     bool Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo);
     void Configure(const TMethodConfigPtr& config);
@@ -74,9 +75,13 @@ public:
     void OnRequestArrived(TServiceBase::TServiceContextPtr context);
     void OnRequestFinished();
 
+    void ConfigureBytesThrottler(const TThroughputThrottlerConfigPtr& config) override;
+    void ConfigureWeightThrottler(const TThroughputThrottlerConfigPtr& config) override;
+
+    const TString& GetName() const;
+
 private:
     const TString Name_;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisterLock_);
     std::atomic<bool> Registered_ = false;
     TServiceBase* Service_;
@@ -84,12 +89,22 @@ private:
 
     std::atomic<int> Concurrency_ = 0;
 
-    const NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler_;
-    std::atomic<bool> RequestBytesThrottlerSpecified_ = false;
-    std::atomic<bool> RequestBytesThrottlerThrottled_ = false;
+    struct TRequestThrottler
+    {
+        const NConcurrency::IReconfigurableThroughputThrottlerPtr Throttler;
+        std::atomic<bool> Specified = false;
+
+        void Reconfigure(
+            const TThroughputThrottlerConfigPtr& config,
+            const TThroughputThrottlerConfigPtr& defaultConfig);
+    };
+
+    TRequestThrottler BytesThrottler_;
+    TRequestThrottler WeightThrottler_;
+    std::atomic<bool> Throttled_ = false;
 
     std::atomic<int> QueueSize_ = 0;
-    moodycamel::ConcurrentQueue<TServiceBase::TServiceContextPtr> RequestQueue_;
+    moodycamel::ConcurrentQueue<TServiceBase::TServiceContextPtr> Queue_;
 
 
     void ScheduleRequestsFromQueue();
@@ -101,9 +116,9 @@ private:
     int IncrementConcurrency();
     void DecrementConcurrency();
 
-    bool IsRequestBytesThrottlerOverdraft() const;
-    void AcquireRequestBytesThrottler(const TServiceBase::TServiceContextPtr& context);
-    void SubscribeToRequestBytesThrottler();
+    bool AreThrottlersOverdrafted() const;
+    void AcquireThrottlers(const TServiceBase::TServiceContextPtr& context);
+    void SubscribeToThrottlers();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestQueue)
@@ -290,8 +305,14 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
         Format("%v.%v ->", ServiceId.ServiceName, Descriptor.Method)))
     , RequestQueueSizeLimitErrorCounter(Profiler.Counter("/request_queue_size_errors"))
     , LoggingSuppressionFailedRequestThrottler(
-        CreateReconfigurableThroughputThrottler(DefaultLoggingSuppressionFailedRequestThrottlerConfig))
+        CreateReconfigurableThroughputThrottler(
+            DefaultLoggingSuppressionFailedRequestThrottlerConfig))
 { }
+
+IRequestQueue* TServiceBase::TRuntimeMethodInfo::GetDefaultRequestQueue()
+{
+    return DefaultRequestQueue.Get();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,7 +328,7 @@ public:
             std::move(acceptedRequest.Header),
             std::move(acceptedRequest.Message),
             std::move(logger),
-            acceptedRequest.RuntimeInfo->LogLevel.load(std::memory_order_relaxed))
+            acceptedRequest.RuntimeInfo->LogLevel.load(std::memory_order::relaxed))
         , Service_(service)
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
@@ -969,7 +990,7 @@ private:
     {
         auto timeout = RequestHeader_->has_logging_suppression_timeout()
             ? FromProto<TDuration>(RequestHeader_->logging_suppression_timeout())
-            : RuntimeInfo_->LoggingSuppressionTimeout.load(std::memory_order_relaxed);
+            : RuntimeInfo_->LoggingSuppressionTimeout.load(std::memory_order::relaxed);
 
         if (*TotalTime_ >= timeout) {
             return;
@@ -1216,19 +1237,14 @@ private:
 
 TRequestQueue::TRequestQueue(TString name)
     : Name_(std::move(name))
-    , RequestBytesThrottler_(
-        CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig))
+    , BytesThrottler_{CreateReconfigurableThroughputThrottler(DefaultRequestBytesThrottlerConfig)}
+    , WeightThrottler_{CreateReconfigurableThroughputThrottler(DefaultRequestWeightThrottlerConfig)}
 { }
-
-const TString& TRequestQueue::GetName() const
-{
-    return Name_;
-}
 
 bool TRequestQueue::Register(TServiceBase* service, TServiceBase::TRuntimeMethodInfo* runtimeInfo)
 {
     // Fast path.
-    if (Registered_.load()) {
+    if (Registered_.load(std::memory_order::acquire)) {
         YT_ASSERT(service == Service_);
         YT_ASSERT(runtimeInfo == RuntimeInfo_);
         return false;
@@ -1237,51 +1253,71 @@ bool TRequestQueue::Register(TServiceBase* service, TServiceBase::TRuntimeMethod
     // Slow path.
     {
         auto guard = Guard(RegisterLock_);
-        if (!Registered_) {
+        if (!Registered_.load(std::memory_order::relaxed)) {
             Service_ = service;
             RuntimeInfo_ = runtimeInfo;
         }
-        Registered_.store(true);
+        Registered_.store(true, std::memory_order::release);
     }
 
     return true;
 }
 
+void TRequestQueue::TRequestThrottler::Reconfigure(
+    const TThroughputThrottlerConfigPtr& config,
+    const TThroughputThrottlerConfigPtr& defaultConfig)
+{
+    Throttler->Reconfigure(config ? config : defaultConfig);
+    Specified.store(config.operator bool(), std::memory_order::release);
+}
+
 void TRequestQueue::Configure(const TMethodConfigPtr& config)
 {
-    auto requestBytesThrottlerConfig = config->RequestBytesThrottler
-        ? config->RequestBytesThrottler
-        : DefaultRequestBytesThrottlerConfig;
-    RequestBytesThrottler_->Reconfigure(requestBytesThrottlerConfig);
-    RequestBytesThrottlerSpecified_.store(config->RequestBytesThrottler.operator bool());
+    BytesThrottler_.Reconfigure(config->RequestBytesThrottler, DefaultRequestBytesThrottlerConfig);
+    WeightThrottler_.Reconfigure(config->RequestWeightThrottler, DefaultRequestWeightThrottlerConfig);
 
     ScheduleRequestsFromQueue();
-    SubscribeToRequestBytesThrottler();
+    SubscribeToThrottlers();
+}
+
+const TString& TRequestQueue::GetName() const
+{
+    return Name_;
+}
+
+void TRequestQueue::ConfigureBytesThrottler(const TThroughputThrottlerConfigPtr& config)
+{
+    BytesThrottler_.Reconfigure(config, DefaultRequestBytesThrottlerConfig);
+}
+
+void TRequestQueue::ConfigureWeightThrottler(const TThroughputThrottlerConfigPtr& config)
+{
+    WeightThrottler_.Reconfigure(config, DefaultRequestWeightThrottlerConfig);
 }
 
 bool TRequestQueue::IsQueueLimitSizeExceeded() const
 {
     return
-        QueueSize_.load(std::memory_order_relaxed) >=
-        RuntimeInfo_->QueueSizeLimit.load(std::memory_order_relaxed);
+        QueueSize_.load(std::memory_order::relaxed) >=
+        RuntimeInfo_->QueueSizeLimit.load(std::memory_order::relaxed);
 }
 
 int TRequestQueue::GetQueueSize() const
 {
-    return QueueSize_.load(std::memory_order_relaxed);
+    return QueueSize_.load(std::memory_order::relaxed);
 }
 
 int TRequestQueue::GetConcurrency() const
 {
-    return Concurrency_.load(std::memory_order_relaxed);
+    return Concurrency_.load(std::memory_order::relaxed);
 }
 
 void TRequestQueue::OnRequestArrived(TServiceBase::TServiceContextPtr context)
 {
     // Fast path.
     auto newConcurrencySemaphore = IncrementConcurrency();
-    if (newConcurrencySemaphore <= RuntimeInfo_->ConcurrencyLimit.load(std::memory_order_relaxed) &&
-        !IsRequestBytesThrottlerOverdraft())
+    if (newConcurrencySemaphore <= RuntimeInfo_->ConcurrencyLimit.load(std::memory_order::relaxed) &&
+        !AreThrottlersOverdrafted())
     {
         RunRequest(std::move(context));
         return;
@@ -1290,7 +1326,7 @@ void TRequestQueue::OnRequestArrived(TServiceBase::TServiceContextPtr context)
     // Slow path.
     DecrementConcurrency();
     IncrementQueueSize();
-    RequestQueue_.enqueue(std::move(context));
+    Queue_.enqueue(std::move(context));
     ScheduleRequestsFromQueue();
 }
 
@@ -1305,13 +1341,14 @@ void TRequestQueue::OnRequestFinished()
 }
 
 // Prevents reentrant invocations.
-static thread_local bool ScheduleRequestsLatch;
+static thread_local bool ScheduleRequestsLatch = false;
 
 void TRequestQueue::ScheduleRequestsFromQueue()
 {
     if (ScheduleRequestsLatch) {
         return;
     }
+
     ScheduleRequestsLatch = true;
     auto latchGuard = Finally([&] {
         ScheduleRequestsLatch = false;
@@ -1323,16 +1360,16 @@ void TRequestQueue::ScheduleRequestsFromQueue()
     TForbidContextSwitchGuard contextSwitchGuard;
 #endif
 
-    // NB: racy, may lead to overcommit in concurrency semaphore and request bytes throttler.
-    auto concurrencyLimit = RuntimeInfo_->ConcurrencyLimit.load(std::memory_order_relaxed);
+    // NB: Racy, may lead to overcommit in concurrency semaphore and request bytes throttler.
+    auto concurrencyLimit = RuntimeInfo_->ConcurrencyLimit.load(std::memory_order::relaxed);
     while (QueueSize_.load() > 0 && Concurrency_.load() < concurrencyLimit) {
-        if (IsRequestBytesThrottlerOverdraft()) {
-            SubscribeToRequestBytesThrottler();
+        if (AreThrottlersOverdrafted()) {
+            SubscribeToThrottlers();
             break;
         }
 
         TServiceBase::TServiceContextPtr context;
-        if (!RequestQueue_.try_dequeue(context)) {
+        if (!Queue_.try_dequeue(context)) {
             break;
         }
 
@@ -1344,10 +1381,10 @@ void TRequestQueue::ScheduleRequestsFromQueue()
 
 void TRequestQueue::RunRequest(TServiceBase::TServiceContextPtr context)
 {
-    AcquireRequestBytesThrottler(context);
+    AcquireThrottlers(context);
 
     auto options = RuntimeInfo_->Descriptor.Options;
-    options.SetHeavy(RuntimeInfo_->Heavy.load(std::memory_order_relaxed));
+    options.SetHeavy(RuntimeInfo_->Heavy.load(std::memory_order::relaxed));
 
     if (options.Heavy) {
         BIND(RuntimeInfo_->Descriptor.HeavyHandler)
@@ -1381,33 +1418,51 @@ void TRequestQueue::DecrementConcurrency()
     YT_ASSERT(newConcurrencySemaphore >= 0);
 }
 
-bool TRequestQueue::IsRequestBytesThrottlerOverdraft() const
+bool TRequestQueue::AreThrottlersOverdrafted() const
 {
-    return
-        RequestBytesThrottlerSpecified_.load(std::memory_order_relaxed) &&
-        RequestBytesThrottler_->IsOverdraft();
+    auto isOverdrafted = [] (const TRequestThrottler& throttler) {
+        return throttler.Specified.load(std::memory_order::relaxed) && throttler.Throttler->IsOverdraft();
+    };
+    return isOverdrafted(BytesThrottler_) || isOverdrafted(WeightThrottler_);
 }
 
-void TRequestQueue::AcquireRequestBytesThrottler(const TServiceBase::TServiceContextPtr& context)
+void TRequestQueue::AcquireThrottlers(const TServiceBase::TServiceContextPtr& context)
 {
-    if (RequestBytesThrottlerSpecified_.load(std::memory_order_relaxed)) {
+    if (BytesThrottler_.Specified.load(std::memory_order::acquire)) {
         // Slow path.
         auto requestSize =
             GetMessageBodySize(context->GetRequestMessage()) +
             GetTotalMessageAttachmentSize(context->GetRequestMessage());
-        RequestBytesThrottler_->Acquire(requestSize);
+        BytesThrottler_.Throttler->Acquire(requestSize);
+    }
+    if (WeightThrottler_.Specified.load(std::memory_order::acquire)) {
+        // Slow path.
+        const auto& header = context->GetRequestHeader();
+        if (header.has_logical_request_weight()) {
+            WeightThrottler_.Throttler->Acquire(header.logical_request_weight());
+        }
     }
 }
 
-void TRequestQueue::SubscribeToRequestBytesThrottler()
+void TRequestQueue::SubscribeToThrottlers()
 {
-    if (RequestBytesThrottlerThrottled_.exchange(true)) {
+    if (Throttled_.load(std::memory_order::relaxed) || Throttled_.exchange(true, std::memory_order::acquire)) {
         return;
     }
-    RequestBytesThrottler_->Throttle(1)
+
+    std::vector<TFuture<void>> futures;
+    futures.reserve(2);
+    if (BytesThrottler_.Specified.load(std::memory_order::acquire)) {
+        futures.push_back(BytesThrottler_.Throttler->GetAvailableFuture());
+    }
+    if (WeightThrottler_.Specified.load(std::memory_order::acquire)) {
+        futures.push_back(WeightThrottler_.Throttler->GetAvailableFuture());
+    }
+
+    AllSucceeded(std::move(futures))
         .Subscribe(BIND([=, weakService = MakeWeak(Service_)] (const TError&) {
             if (auto service = weakService.Lock()) {
-                RequestBytesThrottlerThrottled_.store(false);
+                Throttled_.store(false, std::memory_order::release);
                 ScheduleRequestsFromQueue();
             }
         }));
@@ -1461,7 +1516,7 @@ TServiceBase::TServiceBase(
         .SetSystem(true));
 
     Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
-        return AuthenticationQueueSize_.load(std::memory_order_relaxed);
+        return AuthenticationQueueSize_.load(std::memory_order::relaxed);
     });
 
     ServiceLivenessChecker_->Start();
@@ -1506,7 +1561,7 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto tracingMode = runtimeInfo->TracingMode.load(std::memory_order_relaxed);
+    auto tracingMode = runtimeInfo->TracingMode.load(std::memory_order::relaxed);
     auto traceContext = tracingMode == ERequestTracingMode::Disable
         ? NTracing::TTraceContextPtr()
         : GetOrCreateHandlerTraceContext(*header, tracingMode == ERequestTracingMode::Force);
@@ -1546,8 +1601,8 @@ void TServiceBase::HandleRequest(
     }
 
     // Not actually atomic but should work fine as long as some small error is OK.
-    auto authenticationQueueSizeLimit = AuthenticationQueueSizeLimit_.load(std::memory_order_relaxed);
-    auto authenticationQueueSize = AuthenticationQueueSize_.load(std::memory_order_relaxed);
+    auto authenticationQueueSizeLimit = AuthenticationQueueSizeLimit_.load(std::memory_order::relaxed);
+    auto authenticationQueueSize = AuthenticationQueueSize_.load(std::memory_order::relaxed);
     if (authenticationQueueSize > authenticationQueueSizeLimit) {
         auto error = TError(
             NRpc::EErrorCode::RequestQueueSizeLimitExceeded,
@@ -1993,7 +2048,7 @@ TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsE
     auto& entry = bucket->RequestIdToPendingPayloads[requestId];
     if (!entry.Lease) {
         entry.Lease = NConcurrency::TLeaseManager::CreateLease(
-            PendingPayloadsTimeout_.load(std::memory_order_relaxed),
+            PendingPayloadsTimeout_.load(std::memory_order::relaxed),
             BIND(&TServiceBase::OnPendingPayloadsLeaseExpired, MakeWeak(this), requestId));
     }
 
@@ -2057,14 +2112,14 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
 
     // Fast path.
     if (userTag == RootUserName && requestQueue == runtimeInfo->DefaultRequestQueue.Get()) {
-        if (EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
+        if (EnablePerUserProfiling_.load(std::memory_order::relaxed)) {
             return runtimeInfo->RootPerformanceCounters.Get();
         } else {
             return runtimeInfo->BasePerformanceCounters.Get();
         }
     }
 
-    if (!EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
+    if (!EnablePerUserProfiling_.load(std::memory_order::relaxed)) {
         userTag = {};
     }
     auto actualKey = TRuntimeMethodInfo::TNonowningPerformanceCountersKey{userTag, requestQueue};
@@ -2076,7 +2131,7 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCoun
 void TServiceBase::SetActive()
 {
     // Fast path.
-    if (Active_.load(std::memory_order_relaxed)) {
+    if (Active_.load(std::memory_order::relaxed)) {
         return;
     }
 
@@ -2088,7 +2143,7 @@ void TServiceBase::ValidateInactive()
 {
     // Failure here means that some service metadata (e.g. registered methods or supported
     // features) are changing after the service has started serving requests.
-    YT_VERIFY(!Active_.load(std::memory_order_relaxed));
+    YT_VERIFY(!Active_.load(std::memory_order::relaxed));
 }
 
 bool TServiceBase::IsStopped()
@@ -2241,10 +2296,10 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 
     auto& profiler = runtimeInfo->Profiler;
     profiler.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [=] {
-        return runtimeInfo->QueueSizeLimit.load(std::memory_order_relaxed);
+        return runtimeInfo->QueueSizeLimit.load(std::memory_order::relaxed);
     });
     profiler.AddFuncGauge("/concurrency_limit", MakeStrong(this), [=] {
-        return runtimeInfo->ConcurrencyLimit.load(std::memory_order_relaxed);
+        return runtimeInfo->ConcurrencyLimit.load(std::memory_order::relaxed);
     });
 
     return runtimeInfo;
