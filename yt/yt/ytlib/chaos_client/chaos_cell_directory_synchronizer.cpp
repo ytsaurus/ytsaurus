@@ -175,10 +175,6 @@ private:
                     YT_LOG_DEBUG("Forgetting cell tag in chaos cell synchronizer (CellTag: %v)",
                         cellTag);
 
-                    if (cellId) {
-                        CellDirectory_->UnregisterCell(cellId);
-                    }
-
                     auto guard = Guard(SpinLock_);
                     EraseOrCrash(ObservedCells_, cellTag);
                     continue;

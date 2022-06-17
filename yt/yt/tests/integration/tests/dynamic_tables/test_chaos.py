@@ -347,6 +347,44 @@ class TestChaos(ChaosTestBase):
         wait(lambda: not exists("#{0}/@peers/0/address".format(cell_id), driver=remote_driver0))
 
     @authors("savrus")
+    def test_resurrect_chaos_cell(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+        for driver in self._get_drivers():
+            remove("#{0}".format(cell_id), driver=driver)
+            wait(lambda: not exists("#{0}".format(cell_id), driver=driver))
+
+        _, remote_driver0, _ = self._get_drivers()
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/r0", driver=remote_driver0)
+
+        peer_cluster_names = self.get_cluster_names()
+        sync_create_chaos_cell("c", cell_id, peer_cluster_names)
+        card_id = create_replication_card(chaos_cell_id=cell_id)
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False)
+
+        alter_table("//tmp/t", upstream_replica_id=replica_ids[0])
+        alter_table("//tmp/r0", upstream_replica_id=replica_ids[1], driver=remote_driver0)
+        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/r0", driver=remote_driver0)
+
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"key": 0, "value": "1"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
+    @authors("savrus")
     def test_chaos_cell_update_acl(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
         create_user("u")

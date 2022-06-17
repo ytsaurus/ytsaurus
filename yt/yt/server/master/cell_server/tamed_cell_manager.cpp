@@ -526,7 +526,7 @@ public:
         YT_VERIFY(cell->RefObject() == 1);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->CreateMailbox(cellId);
+        hiveManager->CreateMailbox(cellId, cell->GetCellarType() == ECellarType::Chaos);
 
         auto cellMapNodeProxy = GetCellMapNode(cellId);
         auto cellNodePath = "/" + ToString(cellId);
