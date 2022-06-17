@@ -1797,7 +1797,7 @@ private:
         const TString& nodeAddress,
         const TBooleanFormulaTags& tags)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         std::vector<TString> treeIds;
         for (const auto& [treeId, tree] : IdToTree_) {
@@ -1868,7 +1868,7 @@ private:
         const THashSet<TString> treeIdsToAdd,
         const THashSet<TString> treeIdsToRemove)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         for (const auto& treeId : treeIdsToAdd) {
             EmplaceOrCrash(NodeIdsPerTree_, treeId, THashSet<TNodeId>{});
@@ -1907,7 +1907,7 @@ private:
         TNodeId nodeId,
         const std::optional<TString>& newTreeId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto it = NodeIdToDescriptor_.find(nodeId);
         YT_VERIFY(it != NodeIdToDescriptor_.end());
