@@ -294,11 +294,6 @@ double TSchedulerElement::GetMaxShareRatio() const
     return MaxComponent(GetMaxShare());
 }
 
-TResourceVector TSchedulerElement::GetFairShare() const
-{
-    return ResourceTreeElement_->GetFairShare();
-}
-
 TResourceVector TSchedulerElement::GetResourceUsageShare() const
 {
     return TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_);
@@ -317,11 +312,6 @@ TString TSchedulerElement::GetTreeId() const
 bool TSchedulerElement::CheckAvailableDemand(const TJobResources& delta)
 {
     return ResourceTreeElement_->CheckAvailableDemand(delta, GetResourceDemand());
-}
-
-void TSchedulerElement::PublishFairShare(const TResourceVector& fairShare)
-{
-    ResourceTreeElement_->SetFairShare(fairShare);
 }
 
 TSchedulerElement::TSchedulerElement(

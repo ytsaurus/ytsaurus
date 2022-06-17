@@ -102,6 +102,11 @@ TDiskQuota TFairShareTreeJobSchedulerOperationSharedState::GetTotalDiskQuota() c
     return TotalDiskQuota_;
 }
 
+void TFairShareTreeJobSchedulerOperationSharedState::PublishFairShare(const TResourceVector& fairShare)
+{
+    FairShare_.Store(fairShare);
+}
+
 bool TFairShareTreeJobSchedulerOperationSharedState::OnJobStarted(
     TSchedulerOperationElement* operationElement,
     TJobId jobId,
@@ -218,7 +223,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
         (UpdatePreemptibleJobsListCount_.fetch_add(1) % UpdatePreemptibleJobsListLoggingPeriod_) == 0 ||
             element->AreDetailedLogsEnabled();
 
-    auto fairShare = element->GetFairShare();
+    auto fairShare = FairShare_.Load();
     auto preemptionSatisfactionThreshold = element->TreeConfig()->PreemptionSatisfactionThreshold;
     auto aggressivePreemptionSatisfactionThreshold = element->TreeConfig()->AggressivePreemptionSatisfactionThreshold;
 

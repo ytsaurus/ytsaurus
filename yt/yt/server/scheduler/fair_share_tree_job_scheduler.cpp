@@ -2753,8 +2753,6 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributes(
     TSchedulerElement* element,
     TJobSchedulerPostUpdateContext* postUpdateContext) const
 {
-    element->PublishFairShare(element->Attributes().FairShare.Total);
-
     auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
     auto isAggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
     if (element->IsRoot()) {
@@ -2804,6 +2802,7 @@ void TFairShareTreeJobScheduler::PublishFairShareAndUpdatePreemptionAttributesAt
     bool currentPreemptibleValue = !isDominantFairShareEqualToDominantDemandShare;
 
     const auto& operationSharedState = postUpdateContext->StaticAttributesList.AttributesOf(element).OperationSharedState;
+    operationSharedState->PublishFairShare(element->Attributes().FairShare.Total);
     operationSharedState->SetPreemptible(currentPreemptibleValue);
     operationSharedState->UpdatePreemptibleJobsList(element);
 }
