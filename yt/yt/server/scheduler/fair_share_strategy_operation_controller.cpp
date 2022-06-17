@@ -33,21 +33,21 @@ TControllerEpoch TFairShareStrategyOperationController::GetEpoch() const
     return Controller_->GetEpoch();
 }
 
-void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls(int nodeShardId)
+void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext)
 {
-    auto& shard = StateShards_[nodeShardId];
+    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
     shard.ConcurrentScheduleJobCalls += 1;
 }
 
-void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls(int nodeShardId)
+void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext)
 {
-    auto& shard = StateShards_[nodeShardId];
+    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
     shard.ConcurrentScheduleJobCalls -= 1;
 }
 
-void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId)
+void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext)
 {
-    auto& shard = StateShards_[nodeShardId];
+    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
     shard.ScheduleJobCallsSinceLastUpdate.fetch_add(1, std::memory_order_relaxed);
 }
 

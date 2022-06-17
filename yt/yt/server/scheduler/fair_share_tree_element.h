@@ -774,9 +774,9 @@ public:
     // TODO(eshcherbin): Maybe expose controller itself in the API?
     TControllerEpoch GetControllerEpoch() const;
 
-    void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
-    void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
-    void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
+    void IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
+    void IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext);
+    void DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
 
     bool IsMaxScheduleJobCallsViolated() const;
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;

@@ -17,10 +17,9 @@ public:
         const TFairShareStrategyOperationControllerConfigPtr& config,
         int NodeShardCount);
 
-    // TODO(eshcherbin): Use scheduling context instead of node shard ID.
-    void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
-    void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
-    void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
+    void DecreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
+    void IncreaseConcurrentScheduleJobCalls(const ISchedulingContextPtr& schedulingContext);
+    void IncreaseScheduleJobCallsSinceLastUpdate(const ISchedulingContextPtr& schedulingContext);
 
     TControllerEpoch GetEpoch() const;
 
