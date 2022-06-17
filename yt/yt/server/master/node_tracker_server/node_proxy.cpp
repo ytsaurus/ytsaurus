@@ -152,6 +152,8 @@ private:
             .SetPresent(isGood && Bootstrap_->GetMulticellManager()->IsPrimaryMaster()));
         descriptors->push_back(EInternedAttributeKey::ConsistentReplicaPlacementTokenCount);
         descriptors->push_back(EInternedAttributeKey::ChunkLocations);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::JobProxyBuildVersion)
+            .SetPresent(node->JobProxyBuildVersion().has_value()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -595,6 +597,17 @@ private:
                                 })
                             .EndMap();
                     });
+                return true;
+            }
+
+            case EInternedAttributeKey::JobProxyBuildVersion: {
+                auto jobProxyBuildVersion = node->JobProxyBuildVersion();
+                if (!jobProxyBuildVersion) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(jobProxyBuildVersion);
                 return true;
             }
 

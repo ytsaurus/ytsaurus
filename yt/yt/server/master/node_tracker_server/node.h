@@ -170,6 +170,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
     void SetExecNodeStatistics(NNodeTrackerClient::NProto::TExecNodeStatistics&& statistics);
 
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, JobProxyBuildVersion);
+
     // Chunk Manager stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDataNodeStatistics, DataNodeStatistics);
     void SetDataNodeStatistics(
