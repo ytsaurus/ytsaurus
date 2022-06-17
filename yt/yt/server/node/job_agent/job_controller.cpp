@@ -217,7 +217,7 @@ private:
 
     THashSet<int> FreePorts_;
 
-    TErrorOr<TBuildInfoPtr> CachedJobProxyBuildInfo_ = New<TBuildInfo>();
+    TErrorOr<TBuildInfoPtr> CachedJobProxyBuildInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
