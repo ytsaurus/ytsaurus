@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"a.yandex-team.ru/library/go/test/yatest"
 	"a.yandex-team.ru/library/go/yandex/oauth"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
@@ -29,8 +30,8 @@ func GetYTTokenFromDistbuild() (string, error) {
 		return "", fmt.Errorf("secret YT token is not available")
 	}
 
-	testtool, ok := os.LookupEnv("TEST_TOOL")
-	if !ok {
+	testtool := yatest.TestToolPath()
+	if testtool == "" {
 		return "", fmt.Errorf("test_tool binary is not found")
 	}
 
