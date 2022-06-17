@@ -1,8 +1,8 @@
 from . import yson
 from .config import get_config, get_option, set_option
 from .compression import get_compressor, has_compressor
-from .common import (require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short,
-                     hide_secure_vault, hide_auth_headers)
+from .common import (require, get_version, total_seconds, forbidden_inside_job, get_started_by_short,
+                     generate_uuid, hide_secure_vault, hide_auth_headers)
 from .errors import (YtError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
                      create_http_response_error)
 from .format import JsonFormat
@@ -161,9 +161,13 @@ def make_request(command_name,
 
         timeout = (connect_timeout, request_timeout)
 
+    generate_mutation_id = get_option("_generate_mutation_id", client)
+    if generate_mutation_id is None:
+        generate_mutation_id = lambda command_descriptor: generate_uuid(get_option("_random_generator", client))
+
     if command.is_volatile and allow_retries:
         if "mutation_id" not in params:
-            params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
+            params["mutation_id"] = generate_mutation_id(command)
         if "retry" not in params:
             params["retry"] = False
 
@@ -174,7 +178,7 @@ def make_request(command_name,
                     # NB: initially specified mutation id is ignored.
                     # Without new mutation id, scheduler always reply with this error.
                     params["retry"] = False
-                    params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
+                    params["mutation_id"] = generate_mutation_id(command)
                 else:
                     params["retry"] = True
                 if command.input_type is None:
