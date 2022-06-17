@@ -9,12 +9,14 @@ namespace NYT::NCellServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     bool EnableTabletCellSmoothing;
 
-    TCellBalancerConfig();
+    REGISTER_YSON_STRUCT(TCellBalancerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
@@ -22,12 +24,14 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellarNodeTrackerConfig
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     int MaxConcurrentHeartbeats;
 
-    TDynamicCellarNodeTrackerConfig();
+    REGISTER_YSON_STRUCT(TDynamicCellarNodeTrackerConfig);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicCellarNodeTrackerConfig)

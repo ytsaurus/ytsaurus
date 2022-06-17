@@ -4,17 +4,17 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellBalancerConfig::TCellBalancerConfig()
+void TCellBalancerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("enable_tablet_cell_smoothing", EnableTabletCellSmoothing)
+    registrar.Parameter("enable_tablet_cell_smoothing", &TThis::EnableTabletCellSmoothing)
         .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicCellarNodeTrackerConfig::TDynamicCellarNodeTrackerConfig()
+void TDynamicCellarNodeTrackerConfig::Register(TRegistrar registrar)
 {
-    RegisterParameter("max_concurrent_heartbeats", MaxConcurrentHeartbeats)
+    registrar.Parameter("max_concurrent_heartbeats", &TThis::MaxConcurrentHeartbeats)
         .Default(10)
         .GreaterThan(0);
 }

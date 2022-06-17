@@ -105,7 +105,7 @@ private:
             case EInternedAttributeKey::RequestLimits: {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-                auto userLimitsSerializer = New<TSerializableUserRequestLimitsConfig>(user->GetRequestLimits(), multicellManager);
+                auto userLimitsSerializer = TSerializableUserRequestLimitsConfig::CreateFrom(user->GetRequestLimits(), multicellManager);
                 BuildYsonFluently(consumer)
                     .Value(userLimitsSerializer);
 

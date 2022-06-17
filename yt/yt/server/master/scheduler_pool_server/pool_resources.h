@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/yson_serializable.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
 namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPoolResources
-    : public NYTree::TYsonSerializable
+    : public NYTree::TYsonStruct
 {
 public:
     NScheduler::TJobResourcesConfigPtr StrongGuaranteeResources;
@@ -20,10 +20,12 @@ public:
     std::optional<int> MaxOperationCount;
     std::optional<int> MaxRunningOperationCount;
 
-    TPoolResources();
-
     bool IsNonNegative();
     TPoolResourcesPtr operator-();
+
+    REGISTER_YSON_STRUCT(TPoolResources);
+
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolResources)
