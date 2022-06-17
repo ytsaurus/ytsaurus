@@ -24,6 +24,8 @@ public:
 
     TDiskQuota GetTotalDiskQuota() const;
 
+    void PublishFairShare(const TResourceVector& fairShare);
+
     bool OnJobStarted(
         TSchedulerOperationElement* operationElement,
         TJobId jobId,
@@ -87,6 +89,11 @@ private:
     TJobIdList NonPreemptibleJobs_;
     TJobIdList AggressivelyPreemptibleJobs_;
     TJobIdList PreemptibleJobs_;
+
+    // NB(eshcherbin): We need to have the most recent fair share during scheduling for correct determination
+    // of jobs' preemption statuses. This is why we use this value, which is shared between all snapshots,
+    // and keep it updated, instead of using fair share from current snapshot.
+    TAtomicObject<TResourceVector> FairShare_;
 
     std::atomic<bool> Preemptible_ = {true};
 

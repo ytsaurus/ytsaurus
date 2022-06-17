@@ -223,7 +223,6 @@ public:
     virtual TResourceVector GetMaxShare() const = 0;
 
     double GetMaxShareRatio() const;
-    TResourceVector GetFairShare() const;
     double GetResourceDominantUsageShareAtUpdate() const;
     double GetAccumulatedResourceRatioVolume() const;
     TResourceVolume GetAccumulatedResourceVolume() const;
@@ -279,7 +278,6 @@ public:
     void SetNonAlive();
     TJobResources GetResourceUsageWithPrecommit() const;
     bool CheckAvailableDemand(const TJobResources& delta);
-    void PublishFairShare(const TResourceVector& fairShare);
 
     //! Other methods based on tree snapshot.
     virtual void BuildResourceMetering(

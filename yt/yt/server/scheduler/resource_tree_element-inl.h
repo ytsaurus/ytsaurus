@@ -21,16 +21,6 @@ void TResourceTreeElement::SetNonAlive()
     Alive_ = false;
 }
 
-TResourceVector TResourceTreeElement::GetFairShare() const
-{
-    return FairShare_.Load();
-}
-
-void TResourceTreeElement::SetFairShare(TResourceVector fairShare)
-{
-    FairShare_.Store(fairShare);
-}
-
 const TString& TResourceTreeElement::GetId()
 {
     return Id_;
