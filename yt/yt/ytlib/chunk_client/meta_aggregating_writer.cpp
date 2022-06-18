@@ -219,6 +219,13 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             chunkId);
     }
 
+    if (!ExtensionEquals(TableSchemaExt_, FindProtoExtension<TTableSchemaExt>(meta->extensions()))) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::IncompatibleChunkMetas,
+            "Chunks %v schema is different from output chunk schema",
+            chunkId);
+    }
+
     if (MiscExt_.sorted()) {
         auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(meta->extensions());
         if (!boundaryKeysExt) {
@@ -329,13 +336,6 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             "Chunk compression codec %v does not match options compression codec %v for chunk %v",
             MiscExt_.compression_codec(),
             miscExt.compression_codec(),
-            chunkId);
-    }
-
-    if (!ExtensionEquals(TableSchemaExt_, FindProtoExtension<TTableSchemaExt>(meta->extensions()))) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncompatibleChunkMetas,
-            "Chunks %v schema is different from output chunk schema",
             chunkId);
     }
 

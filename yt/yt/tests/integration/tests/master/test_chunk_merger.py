@@ -932,6 +932,47 @@ class TestChunkMerger(YTEnvSetup):
         assert _schematize_rows(rows, schema2) == _schematize_rows(merged_rows, schema2)
 
     @authors("aleksandra-zh")
+    def test_different_key_column_count(self):
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunk_count", 10)
+        wait_for_sys_config_sync()
+
+        schema1 = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ]
+        )
+        schema2 = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "sort_order": "ascending"},
+            ]
+        )
+        schema3 = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "qw", "type": "string", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ]
+        )
+
+        create("table", "//tmp/t1", attributes={"schema": schema2})
+        write_table("<append=true>//tmp/t1", {"key": 1, "value": "a"})
+        write_table("<append=true>//tmp/t1", {"key": 2, "value": "b"})
+
+        create("table", "//tmp/t2", attributes={"schema": schema1})
+        concatenate(["//tmp/t1"], "//tmp/t2")
+
+        self._wait_for_merge("//tmp/t2", "auto", 1, schema1)
+
+        create("table", "//tmp/t3", attributes={"schema": schema1})
+        write_table("<append=true>//tmp/t3", {"key": 1, "value": "a"})
+        write_table("<append=true>//tmp/t3", {"key": 2, "value": "b"})
+        alter_table("//tmp/t3", schema=schema3)
+
+        self._wait_for_merge("//tmp/t3", "auto", 1, schema3)
+
+    @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_inherit_chunk_merger_mode(self, merge_mode):
         create("map_node", "//tmp/d")
