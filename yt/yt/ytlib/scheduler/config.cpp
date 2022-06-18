@@ -767,6 +767,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .LessThanOrEqual(1.);
     registrar.Parameter("ignore_memory_reserve_factor_less_than_one", &TThis::IgnoreMemoryReserveFactorLessThanOne)
         .Default(false);
+    registrar.Parameter("resource_overdraft_memory_reserve_multiplier", &TThis::ResourceOverdraftMemoryReserveMultiplier)
+        .InRange(1.0, 10.0)
+        .Default(std::nullopt);
     registrar.Parameter("include_memory_mapped_files", &TThis::IncludeMemoryMappedFiles)
         .Default(true);
     registrar.Parameter("use_yamr_descriptors", &TThis::UseYamrDescriptors)

@@ -1082,7 +1082,11 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
     if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
         auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
-        auto multiplier = TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
+        auto userJobSpec = GetUserJobSpec();
+        auto multiplier = 
+            (TaskHost_->GetConfig()->UseResourceOverdraftMemoryReserveMultiplierFromSpec && userJobSpec)
+            ? userJobSpec->ResourceOverdraftMemoryReserveMultiplier
+            : TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
         double userJobMemoryReserveUpperBound = 1.0;
         double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
         state.LastJobId = joblet->JobId;
