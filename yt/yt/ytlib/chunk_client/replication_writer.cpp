@@ -697,26 +697,30 @@ private:
         req->set_block_index(blockIndex);
 
         auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            YT_LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
-                blockIndex,
-                node->Descriptor.GetDefaultAddress());
-
-            const auto& rsp = rspOrError.Value();
-            if (rsp->close_demanded()) {
-                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
-                DemandClose();
+        if (!rspOrError.IsOK()) {
+            // See YT-17154.
+            if (rspOrError.GetCode() != NChunkClient::EErrorCode::NoSuchSession || !node->Closing) {
+                OnNodeFailed(node, rspOrError);
             }
+            return;
+        }
 
-            if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
-                // We flushed the last block in chunk.
+        YT_LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
+            blockIndex,
+            node->Descriptor.GetDefaultAddress());
 
-                BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
-                    .Via(TDispatcher::Get()->GetWriterInvoker())
-                    .Run();
-            }
-        } else {
-            OnNodeFailed(node, rspOrError);
+        const auto& rsp = rspOrError.Value();
+        if (rsp->close_demanded()) {
+            YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+            DemandClose();
+        }
+
+        if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
+            // We flushed the last block in chunk.
+
+            BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
+                .Via(TDispatcher::Get()->GetWriterInvoker())
+                .Run();
         }
     }
 
@@ -841,9 +845,7 @@ private:
 
         TDataNodeServiceProxy proxy(node->Channel);
         auto req = proxy.FinishChunk();
-
         req->SetBlockTracker(Options_->BlockTracker);
-
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
 
