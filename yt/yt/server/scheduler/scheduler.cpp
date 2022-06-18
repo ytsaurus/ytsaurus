@@ -3760,7 +3760,7 @@ private:
 
         auto eventAttributes = BuildYsonStringFluently()
             .BeginMap()
-                .Item("controller_agent_address").Value(agent->GetAgentAddresses())
+                .Item("controller_agent_address").Value(GetDefaultAddress(agent->GetAgentAddresses()))
             .EndMap();
 
         if (operation->RevivalDescriptor()) {
