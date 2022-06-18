@@ -35,7 +35,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     ("tornado", "tornado/tornado-4"),
     "tqdm",
     "chardet",
-    "idna",
+    ("idna", "idna/py2"),
     "six",
     ("attr", "attrs"),
 ]
