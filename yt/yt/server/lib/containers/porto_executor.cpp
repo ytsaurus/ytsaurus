@@ -48,11 +48,14 @@ EPortoErrorCode ConvertPortoErrorCode(EError portoError)
     return static_cast<EPortoErrorCode>(PortoErrorCodeBase + portoError);
 }
 
-bool IsRetriableErrorCode(EPortoErrorCode error)
+bool IsRetriableErrorCode(EPortoErrorCode error, bool idempotent)
 {
     return
         error == EPortoErrorCode::Unknown ||
-        error == EPortoErrorCode::SocketError;
+        // TODO(babenko): it's not obvious that we can always retry SocketError
+        // but this is how it has used to work for a while.
+        error == EPortoErrorCode::SocketError ||
+        error == EPortoErrorCode::SocketTimeout && idempotent;
 }
 
 THashMap<TString, TErrorOr<TString>> ParsePortoGetResponse(
@@ -375,7 +378,8 @@ private:
     {
         ExecuteApiCall(
             [&] { return Api_->Create(container); },
-            "Create");
+            "Create",
+            /*idempotent*/ false);
     }
 
     void DoCreateContainerFromSpec(const TRunnableContainerSpec& spec, bool start)
@@ -506,14 +510,16 @@ private:
 
         ExecuteApiCall(
             [&] { return Api_->CreateFromSpec(portoSpec, {}, start); },
-            "CreateFromSpec");
+            "CreateFromSpec",
+            /*idempotent*/ false);
     }
 
     void DoSetContainerProperty(const TString& container, const TString& property, const TString& value)
     {
         ExecuteApiCall(
             [&] { return Api_->SetProperty(container, property, value); },
-            "SetProperty");
+            "SetProperty",
+            /*idempotent*/ true);
     }
 
     void DoDestroyContainer(const TString& container)
@@ -521,7 +527,8 @@ private:
         try {
             ExecuteApiCall(
                 [&] { return Api_->Destroy(container); },
-                "Destroy");
+                "Destroy",
+                /*idempotent*/ true);
         } catch (const TErrorException& ex) {
             if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
                 throw;
@@ -533,14 +540,16 @@ private:
     {
         ExecuteApiCall(
             [&] { return Api_->Stop(container); },
-            "Stop");
+            "Stop",
+            /*idempotent*/ true);
     }
 
     void DoStartContainer(const TString& container)
     {
         ExecuteApiCall(
             [&] { return Api_->Start(container); },
-            "Start");
+            "Start",
+            /*idempotent*/ false);
     }
 
     TString DoConvertPath(const TString& path, const TString& container)
@@ -548,7 +557,8 @@ private:
         TString result;
         ExecuteApiCall(
             [&] { return Api_->ConvertPath(path, container, "self", result); },
-            "ConvertPath");
+            "ConvertPath",
+            /*idempotent*/ true);
         return result;
     }
 
@@ -556,7 +566,8 @@ private:
     {
         ExecuteApiCall(
             [&] { return Api_->Kill(container, signal); },
-            "Kill");
+            "Kill",
+            /*idempotent*/ false);
     }
 
     std::vector<TString> DoListSubcontainers(const TString& rootContainer, bool includeRoot)
@@ -571,10 +582,11 @@ private:
         auto fieldOptions = req.mutable_field_options();
         fieldOptions->add_properties("absolute_name");
         TVector<Porto::TContainer> containers;
-
         ExecuteApiCall(
             [&] { return Api_->ListContainersBy(req, containers); },
-            "ListContainersBy");
+            "ListContainersBy",
+            /*idempotent*/ true);
+
         std::vector<TString> containerNames;
         containerNames.reserve(containers.size());
         for (const auto& container : containers) {
@@ -595,7 +607,8 @@ private:
 
         ExecuteApiCall(
             [&] { return Api_->AsyncWait({container}, {}, waitCallback); },
-            "AsyncWait");
+            "AsyncWait",
+            /*idempotent*/ false);
 
         return result.ToFuture().ToImmediatelyCancelable();
     }
@@ -642,14 +655,14 @@ private:
 
     TFuture<int> DoPollContainer(const TString& container)
     {
-        auto entry = ContainerMap_.insert({container, NewPromise<int>()});
-        if (!entry.second) {
+        auto [it, inserted] = ContainerMap_.insert({container, NewPromise<int>()});
+        if (!inserted) {
             YT_LOG_WARNING("Container already added for polling (Container: %v)",
                 container);
         } else {
             Containers_.push_back(container);
         }
-        return entry.first->second.ToFuture();
+        return it->second.ToFuture();
     }
 
     Porto::TGetResponse DoGetContainerProperties(
@@ -666,7 +679,8 @@ private:
                 getResponse = Api_->Get(containers_, vars_);
                 return getResponse ? EError::Success : EError::Unknown;
             },
-            "Get");
+            "Get",
+            /*idempotent*/ true);
 
         YT_VERIFY(getResponse);
         return *getResponse;
@@ -682,7 +696,8 @@ private:
 
         ExecuteApiCall(
             [&] { return Api_->GetProcMetric(containers_, metric, result); },
-            "GetProcMetric");
+            "GetProcMetric",
+            /*idempotent*/ true);
 
         return {result.begin(), result.end()};
     }
@@ -736,7 +751,8 @@ private:
         TMap<TString, TString> propertyMap(properties.begin(), properties.end());
         ExecuteApiCall(
             [&] { return Api_->CreateVolume(volume, propertyMap); },
-            "CreateVolume");
+            "CreateVolume",
+            /*idempotent*/ false);
         return volume;
     }
 
@@ -744,14 +760,16 @@ private:
     {
         ExecuteApiCall(
             [&] { return Api_->LinkVolume(path, container); },
-            "LinkVolume");
+            "LinkVolume",
+            /*idempotent*/ false);
     }
 
     void DoUnlinkVolume(const TString& path, const TString& container)
     {
         ExecuteApiCall(
             [&] { return Api_->UnlinkVolume(path, container); },
-            "UnlinkVolume");
+            "UnlinkVolume",
+            /*idempotent*/ false);
     }
 
     std::vector<TString> DoListVolumePaths()
@@ -759,7 +777,8 @@ private:
         TVector<TString> volumes;
         ExecuteApiCall(
             [&] { return Api_->ListVolumes(volumes); },
-            "ListVolume");
+            "ListVolume",
+            /*idempotent*/ true);
         return {volumes.begin(), volumes.end()};
     }
 
@@ -767,14 +786,16 @@ private:
     {
         ExecuteApiCall(
             [&] { return Api_->ImportLayer(layerId, archivePath, false, place); },
-            "ImportLayer");
+            "ImportLayer",
+            /*idempotent*/ false);
     }
 
     void DoRemoveLayer(const TString& layerId, const TString& place, bool async)
     {
         ExecuteApiCall(
             [&] { return Api_->RemoveLayer(layerId, place, async); },
-            "RemoveLayer");
+            "RemoveLayer",
+            /*idempotent*/ false);
     }
 
     std::vector<TString> DoListLayers(const TString& place)
@@ -782,7 +803,8 @@ private:
         TVector<TString> layers;
         ExecuteApiCall(
             [&] { return Api_->ListLayers(layers, place); },
-            "ListLayers");
+            "ListLayers",
+            /*idempotent*/ true);
         return {layers.begin(), layers.end()};
     }
 
@@ -795,7 +817,10 @@ private:
         return &CommandToEntry_.emplace(command, TCommandEntry(Profiler_.WithTag("command", command))).first->second;
     }
 
-    void ExecuteApiCall(std::function<EError()> callback, const TString& command)
+    void ExecuteApiCall(
+        std::function<EError()> callback,
+        const TString& command,
+        bool idempotent)
     {
         YT_LOG_DEBUG("Porto API call started (Command: %v)", command);
 
@@ -815,7 +840,7 @@ private:
             }
 
             entry->FailureCounter.Increment();
-            HandleApiError(command, startTime);
+            HandleApiError(command, startTime, idempotent);
 
             YT_LOG_DEBUG("Sleeping and retrying Porto API call (Command: %v)", command);
             entry->RetryCounter.Increment();
@@ -826,7 +851,10 @@ private:
         YT_LOG_DEBUG("Porto API call completed (Command: %v)", command);
     }
 
-    void HandleApiError(const TString& command, TInstant startTime)
+    void HandleApiError(
+        const TString& command,
+        TInstant startTime,
+        bool idempotent)
     {
         TString errorMessage;
         auto error = ConvertPortoErrorCode(Api_->GetLastError(errorMessage));
@@ -841,7 +869,7 @@ private:
             command,
             errorMessage);
 
-        if (!IsRetriableErrorCode(error) || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
+        if (!IsRetriableErrorCode(error, idempotent) || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
             THROW_ERROR CreatePortoError(error, errorMessage);
         }
     }
