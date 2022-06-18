@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <yt/yt/core/misc/error.h>
 
@@ -21,7 +22,10 @@ TError ParseYTError(const IResponsePtr& rsp, bool fromTrailers = false);
 //! translates it into HTTP error.
 IHttpHandlerPtr WrapYTException(IHttpHandlerPtr underlying);
 
-bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool disableOriginCheck = false);
+bool MaybeHandleCors(
+    const IRequestPtr& req,
+    const IResponseWriterPtr& rsp,
+    const TCorsConfigPtr& config = New<TCorsConfig>());
 
 THashMap<TString, TString> ParseCookies(TStringBuf cookies);
 

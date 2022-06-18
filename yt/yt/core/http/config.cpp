@@ -63,4 +63,16 @@ TClientConfig::TClientConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCorsConfig::TCorsConfig()
+{
+    RegisterParameter("disable_cors_check", DisableCorsCheck)
+        .Default(false);
+    RegisterParameter("host_allow_list", HostAllowList)
+        .Default({"localhost"});
+    RegisterParameter("host_suffix_allow_list", HostAllowList)
+        .Default({".yandex-team.ru"});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHttp

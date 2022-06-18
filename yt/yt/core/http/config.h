@@ -79,4 +79,19 @@ DEFINE_REFCOUNTED_TYPE(TClientConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCorsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool DisableCorsCheck;
+    std::vector<TString> HostAllowList;
+    std::vector<TString> HostSuffixAllowList;
+
+    TCorsConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TCorsConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHttp
