@@ -986,6 +986,7 @@ public:
     std::optional<double> MemoryReserveFactor;
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
+    std::optional<double> ResourceOverdraftMemoryReserveMultiplier;
 
     bool IgnoreMemoryReserveFactorLessThanOne;
 
