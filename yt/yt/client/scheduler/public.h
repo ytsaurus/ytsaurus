@@ -111,6 +111,7 @@ DEFINE_ENUM(EAbortReason,
     ((ProbingToUnsuccessfulJob)        ( 33))
     ((JobProxyFailed)                  ( 34))
     ((InterruptionTimeout)             ( 35))
+    ((NodeResourceOvercommit)          ( 36))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

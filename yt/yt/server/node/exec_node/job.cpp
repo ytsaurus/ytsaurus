@@ -2282,6 +2282,10 @@ std::optional<EAbortReason> TJob::GetAbortReason()
     if (resultError.FindMatching(NExecNode::EErrorCode::ResourceOverdraft)) {
         return EAbortReason::ResourceOverdraft;
     }
+    
+    if (resultError.FindMatching(NExecNode::EErrorCode::NodeResourceOvercommit)) {
+        return EAbortReason::NodeResourceOvercommit;
+    }
 
     if (resultError.FindMatching(NExecNode::EErrorCode::WaitingJobTimeout)) {
         return EAbortReason::WaitingTimeout;
