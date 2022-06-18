@@ -2,6 +2,7 @@
 
 #include "http.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -183,14 +184,32 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "X-YT-Trace-Id",
 });
 
-bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool disableOriginCheck)
+bool MaybeHandleCors(
+    const IRequestPtr& req,
+    const IResponseWriterPtr& rsp,
+    const TCorsConfigPtr& config)
 {
     auto origin = req->GetHeaders()->Find("Origin");
     if (origin) {
         auto url = ParseUrl(*origin);
-        bool allow = disableOriginCheck ||
-            url.Host == "localhost" ||
-            url.Host.EndsWith(".yandex-team.ru");
+
+        bool allow = false;
+        if (config->DisableCorsCheck) {
+            allow = true;
+        }
+
+        for (const auto& host : config->HostAllowList) {
+            if (host == url.Host) {
+                allow = true;
+            }
+        }
+
+        for (const auto& suffix : config->HostSuffixAllowList) {
+            if (url.Host.EndsWith(suffix)) {
+                allow = true;
+            }
+        }
+
         if (allow) {
             rsp->GetHeaders()->Add(AccessControlAllowCredentialsHeaderName, "true");
             rsp->GetHeaders()->Add(AccessControlAllowOriginHeaderName, *origin);

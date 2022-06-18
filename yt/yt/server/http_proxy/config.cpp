@@ -90,8 +90,8 @@ void TApiConfig::Register(TRegistrar registrar)
     registrar.Parameter("concurrency_limit", &TThis::ConcurrencyLimit)
         .Default(1024);
 
-    registrar.Parameter("disable_cors_check", &TThis::DisableCorsCheck)
-        .Default(false);
+    registrar.Parameter("cors", &TThis::Cors)
+        .DefaultNew();
 
     registrar.Parameter("force_tracing", &TThis::ForceTracing)
         .Default(false);

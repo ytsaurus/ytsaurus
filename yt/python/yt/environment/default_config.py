@@ -720,7 +720,9 @@ def get_proxy_config():
     port = -1;
 
     api = {
-        disable_cors_check = %true;
+        cors = {
+            disable_cors_check = %true;
+        };
     };
 
     auth = {

@@ -113,7 +113,7 @@ public:
     TDuration BanCacheExpirationTime;
     int ConcurrencyLimit;
 
-    bool DisableCorsCheck;
+    NHttp::TCorsConfigPtr Cors;
 
     bool ForceTracing;
 
