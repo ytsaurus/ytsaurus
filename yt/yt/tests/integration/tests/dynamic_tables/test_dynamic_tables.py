@@ -2720,7 +2720,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             assert copy_attributes[k] == v
 
     @authors("ifsmirnov")
-    def test_mount_config_old_attrs_interop(self):
+    @pytest.mark.parametrize("enable_root_interop", [True, False])
+    def test_mount_config_old_attrs_interop(self, enable_root_interop):
+        set(
+            "//sys/@config/tablet_manager/include_mount_config_attributes_in_user_attributes",
+            enable_root_interop)
+
         create("table", "//tmp/t", attributes={
             "min_data_ttl": 123,
             "auto_compaction_period": 456,
@@ -2730,12 +2735,36 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//tmp/t/@min_data_ttl") == 123
         assert get("//tmp/t/@auto_compaction_period") == 456
         assert get("//tmp/t/@periodic_compaction_mode") == "partition"
-        assert get("//tmp/t/@user_attributes") == {}
-        assert get("//tmp/t/@user_attribute_keys") == []
+
+        if enable_root_interop:
+            assert get("//tmp/t/@user_attributes") == {
+                "periodic_compaction_mode": "partition",
+                "min_data_ttl": 123,
+                "auto_compaction_period": 456,
+            }
+            assert_items_equal(
+                get("//tmp/t/@user_attribute_keys"),
+                [
+                    "periodic_compaction_mode",
+                    "min_data_ttl",
+                    "auto_compaction_period",
+                ]
+            )
+            assert get("//tmp/t/@")["periodic_compaction_mode"] == "partition"
+            assert "periodic_compaction_mode" in ls("//tmp/t/@")
+        else:
+            assert get("//tmp/t/@user_attributes") == {}
+            assert get("//tmp/t/@user_attribute_keys") == []
+            assert "periodic_compaction_mode" not in get("//tmp/t/@")
+            assert "periodic_compaction_mode" not in ls("//tmp/t/@")
 
         set("//tmp/t/@max_data_ttl", 789)
         set("//tmp/t/@mount_config/min_compaction_store_count", 2)
-        assert get("//tmp/t/@user_attributes") == {}
+
+        if enable_root_interop:
+            assert get("//tmp/t/@user_attributes") == get("//tmp/t/@mount_config")
+        else:
+            assert get("//tmp/t/@user_attributes") == {}
 
         remove("//tmp/t/@mount_config/min_data_ttl")
         remove("//tmp/t/@periodic_compaction_mode")

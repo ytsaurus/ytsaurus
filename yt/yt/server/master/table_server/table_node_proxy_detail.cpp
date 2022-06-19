@@ -1720,10 +1720,12 @@ void TTableNodeProxy::ValidateLockPossible()
 IAttributeDictionary* TTableNodeProxy::GetCustomAttributes()
 {
     if (!WrappedAttributes_) {
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
         WrappedAttributes_ = New<TMountConfigAttributeDictionary>(
             static_cast<TTableNode*>(Object_),
             Transaction_,
-            TBase::GetCustomAttributes());
+            TBase::GetCustomAttributes(),
+            config->IncludeMountConfigAttributesInUserAttributes);
     }
     return WrappedAttributes_.Get();
 }

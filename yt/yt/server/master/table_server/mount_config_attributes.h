@@ -21,7 +21,8 @@ public:
     TMountConfigAttributeDictionary(
         TTableNode* owner,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* baseAttributes);
+        NYTree::IAttributeDictionary* baseAttributes,
+        bool includeOldAttributesInList);
 
     std::vector<TString> ListKeys() const override;
     std::vector<TKeyValuePair> ListPairs() const override;
@@ -34,6 +35,7 @@ private:
     TTableNode* const Owner_;
     NTransactionServer::TTransaction* const Transaction_;
     NYTree::IAttributeDictionary* const BaseAttributes_;
+    const bool IncludeOldAttributesInList_ = false;
 
     void ValidateNoTransaction() const;
 };

@@ -190,6 +190,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_backups", &TThis::EnableBackups)
         .Default(false);
 
+    registrar.Parameter("include_mount_config_attributes_in_user_attributes", &TThis::IncludeMountConfigAttributesInUserAttributes)
+        .Default(true);
+
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
 

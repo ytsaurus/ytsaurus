@@ -275,6 +275,9 @@ public:
 
     bool EnableBackups;
 
+    // COMPAT(ifsmirnov)
+    bool IncludeMountConfigAttributesInUserAttributes;
+
     TDuration ProfilingPeriod;
 
     TDuration TamedCellManagerProfilingPeriod;
