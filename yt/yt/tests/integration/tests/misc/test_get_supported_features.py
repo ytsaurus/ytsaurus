@@ -4,6 +4,8 @@ from yt_commands import authors, get_driver, get_supported_features
 
 import builtins
 
+import pytest
+
 ##################################################################
 
 
@@ -12,6 +14,7 @@ class TestGetFeatures(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
+    SKIP_STATISTICS_DESCRIPTIONS = False
 
     @authors("levysotsky")
     def test_get_features(self):
@@ -79,3 +82,34 @@ class TestGetFeatures(YTEnvSetup):
         assert expected_erasure_codecs == expected_erasure_codecs.intersection(
             builtins.set(features["erasure_codecs"])
         )
+
+    @authors("egor-gutrov")
+    def test_operation_statistics_descriptions(self):
+        if self.SKIP_STATISTICS_DESCRIPTIONS:
+            pytest.skip("Statistics descriptions are retrieved from scheduler, but its' version is too old")
+        driver = get_driver(api_version=4)
+        features = get_supported_features(driver=driver)
+
+        assert "operation_statistics_descriptions" in features
+        expected_statistics_descriptions = {
+            "time/total",
+            "data/input/row_count",
+            "data/output/*/data_weight",
+            "exec_agent/traffic/inbound/from_*",
+            "exec_agent/artifacts/cache_bypassed_artifacts_size",
+            "job_proxy/cpu/system",
+            "job_proxy/traffic/*_to_*",
+            "user_job/cumulative_memory_reserve",
+            "user_job/cpu/wait",
+            "user_job/block_io/io_write",
+            "user_job/pipes/output/*/bytes",
+            "codec/cpu/decode/*",
+            "codec/cpu/encode/*/*",
+        }
+        assert expected_statistics_descriptions == expected_statistics_descriptions.intersection(
+            builtins.set(features["operation_statistics_descriptions"])
+        )
+        for desc_name in expected_statistics_descriptions:
+            description = features["operation_statistics_descriptions"][desc_name]
+            assert "description" in description
+            assert "unit" in description

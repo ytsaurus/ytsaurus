@@ -566,42 +566,57 @@ TClusterMeta TClient::DoGetClusterMeta(
     batchReq->SetSuppressTransactionCoordinatorSync(true);
     SetBalancingHeader(batchReq, options);
 
-    auto req = TMasterYPathProxy::GetClusterMeta();
-    req->set_populate_node_directory(options.PopulateNodeDirectory);
-    req->set_populate_cluster_directory(options.PopulateClusterDirectory);
-    req->set_populate_medium_directory(options.PopulateMediumDirectory);
-    req->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
-    req->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
-    req->set_populate_features(options.PopulateFeatures);
-    SetCachingHeader(req, options);
-    batchReq->AddRequest(req);
+    auto masterReq = TMasterYPathProxy::GetClusterMeta();
+    masterReq->set_populate_node_directory(options.PopulateNodeDirectory);
+    masterReq->set_populate_cluster_directory(options.PopulateClusterDirectory);
+    masterReq->set_populate_medium_directory(options.PopulateMediumDirectory);
+    masterReq->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
+    masterReq->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
+    masterReq->set_populate_features(options.PopulateFeatures);
+    SetCachingHeader(masterReq, options);
+    batchReq->AddRequest(masterReq, "cluster_meta");
+
+    if (options.PopulateFeatures) {
+        auto schedulerOrchidReq = TYPathProxy::Get("//sys/scheduler/orchid/scheduler/supported_features");
+        batchReq->AddRequest(schedulerOrchidReq, "scheduler_features");
+    }
 
     auto batchRsp = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
-    auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
+    auto masterRsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>("cluster_meta")
         .ValueOrThrow();
 
     TClusterMeta meta;
     if (options.PopulateNodeDirectory) {
         meta.NodeDirectory = std::make_shared<NNodeTrackerClient::NProto::TNodeDirectory>();
-        meta.NodeDirectory->Swap(rsp->mutable_node_directory());
+        meta.NodeDirectory->Swap(masterRsp->mutable_node_directory());
     }
     if (options.PopulateClusterDirectory) {
         meta.ClusterDirectory = std::make_shared<NHiveClient::NProto::TClusterDirectory>();
-        meta.ClusterDirectory->Swap(rsp->mutable_cluster_directory());
+        meta.ClusterDirectory->Swap(masterRsp->mutable_cluster_directory());
     }
     if (options.PopulateMediumDirectory) {
         meta.MediumDirectory = std::make_shared<NChunkClient::NProto::TMediumDirectory>();
-        meta.MediumDirectory->Swap(rsp->mutable_medium_directory());
+        meta.MediumDirectory->Swap(masterRsp->mutable_medium_directory());
     }
     if (options.PopulateMasterCacheNodeAddresses) {
-        meta.MasterCacheNodeAddresses = FromProto<std::vector<TString>>(rsp->master_cache_node_addresses());
+        meta.MasterCacheNodeAddresses = FromProto<std::vector<TString>>(masterRsp->master_cache_node_addresses());
     }
     if (options.PopulateTimestampProviderAddresses) {
-        meta.TimestampProviderAddresses = FromProto<std::vector<TString>>(rsp->timestamp_provider_node_addresses());
+        meta.TimestampProviderAddresses = FromProto<std::vector<TString>>(masterRsp->timestamp_provider_node_addresses());
     }
-    if (options.PopulateFeatures && rsp->has_features()) {
-        meta.Features = ConvertTo<IMapNodePtr>(TYsonStringBuf(rsp->features()));
+    if (options.PopulateFeatures) {
+        if (masterRsp->has_features()) {
+            meta.Features = ConvertTo<IMapNodePtr>(TYsonStringBuf(masterRsp->features()));
+        }
+        auto schedulerRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("scheduler_features");
+        if (schedulerRspOrError.IsOK() && schedulerRspOrError.Value()->has_value()) {
+            if (!meta.Features) {
+                meta.Features = GetEphemeralNodeFactory()->CreateMap();
+            }
+            auto schedulerFeatures = ConvertTo<IMapNodePtr>(TYsonStringBuf(schedulerRspOrError.Value()->value()));
+            meta.Features = PatchNode(meta.Features, schedulerFeatures)->AsMap();
+        }
     }
     return meta;
 }
