@@ -3697,6 +3697,9 @@ private:
                     .Item("build_version").Value(GetVersion())
                     .Item("hostname").Value(GetDefaultAddress(Bootstrap_->GetLocalAddresses()))
                 .EndMap()
+                .Item("supported_features").BeginMap()
+                    .Do(BuildSupportedFeatures)
+                .EndMap()
             .EndMap();
     }
 

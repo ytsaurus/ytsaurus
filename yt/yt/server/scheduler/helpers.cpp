@@ -245,7 +245,159 @@ void Deserialize(std::vector<TLegacyOwningKey>& keys, INodePtr node)
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TLegacyOwningKey>)
 
+struct TStatisticsDescription
+{
+    TString Name;
+    TString Description;
+    TString Unit;
+};
+
+const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
+{
+    static const std::vector<TStatisticsDescription> statisticsHints = {
+        {"time/total", "Time from the moment of job creation until the scheduler receives information about its completion or failure", "ms"},
+        {"time/prepare", "Time of job preparation before the job proxy is launched", "ms"},
+        {"time/artifacts_download", "File upload time to the chunk cache (if necessary)", "ms"},
+        {"time/exec", "Time from the start to the end of job_proxy process", "ms"},
+
+        {"data/input/chunk_count", "Data slices read by job", "pieces"},
+        {"data/input/row_count", "Number of rows read by job", "pieces"},
+        {"data/input/compressed_data_size", "Compressed size of blocks read by job", "bytes"},
+        {"data/input/uncompressed_data_size", "Uncompressed size of blocks read by job", "bytes"},
+        {"data/input/data_weight", "Logical size of data read by job", "bytes"},
+        {"data/input/not_fully_consumed", "1 if job has not read the whole input, 0 otherwise", ""},
+        {"data/input/regular_disk_space", "Not used", ""},
+        {"data/input/erasure_disk_space", "Not used", ""},
+        {"data/input/unmerged_data_weight", "Only for dynamic tables, logical size of unmerged data read by job", "bytes"},
+        {"data/input/unmerged_row_count", "Only for dynamic tables, number of unmerged rows read by job", "pieces"},
+
+        {"data/output/*/chunk_count", "Number of chunks written to the output table", "pieces"},
+        {"data/output/*/row_count", "Number of rows written to the output table", "pieces"},
+        {"data/output/*/compressed_data_size", "Compressed size of blocks written to the output table", "bytes"},
+        {"data/output/*/uncompressed_data_size", "Uncompressed size of blocks written to the output table", "bytes"},
+        {"data/output/*/data_weight", "Logical size of data written to the output table", "bytes"},
+        {"data/output/*/regular_disk_space", "Only for tables with erasure_codec == none, equals to compressed_data_size + size of the chunk metadata", "bytes"},
+        {"data/output/*/erasure_disk_space", "Only for tables with erasure_codec == none, equals to compressed_data_size + size of parity blocks", "bytes"},
+        {"data/output/*/unmerged_data_weight", "Only for dynamic tables, logical size of unmerged data written to the output table", "bytes"},
+        {"data/output/*/unmerged_row_count", "Only for dynamic tables, number of unmerged rows written to the output table", "pieces"},
+
+        // {"exec_agent/traffic/*_to_*", "Size of data transferred between datacenters", "bytes"},
+        {"exec_agent/traffic/duration_ms", "", "ms"}, // TODO
+        {"exec_agent/traffic/inbound/from_*", "", "bytes"}, // TODO
+        {"exec_agent/traffic/outbound/to_*", "", "bytes"}, // TODO
+
+        {"exec_agent/artifacts/cache_bypassed_artifacts_size", "Size of artifacts with bypass_artifact_cache == true", "bytes"},
+        {"exec_agent/artifacts/cache_hit_artifacts_size", "Size of artifacts retrieved from cache", "bytes"},
+        {"exec_agent/artifacts/cache_miss_artifacts_size", "Size of artifacts that were not found in cache", "bytes"},
+
+        // aggregated_preemptable_cpu_x100, aggregated_preempted_cpu_x100, preemptable_cpu_x100, smoothed_cpu_usage_x100 - Renat
+        {"job_proxy/cumulative_estimated_memory", "Memory for the job proxy planned by scheduler/controller agent multiplied by job length in seconds", "bytes * sec"},
+        {"job_proxy/cumulative_max_memory", "Maximum amount of memory used by the job proxy process multiplied by job length in seconds", "bytes * sec"},
+        {"job_proxy/estimated_memory", "Memory for the job proxy planned by scheduler/controller agent", "bytes"},
+        {"job_proxy/aggregated_max_cpu_usage_x100", "", ""}, // TODO
+        {"job_proxy/aggregated_smoothed_cpu_usage_x100", "", ""}, // TODO
+        {"job_proxy/memory_reserve_factor_x10000", "Internal parameter", ""},
+        {"job_proxy/max_memory", "Maximum amount of memory used by the job proxy process", "bytes"},
+        {"job_proxy/memory_reserve", "Amount of memory guaranteed for the job proxy at the time of start", "bytes"},
+
+        {"job_proxy/cpu/user", "User mode CPU time of the job proxy process", "ms"},
+        {"job_proxy/cpu/system", "Kernel mode CPU time of the job proxy process", "ms"},
+        {"job_proxy/cpu/wait", "Wait CPU time of the job proxy process", "ms"},
+        {"job_proxy/cpu/throttled", "Throttled CPU time of the job proxy process", "ms"},
+        {"job_proxy/cpu/peak_thread_count", "Maximum number of threads used by the job proxy process", "pieces"},
+        {"job_proxy/cpu/context_switches", "Number of context switches performed by the job proxy process", "pieces"},
+
+        {"job_proxy/traffic/*_to_*", "Size of data transferred between datacenters", "bytes"},
+        {"job_proxy/traffic/duration_ms", "", "ms"}, // TODO
+        {"job_proxy/traffic/inbound/from_*", "", "bytes"}, // TODO
+        {"job_proxy/traffic/outbound/to_*", "", "bytes"}, // TODO
+
+
+        {"job_proxy/block_io/bytes_written", "Bytes written by the job proxy process to the local block device", "bytes"},
+        {"job_proxy/block_io/bytes_read", "Bytes read by the job proxy process from the local block device", "bytes"},
+        {"job_proxy/block_io/io_read", "Number of reads from the local block device by the job proxy process", "pieces"},
+        {"job_proxy/block_io/io_write", "Number of writes to the local block device by the job proxy process", "pieces"},
+        {"job_proxy/block_io/io_total", "", ""}, // TODO
+
+        {"user_job/cumulative_max_memory", "Maximum amount of memory used by the job multiplied by job length in seconds", "bytes * sec"},
+        {"user_job/cumulative_memory_reserve", "Amount of memory guaranteed to the user job at the time of start multiplied by job length in seconds", "bytes * sec"},
+        {"user_job/cumulative_memory_mb_sec", "Integral of the memory used", "Mb*sec"},
+        {"user_job/tmpfs_size", "Maximum used volume of tmpfs during the job execution", "bytes"},
+        {"user_job/max_memory", "Maximum amount of memory used by the user job during execution, excluding tmpfs", "bytes"},
+        {"user_job/max_tmpfs_size", "Maximum amount of tmpfs used by the user job during execution", "bytes"},
+        {"user_job/memory_limit", "Memory limit from operation specification", "bytes"},
+        {"user_job/memory_reserve", "Amount of memory guaranteed to the user job at the time of start", "bytes"},
+        {"user_job/memory_reserve_factor_x10000", "Internal parameter", ""},
+        {"user_job/woodpecker", "Not used", ""},
+
+        {"user_job/cpu/user", "User mode CPU time of the job", "ms"},
+        {"user_job/cpu/system", "Kernel mode CPU time of the job", "ms"},
+        {"user_job/cpu/wait", "Wait CPU time of the job", "ms"},
+        {"user_job/cpu/throttled", "Throttled CPU time of the job", "ms"},
+        {"user_job/cpu/peak_thread_count", "Maximum number of threads used by the job", "pieces"},
+        {"user_job/cpu/context_switches", "Number of context switches performed by the job", "pieces"},
+
+        {"user_job/block_io/bytes_written", "Bytes written by the job to the local block device", "bytes"},
+        {"user_job/block_io/bytes_read", "Bytes read by the job from the local block device", "bytes"},
+        {"user_job/block_io/io_read", "Number of reads from the local block device by the job", "pieces"},
+        {"user_job/block_io/io_write", "Number of writes to the local block device by the job", "pieces"},
+        {"user_job/block_io/io_total", "", ""}, // TODO
+
+        {"user_job/current_memory/major_page_faults", "Major page faults in the user process", "bytes"},
+        {"user_job/current_memory/rss", "RSS at the end of the job", "bytes"},
+        {"user_job/current_memory/mapped_file", "Memory mapped files size at the end of the job", "bytes"},
+
+        {"user_job/disk/max_usage", "Maximum disk space used by the job sandbox", "bytes"},
+        {"user_job/disk/limit", "Ordered limit on the size of the job sandbox", "bytes"},
+
+        {"user_job/pipes/input/bytes", "Number of bytes transmitted via the stdin of the user process", "bytes"},
+        {"user_job/pipes/input/idle_time", "Time during which the job proxy did not transfer data to the user's job in stdin because it was reading data", "ms"},
+        {"user_job/pipes/input/busy_time", "Time during which the job proxy wrote data to the stdin of the user job", "ms"},
+
+        {"user_job/pipes/output/*/bytes", "Number of bytes written by the user process to the corresponding descriptor", "bytes"},
+        {"user_job/pipes/output/*/idle_time", "Time during which the jobproxy process did not read from the stream corresponding to the kth output table, because it was writing data already subtracted from there", "ms"},
+        {"user_job/pipes/output/*/busy_time", "Time during which the job proxy process read from the stream corresponding to the kth output table", "ms"},
+
+        {"user_job/gpu/utilization_gpu", "Net time during which GPU calculations were performed", "ms"},
+        {"user_job/gpu/utilization_memory", "Net time during which GPU memory accesses were performed", "ms"},
+        {"user_job/gpu/utilization_clocks_sm", "The time integral of GPU frequency relative to the maximum frequency", "ratio * ms"},
+        {"user_job/gpu/utilization_power", "Time integral of the effective power of GPU relative to the maximum power", "ratio * ms"},
+        {"user_job/gpu/load", "Time during which GPU load was non-zero", "ms"},
+        {"user_job/gpu/memory", "Integral of GPU memory usage", "ms * bytes"},
+        {"user_job/gpu/power", "Integral of GPU power usage", "ms * power"},
+        {"user_job/gpu/clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},
+        {"user_job/gpu/memory_used", "Maximum registered GPU memory usage", "bytes"},
+
+        {"codec/cpu/decode/*", "Time spent on decompressing data", "ms"},
+        {"codec/cpu/encode/*/*", "Time spent on compressing data", "ms"},
+
+        // TODO
+        {"chunk_reader_statistics/data_bytes_read_from_cache", "", ""},
+        {"chunk_reader_statistics/data_bytes_read_from_disk", "", ""},
+        {"chunk_reader_statistics/data_bytes_transmitted", "", ""},
+        {"chunk_reader_statistics/idle_time", "", ""},
+        {"chunk_reader_statistics/meta_bytes_read_from_disk", "", ""},
+        {"chunk_reader_statistics/read_time", "", ""},
+        {"chunk_reader_statistics/wait_time", "", ""},
+    };
+    return statisticsHints;
+}
+
 } // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BuildSupportedFeatures(TFluentMap fluent)
+{
+    const auto& descriptions = GetOperationStatisticsDescriptions();
+    fluent.
+        Item("operation_statistics_descriptions").DoMapFor(descriptions, [] (TFluentMap fluent, const TStatisticsDescription& description) {
+            fluent.Item(description.Name).BeginMap()
+                .Item("description").Value(description.Description)
+                .Item("unit").Value(description.Unit)
+            .EndMap();
+        });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,4 +447,3 @@ THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-
