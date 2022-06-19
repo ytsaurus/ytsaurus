@@ -127,20 +127,48 @@ bool IsOldStyleMountConfigAttribute(TStringBuf key)
 TMountConfigAttributeDictionary::TMountConfigAttributeDictionary(
     TTableNode* owner,
     TTransaction* transaction,
-    NYTree::IAttributeDictionary* baseAttributes)
+    NYTree::IAttributeDictionary* baseAttributes,
+    bool includeOldAttributesInList)
     : Owner_(owner)
     , Transaction_(transaction)
     , BaseAttributes_(baseAttributes)
+    , IncludeOldAttributesInList_(includeOldAttributesInList)
 { }
 
 std::vector<TString> TMountConfigAttributeDictionary::ListKeys() const
 {
-    return BaseAttributes_->ListKeys();
+    if (!IncludeOldAttributesInList_) {
+        return BaseAttributes_->ListKeys();
+    }
+
+    auto storage = Owner_->FindMountConfigStorage();
+    if (!storage || storage->IsEmpty()) {
+        return BaseAttributes_->ListKeys();
+    }
+
+    auto result = BaseAttributes_->ListKeys();
+    for (const auto& [key, value] : storage->Attributes()) {
+        result.push_back(key);
+    }
+    return result;
 }
 
 auto TMountConfigAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
 {
-    return BaseAttributes_->ListPairs();
+    if (!IncludeOldAttributesInList_) {
+        return BaseAttributes_->ListPairs();
+    }
+
+    auto storage = Owner_->FindMountConfigStorage();
+    if (!storage || storage->IsEmpty()) {
+        return BaseAttributes_->ListPairs();
+    }
+
+    auto result = BaseAttributes_->ListPairs();
+    for (const auto& [key, value] : storage->Attributes()) {
+        result.emplace_back(key, value);
+    }
+    return result;
 }
 
 TYsonString TMountConfigAttributeDictionary::FindYson(TStringBuf key) const

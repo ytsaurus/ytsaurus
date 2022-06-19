@@ -213,11 +213,15 @@ def check_mount_config_attributes():
     for key in "abcdefgh":
         path = "//tmp/mount_config/" + key
         if key == "c":
-            assert get(path + "/@user_attributes") == {"foobar": "bazqux"}
-            assert get(path + "/@user_attribute_keys") == ["foobar"]
+            assert get(path + "/@user_attributes") == {
+                "foobar": "bazqux",
+                "max_data_ttl": 456,
+                "min_data_ttl": 123,
+            }
+            assert_items_equal(get(path + "/@user_attribute_keys"), ["foobar", "max_data_ttl", "min_data_ttl"])
         else:
-            assert get(path + "/@user_attributes") == {}
-            assert get(path + "/@user_attribute_keys") == []
+            assert get(path + "/@user_attributes") == get(path + "/@mount_config")
+            assert_items_equal(get(path + "/@user_attribute_keys"), ls(path + "/@mount_config"))
 
     assert get("//tmp/mount_config/a/@mount_config") == {"min_data_ttl": 123}
     assert get("//tmp/mount_config/b/@mount_config") == {"min_data_ttl": "invalid_string_value"}

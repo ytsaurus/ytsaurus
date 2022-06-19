@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((AreaChaosOptions)                                             (2031))  // savrus
     ((CrpPullReplication)                                           (2032))  // aleksandra-zh
     ((SuspendTabletCell)                                            (2033))  // gritukan
+    ((MountConfigAttributesInUserAttributes)                        (2034))  // ifsmirnov
     // 22.3 starts here.
     ((JobProxyBuildVersion)                                         (2100))  // galtsev
 );
