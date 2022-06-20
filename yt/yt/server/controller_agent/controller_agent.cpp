@@ -269,6 +269,7 @@ public:
             std::move(configNode),
             Bootstrap_))
         , JobProfiler_(New<TJobProfiler>())
+        , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
@@ -1078,6 +1079,7 @@ private:
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
+    IInvokerPtr JobEventsInvoker_;
 
     TOperationIdToOperationMap IdToOperation_;
 
@@ -1279,7 +1281,7 @@ private:
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentJobs, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "job_events"),
-            Bootstrap_->GetControlInvoker());
+            JobEventsInvoker_);
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger.WithTag("Kind: SchedulerToAgentOperations, IncarnationId: %v",
                 IncarnationId_),
@@ -1516,7 +1518,13 @@ private:
 
         BuildOutcomingScheduleJobResponses(request);
 
-        JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
+        auto error = WaitFor(BIND([&, request] {
+                JobEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_job_events());
+            })
+            .AsyncVia(JobEventsInvoker_)
+            .Run());
+        
+        YT_LOG_FATAL_IF(!error.IsOK(), error, "Failed to report job event inbox status");
 
         OperationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_operation_events());
         ScheduleJobRequestsInbox_->ReportStatus(request->mutable_scheduler_to_agent_schedule_job_requests());
@@ -1712,31 +1720,41 @@ private:
             std::vector<TAbortedBySchedulerJobSummary> AbortedJobEvents;
         };
 
-        THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
-        JobEventsInbox_->HandleIncoming(
-            rsp->mutable_scheduler_to_agent_job_events(),
-            [&] (auto* protoEvent) {
-                auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
-                auto& operationJobEvents = jobEventsPerOperationId[operationId];
-                auto eventType = CheckedEnumCast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
-                switch (eventType) {
-                    case ESchedulerToAgentJobEventType::Started: {
-                        operationJobEvents.StartedJobEvents.emplace_back();
-                        FromProto(&operationJobEvents.StartedJobEvents.back(), protoEvent);
-                        break;
-                    }
-                    case ESchedulerToAgentJobEventType::Finished: {
-                        operationJobEvents.FinishedJobEvents.emplace_back();
-                        FromProto(&operationJobEvents.FinishedJobEvents.back(), protoEvent);
-                        break;
-                    }
-                    case ESchedulerToAgentJobEventType::AbortedByScheduler: {
-                        operationJobEvents.AbortedJobEvents.emplace_back();
-                        FromProto(&operationJobEvents.AbortedJobEvents.back(), protoEvent);
-                        break;
-                    }
-                }
-            });
+        auto jobEventsPerOperationIdOrError = WaitFor(BIND([&] {
+                THashMap<TOperationId, TOperationJobEvents> jobEventsPerOperationId;
+                JobEventsInbox_->HandleIncoming(
+                    rsp->mutable_scheduler_to_agent_job_events(),
+                    [&] (auto* protoEvent) {
+                        auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
+                        auto& operationJobEvents = jobEventsPerOperationId[operationId];
+                        auto eventType = CheckedEnumCast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
+                        switch (eventType) {
+                            case ESchedulerToAgentJobEventType::Started: {
+                                operationJobEvents.StartedJobEvents.emplace_back();
+                                FromProto(&operationJobEvents.StartedJobEvents.back(), protoEvent);
+                                break;
+                            }
+                            case ESchedulerToAgentJobEventType::Finished: {
+                                operationJobEvents.FinishedJobEvents.emplace_back();
+                                FromProto(&operationJobEvents.FinishedJobEvents.back(), protoEvent);
+                                break;
+                            }
+                            case ESchedulerToAgentJobEventType::AbortedByScheduler: {
+                                operationJobEvents.AbortedJobEvents.emplace_back();
+                                FromProto(&operationJobEvents.AbortedJobEvents.back(), protoEvent);
+                                break;
+                            }
+                        }
+                    });
+                
+                return jobEventsPerOperationId;
+            })
+            .AsyncVia(JobEventsInvoker_)
+            .Run());
+        
+        YT_LOG_FATAL_IF(!jobEventsPerOperationIdOrError.IsOK(), jobEventsPerOperationIdOrError, "Failed to parse scheduler message");
+
+        auto jobEventsPerOperationId = std::move(jobEventsPerOperationIdOrError.Value());
         
         for (auto& [operationId, events] : jobEventsPerOperationId) {
             auto operation = this->FindOperation(operationId);
