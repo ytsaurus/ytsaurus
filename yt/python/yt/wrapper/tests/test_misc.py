@@ -1234,6 +1234,15 @@ class TestRunCommandWithLock(object):
         if yt.config["backend"] == "native":
             pytest.skip()
 
+        def exited_with_code(process, expected_code):
+            returncode = process.poll()
+            print("Process returncode:", returncode, file=sys.stderr)
+            if returncode is None:
+                return False
+            if returncode == expected_code:
+                return True
+            assert True, "Exited with unexpected code"
+
         procA = None
         procB = None
 
@@ -1245,8 +1254,8 @@ class TestRunCommandWithLock(object):
                     "run-command-with-lock", "//tmp/lock_node", "sleep", "1000"
                 ],
                 env=env,
-                stdout=sys.stderr,
-                stderr=sys.stderr)
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
 
             time.sleep(1)
             assert procA.poll() is None
@@ -1261,10 +1270,10 @@ class TestRunCommandWithLock(object):
                     "--conflict-exit-code", "7",
                 ],
                 env=env,
-                stdout=sys.stderr,
-                stderr=sys.stderr)
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE)
 
-            wait(lambda: procB.poll() == 7)
+            wait(lambda: exited_with_code(procB, 7))
         finally:
             if procA is not None:
                 procA.kill()
