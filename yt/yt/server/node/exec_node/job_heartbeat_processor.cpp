@@ -90,6 +90,8 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
     ReplaceCpuWithVCpu(*request->mutable_resource_limits());
     ReplaceCpuWithVCpu(*request->mutable_resource_usage());
 
+    request->set_supports_interruption_logic(true);
+
     auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
     if (execNodeBootstrap->GetSlotManager()->HasFatalAlert()) {
         // NB(psushin): if slot manager is disabled with fatal alert we might have experienced an unrecoverable failure (e.g. hanging Porto)
@@ -192,8 +194,6 @@ void TSchedulerJobHeartbeatProcessor::PrepareRequest(
         }
         ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
     }
-
-    request->set_supports_interruption_logic(true);
 
     if (shouldSendControllerAgentHeartbeatsOutOfBand) {
         Bootstrap_
