@@ -26,8 +26,9 @@ object E2ETestPlugin extends AutoPlugin {
     lazy val e2eScalaTestImpl = taskKey[Unit]("Run scala e2e tests process")
     lazy val e2ePythonTestImpl = taskKey[Unit]("Run python e2e tests process")
 
-    def clientVersionKey: SettingKey[String] = ThisBuild / spytClientVersion
-    def pythonClientVersionKey: SettingKey[String] = ThisBuild / spytClientPythonVersion
+    lazy val e2eClientVersion: TaskKey[String] = taskKey[String]("Client version for e2e tests, " +
+      "default is current client version")
+    lazy val e2ePythonClientVersion: SettingKey[String] = ThisBuild / spytClientPythonVersion
   }
 
   import YtPublishPlugin.autoImport._
@@ -39,6 +40,9 @@ object E2ETestPlugin extends AutoPlugin {
     e2ePythonTest := Def.sequential(publishYt, e2ePythonTestImpl).value,
     e2eTest := Def.sequential(publishYt, sparkAddCustomFiles, e2eScalaTestImpl, e2ePythonTestImpl).value,
     e2eScalaTestImpl := (Test / test).value,
+    e2eClientVersion := {
+      Option(System.getProperty("clientVersion")).getOrElse((ThisBuild / spytClientVersion).value)
+    },
     e2ePythonTestImpl := {
       val command = "tox"
       val workingDirectory = new File(".")
@@ -48,8 +52,8 @@ object E2ETestPlugin extends AutoPlugin {
         "e2eTestHomePath" -> sparkYtE2ETestPath,
         "e2eTestUDirPath" -> e2eTestUDirPath,
         "proxies" -> onlyYtProxy,
-        "clientVersion" -> clientVersionKey.value,
-        "pythonClientVersion" -> pythonClientVersionKey.value) ! s.log
+        "clientVersion" -> e2eClientVersion.value,
+        "pythonClientVersion" -> e2ePythonClientVersion.value) ! s.log
       if (exitCode != 0) throw new IllegalStateException(s"Exit code is $exitCode")
     }
   )
