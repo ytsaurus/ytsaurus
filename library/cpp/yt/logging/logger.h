@@ -160,6 +160,7 @@ public:
 
     TLogger() = default;
     TLogger(const TLogger& other) = default;
+    TLogger& operator=(const TLogger& other) = default;
 
     TLogger(ILogManager* logManager, TStringBuf categoryName);
     explicit TLogger(TStringBuf categoryName);
