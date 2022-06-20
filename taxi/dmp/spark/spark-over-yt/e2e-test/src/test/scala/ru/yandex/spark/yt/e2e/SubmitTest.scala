@@ -9,7 +9,6 @@ import ru.yandex.spark.yt.wrapper.client.DefaultRpcCredentials
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import java.io.{BufferedReader, InputStreamReader}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.language.postfixOps
@@ -20,6 +19,10 @@ class SubmitTest extends FlatSpec with Matchers with E2EYtClient {
   import SubmitTest._
 
   val jobs = Seq(
+    E2ETestCase("read_yt_table", 30 seconds, Seq("id"))
+      .withConf("spark.hadoop.fs.defaultFS", "yt:///"),
+    E2ETestCase("read_csv", 30 seconds, Seq("id"))
+      .withConf("spark.hadoop.fs.defaultFS", "yt:///"),
     E2ETestCase("link_eda_user_appsession_request_id", 80 seconds, Seq("appsession_id")),
     E2ETestCase("link_eda_user_appsession_request_id_python2", 70 seconds, Seq("appsession_id"),
       customInputPath = Some(s"${SubmitTest.basePath}/link_eda_user_appsession_request_id/input"))
